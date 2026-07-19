@@ -97,9 +97,10 @@
 
 /* Selection */
 .diff-code::selection,
-.diff-code *::selection {
-  background-color: var(--accent);
-  color: var(--accent-foreground);
+.diff-code *::selection,
+.diff-gutter::selection,
+.diff-gutter *::selection {
+  background-color: color-mix(in srgb, var(--primary) 30%, transparent);
 }
 
 /* Style for diff widgets containing comments */
@@ -117,16 +118,16 @@
 }
 
 /* Hover plus button in the gutter */
-.diff-row {
+.diff-line {
   position: relative;
 }
 
-.diff-row:hover .diff-gutter {
+.diff-line:hover .diff-gutter {
   position: relative;
   cursor: pointer;
 }
 
-.diff-row .diff-gutter::after {
+.diff-line .diff-gutter::after {
   content: "";
   position: absolute;
   left: 50%;
@@ -134,8 +135,8 @@
   transform: translate(-50%, -50%) scale(0.8);
   width: 20px;
   height: 20px;
-  background-color: #0969da;
-  color: #ffffff;
+  background-color: var(--primary);
+  color: var(--primary-foreground, #ffffff);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -151,7 +152,8 @@
   z-index: 10;
 }
 
-.diff-row .diff-gutter:hover::after {
+.diff-line .diff-gutter:hover::after {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
 }
+
