@@ -998,6 +998,12 @@ internal class JobLauncher
 
         while (queue.Count > 0)
         {
+            if (ctx.Job.CancellationRequested)
+            {
+                ctx.Job.EnqueueSystemOutput("[Workflow Engine] Workflow execution cancelled by user.");
+                return;
+            }
+
             var step = queue.Dequeue();
             if (visited.Contains(step.Id)) continue;
             visited.Add(step.Id);
@@ -1094,7 +1100,23 @@ internal class JobLauncher
 
                     while (true)
                     {
-                        await Task.Delay(1500);
+                        if (ctx.Job.CancellationRequested)
+                        {
+                            ctx.Job.EnqueueSystemOutput("[Workflow Engine] Workflow execution cancelled by user. Stopping nested translation agent job...");
+                            _jobService.StopJob(agentJobId);
+                            return;
+                        }
+
+                        try
+                        {
+                            var token = ctx.Job.TimeoutCts?.Token ?? CancellationToken.None;
+                            await Task.Delay(1500, token);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            // Wake up on cancellation
+                        }
+
                         var agentJob = _jobService.GetJob(agentJobId);
                         if (agentJob == null)
                         {
@@ -1176,7 +1198,23 @@ internal class JobLauncher
 
                 while (true)
                 {
-                    await Task.Delay(1500);
+                    if (ctx.Job.CancellationRequested)
+                    {
+                        ctx.Job.EnqueueSystemOutput("[Workflow Engine] Workflow execution cancelled by user. Stopping nested agent job...");
+                        _jobService.StopJob(agentJobId);
+                        return;
+                    }
+
+                    try
+                    {
+                        var token = ctx.Job.TimeoutCts?.Token ?? CancellationToken.None;
+                        await Task.Delay(1500, token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Wake up on cancellation
+                    }
+
                     var agentJob = _jobService.GetJob(agentJobId);
                     if (agentJob == null)
                     {
