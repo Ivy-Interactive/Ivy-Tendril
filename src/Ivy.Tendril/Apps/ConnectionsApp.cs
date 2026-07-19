@@ -7,6 +7,7 @@ using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Services.Connections;
 
 namespace Ivy.Tendril.Apps;
 
@@ -23,6 +24,7 @@ public class ConnectionsApp : ViewBase
         var navigator = UseNavigation();
         var config = UseService<IConfigService>();
         var client = UseService<IClientProvider>();
+        var providers = UseService<IEnumerable<IConnectionProvider>>();
 
         var connections = UseState(db.GetConnections());
         var testStatuses = UseState(new Dictionary<string, string>());
@@ -34,6 +36,7 @@ public class ConnectionsApp : ViewBase
         var newName = UseState("");
         var newConfig = UseState("");
         var newPermissions = UseState("*");
+        var customProviderType = UseState("");
         var formError = UseState<string?>(null);
         var isSaving = UseState(false);
 
@@ -145,6 +148,15 @@ public class ConnectionsApp : ViewBase
                     return;
                 }
 
+                if (!string.Equals(conn.Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (db.GetConnectionByName(name) != null)
+                    {
+                        editError.Value = $"A connection with name '{name}' already exists.";
+                        return;
+                    }
+                }
+
                 isEditSaving.Value = true;
                 editError.Value = null;
 
@@ -153,7 +165,23 @@ public class ConnectionsApp : ViewBase
                     var configJson = configText;
                     if (!configText.StartsWith('{'))
                     {
-                        configJson = System.Text.Json.JsonSerializer.Serialize(new { Token = configText });
+                        try
+                        {
+                            var deserializer = new YamlDotNet.Serialization.DeserializerBuilder().Build();
+                            var dict = deserializer.Deserialize<Dictionary<string, object>>(configText);
+                            if (dict != null && dict.Count > 0)
+                            {
+                                configJson = System.Text.Json.JsonSerializer.Serialize(dict);
+                            }
+                            else
+                            {
+                                configJson = System.Text.Json.JsonSerializer.Serialize(new { Token = configText });
+                            }
+                        }
+                        catch
+                        {
+                            configJson = System.Text.Json.JsonSerializer.Serialize(new { Token = configText });
+                        }
                     }
 
                     var connItem = new ConnectionItem
@@ -263,9 +291,23 @@ public class ConnectionsApp : ViewBase
                 formError.Value = "Name is required.";
                 return;
             }
+            if (provider == "Custom")
+            {
+                provider = (customProviderType.Value ?? "").Trim();
+                if (string.IsNullOrWhiteSpace(provider))
+                {
+                    formError.Value = "Provider Type is required for custom connections.";
+                    return;
+                }
+            }
             if (string.IsNullOrWhiteSpace(configText))
             {
                 formError.Value = "Token/Secret is required.";
+                return;
+            }
+            if (db.GetConnectionByName(name) != null)
+            {
+                formError.Value = $"A connection with name '{name}' already exists.";
                 return;
             }
 
@@ -277,7 +319,23 @@ public class ConnectionsApp : ViewBase
                 var configJson = configText;
                 if (!configText.StartsWith('{'))
                 {
-                    configJson = System.Text.Json.JsonSerializer.Serialize(new { Token = configText });
+                    try
+                    {
+                        var deserializer = new YamlDotNet.Serialization.DeserializerBuilder().Build();
+                        var dict = deserializer.Deserialize<Dictionary<string, object>>(configText);
+                        if (dict != null && dict.Count > 0)
+                        {
+                            configJson = System.Text.Json.JsonSerializer.Serialize(dict);
+                        }
+                        else
+                        {
+                            configJson = System.Text.Json.JsonSerializer.Serialize(new { Token = configText });
+                        }
+                    }
+                    catch
+                    {
+                        configJson = System.Text.Json.JsonSerializer.Serialize(new { Token = configText });
+                    }
                 }
 
                 var connItem = new ConnectionItem
@@ -296,6 +354,7 @@ public class ConnectionsApp : ViewBase
                 newName.Value = "";
                 newConfig.Value = "";
                 newPermissions.Value = "*";
+                customProviderType.Value = "";
                 selectedSection.Value = TagMyConnections;
             }
             catch (Exception ex)
@@ -448,7 +507,8 @@ public class ConnectionsApp : ViewBase
                     };
 
                     var providerIcon = conn.Provider.Equals("GitHub", StringComparison.OrdinalIgnoreCase) ? Icons.Github
-                        : conn.Provider.Equals("Slack", StringComparison.OrdinalIgnoreCase) ? Icons.MessageSquare
+                        : conn.Provider.Equals("Slack", StringComparison.OrdinalIgnoreCase) ? Icons.Slack
+                        : conn.Provider.Equals("Discord", StringComparison.OrdinalIgnoreCase) ? Icons.Discord
                         : Icons.Plug;
 
                     grid = grid 
@@ -458,13 +518,13 @@ public class ConnectionsApp : ViewBase
                                  | (Layout.Horizontal().AlignContent(Align.Left)
                                     | providerIcon.ToIcon().Color(Colors.Primary)
                                     | Layout.Vertical()
-                                      | Text.H4(conn.Name).Bold()
+                                      | Text.H4(conn.Name).Bold().NoWrap().Overflow(Overflow.Ellipsis)
                                       | Text.Muted(conn.Provider).Small()
                                    )
                                  | statusBadge
                                | Text.P($"Permissions: {conn.Permissions}").Small().Muted()
                                | (status != null && status != "Testing..." && status != "Success" ? Text.Danger(status).Small() : null)
-                               | Layout.Horizontal().AlignContent(Align.Left)
+                               | (Layout.Horizontal().AlignContent(Align.Left)
                                  | new Button("Test").Small().OnClick(() => _ = TestConnection(connName))
                                  | new Button("Edit").Small().OnClick(() =>
                                    {
@@ -476,6 +536,7 @@ public class ConnectionsApp : ViewBase
                                        triggerEdit(conn);
                                    })
                                  | new Button("Delete").Small().Variant(ButtonVariant.Destructive).OnClick(() => DeleteConnection(connName))
+                                 )
                           );
                 }
 
@@ -488,17 +549,24 @@ public class ConnectionsApp : ViewBase
 
         // --- VIEW 2: ADD INTEGRATION (CATALOG & DYNAMIC FORM) ---
 
-        var availableProviders = new[]
+        var availableProviders = providers.Select(p =>
         {
-            (Provider: "Slack", Description: "Connect Slack to post execution plans, update status, and receive alerts.", Icon: Icons.MessageSquare),
-            (Provider: "Discord", Description: "Post messages to Discord channels to notify your team.", Icon: Icons.MessageSquare),
-            (Provider: "GitHub", Description: "Allow agents to securely open pull requests and comment on PRs.", Icon: Icons.Github)
-        };
+            Icons icon;
+            if (string.Equals(p.Icon, "Slack", StringComparison.OrdinalIgnoreCase))
+                icon = Icons.Slack;
+            else if (string.Equals(p.Icon, "Discord", StringComparison.OrdinalIgnoreCase))
+                icon = Icons.Discord;
+            else if (string.Equals(p.Icon, "Github", StringComparison.OrdinalIgnoreCase))
+                icon = Icons.Github;
+            else
+                icon = Icons.Plug;
 
-        var existingProviders = allConns.Select(c => c.Provider).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return (Provider: p.ProviderName ?? "", Description: p.Description ?? "", Icon: icon);
+        }).ToList();
+
+        availableProviders.Add((Provider: "Custom", Description: "Configure a custom connection with custom secrets and configuration.", Icon: Icons.Plug));
 
         var filteredProviders = availableProviders
-            .Where(p => !existingProviders.Contains(p.Provider))
             .Where(p => string.IsNullOrEmpty(catalogSearchQuery.Value)
                         || p.Provider.Contains(catalogSearchQuery.Value, StringComparison.OrdinalIgnoreCase)
                         || p.Description.Contains(catalogSearchQuery.Value, StringComparison.OrdinalIgnoreCase))
@@ -521,6 +589,7 @@ public class ConnectionsApp : ViewBase
                            formProvider.Value = provider;
                            newName.Value = "";
                            newConfig.Value = "";
+                           customProviderType.Value = "";
                            newPermissions.Value = provider switch
                            {
                                "Slack" => "send-message, add-reaction",
@@ -570,7 +639,7 @@ public class ConnectionsApp : ViewBase
             "Slack" => "OAuth Bot Token",
             "Discord" => "Bot Token",
             "GitHub" => "Personal Access Token (PAT)",
-            _ => "API Token / Secret Key"
+            _ => "API Token / Secrets (YAML/JSON or raw value)"
         };
 
         var tokenPlaceholder = formProvider.Value switch
@@ -578,7 +647,7 @@ public class ConnectionsApp : ViewBase
             "Slack" => "starts with xoxb-",
             "Discord" => "Bot token from Discord Developer Portal",
             "GitHub" => "starts with ghp_ or github_pat_",
-            _ => "token value"
+            _ => "token: value\nsecret: value"
         };
 
         var permissionsHelp = formProvider.Value switch
@@ -594,15 +663,29 @@ public class ConnectionsApp : ViewBase
             .Label("Connection Name")
             .Required();
 
-        var tokenField = newConfig.ToTextInput(tokenPlaceholder)
-            .WithField()
-            .Label(tokenLabel)
-            .Required();
+        var tokenField = formProvider.Value == "Custom"
+            ? (object)newConfig.ToTextareaInput()
+                .Placeholder(tokenPlaceholder)
+                .Rows(4)
+                .WithField()
+                .Label(tokenLabel)
+                .Required()
+            : newConfig.ToTextInput(tokenPlaceholder)
+                .WithField()
+                .Label(tokenLabel)
+                .Required();
 
         var permissionsField = newPermissions.ToTextInput("e.g. *")
             .WithField()
             .Label("Permissions")
             .Description(permissionsHelp);
+
+        var customProviderField = formProvider.Value == "Custom"
+            ? (object)customProviderType.ToTextInput("e.g. Linear")
+                .WithField()
+                .Label("Provider Type")
+                .Required()
+            : new Fragment();
 
         var secretsInfo = formProvider.Value switch
         {
@@ -642,6 +725,7 @@ public class ConnectionsApp : ViewBase
                  | new Button("Back").Variant(ButtonVariant.Outline).OnClick(() => activeStep.Value = "catalog")
                  | Text.H3($"Configure {formProvider.Value}").Bold()
                | new Separator()
+               | customProviderField
                | nameField
                | tokenField
                | secretsInfo

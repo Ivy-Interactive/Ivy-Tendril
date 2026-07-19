@@ -16,20 +16,23 @@ namespace Ivy.Tendril.Test;
 
 public class ConnectionTests : IDisposable
 {
+    private readonly string _testHome;
     private readonly string _dbPath;
     private readonly PlanDatabaseService _db;
 
     public ConnectionTests()
     {
-        _dbPath = Path.Combine(Path.GetTempPath(), $"tendril_test_{Guid.NewGuid():N}.db");
-        _db = new PlanDatabaseService(_dbPath, NullLogger<PlanDatabaseService>.Instance);
+        _testHome = Path.Combine(Path.GetTempPath(), $"tendril_test_home_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_testHome);
+        _dbPath = Path.Combine(_testHome, "tendril.db");
+        _db = new PlanDatabaseService(_dbPath, NullLogger<PlanDatabaseService>.Instance, _testHome);
     }
 
     public void Dispose()
     {
         _db.Dispose();
-        if (File.Exists(_dbPath))
-            File.Delete(_dbPath);
+        if (Directory.Exists(_testHome))
+            Directory.Delete(_testHome, true);
     }
 
     [Fact]
@@ -160,6 +163,106 @@ public class ConnectionTests : IDisposable
         var (success, result) = await executor.ExecuteActionAsync(conn, "send-message", "{\"channel\":\"general\",\"text\":\"hello\"}");
         Assert.True(success);
         Assert.Contains("C12345", result);
+    }
+
+    [Fact]
+    public void Should_Load_Yaml_Connection_With_Custom_Properties()
+    {
+        var connDir = Path.Combine(_testHome, "connections");
+        Directory.CreateDirectory(connDir);
+        var yamlPath = Path.Combine(connDir, "custom-conn.yaml");
+        var yamlContent = """
+            name: custom-conn
+            provider: CustomSystem
+            permissions: "read,write"
+            custom_secret: "super-secret-value"
+            another_param: 42
+            """;
+        File.WriteAllText(yamlPath, yamlContent);
+
+        var retrieved = _db.GetConnectionByName("custom-conn");
+        Assert.NotNull(retrieved);
+        Assert.Equal("custom-conn", retrieved.Name);
+        Assert.Equal("CustomSystem", retrieved.Provider);
+        Assert.Equal("read,write", retrieved.Permissions);
+        
+        Assert.Contains("custom_secret", retrieved.ConnectionString);
+        Assert.Contains("super-secret-value", retrieved.ConnectionString);
+        Assert.Contains("another_param", retrieved.ConnectionString);
+        Assert.Contains("42", retrieved.ConnectionString);
+    }
+
+    [Fact]
+    public void Should_Load_Connection_From_Subfolder()
+    {
+        var connDir = Path.Combine(_testHome, "connections", "sub-slack");
+        Directory.CreateDirectory(connDir);
+        var yamlPath = Path.Combine(connDir, "connection.yaml");
+        var yamlContent = """
+            provider: Slack
+            permissions: "*"
+            token: "xoxb-sub-token"
+            """;
+        File.WriteAllText(yamlPath, yamlContent);
+
+        var retrieved = _db.GetConnectionByName("sub-slack");
+        Assert.NotNull(retrieved);
+        Assert.Equal("sub-slack", retrieved.Name);
+        Assert.Equal("Slack", retrieved.Provider);
+        Assert.Contains("xoxb-sub-token", retrieved.ConnectionString);
+    }
+
+    [Fact]
+    public void Should_Migrate_Existing_Sqlite_Connections_To_Files()
+    {
+        var tempHome = Path.Combine(Path.GetTempPath(), $"migration_test_home_{Guid.NewGuid():N}");
+        var tempDbPath = Path.Combine(tempHome, "tendril.db");
+        Directory.CreateDirectory(tempHome);
+
+        try
+        {
+            using (var dbForMigration = new PlanDatabaseService(tempDbPath, NullLogger<PlanDatabaseService>.Instance, tempHome))
+            {
+                Assert.Empty(dbForMigration.GetConnections());
+            }
+
+            using (var sqliteConn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={tempDbPath}"))
+            {
+                sqliteConn.Open();
+                using var cmd = sqliteConn.CreateCommand();
+                cmd.CommandText = """
+                    INSERT INTO Connections (Name, Provider, ConnectionString, Permissions, Created, Updated)
+                    VALUES ('legacy-slack', 'Slack', '{"Token":"xoxb-legacy"}', '*', '2026-07-19T13:30:00Z', '2026-07-19T13:30:00Z')
+                    """;
+                cmd.ExecuteNonQuery();
+            }
+
+            using (var dbAfterMigration = new PlanDatabaseService(tempDbPath, NullLogger<PlanDatabaseService>.Instance, tempHome))
+            {
+                using (var sqliteConn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={tempDbPath}"))
+                {
+                    sqliteConn.Open();
+                    using var checkCmd = sqliteConn.CreateCommand();
+                    checkCmd.CommandText = "SELECT COUNT(*) FROM Connections";
+                    var count = Convert.ToInt32(checkCmd.ExecuteScalar());
+                    Assert.Equal(0, count);
+                }
+
+                var yamlPath = Path.Combine(tempHome, "connections", "legacy-slack.yaml");
+                Assert.True(File.Exists(yamlPath));
+
+                var retrieved = dbAfterMigration.GetConnectionByName("legacy-slack");
+                Assert.NotNull(retrieved);
+                Assert.Equal("legacy-slack", retrieved.Name);
+                Assert.Equal("Slack", retrieved.Provider);
+                Assert.Contains("xoxb-legacy", retrieved.ConnectionString);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(tempHome))
+                Directory.Delete(tempHome, true);
+        }
     }
 
     private class MockHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> responseFunc) : HttpMessageHandler

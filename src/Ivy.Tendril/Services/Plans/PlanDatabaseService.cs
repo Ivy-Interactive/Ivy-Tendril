@@ -1,3 +1,4 @@
+using System.IO;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -21,6 +22,8 @@ public class PlanDatabaseService : IPlanDatabaseService
     private readonly ILogger<PlanDatabaseService> _logger;
     private readonly ReaderWriterLockSlim _lock = new();
     private readonly DashboardRepository _dashboardRepository;
+    private readonly string _tendrilHome;
+    private readonly string _connectionsPath;
     private bool _disposed;
 
     private sealed class ReadLockHandle : IDisposable
@@ -45,9 +48,12 @@ public class PlanDatabaseService : IPlanDatabaseService
         public void Dispose() => _lock.ExitWriteLock();
     }
 
-    public PlanDatabaseService(string databasePath, ILogger<PlanDatabaseService> logger)
+    public PlanDatabaseService(string databasePath, ILogger<PlanDatabaseService> logger, string? tendrilHome = null)
     {
         _logger = logger;
+        _tendrilHome = tendrilHome ?? Path.GetDirectoryName(databasePath) ?? "";
+        _connectionsPath = Path.Combine(_tendrilHome, "connections");
+
         var directory = Path.GetDirectoryName(databasePath);
         if (!string.IsNullOrEmpty(directory))
             Directory.CreateDirectory(directory);
@@ -95,6 +101,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         var migrator = new DatabaseMigrator(_connection);
         migrator.ApplyMigrations();
         _logger.LogInformation("Database migrations applied");
+
+        MigrateConnectionsFromDbToFiles();
 
         _dashboardRepository = new DashboardRepository(_connection, _lock);
     }
@@ -1437,18 +1445,12 @@ public class PlanDatabaseService : IPlanDatabaseService
     {
         using (new WriteLockHandle(_lock))
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = """
-                              INSERT OR REPLACE INTO Connections (Name, Provider, ConnectionString, Permissions, Created, Updated)
-                              VALUES (@name, @provider, @connectionString, @permissions, @created, @updated)
-                              """;
-            cmd.Parameters.AddWithValue("@name", connection.Name);
-            cmd.Parameters.AddWithValue("@provider", connection.Provider);
-            cmd.Parameters.AddWithValue("@connectionString", connection.ConnectionString);
-            cmd.Parameters.AddWithValue("@permissions", connection.Permissions);
-            cmd.Parameters.AddWithValue("@created", connection.Created.ToString("O", CultureInfo.InvariantCulture));
-            cmd.Parameters.AddWithValue("@updated", connection.Updated.ToString("O", CultureInfo.InvariantCulture));
-            cmd.ExecuteNonQuery();
+            if (!Directory.Exists(_connectionsPath))
+            {
+                Directory.CreateDirectory(_connectionsPath);
+            }
+
+            WriteConnectionToFileInternal(connection);
         }
     }
 
@@ -1456,7 +1458,54 @@ public class PlanDatabaseService : IPlanDatabaseService
     {
         using (new ReadLockHandle(_lock))
         {
-            return ReadList("SELECT * FROM Connections ORDER BY Name ASC", MapConnectionRow);
+            var list = new List<ConnectionItem>();
+            if (!Directory.Exists(_connectionsPath))
+            {
+                return list;
+            }
+
+            // 1. Scan files directly under connectionsPath
+            foreach (var file in Directory.GetFiles(_connectionsPath))
+            {
+                var ext = Path.GetExtension(file);
+                if (string.Equals(ext, ".yaml", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ext, ".yml", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(ext, ".json", StringComparison.OrdinalIgnoreCase))
+                {
+                    var conn = ReadConnectionFromFileInternal(file, Path.GetFileNameWithoutExtension(file));
+                    if (conn != null)
+                    {
+                        list.Add(conn);
+                    }
+                }
+            }
+
+            // 2. Scan subdirectories under connectionsPath
+            foreach (var dir in Directory.GetDirectories(_connectionsPath))
+            {
+                var dirName = Path.GetFileName(dir);
+                foreach (var file in Directory.GetFiles(dir))
+                {
+                    var name = Path.GetFileNameWithoutExtension(file);
+                    if (string.Equals(name, "connection", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var ext = Path.GetExtension(file);
+                        if (string.Equals(ext, ".yaml", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(ext, ".yml", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(ext, ".json", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var conn = ReadConnectionFromFileInternal(file, dirName);
+                            if (conn != null)
+                            {
+                                list.Add(conn);
+                            }
+                            break; // only process one connection file per subdirectory
+                        }
+                    }
+                }
+            }
+
+            return list.OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ToList();
         }
     }
 
@@ -1464,9 +1513,43 @@ public class PlanDatabaseService : IPlanDatabaseService
     {
         using (new ReadLockHandle(_lock))
         {
-            return ReadList("SELECT * FROM Connections WHERE Name = @name LIMIT 1",
-                MapConnectionRow,
-                new SqliteParameter("@name", name)).FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(name) || !Directory.Exists(_connectionsPath))
+            {
+                return null;
+            }
+
+            // Check if directory exists
+            var dirPath = Path.Combine(_connectionsPath, name);
+            if (Directory.Exists(dirPath))
+            {
+                foreach (var file in Directory.GetFiles(dirPath))
+                {
+                    var fileName = Path.GetFileNameWithoutExtension(file);
+                    if (string.Equals(fileName, "connection", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var ext = Path.GetExtension(file);
+                        if (string.Equals(ext, ".yaml", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(ext, ".yml", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(ext, ".json", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return ReadConnectionFromFileInternal(file, name);
+                        }
+                    }
+                }
+            }
+
+            // Check if file exists directly
+            var extensions = new[] { ".yaml", ".yml", ".json" };
+            foreach (var ext in extensions)
+            {
+                var filePath = Path.Combine(_connectionsPath, name + ext);
+                if (File.Exists(filePath))
+                {
+                    return ReadConnectionFromFileInternal(filePath, name);
+                }
+            }
+
+            return null;
         }
     }
 
@@ -1474,10 +1557,28 @@ public class PlanDatabaseService : IPlanDatabaseService
     {
         using (new WriteLockHandle(_lock))
         {
-            using var cmd = _connection.CreateCommand();
-            cmd.CommandText = "DELETE FROM Connections WHERE Name = @name";
-            cmd.Parameters.AddWithValue("@name", name);
-            cmd.ExecuteNonQuery();
+            if (string.IsNullOrWhiteSpace(name) || !Directory.Exists(_connectionsPath))
+            {
+                return;
+            }
+
+            // 1. Delete if it's a subdirectory
+            var dirPath = Path.Combine(_connectionsPath, name);
+            if (Directory.Exists(dirPath))
+            {
+                Directory.Delete(dirPath, true);
+            }
+
+            // 2. Delete if it's a file
+            var extensions = new[] { ".yaml", ".yml", ".json" };
+            foreach (var ext in extensions)
+            {
+                var filePath = Path.Combine(_connectionsPath, name + ext);
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
         }
     }
 
@@ -1493,6 +1594,251 @@ public class PlanDatabaseService : IPlanDatabaseService
             Created = DateTime.Parse(reader.GetString(reader.GetOrdinal("Created")), null, DateTimeStyles.RoundtripKind),
             Updated = DateTime.Parse(reader.GetString(reader.GetOrdinal("Updated")), null, DateTimeStyles.RoundtripKind)
         };
+    }
+
+    private void MigrateConnectionsFromDbToFiles()
+    {
+        try
+        {
+            var tableExists = false;
+            using (var checkCmd = _connection.CreateCommand())
+            {
+                checkCmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='Connections'";
+                tableExists = checkCmd.ExecuteScalar() != null;
+            }
+
+            if (!tableExists) return;
+
+            var connections = new List<ConnectionItem>();
+            using (var cmd = _connection.CreateCommand())
+            {
+                cmd.CommandText = "SELECT * FROM Connections";
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    connections.Add(MapConnectionRow(reader));
+                }
+            }
+
+            if (connections.Count > 0)
+            {
+                _logger.LogInformation("Found {Count} existing connections in SQLite, migrating to files...", connections.Count);
+                if (!Directory.Exists(_connectionsPath))
+                {
+                    Directory.CreateDirectory(_connectionsPath);
+                }
+
+                foreach (var conn in connections)
+                {
+                    var yamlPath = Path.Combine(_connectionsPath, $"{conn.Name}.yaml");
+                    var dirPath = Path.Combine(_connectionsPath, conn.Name);
+                    if (!File.Exists(yamlPath) && !Directory.Exists(dirPath))
+                    {
+                        WriteConnectionToFileInternal(conn);
+                        _logger.LogInformation("Migrated connection '{Name}' to file", conn.Name);
+                    }
+                }
+
+                using (var deleteCmd = _connection.CreateCommand())
+                {
+                    deleteCmd.CommandText = "DELETE FROM Connections";
+                    deleteCmd.ExecuteNonQuery();
+                }
+                _logger.LogInformation("Successfully migrated connections from SQLite to files");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to migrate connections from SQLite to files");
+        }
+    }
+
+    private void WriteConnectionToFileInternal(ConnectionItem connection)
+    {
+        var dict = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["name"] = connection.Name,
+            ["provider"] = connection.Provider,
+            ["permissions"] = connection.Permissions,
+            ["created"] = connection.Created.ToString("O", CultureInfo.InvariantCulture),
+            ["updated"] = connection.Updated.ToString("O", CultureInfo.InvariantCulture)
+        };
+
+        var connStr = connection.ConnectionString ?? "";
+        if (connStr.TrimStart().StartsWith('{'))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(connStr);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var prop in doc.RootElement.EnumerateObject())
+                    {
+                        var value = prop.Value.ValueKind switch
+                        {
+                            JsonValueKind.String => (object)(prop.Value.GetString() ?? ""),
+                            JsonValueKind.Number => prop.Value.GetDouble(),
+                            JsonValueKind.True => true,
+                            JsonValueKind.False => false,
+                            JsonValueKind.Null => null!,
+                            _ => prop.Value.GetRawText()
+                        };
+
+                        if (value != null)
+                        {
+                            var key = prop.Name;
+                            if (string.Equals(key, "name", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(key, "provider", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(key, "permissions", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(key, "created", StringComparison.OrdinalIgnoreCase) ||
+                                string.Equals(key, "updated", StringComparison.OrdinalIgnoreCase))
+                            {
+                                key = "config_" + key;
+                            }
+                            dict[key] = value;
+                        }
+                    }
+                }
+                else
+                {
+                    dict["connectionString"] = connStr;
+                }
+            }
+            catch
+            {
+                dict["connectionString"] = connStr;
+            }
+        }
+        else
+        {
+            dict["connectionString"] = connStr;
+        }
+
+        var serializer = new YamlDotNet.Serialization.SerializerBuilder()
+            .WithNamingConvention(YamlDotNet.Serialization.NamingConventions.CamelCaseNamingConvention.Instance)
+            .Build();
+
+        var yaml = serializer.Serialize(dict);
+
+        var dirPath = Path.Combine(_connectionsPath, connection.Name);
+        var yamlPath = Directory.Exists(dirPath)
+            ? Path.Combine(dirPath, "connection.yaml")
+            : Path.Combine(_connectionsPath, $"{connection.Name}.yaml");
+
+        var fileDir = Path.GetDirectoryName(yamlPath);
+        if (!string.IsNullOrEmpty(fileDir))
+        {
+            Directory.CreateDirectory(fileDir);
+        }
+
+        File.WriteAllText(yamlPath, yaml);
+    }
+
+    private ConnectionItem? ReadConnectionFromFileInternal(string filePath, string fallbackName)
+    {
+        try
+        {
+            var content = File.ReadAllText(filePath);
+            var deserializer = new YamlDotNet.Serialization.DeserializerBuilder().Build();
+            var dict = deserializer.Deserialize<Dictionary<string, object>>(content);
+            if (dict == null) return null;
+
+            T? GetValue<T>(string key, T? defaultValue = default)
+            {
+                foreach (var k in dict.Keys)
+                {
+                    if (string.Equals(k, key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var val = dict[k];
+                        if (val == null) return defaultValue;
+                        try
+                        {
+                            if (typeof(T) == typeof(DateTime))
+                            {
+                                if (DateTime.TryParse(val.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dt))
+                                    return (T)(object)dt;
+                                return defaultValue;
+                            }
+                            return (T)Convert.ChangeType(val, typeof(T), CultureInfo.InvariantCulture);
+                        }
+                        catch
+                        {
+                            return defaultValue;
+                        }
+                    }
+                }
+                return defaultValue;
+            }
+
+            var name = GetValue<string>("name") ?? fallbackName;
+            var provider = GetValue<string>("provider") ?? "";
+            var permissions = GetValue<string>("permissions") ?? "*";
+
+            var fileCreated = File.GetCreationTimeUtc(filePath);
+            var fileModified = File.GetLastWriteTimeUtc(filePath);
+
+            var created = GetValue<DateTime>("created", fileCreated);
+            var updated = GetValue<DateTime>("updated", fileModified);
+
+            string connectionString = "";
+
+            var connStrObj = dict.Keys.FirstOrDefault(k => string.Equals(k, "connectionString", StringComparison.OrdinalIgnoreCase));
+            if (connStrObj != null)
+            {
+                var rawVal = dict[connStrObj];
+                if (rawVal is string s)
+                {
+                    connectionString = s;
+                }
+                else if (rawVal != null)
+                {
+                    connectionString = JsonSerializer.Serialize(rawVal);
+                }
+            }
+            else
+            {
+                var customDict = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                foreach (var k in dict.Keys)
+                {
+                    if (string.Equals(k, "name", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(k, "provider", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(k, "permissions", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(k, "created", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(k, "updated", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var targetKey = k;
+                    if (k.StartsWith("config_", StringComparison.OrdinalIgnoreCase))
+                    {
+                        targetKey = k.Substring(7);
+                    }
+                    customDict[targetKey] = dict[k];
+                }
+
+                if (customDict.Count > 0)
+                {
+                    connectionString = JsonSerializer.Serialize(customDict);
+                }
+            }
+
+            return new ConnectionItem
+            {
+                Id = 0,
+                Name = name,
+                Provider = provider,
+                ConnectionString = connectionString,
+                Permissions = permissions,
+                Created = created,
+                Updated = updated
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse connection file: {Path}", filePath);
+            return null;
+        }
     }
 
     public void UpsertWorkflow(WorkflowItem workflow)
