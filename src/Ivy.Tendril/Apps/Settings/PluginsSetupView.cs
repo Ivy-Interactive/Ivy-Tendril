@@ -168,55 +168,103 @@ public class PluginsSetupView : ViewBase
                        return (object)new Expandable(header, content).Open();
                    }).ToArray()))
                | new Separator()
-               | BuildAvailablePluginsSection(availableQuery.Loading, availablePlugins, pluginsDir, client)
-               | new Separator()
-               | Layout.Horizontal().Gap(2)
+               | (Layout.Horizontal().Gap(2)
+                   | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client)
                    | new Button("Open Plugins Folder", onClick: _ =>
                    {
                        PlatformHelper.OpenInFileManager(pluginsDir);
                        return ValueTask.CompletedTask;
-                   }, variant: ButtonVariant.Outline, icon: Icons.FolderOpen);
+                   }, variant: ButtonVariant.Outline, icon: Icons.FolderOpen));
     }
 
-    private static object? BuildAvailablePluginsSection(
-        bool loading, AvailablePlugin[]? plugins, string pluginsDir, IClientProvider client)
+    private class AddPluginsDialogView(
+        bool loading, AvailablePlugin[]? plugins, string pluginsDir, IClientProvider client) : ViewBase
     {
-        if (loading)
-            return Layout.Vertical().Gap(4)
-                   | Text.Block("Available Plugins").Bold()
-                   | Text.Block("Loading...").Muted();
+        public override object Build()
+        {
+            var isOpen = UseState(false);
+            var searchQuery = UseState("");
 
-        if (plugins == null || plugins.Length == 0)
-            return null;
+            var filtered = plugins?
+                .Where(p =>
+                {
+                    if (string.IsNullOrWhiteSpace(searchQuery.Value)) return true;
+                    var query = searchQuery.Value.Trim();
+                    return p.Title.Contains(query, StringComparison.OrdinalIgnoreCase)
+                        || (p.Description?.Contains(query, StringComparison.OrdinalIgnoreCase) ?? false);
+                })
+                .ToArray();
 
-        return Layout.Vertical().Gap(4)
-               | Text.Block("Available Plugins").Bold()
-               | Text.Block("Plugins approved and ready to install.").Muted().Small()
-               | plugins.Select(p =>
-               {
-                   var icon = PluginIconHelper.FromApiResponse(p.IconKind, p.IconValue, p.IconUrl);
-                   var header = Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween)
-                       | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                           | (PluginIconHelper.ToWidget(icon)
-                               ?? (object)new Icon(Icons.Plug).Width(PluginIconHelper.IconSize).Height(PluginIconHelper.IconSize))
-                           | Text.Block(p.Title))
-                       | new Badge(p.Version, BadgeVariant.Secondary);
-                   var content = Layout.Vertical().Gap(2)
-                       | (p.Description is not null ? (object)Text.Block(p.Description).Muted().Small() : null!)
-                       | new Button("Install", onClick: async _ =>
-                       {
-                           try
-                           {
-                               await InstallPluginAsync(p, pluginsDir);
-                               client.Toast($"Installed '{p.Title}'", "Installed");
-                           }
-                           catch (Exception ex)
-                           {
-                               client.Toast($"Failed to install: {ex.Message}", "Error");
-                           }
-                       }, variant: ButtonVariant.Outline, icon: Icons.Download);
-                   return (object)new Expandable(header, content) { Key = p.PackageId };
-               }).ToArray();
+            object? dialogContent;
+            if (loading)
+            {
+                dialogContent = Layout.Vertical().Gap(2).AlignContent(Align.Center)
+                    .Height(Size.Rem(12)).Width(Size.Full())
+                    | new Loading()
+                    | Text.Muted("Loading available plugins...");
+            }
+            else if (filtered == null || filtered.Length == 0)
+            {
+                var message = plugins is { Length: > 0 }
+                    ? "No plugins match your search."
+                    : "No plugins available to install.";
+                dialogContent = Layout.Vertical().AlignContent(Align.Center)
+                    .Height(Size.Rem(8)).Width(Size.Full())
+                    | Text.Muted(message);
+            }
+            else
+            {
+                dialogContent = Layout.Vertical().Scroll(Scroll.Auto)
+                    .Height(Size.Rem(20)).Width(Size.Full()).Gap(2)
+                    | filtered.Select(p =>
+                    {
+                        var icon = PluginIconHelper.FromApiResponse(p.IconKind, p.IconValue, p.IconUrl);
+                        return (object)(Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween).Width(Size.Full())
+                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                                | (PluginIconHelper.ToWidget(icon)
+                                    ?? (object)new Icon(Icons.Plug).Width(PluginIconHelper.IconSize).Height(PluginIconHelper.IconSize))
+                                | (Layout.Vertical().Gap(0)
+                                    | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                                        | Text.Block(p.Title)
+                                        | new Badge(p.Version, BadgeVariant.Secondary))
+                                    | (p.Description is not null
+                                        ? (object)Text.Block(p.Description).Muted().Small()
+                                        : null!)))
+                            | new Button("Install", onClick: async _ =>
+                            {
+                                try
+                                {
+                                    await InstallPluginAsync(p, pluginsDir);
+                                    client.Toast($"Installed '{p.Title}'", "Installed");
+                                }
+                                catch (Exception ex)
+                                {
+                                    client.Toast($"Failed to install: {ex.Message}", "Error");
+                                }
+                            }, variant: ButtonVariant.Outline, icon: Icons.Download));
+                    }).ToArray();
+            }
+
+            return new Fragment(
+                new Button("Add Plugins", _ =>
+                {
+                    isOpen.Value = true;
+                    return ValueTask.CompletedTask;
+                }, variant: ButtonVariant.Outline, icon: Icons.Plus),
+                isOpen.Value ? new Dialog(
+                    _ => { isOpen.Set(false); searchQuery.Set(""); },
+                    new DialogHeader("Add Plugins"),
+                    new DialogBody(
+                        Layout.Vertical().Gap(3)
+                        | searchQuery.ToTextInput().Placeholder("Search plugins...")
+                        | dialogContent
+                    ),
+                    new DialogFooter(
+                        new Button("Done", _ => { isOpen.Value = false; searchQuery.Value = ""; }, variant: ButtonVariant.Outline)
+                    )
+                ).Width(Size.Rem(40)) : null
+            );
+        }
     }
 
     private static async Task InstallPluginAsync(AvailablePlugin plugin, string pluginsDir)
