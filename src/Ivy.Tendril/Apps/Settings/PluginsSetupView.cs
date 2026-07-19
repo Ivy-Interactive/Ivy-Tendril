@@ -83,13 +83,25 @@ public class PluginsSetupView : ViewBase
             .Where(p => !installedPackageIds.Contains(p.PackageId))
             .ToArray();
 
+        var hasAnyPlugins = activePlugins.Count > 0 || unconfiguredPlugins.Count > 0 || unloadedPlugins.Count > 0;
+
+        if (!hasAnyPlugins)
+        {
+            return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+                   | Text.Block("Plugins").Bold()
+                   | (Layout.Vertical().Gap(3).AlignContent(Align.Center).Padding(6)
+                       | new Icon(Icons.Plug, Colors.Muted).Width(Size.Units(10)).Height(Size.Units(10))
+                       | Text.Block("No plugins installed").Bold()
+                       | Text.Block("Get started by adding your first plugin.").Muted().Small()
+                       | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, ButtonVariant.Primary));
+        }
+
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
                | Text.Block("Plugins").Bold()
                | Text.Block("Manage and configure Tendril plugins.").Muted().Small()
-               | new Separator()
                | (activePlugins.Count == 0 && unconfiguredPlugins.Count == 0
-                   ? (object)Text.Block("No plugins loaded.").Muted()
-                   : activePlugins.Select(id =>
+                   ? null!
+                   : (object)activePlugins.Select(id =>
                    {
                        var manifest = pluginManager.GetPluginManifest(id);
                        var schema = pluginManager.GetPluginSchema(id);
@@ -178,7 +190,8 @@ public class PluginsSetupView : ViewBase
     }
 
     private class AddPluginsDialogView(
-        bool loading, AvailablePlugin[]? plugins, string pluginsDir, IClientProvider client) : ViewBase
+        bool loading, AvailablePlugin[]? plugins, string pluginsDir, IClientProvider client,
+        ButtonVariant buttonVariant = ButtonVariant.Outline) : ViewBase
     {
         public override object Build()
         {
@@ -250,7 +263,7 @@ public class PluginsSetupView : ViewBase
                 {
                     isOpen.Value = true;
                     return ValueTask.CompletedTask;
-                }, variant: ButtonVariant.Outline, icon: Icons.Plus),
+                }, variant: buttonVariant, icon: Icons.Plus),
                 isOpen.Value ? new Dialog(
                     _ => { isOpen.Set(false); searchQuery.Set(""); },
                     new DialogHeader("Add Plugins"),

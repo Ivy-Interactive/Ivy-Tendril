@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeDependenciesInPackage</TargetsForTfmSpecificBuildOutput>
     <PackageId>Ivy.Tendril.Plugin.Linear</PackageId>
     <Title>Linear</Title>
     <Authors>Ivy Interactive</Authors>
@@ -29,7 +30,27 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../../Ivy.Tendril.Plugin.Extended.Abstractions/Ivy.Tendril.Plugin.Extended.Abstractions.csproj" />
+    <ProjectReference Include="../../../Ivy.Tendril.Plugin.Extended.Abstractions/Ivy.Tendril.Plugin.Extended.Abstractions.csproj"
+                      PrivateAssets="all"
+                      ExcludeAssets="runtime" />
   </ItemGroup>
+
+  <!-- Bundle dependency DLLs into the NuGet package so the plugin host can load them.
+       Tendril installs plugins by extracting the .nupkg directly — it doesn't run NuGet
+       restore, so transitive dependencies must be physically present in the package.
+       The ProjectReference above uses ExcludeAssets="runtime" so only this plugin's own
+       PackageReference dependencies end up in ReferenceCopyLocalPaths.
+       We further exclude assemblies shared with the host at runtime. -->
+  <Target Name="IncludeDependenciesInPackage" DependsOnTargets="ResolveReferences">
+    <ItemGroup>
+      <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths)" Condition="
+        '%(ReferenceCopyLocalPaths.Extension)' == '.dll'
+        And '%(ReferenceCopyLocalPaths.NuGetPackageId)' != ''
+        And !$([System.String]::new('%(ReferenceCopyLocalPaths.NuGetPackageId)').StartsWith('Ivy'))
+        And !$([System.String]::new('%(ReferenceCopyLocalPaths.NuGetPackageId)').StartsWith('Microsoft.Extensions.DependencyInjection'))
+        And '%(ReferenceCopyLocalPaths.NuGetPackageId)' != 'Microsoft.Extensions.Logging.Abstractions'
+      " />
+    </ItemGroup>
+  </Target>
 
 </Project>
