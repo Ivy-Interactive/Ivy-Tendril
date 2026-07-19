@@ -183,7 +183,7 @@ public class WorkflowTriggerServiceTests
     }
 
     [Fact]
-    public void CheckPlanForEventTriggers_NoPrs_ShouldTriggerImmediately()
+    public void CheckPlanForEventTriggers_NoPrs_ShouldNotTrigger()
     {
         // Arrange
         var db = new FakeDatabase();
@@ -231,12 +231,7 @@ public class WorkflowTriggerServiceTests
         planWatcher.RaisePlansChanged("123-TestPlan");
 
         // Assert
-        Assert.Single(jobService.StartedJobs);
-        var job = jobService.StartedJobs[0] as WorkflowRunArgs;
-        Assert.NotNull(job);
-        Assert.Equal(1, job.WorkflowId);
-        Assert.Equal("default", job.Project);
-        Assert.Contains("plan_completed_and_merged", job.TriggerPayload);
+        Assert.Empty(jobService.StartedJobs);
     }
 
     [Fact]
