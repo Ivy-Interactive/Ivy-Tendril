@@ -22,6 +22,7 @@ public class ChangesTabView(
     Action refreshPlans,
     List<PlanContentHelpers.CommitRow> commitRows,
     Action<string> setOpenCommit,
+    IState<string?> openFile,
     string? projectName = null) : ViewBase
 {
     public int FileCount => changesData?.Files.Count ?? 0;
@@ -101,7 +102,6 @@ public class ChangesTabView(
         foreach (var fileDiff in sortedFileDiffs)
         {
             var path = fileDiff.FilePath;
-            diffsLayout |= Text.Block("").Anchor(path);
             diffsLayout |= new PlanDiffView
             {
                 Diff = fileDiff.Diff,
@@ -133,6 +133,80 @@ public class ChangesTabView(
                 OnDirectEdit = async e => {
                     await HandleDirectEdit(e.Value);
                 },
+                OnViewFile = e => {
+                    var repoPath = changesData?.SourceRepoPath;
+                    if (string.IsNullOrEmpty(repoPath))
+                    {
+                        repoPath = selectedPlan.GetEffectiveRepoPaths(config).FirstOrDefault();
+                    }
+                    if (!string.IsNullOrEmpty(repoPath))
+                    {
+                        var absolutePath = Path.Combine(repoPath, e.Value).Replace('\\', '/');
+                        openFile.Set(absolutePath);
+                    }
+                    return ValueTask.CompletedTask;
+                },
+                OnEditFile = e => {
+                    var repoPath = changesData?.SourceRepoPath;
+                    if (string.IsNullOrEmpty(repoPath))
+                    {
+                        repoPath = selectedPlan.GetEffectiveRepoPaths(config).FirstOrDefault();
+                    }
+                    if (!string.IsNullOrEmpty(repoPath))
+                    {
+                        var absolutePath = Path.Combine(repoPath, e.Value).Replace('\\', '/');
+                        try
+                        {
+                            config.OpenInEditor(absolutePath);
+                        }
+                        catch (EditorNotAvailableException ex)
+                        {
+                            client.Toast($"'{ex.Command}' not found in PATH.", "Editor Not Available", variant: ToastVariant.Destructive);
+                        }
+                    }
+                    return ValueTask.CompletedTask;
+                },
+                OnDeleteFile = async e => {
+                    var repoPath = changesData?.SourceRepoPath;
+                    if (string.IsNullOrEmpty(repoPath))
+                    {
+                        repoPath = selectedPlan.GetEffectiveRepoPaths(config).FirstOrDefault();
+                    }
+                    if (!string.IsNullOrEmpty(repoPath))
+                    {
+                        var absolutePath = Path.Combine(repoPath, e.Value).Replace('\\', '/');
+                        try
+                        {
+                            if (File.Exists(absolutePath))
+                            {
+                                File.Delete(absolutePath);
+                            }
+                            var gitRmResult = RunGitCommand(repoPath, $"rm \"{e.Value}\"");
+                            if (gitRmResult.ExitCode == 0)
+                            {
+                                var gitCommitResult = RunGitCommand(repoPath, $"commit -m \"Delete file: {e.Value}\"");
+                                if (gitCommitResult.ExitCode == 0)
+                                {
+                                    client.Toast($"Deleted and committed {e.Value}.", "File Deleted");
+                                }
+                                else
+                                {
+                                    client.Toast($"Deleted file and ran git rm, but commit failed: {gitCommitResult.Output}", "File Deleted (No Commit)", variant: ToastVariant.Warning);
+                                }
+                            }
+                            else
+                            {
+                                client.Toast($"Deleted file, but git rm failed: {gitRmResult.Output}", "File Deleted (No Stage)", variant: ToastVariant.Warning);
+                            }
+                            refreshPlans();
+                        }
+                        catch (Exception ex)
+                        {
+                            client.Toast($"Failed to delete file: {ex.Message}", "Delete Failed", variant: ToastVariant.Destructive);
+                        }
+                    }
+                    await Task.CompletedTask;
+                },
                 Collapsible = true
             }.Width(Size.Full());
         }
@@ -159,7 +233,7 @@ public class ChangesTabView(
             ? rawCommitsBtn.WithDropDown(commitItems)
             : rawCommitsBtn;
 
-        var toolbar = Layout.Horizontal().AlignContent(Align.Left).Gap(2).Height(Size.Auto())
+        var toolbar = Layout.Horizontal().AlignContent(Align.Left).Height(Size.Auto())
             | hideFormatting.ToSwitchInput(label: "Hide formatting changes")
             | commitsBtn;
 

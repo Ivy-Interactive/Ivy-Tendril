@@ -1,4 +1,5 @@
 using System.Text;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Plans;
@@ -17,6 +18,7 @@ public class SubmitReviewDialog(
 {
     public override object? Build()
     {
+        var configService = UseService<IConfigService>();
         var summaryText = UseState("");
         var reviewAction = UseState("request_changes");
 
@@ -50,10 +52,15 @@ public class SubmitReviewDialog(
                         }
                         if (draftComments.Count > 0)
                         {
+                            var repos = selectedPlan.GetEffectiveRepoPaths(configService);
+                            var repoPath = repos.FirstOrDefault() ?? "";
+
                             sb.AppendLine("Line-by-line feedback:");
                             foreach (var c in draftComments)
                             {
-                                sb.AppendLine($"- **In `{c.FilePath}` line {c.LineNumber}**:");
+                                var absolutePath = Path.Combine(repoPath, c.FilePath).Replace('\\', '/');
+                                var fileLink = $"file:///{absolutePath.TrimStart('/')}";
+                                sb.AppendLine($"- **In [{c.FilePath}]({fileLink}#L{c.LineNumber}) line {c.LineNumber}**:");
                                 sb.AppendLine($"  {c.Content}");
                             }
                         }

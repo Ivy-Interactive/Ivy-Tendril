@@ -4,6 +4,7 @@ import "react-diff-view/style/index.css";
 import "./plan-diff.css";
 type IvyEventHandler = (eventName: string, widgetId: string, args: any[]) => void;
 import { getWidth, getHeight } from "../styles";
+import { Eye, Pencil, Trash2, MoreHorizontal, MessageSquare } from "lucide-react";
 
 /** Container width (px) below which the diff is too cramped for a side-by-side (split) view. */
 export const NARROW_BREAKPOINT = 768;
@@ -330,6 +331,21 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
   const [collapsedState, setCollapsedState] = useState<Record<number, boolean>>({});
   const [activeFormKeys, setActiveFormKeys] = useState<Record<string, boolean>>({});
   const [editingCommentKeys, setEditingCommentKeys] = useState<Record<string, string>>({});
+  const [activeDropdownIndex, setActiveDropdownIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (activeDropdownIndex === null) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".diff-more-actions-container")) {
+        setActiveDropdownIndex(null);
+      }
+    };
+    document.addEventListener("click", handleOutsideClick);
+    return () => {
+      document.removeEventListener("click", handleOutsideClick);
+    };
+  }, [activeDropdownIndex]);
 
   const [containerRef, isNarrow] = useIsNarrow();
   const diffViewType = viewType === "Split" ? "split" : "unified";
@@ -449,14 +465,14 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       const newName = rawNew === "/dev/null" ? "" : rawNew;
       const isRename = oldName !== newName && oldName !== "" && newName !== "";
       const hasHeader = Boolean(oldName || newName);
-      const elementId = `${id}-${file.newPath || file.oldPath || `diff-${fileIndex}`}`;
+      const elementId = filePath || `${id}-${file.newPath || file.oldPath || `diff-${fileIndex}`}`;
       const label = isRename
         ? `${getBasename(oldName)} → ${getBasename(newName)}`
         : getBasename(newName || oldName) || `Diff ${fileIndex + 1}`;
 
       return { oldName, newName, isRename, hasHeader, elementId, label };
     });
-  }, [files, id, oldRevision, newRevision]);
+  }, [files, id, oldRevision, newRevision, filePath]);
 
   const scrollToFile = useCallback((elementId: string) => {
     if (typeof document === "undefined") return;
@@ -580,7 +596,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
           <div
             key={fileIndex}
             id={elementId}
-            className="border border-[var(--border)] rounded-md mb-4 overflow-hidden bg-[var(--background)]"
+            className={`border border-[var(--border)] rounded-md ${isCollapsed ? "mb-0" : "mb-4"} overflow-hidden bg-[var(--background)]`}
             style={{ scrollMarginTop: showFileDropdown ? "2rem" : 0 }}
           >
             {hasHeader && (
@@ -641,6 +657,61 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                     />
                     Viewed
                   </label>
+
+                  {/* Message bubble icon */}
+                  <MessageSquare className="w-3.5 h-3.5 text-[var(--muted-foreground)]" />
+
+                  {/* More actions button & dropdown */}
+                  <div className="diff-more-actions-container relative">
+                    <button
+                      type="button"
+                      aria-label="More actions"
+                      className="p-1 rounded hover:bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors flex items-center justify-center"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveDropdownIndex(prev => prev === fileIndex ? null : fileIndex);
+                      }}
+                    >
+                      <MoreHorizontal className="w-3.5 h-3.5" />
+                    </button>
+                    {activeDropdownIndex === fileIndex && (
+                      <div className="absolute right-0 mt-1 z-50 w-36 bg-[var(--background)] border border-[var(--border)] rounded-md shadow-lg py-1 text-xs">
+                        <button
+                          type="button"
+                          className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--muted)] text-[var(--foreground)] text-left"
+                          onClick={() => {
+                            setActiveDropdownIndex(null);
+                            onIvyEvent("OnViewFile", id, [file.newPath || file.oldPath]);
+                          }}
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          View file
+                        </button>
+                        <button
+                          type="button"
+                          className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--muted)] text-[var(--foreground)] text-left"
+                          onClick={() => {
+                            setActiveDropdownIndex(null);
+                            onIvyEvent("OnEditFile", id, [file.newPath || file.oldPath]);
+                          }}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                          Edit file
+                        </button>
+                        <button
+                          type="button"
+                          className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-destructive/10 text-[var(--destructive)] text-left border-t border-[var(--border)]"
+                          onClick={() => {
+                            setActiveDropdownIndex(null);
+                            onIvyEvent("OnDeleteFile", id, [file.newPath || file.oldPath]);
+                          }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-[var(--destructive)]" />
+                          Delete file
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
