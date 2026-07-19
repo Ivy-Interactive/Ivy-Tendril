@@ -85,7 +85,16 @@ public class CreatePlanDialog(
         });
 
         // e.g. "Continue with Claude Code" — branded to the configured coding agent.
-        var continueLabel = $"Chat with {AgentBranding.For(configService.Settings.CodingAgent, agentRunner).Label}";
+        string agentLabel;
+        try
+        {
+            agentLabel = agentRunner.GetCli(configService.Settings.CodingAgent).DisplayName;
+        }
+        catch
+        {
+            agentLabel = "Agent";
+        }
+        var continueLabel = $"Chat with {agentLabel}";
 
         var exclusiveProjects = new ConvertedState<string[], string[]>(
             selectedProjects,

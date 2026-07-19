@@ -21,7 +21,7 @@ using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Agent;
 
-[App(title: "Agent App", icon: Icons.Terminal, group: ["Orchestration"], order: Constants.Agent, isVisible: true, allowDuplicateTabs: false)]
+[App(title: "Chat", icon: Icons.Terminal, group: ["Orchestration"], order: Constants.Agent, isVisible: true, allowDuplicateTabs: false)]
 public class AgentApp : ViewBase
 {
     public record ChatSession(string Id, string Title, string Type, string? AgentName = null);

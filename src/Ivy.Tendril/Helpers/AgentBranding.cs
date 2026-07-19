@@ -38,6 +38,6 @@ public static class AgentBranding
     public static (string Label, Icons Icon) For(string? agentId, IAgentRunner runner)
     {
         var icon = IconFor(agentId);
-        return ("Agent App", icon);
+        return ("Chat", icon);
     }
 }

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -919,6 +920,46 @@ public class JobService : IJobService
                 if (wf != null)
                 {
                     planFile = $"Run workflow: {wf.Name}";
+                    if (!string.IsNullOrEmpty(wr.TriggerPayload))
+                    {
+                        try
+                        {
+                            using var doc = JsonDocument.Parse(wr.TriggerPayload);
+                            var root = doc.RootElement;
+                            if (root.TryGetProperty("Event", out var eventProp))
+                            {
+                                var eventVal = eventProp.GetString();
+                                if (eventVal == "plan_completed_and_merged")
+                                {
+                                    var planTitle = root.TryGetProperty("PlanTitle", out var titleProp) ? titleProp.GetString() : null;
+                                    if (!string.IsNullOrEmpty(planTitle))
+                                    {
+                                        planFile = $"Run workflow: {wf.Name} (Plan merged: {planTitle})";
+                                    }
+                                    else
+                                    {
+                                        planFile = $"Run workflow: {wf.Name} (Event: plan_completed_and_merged)";
+                                    }
+                                }
+                                else if (!string.IsNullOrEmpty(eventVal))
+                                {
+                                    planFile = $"Run workflow: {wf.Name} (Event: {eventVal})";
+                                }
+                            }
+                            else if (root.TryGetProperty("Trigger", out var triggerProp) && triggerProp.GetString() == "schedule")
+                            {
+                                var cron = root.TryGetProperty("Cron", out var cronProp) ? cronProp.GetString() : null;
+                                if (!string.IsNullOrEmpty(cron))
+                                {
+                                    planFile = $"Run workflow: {wf.Name} (Schedule: {cron})";
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore parsing issues, fallback to default title
+                        }
+                    }
                 }
             }
             return (planFile, project, 0);
