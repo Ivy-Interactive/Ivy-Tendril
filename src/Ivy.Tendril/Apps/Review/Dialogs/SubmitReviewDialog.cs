@@ -24,7 +24,7 @@ public class SubmitReviewDialog(
 
         return new Dialog(
             _ => dialogOpen.Set(false),
-            new DialogHeader($"Submit Review for Plan #{selectedPlan.Id}"),
+            new DialogHeader($"Agent Review for Plan #{selectedPlan.Id}"),
             new DialogBody(
                 Layout.Vertical()
                 | Text.P("Submit review comments to the agent on the machine to act upon.")

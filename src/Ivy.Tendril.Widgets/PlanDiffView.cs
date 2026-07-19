@@ -13,6 +13,13 @@ public record DraftComment(
     int LineNumber
 );
 
+public record DirectEditArgs(
+    string FilePath,
+    int LineNumber,
+    string NewContent,
+    string CommitMessage
+);
+
 [ExternalWidget(
     "frontend/dist/ivy-tendril-widgets.js",
     StylePath = "frontend/dist/ivy-tendril-widgets.css",
@@ -58,6 +65,8 @@ public record PlanDiffView : WidgetBase<PlanDiffView>
     [Event] public Func<Event<PlanDiffView, DraftComment>, ValueTask>? OnDeleteComment { get; init; }
 
     [Event] public Func<Event<PlanDiffView, DraftComment>, ValueTask>? OnUpdateComment { get; init; }
+
+    [Event] public Func<Event<PlanDiffView, DirectEditArgs>, ValueTask>? OnDirectEdit { get; init; }
 }
 
 public static class PlanDiffViewExtensions
@@ -146,6 +155,21 @@ public static class PlanDiffViewExtensions
         w with
         {
             OnUpdateComment = e =>
+            {
+                handler(e.Value);
+                return ValueTask.CompletedTask;
+            },
+        };
+
+    public static PlanDiffView OnDirectEdit(
+        this PlanDiffView w,
+        Func<Event<PlanDiffView, DirectEditArgs>, ValueTask> handler
+    ) => w with { OnDirectEdit = handler };
+
+    public static PlanDiffView OnDirectEdit(this PlanDiffView w, Action<DirectEditArgs> handler) =>
+        w with
+        {
+            OnDirectEdit = e =>
             {
                 handler(e.Value);
                 return ValueTask.CompletedTask;

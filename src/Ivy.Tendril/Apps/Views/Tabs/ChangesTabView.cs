@@ -1,3 +1,7 @@
+using System.IO;
+using System.Diagnostics;
+using System.Text;
+using System.Threading.Tasks;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Widgets;
@@ -16,6 +20,8 @@ public class ChangesTabView(
     PlanFile selectedPlan,
     IJobService jobService,
     Action refreshPlans,
+    List<PlanContentHelpers.CommitRow> commitRows,
+    Action<string> setOpenCommit,
     string? projectName = null) : ViewBase
 {
     public int FileCount => changesData?.Files.Count ?? 0;
@@ -24,6 +30,8 @@ public class ChangesTabView(
     {
         var client = UseService<IClientProvider>();
         var planService = UseService<IPlanReaderService>();
+        var gitService = UseService<IGitService>();
+        var config = UseService<IConfigService>();
         var hideFormatting = UseState(true);
 
         var (submitReviewDialog, showSubmitReviewDialog) = UseTrigger((isOpen) =>
@@ -122,6 +130,9 @@ public class ChangesTabView(
                     draftComments.Set(list);
                     return ValueTask.CompletedTask;
                 },
+                OnDirectEdit = async e => {
+                    await HandleDirectEdit(e.Value);
+                },
                 Collapsible = true
             }.Width(Size.Full());
         }
@@ -138,14 +149,25 @@ public class ChangesTabView(
                 fd => client.Redirect($"#{fd.FilePath}"))
             .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-        var toolbar = Layout.Horizontal().AlignContent(Align.Left).Height(Size.Auto())
-            | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
+        var commitItems = commitRows.Select(c =>
+            new MenuItem($"{c.ShortHash} - {c.Title}", Icon: Icons.GitCommitHorizontal)
+                .OnSelect(() => setOpenCommit(c.Hash))
+        ).ToArray();
+
+        var rawCommitsBtn = new Button($"{commitRows.Count} Commits").Icon(Icons.GitCommitHorizontal).Outline();
+        object commitsBtn = commitItems.Length > 0
+            ? rawCommitsBtn.WithDropDown(commitItems)
+            : rawCommitsBtn;
+
+        var toolbar = Layout.Horizontal().AlignContent(Align.Left).Gap(2).Height(Size.Auto())
+            | hideFormatting.ToSwitchInput(label: "Hide formatting changes")
+            | commitsBtn;
 
         if (hideFormatting.Value && hiddenCount > 0)
             toolbar |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
 
         var draftCount = draftComments.Value.Count;
-        var submitBtn = new Button(draftCount > 0 ? $"Submit review ({draftCount})" : "Submit review")
+        var submitBtn = new Button(draftCount > 0 ? $"Agent Review ({draftCount})" : "Agent Review")
             .Icon(Icons.GitPullRequest)
             .OnClick(() => showSubmitReviewDialog());
 
@@ -165,6 +187,90 @@ public class ChangesTabView(
         outer |= mainLayout;
         outer |= submitReviewDialog;
         return outer;
+
+        async Task HandleDirectEdit(DirectEditArgs args)
+        {
+            var repoPath = changesData?.SourceRepoPath;
+            if (string.IsNullOrEmpty(repoPath))
+            {
+                var repos = selectedPlan.GetEffectiveRepoPaths(config);
+                repoPath = repos.FirstOrDefault();
+            }
+
+            if (string.IsNullOrEmpty(repoPath))
+            {
+                client.Toast("Could not find repository path for direct edit.", "Edit Failed", variant: ToastVariant.Destructive);
+                return;
+            }
+
+            var absoluteFilePath = Path.Combine(repoPath, args.FilePath);
+            if (!File.Exists(absoluteFilePath))
+            {
+                client.Toast($"File not found at {absoluteFilePath}", "Edit Failed", variant: ToastVariant.Destructive);
+                return;
+            }
+
+            try
+            {
+                var lines = await File.ReadAllLinesAsync(absoluteFilePath);
+                if (args.LineNumber <= 0 || args.LineNumber > lines.Length)
+                {
+                    client.Toast($"Invalid line number: {args.LineNumber}. File has {lines.Length} lines.", "Edit Failed", variant: ToastVariant.Destructive);
+                    return;
+                }
+
+                lines[args.LineNumber - 1] = args.NewContent;
+                await File.WriteAllLinesAsync(absoluteFilePath, lines);
+
+                var gitAddResult = RunGitCommand(repoPath, $"add \"{args.FilePath}\"");
+                if (gitAddResult.ExitCode == 0)
+                {
+                    var commitMsg = string.IsNullOrWhiteSpace(args.CommitMessage)
+                        ? $"Direct edit: update {Path.GetFileName(args.FilePath)} at line {args.LineNumber}"
+                        : args.CommitMessage;
+                    var escapedMsg = commitMsg.Replace("\"", "\\\"");
+                    var gitCommitResult = RunGitCommand(repoPath, $"commit -m \"{escapedMsg}\"");
+                    if (gitCommitResult.ExitCode == 0)
+                    {
+                        client.Toast($"Successfully edited and committed line {args.LineNumber}.", "Edit Saved");
+                    }
+                    else
+                    {
+                        client.Toast($"Edited file on disk, but git commit failed: {gitCommitResult.Output}", "Edit Saved (No Commit)", variant: ToastVariant.Warning);
+                    }
+                }
+                else
+                {
+                    client.Toast($"Edited file on disk, but git add failed: {gitAddResult.Output}", "Edit Saved (No Commit)", variant: ToastVariant.Warning);
+                }
+
+                refreshPlans();
+            }
+            catch (Exception ex)
+            {
+                client.Toast($"Failed to write changes: {ex.Message}", "Edit Failed", variant: ToastVariant.Destructive);
+            }
+        }
+    }
+
+    private static (int ExitCode, string Output) RunGitCommand(string repoPath, string args)
+    {
+        var psi = new ProcessStartInfo("git", args)
+        {
+            WorkingDirectory = repoPath,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Encoding.UTF8
+        };
+        using var process = Process.Start(psi);
+        if (process == null)
+            return (-1, "");
+
+        var output = process.StandardOutput.ReadToEnd();
+        process.WaitForExit(10000); // 10s timeout
+        return (process.ExitCode, output);
     }
 
     private static TreeNode BuildFileTree(IReadOnlyList<PlanContentHelpers.FileDiff> fileDiffs)
