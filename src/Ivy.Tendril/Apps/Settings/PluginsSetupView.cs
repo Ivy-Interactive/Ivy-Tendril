@@ -348,7 +348,7 @@ public class PluginsSetupView : ViewBase
                 }, variant: ButtonVariant.Outline, icon: Icons.Trash2),
                 isOpen.Value ? new Dialog(
                     _ => { isOpen.Set(false); keepConfig.Set(true); },
-                    new DialogHeader("Uninstall Plugin"),
+                    new DialogHeader($"Uninstall {pluginId}"),
                     new DialogBody(
                         Layout.Vertical().Gap(3)
                         | confirmMessage
