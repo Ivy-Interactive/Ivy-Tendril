@@ -1398,7 +1398,7 @@ Ivy.Tendril.Plugin.Linear/
     <PackageId>Ivy.Tendril.Plugin.Linear</PackageId>
     <Title>Linear</Title>
     <Authors>Ivy Interactive</Authors>
-    <Description>Linear integration plugin for Ivy Tendril</Description>
+    <Description>Linear integration for Ivy Tendril</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Ivy-Interactive/Ivy-Tendril</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Ivy-Interactive/Ivy-Tendril</RepositoryUrl>
