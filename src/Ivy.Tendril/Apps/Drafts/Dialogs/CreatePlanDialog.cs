@@ -8,6 +8,7 @@ using System;
 using System.IO;
 using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Apps.Settings;
+using Ivy.Tendril.Apps.Settings.Dialogs;
 
 namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
@@ -56,6 +57,9 @@ public class CreatePlanDialog(
         var selectedPriority = UseState("Normal");
         var configService = UseService<IConfigService>();
         var agentRunner = UseService<IAgentRunner>();
+        var client = UseService<IClientProvider>();
+        var refreshToken = UseRefreshToken();
+        var isAddProjectOpen = UseState(false);
         var uploadSessionId = UseState(() => Guid.NewGuid().ToString("N"));
         var (breakpoint, breakpointListener) = Context.UseBreakpoint();
         var uploadedFiles = UseState(new List<string>());
@@ -161,11 +165,7 @@ public class CreatePlanDialog(
             .Icon(Icons.Plus)
             .Small().Ghost()
             .Tooltip("New Project")
-            .OnClick(() =>
-            {
-                HandleClose();
-                nav.Navigate<SettingsApp>(new SettingsAppArgs(SettingsApp.TagProjects));
-            });
+            .OnClick(() => isAddProjectOpen.Set(true));
 
         var bodyContent =
                 Layout.Vertical().Margin(0,2,0,0)
@@ -255,6 +255,9 @@ public class CreatePlanDialog(
                 new DialogBody(bodyContent))
                 .Width(Size.Rem(30));
 
-        return new Fragment(breakpointListener, planSurface);
+        return new Fragment(
+            breakpointListener,
+            planSurface,
+            new AddProjectDialog(isAddProjectOpen, configService, client, refreshToken));
     }
 }
