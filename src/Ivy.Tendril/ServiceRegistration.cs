@@ -54,6 +54,8 @@ internal static class ServiceRegistration
 
         server.Services.AddSingleton<OnboardingSetupService>();
         server.Services.AddSingleton<IOnboardingSetupService>(sp => sp.GetRequiredService<OnboardingSetupService>());
+        server.Services.AddSingleton<OnboardingTourService>();
+        server.Services.AddSingleton<IOnboardingTourService>(sp => sp.GetRequiredService<OnboardingTourService>());
         server.Services.AddSingleton<GithubService>();
         server.Services.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
         server.Services.AddSingleton<IGitService>(sp =>

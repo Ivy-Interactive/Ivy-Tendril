@@ -10,6 +10,7 @@ public class NewPlanButton : ViewBase
                 .Width(Size.Full())
                 .Variant(ButtonVariant.Primary)
                 .OnClick(open)
-                .ShortcutKey("CTRL+ALT+N"));
+                .ShortcutKey("CTRL+ALT+N")
+                .TestId(OnboardingTour.NewPlanButtonTestId));
     }
 }

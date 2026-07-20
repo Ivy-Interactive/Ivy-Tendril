@@ -132,6 +132,15 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
         var navigator = UseNavigation();
         var newsArticles = UseState(Array.Empty<SidebarNewsArticle>());
+        var tourService = UseService<IOnboardingTourService>();
+        var tourRefreshToken = UseRefreshToken();
+
+        UseEffect(() =>
+        {
+            void OnTourChanged() => tourRefreshToken.Refresh();
+            tourService.Changed += OnTourChanged;
+            return Disposable.Create(() => tourService.Changed -= OnTourChanged);
+        });
 
         var (importIssuesDialog, showImportIssuesDialog) = UseTrigger((isOpen) =>
         {
@@ -198,6 +207,13 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         {
             if (config.NeedsOnboarding) return;
 
+            var startTour = config.Settings.OnboardingTourPending;
+            if (startTour)
+            {
+                config.Settings.OnboardingTourPending = false;
+                config.SaveSettings();
+            }
+
             var initialAppId = args.NavigationAppId ?? settings.DefaultAppId;
             var targetAppId = initialAppId;
             if (!string.IsNullOrWhiteSpace(targetAppId))
@@ -213,6 +229,9 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             {
                 client.Redirect("/", true);
             }
+
+            if (startTour)
+                tourService.Start();
         });
 
         // Auto-default: if there's exactly one visible app, select it and close sidebar
@@ -610,7 +629,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 settings.Width
             ).Open(sidebarOpen.Value).MainAppSidebar(),
             importIssuesDialog,
-            updateDialog
+            updateDialog,
+            OnboardingTour.Build(tourService, appRepository)
         );
     }
 
