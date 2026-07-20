@@ -35,23 +35,28 @@ internal class NuGetDependencyResolver(IHttpClientFactory httpClientFactory, ILo
     /// <param name="pluginDir">The extracted plugin directory (contains the .nuspec).</param>
     /// <param name="packageId">The plugin's NuGet package ID.</param>
     /// <param name="version">The plugin's version.</param>
+    /// <param name="progress">Reports progress from 0 to 100.</param>
     /// <param name="ct">Cancellation token.</param>
-    public async Task ResolveAndInstallDependenciesAsync(string pluginDir, string packageId, string version, CancellationToken ct = default)
+    public async Task ResolveAndInstallDependenciesAsync(string pluginDir, string packageId, string version,
+        IProgress<int>? progress = null, CancellationToken ct = default)
     {
         // The nuspec inside the nupkg preserves original casing; find it case-insensitively
         var nuspecPath = Directory.GetFiles(pluginDir, "*.nuspec", SearchOption.TopDirectoryOnly).FirstOrDefault();
         if (nuspecPath == null)
         {
             logger.LogDebug("No .nuspec found in {Dir}, skipping dependency resolution", pluginDir);
+            progress?.Report(100);
             return;
         }
 
+        progress?.Report(0);
         var hostAssemblies = BuildHostAssemblySet();
-        var resolved = await ResolveTransitiveDependenciesAsync(packageId, version, ct);
+        var resolved = await ResolveTransitiveDependenciesAsync(packageId, version, progress, ct);
 
         if (resolved.Count == 0)
         {
             logger.LogDebug("No dependencies to resolve for {PackageId}", packageId);
+            progress?.Report(100);
             return;
         }
 
@@ -60,8 +65,9 @@ internal class NuGetDependencyResolver(IHttpClientFactory httpClientFactory, ILo
         // Determine the target directory for dependency DLLs
         var targetLibDir = FindOrCreateLibDir(pluginDir);
 
-        foreach (var dep in resolved)
+        for (var i = 0; i < resolved.Count; i++)
         {
+            var dep = resolved[i];
             try
             {
                 await DownloadAndExtractDependencyAsync(dep, targetLibDir, hostAssemblies, ct);
@@ -70,15 +76,19 @@ internal class NuGetDependencyResolver(IHttpClientFactory httpClientFactory, ILo
             {
                 logger.LogWarning(ex, "Failed to download dependency {PackageId} {Version}, skipping", dep.Id, dep.Version);
             }
+
+            // Report progress: 30-100% range for downloads
+            progress?.Report(30 + (int)((i + 1) / (double)resolved.Count * 70));
         }
     }
 
     private async Task<IReadOnlyList<ResolvedPackage>> ResolveTransitiveDependenciesAsync(
-        string rootPackageId, string rootVersion, CancellationToken ct)
+        string rootPackageId, string rootVersion, IProgress<int>? progress, CancellationToken ct)
     {
         // BFS through the dependency graph
         var visited = new Dictionary<string, NuGetVersion>(StringComparer.OrdinalIgnoreCase);
         var queue = new Queue<(string Id, string Version)>();
+        var resolvedCount = 0;
 
         // Seed with the root package's direct dependencies
         var rootDeps = await FetchDependenciesAsync(rootPackageId, rootVersion, ct);
@@ -102,6 +112,11 @@ internal class NuGetDependencyResolver(IHttpClientFactory httpClientFactory, ILo
                 continue;
 
             visited[id] = version;
+            resolvedCount++;
+
+            // Report progress: 0-30% range for graph resolution
+            // Use an asymptotic curve so it never reaches 30% until done
+            progress?.Report(Math.Min(29, (int)(30.0 * resolvedCount / (resolvedCount + queue.Count + 1))));
 
             // Fetch this package's own dependencies and enqueue them
             try
@@ -119,6 +134,7 @@ internal class NuGetDependencyResolver(IHttpClientFactory httpClientFactory, ILo
             }
         }
 
+        progress?.Report(30);
         return visited.Select(kvp => new ResolvedPackage(kvp.Key, kvp.Value.ToString())).ToList();
     }
 

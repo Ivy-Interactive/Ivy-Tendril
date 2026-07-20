@@ -84,9 +84,12 @@ public class PluginsSetupView : ViewBase
             .Where(p => !installedPackageIds.Contains(p.PackageId))
             .ToArray();
 
+        // Shared state: maps packageId → progress (0-100) for currently-installing plugins
+        var installingPlugins = UseState(new Dictionary<string, (string Title, int Progress)>());
+
         var hasAnyPlugins = activePlugins.Count > 0 || unconfiguredPlugins.Count > 0 || unloadedPlugins.Count > 0;
 
-        if (!hasAnyPlugins)
+        if (!hasAnyPlugins && installingPlugins.Value.Count == 0)
         {
             return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
                    | Text.Block("Plugins").Bold()
@@ -94,7 +97,7 @@ public class PluginsSetupView : ViewBase
                        | new Icon(Icons.Plug, Colors.Muted).Width(Size.Units(10)).Height(Size.Units(10))
                        | Text.Block("No plugins installed").Bold()
                        | Text.Block("Get started by adding your first plugin.").Muted().Small()
-                       | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, dependencyResolver, ButtonVariant.Primary));
+                       | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, dependencyResolver, installingPlugins, ButtonVariant.Primary));
         }
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
@@ -181,9 +184,19 @@ public class PluginsSetupView : ViewBase
                                | BuildUninstallButton(p.Id, p.Title, p.Directory, uninstallService, client));
                        return (object)new Expandable(header, content).Open();
                    }).ToArray()))
+               | (installingPlugins.Value.Count > 0
+                   ? (object)(Layout.Vertical().Gap(2)
+                       | new Separator()
+                       | Text.Block("Installing").Bold()
+                       | installingPlugins.Value.Select(kvp =>
+                           (object)(Layout.Vertical().Gap(1)
+                               | Text.Block(kvp.Value.Title).Small()
+                               | new Progress(kvp.Value.Progress))
+                       ).ToArray())
+                   : null!)
                | new Separator()
                | (Layout.Horizontal().Gap(2)
-                   | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, dependencyResolver)
+                   | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, dependencyResolver, installingPlugins)
                    | new Button("Open Plugins Folder", onClick: _ =>
                    {
                        PlatformHelper.OpenInFileManager(pluginsDir);
@@ -193,7 +206,8 @@ public class PluginsSetupView : ViewBase
 
     private class AddPluginsDialogView(
         bool loading, AvailablePlugin[]? plugins, string pluginsDir, IClientProvider client,
-        NuGetDependencyResolver dependencyResolver, ButtonVariant buttonVariant = ButtonVariant.Outline) : ViewBase
+        NuGetDependencyResolver dependencyResolver, IState<Dictionary<string, (string Title, int Progress)>> installingPlugins,
+        ButtonVariant buttonVariant = ButtonVariant.Outline) : ViewBase
     {
         public override object Build()
         {
@@ -234,6 +248,9 @@ public class PluginsSetupView : ViewBase
                     | filtered.Select(p =>
                     {
                         var icon = PluginIconHelper.FromApiResponse(p.IconKind, p.IconValue, p.IconUrl);
+                        var isInstalling = installingPlugins.Value.ContainsKey(p.PackageId);
+                        var progressValue = isInstalling ? installingPlugins.Value[p.PackageId].Progress : 0;
+
                         return (object)(Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween).Width(Size.Full())
                             | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                                 | (PluginIconHelper.ToWidget(icon)
@@ -245,18 +262,34 @@ public class PluginsSetupView : ViewBase
                                     | (p.Description is not null
                                         ? (object)Text.Block(p.Description).Muted().Small()
                                         : null!)))
-                            | new Button("Install", onClick: async _ =>
-                            {
-                                try
+                            | (isInstalling
+                                ? (object)new Progress(progressValue).Width(Size.Units(20))
+                                : new Button("Install", onClick: async _ =>
                                 {
-                                    await InstallPluginAsync(p, pluginsDir, dependencyResolver);
-                                    client.Toast($"Installed '{p.Title}'", "Installed");
-                                }
-                                catch (Exception ex)
-                                {
-                                    client.Toast($"Failed to install: {ex.Message}", "Error");
-                                }
-                            }, variant: ButtonVariant.Outline, icon: Icons.Download));
+                                    var progress = new Progress<int>(pct =>
+                                        installingPlugins.Set(dict => new Dictionary<string, (string Title, int Progress)>(dict)
+                                            { [p.PackageId] = (p.Title, pct) }));
+                                    installingPlugins.Set(dict => new Dictionary<string, (string Title, int Progress)>(dict)
+                                        { [p.PackageId] = (p.Title, 0) });
+                                    try
+                                    {
+                                        await InstallPluginAsync(p, pluginsDir, dependencyResolver, progress);
+                                        client.Toast($"Installed '{p.Title}'", "Installed");
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        client.Toast($"Failed to install: {ex.Message}", "Error");
+                                    }
+                                    finally
+                                    {
+                                        installingPlugins.Set(dict =>
+                                        {
+                                            var next = new Dictionary<string, (string Title, int Progress)>(dict);
+                                            next.Remove(p.PackageId);
+                                            return next;
+                                        });
+                                    }
+                                }, variant: ButtonVariant.Outline, icon: Icons.Download)));
                     }).ToArray();
             }
 
@@ -282,36 +315,61 @@ public class PluginsSetupView : ViewBase
         }
     }
 
-    private static async Task InstallPluginAsync(AvailablePlugin plugin, string pluginsDir, NuGetDependencyResolver dependencyResolver)
+    private static async Task InstallPluginAsync(AvailablePlugin plugin, string pluginsDir,
+        NuGetDependencyResolver dependencyResolver, IProgress<int>? progress = null)
     {
         var pluginDir = Path.Combine(pluginsDir, plugin.PackageId);
-        Directory.CreateDirectory(pluginDir);
 
-        using var http = new HttpClient();
-        var packageId = plugin.PackageId.ToLowerInvariant();
-        var version = plugin.Version.ToLowerInvariant();
-        var nupkgUrl = $"https://api.nuget.org/v3-flatcontainer/{packageId}/{version}/{packageId}.{version}.nupkg";
-
-        var nupkgBytes = await http.GetByteArrayAsync(nupkgUrl);
-
-        using var archive = new ZipArchive(new MemoryStream(nupkgBytes));
-        foreach (var entry in archive.Entries)
+        // Extract and resolve in a temp directory to avoid premature loading by PluginWatcher
+        var tempDir = Path.Combine(Path.GetTempPath(), "ivy-plugin-install-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
         {
-            if (string.IsNullOrEmpty(entry.Name)) continue;
+            using var http = new HttpClient();
+            var packageId = plugin.PackageId.ToLowerInvariant();
+            var version = plugin.Version.ToLowerInvariant();
+            var nupkgUrl = $"https://api.nuget.org/v3-flatcontainer/{packageId}/{version}/{packageId}.{version}.nupkg";
 
-            var destPath = Path.GetFullPath(Path.Combine(pluginDir, entry.FullName));
-            if (!destPath.StartsWith(pluginDir + Path.DirectorySeparatorChar))
-                continue;
+            // Download nupkg (0-10%)
+            progress?.Report(0);
+            var nupkgBytes = await http.GetByteArrayAsync(nupkgUrl);
+            progress?.Report(10);
 
-            Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+            // Extract nupkg to temp dir (10-20%)
+            using var archive = new ZipArchive(new MemoryStream(nupkgBytes));
+            foreach (var entry in archive.Entries)
+            {
+                if (string.IsNullOrEmpty(entry.Name)) continue;
 
-            await using var entryStream = entry.Open();
-            await using var fileStream = File.Create(destPath);
-            await entryStream.CopyToAsync(fileStream);
+                var destPath = Path.GetFullPath(Path.Combine(tempDir, entry.FullName));
+                if (!destPath.StartsWith(tempDir + Path.DirectorySeparatorChar))
+                    continue;
+
+                Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+
+                await using var entryStream = entry.Open();
+                await using var fileStream = File.Create(destPath);
+                await entryStream.CopyToAsync(fileStream);
+            }
+            progress?.Report(20);
+
+            // Resolve and download transitive dependencies (20-100%)
+            var depProgress = new Progress<int>(p => progress?.Report(20 + (int)(p / 100.0 * 80)));
+            await dependencyResolver.ResolveAndInstallDependenciesAsync(tempDir, plugin.PackageId, plugin.Version, depProgress);
+
+            // Move complete plugin directory into plugins/ (atomic on same filesystem)
+            if (Directory.Exists(pluginDir))
+                Directory.Delete(pluginDir, recursive: true);
+            Directory.Move(tempDir, pluginDir);
+            progress?.Report(100);
         }
-
-        // Resolve and download transitive dependencies
-        await dependencyResolver.ResolveAndInstallDependenciesAsync(pluginDir, plugin.PackageId, plugin.Version);
+        catch
+        {
+            // Clean up temp on failure
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+            throw;
+        }
     }
 
     private static object? BuildUninstallButton(
