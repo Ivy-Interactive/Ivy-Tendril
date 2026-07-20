@@ -493,11 +493,11 @@ Report status: `tendril job status TendrilJobId --message="Updating memory vault
 
 After implementing changes and running verifications, keep the Promptwares memory vault synchronized:
 1. Run `bw --project <TendrilProject> status` to identify any memory notes that have become outdated due to your changes.
-2. For each outdated memory note, inspect its markdown file in the vault, update its contents to reflect the new codebase state (e.g., modified API surfaces, renamed variables/methods, new components), and run `bw --project <TendrilProject> update <note_name>` to synchronize the hashes.
+2. For each outdated memory note, read its contents using `bw --project <TendrilProject> read <note_name>`, update its contents to reflect the new codebase state (e.g., modified API surfaces, renamed variables/methods, new components), and write/update them using `bw --project <TendrilProject> write <note_name>` and `bw --project <TendrilProject> update <note_name>` to synchronize the hashes. Note that the memory vault may be located under `.brainwares/` in the repository, or in the global central vault (e.g. `~/.tendril/Promptwares/memories/` or the path printed by `bw status`). Do NOT attempt to read or edit memory markdown files directly on the filesystem.
 3. If you created any new source files, configuration files, or components:
    - Proactively document them in a memory note (creating a new one if necessary: `bw --project <TendrilProject> add <note_name>`). **Do not create memories for files that are mentioned or matched in `.gitignore`.**
    - Run `bw --project <TendrilProject> link <note_name> <file_path>` to link and track their initial hashes.
-4. **Cross-reference related notes**: Always embed Obsidian-style wiki-links `[[note-name]]` referencing related component memories, imports, and test files inside your note documentation.
+4. **Cross-reference related notes**: Identify dependencies or related notes, and relate them using `bw --project <TendrilProject> relate <source> <target>`. Do NOT write or embed Obsidian-style double-bracket wiki-links `[[note]]` in the note body.
 5. Keep the vault verified and clean.
 
 ### 8. Final Clean Check
