@@ -38,10 +38,11 @@ internal class NuGetDependencyResolver(IHttpClientFactory httpClientFactory, ILo
     /// <param name="ct">Cancellation token.</param>
     public async Task ResolveAndInstallDependenciesAsync(string pluginDir, string packageId, string version, CancellationToken ct = default)
     {
-        var nuspecPath = Path.Combine(pluginDir, $"{packageId}.nuspec");
-        if (!File.Exists(nuspecPath))
+        // The nuspec inside the nupkg preserves original casing; find it case-insensitively
+        var nuspecPath = Directory.GetFiles(pluginDir, "*.nuspec", SearchOption.TopDirectoryOnly).FirstOrDefault();
+        if (nuspecPath == null)
         {
-            logger.LogDebug("No .nuspec found at {Path}, skipping dependency resolution", nuspecPath);
+            logger.LogDebug("No .nuspec found in {Dir}, skipping dependency resolution", pluginDir);
             return;
         }
 
@@ -124,7 +125,8 @@ internal class NuGetDependencyResolver(IHttpClientFactory httpClientFactory, ILo
     private async Task<IReadOnlyList<NuspecDependency>> FetchDependenciesAsync(
         string packageId, string version, CancellationToken ct)
     {
-        var nuspecUrl = $"{NuGetFlatContainerBase}/{packageId.ToLowerInvariant()}/{version.ToLowerInvariant()}/{packageId.ToLowerInvariant()}.{version.ToLowerInvariant()}.nuspec";
+        // NuGet flat-container nuspec URL: {base}/{id}/{version}/{id}.nuspec (no version in filename)
+        var nuspecUrl = $"{NuGetFlatContainerBase}/{packageId.ToLowerInvariant()}/{version.ToLowerInvariant()}/{packageId.ToLowerInvariant()}.nuspec";
         var nuspecXml = await FetchStringWithRetryAsync(nuspecUrl, ct);
         if (nuspecXml == null) return [];
 
