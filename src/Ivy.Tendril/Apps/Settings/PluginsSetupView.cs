@@ -53,6 +53,7 @@ public class PluginsSetupView : ViewBase
         var pluginManager = UseService<IPluginManager>();
         var configFactory = UseService<IIvyPluginConfigFactory>();
         var uninstallService = UseService<PluginUninstallService>();
+        var dependencyResolver = UseService<NuGetDependencyResolver>();
         var tendrilArgs = UseService<TendrilArgs>();
         var httpClientFactory = UseService<IHttpClientFactory>();
         UsePluginState();
@@ -93,7 +94,7 @@ public class PluginsSetupView : ViewBase
                        | new Icon(Icons.Plug, Colors.Muted).Width(Size.Units(10)).Height(Size.Units(10))
                        | Text.Block("No plugins installed").Bold()
                        | Text.Block("Get started by adding your first plugin.").Muted().Small()
-                       | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, ButtonVariant.Primary));
+                       | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, dependencyResolver, ButtonVariant.Primary));
         }
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
@@ -182,7 +183,7 @@ public class PluginsSetupView : ViewBase
                    }).ToArray()))
                | new Separator()
                | (Layout.Horizontal().Gap(2)
-                   | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client)
+                   | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, dependencyResolver)
                    | new Button("Open Plugins Folder", onClick: _ =>
                    {
                        PlatformHelper.OpenInFileManager(pluginsDir);
@@ -192,7 +193,7 @@ public class PluginsSetupView : ViewBase
 
     private class AddPluginsDialogView(
         bool loading, AvailablePlugin[]? plugins, string pluginsDir, IClientProvider client,
-        ButtonVariant buttonVariant = ButtonVariant.Outline) : ViewBase
+        NuGetDependencyResolver dependencyResolver, ButtonVariant buttonVariant = ButtonVariant.Outline) : ViewBase
     {
         public override object Build()
         {
@@ -248,7 +249,7 @@ public class PluginsSetupView : ViewBase
                             {
                                 try
                                 {
-                                    await InstallPluginAsync(p, pluginsDir);
+                                    await InstallPluginAsync(p, pluginsDir, dependencyResolver);
                                     client.Toast($"Installed '{p.Title}'", "Installed");
                                 }
                                 catch (Exception ex)
@@ -281,7 +282,7 @@ public class PluginsSetupView : ViewBase
         }
     }
 
-    private static async Task InstallPluginAsync(AvailablePlugin plugin, string pluginsDir)
+    private static async Task InstallPluginAsync(AvailablePlugin plugin, string pluginsDir, NuGetDependencyResolver dependencyResolver)
     {
         var pluginDir = Path.Combine(pluginsDir, plugin.PackageId);
         Directory.CreateDirectory(pluginDir);
@@ -308,6 +309,9 @@ public class PluginsSetupView : ViewBase
             await using var fileStream = File.Create(destPath);
             await entryStream.CopyToAsync(fileStream);
         }
+
+        // Resolve and download transitive dependencies
+        await dependencyResolver.ResolveAndInstallDependenciesAsync(pluginDir, plugin.PackageId, plugin.Version);
     }
 
     private static object? BuildUninstallButton(

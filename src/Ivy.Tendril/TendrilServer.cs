@@ -108,6 +108,7 @@ public static class TendrilServer
                 buildSourcePlugins: true,
                 deferPluginLoads: true);
             server.Services.AddSingleton(new PluginUninstallService(pluginsDir));
+            server.Services.AddSingleton<NuGetDependencyResolver>();
         }
 
         // Eagerly register Ivy.Tendril.Widgets and framework widgets assemblies to ensure widgets
