@@ -37,7 +37,7 @@ mv TemplatePlugin.cs MyPlugin.cs
 
 4. Update the `.csproj` metadata (`PackageId`, `Authors`, `Description`, URLs) and namespaces in your plugin class
 
-The template includes the correct target framework (`net10.0`), `CopyLocalLockFileAssemblies`, and a reference to `Ivy.Tendril.Plugin.Abstractions`.
+The template includes the correct target framework (`net10.0`) and a reference to `Ivy.Tendril.Plugin.Abstractions`.
 
 ### 2. Implement Your Plugin
 
@@ -145,7 +145,6 @@ Your plugin must be published as a NuGet package on [nuget.org](https://www.nuge
 
 **Additional requirements:**
 - Target framework must be `net10.0`
-- Set `<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>`
 - Must contain exactly one `[assembly: IvyPlugin(typeof(...))]` attribute
 - Package must build cleanly and contain all runtime dependencies
 
@@ -197,7 +196,6 @@ The marketplace icon (`tendril.json`) is extracted from the `.nupkg` when a vers
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <PackageId>Ivy.Tendril.Plugin.MyPlugin</PackageId>
     <Title>My Plugin</Title>
     <Authors>Your Name</Authors>
@@ -1394,7 +1392,6 @@ Ivy.Tendril.Plugin.Linear/
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <PackageId>Ivy.Tendril.Plugin.Linear</PackageId>
     <Title>Linear</Title>
     <Authors>Ivy Interactive</Authors>
@@ -1429,8 +1426,6 @@ Ivy.Tendril.Plugin.Linear/
   }
 }
 ```
-
-> **Important:** Set `<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>` so all dependencies are copied to the output directory. The plugin loader needs all DLLs in one place.
 
 ## NuGet Packages
 
