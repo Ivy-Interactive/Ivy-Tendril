@@ -126,7 +126,7 @@ public class PluginsSetupView : ViewBase
                                        success ? "Unloaded" : "Error");
                                    return ValueTask.CompletedTask;
                                }, variant: ButtonVariant.Outline, icon: Icons.Power)
-                               | BuildUninstallButton(id, pluginDirectories.GetValueOrDefault(id), uninstallService, client))
+                               | BuildUninstallButton(id, manifest?.Title, pluginDirectories.GetValueOrDefault(id), uninstallService, client))
                            | (customView
                                ?? (schema is not null
                                    ? new PluginConfigurationView(id, schema, configFactory).Key(id)
@@ -137,7 +137,7 @@ public class PluginsSetupView : ViewBase
                        var manifest = pluginManager.GetPluginManifest(p.Id);
                        var pluginConfig = configFactory.Create(p.Id);
                        var customView = pluginManager.BuildPluginConfigurationView(p.Id, pluginConfig);
-                       var uninstallButton = BuildUninstallButton(p.Id, p.Directory, uninstallService, client);
+                       var uninstallButton = BuildUninstallButton(p.Id, manifest?.Title, p.Directory, uninstallService, client);
                        var header = Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween)
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                                | PluginIconHelper.ToWidget(manifest?.Icon)
@@ -157,10 +157,11 @@ public class PluginsSetupView : ViewBase
                    | unloadedPlugins.Select(p =>
                    {
                        var isFailed = p.FailureReason is not null;
+                       var displayName = p.Title ?? p.Id;
                        var header = Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween)
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                               | PluginIconHelper.UnloadedIcon()
-                               | Text.Block(p.Id))
+                               | (PluginIconHelper.ToWidget(p.Icon) ?? PluginIconHelper.UnloadedIcon())
+                               | Text.Block(displayName))
                            | (isFailed
                                ? (Layout.Horizontal().Gap(1).AlignContent(Align.Right)
                                    | Text.Block("Failed").Muted().Small()
@@ -172,11 +173,11 @@ public class PluginsSetupView : ViewBase
                                | new Button(isFailed ? "Retry" : "Load", onClick: _ =>
                                {
                                    var success = pluginManager.LoadPlugin(p.Directory);
-                                   client.Toast(success ? $"Loaded '{p.Id}'" : $"Failed to load '{p.Id}'",
+                                   client.Toast(success ? $"Loaded '{displayName}'" : $"Failed to load '{displayName}'",
                                        success ? "Installed" : "Error");
                                    return ValueTask.CompletedTask;
                                }, variant: ButtonVariant.Outline, icon: isFailed ? Icons.RefreshCw : Icons.Plus)
-                               | BuildUninstallButton(p.Id, p.Directory, uninstallService, client));
+                               | BuildUninstallButton(p.Id, p.Title, p.Directory, uninstallService, client));
                        return (object)new Expandable(header, content).Open();
                    }).ToArray()))
                | new Separator()
@@ -310,7 +311,7 @@ public class PluginsSetupView : ViewBase
     }
 
     private static object? BuildUninstallButton(
-        string pluginId, string? pluginDirectory, PluginUninstallService uninstallService, IClientProvider client)
+        string pluginId, string? pluginTitle, string? pluginDirectory, PluginUninstallService uninstallService, IClientProvider client)
     {
         if (pluginDirectory is null)
             return null;
@@ -319,11 +320,11 @@ public class PluginsSetupView : ViewBase
         if (installationType == PluginInstallationType.Unknown)
             return null;
 
-        return new UninstallConfirmView(pluginId, pluginDirectory, installationType, uninstallService, client);
+        return new UninstallConfirmView(pluginId, pluginTitle ?? pluginId, pluginDirectory, installationType, uninstallService, client);
     }
 
     private class UninstallConfirmView(
-        string pluginId, string pluginDirectory, PluginInstallationType installationType,
+        string pluginId, string pluginTitle, string pluginDirectory, PluginInstallationType installationType,
         PluginUninstallService uninstallService, IClientProvider client) : ViewBase
     {
         public override object Build()
@@ -348,7 +349,7 @@ public class PluginsSetupView : ViewBase
                 }, variant: ButtonVariant.Outline, icon: Icons.Trash2),
                 isOpen.Value ? new Dialog(
                     _ => { isOpen.Set(false); keepConfig.Set(true); },
-                    new DialogHeader($"Uninstall {pluginId}"),
+                    new DialogHeader($"Uninstall {pluginTitle}"),
                     new DialogBody(
                         Layout.Vertical().Gap(3)
                         | confirmMessage
@@ -368,7 +369,7 @@ public class PluginsSetupView : ViewBase
                                 if (!keepConfig.Value)
                                     uninstallService.CleanupPluginConfig(pluginId);
 
-                                client.Toast($"Uninstalled '{pluginId}'", "Uninstalled");
+                                client.Toast($"Uninstalled '{pluginTitle}'", "Uninstalled");
                             }
                             catch (Exception ex)
                             {
