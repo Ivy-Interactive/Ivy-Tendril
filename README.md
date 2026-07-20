@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="src/mockup.gif" alt="Tendril desktop app running agents and tracking jobs" width="960" />
+  <img src="src/main.gif" alt="Tendril desktop app running agents and tracking jobs" width="960" />
 </p>
 
 ## Features
@@ -34,21 +34,7 @@ Run agents in isolated git worktrees. Keep your main branch clean until you revi
 
 </td>
 <td width="50%">
-  <img src="src/mockup.gif" alt="Parallel Worktrees" width="100%" />
-</td>
-</tr>
-<tr>
-<td width="50%" valign="middle">
-
-### Modular Promptwares
-
-Deploy self-improving agents (CreatePlan, ExecutePlan, ExpandPlan, CreatePr) with their own prompts, tools, memory, and hooks.
-
-[Docs &rarr;](https://tendril.ivy.app/docs/concepts/promptwares)
-
-</td>
-<td width="50%">
-  <img src="src/mockup.gif" alt="Modular Promptwares" width="100%" />
+  <img src="src/worktrees.gif" alt="Parallel Worktrees" width="100%" />
 </td>
 </tr>
 <tr>
@@ -62,7 +48,7 @@ Expose your server securely using Cloudflare Quick Tunnels. Control, monitor, an
 
 </td>
 <td width="50%">
-  <img src="src/mockup.gif" alt="Tunneling" width="100%" />
+  <img src="src/tunneling.gif" alt="Tunneling" width="100%" />
 </td>
 </tr>
 <tr>
@@ -76,7 +62,35 @@ Dictate prompts using voice input (integrated Whisper WebSockets) and attach tex
 
 </td>
 <td width="50%">
-  <img src="src/mockup.gif" alt="Voice and Rich Input" width="100%" />
+  <img src="src/voice.gif" alt="Voice and Rich Input" width="100%" />
+</td>
+</tr>
+<tr>
+<td width="50%" valign="middle">
+
+### Plan Annotations
+
+Annotate drafts inline to automatically update plans with revised agent goals.
+
+[Docs &rarr;](https://tendril.ivy.app/docs/gettingstarted/introduction)
+
+</td>
+<td width="50%">
+  <img src="src/annotation.gif" alt="Plan Annotations" width="100%" />
+</td>
+</tr>
+<tr>
+<td width="50%" valign="middle">
+
+### Powerful Code Reviews
+
+Review and verify agent changes, inspect diffs, and approve code with verification gates.
+
+[Docs &rarr;](https://tendril.ivy.app/docs/gettingstarted/introduction)
+
+</td>
+<td width="50%">
+  <img src="src/review.gif" alt="Making Code Reviews" width="100%" />
 </td>
 </tr>
 <tr>
@@ -90,30 +104,17 @@ Watch your GitHub Issues or ingest bug reports from jam.dev via webhooks. The au
 
 </td>
 <td width="50%">
-  <img src="src/mockup.gif" alt="GitHub Integration" width="100%" />
-</td>
-</tr>
-<tr>
-<td width="50%" valign="middle">
-
-### Verification Gates
-
-Wire up build, test, lint, and format checks. Plans only advance when all checks pass, guaranteeing production-ready code.
-
-[Docs &rarr;](https://tendril.ivy.app/docs/gettingstarted/introduction)
-
-</td>
-<td width="50%">
-  <img src="src/mockup.gif" alt="Verification Gates" width="100%" />
+  <img src="src/github.gif" alt="GitHub Integration" width="100%" />
 </td>
 </tr>
 </table>
 
 **Also in the box:**
 
+- **Modular Promptwares:** Deploy self-improving agents (CreatePlan, ExecutePlan, ExpandPlan, CreatePr) with their own prompts, tools, memory, and hooks.
+- **Verification Gates:** Wire up build, test, lint, and format checks. Plans only advance when all checks pass, guaranteeing production-ready code.
 - **Chat with Agent (PTY):** Directly chat with running coding agents in a beta terminal-style split with system prompt injection.
 - **Activity Heatmap:** View your 90-day PR contribution history on the wallpaper interface.
-- **Plan Annotations:** Annotate drafts inline to automatically update plans with revised agent goals.
 - **Rerun with Feedback:** Rerun plan steps with custom instructions to steer agents on failures.
 - **Diagnostics & Testing:** Run one-click agent diagnostics to check installation, path, and model availability.
 - **Plan state versioning:** Revert plan revisions, rename states, and migrate plan files with schema guards.
