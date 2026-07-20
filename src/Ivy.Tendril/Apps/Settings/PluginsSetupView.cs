@@ -97,7 +97,7 @@ public class PluginsSetupView : ViewBase
                        | new Icon(Icons.Plug, Colors.Muted).Width(Size.Units(10)).Height(Size.Units(10))
                        | Text.Block("No plugins installed").Bold()
                        | Text.Block("Get started by adding your first plugin.").Muted().Small()
-                       | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, dependencyResolver, installingPlugins, ButtonVariant.Primary));
+                       | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, dependencyResolver, installingPlugins, pluginManager, ButtonVariant.Primary));
         }
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
@@ -196,7 +196,7 @@ public class PluginsSetupView : ViewBase
                    : null!)
                | new Separator()
                | (Layout.Horizontal().Gap(2)
-                   | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, dependencyResolver, installingPlugins)
+                   | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, dependencyResolver, installingPlugins, pluginManager)
                    | new Button("Open Plugins Folder", onClick: _ =>
                    {
                        PlatformHelper.OpenInFileManager(pluginsDir);
@@ -207,7 +207,7 @@ public class PluginsSetupView : ViewBase
     private class AddPluginsDialogView(
         bool loading, AvailablePlugin[]? plugins, string pluginsDir, IClientProvider client,
         NuGetDependencyResolver dependencyResolver, IState<Dictionary<string, (string Title, int Progress)>> installingPlugins,
-        ButtonVariant buttonVariant = ButtonVariant.Outline) : ViewBase
+        IPluginManager pluginManager, ButtonVariant buttonVariant = ButtonVariant.Outline) : ViewBase
     {
         public override object Build()
         {
@@ -274,6 +274,7 @@ public class PluginsSetupView : ViewBase
                                     try
                                     {
                                         await InstallPluginAsync(p, pluginsDir, dependencyResolver, progress);
+                                        pluginManager.LoadPlugin(Path.Combine(pluginsDir, p.PackageId));
                                         client.Toast($"Installed '{p.Title}'", "Installed");
                                     }
                                     catch (Exception ex)
