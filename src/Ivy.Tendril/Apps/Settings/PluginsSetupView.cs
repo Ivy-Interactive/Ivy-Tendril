@@ -269,11 +269,26 @@ public class PluginsSetupView : ViewBase
                                 ? (object)new Progress(progressValue).Width(Size.Units(20))
                                 : new Button("Install", onClick: async _ =>
                                 {
+                                    // Delay showing loading state to avoid a flash for fast installs
+                                    var showLoadingCts = new CancellationTokenSource();
+                                    var loadingVisible = false;
+
                                     var progress = new Progress<int>(pct =>
+                                    {
+                                        if (!loadingVisible) return;
                                         installingPlugins.Set(dict => new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>(dict)
-                                            { [p.PackageId] = (p.Title, icon, pct) }));
-                                    installingPlugins.Set(dict => new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>(dict)
-                                        { [p.PackageId] = (p.Title, icon, 0) });
+                                            { [p.PackageId] = (p.Title, icon, pct) });
+                                    });
+
+                                    #pragma warning disable CS4014 // Fire-and-forget by design
+                                    Task.Delay(400, showLoadingCts.Token).ContinueWith(__ =>
+                                    {
+                                        loadingVisible = true;
+                                        installingPlugins.Set(dict => new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>(dict)
+                                            { [p.PackageId] = (p.Title, icon, 0) });
+                                    }, TaskContinuationOptions.OnlyOnRanToCompletion);
+                                    #pragma warning restore CS4014
+
                                     try
                                     {
                                         await InstallPluginAsync(p, pluginsDir, dependencyResolver, progress);
@@ -286,6 +301,8 @@ public class PluginsSetupView : ViewBase
                                     }
                                     finally
                                     {
+                                        showLoadingCts.Cancel();
+                                        showLoadingCts.Dispose();
                                         installingPlugins.Set(dict =>
                                         {
                                             var next = new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>(dict);
