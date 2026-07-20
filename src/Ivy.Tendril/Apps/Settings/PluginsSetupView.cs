@@ -85,7 +85,7 @@ public class PluginsSetupView : ViewBase
             .ToArray();
 
         // Shared state: maps packageId → progress (0-100) for currently-installing plugins
-        var installingPlugins = UseState(new Dictionary<string, (string Title, int Progress)>());
+        var installingPlugins = UseState(new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>());
 
         var hasAnyPlugins = activePlugins.Count > 0 || unconfiguredPlugins.Count > 0 || unloadedPlugins.Count > 0;
 
@@ -190,7 +190,10 @@ public class PluginsSetupView : ViewBase
                        | Text.Block("Installing").Bold()
                        | installingPlugins.Value.Select(kvp =>
                            (object)(Layout.Vertical().Gap(1)
-                               | Text.Block(kvp.Value.Title).Small()
+                               | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                                   | (PluginIconHelper.ToWidget(kvp.Value.Icon)
+                                       ?? (object)new Icon(Icons.Plug).Width(PluginIconHelper.IconSize).Height(PluginIconHelper.IconSize))
+                                   | Text.Block(kvp.Value.Title))
                                | new Progress(kvp.Value.Progress))
                        ).ToArray())
                    : null!)
@@ -206,7 +209,7 @@ public class PluginsSetupView : ViewBase
 
     private class AddPluginsDialogView(
         bool loading, AvailablePlugin[]? plugins, string pluginsDir, IClientProvider client,
-        NuGetDependencyResolver dependencyResolver, IState<Dictionary<string, (string Title, int Progress)>> installingPlugins,
+        NuGetDependencyResolver dependencyResolver, IState<Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>> installingPlugins,
         IPluginManager pluginManager, ButtonVariant buttonVariant = ButtonVariant.Outline) : ViewBase
     {
         public override object Build()
@@ -267,10 +270,10 @@ public class PluginsSetupView : ViewBase
                                 : new Button("Install", onClick: async _ =>
                                 {
                                     var progress = new Progress<int>(pct =>
-                                        installingPlugins.Set(dict => new Dictionary<string, (string Title, int Progress)>(dict)
-                                            { [p.PackageId] = (p.Title, pct) }));
-                                    installingPlugins.Set(dict => new Dictionary<string, (string Title, int Progress)>(dict)
-                                        { [p.PackageId] = (p.Title, 0) });
+                                        installingPlugins.Set(dict => new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>(dict)
+                                            { [p.PackageId] = (p.Title, icon, pct) }));
+                                    installingPlugins.Set(dict => new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>(dict)
+                                        { [p.PackageId] = (p.Title, icon, 0) });
                                     try
                                     {
                                         await InstallPluginAsync(p, pluginsDir, dependencyResolver, progress);
@@ -285,7 +288,7 @@ public class PluginsSetupView : ViewBase
                                     {
                                         installingPlugins.Set(dict =>
                                         {
-                                            var next = new Dictionary<string, (string Title, int Progress)>(dict);
+                                            var next = new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>(dict);
                                             next.Remove(p.PackageId);
                                             return next;
                                         });
