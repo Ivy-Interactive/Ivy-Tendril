@@ -51,13 +51,20 @@
   flex: 1;
   min-width: 0;
   align-items: center;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
+  overflow: hidden;
 }
 
-.bselect-badges::-webkit-scrollbar {
-  display: none;
+.bselect-count {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: calc(var(--radius, 6px) - 2px);
+  background: var(--secondary, var(--muted));
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .bselect-placeholder {

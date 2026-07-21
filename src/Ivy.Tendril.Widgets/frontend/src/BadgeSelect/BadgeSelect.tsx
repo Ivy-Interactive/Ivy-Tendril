@@ -100,9 +100,13 @@ export function BadgeSelect({
 }: BadgeSelectProps) {
   const [open, setOpen] = useState(false);
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+  const [visibleCount, setVisibleCount] = useState(Number.MAX_SAFE_INTEGER);
+  const [containerWidth, setContainerWidth] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const badgesRef = useRef<HTMLDivElement>(null);
   const selected = Array.isArray(value) ? value : [];
+  const selectedKey = selected.join("\u0000");
 
   const updateMenuPosition = () => {
     const trigger = rootRef.current;
@@ -129,6 +133,41 @@ export function BadgeSelect({
     if (!open) return;
     updateMenuPosition();
   }, [open, options.length, selected.length]);
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setContainerWidth(el.clientWidth));
+    ro.observe(el);
+    setContainerWidth(el.clientWidth);
+    return () => ro.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    const container = badgesRef.current;
+    if (!container || selected.length === 0) return;
+    const badges = Array.from(container.querySelectorAll<HTMLElement>("[data-badge]"));
+    badges.forEach((b) => (b.style.display = ""));
+    const gap = 4;
+    const counterReserve = 40;
+    const avail = container.clientWidth;
+    let used = 0;
+    let count = 0;
+    for (let i = 0; i < badges.length; i++) {
+      const w = badges[i].offsetWidth + (i > 0 ? gap : 0);
+      const hasMore = i < badges.length - 1;
+      const reserve = hasMore ? counterReserve + gap : 0;
+      if (used + w + reserve <= avail) {
+        used += w;
+        count++;
+      } else {
+        break;
+      }
+    }
+    count = Math.max(1, count);
+    badges.forEach((b, i) => (b.style.display = i < count ? "" : "none"));
+    setVisibleCount(count);
+  }, [selectedKey, containerWidth]);
 
   useEffect(() => {
     if (!open) return;
@@ -238,29 +277,39 @@ export function BadgeSelect({
         onClick={() => setOpen((v) => !v)}
       >
         <NamedIcon name={triggerIcon} className="bselect-trigger-icon" />
-        <div className="bselect-badges">
+        <div ref={badgesRef} className="bselect-badges">
           {selected.length === 0 ? (
             <span className="bselect-placeholder">{placeholder}</span>
           ) : (
-            selected.map((v) => {
-              const opt = options.find((o) => o.value === v);
-              const canRemove = multiple && opt?.removable !== false;
-              return (
-                <span key={v} className="bselect-badge">
-                  <span className="bselect-badge-label">{opt?.label ?? v}</span>
-                  {canRemove && (
-                    <button
-                      type="button"
-                      className="bselect-badge-x"
-                      aria-label={`Remove ${opt?.label ?? v}`}
-                      onClick={(e) => remove(v, e)}
-                    >
-                      <X size={12} />
-                    </button>
-                  )}
-                </span>
-              );
-            })
+            <>
+              {selected.map((v, i) => {
+                const opt = options.find((o) => o.value === v);
+                const canRemove = multiple && opt?.removable !== false;
+                return (
+                  <span
+                    key={v}
+                    data-badge
+                    className="bselect-badge"
+                    style={{ display: i < visibleCount ? undefined : "none" }}
+                  >
+                    <span className="bselect-badge-label">{opt?.label ?? v}</span>
+                    {canRemove && (
+                      <button
+                        type="button"
+                        className="bselect-badge-x"
+                        aria-label={`Remove ${opt?.label ?? v}`}
+                        onClick={(e) => remove(v, e)}
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </span>
+                );
+              })}
+              {visibleCount < selected.length && (
+                <span className="bselect-count">+{selected.length - visibleCount}</span>
+              )}
+            </>
           )}
         </div>
         <ChevronDown size={14} className="bselect-chevron" />
