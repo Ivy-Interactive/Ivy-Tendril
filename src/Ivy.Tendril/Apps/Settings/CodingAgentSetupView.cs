@@ -2,6 +2,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Net.Http;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Apps.Settings.Dialogs;
 using Ivy.Tendril.Helpers;
@@ -311,47 +312,48 @@ public class CodingAgentSetupView : ViewBase
         
         try
         {
-            var pInfo = new ProcessStartInfo
-            {
-                FileName = "gh",
-                Arguments = $"release download --repo Ivy-Interactive/ivy-agent-cli --pattern \"ivy-agent-{os}-{arch}*\" --dir \"{tempDir}\" --clobber",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
+            using var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("IvyTendril");
             
-            using var proc = Process.Start(pInfo);
-            if (proc != null)
+            // 1. Get latest version from CDN
+            string latestTxtUrl = "https://cdn.ivy.app/ivy-agent-cli/releases/latest.txt";
+            string version;
+            try
             {
-                await proc.WaitForExitAsync();
-                if (proc.ExitCode != 0)
-                {
-                    var err = await proc.StandardError.ReadToEndAsync();
-                    throw new Exception($"GitHub CLI error: {err.Trim()}");
-                }
+                version = (await httpClient.GetStringAsync(latestTxtUrl)).Trim();
             }
-            else
+            catch (Exception ex)
             {
-                throw new Exception("Could not start GitHub CLI ('gh'). Please ensure 'gh' is installed on your PATH and authenticated.");
+                throw new Exception($"Failed to fetch latest version metadata from CDN: {ex.Message}");
             }
             
-            var archive = Directory.GetFiles(tempDir).FirstOrDefault();
-            if (string.IsNullOrEmpty(archive))
+            // 2. Download the archive
+            string extension = os == "windows" ? ".zip" : ".tar.gz";
+            string archiveName = $"ivy-agent-cli-{os}-{arch}{extension}";
+            string downloadUrl = $"https://cdn.ivy.app/ivy-agent-cli/releases/download/{version}/{archiveName}";
+            string archivePath = Path.Combine(tempDir, archiveName);
+            
+            try
             {
-                throw new Exception("No release assets downloaded. Verify you have invite access to the Ivy repository.");
+                using var stream = await httpClient.GetStreamAsync(downloadUrl);
+                using var fileStream = new FileStream(archivePath, FileMode.Create, FileAccess.Write, FileShare.None);
+                await stream.CopyToAsync(fileStream);
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Failed to download release archive from CDN: {ex.Message}");
             }
             
-            if (archive.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             {
-                ZipFile.ExtractToDirectory(archive, tempDir, true);
+                ZipFile.ExtractToDirectory(archivePath, tempDir, true);
             }
-            else if (archive.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
+            else if (archivePath.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
             {
                 var tarInfo = new ProcessStartInfo
                 {
                     FileName = "tar",
-                    Arguments = $"-xzf \"{archive}\" -C \"{tempDir}\"",
+                    Arguments = $"-xzf \"{archivePath}\" -C \"{tempDir}\"",
                     RedirectStandardError = true,
                     UseShellExecute = false,
                     CreateNoWindow = true
