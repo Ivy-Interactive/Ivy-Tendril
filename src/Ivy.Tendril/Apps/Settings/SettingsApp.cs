@@ -53,7 +53,7 @@ public class SettingsApp : ViewBase
 
         var menuItems = new[]
         {
-            MenuItem.Default("Orchestration")
+            MenuItem.Default("Agents")
                 .Icon(Icons.FolderDot)
                 .Expanded()
                 .Children(
@@ -62,7 +62,7 @@ public class SettingsApp : ViewBase
                     MenuItem.Default("Verifications", TagVerifications).Icon(Icons.CircleCheck),
                     MenuItem.Default("Levels", TagLevels).Icon(Icons.ListOrdered)
                 ),
-            MenuItem.Default("Automations")
+            MenuItem.Default("Flows")
                 .Icon(Icons.Cpu)
                 .Expanded()
                 .Children(

@@ -1,17 +1,17 @@
 using Ivy;
 
-namespace Ivy.Tendril.Apps.Orchestration
+namespace Ivy.Tendril.Apps.AgentsGroup
 {
-    [App(group: ["Orchestration"], order: 10, groupExpanded: true)]
+    [App(group: ["Agents"], order: 10, groupExpanded: true)]
     public class _Index : ViewBase
     {
         public override object Build() => null!;
     }
 }
 
-namespace Ivy.Tendril.Apps.Automations
+namespace Ivy.Tendril.Apps.FlowsGroup
 {
-    [App(group: ["Automations"], order: 20, groupExpanded: true)]
+    [App(group: ["Flows"], order: 20, groupExpanded: true)]
     public class _Index : ViewBase
     {
         public override object Build() => null!;

@@ -7,7 +7,7 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Jobs;
 
-[App(title: "Jobs", icon: Icons.Activity, group: ["Automations"], order: Constants.Jobs)]
+[App(title: "Jobs", icon: Icons.Activity, group: ["Flows"], order: Constants.Jobs)]
 public partial class JobsApp : ViewBase
 {
     public override object Build()
