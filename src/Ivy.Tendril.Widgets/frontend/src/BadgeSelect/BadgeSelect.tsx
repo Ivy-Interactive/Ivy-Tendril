@@ -121,6 +121,7 @@ export function BadgeSelect({
       top: openUp ? undefined : rect.bottom + MENU_GAP,
       bottom: openUp ? window.innerHeight - rect.top + MENU_GAP : undefined,
       zIndex: 1000,
+      pointerEvents: "auto",
     });
   };
 
