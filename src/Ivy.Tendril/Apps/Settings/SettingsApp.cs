@@ -19,7 +19,6 @@ public class SettingsApp : ViewBase
     private const string TagPromptwares = "promptwares";
     internal const string TagProjects = "projects";
     private const string TagTunnel = "tunnel";
-    private const string TagAdvanced = "advanced";
     private const string TagOpenConfig = "open-config";
 
     public override object Build()
@@ -48,12 +47,17 @@ public class SettingsApp : ViewBase
         };
 
         children.Add(MenuItem.Default("Tunnel", TagTunnel).Icon(Icons.Globe));
-        children.Add(MenuItem.Default("Advanced", TagAdvanced).Icon(Icons.Cog));
         children.Add(MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText));
 
         var menuItems = new[]
         {
-            MenuItem.Default("Appearance", TagAppearance).Icon(Icons.Sun),
+            MenuItem.Default("General")
+                .Icon(Icons.Settings2)
+                .Expanded()
+                .Children(
+                    MenuItem.Default("Appearance", TagAppearance).Icon(Icons.Sun),
+                    MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder)
+                ),
             MenuItem.Default("Agents")
                 .Icon(Icons.Bot)
                 .Expanded()
@@ -63,16 +67,14 @@ public class SettingsApp : ViewBase
                     MenuItem.Default("Verifications", TagVerifications).Icon(Icons.CircleCheck),
                     MenuItem.Default("Levels", TagLevels).Icon(Icons.ListOrdered)
                 ),
-            MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder),
             MenuItem.Default("Features")
-                .Icon(Icons.Settings2)
+                .Icon(Icons.Cpu)
                 .Expanded()
                 .Children(
                     MenuItem.Default("Promptwares", TagPromptwares).Icon(Icons.Wand),
                     MenuItem.Default("Notifications", TagNotifications).Icon(Icons.Bell),
                     MenuItem.Default("Security", TagSecurity).Icon(Icons.Lock),
                     MenuItem.Default("Tunnel", TagTunnel).Icon(Icons.Globe),
-                    MenuItem.Default("Advanced", TagAdvanced).Icon(Icons.Cog),
                     MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText)
                 )
         };
@@ -105,7 +107,6 @@ public class SettingsApp : ViewBase
             TagPromptwares => new PromptwaresSetupView(),
             TagProjects => new ProjectsSetupView(),
             TagTunnel => new TunnelSetupView(),
-            TagAdvanced => new AdvancedSetupView(),
             _ => new CodingAgentSetupView()
         };
 
