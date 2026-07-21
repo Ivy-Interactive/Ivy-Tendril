@@ -69,18 +69,21 @@ public sealed class CopilotFailureAnalyzer : IFailureAnalyzer
             };
         }
 
+        var lastStderr = context.StderrLines.LastOrDefault(l => !string.IsNullOrWhiteSpace(l));
+
         if (context.ExitCode is not null and not 0)
         {
             return new FailureAnalysis
             {
                 Kind = FailureKind.ProcessCrash,
-                Reason = $"Copilot exited with code {context.ExitCode}",
+                Reason = lastStderr != null
+                    ? $"Copilot exited with code {context.ExitCode}: {lastStderr}"
+                    : $"Copilot exited with code {context.ExitCode}",
                 ContextLines = context.StderrLines,
                 IsRetryable = true,
             };
         }
 
-        var lastStderr = context.StderrLines.LastOrDefault(l => !string.IsNullOrWhiteSpace(l));
         return new FailureAnalysis
         {
             Kind = FailureKind.Unknown,

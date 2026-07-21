@@ -87,18 +87,21 @@ public sealed class ClaudeFailureAnalyzer : IFailureAnalyzer
             };
         }
 
+        var lastStderr = context.StderrLines.LastOrDefault(l => !string.IsNullOrWhiteSpace(l));
+
         if (context.ExitCode is not null and not 0)
         {
             return new FailureAnalysis
             {
                 Kind = FailureKind.ProcessCrash,
-                Reason = $"Claude Code exited with code {context.ExitCode}",
+                Reason = lastStderr != null
+                    ? $"Claude Code exited with code {context.ExitCode}: {lastStderr}"
+                    : $"Claude Code exited with code {context.ExitCode}",
                 ContextLines = context.StderrLines,
                 IsRetryable = true,
             };
         }
 
-        var lastStderr = context.StderrLines.LastOrDefault(l => !string.IsNullOrWhiteSpace(l));
         return new FailureAnalysis
         {
             Kind = FailureKind.Unknown,
