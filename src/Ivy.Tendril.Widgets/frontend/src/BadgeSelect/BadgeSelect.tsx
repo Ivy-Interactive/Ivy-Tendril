@@ -131,6 +131,19 @@ export function BadgeSelect({
 
   useEffect(() => {
     if (!open) return;
+    const menu = menuRef.current;
+    if (!menu) return;
+    const stop = (e: Event) => e.stopPropagation();
+    menu.addEventListener("wheel", stop, { passive: false });
+    menu.addEventListener("touchmove", stop, { passive: false });
+    return () => {
+      menu.removeEventListener("wheel", stop);
+      menu.removeEventListener("touchmove", stop);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     const onPointerDown = (e: MouseEvent) => {
       const target = e.target as Node;
       if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
