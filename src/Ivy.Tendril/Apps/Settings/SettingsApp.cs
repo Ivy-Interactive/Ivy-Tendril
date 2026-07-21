@@ -53,8 +53,9 @@ public class SettingsApp : ViewBase
 
         var menuItems = new[]
         {
+            MenuItem.Default("Appearance", TagAppearance).Icon(Icons.Sun),
             MenuItem.Default("Agents")
-                .Icon(Icons.FolderDot)
+                .Icon(Icons.Bot)
                 .Expanded()
                 .Children(
                     MenuItem.Default("Coding Agent", TagCodingAgent).Icon(Icons.Bot),
@@ -62,18 +63,12 @@ public class SettingsApp : ViewBase
                     MenuItem.Default("Verifications", TagVerifications).Icon(Icons.CircleCheck),
                     MenuItem.Default("Levels", TagLevels).Icon(Icons.ListOrdered)
                 ),
-            MenuItem.Default("Flows")
-                .Icon(Icons.Cpu)
-                .Expanded()
-                .Children(
-                    MenuItem.Default("Promptwares", TagPromptwares).Icon(Icons.Wand)
-                ),
-            MenuItem.Default("Overview")
+            MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder),
+            MenuItem.Default("Features")
                 .Icon(Icons.Settings2)
                 .Expanded()
                 .Children(
-                    MenuItem.Default("Appearance", TagAppearance).Icon(Icons.Sun),
-                    MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder),
+                    MenuItem.Default("Promptwares", TagPromptwares).Icon(Icons.Wand),
                     MenuItem.Default("Notifications", TagNotifications).Icon(Icons.Bell),
                     MenuItem.Default("Security", TagSecurity).Icon(Icons.Lock),
                     MenuItem.Default("Tunnel", TagTunnel).Icon(Icons.Globe),
