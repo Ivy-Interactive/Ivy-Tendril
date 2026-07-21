@@ -1,3 +1,7 @@
+using System.IO;
+using System.IO.Compression;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Apps.Settings.Dialogs;
 using Ivy.Tendril.Helpers;
@@ -49,6 +53,29 @@ public class CodingAgentSetupView : ViewBase
             },
             initialValue: []
         );
+
+        var isIvyInstalled = UseState(false);
+        var isInstalling = UseState(false);
+        var installError = UseState<string?>(null);
+
+        var checkIvyInstall = async () =>
+        {
+            var hc = runner.GetHealthCheck("ivy");
+            if (hc != null)
+            {
+                var status = await hc.CheckInstallAsync();
+                isIvyInstalled.Set(status.IsInstalled);
+            }
+            else
+            {
+                isIvyInstalled.Set(false);
+            }
+        };
+
+        UseEffect(async () =>
+        {
+            await checkIvyInstall();
+        }, selectedAgent);
 
         if (lastAgent.Value != selectedAgent.Value)
         {
@@ -117,6 +144,35 @@ public class CodingAgentSetupView : ViewBase
                                    .Link("private GitHub repository", "https://github.com/Ivy-Interactive/ivy-agent-cli")
                                    .Run(".")
                                    .OnLinkClick(url => client.OpenUrl(url))
+                               | new Spacer().Height(Size.Units(1))
+                               | (isIvyInstalled.Value
+                                   ? Text.Block("✓ Ivy Agent is installed locally.").Color(Colors.Success).Small()
+                                   : (object)(Layout.Vertical().Gap(1)
+                                       | new Button(isInstalling.Value ? "Downloading & Installing..." : "One-Click Download & Install")
+                                           .Primary()
+                                           .Disabled(isInstalling.Value)
+                                           .OnClick(async () =>
+                                           {
+                                               isInstalling.Set(true);
+                                               installError.Set(null);
+                                               try
+                                               {
+                                                   await InstallIvyAgentAsync(client);
+                                                   await checkIvyInstall();
+                                                   client.Toast("Ivy Agent downloaded and installed successfully!", "Success");
+                                               }
+                                               catch (Exception ex)
+                                               {
+                                                   installError.Set(ex.Message);
+                                               }
+                                               finally
+                                               {
+                                                   isInstalling.Set(false);
+                                               }
+                                           })
+                                       | (installError.Value != null ? Text.Block(installError.Value).Color(Colors.Destructive).Small() : null!)
+                                     )
+                                 )
                            )
                        | new Spacer().Height(Size.Units(2))
                        | ivyApiKey.ToPasswordInput("sk-...")
@@ -236,6 +292,130 @@ public class CodingAgentSetupView : ViewBase
         else
         {
             ac.EnvironmentVariables["ANTHROPIC_API_KEY"] = apiKey;
+        }
+    }
+
+    private static async Task<bool> InstallIvyAgentAsync(IClientProvider client)
+    {
+        string os = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "windows" :
+                    RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "darwin" : "linux";
+        string arch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x64";
+        
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var installDir = Path.Combine(home, ".ivy-agent", "bin");
+        Directory.CreateDirectory(installDir);
+        
+        var tempDir = Path.Combine(Path.GetTempPath(), "ivy-agent-install");
+        if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        Directory.CreateDirectory(tempDir);
+        
+        try
+        {
+            var pInfo = new ProcessStartInfo
+            {
+                FileName = "gh",
+                Arguments = $"release download --repo Ivy-Interactive/ivy-agent-cli --pattern \"ivy-agent-{os}-{arch}*\" --dir \"{tempDir}\" --clobber",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            
+            using var proc = Process.Start(pInfo);
+            if (proc != null)
+            {
+                await proc.WaitForExitAsync();
+                if (proc.ExitCode != 0)
+                {
+                    var err = await proc.StandardError.ReadToEndAsync();
+                    throw new Exception($"GitHub CLI error: {err.Trim()}");
+                }
+            }
+            else
+            {
+                throw new Exception("Could not start GitHub CLI ('gh'). Please ensure 'gh' is installed on your PATH and authenticated.");
+            }
+            
+            var archive = Directory.GetFiles(tempDir).FirstOrDefault();
+            if (string.IsNullOrEmpty(archive))
+            {
+                throw new Exception("No release assets downloaded. Verify you have invite access to the Ivy repository.");
+            }
+            
+            if (archive.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                ZipFile.ExtractToDirectory(archive, tempDir, true);
+            }
+            else if (archive.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
+            {
+                var tarInfo = new ProcessStartInfo
+                {
+                    FileName = "tar",
+                    Arguments = $"-xzf \"{archive}\" -C \"{tempDir}\"",
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var tarProc = Process.Start(tarInfo);
+                if (tarProc != null)
+                {
+                    await tarProc.WaitForExitAsync();
+                    if (tarProc.ExitCode != 0)
+                    {
+                        var tarErr = await tarProc.StandardError.ReadToEndAsync();
+                        throw new Exception($"tar extraction failed: {tarErr.Trim()}");
+                    }
+                }
+            }
+            
+            string binaryName = os == "windows" ? "ivy-agent.exe" : "ivy-agent";
+            var files = Directory.GetFiles(tempDir, binaryName, SearchOption.AllDirectories);
+            var binarySource = files.FirstOrDefault();
+            
+            if (string.IsNullOrEmpty(binarySource))
+            {
+                throw new Exception($"Binary '{binaryName}' not found in the downloaded archive.");
+            }
+            
+            string destPath = Path.Combine(installDir, binaryName);
+            if (File.Exists(destPath)) File.Delete(destPath);
+            File.Move(binarySource, destPath);
+            
+            if (os != "windows")
+            {
+                var chmodInfo = new ProcessStartInfo
+                {
+                    FileName = "chmod",
+                    Arguments = $"+x \"{destPath}\"",
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                };
+                using var chmodProc = Process.Start(chmodInfo);
+                if (chmodProc != null) await chmodProc.WaitForExitAsync();
+            }
+            
+            if (os == "darwin")
+            {
+                var codesignInfo = new ProcessStartInfo
+                {
+                    FileName = "codesign",
+                    Arguments = $"-s - --force \"{destPath}\"",
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                };
+                using var codesignProc = Process.Start(codesignInfo);
+                if (codesignProc != null) await codesignProc.WaitForExitAsync();
+            }
+            
+            return true;
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+            }
+            catch {}
         }
     }
 
