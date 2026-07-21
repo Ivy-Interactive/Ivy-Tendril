@@ -96,18 +96,21 @@ public static class AgentServiceCollectionExtensions
                 new OpenCodePty(),
                 new OpenCodeModelCatalog());
 
-            Func<string?> apiKeyProvider = options.IvyApiKeyProviderFactory?.Invoke(sp) ?? (() => null);
-            Func<string?> tokenProvider = options.IvyTokenProviderFactory?.Invoke(sp) ?? (() => null);
-            Func<CancellationToken, Task<string?>> emailProvider = options.IvyEmailProviderFactory?.Invoke(sp) ?? ((_) => Task.FromResult<string?>(null));
+            if (options.IncludeBetaProviders)
+            {
+                Func<string?> apiKeyProvider = options.IvyApiKeyProviderFactory?.Invoke(sp) ?? (() => null);
+                Func<string?> tokenProvider = options.IvyTokenProviderFactory?.Invoke(sp) ?? (() => null);
+                Func<CancellationToken, Task<string?>> emailProvider = options.IvyEmailProviderFactory?.Invoke(sp) ?? ((_) => Task.FromResult<string?>(null));
 
-            runner.Register(
-                new Providers.Ivy.IvyCli(apiKeyProvider),
-                new Providers.Ivy.IvyEventParser(),
-                new Providers.Ivy.IvyHealthCheck(apiKeyProvider, tokenProvider, emailProvider),
-                new Providers.Ivy.IvyFailureAnalyzer(),
-                new Providers.Ivy.IvySessionCostParser(),
-                new Providers.Ivy.IvyPty(apiKeyProvider),
-                new Providers.Ivy.IvyModelCatalog());
+                runner.Register(
+                    new Providers.Ivy.IvyCli(apiKeyProvider),
+                    new Providers.Ivy.IvyEventParser(),
+                    new Providers.Ivy.IvyHealthCheck(apiKeyProvider, tokenProvider, emailProvider),
+                    new Providers.Ivy.IvyFailureAnalyzer(),
+                    new Providers.Ivy.IvySessionCostParser(),
+                    new Providers.Ivy.IvyPty(apiKeyProvider),
+                    new Providers.Ivy.IvyModelCatalog());
+            }
 
             return runner;
         });
