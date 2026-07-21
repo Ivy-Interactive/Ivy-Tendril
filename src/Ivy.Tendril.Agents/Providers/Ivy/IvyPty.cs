@@ -38,9 +38,15 @@ public sealed class IvyPty : IAgentPty
             env["ANTHROPIC_API_KEY"] = apiKey;
         }
 
+        var args = new List<string>(spec.CommandLine);
+        if (args.Count > 0 && args[0] == "opencode")
+        {
+            args[0] = IvyBinaryResolver.Resolve();
+        }
+
         return new AgentPtySpec
         {
-            CommandLine = spec.CommandLine,
+            CommandLine = args,
             WorkingDirectory = spec.WorkingDirectory,
             Environment = env,
         };

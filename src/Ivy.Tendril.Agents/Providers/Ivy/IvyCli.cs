@@ -42,7 +42,7 @@ public sealed class IvyCli : IAgentCli
 
         return new AgentProcessSpec
         {
-            FileName = spec.FileName,
+            FileName = IvyBinaryResolver.Resolve(),
             Arguments = spec.Arguments,
             WorkingDirectory = spec.WorkingDirectory,
             Environment = env,

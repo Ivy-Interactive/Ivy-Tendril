@@ -1,5 +1,6 @@
+using System.Runtime.InteropServices;
 using Ivy.Tendril.Agents.Abstractions;
-using Ivy.Tendril.Agents.Providers.OpenCode;
+using Ivy.Tendril.Agents.Helpers;
 
 namespace Ivy.Tendril.Agents.Providers.Ivy;
 
@@ -8,7 +9,6 @@ public sealed class IvyHealthCheck : IAgentHealthCheck
     private readonly Func<string?> _apiKeyProvider;
     private readonly Func<string?> _tokenProvider;
     private readonly Func<CancellationToken, Task<string?>> _emailProvider;
-    private readonly OpenCodeHealthCheck _inner = new();
 
     public IvyHealthCheck(
         Func<string?>? apiKeyProvider = null,
@@ -24,14 +24,12 @@ public sealed class IvyHealthCheck : IAgentHealthCheck
 
     public async Task<AgentInstallStatus> CheckInstallAsync(CancellationToken ct = default)
     {
-        var result = await _inner.CheckInstallAsync(ct);
-        return new AgentInstallStatus
-        {
-            IsInstalled = result.IsInstalled,
-            Version = result.Version,
-            BinaryPath = result.BinaryPath,
-            Error = result.Error?.Replace("opencode", "ivy")
-        };
+        var path = IvyBinaryResolver.Resolve();
+        if (!File.Exists(path))
+            return new AgentInstallStatus { IsInstalled = false, Error = "ivy-agent not found" };
+
+        var version = await GetVersionAsync(ct);
+        return new AgentInstallStatus { IsInstalled = true, Version = version, BinaryPath = path };
     }
 
     public async Task<AgentAuthResult> CheckAuthAsync(CancellationToken ct = default)
@@ -87,10 +85,26 @@ public sealed class IvyHealthCheck : IAgentHealthCheck
     }
 
     public async Task<string?> GetVersionAsync(CancellationToken ct = default)
-        => await _inner.GetVersionAsync(ct);
+    {
+        var binaryPath = IvyBinaryResolver.Resolve();
+        var (exitCode, stdout, _) = await HealthCheckRunner.RunAsync(
+            binaryPath, ["--version"], TimeSpan.FromSeconds(10), ct);
+
+        if (exitCode != 0) return null;
+        return stdout.Trim();
+    }
 
     public async Task<ModelValidationResult> ValidateModelAsync(string model, CancellationToken ct = default)
     {
+        if (!string.IsNullOrEmpty(model) && !string.Equals(model, "default", StringComparison.OrdinalIgnoreCase))
+            return new ModelValidationResult
+            {
+                Status = ModelValidationStatus.Unknown,
+                Model = model,
+                ErrorMessage = "Ivy Agent does not support model validation for non-default models",
+            };
+
+        var binaryPath = IvyBinaryResolver.Resolve();
         var originalEnv = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
         var originalUrl = Environment.GetEnvironmentVariable("ANTHROPIC_BASE_URL");
         try
@@ -102,12 +116,18 @@ public sealed class IvyHealthCheck : IAgentHealthCheck
                 Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", key);
             }
             
-            var result = await _inner.ValidateModelAsync(model, ct);
+            var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
+                binaryPath, ["run", "ping"],
+                TimeSpan.FromSeconds(30), ct);
+
+            if (exitCode == 0)
+                return new ModelValidationResult { Status = ModelValidationStatus.Ok, Model = model };
+
             return new ModelValidationResult
             {
-                Status = result.Status,
-                Model = result.Model,
-                ErrorMessage = result.ErrorMessage
+                Status = ModelValidationStatus.Unknown,
+                Model = model,
+                ErrorMessage = stderr,
             };
         }
         finally
@@ -123,10 +143,10 @@ public sealed class IvyHealthCheck : IAgentHealthCheck
     public AgentOnboardingInfo GetOnboardingInfo() => new()
     {
         DisplayName = "Ivy Agent",
-        InstallCommand = "npm install -g opencode-ai",
-        InstallUrl = "https://opencode.ai",
+        InstallCommand = "curl -fsSL https://raw.githubusercontent.com/Ivy-Interactive/ivy-agent-cli/main/install.sh | bash",
+        InstallUrl = "https://github.com/Ivy-Interactive/ivy-agent-cli",
         AuthCommand = "",
         SignInHint = "Log in with an @ivy.app account or enter an API key in settings",
-        DocsUrl = "https://ivy.app",
+        DocsUrl = "https://github.com/Ivy-Interactive/ivy-agent-cli",
     };
 }
