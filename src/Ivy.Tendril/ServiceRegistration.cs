@@ -32,6 +32,42 @@ internal static class ServiceRegistration
         server.Services.AddAgentInfrastructure(opts =>
         {
             opts.IncludeBetaProviders = tendrilArgs?.Beta ?? false;
+            
+            opts.IvyApiKeyProviderFactory = sp =>
+            {
+                var config = sp.GetService<IConfigService>();
+                var authTokenHandler = sp.GetService<Ivy.IAuthTokenHandlerService>();
+                return () =>
+                {
+                    if (config?.Settings != null)
+                    {
+                        var ivyAgent = config.Settings.CodingAgents.FirstOrDefault(a =>
+                            a.Name.Equals("ivy", StringComparison.OrdinalIgnoreCase));
+                        if (ivyAgent != null && ivyAgent.EnvironmentVariables.TryGetValue("ANTHROPIC_API_KEY", out var key) && !string.IsNullOrEmpty(key))
+                        {
+                            return key;
+                        }
+                    }
+                    return authTokenHandler?.GetCurrentToken()?.AccessToken;
+                };
+            };
+            
+            opts.IvyTokenProviderFactory = sp =>
+            {
+                var authTokenHandler = sp.GetService<Ivy.IAuthTokenHandlerService>();
+                return () => authTokenHandler?.GetCurrentToken()?.AccessToken;
+            };
+            
+            opts.IvyEmailProviderFactory = sp =>
+            {
+                var authTokenHandler = sp.GetService<Ivy.IAuthTokenHandlerService>();
+                return async (ct) =>
+                {
+                    if (authTokenHandler == null) return null;
+                    var userInfo = await authTokenHandler.GetUserInfoAsync(ct);
+                    return userInfo?.Email;
+                };
+            };
         });
 
         server.Services.AddSingleton<ModelPricingService>();

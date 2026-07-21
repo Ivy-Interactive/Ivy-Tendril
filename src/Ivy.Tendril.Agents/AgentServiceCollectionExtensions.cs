@@ -18,6 +18,10 @@ public sealed class AgentInfrastructureOptions
     public IEnumerable<ModelPricing> AdditionalPricing { get; set; } = [];
     public ConcurrencyOptions? Concurrency { get; set; }
     public bool IncludeBetaProviders { get; set; }
+
+    public Func<IServiceProvider, Func<string?>>? IvyApiKeyProviderFactory { get; set; }
+    public Func<IServiceProvider, Func<string?>>? IvyTokenProviderFactory { get; set; }
+    public Func<IServiceProvider, Func<CancellationToken, Task<string?>>>? IvyEmailProviderFactory { get; set; }
 }
 
 public static class AgentServiceCollectionExtensions
@@ -91,6 +95,20 @@ public static class AgentServiceCollectionExtensions
                 new OpenCodeSessionCostParser(),
                 new OpenCodePty(),
                 new OpenCodeModelCatalog());
+
+            Func<string?> apiKeyProvider = options.IvyApiKeyProviderFactory?.Invoke(sp) ?? (() => null);
+            Func<string?> tokenProvider = options.IvyTokenProviderFactory?.Invoke(sp) ?? (() => null);
+            Func<CancellationToken, Task<string?>> emailProvider = options.IvyEmailProviderFactory?.Invoke(sp) ?? ((_) => Task.FromResult<string?>(null));
+
+            runner.Register(
+                new Providers.Ivy.IvyCli(apiKeyProvider),
+                new Providers.Ivy.IvyEventParser(),
+                new Providers.Ivy.IvyHealthCheck(apiKeyProvider, tokenProvider, emailProvider),
+                new Providers.Ivy.IvyFailureAnalyzer(),
+                new Providers.Ivy.IvySessionCostParser(),
+                new Providers.Ivy.IvyPty(apiKeyProvider),
+                new Providers.Ivy.IvyModelCatalog());
+
             return runner;
         });
 

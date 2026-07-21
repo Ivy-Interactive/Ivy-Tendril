@@ -8,6 +8,7 @@ public static class AgentId
     public const string Copilot = "copilot";
     public const string Gemini = "gemini";
     public const string OpenCode = "opencode";
+    public const string Ivy = "ivy";
 }
 
 public static class CanonicalTools

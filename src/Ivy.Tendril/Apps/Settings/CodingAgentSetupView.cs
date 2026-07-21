@@ -16,7 +16,8 @@ public class CodingAgentSetupView : ViewBase
         new("codex", "Codex", AgentBranding.IconFor("codex")),
         new("gemini", "Gemini", AgentBranding.IconFor("gemini")),
         new("antigravity", "Antigravity", AgentBranding.IconFor("antigravity")),
-        new("opencode", "OpenCode", AgentBranding.IconFor("opencode"))
+        new("opencode", "OpenCode", AgentBranding.IconFor("opencode")),
+        new("ivy", "Ivy Agent", AgentBranding.IconFor("ivy"))
     ];
 
     public override object Build()
@@ -35,6 +36,7 @@ public class CodingAgentSetupView : ViewBase
         var quickModel = UseState(GetProfileModel(config, selectedAgent.Value, "quick"));
         var lastAgent = UseState(selectedAgent.Value);
         var showTestDialog = UseState(false);
+        var ivyApiKey = UseState(GetIvyApiKeyFromConfig(config));
 
         var modelsQuery = UseQuery<ModelInfo[], string>(
             selectedAgent.Value,
@@ -67,8 +69,10 @@ public class CodingAgentSetupView : ViewBase
             deepModel.Value != GetProfileModel(config, selectedAgent.Value, "deep") ||
             balancedModel.Value != GetProfileModel(config, selectedAgent.Value, "balanced") ||
             quickModel.Value != GetProfileModel(config, selectedAgent.Value, "quick");
+        
+        var hasApiKeyChanges = selectedAgent.Value == "ivy" && ivyApiKey.Value != GetIvyApiKeyFromConfig(config);
 
-        var hasChanges = selectedAgent.Value != config.Settings.CodingAgent || hasProfileChanges;
+        var hasChanges = selectedAgent.Value != config.Settings.CodingAgent || hasProfileChanges || hasApiKeyChanges;
 
         var registeredAgents = runner.RegisteredAgents;
         var visibleAgents = Agents.Where(a => registeredAgents.Contains(a.Key)).ToArray();
@@ -99,6 +103,13 @@ public class CodingAgentSetupView : ViewBase
                    | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep")
                    | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced")
                    | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick"))
+               | (selectedAgent.Value == "ivy"
+                   ? (object)(Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                       | ivyApiKey.ToPasswordInput("sk-...")
+                           .WithField()
+                           .Label("Ivy Proxy API Key (Optional)")
+                       | Text.Muted("Optional. If not set, Tendril will use the token from your @ivy.app account login.").Small())
+                   : null!)
                | new Spacer().Height(Size.Units(4))
                | (Layout.Horizontal().Gap(2)
                    | new Button("Test Agent").Outline()
@@ -110,6 +121,7 @@ public class CodingAgentSetupView : ViewBase
                        {
                            config.Settings.CodingAgent = selectedAgent.Value;
                            SaveProfiles(config, selectedAgent.Value, deepModel.Value, balancedModel.Value, quickModel.Value);
+                           SaveIvyApiKey(config, ivyApiKey.Value);
                            config.SaveSettings();
                            client.Toast("Coding agent settings saved", "Saved");
                        }))
@@ -181,6 +193,36 @@ public class CodingAgentSetupView : ViewBase
         }
 
         profile.Model = model;
+    }
+
+    private static string GetIvyApiKeyFromConfig(IConfigService config)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals("ivy", StringComparison.OrdinalIgnoreCase));
+        if (ac != null && ac.EnvironmentVariables.TryGetValue("ANTHROPIC_API_KEY", out var key))
+            return key;
+        return "";
+    }
+
+    private static void SaveIvyApiKey(IConfigService config, string apiKey)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals("ivy", StringComparison.OrdinalIgnoreCase));
+
+        if (ac == null)
+        {
+            ac = new AgentConfig { Name = "ivy" };
+            config.Settings.CodingAgents.Add(ac);
+        }
+
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            ac.EnvironmentVariables.Remove("ANTHROPIC_API_KEY");
+        }
+        else
+        {
+            ac.EnvironmentVariables["ANTHROPIC_API_KEY"] = apiKey;
+        }
     }
 
 }
