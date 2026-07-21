@@ -90,25 +90,26 @@ public class CreatePlanDialog(
         // e.g. "Continue with Claude Code" — branded to the configured coding agent.
         var continueLabel = $"Chat with {AgentBranding.For(configService.Settings.CodingAgent, agentRunner).Label}";
 
-        var currentProjectNames = configService.Projects.Select(p => p.Name).ToList();
-        var hasAutoOption = currentProjectNames.Count > 1;
-
         // "Auto" is exclusive: picking it clears real projects, picking a real project clears "Auto".
-        void ToggleProject(string name)
-        {
-            if (name == "Auto")
+        var exclusiveProjects = new ConvertedState<string[], string[]>(
+            selectedProjects,
+            forward: v => v,
+            backward: newValue =>
             {
-                selectedProjects.Set(["Auto"]);
-                return;
+                var current = selectedProjects.Value;
+                if (newValue.Contains("Auto") && !current.Contains("Auto"))
+                    return ["Auto"];
+                if (newValue.Contains("Auto") && newValue.Any(p => p != "Auto"))
+                    return newValue.Where(p => p != "Auto").ToArray();
+                return newValue;
             }
-            var current = selectedProjects.Value;
-            var next = current.Contains(name)
-                ? current.Where(p => p != name).ToArray()
-                : current.Where(p => p != "Auto").Append(name).ToArray();
-            if (next.Length == 0)
-                next = hasAutoOption ? ["Auto"] : currentProjectNames.Take(1).ToArray();
-            selectedProjects.Set(next);
-        }
+        );
+
+        var currentProjectNames = configService.Projects.Select(p => p.Name).ToList();
+        var options = new List<IAnyOption>();
+        if (currentProjectNames.Count > 1)
+            options.Add(new Option<string>("Auto", "Auto", icon: Icons.WandSparkles));
+        options.AddRange(currentProjectNames.Select(p => new Option<string>(p, p)));
 
         var planWasCreated = false;
         void HandleClose()
@@ -131,28 +132,6 @@ public class CreatePlanDialog(
             onClose();
         }
 
-        var projectMenuItems = new List<MenuItem>();
-        if (hasAutoOption)
-            projectMenuItems.Add(MenuItem.Checkbox("Auto")
-                .Icon(Icons.WandSparkles)
-                .Checked(selectedProjects.Value.Contains("Auto"))
-                .OnSelect(() => ToggleProject("Auto")));
-        projectMenuItems.AddRange(currentProjectNames.Select(p => MenuItem.Checkbox(p)
-            .Checked(selectedProjects.Value.Contains(p))
-            .OnSelect(() => ToggleProject(p))));
-
-        var projectLabel = selectedProjects.Value.Length == 0
-            ? (hasAutoOption ? "Auto" : "Project")
-            : string.Join(", ", selectedProjects.Value);
-        var projectBadge = new Button(projectLabel)
-            .Icon(selectedProjects.Value.Contains("Auto") || selectedProjects.Value.Length == 0
-                ? Icons.WandSparkles
-                : Icons.Folder)
-            .Small().Outline()
-            .Tooltip("Select project(s)")
-            .WithDropDown(projectMenuItems.ToArray())
-            .StayOpen();
-
         var priorityBadge = new Button(selectedPriority.Value)
             .Icon(Icons.Flag)
             .Small().Outline()
@@ -170,7 +149,9 @@ public class CreatePlanDialog(
         var bodyContent =
                 Layout.Vertical().Margin(0,2,0,0)
                 | (Layout.Horizontal().Gap(1).AlignContent(Align.Left)
-                    | projectBadge
+                    | exclusiveProjects.ToSelectInput(options)
+                        .Variant(SelectInputVariant.Select)
+                        .Placeholder("Select project(s)")
                     | priorityBadge
                     | newProjectButton)
                 | new Ivy.Tendril.Widgets.ContentInput
