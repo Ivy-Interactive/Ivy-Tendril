@@ -19,6 +19,7 @@ public class SettingsApp : ViewBase
     private const string TagPromptwares = "promptwares";
     internal const string TagProjects = "projects";
     private const string TagTunnel = "tunnel";
+    private const string TagEditor = "editor";
     private const string TagOpenConfig = "open-config";
 
     public override object Build()
@@ -39,6 +40,7 @@ public class SettingsApp : ViewBase
             MenuItem.Default("Plans", TagPlans).Icon(Icons.Feather),
             MenuItem.Default("Appearance", TagAppearance).Icon(Icons.Sun),
             MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder),
+            MenuItem.Default("Editor", TagEditor).Icon(Icons.Pencil),
             MenuItem.Default("Verifications", TagVerifications).Icon(Icons.CircleCheck),
             MenuItem.Default("Promptwares", TagPromptwares).Icon(Icons.Wand),
             MenuItem.Default("Levels", TagLevels).Icon(Icons.ListOrdered),
@@ -56,7 +58,8 @@ public class SettingsApp : ViewBase
                 .Expanded()
                 .Children(
                     MenuItem.Default("Appearance", TagAppearance).Icon(Icons.Sun),
-                    MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder)
+                    MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder),
+                    MenuItem.Default("Editor", TagEditor).Icon(Icons.Pencil)
                 ),
             MenuItem.Default("Agents")
                 .Icon(Icons.Bot)
@@ -107,6 +110,7 @@ public class SettingsApp : ViewBase
             TagPromptwares => new PromptwaresSetupView(),
             TagProjects => new ProjectsSetupView(),
             TagTunnel => new TunnelSetupView(),
+            TagEditor => new EditorSetupView(),
             _ => new CodingAgentSetupView()
         };
 
