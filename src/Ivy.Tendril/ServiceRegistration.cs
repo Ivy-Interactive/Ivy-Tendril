@@ -31,7 +31,9 @@ internal static class ServiceRegistration
 
         server.Services.AddAgentInfrastructure(opts =>
         {
-            opts.IncludeBetaProviders = tendrilArgs?.Beta ?? false;
+            opts.IncludeBetaProviders = (tendrilArgs?.Beta ?? false) ||
+                                        Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
+                                        Environment.GetEnvironmentVariable("IVY_BETA") == "1";
             
             opts.IvyApiKeyProviderFactory = sp =>
             {
