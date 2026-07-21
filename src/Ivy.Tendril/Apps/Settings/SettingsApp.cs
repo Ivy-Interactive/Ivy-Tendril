@@ -77,7 +77,12 @@ public class SettingsApp : ViewBase
                     MenuItem.Default("Promptwares", TagPromptwares).Icon(Icons.Wand),
                     MenuItem.Default("Notifications", TagNotifications).Icon(Icons.Bell),
                     MenuItem.Default("Security", TagSecurity).Icon(Icons.Lock),
-                    MenuItem.Default("Tunnel", TagTunnel).Icon(Icons.Globe),
+                    MenuItem.Default("Tunnel", TagTunnel).Icon(Icons.Globe)
+                ),
+            MenuItem.Default("Other")
+                .Icon(Icons.FolderDot)
+                .Expanded()
+                .Children(
                     MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText)
                 )
         };
