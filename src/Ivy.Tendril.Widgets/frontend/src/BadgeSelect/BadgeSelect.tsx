@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Flag, Folder, WandSparkles, X, type LucideIcon } from "lucide-react";
 import "./badge-select.css";
 
@@ -27,6 +28,8 @@ interface BadgeSelectProps {
 const EMPTY_OPTIONS: BadgeSelectOption[] = [];
 const EMPTY_VALUE: string[] = [];
 const EMPTY_EVENTS: string[] = [];
+const MENU_GAP = 4;
+const MENU_MAX_HEIGHT = 240;
 
 const ICONS: Record<string, LucideIcon> = {
   ChevronDown,
@@ -96,18 +99,52 @@ export function BadgeSelect({
   eventHandler,
 }: BadgeSelectProps) {
   const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const selected = Array.isArray(value) ? value : [];
+
+  const updateMenuPosition = () => {
+    const trigger = rootRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom - MENU_GAP;
+    const spaceAbove = rect.top - MENU_GAP;
+    const openUp = spaceBelow < Math.min(MENU_MAX_HEIGHT, 160) && spaceAbove > spaceBelow;
+    const maxHeight = Math.min(MENU_MAX_HEIGHT, Math.max(120, openUp ? spaceAbove : spaceBelow));
+
+    setMenuStyle({
+      position: "fixed",
+      left: rect.left,
+      width: rect.width,
+      maxHeight,
+      top: openUp ? undefined : rect.bottom + MENU_GAP,
+      bottom: openUp ? window.innerHeight - rect.top + MENU_GAP : undefined,
+      zIndex: 1000,
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    updateMenuPosition();
+  }, [open, options.length, selected.length]);
 
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
     };
+    const onReposition = () => updateMenuPosition();
     document.addEventListener("mousedown", onPointerDown);
-    return () => document.removeEventListener("mousedown", onPointerDown);
+    window.addEventListener("resize", onReposition);
+    window.addEventListener("scroll", onReposition, true);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("resize", onReposition);
+      window.removeEventListener("scroll", onReposition, true);
+    };
   }, [open]);
 
   const emit = (next: string[]) => {
@@ -144,6 +181,38 @@ export function BadgeSelect({
     (selected.length === 0
       ? undefined
       : options.find((o) => o.value === selected[0])?.icon || undefined);
+
+  const menu =
+    open &&
+    createPortal(
+      <div
+        ref={menuRef}
+        className="bselect-menu bselect-menu-portal"
+        role="listbox"
+        aria-multiselectable={multiple}
+        style={menuStyle}
+      >
+        {options.map((opt) => {
+          const isSelected = selected.includes(opt.value);
+          const showRemove = isSelected && opt.removable !== false;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              role="option"
+              aria-selected={isSelected}
+              className={`bselect-item${isSelected ? " bselect-item-selected" : ""}`}
+              onClick={() => toggle(opt.value)}
+            >
+              <NamedIcon name={opt.icon} />
+              <span className="bselect-item-label">{opt.label}</span>
+              {showRemove && <X size={14} className="bselect-item-x" />}
+            </button>
+          );
+        })}
+      </div>,
+      document.body,
+    );
 
   return (
     <div ref={rootRef} className="bselect" style={parseWidth(width)} title={tooltip}>
@@ -182,29 +251,7 @@ export function BadgeSelect({
         </div>
         <ChevronDown size={14} className="bselect-chevron" />
       </button>
-
-      {open && (
-        <div className="bselect-menu" role="listbox" aria-multiselectable={multiple}>
-          {options.map((opt) => {
-            const isSelected = selected.includes(opt.value);
-            const showRemove = isSelected && opt.removable !== false;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                role="option"
-                aria-selected={isSelected}
-                className={`bselect-item${isSelected ? " bselect-item-selected" : ""}`}
-                onClick={() => toggle(opt.value)}
-              >
-                <NamedIcon name={opt.icon} />
-                <span className="bselect-item-label">{opt.label}</span>
-                {showRemove && <X size={14} className="bselect-item-x" />}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {menu}
     </div>
   );
 }
