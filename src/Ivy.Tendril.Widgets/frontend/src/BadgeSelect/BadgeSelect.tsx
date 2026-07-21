@@ -8,6 +8,7 @@ export interface BadgeSelectOption {
   value: string;
   label: string;
   icon?: string | null;
+  removable?: boolean;
 }
 
 interface BadgeSelectProps {
@@ -117,10 +118,13 @@ export function BadgeSelect({
 
   const toggle = (optionValue: string) => {
     if (multiple) {
-      const next = selected.includes(optionValue)
-        ? selected.filter((v) => v !== optionValue)
-        : [...selected, optionValue];
-      emit(next);
+      if (selected.includes(optionValue)) {
+        const opt = options.find((o) => o.value === optionValue);
+        if (opt?.removable === false) return;
+        emit(selected.filter((v) => v !== optionValue));
+        return;
+      }
+      emit([...selected, optionValue]);
       return;
     }
     emit([optionValue]);
@@ -130,6 +134,8 @@ export function BadgeSelect({
   const remove = (optionValue: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    const opt = options.find((o) => o.value === optionValue);
+    if (opt?.removable === false) return;
     emit(selected.filter((v) => v !== optionValue));
   };
 
@@ -155,10 +161,11 @@ export function BadgeSelect({
           ) : (
             selected.map((v) => {
               const opt = options.find((o) => o.value === v);
+              const canRemove = multiple && opt?.removable !== false;
               return (
                 <span key={v} className="bselect-badge">
                   <span className="bselect-badge-label">{opt?.label ?? v}</span>
-                  {multiple && (
+                  {canRemove && (
                     <button
                       type="button"
                       className="bselect-badge-x"
@@ -180,6 +187,7 @@ export function BadgeSelect({
         <div className="bselect-menu" role="listbox" aria-multiselectable={multiple}>
           {options.map((opt) => {
             const isSelected = selected.includes(opt.value);
+            const showRemove = isSelected && opt.removable !== false;
             return (
               <button
                 key={opt.value}
@@ -191,7 +199,7 @@ export function BadgeSelect({
               >
                 <NamedIcon name={opt.icon} />
                 <span className="bselect-item-label">{opt.label}</span>
-                {isSelected && <X size={14} className="bselect-item-x" />}
+                {showRemove && <X size={14} className="bselect-item-x" />}
               </button>
             );
           })}

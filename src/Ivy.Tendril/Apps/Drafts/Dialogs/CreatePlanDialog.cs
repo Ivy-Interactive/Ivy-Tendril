@@ -111,7 +111,7 @@ public class CreatePlanDialog(
 
         var projectOptions = new List<BadgeSelectOption>();
         if (hasAutoOption)
-            projectOptions.Add(new BadgeSelectOption("Auto", "Auto", "WandSparkles"));
+            projectOptions.Add(new BadgeSelectOption("Auto", "Auto", "WandSparkles", Removable: false));
         projectOptions.AddRange(currentProjectNames.Select(p => new BadgeSelectOption(p, p)));
 
         var planWasCreated = false;

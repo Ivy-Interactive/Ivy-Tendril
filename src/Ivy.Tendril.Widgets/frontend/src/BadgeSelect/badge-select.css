@@ -46,11 +46,14 @@
 
 .bselect-badges {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
   flex: 1;
   min-width: 0;
   align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
 }
 
 .bselect-placeholder {
@@ -64,7 +67,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  max-width: 100%;
+  flex-shrink: 0;
   padding: 1px 6px;
   border-radius: calc(var(--radius, 6px) - 2px);
   background: var(--secondary, var(--muted));

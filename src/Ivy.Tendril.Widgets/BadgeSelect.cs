@@ -5,7 +5,7 @@ using Ivy.Core.Hooks;
 
 namespace Ivy.Tendril.Widgets;
 
-public record BadgeSelectOption(string Value, string Label, string? Icon = null);
+public record BadgeSelectOption(string Value, string Label, string? Icon = null, bool Removable = true);
 
 [ExternalWidget(
     "frontend/dist/ivy-tendril-widgets.js",
