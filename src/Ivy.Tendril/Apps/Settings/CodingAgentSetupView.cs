@@ -42,6 +42,7 @@ public class CodingAgentSetupView : ViewBase
         var lastAgent = UseState(selectedAgent.Value);
         var showTestDialog = UseState(false);
         var ivyApiKey = UseState(GetIvyApiKeyFromConfig(config));
+        var ivyBaseUrl = UseState(GetIvyBaseUrlFromConfig(config));
 
         var modelsQuery = UseQuery<ModelInfo[], string>(
             selectedAgent.Value,
@@ -99,8 +100,9 @@ public class CodingAgentSetupView : ViewBase
             quickModel.Value != GetProfileModel(config, selectedAgent.Value, "quick");
         
         var hasApiKeyChanges = selectedAgent.Value == "ivy" && ivyApiKey.Value != GetIvyApiKeyFromConfig(config);
+        var hasBaseUrlChanges = selectedAgent.Value == "ivy" && ivyBaseUrl.Value != GetIvyBaseUrlFromConfig(config);
 
-        var hasChanges = selectedAgent.Value != config.Settings.CodingAgent || hasProfileChanges || hasApiKeyChanges;
+        var hasChanges = selectedAgent.Value != config.Settings.CodingAgent || hasProfileChanges || hasApiKeyChanges || hasBaseUrlChanges;
 
         var registeredAgents = runner.RegisteredAgents;
         var visibleAgents = Agents.Where(a => registeredAgents.Contains(a.Key)).ToArray();
@@ -179,7 +181,12 @@ public class CodingAgentSetupView : ViewBase
                        | ivyApiKey.ToPasswordInput("sk-...")
                            .WithField()
                            .Label("Ivy Proxy API Key (Optional)")
-                       | Text.Muted("Optional. If not set, Tendril will use the token from your @ivy.app account login.").Small())
+                       | Text.Muted("Optional. If not set, Tendril will use the token from your @ivy.app account login.").Small()
+                       | new Spacer().Height(Size.Units(2))
+                       | ivyBaseUrl.ToTextInput("https://llmproxy.ivy.app")
+                           .WithField()
+                           .Label("Ivy Proxy Base URL (Optional)")
+                       | Text.Muted("Optional. Overrides the default base URL for the Ivy API proxy.").Small())
                    : null!)
                | new Spacer().Height(Size.Units(4))
                | (Layout.Horizontal().Gap(2)
@@ -193,6 +200,7 @@ public class CodingAgentSetupView : ViewBase
                            config.Settings.CodingAgent = selectedAgent.Value;
                            SaveProfiles(config, selectedAgent.Value, deepModel.Value, balancedModel.Value, quickModel.Value);
                            SaveIvyApiKey(config, ivyApiKey.Value);
+                           SaveIvyBaseUrl(config, ivyBaseUrl.Value);
                            config.SaveSettings();
                            client.Toast("Coding agent settings saved", "Saved");
                        }))
@@ -293,6 +301,36 @@ public class CodingAgentSetupView : ViewBase
         else
         {
             ac.EnvironmentVariables["ANTHROPIC_API_KEY"] = apiKey;
+        }
+    }
+
+    private static string GetIvyBaseUrlFromConfig(IConfigService config)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals("ivy", StringComparison.OrdinalIgnoreCase));
+        if (ac != null && ac.EnvironmentVariables.TryGetValue("ANTHROPIC_BASE_URL", out var url))
+            return url;
+        return "";
+    }
+
+    private static void SaveIvyBaseUrl(IConfigService config, string url)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals("ivy", StringComparison.OrdinalIgnoreCase));
+
+        if (ac == null)
+        {
+            ac = new AgentConfig { Name = "ivy" };
+            config.Settings.CodingAgents.Add(ac);
+        }
+
+        if (string.IsNullOrEmpty(url))
+        {
+            ac.EnvironmentVariables.Remove("ANTHROPIC_BASE_URL");
+        }
+        else
+        {
+            ac.EnvironmentVariables["ANTHROPIC_BASE_URL"] = url;
         }
     }
 
