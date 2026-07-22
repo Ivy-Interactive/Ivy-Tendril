@@ -87,7 +87,7 @@
             <a href="#" class="nav-item" id="nav-jobs" onclick="appController.switchView('jobs')">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
               <span>Jobs</span>
-              <span class="nav-badge badge-neutral" id="badge-jobs">6 Jobs</span>
+              <span class="nav-badge badge-neutral" id="badge-jobs">8 Jobs</span>
             </a>
             <a href="#" class="nav-item" id="nav-recs" onclick="appController.switchView('recs')">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
@@ -283,10 +283,11 @@
 
             <div class="view-header-actions">
               <div class="tab-filters">
-                <button class="filter-tab active" onclick="appController.filterJobs('all')">All Jobs (6)</button>
+                <button class="filter-tab active" onclick="appController.filterJobs('all')">All Jobs (8)</button>
+                <button class="filter-tab" onclick="appController.filterJobs('running')">Running (1)</button>
                 <button class="filter-tab" onclick="appController.filterJobs('blocked')">Blocked (1)</button>
                 <button class="filter-tab" onclick="appController.filterJobs('completed')">Completed (1)</button>
-                <button class="filter-tab" onclick="appController.filterJobs('pending')">Pending (4)</button>
+                <button class="filter-tab" onclick="appController.filterJobs('pending')">Pending (5)</button>
               </div>
             </div>
           </div>

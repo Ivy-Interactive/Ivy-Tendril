@@ -10,10 +10,8 @@ class AppController {
     this.currentView = 'plans';
     this.zoomLevel = 1.0;
 
-    // Promptware DAG topology matching Jira example request:
-    // 1. Promptware: Backend -> 2. Promptware: API -> 3. Promptware: Frontend Client
-    // 4. App: Mobile App & 5. App: Web App (both depend on Frontend Client)
-    // 6. Verifications (last step, depends on Mobile & Web)
+    // Promptware DAG topology with parallel Backend API & Frontend Client pair,
+    // followed by parallel Code Quality & Security verification loops:
     this.nodes = [
       {
         id: 'pw-backend',
@@ -23,7 +21,7 @@ class AppController {
         role: 'Promptware Exec',
         jobId: 'job-pw-backend-01',
         status: 'complete',
-        x: 230, y: 40,
+        x: 230, y: 30,
         cost: '$0.006', tokens: '1,800',
         prompt: 'Generate database schema, ORM mappings, and core entity repositories for Jira issues.',
         details: 'Compiled SQLite database schema and repository pattern classes.'
@@ -32,11 +30,11 @@ class AppController {
         id: 'pw-api',
         type: 'Promptware',
         name: 'create-backend-api',
-        title: 'API Layer Promptware',
+        title: 'Backend API Promptware',
         role: 'Promptware Exec',
         jobId: 'job-pw-api-02',
         status: 'blocked',
-        x: 230, y: 140,
+        x: 100, y: 130,
         cost: '$0.010', tokens: '3,200',
         prompt: 'Build REST endpoints and real-time subscription router for issues and comments.',
         details: 'Waiting for user feedback on API protocol & workflow model preference.'
@@ -48,11 +46,37 @@ class AppController {
         title: 'Frontend Client Promptware',
         role: 'Promptware Exec',
         jobId: 'job-pw-frontend-03',
+        status: 'running',
+        x: 360, y: 130,
+        cost: '$0.012', tokens: '3,800',
+        prompt: 'Create React Kanban component library, issue card state, and API client SDK.',
+        details: 'Running in parallel with Backend API promptware.'
+      },
+      {
+        id: 'pw-verify-quality',
+        type: 'Promptware',
+        name: 'verify-code-quality',
+        title: 'Code Quality Loop',
+        role: 'Verification Loop',
+        jobId: 'job-pw-quality-04',
         status: 'pending',
-        x: 230, y: 240,
-        cost: '$0.014', tokens: '4,500',
-        prompt: 'Create shared UI component library, Kanban board state, and API client SDK.',
-        details: 'Pending completion of Backend API promptware.'
+        x: 100, y: 230,
+        cost: '$0.004', tokens: '1,200',
+        prompt: 'Analyze TypeScript static types, linting rules, and code complexity metrics.',
+        details: 'Parallel verification loop executing after BE-FE pair completion.'
+      },
+      {
+        id: 'pw-verify-security',
+        type: 'Promptware',
+        name: 'verify-security-compliance',
+        title: 'Security Checks Loop',
+        role: 'Verification Loop',
+        jobId: 'job-pw-security-05',
+        status: 'pending',
+        x: 360, y: 230,
+        cost: '$0.005', tokens: '1,500',
+        prompt: 'Audit OWASP top 10 risks, SQL injection vectors, and auth token validation.',
+        details: 'Parallel verification loop executing after BE-FE pair completion.'
       },
       {
         id: 'app-mobile',
@@ -60,12 +84,12 @@ class AppController {
         name: 'build-mobile-app',
         title: 'Mobile App (iOS/Android)',
         role: 'App Artifact',
-        jobId: 'job-app-mobile-04',
+        jobId: 'job-app-mobile-06',
         status: 'pending',
-        x: 100, y: 340,
+        x: 100, y: 330,
         cost: '$0.008', tokens: '2,200',
         prompt: 'Compile React Native / iOS bundle targeting mobile viewport.',
-        details: 'Depends on Frontend Client promptware SDK.'
+        details: 'Depends on verified Frontend & Security loops.'
       },
       {
         id: 'app-web',
@@ -73,45 +97,51 @@ class AppController {
         name: 'build-web-app',
         title: 'Web App (React/Vite)',
         role: 'App Artifact',
-        jobId: 'job-app-web-05',
+        jobId: 'job-app-web-07',
         status: 'pending',
-        x: 360, y: 340,
+        x: 360, y: 330,
         cost: '$0.009', tokens: '2,800',
         prompt: 'Build desktop web bundle with drag-and-drop Kanban interface.',
-        details: 'Depends on Frontend Client promptware SDK.'
+        details: 'Depends on verified Frontend & Security loops.'
       },
       {
         id: 'verifications',
         type: 'Verifications',
         name: 'run-verifications',
-        title: 'Final Verifications Suite',
+        title: 'Final System Verifications',
         role: 'Validation Runner',
-        jobId: 'job-verifications-06',
+        jobId: 'job-verifications-08',
         status: 'pending',
-        x: 230, y: 440,
+        x: 230, y: 430,
         cost: '$0.003', tokens: '900',
         prompt: 'Execute end-to-end integration tests, type checks, and API contract verifications.',
-        details: 'Final step: Runs after Mobile and Web apps complete.'
+        details: 'Final step: Runs after Mobile and Web builds pass verification.'
       }
     ];
 
     this.edges = [
-      { from: 'pw-backend', to: 'pw-api', active: true, status: 'complete' },
-      { from: 'pw-api', to: 'pw-frontend', active: false, status: 'blocked' },
-      { from: 'pw-frontend', to: 'app-mobile', active: false, status: 'pending' },
-      { from: 'pw-frontend', to: 'app-web', active: false, status: 'pending' },
+      { from: 'pw-backend', to: 'pw-api', active: true, status: 'blocked' },
+      { from: 'pw-backend', to: 'pw-frontend', active: true, status: 'running' },
+      { from: 'pw-api', to: 'pw-verify-quality', active: false, status: 'pending' },
+      { from: 'pw-frontend', to: 'pw-verify-quality', active: false, status: 'pending' },
+      { from: 'pw-api', to: 'pw-verify-security', active: false, status: 'pending' },
+      { from: 'pw-frontend', to: 'pw-verify-security', active: false, status: 'pending' },
+      { from: 'pw-verify-quality', to: 'app-mobile', active: false, status: 'pending' },
+      { from: 'pw-verify-security', to: 'app-web', active: false, status: 'pending' },
       { from: 'app-mobile', to: 'verifications', active: false, status: 'pending' },
       { from: 'app-web', to: 'verifications', active: false, status: 'pending' }
     ];
 
-    // Background jobs matching exact promptwares
+    // Background jobs list matching exact promptwares
     this.jobs = [
       { id: 'job-pw-backend-01', name: 'create-backend', type: 'Promptware', status: 'complete', deps: 'None', duration: '1.4s', tokens: '1,800' },
       { id: 'job-pw-api-02', name: 'create-backend-api', type: 'Promptware', status: 'blocked', deps: 'create-backend', duration: '3.2s', tokens: '3,200' },
-      { id: 'job-pw-frontend-03', name: 'create-frontend-client', type: 'Promptware', status: 'pending', deps: 'create-backend-api', duration: '0.0s', tokens: '4,500' },
-      { id: 'job-app-mobile-04', name: 'build-mobile-app', type: 'App Build', status: 'pending', deps: 'create-frontend-client', duration: '0.0s', tokens: '2,200' },
-      { id: 'job-app-web-05', name: 'build-web-app', type: 'App Build', status: 'pending', deps: 'create-frontend-client', duration: '0.0s', tokens: '2,800' },
-      { id: 'job-verifications-06', name: 'run-verifications', type: 'Verifications', status: 'pending', deps: 'build-mobile-app, build-web-app', duration: '0.0s', tokens: '900' }
+      { id: 'job-pw-frontend-03', name: 'create-frontend-client', type: 'Promptware', status: 'running', deps: 'create-backend', duration: '2.8s', tokens: '3,800' },
+      { id: 'job-pw-quality-04', name: 'verify-code-quality', type: 'Verification', status: 'pending', deps: 'create-backend-api, create-frontend-client', duration: '0.0s', tokens: '1,200' },
+      { id: 'job-pw-security-05', name: 'verify-security-compliance', type: 'Verification', status: 'pending', deps: 'create-backend-api, create-frontend-client', duration: '0.0s', tokens: '1,500' },
+      { id: 'job-app-mobile-06', name: 'build-mobile-app', type: 'App Build', status: 'pending', deps: 'verify-code-quality', duration: '0.0s', tokens: '2,200' },
+      { id: 'job-app-web-07', name: 'build-web-app', type: 'App Build', status: 'pending', deps: 'verify-security-compliance', duration: '0.0s', tokens: '2,800' },
+      { id: 'job-verifications-08', name: 'run-verifications', type: 'Verifications', status: 'pending', deps: 'build-mobile-app, build-web-app', duration: '0.0s', tokens: '900' }
     ];
 
     // File preview contents
@@ -297,17 +327,17 @@ export const KanbanBoard = ({ issues }) => {
       <div class="msg-content">
         <div class="msg-author">Tendril Orchestrator</div>
         <div class="msg-text">
-          Decomposing prompt for <strong>Jira Clone Application</strong> into Promptware jobs & verifications...
+          Decomposing prompt for <strong>Jira Clone Application</strong> into parallel Promptwares & verification loops...
           <div class="thinking-box">
             <div class="thinking-title">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path></svg>
-              Scheduled Promptwares & Application Build Jobs
+              Scheduled Parallel Promptwares & Verification Loops
             </div>
-            1. <code>create-backend</code> (Promptware &rarr; Database & ORM)<br>
-            2. <code>create-backend-api</code> (Promptware &rarr; REST & Subscriptions)<br>
-            3. <code>create-frontend-client</code> (Promptware &rarr; UI SDK)<br>
-            4. <code>build-mobile-app</code> & <code>build-web-app</code> (Parallel App Builds)<br>
-            5. <code>run-verifications</code> (Final Validation Step)
+            1. <code>create-backend</code> (Core database & schema)<br>
+            2. <strong>Parallel Pair</strong>: <code>create-backend-api</code> & <code>create-frontend-client</code><br>
+            3. <strong>Parallel Verification Loops</strong>: <code>verify-code-quality</code> & <code>verify-security-compliance</code><br>
+            4. <strong>Parallel App Builds</strong>: <code>build-mobile-app</code> & <code>build-web-app</code><br>
+            5. <code>run-verifications</code> (Final System Validation)
           </div>
         </div>
       </div>
@@ -346,7 +376,7 @@ export const KanbanBoard = ({ issues }) => {
               <button class="option-btn" onclick="appController.selectOption(this)">2. Pure Agile Scrum with Sprint Backlog</button>
               <button class="option-btn" onclick="appController.selectOption(this)">3. Basic Task List with Custom Tags</button>
             </div>
-            <button class="btn btn-primary btn-sm" onclick="appController.submitFeedback()">Submit Feedback & Resume Promptwares</button>
+            <button class="btn btn-primary btn-sm" onclick="appController.submitFeedback()">Submit Feedback & Resume Verification Loops</button>
           </div>
         </div>
       </div>
@@ -374,12 +404,12 @@ export const KanbanBoard = ({ issues }) => {
           ✓ Feedback Received & Promptwares Resumed
         </div>
         <div class="feedback-body">
-          <p style="color: var(--text-secondary); margin: 0;">Selected: <strong>Hybrid Scrum & Kanban</strong>. <code>create-backend-api</code> promptware completed. Spawning client builds and verifications...</p>
+          <p style="color: var(--text-secondary); margin: 0;">Selected: <strong>Hybrid Scrum & Kanban</strong>. <code>create-backend-api</code> & <code>create-frontend-client</code> complete. Executing code quality & security verification loops...</p>
         </div>
       `;
     }
 
-    // Complete all promptwares, app builds, and verifications
+    // Complete all promptwares, verification loops, app builds, and verifications
     this.nodes.forEach(n => n.status = 'complete');
     this.edges.forEach(e => { e.active = true; e.status = 'complete'; });
     this.jobs.forEach(j => { j.status = 'complete'; j.duration = (Math.random() * 2 + 1).toFixed(1) + 's'; });
@@ -415,7 +445,7 @@ export const KanbanBoard = ({ issues }) => {
     const nodeWidth = 190;
     const nodeHeight = 56;
 
-    // Render Clean DAG Edges
+    // Render Clean Parallel DAG Edges
     this.edges.forEach(edge => {
       const fromNode = this.nodes.find(n => n.id === edge.from);
       const toNode = this.nodes.find(n => n.id === edge.to);
@@ -454,10 +484,9 @@ export const KanbanBoard = ({ issues }) => {
       g.onclick = () => this.inspectNode(node);
 
       let statusColor = '#4db6a0'; // Ivy teal default
-      let statusLabel = 'RUNNING';
-      if (node.status === 'complete') { statusColor = '#10b981'; statusLabel = 'COMPLETE'; }
-      if (node.status === 'blocked') { statusColor = '#f59e0b'; statusLabel = 'BLOCKED'; }
-      if (node.status === 'pending') { statusColor = '#64748b'; statusLabel = 'PENDING'; }
+      if (node.status === 'complete') { statusColor = '#10b981'; }
+      if (node.status === 'blocked') { statusColor = '#f59e0b'; }
+      if (node.status === 'pending') { statusColor = '#64748b'; }
 
       g.innerHTML = `
         <rect class="node-card-rect" width="${nodeWidth}" height="${nodeHeight}" />
@@ -536,7 +565,7 @@ export const KanbanBoard = ({ issues }) => {
     consoleOutput.innerHTML = `
 [00:00:00.05] [INFO] Executing promptware engine for ${jobId}...
 [00:00:00.40] [INFO] Loaded promptware definition from ~/.tendril/Promptwares
-[00:00:01.12] [DEBUG] Resolving dependencies and checking verification rules...
+[00:00:01.12] [DEBUG] Resolving parallel dependencies and checking verification loops...
 [00:00:02.10] [INFO] Promptware execution stream active.
 [00:00:03.20] [STATUS] Job completed with 0 errors.
     `;
@@ -619,10 +648,12 @@ export const KanbanBoard = ({ issues }) => {
     if (emptyCanvas) emptyCanvas.classList.remove('hidden');
 
     this.nodes[1].status = 'blocked';
-    this.nodes[2].status = 'pending';
+    this.nodes[2].status = 'running';
     this.nodes[3].status = 'pending';
     this.nodes[4].status = 'pending';
     this.nodes[5].status = 'pending';
+    this.nodes[6].status = 'pending';
+    this.nodes[7].status = 'pending';
     this.renderGraphSVG();
   }
 
