@@ -40,20 +40,6 @@ The Tendril workflow behaves like a modern software factory. Visualize it as an 
 <tr>
 <td width="50%" valign="middle">
 
-### Chat with Agent
-
-Directly chat with running coding agents in a terminal-style split with system prompt injection.
-
-[Docs &rarr;](https://tendril.ivy.app/docs/gettingstarted/introduction)
-
-</td>
-<td width="50%">
-  <img src="src/agent_newbg.gif" alt="Chat with Agent" width="100%" />
-</td>
-</tr>
-<tr>
-<td width="50%" valign="middle">
-
 ### Parallel Worktrees
 
 Run agents in isolated git worktrees. Keep your main branch clean until you review, approve, and merge the changes.
@@ -138,6 +124,20 @@ Review and verify agent changes, inspect diffs, and approve code with verificati
 <tr>
 <td width="50%" valign="middle">
 
+### Chat with Agent
+
+Directly chat with running coding agents in a terminal-style split with system prompt injection.
+
+[Docs &rarr;](https://tendril.ivy.app/docs/gettingstarted/introduction)
+
+</td>
+<td width="50%">
+  <img src="src/agent_newbg.gif" alt="Chat with Agent" width="100%" />
+</td>
+</tr>
+<tr>
+<td width="50%" valign="middle">
+
 ### GitHub Integration & Automated Inbox
 
 Watch your GitHub Issues or ingest bug reports from jam.dev via webhooks. The automated Inbox folder monitors markdown plans and turns them into active jobs.
@@ -149,25 +149,13 @@ Watch your GitHub Issues or ingest bug reports from jam.dev via webhooks. The au
   <img src="src/ghimport_newbg.gif" alt="GitHub Integration" width="100%" />
 </td>
 </tr>
-<tr>
-<td width="50%" valign="middle">
-
-### Multi-Interface Administration
-
-Administer all operations in Tendril using the interface that fits your workflow. Configure and control jobs via the Command-Line Interface (CLI), Model Context Protocol (MCP) servers, or developer APIs.
-
-[Docs &rarr;](https://tendril.ivy.app/docs/gettingstarted/introduction)
-
-</td>
-<td width="50%">
-</td>
-</tr>
 </table>
 
 **Also in the box:**
 
 - **Modular Promptwares:** Deploy self-improving agents (CreatePlan, ExecutePlan, ExpandPlan, CreatePr) with their own prompts, tools, memory, and hooks.
 - **Verification Gates:** Wire up build, test, lint, and format checks. Plans only advance when all checks pass, guaranteeing production-ready code.
+- **Multi-Interface Administration:** Administer all operations in Tendril using the interface that fits your workflow, including CLI, MCP, or developer APIs.
 - **Activity Heatmap:** View your 90-day PR contribution history on the wallpaper interface.
 - **Rerun with Feedback:** Rerun plan steps with custom instructions to steer agents on failures.
 - **Diagnostics & Testing:** Run one-click agent diagnostics to check installation, path, and model availability.
