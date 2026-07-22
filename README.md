@@ -17,12 +17,40 @@
 </p>
 
 <p align="center">
-  <img src="src/main.gif" alt="Tendril desktop app running agents and tracking jobs" width="960" />
+  <img src="src/main_newbg.gif" alt="Tendril desktop app running agents and tracking jobs" width="960" />
 </p>
 
 ## Features
 
 <table>
+<tr>
+<td width="50%" valign="middle">
+
+### The Software Factory
+
+The Tendril workflow behaves like a modern software factory. Visualize it as an assembly line where jobs flow systematically, starting at the Plan stage, going to Draft, and finally ending at the Review stage.
+
+[Docs &rarr;](https://tendril.ivy.app/docs/gettingstarted/introduction)
+
+</td>
+<td width="50%">
+  <img src="src/factory_newbg.gif" alt="The Software Factory" width="100%" />
+</td>
+</tr>
+<tr>
+<td width="50%" valign="middle">
+
+### Chat with Agent
+
+Directly chat with running coding agents in a terminal-style split with system prompt injection.
+
+[Docs &rarr;](https://tendril.ivy.app/docs/gettingstarted/introduction)
+
+</td>
+<td width="50%">
+  <img src="src/agent_newbg.gif" alt="Chat with Agent" width="100%" />
+</td>
+</tr>
 <tr>
 <td width="50%" valign="middle">
 
@@ -34,7 +62,21 @@ Run agents in isolated git worktrees. Keep your main branch clean until you revi
 
 </td>
 <td width="50%">
-  <img src="src/worktrees.gif" alt="Parallel Worktrees" width="100%" />
+  <img src="src/worktrees_newbg.gif" alt="Parallel Worktrees" width="100%" />
+</td>
+</tr>
+<tr>
+<td width="50%" valign="middle">
+
+### Advanced Git Management
+
+Keep your repositories perfectly aligned using the SyncRepo dialog, which lets you synchronize branches, pull updates, and manage conflicts in a single view.
+
+[Docs &rarr;](https://tendril.ivy.app/docs/gettingstarted/introduction)
+
+</td>
+<td width="50%">
+  <img src="src/gitsynch_newbg.gif" alt="Advanced Git Management" width="100%" />
 </td>
 </tr>
 <tr>
@@ -48,7 +90,7 @@ Expose your server securely using Cloudflare Quick Tunnels. Control, monitor, an
 
 </td>
 <td width="50%">
-  <img src="src/tunneling.gif" alt="Tunneling" width="100%" />
+  <img src="src/tunneling_newbg.gif" alt="Tunneling" width="100%" />
 </td>
 </tr>
 <tr>
@@ -62,7 +104,7 @@ Dictate prompts using voice input (integrated Whisper WebSockets) and attach tex
 
 </td>
 <td width="50%">
-  <img src="src/voice.gif" alt="Voice and Rich Input" width="100%" />
+  <img src="src/voice_newbg.gif" alt="Voice and Rich Input" width="100%" />
 </td>
 </tr>
 <tr>
@@ -76,7 +118,7 @@ Annotate drafts inline to automatically update plans with revised agent goals.
 
 </td>
 <td width="50%">
-  <img src="src/annotation.gif" alt="Plan Annotations" width="100%" />
+  <img src="src/annotation_newbg.gif" alt="Plan Annotations" width="100%" />
 </td>
 </tr>
 <tr>
@@ -90,7 +132,7 @@ Review and verify agent changes, inspect diffs, and approve code with verificati
 
 </td>
 <td width="50%">
-  <img src="src/review.gif" alt="Making Code Reviews" width="100%" />
+  <img src="src/codereview_newbg.gif" alt="Making Code Reviews" width="100%" />
 </td>
 </tr>
 <tr>
@@ -104,7 +146,20 @@ Watch your GitHub Issues or ingest bug reports from jam.dev via webhooks. The au
 
 </td>
 <td width="50%">
-  <img src="src/github.gif" alt="GitHub Integration" width="100%" />
+  <img src="src/ghimport_newbg.gif" alt="GitHub Integration" width="100%" />
+</td>
+</tr>
+<tr>
+<td width="50%" valign="middle">
+
+### Multi-Interface Administration
+
+Administer all operations in Tendril using the interface that fits your workflow. Configure and control jobs via the Command-Line Interface (CLI), Model Context Protocol (MCP) servers, or developer APIs.
+
+[Docs &rarr;](https://tendril.ivy.app/docs/gettingstarted/introduction)
+
+</td>
+<td width="50%">
 </td>
 </tr>
 </table>
@@ -113,7 +168,6 @@ Watch your GitHub Issues or ingest bug reports from jam.dev via webhooks. The au
 
 - **Modular Promptwares:** Deploy self-improving agents (CreatePlan, ExecutePlan, ExpandPlan, CreatePr) with their own prompts, tools, memory, and hooks.
 - **Verification Gates:** Wire up build, test, lint, and format checks. Plans only advance when all checks pass, guaranteeing production-ready code.
-- **Chat with Agent (PTY):** Directly chat with running coding agents in a beta terminal-style split with system prompt injection.
 - **Activity Heatmap:** View your 90-day PR contribution history on the wallpaper interface.
 - **Rerun with Feedback:** Rerun plan steps with custom instructions to steer agents on failures.
 - **Diagnostics & Testing:** Run one-click agent diagnostics to check installation, path, and model availability.
