@@ -46,7 +46,7 @@ class AppController {
         title: 'Frontend Client Promptware',
         role: 'Promptware Exec',
         jobId: 'job-pw-frontend-03',
-        status: 'running',
+        status: 'complete',
         x: 360, y: 130,
         cost: '$0.012', tokens: '3,800',
         prompt: 'Create React Kanban component library, issue card state, and API client SDK.',
@@ -121,7 +121,7 @@ class AppController {
 
     this.edges = [
       { from: 'pw-backend', to: 'pw-api', active: true, status: 'blocked' },
-      { from: 'pw-backend', to: 'pw-frontend', active: true, status: 'running' },
+      { from: 'pw-backend', to: 'pw-frontend', active: true, status: 'complete' },
       { from: 'pw-api', to: 'pw-verify-quality', active: false, status: 'pending' },
       { from: 'pw-frontend', to: 'pw-verify-quality', active: false, status: 'pending' },
       { from: 'pw-api', to: 'pw-verify-security', active: false, status: 'pending' },
@@ -136,7 +136,7 @@ class AppController {
     this.jobs = [
       { id: 'job-pw-backend-01', name: 'create-backend', type: 'Promptware', status: 'complete', deps: 'None', duration: '1.4s', tokens: '1,800' },
       { id: 'job-pw-api-02', name: 'create-backend-api', type: 'Promptware', status: 'blocked', deps: 'create-backend', duration: '3.2s', tokens: '3,200' },
-      { id: 'job-pw-frontend-03', name: 'create-frontend-client', type: 'Promptware', status: 'running', deps: 'create-backend', duration: '2.8s', tokens: '3,800' },
+      { id: 'job-pw-frontend-03', name: 'create-frontend-client', type: 'Promptware', status: 'complete', deps: 'create-backend', duration: '2.8s', tokens: '3,800' },
       { id: 'job-pw-quality-04', name: 'verify-code-quality', type: 'Verification', status: 'pending', deps: 'create-backend-api, create-frontend-client', duration: '0.0s', tokens: '1,200' },
       { id: 'job-pw-security-05', name: 'verify-security-compliance', type: 'Verification', status: 'pending', deps: 'create-backend-api, create-frontend-client', duration: '0.0s', tokens: '1,500' },
       { id: 'job-app-mobile-06', name: 'build-mobile-app', type: 'App Build', status: 'pending', deps: 'verify-code-quality', duration: '0.0s', tokens: '2,200' },
@@ -328,16 +328,53 @@ export const KanbanBoard = ({ issues }) => {
         <div class="msg-author">Tendril Orchestrator</div>
         <div class="msg-text">
           Decomposing prompt for <strong>Jira Clone Application</strong> into parallel Promptwares & verification loops...
-          <div class="thinking-box">
+          <div class="thinking-box" id="thinking-status-box">
             <div class="thinking-title">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path></svg>
-              Scheduled Parallel Promptwares & Verification Loops
+              Live Scheduled Promptwares & Verification Status
             </div>
-            1. <code>create-backend</code> (Core database & schema)<br>
-            2. <strong>Parallel Pair</strong>: <code>create-backend-api</code> & <code>create-frontend-client</code><br>
-            3. <strong>Parallel Verification Loops</strong>: <code>verify-code-quality</code> & <code>verify-security-compliance</code><br>
-            4. <strong>Parallel App Builds</strong>: <code>build-mobile-app</code> & <code>build-web-app</code><br>
-            5. <code>run-verifications</code> (Final System Validation)
+            <div class="promptware-status-list" id="pw-status-list">
+              <div class="status-item status-complete">
+                <span class="status-dot green"></span>
+                <span class="pw-name font-mono">create-backend</span>
+                <span class="pw-badge badge-green font-mono">✓ Complete</span>
+              </div>
+              <div class="status-item status-blocked">
+                <span class="status-dot yellow"></span>
+                <span class="pw-name font-mono">create-backend-api</span>
+                <span class="pw-badge badge-yellow font-mono">⚠ Action Required</span>
+              </div>
+              <div class="status-item status-complete">
+                <span class="status-dot green"></span>
+                <span class="pw-name font-mono">create-frontend-client</span>
+                <span class="pw-badge badge-green font-mono">✓ Complete</span>
+              </div>
+              <div class="status-item status-queued">
+                <span class="status-dot grey"></span>
+                <span class="pw-name font-mono">verify-code-quality</span>
+                <span class="pw-badge badge-grey font-mono">Queued</span>
+              </div>
+              <div class="status-item status-queued">
+                <span class="status-dot grey"></span>
+                <span class="pw-name font-mono">verify-security-compliance</span>
+                <span class="pw-badge badge-grey font-mono">Queued</span>
+              </div>
+              <div class="status-item status-queued">
+                <span class="status-dot grey"></span>
+                <span class="pw-name font-mono">build-mobile-app</span>
+                <span class="pw-badge badge-grey font-mono">Queued</span>
+              </div>
+              <div class="status-item status-queued">
+                <span class="status-dot grey"></span>
+                <span class="pw-name font-mono">build-web-app</span>
+                <span class="pw-badge badge-grey font-mono">Queued</span>
+              </div>
+              <div class="status-item status-queued">
+                <span class="status-dot grey"></span>
+                <span class="pw-name font-mono">run-verifications</span>
+                <span class="pw-badge badge-grey font-mono">Queued</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -405,6 +442,53 @@ export const KanbanBoard = ({ issues }) => {
         </div>
         <div class="feedback-body">
           <p style="color: var(--text-secondary); margin: 0;">Selected: <strong>Hybrid Scrum & Kanban</strong>. <code>create-backend-api</code> & <code>create-frontend-client</code> complete. Executing code quality & security verification loops...</p>
+        </div>
+      `;
+    }
+
+    // Live update thinking status list in chat!
+    const pwStatusList = document.getElementById('pw-status-list');
+    if (pwStatusList) {
+      pwStatusList.innerHTML = `
+        <div class="status-item status-complete">
+          <span class="status-dot green"></span>
+          <span class="pw-name font-mono">create-backend</span>
+          <span class="pw-badge badge-green font-mono">✓ Complete</span>
+        </div>
+        <div class="status-item status-complete">
+          <span class="status-dot green"></span>
+          <span class="pw-name font-mono">create-backend-api</span>
+          <span class="pw-badge badge-green font-mono">✓ Complete</span>
+        </div>
+        <div class="status-item status-complete">
+          <span class="status-dot green"></span>
+          <span class="pw-name font-mono">create-frontend-client</span>
+          <span class="pw-badge badge-green font-mono">✓ Complete</span>
+        </div>
+        <div class="status-item status-complete">
+          <span class="status-dot green"></span>
+          <span class="pw-name font-mono">verify-code-quality</span>
+          <span class="pw-badge badge-green font-mono">✓ Complete</span>
+        </div>
+        <div class="status-item status-complete">
+          <span class="status-dot green"></span>
+          <span class="pw-name font-mono">verify-security-compliance</span>
+          <span class="pw-badge badge-green font-mono">✓ Complete</span>
+        </div>
+        <div class="status-item status-complete">
+          <span class="status-dot green"></span>
+          <span class="pw-name font-mono">build-mobile-app</span>
+          <span class="pw-badge badge-green font-mono">✓ Complete</span>
+        </div>
+        <div class="status-item status-complete">
+          <span class="status-dot green"></span>
+          <span class="pw-name font-mono">build-web-app</span>
+          <span class="pw-badge badge-green font-mono">✓ Complete</span>
+        </div>
+        <div class="status-item status-complete">
+          <span class="status-dot green"></span>
+          <span class="pw-name font-mono">run-verifications</span>
+          <span class="pw-badge badge-green font-mono">✓ Complete</span>
         </div>
       `;
     }
@@ -647,8 +731,9 @@ export const KanbanBoard = ({ issues }) => {
     const emptyCanvas = document.getElementById('empty-canvas-state');
     if (emptyCanvas) emptyCanvas.classList.remove('hidden');
 
+    this.nodes[0].status = 'complete';
     this.nodes[1].status = 'blocked';
-    this.nodes[2].status = 'running';
+    this.nodes[2].status = 'complete';
     this.nodes[3].status = 'pending';
     this.nodes[4].status = 'pending';
     this.nodes[5].status = 'pending';

@@ -516,7 +516,7 @@ body {
 .chat-message {
   display: flex;
   gap: 12px;
-  max-width: 92%;
+  max-width: 94%;
   animation: fadeInMsg 0.3s ease-out;
 }
 
@@ -555,6 +555,7 @@ body {
   border-radius: var(--radius-md);
   font-size: 13px;
   line-height: 1.5;
+
 }
 
 .chat-message.user .msg-content {
@@ -570,7 +571,7 @@ body {
   margin-bottom: 4px;
 }
 
-/* Thinking Box */
+/* Thinking Box & Promptware Status List */
 .thinking-box {
   margin-top: 8px;
   background-color: rgba(30, 41, 59, 0.5);
@@ -587,7 +588,90 @@ body {
   gap: 6px;
   font-weight: 600;
   color: var(--ivy-teal);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.promptware-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  font-size: 11px;
+  transition: all 0.2s ease;
+}
+
+.status-item.status-queued {
+  opacity: 0.55;
+  background-color: rgba(15, 23, 42, 0.4);
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.green {
+  background-color: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+}
+
+.status-dot.yellow {
+  background-color: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.7);
+  animation: pulseDot 1s infinite alternate;
+}
+
+@keyframes pulseDot {
+  0% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.status-dot.grey {
+  background-color: #64748b;
+}
+
+.pw-name {
+  flex: 1;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.status-item.status-queued .pw-name {
+  color: var(--text-muted);
+}
+
+.pw-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  font-weight: 600;
+}
+
+.badge-green {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.badge-yellow {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.badge-grey {
+  background-color: rgba(100, 116, 139, 0.15);
+  color: #64748b;
 }
 
 /* Feedback Card (Blocking Question) */
