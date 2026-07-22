@@ -1,6 +1,12 @@
-/* Modern Dark Theme Design System for Ivy Tendril Mockup */
+/* Modern Ivy Framework Theme & Styles for Ivy Tendril Mockup */
 
 :root {
+  /* Ivy Framework Official Color Palette */
+  --ivy-teal: #4db6a0;
+  --ivy-teal-hover: #3ca38d;
+  --ivy-teal-light: rgba(77, 182, 160, 0.15);
+  --ivy-teal-glow: 0 0 20px rgba(77, 182, 160, 0.35);
+
   --bg-dark: #0b0f19;
   --bg-card: #111827;
   --bg-card-hover: #1f293d;
@@ -10,15 +16,16 @@
   
   --border-color: #1e293b;
   --border-light: #334155;
-  --border-focus: #3b82f6;
+  --border-focus: var(--ivy-teal);
 
-  --accent-primary: #3b82f6;
-  --accent-primary-hover: #2563eb;
+  --accent-primary: var(--ivy-teal);
+  --accent-primary-hover: var(--ivy-teal-hover);
   --accent-purple: #8b5cf6;
   --accent-pink: #ec4899;
   --accent-emerald: #10b981;
   --accent-amber: #f59e0b;
   --accent-rose: #ef4444;
+  --accent-blue: #3b82f6;
 
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
@@ -32,9 +39,9 @@
   --radius-lg: 14px;
   --radius-full: 9999px;
 
-  --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.25);
+  --shadow-glow: var(--ivy-teal-glow);
   --shadow-amber-glow: 0 0 24px rgba(245, 158, 11, 0.4);
-  --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --shadow-card: 0 10px 30px rgba(0, 0, 0, 0.45);
 }
 
 * {
@@ -91,23 +98,23 @@ body {
 .brand-logo {
   width: 30px;
   height: 30px;
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-purple));
+  background: linear-gradient(135deg, var(--ivy-teal), #2563eb);
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  box-shadow: var(--shadow-glow);
+  box-shadow: var(--ivy-teal-glow);
 }
 
 .version-tag {
   font-size: 11px;
   font-weight: 500;
   padding: 2px 6px;
-  background-color: rgba(59, 130, 246, 0.15);
-  color: var(--accent-primary);
+  background-color: var(--ivy-teal-light);
+  color: var(--ivy-teal);
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  border: 1px solid rgba(77, 182, 160, 0.3);
 }
 
 .project-selector {
@@ -173,8 +180,9 @@ body {
 }
 
 .step-chip.active {
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-purple));
+  background: linear-gradient(135deg, var(--ivy-teal), #2563eb);
   color: #fff;
+  box-shadow: 0 2px 10px rgba(77, 182, 160, 0.3);
 }
 
 .step-chip.active .step-num {
@@ -201,8 +209,8 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: var(--accent-emerald);
-  box-shadow: 0 0 10px var(--accent-emerald);
+  background-color: var(--ivy-teal);
+  box-shadow: 0 0 10px var(--ivy-teal);
 }
 
 /* Buttons */
@@ -225,12 +233,12 @@ body {
 }
 
 .btn-primary {
-  background-color: var(--accent-primary);
-  color: #fff;
+  background-color: var(--ivy-teal);
+  color: #ffffff;
 }
 .btn-primary:hover {
-  background-color: var(--accent-primary-hover);
-  box-shadow: var(--shadow-glow);
+  background-color: var(--ivy-teal-hover);
+  box-shadow: var(--ivy-teal-glow);
 }
 
 .btn-secondary {
@@ -244,16 +252,16 @@ body {
 }
 
 .btn-hero-glow {
-  background: linear-gradient(135deg, #10b981, #3b82f6);
+  background: linear-gradient(135deg, var(--ivy-teal), #3b82f6);
   color: #fff;
   font-weight: 700;
-  box-shadow: 0 0 25px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 25px rgba(77, 182, 160, 0.5);
   animation: pulseGlow 2s infinite alternate;
 }
 
 @keyframes pulseGlow {
-  0% { box-shadow: 0 0 15px rgba(16, 185, 129, 0.3); }
-  100% { box-shadow: 0 0 30px rgba(16, 185, 129, 0.6); }
+  0% { box-shadow: 0 0 15px rgba(77, 182, 160, 0.4); }
+  100% { box-shadow: 0 0 30px rgba(77, 182, 160, 0.7); }
 }
 
 /* Main Workspace Body */
@@ -309,8 +317,8 @@ body {
 }
 
 .nav-item.active {
-  background-color: rgba(59, 130, 246, 0.12);
-  color: var(--accent-primary);
+  background-color: var(--ivy-teal-light);
+  color: var(--ivy-teal);
   font-weight: 600;
 }
 
@@ -323,8 +331,8 @@ body {
 }
 
 .badge-running {
-  background-color: rgba(59, 130, 246, 0.2);
-  color: var(--accent-primary);
+  background-color: rgba(77, 182, 160, 0.2);
+  color: var(--ivy-teal);
 }
 
 .badge-neutral {
@@ -356,7 +364,7 @@ body {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-purple), var(--accent-pink));
+  background: linear-gradient(135deg, var(--ivy-teal), var(--accent-purple));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -443,7 +451,7 @@ body {
 
 .right-pane {
   flex: 1;
-  background-color: #080c14;
+  background-color: #060911;
   position: relative;
 }
 
@@ -455,7 +463,7 @@ body {
   z-index: 5;
 }
 .split-handle:hover {
-  background-color: var(--accent-primary);
+  background-color: var(--ivy-teal);
 }
 
 .pane-header {
@@ -482,8 +490,8 @@ body {
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: var(--accent-purple);
-  background: rgba(139, 92, 246, 0.12);
+  color: var(--ivy-teal);
+  background: var(--ivy-teal-light);
   padding: 3px 8px;
   border-radius: var(--radius-full);
 }
@@ -492,7 +500,7 @@ body {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: var(--accent-purple);
+  background-color: var(--ivy-teal);
 }
 
 /* Chat History */
@@ -531,12 +539,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent-primary);
+  color: var(--ivy-teal);
   flex-shrink: 0;
 }
 
 .chat-message.user .msg-avatar {
-  background: var(--accent-primary);
+  background: var(--ivy-teal);
   color: #fff;
 }
 
@@ -550,7 +558,7 @@ body {
 }
 
 .chat-message.user .msg-content {
-  background-color: var(--accent-primary);
+  background-color: var(--ivy-teal);
   color: #fff;
   border: none;
 }
@@ -566,7 +574,7 @@ body {
 .thinking-box {
   margin-top: 8px;
   background-color: rgba(30, 41, 59, 0.5);
-  border-left: 3px solid var(--accent-purple);
+  border-left: 3px solid var(--ivy-teal);
   padding: 10px 12px;
   border-radius: var(--radius-sm);
   font-size: 12px;
@@ -578,7 +586,7 @@ body {
   align-items: center;
   gap: 6px;
   font-weight: 600;
-  color: var(--accent-purple);
+  color: var(--ivy-teal);
   margin-bottom: 4px;
 }
 
@@ -678,7 +686,7 @@ body {
 }
 .prompt-chip:hover {
   color: var(--text-primary);
-  border-color: var(--accent-primary);
+  border-color: var(--ivy-teal);
 }
 
 .input-box {
@@ -702,7 +710,7 @@ body {
 .btn-send {
   width: 32px;
   height: 32px;
-  background-color: var(--accent-primary);
+  background-color: var(--ivy-teal);
   border: none;
   border-radius: var(--radius-sm);
   color: #fff;
@@ -713,7 +721,7 @@ body {
   transition: background-color 0.2s ease;
 }
 .btn-send:hover {
-  background-color: var(--accent-primary-hover);
+  background-color: var(--ivy-teal-hover);
 }
 
 /* Canvas Viewport */
@@ -764,7 +772,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent-primary);
+  color: var(--ivy-teal);
 }
 
 .empty-canvas-state h3 {
@@ -794,31 +802,41 @@ body {
 /* SVG Graph Node Component */
 .svg-node {
   cursor: pointer;
-  transition: transform 0.2s ease;
+  transition: transform 0.15s ease;
 }
 
 .svg-node:hover {
-  transform: scale(1.02);
+  transform: scale(1.03);
 }
 
 .node-card-rect {
-  fill: var(--bg-card);
+  fill: #131b2e;
   stroke: var(--border-light);
   stroke-width: 1.5;
-  rx: 10;
-  ry: 10;
-  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
+  rx: 8;
+  ry: 8;
+  filter: drop-shadow(0 6px 16px rgba(0,0,0,0.6));
+}
+
+.node-type-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  fill: var(--ivy-teal);
 }
 
 .node-running .node-card-rect {
-  stroke: var(--accent-primary);
+  stroke: var(--ivy-teal);
   stroke-width: 2;
+  filter: drop-shadow(0 0 12px rgba(77, 182, 160, 0.4));
 }
 
 .node-blocked .node-card-rect {
   stroke: var(--accent-amber);
   stroke-width: 2.5;
-  filter: drop-shadow(0 0 15px rgba(245, 158, 11, 0.5));
+  filter: drop-shadow(0 0 18px rgba(245, 158, 11, 0.5));
   animation: pulseBlockedNode 1.5s infinite alternate;
 }
 
@@ -828,13 +846,18 @@ body {
 }
 
 .node-complete .node-card-rect {
-  stroke: var(--accent-emerald);
+  stroke: var(--ivy-teal);
+}
+
+.node-pending .node-card-rect {
+  stroke: var(--border-color);
+  opacity: 0.85;
 }
 
 .node-title-text {
   font-family: var(--font-sans);
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
   fill: var(--text-primary);
 }
 
@@ -844,22 +867,28 @@ body {
   fill: var(--text-muted);
 }
 
-/* Edge Connection Styling */
+/* Edge Connection Lines in DAG */
 .edge-line {
-  stroke: var(--border-light);
+  stroke: #334155;
   stroke-width: 2;
   fill: none;
 }
 
 .edge-active {
-  stroke: url(#edge-grad-active);
+  stroke: var(--ivy-teal);
   stroke-width: 2.5;
-  stroke-dasharray: 6;
+  stroke-dasharray: 6 4;
   animation: dashStream 1s linear infinite;
 }
 
+.edge-blocked {
+  stroke: var(--accent-amber);
+  stroke-width: 2.5;
+  stroke-dasharray: 4 4;
+}
+
 @keyframes dashStream {
-  to { stroke-dashoffset: -12; }
+  to { stroke-dashoffset: -10; }
 }
 
 /* Inspector Slide-over */
@@ -867,9 +896,9 @@ body {
   position: absolute;
   top: 16px;
   right: 16px;
-  width: 320px;
+  width: 330px;
   background-color: var(--bg-card);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   z-index: 20;
@@ -927,9 +956,9 @@ body {
 }
 
 .filter-tab.active {
-  background-color: var(--accent-primary);
+  background-color: var(--ivy-teal);
   color: #fff;
-  border-color: var(--accent-primary);
+  border-color: var(--ivy-teal);
 }
 
 .jobs-table-card {
@@ -976,9 +1005,10 @@ body {
   font-weight: 600;
 }
 
-.tag-running { background-color: rgba(59, 130, 246, 0.15); color: var(--accent-primary); }
+.tag-running { background-color: rgba(77, 182, 160, 0.15); color: var(--ivy-teal); }
 .tag-blocked { background-color: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
 .tag-complete { background-color: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); }
+.tag-pending { background-color: rgba(148, 163, 184, 0.15); color: var(--text-muted); }
 
 .logs-console-card {
   background-color: #060911;
@@ -1069,7 +1099,7 @@ body {
 }
 
 .badge-success { background-color: rgba(16, 185, 129, 0.2); color: var(--accent-emerald); }
-.badge-purple { background-color: rgba(139, 92, 246, 0.2); color: var(--accent-purple); }
+.badge-purple { background-color: rgba(77, 182, 160, 0.2); color: var(--ivy-teal); }
 
 .draft-details-grid {
   display: grid;
@@ -1140,8 +1170,8 @@ body {
 }
 
 .file-item.active {
-  background-color: rgba(59, 130, 246, 0.15);
-  color: var(--accent-primary);
+  background-color: var(--ivy-teal-light);
+  color: var(--ivy-teal);
   font-weight: 600;
 }
 
@@ -1294,7 +1324,7 @@ body {
 .jira-icon {
   width: 24px;
   height: 24px;
-  background-color: #2563eb;
+  background-color: var(--ivy-teal);
   color: #fff;
   border-radius: 4px;
   display: flex;
@@ -1312,7 +1342,7 @@ body {
 }
 
 .jira-nav-links span.active {
-  color: #58a6ff;
+  color: var(--ivy-teal);
   font-weight: 600;
 }
 
@@ -1363,7 +1393,7 @@ body {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background-color: #3b82f6;
+  background-color: var(--ivy-teal);
   font-size: 10px;
   font-weight: 700;
   display: flex;
@@ -1422,7 +1452,7 @@ body {
 
 .kanban-card:hover {
   transform: translateY(-2px);
-  border-color: #58a6ff;
+  border-color: var(--ivy-teal);
 }
 
 .kanban-card h4 {

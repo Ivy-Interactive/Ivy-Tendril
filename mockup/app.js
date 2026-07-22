@@ -1,6 +1,6 @@
 /**
  * Ivy Tendril Static Prototype App Controller
- * Manages view switching, interactive workflow graph, user feedback card blocking,
+ * Manages view switching, interactive promptware DAG graph, user feedback card blocking,
  * background jobs emulation, and tunnel live preview.
  */
 
@@ -10,29 +10,108 @@ class AppController {
     this.currentView = 'plans';
     this.zoomLevel = 1.0;
 
-    // Subagent workflow graph state
+    // Promptware DAG topology matching Jira example request:
+    // 1. Promptware: Backend -> 2. Promptware: API -> 3. Promptware: Frontend Client
+    // 4. App: Mobile App & 5. App: Web App (both depend on Frontend Client)
+    // 6. Verifications (last step, depends on Mobile & Web)
     this.nodes = [
-      { id: 'leader', name: 'Agent 01: Orchestration Leader', role: 'Coordinator', status: 'complete', x: 220, y: 60, cost: '$0.004', tokens: '1,200', details: 'Decomposed prompt into microservice specs and scheduled parallel subagent tasks.' },
-      { id: 'db', name: 'Agent 02: Database & Schema', role: 'Schema Architect', status: 'complete', x: 100, y: 180, cost: '$0.008', tokens: '2,400', details: 'Compiled SQLite schema for projects, issues, comments, and sprint boards.' },
-      { id: 'backend', name: 'Agent 03: Backend API Agent', role: 'REST / GraphQL', status: 'blocked', x: 340, y: 180, cost: '$0.012', tokens: '3,800', details: 'Waiting for user feedback on issue tracking workflow model preference.' },
-      { id: 'ui', name: 'Agent 04: Issue Tracker UI', role: 'Frontend React', status: 'running', x: 100, y: 310, cost: '$0.015', tokens: '4,100', details: 'Building drag-and-drop Kanban board components and filter widgets.' },
-      { id: 'auth', name: 'Agent 05: Auth & Security', role: 'OAuth / SAML', status: 'pending', x: 340, y: 310, cost: '$0.005', tokens: '1,100', details: 'Pending completion of Backend API data schemas.' }
+      {
+        id: 'pw-backend',
+        type: 'Promptware',
+        name: 'create-backend',
+        title: 'Backend Core Promptware',
+        role: 'Promptware Exec',
+        jobId: 'job-pw-backend-01',
+        status: 'complete',
+        x: 230, y: 40,
+        cost: '$0.006', tokens: '1,800',
+        prompt: 'Generate database schema, ORM mappings, and core entity repositories for Jira issues.',
+        details: 'Compiled SQLite database schema and repository pattern classes.'
+      },
+      {
+        id: 'pw-api',
+        type: 'Promptware',
+        name: 'create-backend-api',
+        title: 'API Layer Promptware',
+        role: 'Promptware Exec',
+        jobId: 'job-pw-api-02',
+        status: 'blocked',
+        x: 230, y: 140,
+        cost: '$0.010', tokens: '3,200',
+        prompt: 'Build REST endpoints and real-time subscription router for issues and comments.',
+        details: 'Waiting for user feedback on API protocol & workflow model preference.'
+      },
+      {
+        id: 'pw-frontend',
+        type: 'Promptware',
+        name: 'create-frontend-client',
+        title: 'Frontend Client Promptware',
+        role: 'Promptware Exec',
+        jobId: 'job-pw-frontend-03',
+        status: 'pending',
+        x: 230, y: 240,
+        cost: '$0.014', tokens: '4,500',
+        prompt: 'Create shared UI component library, Kanban board state, and API client SDK.',
+        details: 'Pending completion of Backend API promptware.'
+      },
+      {
+        id: 'app-mobile',
+        type: 'App Build',
+        name: 'build-mobile-app',
+        title: 'Mobile App (iOS/Android)',
+        role: 'App Artifact',
+        jobId: 'job-app-mobile-04',
+        status: 'pending',
+        x: 100, y: 340,
+        cost: '$0.008', tokens: '2,200',
+        prompt: 'Compile React Native / iOS bundle targeting mobile viewport.',
+        details: 'Depends on Frontend Client promptware SDK.'
+      },
+      {
+        id: 'app-web',
+        type: 'App Build',
+        name: 'build-web-app',
+        title: 'Web App (React/Vite)',
+        role: 'App Artifact',
+        jobId: 'job-app-web-05',
+        status: 'pending',
+        x: 360, y: 340,
+        cost: '$0.009', tokens: '2,800',
+        prompt: 'Build desktop web bundle with drag-and-drop Kanban interface.',
+        details: 'Depends on Frontend Client promptware SDK.'
+      },
+      {
+        id: 'verifications',
+        type: 'Verifications',
+        name: 'run-verifications',
+        title: 'Final Verifications Suite',
+        role: 'Validation Runner',
+        jobId: 'job-verifications-06',
+        status: 'pending',
+        x: 230, y: 440,
+        cost: '$0.003', tokens: '900',
+        prompt: 'Execute end-to-end integration tests, type checks, and API contract verifications.',
+        details: 'Final step: Runs after Mobile and Web apps complete.'
+      }
     ];
 
     this.edges = [
-      { from: 'leader', to: 'db', active: false },
-      { from: 'leader', to: 'backend', active: false },
-      { from: 'db', to: 'ui', active: true },
-      { from: 'backend', to: 'auth', active: false }
+      { from: 'pw-backend', to: 'pw-api', active: true, status: 'complete' },
+      { from: 'pw-api', to: 'pw-frontend', active: false, status: 'blocked' },
+      { from: 'pw-frontend', to: 'app-mobile', active: false, status: 'pending' },
+      { from: 'pw-frontend', to: 'app-web', active: false, status: 'pending' },
+      { from: 'app-mobile', to: 'verifications', active: false, status: 'pending' },
+      { from: 'app-web', to: 'verifications', active: false, status: 'pending' }
     ];
 
-    // Background jobs emulation data
+    // Background jobs matching exact promptwares
     this.jobs = [
-      { id: 'job-leader-01', name: 'Agent 01: Orchestration Leader', status: 'complete', deps: 'None', duration: '1.2s', tokens: '1,200' },
-      { id: 'job-db-schema-02', name: 'Agent 02: Database & Schema', status: 'complete', deps: 'job-leader-01', duration: '2.4s', tokens: '2,400' },
-      { id: 'job-backend-api-03', name: 'Agent 03: Backend API Agent', status: 'blocked', deps: 'job-db-schema-02', duration: '3.8s', tokens: '3,800' },
-      { id: 'job-react-ui-04', name: 'Agent 04: Issue Tracker UI', status: 'running', deps: 'job-db-schema-02', duration: '4.1s', tokens: '4,100' },
-      { id: 'job-auth-jwt-05', name: 'Agent 05: Auth & Security', status: 'pending', deps: 'job-backend-api-03', duration: '0.0s', tokens: '1,100' }
+      { id: 'job-pw-backend-01', name: 'create-backend', type: 'Promptware', status: 'complete', deps: 'None', duration: '1.4s', tokens: '1,800' },
+      { id: 'job-pw-api-02', name: 'create-backend-api', type: 'Promptware', status: 'blocked', deps: 'create-backend', duration: '3.2s', tokens: '3,200' },
+      { id: 'job-pw-frontend-03', name: 'create-frontend-client', type: 'Promptware', status: 'pending', deps: 'create-backend-api', duration: '0.0s', tokens: '4,500' },
+      { id: 'job-app-mobile-04', name: 'build-mobile-app', type: 'App Build', status: 'pending', deps: 'create-frontend-client', duration: '0.0s', tokens: '2,200' },
+      { id: 'job-app-web-05', name: 'build-web-app', type: 'App Build', status: 'pending', deps: 'create-frontend-client', duration: '0.0s', tokens: '2,800' },
+      { id: 'job-verifications-06', name: 'run-verifications', type: 'Verifications', status: 'pending', deps: 'build-mobile-app, build-web-app', duration: '0.0s', tokens: '900' }
     ];
 
     // File preview contents
@@ -81,7 +160,7 @@ export const KanbanBoard = ({ issues }) => {
           <h3 className="font-bold uppercase text-slate-400 mb-3">{col}</h3>
           {issues.filter(i => i.status === col).map(issue => (
             <div key={issue.id} className="bg-slate-800 p-3 rounded mb-2 shadow">
-              <span className="text-xs font-mono text-blue-400">{issue.id}</span>
+              <span className="text-xs font-mono text-teal-400">{issue.id}</span>
               <h4 className="font-semibold text-sm mt-1">{issue.title}</h4>
             </div>
           ))}
@@ -119,12 +198,10 @@ export const KanbanBoard = ({ issues }) => {
   switchView(viewName) {
     this.currentView = viewName;
 
-    // Update active nav items
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
     const activeNav = document.getElementById(`nav-${viewName}`) || document.getElementById('nav-chat');
     if (activeNav) activeNav.classList.add('active');
 
-    // Update view panels
     document.querySelectorAll('.view-panel').forEach(panel => panel.classList.remove('active'));
     const targetPanel = document.getElementById(`view-${viewName}`);
     if (targetPanel) targetPanel.classList.add('active');
@@ -176,14 +253,11 @@ export const KanbanBoard = ({ issues }) => {
     const userText = chatInput.value.trim();
     chatInput.value = '';
 
-    // Append user message
     this.appendUserMessage(userText);
 
-    // Hide quick prompts
     const quickPrompts = document.getElementById('quick-prompts');
     if (quickPrompts) quickPrompts.classList.add('hidden');
 
-    // Trigger agent breakdown thinking
     setTimeout(() => {
       this.appendAgentThinking();
       this.showWorkflowCanvas();
@@ -223,17 +297,17 @@ export const KanbanBoard = ({ issues }) => {
       <div class="msg-content">
         <div class="msg-author">Tendril Orchestrator</div>
         <div class="msg-text">
-          Decomposing specification for <strong>Jira Clone Application</strong>...
+          Decomposing prompt for <strong>Jira Clone Application</strong> into Promptware jobs & verifications...
           <div class="thinking-box">
             <div class="thinking-title">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path></svg>
-              Spinning up 5 Subagents in Parallel
+              Scheduled Promptwares & Application Build Jobs
             </div>
-            1. Orchestration Leader &rarr; Architecture Spec<br>
-            2. Database Agent &rarr; SQLite Schema Compilation<br>
-            3. Backend API Agent &rarr; REST Router & Workflows<br>
-            4. Issue Tracker UI &rarr; React Kanban Board<br>
-            5. Auth Agent &rarr; Session Security
+            1. <code>create-backend</code> (Promptware &rarr; Database & ORM)<br>
+            2. <code>create-backend-api</code> (Promptware &rarr; REST & Subscriptions)<br>
+            3. <code>create-frontend-client</code> (Promptware &rarr; UI SDK)<br>
+            4. <code>build-mobile-app</code> & <code>build-web-app</code> (Parallel App Builds)<br>
+            5. <code>run-verifications</code> (Final Validation Step)
           </div>
         </div>
       </div>
@@ -241,7 +315,6 @@ export const KanbanBoard = ({ issues }) => {
     chatHistory.appendChild(msg);
     chatHistory.scrollTop = chatHistory.scrollHeight;
 
-    // Trigger feedback question after delay
     setTimeout(() => {
       this.appendFeedbackQuestion();
       this.jumpToStep(3);
@@ -260,20 +333,20 @@ export const KanbanBoard = ({ issues }) => {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
       </div>
       <div class="msg-content">
-        <div class="msg-author">Agent 03: Backend API Agent (Blocked)</div>
+        <div class="msg-author">Promptware: create-backend-api (Blocked)</div>
         <div class="feedback-card">
           <div class="feedback-header">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
             User Feedback Required (Blocks Main Flow)
           </div>
           <div class="feedback-body">
-            <p>Which issue tracking workflow model would you prefer for the Jira API schema and UI columns?</p>
+            <p>Which issue tracking workflow model would you prefer for the <code>create-backend-api</code> promptware schema?</p>
             <div class="options-group">
               <button class="option-btn selected" onclick="appController.selectOption(this)">1. Hybrid Scrum & Kanban (Recommended)</button>
               <button class="option-btn" onclick="appController.selectOption(this)">2. Pure Agile Scrum with Sprint Backlog</button>
               <button class="option-btn" onclick="appController.selectOption(this)">3. Basic Task List with Custom Tags</button>
             </div>
-            <button class="btn btn-primary btn-sm" onclick="appController.submitFeedback()">Submit Feedback & Unblock Workflow</button>
+            <button class="btn btn-primary btn-sm" onclick="appController.submitFeedback()">Submit Feedback & Resume Promptwares</button>
           </div>
         </div>
       </div>
@@ -281,9 +354,8 @@ export const KanbanBoard = ({ issues }) => {
     chatHistory.appendChild(msg);
     chatHistory.scrollTop = chatHistory.scrollHeight;
 
-    // Update node state to blocked
-    const backendNode = this.nodes.find(n => n.id === 'backend');
-    if (backendNode) backendNode.status = 'blocked';
+    const apiNode = this.nodes.find(n => n.id === 'pw-api');
+    if (apiNode) apiNode.status = 'blocked';
     this.renderGraphSVG();
   }
 
@@ -299,32 +371,22 @@ export const KanbanBoard = ({ issues }) => {
     if (card) {
       card.querySelector('.feedback-card').innerHTML = `
         <div class="feedback-header" style="color: var(--accent-emerald);">
-          ✓ Feedback Received & Workflow Resumed
+          ✓ Feedback Received & Promptwares Resumed
         </div>
         <div class="feedback-body">
-          <p style="color: var(--text-secondary); margin: 0;">Selected: <strong>Hybrid Scrum & Kanban</strong>. Backend API agent compiling routes...</p>
+          <p style="color: var(--text-secondary); margin: 0;">Selected: <strong>Hybrid Scrum & Kanban</strong>. <code>create-backend-api</code> promptware completed. Spawning client builds and verifications...</p>
         </div>
       `;
     }
 
-    // Unblock Backend and Auth agents
-    const backendNode = this.nodes.find(n => n.id === 'backend');
-    if (backendNode) backendNode.status = 'complete';
+    // Complete all promptwares, app builds, and verifications
+    this.nodes.forEach(n => n.status = 'complete');
+    this.edges.forEach(e => { e.active = true; e.status = 'complete'; });
+    this.jobs.forEach(j => { j.status = 'complete'; j.duration = (Math.random() * 2 + 1).toFixed(1) + 's'; });
 
-    const authNode = this.nodes.find(n => n.id === 'auth');
-    if (authNode) authNode.status = 'complete';
-
-    const uiNode = this.nodes.find(n => n.id === 'ui');
-    if (uiNode) uiNode.status = 'complete';
-
-    // Update background jobs
-    this.jobs.forEach(j => j.status = 'complete');
     this.renderJobsTable();
-
-    // Re-render SVG Graph
     this.renderGraphSVG();
 
-    // Enable Draft Ready status
     const badgeDrafts = document.getElementById('badge-drafts');
     if (badgeDrafts) {
       badgeDrafts.innerText = '1 Ready';
@@ -350,45 +412,59 @@ export const KanbanBoard = ({ issues }) => {
     svgEdges.innerHTML = '';
     svgNodes.innerHTML = '';
 
-    // Render Edges
+    const nodeWidth = 190;
+    const nodeHeight = 56;
+
+    // Render Clean DAG Edges
     this.edges.forEach(edge => {
       const fromNode = this.nodes.find(n => n.id === edge.from);
       const toNode = this.nodes.find(n => n.id === edge.to);
       if (!fromNode || !toNode) return;
 
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      const startX = fromNode.x + 80;
-      const startY = fromNode.y + 50;
-      const endX = toNode.x + 80;
+      const startX = fromNode.x + nodeWidth / 2;
+      const startY = fromNode.y + nodeHeight;
+      const endX = toNode.x + nodeWidth / 2;
       const endY = toNode.y;
 
       const midY = (startY + endY) / 2;
       const d = `M ${startX} ${startY} C ${startX} ${midY}, ${endX} ${midY}, ${endX} ${endY}`;
 
       path.setAttribute('d', d);
-      path.setAttribute('class', edge.active ? 'edge-line edge-active' : 'edge-line');
-      path.setAttribute('marker-end', edge.active ? 'url(#arrowhead-active)' : 'url(#arrowhead)');
+      
+      if (fromNode.status === 'complete' && toNode.status === 'complete') {
+        path.setAttribute('class', 'edge-line edge-active');
+        path.setAttribute('marker-end', 'url(#arrowhead-active)');
+      } else if (fromNode.status === 'blocked' || toNode.status === 'blocked') {
+        path.setAttribute('class', 'edge-line edge-blocked');
+        path.setAttribute('marker-end', 'url(#arrowhead)');
+      } else {
+        path.setAttribute('class', 'edge-line');
+        path.setAttribute('marker-end', 'url(#arrowhead)');
+      }
+
       svgEdges.appendChild(path);
     });
 
-    // Render Nodes
+    // Render Promptware & Task Nodes
     this.nodes.forEach(node => {
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       g.setAttribute('class', `svg-node node-${node.status}`);
       g.setAttribute('transform', `translate(${node.x}, ${node.y})`);
       g.onclick = () => this.inspectNode(node);
 
-      let statusColor = '#3b82f6';
+      let statusColor = '#4db6a0'; // Ivy teal default
       let statusLabel = 'RUNNING';
       if (node.status === 'complete') { statusColor = '#10b981'; statusLabel = 'COMPLETE'; }
-      if (node.status === 'blocked') { statusColor = '#f59e0b'; statusLabel = 'WAITING INPUT'; }
+      if (node.status === 'blocked') { statusColor = '#f59e0b'; statusLabel = 'BLOCKED'; }
       if (node.status === 'pending') { statusColor = '#64748b'; statusLabel = 'PENDING'; }
 
       g.innerHTML = `
-        <rect class="node-card-rect" width="160" height="54" />
+        <rect class="node-card-rect" width="${nodeWidth}" height="${nodeHeight}" />
         <circle cx="16" cy="18" r="5" fill="${statusColor}" />
-        <text class="node-title-text" x="28" y="22">${node.name.split(':')[0]}</text>
-        <text class="node-sub-text" x="16" y="42">${node.role}</text>
+        <text class="node-type-badge" x="28" y="21">${node.type}</text>
+        <text class="node-title-text" x="16" y="38">${node.name}</text>
+        <text class="node-sub-text" x="16" y="50">${node.title}</text>
       `;
 
       svgNodes.appendChild(g);
@@ -404,14 +480,25 @@ export const KanbanBoard = ({ issues }) => {
 
     title.innerText = node.name;
     body.innerHTML = `
-      <div style="margin-bottom: 8px;"><strong>Role:</strong> ${node.role}</div>
+      <div style="margin-bottom: 8px;"><strong>Type:</strong> <span class="nav-badge badge-running">${node.type}</span></div>
+      <div style="margin-bottom: 8px;"><strong>Job ID:</strong> <code class="font-mono">${node.jobId}</code></div>
       <div style="margin-bottom: 8px;"><strong>Status:</strong> <span class="status-tag tag-${node.status}">${node.status.toUpperCase()}</span></div>
+      <div style="margin-bottom: 8px;"><strong>Prompt:</strong> <em>"${node.prompt}"</em></div>
       <div style="margin-bottom: 8px;"><strong>Tokens Used:</strong> ${node.tokens}</div>
       <div style="margin-bottom: 8px;"><strong>Estimated Cost:</strong> ${node.cost}</div>
       <div style="margin-top: 12px; font-size: 11px; color: var(--text-muted);">${node.details}</div>
+      <button class="btn btn-primary btn-sm" style="margin-top: 14px; width: 100%; justify-content: center;" onclick="appController.jumpToJob('${node.jobId}')">
+        Inspect Job in Jobs App &rarr;
+      </button>
     `;
 
     inspector.classList.remove('hidden');
+  }
+
+  jumpToJob(jobId) {
+    this.closeInspector();
+    this.switchView('jobs');
+    this.inspectJobLogs(jobId);
   }
 
   closeInspector() {
@@ -424,9 +511,9 @@ export const KanbanBoard = ({ issues }) => {
     if (!tbody) return;
 
     tbody.innerHTML = this.jobs.map(job => `
-      <tr>
+      <tr id="row-${job.id}">
         <td class="font-mono">${job.id}</td>
-        <td><strong>${job.name}</strong></td>
+        <td><strong>${job.name}</strong> <span class="nav-badge badge-neutral">${job.type}</span></td>
         <td><span class="status-tag tag-${job.status}">${job.status.toUpperCase()}</span></td>
         <td class="font-mono text-muted">${job.deps}</td>
         <td>${job.duration}</td>
@@ -442,16 +529,16 @@ export const KanbanBoard = ({ issues }) => {
     this.renderConsoleLogs(jobId);
   }
 
-  renderConsoleLogs(jobId = 'job-backend-api-03') {
+  renderConsoleLogs(jobId = 'job-pw-api-02') {
     const consoleOutput = document.getElementById('console-output');
     if (!consoleOutput) return;
 
     consoleOutput.innerHTML = `
-[00:00:01.02] [INFO] Initializing promptware runner for ${jobId}...
-[00:00:01.45] [DEBUG] Fetching repository references from ~/.tendril/Promptwares
-[00:00:02.10] [INFO] Compiling dependency AST...
-[00:00:03.20] [WARN] Decision point reached: Workflow model requires user specification.
-[00:00:03.80] [PAUSED] Execution blocked pending user feedback submission.
+[00:00:00.05] [INFO] Executing promptware engine for ${jobId}...
+[00:00:00.40] [INFO] Loaded promptware definition from ~/.tendril/Promptwares
+[00:00:01.12] [DEBUG] Resolving dependencies and checking verification rules...
+[00:00:02.10] [INFO] Promptware execution stream active.
+[00:00:03.20] [STATUS] Job completed with 0 errors.
     `;
   }
 
@@ -468,7 +555,7 @@ export const KanbanBoard = ({ issues }) => {
         tbody.innerHTML = filtered.map(job => `
           <tr>
             <td class="font-mono">${job.id}</td>
-            <td><strong>${job.name}</strong></td>
+            <td><strong>${job.name}</strong> <span class="nav-badge badge-neutral">${job.type}</span></td>
             <td><span class="status-tag tag-${job.status}">${job.status.toUpperCase()}</span></td>
             <td class="font-mono text-muted">${job.deps}</td>
             <td>${job.duration}</td>
@@ -515,7 +602,7 @@ export const KanbanBoard = ({ issues }) => {
           <div class="msg-content">
             <div class="msg-author">Tendril Orchestrator</div>
             <div class="msg-text">
-              Welcome! Describe the project or application you would like me to build. I will decompose your prompt, spin up parallel promptware agents, visualize the live state DAG on the right, and compile a draft repository.
+              Welcome! Describe the project or application you would like me to build. I will decompose your prompt into promptware execution steps, visualize the live state DAG on the right, and compile a draft repository.
             </div>
           </div>
         </div>
@@ -531,7 +618,11 @@ export const KanbanBoard = ({ issues }) => {
     const emptyCanvas = document.getElementById('empty-canvas-state');
     if (emptyCanvas) emptyCanvas.classList.remove('hidden');
 
-    this.nodes[2].status = 'blocked';
+    this.nodes[1].status = 'blocked';
+    this.nodes[2].status = 'pending';
+    this.nodes[3].status = 'pending';
+    this.nodes[4].status = 'pending';
+    this.nodes[5].status = 'pending';
     this.renderGraphSVG();
   }
 
