@@ -95,5 +95,6 @@ public sealed class ModelPricingProvider : IModelPricingProvider
         new Providers.Codex.CodexModelCatalog(),
         new Providers.Copilot.CopilotModelCatalog(),
         new Providers.OpenCode.OpenCodeModelCatalog(),
+        new Providers.Ivy.IvyModelCatalog(),
     ];
 }

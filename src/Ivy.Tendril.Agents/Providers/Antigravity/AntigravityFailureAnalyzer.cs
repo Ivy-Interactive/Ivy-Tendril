@@ -57,18 +57,21 @@ public sealed class AntigravityFailureAnalyzer : IFailureAnalyzer
             };
         }
 
+        var lastStderr = context.StderrLines.LastOrDefault(l => !string.IsNullOrWhiteSpace(l));
+
         if (context.ExitCode is not null and not 0)
         {
             return new FailureAnalysis
             {
                 Kind = FailureKind.ProcessCrash,
-                Reason = $"Antigravity exited with code {context.ExitCode}",
+                Reason = lastStderr != null
+                    ? $"Antigravity exited with code {context.ExitCode}: {lastStderr}"
+                    : $"Antigravity exited with code {context.ExitCode}",
                 ContextLines = context.StderrLines,
                 IsRetryable = context.ExitCode != 2,
             };
         }
 
-        var lastStderr = context.StderrLines.LastOrDefault(l => !string.IsNullOrWhiteSpace(l));
         return new FailureAnalysis
         {
             Kind = FailureKind.Unknown,

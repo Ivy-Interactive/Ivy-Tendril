@@ -69,18 +69,21 @@ public sealed class CodexFailureAnalyzer : IFailureAnalyzer
             };
         }
 
+        var lastStderr = context.StderrLines.LastOrDefault(l => !string.IsNullOrWhiteSpace(l));
+
         if (context.ExitCode is not null and not 0)
         {
             return new FailureAnalysis
             {
                 Kind = FailureKind.ProcessCrash,
-                Reason = $"Codex exited with code {context.ExitCode}",
+                Reason = lastStderr != null
+                    ? $"Codex exited with code {context.ExitCode}: {lastStderr}"
+                    : $"Codex exited with code {context.ExitCode}",
                 ContextLines = context.StderrLines,
                 IsRetryable = true,
             };
         }
 
-        var lastStderr = context.StderrLines.LastOrDefault(l => !string.IsNullOrWhiteSpace(l));
         return new FailureAnalysis
         {
             Kind = FailureKind.Unknown,

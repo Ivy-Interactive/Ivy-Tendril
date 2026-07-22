@@ -43,7 +43,7 @@ public sealed partial class TunnelSession : IDisposable
             psi.ArgumentList.Add("--no-tls-verify");
 
         _process = Process.Start(psi)
-            ?? throw new InvalidOperationException("Failed to start cloudflared process");
+            ?? throw new InvalidOperationException("Failed to start Cloudflare process");
 
         // Tie the process lifetime to ours: if Tendril dies without a graceful shutdown
         // (crash, console close, forced kill), the OS still terminates cloudflared instead
@@ -60,7 +60,7 @@ public sealed partial class TunnelSession : IDisposable
 
         await using var reg = timeoutCts.Token.Register(() =>
             _urlTcs.TrySetException(new TimeoutException(
-                $"Cloudflared did not produce a tunnel URL within {UrlTimeout.TotalSeconds}s")));
+                $"Cloudflare did not produce a tunnel URL within {UrlTimeout.TotalSeconds}s")));
 
         var url = await _urlTcs.Task;
         TunnelUrl = url;

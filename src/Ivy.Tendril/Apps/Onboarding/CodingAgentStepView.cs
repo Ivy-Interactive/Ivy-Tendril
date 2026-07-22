@@ -62,7 +62,8 @@ public class CodingAgentStepView(
         new("codex",    "Codex",    AgentBranding.IconFor("codex")),
         new("gemini",   "Gemini",   AgentBranding.IconFor("gemini")),
         new("antigravity", "Antigravity", AgentBranding.IconFor("antigravity")),
-        new("opencode", "OpenCode", AgentBranding.IconFor("opencode"))
+        new("opencode", "OpenCode", AgentBranding.IconFor("opencode")),
+        new("ivy", "Ivy Agent", AgentBranding.IconFor("ivy"))
     ];
 
     public override object Build()
