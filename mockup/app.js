@@ -1,7 +1,7 @@
 /**
  * Ivy Tendril Static Prototype App Controller
  * Manages view switching, interactive promptware DAG graph, user feedback card blocking,
- * background jobs emulation, and tunnel live preview.
+ * background jobs emulation, tunnel live preview, and Obsidian-inspired Knowledge Vault.
  */
 
 class AppController {
@@ -10,8 +10,7 @@ class AppController {
     this.currentView = 'plans';
     this.zoomLevel = 1.0;
 
-    // Promptware DAG topology with parallel Backend API & Frontend Client pair,
-    // followed by parallel Code Quality & Security verification loops:
+    // Promptware DAG topology
     this.nodes = [
       {
         id: 'pw-backend',
@@ -132,7 +131,7 @@ class AppController {
       { from: 'app-web', to: 'verifications', active: false, status: 'pending' }
     ];
 
-    // Background jobs list matching exact promptwares
+    // Background jobs list
     this.jobs = [
       { id: 'job-pw-backend-01', name: 'create-backend', type: 'Promptware', status: 'complete', deps: 'None', duration: '1.4s', tokens: '1,800' },
       { id: 'job-pw-api-02', name: 'create-backend-api', type: 'Promptware', status: 'blocked', deps: 'create-backend', duration: '3.2s', tokens: '3,200' },
@@ -143,6 +142,115 @@ class AppController {
       { id: 'job-app-web-07', name: 'build-web-app', type: 'App Build', status: 'pending', deps: 'verify-security-compliance', duration: '0.0s', tokens: '2,800' },
       { id: 'job-verifications-08', name: 'run-verifications', type: 'Verifications', status: 'pending', deps: 'build-mobile-app, build-web-app', duration: '0.0s', tokens: '900' }
     ];
+
+    // Obsidian-inspired Memories Vault Notes
+    this.memories = {
+      'architecture-overview': {
+        id: 'architecture-overview',
+        title: 'Architecture Overview',
+        filename: 'architecture-overview.md',
+        hash: 'sha256: a8f912c4b8e21017',
+        tags: ['#architecture', '#tendril', '#promptware'],
+        relations: ['database-schema-conventions', 'api-route-guidelines', 'promptware-execution-engine'],
+        x: 170, y: 90,
+        content: `The Tendril architecture decomposes complex system requirements into modular, parallel promptware executions.
+
+Key components include:
+- Core database entities defined in [[database-schema-conventions]]
+- REST and GraphQL endpoints specified in [[api-route-guidelines]]
+- The underlying engine orchestration managed by [[promptware-execution-engine]]
+
+All generated components are automatically verified against security rules in [[security-auth-specs]].`
+      },
+      'database-schema-conventions': {
+        id: 'database-schema-conventions',
+        title: 'Database Schema Conventions',
+        filename: 'database-schema-conventions.md',
+        hash: 'sha256: 4b2e7a10f91c8831',
+        tags: ['#database', '#sqlite', '#schema'],
+        relations: ['architecture-overview', 'api-route-guidelines'],
+        x: 80, y: 200,
+        content: `Defines table structures, foreign key constraints, and indexing standards for SQLite and PostgreSQL targets.
+
+Cross-references:
+- Referenced by [[architecture-overview]] during initial project scaffolding
+- Consumed by [[api-route-guidelines]] for type-safe query parameters`
+      },
+      'api-route-guidelines': {
+        id: 'api-route-guidelines',
+        title: 'API Route Guidelines',
+        filename: 'api-route-guidelines.md',
+        hash: 'sha256: 1d9e4f20a83b4c12',
+        tags: ['#api', '#rest', '#backend'],
+        relations: ['database-schema-conventions', 'security-auth-specs', 'kanban-state-management'],
+        x: 260, y: 190,
+        content: `Standardizes RESTful API route structures and JSON payloads across backend services.
+
+Key dependencies:
+- Schema validation mapping from [[database-schema-conventions]]
+- Authentication token middleware from [[security-auth-specs]]
+- React state synchronization consumed by [[kanban-state-management]]`
+      },
+      'kanban-state-management': {
+        id: 'kanban-state-management',
+        title: 'Kanban State Management',
+        filename: 'kanban-state-management.md',
+        hash: 'sha256: 7c5d9a11e40a9b88',
+        tags: ['#frontend', '#react', '#kanban'],
+        relations: ['api-route-guidelines', 'verification-suite-rules'],
+        x: 270, y: 310,
+        content: `Frontend state handling for drag-and-drop issue reordering, optimism, and live web sockets.
+
+Connections:
+- Invokes API endpoints configured in [[api-route-guidelines]]
+- Evaluated for UI accessibility and render speed in [[verification-suite-rules]]`
+      },
+      'security-auth-specs': {
+        id: 'security-auth-specs',
+        title: 'Security & Auth Specs',
+        filename: 'security-auth-specs.md',
+        hash: 'sha256: 3a2f8b90d7e651c9',
+        tags: ['#security', '#auth', '#jwt'],
+        relations: ['api-route-guidelines', 'verification-suite-rules'],
+        x: 100, y: 310,
+        content: `Security rules, JWT authorization standards, and sanitization guidelines.
+
+Relations:
+- Applied as middleware to [[api-route-guidelines]]
+- Audited automatically by [[verification-suite-rules]] prior to repository tunnel deployment`
+      },
+      'promptware-execution-engine': {
+        id: 'promptware-execution-engine',
+        title: 'Promptware Execution Engine',
+        filename: 'promptware-execution-engine.md',
+        hash: 'sha256: 0e7b4a22c1998410',
+        tags: ['#promptware', '#engine', '#runtime'],
+        relations: ['architecture-overview', 'verification-suite-rules'],
+        x: 50, y: 100,
+        content: `Runtime engine responsible for parsing promptware specs, managing dependency queues, and logging parallel job executions.
+
+Related:
+- Drives system builds in [[architecture-overview]]
+- Triggers validation checks via [[verification-suite-rules]]`
+      },
+      'verification-suite-rules': {
+        id: 'verification-suite-rules',
+        title: 'Verification Suite Rules',
+        filename: 'verification-suite-rules.md',
+        hash: 'sha256: 5f1c2d33e89104b2',
+        tags: ['#testing', '#verifications', '#qa'],
+        relations: ['security-auth-specs', 'kanban-state-management', 'promptware-execution-engine'],
+        x: 180, y: 380,
+        content: `Final validation suite executed prior to draft approval.
+
+Checks:
+- Security compliance verified against [[security-auth-specs]]
+- UI component stability tested on [[kanban-state-management]]
+- Managed by [[promptware-execution-engine]]`
+      }
+    };
+
+    this.activeMemoryId = 'architecture-overview';
 
     // File preview contents
     this.fileContents = {
@@ -223,6 +331,9 @@ export const KanbanBoard = ({ issues }) => {
   init() {
     this.renderJobsTable();
     this.renderConsoleLogs();
+    this.renderMemorySidebar();
+    this.renderMemoryNote(this.activeMemoryId);
+    this.renderMemoryGraph();
   }
 
   switchView(viewName) {
@@ -235,6 +346,10 @@ export const KanbanBoard = ({ issues }) => {
     document.querySelectorAll('.view-panel').forEach(panel => panel.classList.remove('active'));
     const targetPanel = document.getElementById(`view-${viewName}`);
     if (targetPanel) targetPanel.classList.add('active');
+
+    if (viewName === 'memories') {
+      setTimeout(() => this.renderMemoryGraph(), 50);
+    }
   }
 
   jumpToStep(stepNum) {
@@ -446,7 +561,6 @@ export const KanbanBoard = ({ issues }) => {
       `;
     }
 
-    // Live update thinking status list in chat!
     const pwStatusList = document.getElementById('pw-status-list');
     if (pwStatusList) {
       pwStatusList.innerHTML = `
@@ -493,7 +607,6 @@ export const KanbanBoard = ({ issues }) => {
       `;
     }
 
-    // Complete all promptwares, verification loops, app builds, and verifications
     this.nodes.forEach(n => n.status = 'complete');
     this.edges.forEach(e => { e.active = true; e.status = 'complete'; });
     this.jobs.forEach(j => { j.status = 'complete'; j.duration = (Math.random() * 2 + 1).toFixed(1) + 's'; });
@@ -529,7 +642,6 @@ export const KanbanBoard = ({ issues }) => {
     const nodeWidth = 190;
     const nodeHeight = 56;
 
-    // Render Clean Parallel DAG Edges
     this.edges.forEach(edge => {
       const fromNode = this.nodes.find(n => n.id === edge.from);
       const toNode = this.nodes.find(n => n.id === edge.to);
@@ -560,14 +672,13 @@ export const KanbanBoard = ({ issues }) => {
       svgEdges.appendChild(path);
     });
 
-    // Render Promptware & Task Nodes
     this.nodes.forEach(node => {
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       g.setAttribute('class', `svg-node node-${node.status}`);
       g.setAttribute('transform', `translate(${node.x}, ${node.y})`);
       g.onclick = () => this.inspectNode(node);
 
-      let statusColor = '#4db6a0'; // Ivy teal default
+      let statusColor = '#4db6a0';
       if (node.status === 'complete') { statusColor = '#10b981'; }
       if (node.status === 'blocked') { statusColor = '#f59e0b'; }
       if (node.status === 'pending') { statusColor = '#64748b'; }
@@ -636,7 +747,7 @@ export const KanbanBoard = ({ issues }) => {
     `).join('');
   }
 
-  inspectJobLogs(jobId) {
+  inspectJobLogs(jobId = 'job-pw-api-02') {
     const tag = document.getElementById('console-job-tag');
     if (tag) tag.innerText = jobId;
     this.renderConsoleLogs(jobId);
@@ -698,6 +809,129 @@ export const KanbanBoard = ({ issues }) => {
   closeTunnelModal() {
     const modal = document.getElementById('tunnel-modal');
     if (modal) modal.classList.add('hidden');
+  }
+
+  // --- Obsidian Knowledge Vault Memories Methods ---
+  renderMemorySidebar() {
+    const list = document.getElementById('memory-tree-list');
+    if (!list) return;
+
+    list.innerHTML = Object.values(this.memories).map(note => `
+      <div class="memory-item ${note.id === this.activeMemoryId ? 'active' : ''}" onclick="appController.openMemoryNote('${note.id}')">
+        <span>📄</span>
+        <span>${note.filename}</span>
+      </div>
+    `).join('');
+  }
+
+  openMemoryNote(noteId) {
+    if (!this.memories[noteId]) return;
+    this.activeMemoryId = noteId;
+    this.renderMemorySidebar();
+    this.renderMemoryNote(noteId);
+    this.renderMemoryGraph();
+  }
+
+  renderMemoryNote(noteId) {
+    const note = this.memories[noteId];
+    if (!note) return;
+
+    const header = document.getElementById('memory-note-header');
+    const body = document.getElementById('memory-note-body');
+    if (!header || !body) return;
+
+    header.innerHTML = `
+      <div class="editor-title-row">
+        <h3>${note.title}</h3>
+        <span class="hash-badge">${note.hash}</span>
+      </div>
+      <div class="tags-row">
+        ${note.tags.map(t => `<span class="tag-chip">${t}</span>`).join('')}
+      </div>
+    `;
+
+    // Process wiki-links [[note-id]] into clickable tokens
+    let formattedContent = note.content.replace(/\[\[([a-zA-Z0-9_-]+)\]\]/g, (match, targetId) => {
+      const targetNote = this.memories[targetId];
+      const label = targetNote ? targetNote.title : targetId;
+      return `<a class="wiki-link" onclick="appController.openMemoryNote('${targetId}')">[[${label}]]</a>`;
+    });
+
+    body.innerHTML = `
+      <div class="frontmatter-block">
+        <div><span class="frontmatter-key">title:</span> "${note.title}"</div>
+        <div><span class="frontmatter-key">hash:</span> "${note.hash}"</div>
+        <div><span class="frontmatter-key">tags:</span> [${note.tags.join(', ')}]</div>
+        <div><span class="frontmatter-key">relations:</span> [${note.relations.map(r => `"${r}"`).join(', ')}]</div>
+      </div>
+      <div class="markdown-body">
+        ${formattedContent.replace(/\n/g, '<br>')}
+      </div>
+    `;
+  }
+
+  renderMemoryGraph() {
+    const svgEdges = document.getElementById('mem-edges');
+    const svgNodes = document.getElementById('mem-nodes');
+    if (!svgEdges || !svgNodes) return;
+
+    svgEdges.innerHTML = '';
+    svgNodes.innerHTML = '';
+
+    const activeNote = this.memories[this.activeMemoryId];
+
+    // Render relationship edges
+    Object.values(this.memories).forEach(note => {
+      note.relations.forEach(targetId => {
+        const target = this.memories[targetId];
+        if (!target) return;
+
+        const isRelatedToActive = (note.id === this.activeMemoryId || target.id === this.activeMemoryId);
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', note.x);
+        line.setAttribute('y1', note.y);
+        line.setAttribute('x2', target.x);
+        line.setAttribute('y2', target.y);
+        line.setAttribute('class', isRelatedToActive ? 'mem-edge active' : 'mem-edge');
+        svgEdges.appendChild(line);
+      });
+    });
+
+    // Render node circles
+    Object.values(this.memories).forEach(note => {
+      const isActive = (note.id === this.activeMemoryId);
+
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('class', `mem-node ${isActive ? 'active' : ''}`);
+      g.onclick = () => this.openMemoryNote(note.id);
+
+      g.innerHTML = `
+        <circle class="mem-node-circle" cx="${note.x}" cy="${note.y}" r="${isActive ? 8 : 6}" />
+        <text class="mem-node-text" x="${note.x + 12}" y="${note.y + 4}">${note.title}</text>
+      `;
+
+      svgNodes.appendChild(g);
+    });
+  }
+
+  filterMemories(query) {
+    const q = query.toLowerCase().trim();
+    const list = document.getElementById('memory-tree-list');
+    if (!list) return;
+
+    const filtered = Object.values(this.memories).filter(n =>
+      n.title.toLowerCase().includes(q) ||
+      n.filename.toLowerCase().includes(q) ||
+      n.tags.some(t => t.toLowerCase().includes(q))
+    );
+
+    list.innerHTML = filtered.map(note => `
+      <div class="memory-item ${note.id === this.activeMemoryId ? 'active' : ''}" onclick="appController.openMemoryNote('${note.id}')">
+        <span>📄</span>
+        <span>${note.filename}</span>
+      </div>
+    `).join('');
   }
 
   resetDemo() {

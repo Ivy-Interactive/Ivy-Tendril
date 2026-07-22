@@ -122,6 +122,11 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7"></path><line x1="6" y1="9" x2="6" y2="21"></line></svg>
               <span>PR's</span>
             </a>
+            <a href="#" class="nav-item" id="nav-memories" onclick="appController.switchView('memories')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+              <span>Memories</span>
+              <span class="nav-badge badge-running" id="badge-memories">Vault Active</span>
+            </a>
           </nav>
         </div>
 
@@ -418,6 +423,63 @@ CREATE TABLE IF NOT EXISTS issues (
 );
                   </pre>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW 4: Memories App (Obsidian / Brainwares Vault Canvas) -->
+        <div id="view-memories" class="view-panel">
+          <div class="view-header">
+            <div class="view-header-title">
+              <h2>Promptwares Knowledge Vault & Memory Canvas</h2>
+              <span class="header-subtitle">Obsidian-Inspired Cross-Referenced System Memory Network</span>
+            </div>
+
+            <div class="view-header-actions">
+              <div class="vault-status-chip">
+                <span class="dot"></span>
+                <span>Vault: <code>~/.tendril/Promptwares/memories</code></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="memories-container">
+            <!-- Left: Memory Notes Explorer Tree -->
+            <div class="memory-sidebar">
+              <div class="memory-search-box">
+                <input type="text" id="memory-search" placeholder="Search memory notes, tags, wiki-links..." onkeyup="appController.filterMemories(this.value)">
+              </div>
+              <div class="memory-tree-header">Vault Notes (7)</div>
+              <div class="memory-tree-list" id="memory-tree-list">
+                <!-- Injected dynamically by app.js -->
+              </div>
+            </div>
+
+            <!-- Center: Obsidian Markdown Note Viewer -->
+            <div class="memory-editor-panel">
+              <div class="editor-header" id="memory-note-header">
+                <!-- Dynamic Header -->
+              </div>
+              <div class="editor-content" id="memory-note-body">
+                <!-- Dynamic Markdown & Wiki-links content -->
+              </div>
+            </div>
+
+            <!-- Right: Interactive Memory Network Graph Canvas -->
+            <div class="memory-graph-panel">
+              <div class="graph-header">
+                <span class="graph-title">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"></circle><circle cx="18" cy="6" r="3"></circle><circle cx="12" cy="18" r="3"></circle><line x1="8.5" y1="7.5" x2="10.5" y2="15.5"></line><line x1="15.5" y1="7.5" x2="13.5" y2="15.5"></line></svg>
+                  Interactive Knowledge Graph
+                </span>
+                <span class="graph-hint">Hover / Click node to focus</span>
+              </div>
+              <div class="graph-canvas-box" id="graph-canvas-box">
+                <svg id="memory-graph-svg" width="100%" height="100%">
+                  <g id="mem-edges"></g>
+                  <g id="mem-nodes"></g>
+                </svg>
               </div>
             </div>
           </div>
