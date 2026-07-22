@@ -1011,7 +1011,7 @@ public class JobService : IJobService
             RaiseJobsStructureChanged);
     }
 
-    internal void RunHooks(string when, string jobType, string planFolder, string project, JobItem job)
+    internal (bool Cancelled, string? Reason) RunHooks(string when, string jobType, string planFolder, string project, JobItem job)
     {
         // Fire plugin lifecycle hooks first, then shell-based hooks
         if (_pluginHooks is not null)
@@ -1028,6 +1028,8 @@ public class JobService : IJobService
                         Project = project
                     };
                     _pluginHooks.FireBeforeJobAsync(evt).GetAwaiter().GetResult();
+                    if (evt.Cancelled)
+                        return (true, evt.CancellationReason);
                 }
                 else
                 {
@@ -1053,6 +1055,7 @@ public class JobService : IJobService
         }
 
         _completionHandler.RunHooks(when, jobType, planFolder, project, job);
+        return (false, null);
     }
 
     private static Ivy.Plugins.Hooks.JobStatus MapJobStatus(Models.JobStatus status) => status switch

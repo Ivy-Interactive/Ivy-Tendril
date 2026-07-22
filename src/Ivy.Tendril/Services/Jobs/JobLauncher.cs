@@ -17,7 +17,7 @@ internal record JobLaunchContext(
     SemaphoreSlim JobSlotSemaphore,
     TimeSpan JobTimeout,
     TimeSpan StaleOutputTimeout,
-    Action<string, string, string, string, JobItem> RunHooks,
+    Func<string, string, string, string, JobItem, (bool Cancelled, string? Reason)> RunHooks,
     Action<string, int?, bool, bool> CompleteJob,
     Action RaiseStructureChanged);
 
@@ -52,7 +52,7 @@ internal class JobLauncher
         SemaphoreSlim jobSlotSemaphore,
         TimeSpan jobTimeout,
         TimeSpan staleOutputTimeout,
-        Action<string, string, string, string, JobItem> runHooks,
+        Func<string, string, string, string, JobItem, (bool Cancelled, string? Reason)> runHooks,
         Action<string, int?, bool, bool> completeJob,
         Action raiseStructureChanged)
     {
@@ -73,7 +73,8 @@ internal class JobLauncher
             if (!ValidateProjectReposOrFail(ctx))
                 return;
 
-            PrepareJobForLaunch(ctx);
+            if (!PrepareJobForLaunch(ctx))
+                return;
 
             if (!ValidateJobPrerequisites(ctx, out var psi, out var stdinContent))
                 return;
@@ -187,7 +188,7 @@ internal class JobLauncher
         }
     }
 
-    private void PrepareJobForLaunch(JobLaunchContext ctx)
+    private bool PrepareJobForLaunch(JobLaunchContext ctx)
     {
         var job = ctx.Job;
         var type = job.Type;
@@ -197,12 +198,19 @@ internal class JobLauncher
         job.StatusMessage = null;
 
         var planFolderForHooks = job.TypedArgs is not CreatePlanArgs ? (job.TypedArgs?.PlanFolder ?? "") : "";
-        ctx.RunHooks("before", type, planFolderForHooks, job.Project, job);
+        var (cancelled, reason) = ctx.RunHooks("before", type, planFolderForHooks, job.Project, job);
+
+        if (cancelled)
+        {
+            FailJobAndReleaseSlot(ctx, reason ?? "Job cancelled by plugin hook");
+            return false;
+        }
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
             EnsurePlanFolderWritable(job.TypedArgs!.PlanFolder!);
 
         job.SessionId = Guid.NewGuid().ToString();
+        return true;
     }
 
     // Deliberately called only after StartAgentProcess succeeds (see LaunchJob) — moved out of

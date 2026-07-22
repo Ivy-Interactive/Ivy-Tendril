@@ -66,6 +66,8 @@ public class PluginsSetupView : ViewBase
                     $"{tendrilArgs.ServicesUrl}/plugins", ct) ?? [];
             }
         );
+        // Shared state: maps packageId → progress (0-100) for currently-installing plugins
+        var installingPlugins = UseState(new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>());
 
         var activePlugins = pluginManager.GetActivePluginIds();
         var unconfiguredPlugins = pluginManager.GetUnconfiguredPlugins();
@@ -83,9 +85,6 @@ public class PluginsSetupView : ViewBase
         var availablePlugins = availableQuery.Value?
             .Where(p => !installedPackageIds.Contains(p.PackageId))
             .ToArray();
-
-        // Shared state: maps packageId → progress (0-100) for currently-installing plugins
-        var installingPlugins = UseState(new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>());
 
         var hasAnyPlugins = activePlugins.Count > 0 || unconfiguredPlugins.Count > 0 || unloadedPlugins.Count > 0;
 
