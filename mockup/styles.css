@@ -799,14 +799,14 @@ body {
   height: 100%;
 }
 
-/* SVG Graph Node Component */
+/* SVG Graph Node Component - Fixed to prevent hover flickering */
 .svg-node {
   cursor: pointer;
-  transition: transform 0.15s ease;
 }
 
-.svg-node:hover {
-  transform: scale(1.03);
+.svg-node text,
+.svg-node circle {
+  pointer-events: none;
 }
 
 .node-card-rect {
@@ -816,6 +816,14 @@ body {
   rx: 8;
   ry: 8;
   filter: drop-shadow(0 6px 16px rgba(0,0,0,0.6));
+  transition: fill 0.15s ease, stroke 0.15s ease, stroke-width 0.15s ease;
+}
+
+.svg-node:hover .node-card-rect {
+  fill: #19253d;
+  stroke: var(--ivy-teal);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 16px rgba(77, 182, 160, 0.4));
 }
 
 .node-type-badge {
@@ -872,6 +880,7 @@ body {
   stroke: #334155;
   stroke-width: 2;
   fill: none;
+  pointer-events: none;
 }
 
 .edge-active {
