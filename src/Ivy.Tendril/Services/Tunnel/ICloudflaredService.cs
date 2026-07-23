@@ -6,6 +6,7 @@ public interface ICloudflaredService
     TunnelStatus Status { get; }
     bool IsConnected { get; }
     bool IsInstalled { get; }
+    string? ErrorMessage { get; }
     event Action<TunnelStatus>? StatusChanged;
     Task<bool> CheckInstalledAsync(CancellationToken ct = default);
     Task InstallAsync(CancellationToken ct = default);
