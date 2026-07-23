@@ -106,7 +106,16 @@ public sealed partial class TunnelSession : IDisposable
     public static string? ParseTunnelUrl(string line)
     {
         var match = TunnelUrlRegex().Match(line);
-        return match.Success ? match.Value : null;
+        if (match.Success)
+        {
+            var url = match.Value;
+            if (url.Equals("https://api.trycloudflare.com", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+            return url;
+        }
+        return null;
     }
 
     [GeneratedRegex(@"https://[a-z0-9-]+\.trycloudflare\.com", RegexOptions.IgnoreCase)]
