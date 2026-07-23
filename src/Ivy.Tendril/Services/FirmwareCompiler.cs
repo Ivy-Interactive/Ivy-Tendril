@@ -184,8 +184,17 @@ public static class FirmwareCompiler
         "TendrilPlansFolder", "SourceUrl", "SourcePath"
     };
 
-    private static string NormalizeHeaderValue(string key, string value) =>
-        PathKeys.Contains(key) ? value.Replace('\\', '/') : value;
+    private static string NormalizeHeaderValue(string key, string value)
+    {
+        if (PathKeys.Contains(key))
+            value = value.Replace('\\', '/');
+
+        // Multi-line values use YAML literal block scalar so they don't break subsequent key: value pairs
+        if (value.Contains('\n'))
+            return "|\n  " + value.TrimEnd().Replace("\n", "\n  ");
+
+        return value;
+    }
 
     private static string ListDirectoryFiles(string directory, string emptyLabel = "(none)")
     {

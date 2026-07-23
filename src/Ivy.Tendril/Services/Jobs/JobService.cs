@@ -62,10 +62,10 @@ public class JobService : IJobService
         _pluginHooks = pluginHooks;
         _inboxPath = Path.Combine(configService.TendrilHome, "Inbox");
         var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot(configService.TendrilHome);
-        _jobLauncher = new JobLauncher(configService, agentRunner, _logger, promptsRoot);
+        _jobLauncher = new JobLauncher(configService, agentRunner, _logger, promptsRoot, pluginHooks);
         _completionHandler = new JobCompletionHandler(
             configService, _logger, modelPricingService, planReaderService,
-            telemetryService, planWatcherService, promptsRoot);
+            telemetryService, planWatcherService, promptsRoot, pluginHooks);
         configService.SettingsReloaded += OnSettingsReloaded;
         JobIdAllocator.SeedIfNeeded(configService.TendrilHome);
         LoadHistoricalJobs();
@@ -1013,40 +1013,21 @@ public class JobService : IJobService
 
     internal (bool Cancelled, string? Reason) RunHooks(string when, string jobType, string planFolder, string project, JobItem job)
     {
-        // Fire plugin lifecycle hooks first, then shell-based hooks
-        if (_pluginHooks is not null)
+        // Fire plugin BeforeJob hook (AfterJob is fired by JobCompletionHandler.RunAfterHooks)
+        if (_pluginHooks is not null && when.Equals("before", StringComparison.OrdinalIgnoreCase))
         {
             try
             {
-                if (when.Equals("before", StringComparison.OrdinalIgnoreCase))
+                var evt = new Ivy.Plugins.Hooks.BeforeJobEvent
                 {
-                    var evt = new Ivy.Plugins.Hooks.BeforeJobEvent
-                    {
-                        JobId = job.Id,
-                        JobType = jobType,
-                        PlanFolder = planFolder,
-                        Project = project
-                    };
-                    _pluginHooks.FireBeforeJobAsync(evt).GetAwaiter().GetResult();
-                    if (evt.Cancelled)
-                        return (true, evt.CancellationReason);
-                }
-                else
-                {
-                    var evt = new Ivy.Plugins.Hooks.AfterJobEvent
-                    {
-                        JobId = job.Id,
-                        JobType = jobType,
-                        Status = MapJobStatus(job.Status),
-                        PlanFolder = planFolder,
-                        Project = project,
-                        ExitCode = job.ExitCode,
-                        Duration = job.StartedAt.HasValue
-                            ? DateTime.UtcNow - job.StartedAt.Value
-                            : TimeSpan.Zero
-                    };
-                    _pluginHooks.FireAfterJobAsync(evt).GetAwaiter().GetResult();
-                }
+                    JobId = job.Id,
+                    JobType = jobType,
+                    PlanFolder = planFolder,
+                    Project = project
+                };
+                _pluginHooks.FireBeforeJobAsync(evt).GetAwaiter().GetResult();
+                if (evt.Cancelled)
+                    return (true, evt.CancellationReason);
             }
             catch (Exception ex)
             {

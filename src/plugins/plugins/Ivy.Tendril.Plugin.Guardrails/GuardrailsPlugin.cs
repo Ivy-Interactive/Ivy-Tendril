@@ -82,9 +82,7 @@ public class GuardrailsPlugin : IIvyPlugin<ITendrilPluginContext>
 
             var guardrails = await File.ReadAllTextAsync(guardrailsFile, ct);
             if (!string.IsNullOrWhiteSpace(guardrails))
-            {
                 evt.Description = $"[Project Guardrails]\n{guardrails.Trim()}\n\n[Task]\n{evt.Description}";
-            }
         });
 
         // ── AfterCreatePlan: Audit log ──────────────────────────────────────
@@ -107,9 +105,7 @@ public class GuardrailsPlugin : IIvyPlugin<ITendrilPluginContext>
         {
             var json = JsonSerializer.Serialize(evt.NewSettings);
             if (json.Contains("INVALID", StringComparison.OrdinalIgnoreCase))
-            {
                 evt.Reject("Config contains 'INVALID' marker — refusing to save.");
-            }
         });
 
         // ── AfterConfigReload: Reset cached state ───────────────────────────

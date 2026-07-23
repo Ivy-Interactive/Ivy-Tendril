@@ -24,22 +24,40 @@ public class PluginHookRegistry : IPluginHooks
     }
 
     public void BeforeJob(Func<BeforeJobEvent, CancellationToken, Task> handler)
-        => _beforeJob.Add((_getCurrentPluginId() ?? "__unknown__", handler));
+    {
+        var pluginId = _getCurrentPluginId() ?? "__unknown__";
+        _beforeJob.Add((pluginId, handler));
+    }
 
     public void AfterJob(Func<AfterJobEvent, CancellationToken, Task> handler)
-        => _afterJob.Add((_getCurrentPluginId() ?? "__unknown__", handler));
+    {
+        var pluginId = _getCurrentPluginId() ?? "__unknown__";
+        _afterJob.Add((pluginId, handler));
+    }
 
     public void BeforeCreatePlan(Func<BeforeCreatePlanEvent, CancellationToken, Task> handler)
-        => _beforeCreatePlan.Add((_getCurrentPluginId() ?? "__unknown__", handler));
+    {
+        var pluginId = _getCurrentPluginId() ?? "__unknown__";
+        _beforeCreatePlan.Add((pluginId, handler));
+    }
 
     public void AfterCreatePlan(Func<AfterCreatePlanEvent, CancellationToken, Task> handler)
-        => _afterCreatePlan.Add((_getCurrentPluginId() ?? "__unknown__", handler));
+    {
+        var pluginId = _getCurrentPluginId() ?? "__unknown__";
+        _afterCreatePlan.Add((pluginId, handler));
+    }
 
     public void BeforeConfigSave(Action<ConfigSaveEvent> handler)
-        => _beforeConfigSave.Add((_getCurrentPluginId() ?? "__unknown__", handler));
+    {
+        var pluginId = _getCurrentPluginId() ?? "__unknown__";
+        _beforeConfigSave.Add((pluginId, handler));
+    }
 
     public void AfterConfigReload(Action handler)
-        => _afterConfigReload.Add((_getCurrentPluginId() ?? "__unknown__", handler));
+    {
+        var pluginId = _getCurrentPluginId() ?? "__unknown__";
+        _afterConfigReload.Add((pluginId, handler));
+    }
 
     internal void RemovePluginHooks(string pluginId)
     {
@@ -56,7 +74,8 @@ public class PluginHookRegistry : IPluginHooks
         foreach (var (pluginId, handler) in _beforeJob)
         {
             await InvokeAsync(pluginId, "BeforeJob", ct => handler(evt, ct));
-            if (evt.Cancelled) break;
+            if (evt.Cancelled)
+                break;
         }
     }
 
@@ -71,7 +90,8 @@ public class PluginHookRegistry : IPluginHooks
         foreach (var (pluginId, handler) in _beforeCreatePlan)
         {
             await InvokeAsync(pluginId, "BeforeCreatePlan", ct => handler(evt, ct));
-            if (evt.Cancelled) break;
+            if (evt.Cancelled)
+                break;
         }
     }
 
@@ -88,7 +108,8 @@ public class PluginHookRegistry : IPluginHooks
             try
             {
                 handler(evt);
-                if (evt.Rejected) break;
+                if (evt.Rejected)
+                    break;
             }
             catch (Exception ex)
             {

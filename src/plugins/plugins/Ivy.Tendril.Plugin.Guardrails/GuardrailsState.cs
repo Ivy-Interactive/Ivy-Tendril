@@ -32,8 +32,8 @@ internal class GuardrailsState
             if (queue.Count < threshold)
                 return false;
 
-            // Check if the last N jobs all failed
-            return queue.Reverse().Take(threshold).All(s => s == JobStatus.Failed);
+            // Check if the last N jobs all ended unsuccessfully
+            return queue.Reverse().Take(threshold).All(s => s is JobStatus.Failed or JobStatus.Stopped or JobStatus.TimedOut);
         }
     }
 

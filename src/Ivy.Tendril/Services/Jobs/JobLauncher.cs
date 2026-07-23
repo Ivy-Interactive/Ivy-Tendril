@@ -37,13 +37,15 @@ internal class JobLauncher
     private readonly IAgentRunner? _agentRunner;
     private readonly ILogger _logger;
     private readonly string _promptsRoot;
+    private readonly PluginHookRegistry? _pluginHooks;
 
-    internal JobLauncher(IConfigService? configService, IAgentRunner? agentRunner, ILogger logger, string promptsRoot)
+    internal JobLauncher(IConfigService? configService, IAgentRunner? agentRunner, ILogger logger, string promptsRoot, PluginHookRegistry? pluginHooks = null)
     {
         _configService = configService;
         _agentRunner = agentRunner;
         _logger = logger;
         _promptsRoot = promptsRoot;
+        _pluginHooks = pluginHooks;
     }
 
     internal void LaunchJob(
@@ -375,6 +377,7 @@ internal class JobLauncher
 
         var settings = _configService.Settings;
         var (values, planYaml, profileOverride) = BuildFirmwareValues(ctx, programFolder);
+        if (values is null) return (null, null); // Cancelled by plugin hook
         values["TendrilProject"] = job.Project;
 
         var jobContext = BuildJobContext(job, values, programFolder);
@@ -463,7 +466,8 @@ internal class JobLauncher
 
         if (job.TypedArgs is CreatePlanArgs)
         {
-            BuildCreatePlanFirmware(ctx, values);
+            if (!BuildCreatePlanFirmware(ctx, values))
+                return (null!, null, null);
             return (values, null, null);
         }
 
@@ -478,11 +482,34 @@ internal class JobLauncher
         return BuildNonCreatePlanFirmware(job, values);
     }
 
-    private void BuildCreatePlanFirmware(JobLaunchContext ctx, Dictionary<string, string> values)
+    /// <returns>True if the plan should proceed; false if cancelled by a plugin hook.</returns>
+    private bool BuildCreatePlanFirmware(JobLaunchContext ctx, Dictionary<string, string> values)
     {
         var job = ctx.Job;
         var cp = job.TypedArgs as CreatePlanArgs;
         var description = cp?.Description ?? "";
+
+        // Fire BeforeCreatePlan hook to allow plugins to enrich/cancel
+        if (_pluginHooks is not null)
+        {
+            var evt = new Ivy.Plugins.Hooks.BeforeCreatePlanEvent
+            {
+                Description = description,
+                Project = job.Project,
+                SourceUrl = cp?.SourceUrl,
+                SourceIdentifier = cp?.SourceIdentifier,
+            };
+            _pluginHooks.FireBeforeCreatePlanAsync(evt).GetAwaiter().GetResult();
+
+            if (evt.Cancelled)
+            {
+                FailJobAndReleaseSlot(ctx, evt.CancellationReason ?? "Plan creation cancelled by plugin");
+                return false;
+            }
+
+            description = evt.Description;
+        }
+
         values["TaskDescription"] = description;
         values["TendrilPlansFolder"] = _configService!.PlanFolder;
 
@@ -492,6 +519,8 @@ internal class JobLauncher
             values["SourceUrl"] = cp.SourceUrl;
         if (!string.IsNullOrEmpty(cp?.SourceIdentifier))
             values["SourceIdentifier"] = cp.SourceIdentifier;
+
+        return true;
     }
 
     private (Dictionary<string, string> Values, PlanYaml? PlanYaml, string? ProfileOverride)

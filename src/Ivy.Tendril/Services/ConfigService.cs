@@ -523,7 +523,9 @@ public class ConfigService : IConfigService, IDisposable
             if (evt.Rejected)
             {
                 _logger.LogWarning("Config save rejected by plugin: {Reason}", evt.RejectionReason);
-                return;
+                // Revert in-memory settings to what's on disk since we refused to persist
+                ReloadSettings();
+                throw new InvalidOperationException(evt.RejectionReason ?? "Config save rejected by plugin");
             }
         }
 
