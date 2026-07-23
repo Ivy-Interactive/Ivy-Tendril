@@ -252,7 +252,7 @@ public class PluginsSetupView : ViewBase
                        | new Separator()
                        | Text.Block("Installing").Bold()
                        | installingPlugins.Value.Select(kvp =>
-                           (object)(Layout.Vertical().Gap(1)
+                           (object)(Layout.Vertical().Gap(2)
                                | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                                    | (PluginIconHelper.ToWidget(kvp.Value.Icon)
                                        ?? (object)new Icon(Icons.Plug).Width(PluginIconHelper.IconSize).Height(PluginIconHelper.IconSize))
