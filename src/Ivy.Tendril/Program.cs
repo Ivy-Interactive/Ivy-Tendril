@@ -168,7 +168,7 @@ public class Program
                         var sw = Stopwatch.StartNew();
                         var exitCode = app.Run(filteredArgs);
                         sw.Stop();
-                        JobStatusFile.AppendCliInvocationDirect(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
+                        CliInvocationLog.Append(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
                         return exitCode;
                     }
                     return app.Run(filteredArgs);
@@ -262,12 +262,22 @@ public class Program
                 : OperatingSystem.IsMacOS() ? "Ivy.Tendril.Assets.icon.icns"
                 : "Ivy.Tendril.Assets.icon.png";
 
+            var version = typeof(Program).Assembly.GetName().Version;
+            var versionString = version?.ToString(3) ?? "1.1.12";
+
             var window = new DesktopWindow(server)
                 .Title("Ivy Tendril")
                 .AppId("Ivy Tendril")
                 .Size(1800, 1200)
                 .UseDpiScaling(false)
                 .Icon(typeof(Program), iconResource)
+                .AboutName("Ivy Tendril")
+                .AboutVersion(versionString)
+                .AboutCopyright("© 2026 Ivy Interactive")
+                .AboutWebsite("https://ivy.app")
+                .AboutLicense("Apache-2.0")
+                .AboutAuthor("Ivy Interactive")
+                .AboutComments("Tendril is an end-to-end AI coding agent orchestrator built on the Ivy Framework that manages AI coding plans, tracks costs, and automates pull request generation.")
                 .OnReady(w =>
                 {
                     if (server.ServiceProvider is { } sp)
@@ -501,6 +511,8 @@ public class Program
                     .WithDescription("Report a job failure with a descriptive message");
                 job.AddCommand<JobStartCommand>("start")
                     .WithDescription("Start a job via the running Tendril server");
+                job.AddCommand<JobAddLogCommand>("add-log")
+                    .WithDescription("Append a log entry to the job's log");
             });
 
             // Plan management commands
@@ -511,7 +523,7 @@ public class Program
                 plan.AddCommand<PlanCreateCommand>("create")
                     .WithDescription("Create a new plan");
                 plan.AddCommand<PlanUpdateCommand>("update")
-                    .WithDescription("Update plan from STDIN");
+                    .WithDescription("Update plan from a file or STDIN");
                 plan.AddCommand<PlanSetCommand>("set")
                     .WithDescription("Set a single field");
                 plan.AddCommand<PlanAddRepoCommand>("add-repo")
@@ -534,16 +546,16 @@ public class Program
                     .WithDescription("Update verification status");
                 plan.AddCommand<PlanGetCommand>("get")
                     .WithDescription("Read plan or field");
-                plan.AddCommand<PlanAddLogCommand>("add-log")
-                    .WithDescription("Write a log entry");
                 plan.AddCommand<PlanWriteRevisionCommand>("write-revision")
-                    .WithDescription("Write a revision file from STDIN");
+                    .WithDescription("Write a revision file from a file or STDIN");
                 plan.AddCommand<PlanGetRevisionCommand>("get-revision")
                     .WithDescription("Print revision content");
                 plan.AddCommand<PlanValidateCommand>("validate")
                     .WithDescription("Validate plan health");
                 plan.AddCommand<PlanCleanupCommand>("cleanup")
                     .WithDescription("Remove worktrees from a plan");
+                plan.AddCommand<PlanAddWorktreeCommand>("add-worktree")
+                    .WithDescription("Create a git worktree for a plan");
                 plan.AddCommand<PlanRemoveWorktreeCommand>("remove-worktree")
                     .WithDescription("Remove a single worktree from a plan");
                 plan.AddCommand<PlanDoctorCommand>("doctor")
@@ -599,7 +611,7 @@ public class Program
             config.AddBranch("trash", trash =>
             {
                 trash.AddCommand<TrashWriteCommand>("write")
-                    .WithDescription("Write a file to Trash from STDIN");
+                    .WithDescription("Write a file to Trash from a file or STDIN");
             });
 
             config.AddBranch("project", project =>

@@ -96,7 +96,7 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
             var planReader = new PlanReaderService(config, NullLogger<PlanReaderService>.Instance);
             var database = sp.GetRequiredService<IPlanDatabaseService>();
             var watcher = sp.GetRequiredService<IPlanWatcherService>();
-            return new PlanDatabaseSyncService(planReader, database, watcher,
+            return new PlanDatabaseSyncService(planReader, database, watcher, config,
                 NullLogger<PlanDatabaseSyncService>.Instance);
         });
 
@@ -226,7 +226,7 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
             var planReader = new PlanReaderService(config, NullLogger<PlanReaderService>.Instance);
             var database = sp.GetRequiredService<IPlanDatabaseService>();
             var watcher = sp.GetRequiredService<IPlanWatcherService>();
-            return new PlanDatabaseSyncService(planReader, database, watcher,
+            return new PlanDatabaseSyncService(planReader, database, watcher, config,
                 NullLogger<PlanDatabaseSyncService>.Instance);
         });
 
@@ -341,6 +341,10 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         public string PolishMarkdown(string content)
         {
             return content;
+        }
+
+        public void Dispose()
+        {
         }
     }
 

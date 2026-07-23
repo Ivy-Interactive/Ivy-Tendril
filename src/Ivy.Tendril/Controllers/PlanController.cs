@@ -264,25 +264,6 @@ public class PlanController : ControllerBase
             return (true, $"Set verification '{request.Name}' to '{status}'", 200);
         });
 
-    [HttpPost("{planId}/logs")]
-    public IActionResult AddLog(string planId, [FromBody] AddLogRequest request)
-    {
-        try
-        {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var logPath = PlanAddLogCommand.WriteLog(planFolder, request.Action, request.Summary);
-            return Ok(new { message = $"Log written: {Path.GetFileName(logPath)}" });
-        }
-        catch (DirectoryNotFoundException)
-        {
-            return NotFound(new { error = $"Plan '{planId}' not found" });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-    }
-
     [HttpGet("{planId}/recommendations")]
     public IActionResult ListRecommendations(string planId, [FromQuery] string? state = null)
     {
@@ -680,7 +661,6 @@ public record RemoveRepoRequest(string RepoPath);
 public record AddPrRequest(string PrUrl);
 public record AddCommitRequest(string Sha);
 public record SetVerificationRequest(string Name, string Status);
-public record AddLogRequest(string Action, string? Summary = null);
 public record AddRecRequest(string Title, string? Description = null, string? Impact = null);
 public record AcceptRecRequest(string? Notes = null);
 public record DeclineRecRequest(string? Reason = null);

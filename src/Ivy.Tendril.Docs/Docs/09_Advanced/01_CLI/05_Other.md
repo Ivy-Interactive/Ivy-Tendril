@@ -38,8 +38,8 @@ Runs a promptware by name.
 
 ```terminal
 >tendril promptware read-memory <name> <filename>
->cat content.md | tendril promptware write-memory <name> <filename>
->cat tool.md | tendril promptware write-tool <name> <filename>
+>cat content.md | tendril promptware write-memory <name> <filename> --stdin
+>cat tool.md | tendril promptware write-tool <name> <filename> --stdin
 ```
 
 Read and write files in a promptware's `Memory/` and `Tools/` directories. Used by agents to persist and reload learned patterns and custom tool definitions. Write commands print the file path to stdout.
@@ -47,7 +47,7 @@ Read and write files in a promptware's `Memory/` and `Tools/` directories. Used 
 ```terminal
 >tendril promptware read-memory ExecutePlan cli-quirks.md
 >echo "Always use --force when cleaning worktrees" | \
->  tendril promptware write-memory ExecutePlan cli-quirks.md
+>  tendril promptware write-memory ExecutePlan cli-quirks.md --stdin
 ```
 
 ## job
@@ -96,13 +96,27 @@ Reports a status update to the running Tendril server for a job in progress. Use
 | `--plan-id` | Plan ID associated with the job |
 | `--plan-title` | Plan title associated with the job |
 
+#### job add-log
+
+```terminal
+>tendril job add-log <job-id> <action> [--summary <text>]
+```
+
+Appends an `## Agent Log` section to the job's log in `<TendrilHome>/Jobs/` and prints the path to
+stdout. Writes straight to disk, so unlike `job start` and `job status` it does not need the Tendril
+server to be running. Agents pass the `TendrilJobId` firmware header value as `<job-id>`.
+
+| Option | Effect |
+|--------|--------|
+| `--summary` | Body text for the log entry |
+
 ## trash
 
 #### trash write
 
 ```terminal
->cat content.md | tendril trash write <filename>
+>cat content.md | tendril trash write <filename> --stdin
 ```
 
-Writes a file to `$TENDRIL_HOME/Trash/` from stdin. Used by agents to soft-delete content (e.g. duplicate plan files) instead of permanently removing it. Prints the written file path to stdout.
+Writes a file to `$TENDRIL_HOME/Trash/` from `--file` or `--stdin`. Used by agents to soft-delete content (e.g. duplicate plan files) instead of permanently removing it. Prints the written file path to stdout.
 

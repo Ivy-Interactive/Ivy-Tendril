@@ -13,8 +13,8 @@ internal static class PromptwareDeployer
     private const string VersionFileName = ".version";
 
     /// <summary>
-    ///     Extracts embedded promptwares.zip to targetDir, preserving existing Logs/, Memory/, and Tools/
-    ///     directories, and ensuring all three exist for every deployed promptware.
+    ///     Extracts embedded promptwares.zip to targetDir, preserving existing Memory/ and Tools/
+    ///     directories, and ensuring both exist for every deployed promptware.
     /// </summary>
     public static void Deploy(string targetDir)
     {
@@ -28,7 +28,7 @@ internal static class PromptwareDeployer
 
     /// <summary>
     ///     Core deploy logic: extracts <paramref name="zipStream" /> into targetDir, preserving existing
-    ///     Logs/, Memory/, and Tools/ directories and ensuring all three exist for every deployed promptware.
+    ///     Memory/ and Tools/ directories and ensuring both exist for every deployed promptware.
     ///     Exposed as internal so tests exercise the real algorithm rather than a copy.
     /// </summary>
     internal static void DeployFromZip(Stream zipStream, string targetDir)
@@ -43,20 +43,20 @@ internal static class PromptwareDeployer
             // Ensure target exists
             Directory.CreateDirectory(targetDir);
 
-            // For each promptware subfolder, preserve Logs/, Memory/, and Tools/
+            // For each promptware subfolder, preserve Memory/ and Tools/
             foreach (var sourceSubDir in Directory.GetDirectories(tempDir))
             {
                 var subDirName = Path.GetFileName(sourceSubDir);
                 var targetSubDir = Path.Combine(targetDir, subDirName);
 
-                // Move aside existing Logs/, Memory/, and Tools/ if they exist.
+                // Move aside existing Memory/ and Tools/ if they exist.
                 // Tools/ holds agent/user-authored tools (written via `tendril promptware write-tool`)
                 // and must survive upgrades just like Memory/. No promptware currently *ships* Tools/
                 // (all $shippedTools allowlists in pack-promptwares.ps1 are empty), so a straight
                 // preserve is correct; if shipped tools are ever added this must become a merge
                 // (overlay shipped files onto preserved runtime files) instead of a wholesale preserve.
                 var preservedDirs = new List<(string original, string aside)>();
-                foreach (var preserve in new[] { "Logs", "Memory", "Tools" })
+                foreach (var preserve in new[] { "Memory", "Tools" })
                 {
                     var existingDir = Path.Combine(targetSubDir, preserve);
                     if (Directory.Exists(existingDir))
@@ -91,8 +91,8 @@ internal static class PromptwareDeployer
                         Directory.Move(aside, original);
                     }
 
-                    // Guarantee every promptware has Logs/, Memory/, and Tools/ (idempotent).
-                    foreach (var folder in new[] { "Logs", "Memory", "Tools" })
+                    // Guarantee every promptware has Memory/ and Tools/ (idempotent).
+                    foreach (var folder in new[] { "Memory", "Tools" })
                         Directory.CreateDirectory(Path.Combine(targetSubDir, folder));
                 }
                 catch

@@ -15,15 +15,25 @@ public class VerificationAddSettings : CommandSettings
     public string Name { get; set; } = "";
 
     [CommandOption("-p|--prompt")]
-    [Description("Verification prompt (reads from stdin if omitted)")]
+    [Description("Verification prompt (inline; use --file/--stdin for long text)")]
     public string? Prompt { get; set; }
 
     [CommandOption("--file|-f")]
     [Description("Read the prompt verbatim from this file (good for long/multiline prompts)")]
     public string? FilePath { get; set; }
 
+    [CommandOption("--stdin")]
+    [Description("Read the prompt verbatim from standard input")]
+    public bool Stdin { get; set; }
+
+    public int SourceCount => CliValidation.CountSources(Stdin, FilePath, Prompt ?? "");
+
     public override Spectre.Console.ValidationResult Validate()
     {
+        var sourceValidation = CliValidation.ValidateSingleSource(SourceCount, "--prompt, --file, or --stdin");
+        if (!sourceValidation.Successful)
+            return sourceValidation;
+
         return CliValidation.RequireNonEmpty(Name, "name");
     }
 }
@@ -80,9 +90,9 @@ public class VerificationSetSettings : CommandSettings
 
     public override Spectre.Console.ValidationResult Validate()
     {
-        if (SourceCount > 1)
-            return Spectre.Console.ValidationResult.Error(
-                "Provide the value in exactly one way: an inline <value>, --file, or --stdin.");
+        var sourceValidation = CliValidation.ValidateSingleSource(SourceCount, "an inline <value>, --file, or --stdin");
+        if (!sourceValidation.Successful)
+            return sourceValidation;
 
         return CliValidation.Combine(
             CliValidation.RequireNonEmpty(Name, "name"),
@@ -144,14 +154,9 @@ public class VerificationAddCommand : Command<VerificationAddSettings>
         if (config.Settings.Verifications.Any(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"Verification already exists: {settings.Name}");
 
-        var prompt = ConsoleHelper.ResolveContent(settings.FilePath, () => settings.Prompt);
-
-        if (string.IsNullOrEmpty(prompt))
-        {
-            if (!Console.IsInputRedirected)
-                throw new ArgumentException("Provide --prompt, --file, or pipe content via stdin");
-            prompt = ConsoleHelper.ReadStdinWithTimeout().Trim();
-        }
+        var prompt = ConsoleHelper.ResolveInput(settings.Stdin, settings.FilePath, settings.Prompt);
+        if (string.IsNullOrWhiteSpace(prompt))
+            throw new ArgumentException("Provide --prompt, --file, or --stdin");
 
         config.Settings.Verifications.Add(new VerificationConfig
         {
@@ -194,9 +199,7 @@ public class VerificationSetCommand : Command<VerificationSetSettings>
         if (match == null)
             CliValidation.ThrowVerificationNotFound(settings.Name, config.Settings.Verifications.Select(v => v.Name));
 
-        var value = settings.Stdin
-            ? ConsoleHelper.ReadStdinWithTimeout()
-            : ConsoleHelper.ResolveContent(settings.FilePath, () => settings.Value);
+        var value = ConsoleHelper.ResolveInput(settings.Stdin, settings.FilePath, settings.Value);
 
         if (string.IsNullOrEmpty(value))
             throw new ArgumentException("value is required (use an inline <value>, --file, or --stdin)");

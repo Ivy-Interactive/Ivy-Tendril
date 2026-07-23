@@ -1,3 +1,4 @@
+using System.Reactive.Disposables;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 
@@ -13,6 +14,13 @@ public class LevelsSetupView : ViewBase
         var (triggerView, showTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
             new EditLevelDialogContent(isOpen, existingIndex, config, client, refreshToken));
         var (alertView, showAlert) = UseAlert();
+
+        UseEffect(() =>
+        {
+            void OnSettingsReloaded(object? sender, EventArgs e) => refreshToken.Refresh();
+            config.SettingsReloaded += OnSettingsReloaded;
+            return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);
+        });
 
         // Use levels in config.yaml order (not alphabetically sorted).
         var levels = config.Settings.Levels;

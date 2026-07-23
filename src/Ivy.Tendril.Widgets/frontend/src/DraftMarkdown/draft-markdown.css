@@ -235,7 +235,8 @@
   padding: 0.05rem 0.25rem;
   font-family: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
     Consolas, monospace;
-  font-weight: 600;
+  font-size: 0.9em;
+  font-weight: 500;
   white-space: normal;
   word-break: break-word;
 }
@@ -286,12 +287,15 @@
   font-size: 0.875rem;
   line-height: 1.5;
 }
-.pmv-code-block code {
+.pmv-code-block code,
+.pmv-markdown pre code {
   background: none;
   padding: 0;
   font-weight: 400;
   border-radius: 0;
   font-size: inherit;
+  display: block;
+  white-space: pre;
 }
 .pmv-code-copy {
   position: absolute;
@@ -414,17 +418,15 @@
 /* ─── Annotation highlights ────────────────────────────────────────────── */
 .pmv-annotation-highlight {
   background: hsl(48 96% 76% / 0.7);
+  color: var(--foreground);
   border-radius: 0.125rem;
   cursor: pointer;
   padding: 0 0 0.125rem;
   display: inline;
 }
 
-@media (prefers-color-scheme: dark) {
-  .pmv-annotation-highlight {
-    background: hsl(48 80% 20% / 0.5);
-    color: hsl(0 0% 95%);
-  }
+:root.dark .pmv-annotation-highlight {
+  background: hsl(48 80% 20% / 0.5);
 }
 
 /* ─── Annotation popovers ─────────────────────────────────────────────── */

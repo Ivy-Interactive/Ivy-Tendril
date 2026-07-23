@@ -131,7 +131,10 @@ Outputs:
 ```
 PlanId: <ID>
 Directory: <TendrilPlansFolder>/<ID>-<SafeTitle>
-Plan created: <ID>-<SafeTitle>
+Verifications:
+<Name>:<Status>
+<Name>:<Status>
+...
 ```
 
 Options:
@@ -147,18 +150,21 @@ Options:
 ### Writing revisions
 
 ```bash
-tendril plan write-revision <plan-id> <<'EOF'
+tendril plan write-revision <plan-id> --stdin <<'EOF'
 <revision content>
 EOF
 ```
 
-Reads content from STDIN and writes it to `revisions/<NNN>.md` in the plan folder. Auto-increments from the highest existing revision. Outputs the file path.
+Reads content from STDIN (when `--stdin` is passed) or `--file`, and writes it to `revisions/<NNN>.md` in the plan folder. Auto-increments from the highest existing revision. Outputs the file path.
 
 ### Writing execution logs
 
 ```bash
-tendril plan add-log <plan-id> <action> [--summary=<text>]
+tendril job add-log <job-id> <action> [--summary=<text>]
 ```
+
+Appends an `## Agent Log` section to your own job's log in `<TendrilHome>/Jobs/`. Pass the
+`TendrilJobId` value from your firmware header as `<job-id>`.
 
 ### Cleaning up worktrees
 

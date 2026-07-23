@@ -102,7 +102,7 @@ public class TunnelSetupView : ViewBase
                         if (!installed)
                         {
                             status.Set(TunnelStatus.Disabled);
-                            showAlert("Cloudflared is not installed. Would you like to download and install it?", async result =>
+                            showAlert("Cloudflare is not installed. Would you like to download and install it?", async result =>
                             {
                                 if (result == AlertResult.Ok)
                                 {
@@ -114,7 +114,7 @@ public class TunnelSetupView : ViewBase
                                     }
                                     catch (Exception ex)
                                     {
-                                        error.Set($"Failed to install cloudflared: {ex.Message}");
+                                        error.Set($"Failed to install Cloudflare: {ex.Message}");
                                         status.Set(TunnelStatus.Disabled);
                                     }
                                 }

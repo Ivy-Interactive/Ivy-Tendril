@@ -371,6 +371,50 @@ codingAgent: claude
         service.CompleteJob(id, 0);
     }
 
+    // Regression for #plan-00053: a job stranded Running with no monitor ever armed (e.g. because
+    // the launch hung before JobMonitor.Start ran) previously had no path to completion — none of
+    // the per-job watchdogs exist to rescue it. RunStuckJobCheck is the global safety net that scans
+    // all Running jobs using StartedAt as the baseline, independent of whether a monitor ever started.
+    [Fact]
+    public void RunStuckJobCheck_StaleRunningJobWithNoMonitor_ReapsAsTimeoutWithStaleReason()
+    {
+        var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+
+        var id = service.CreateTestJob(new ExecutePlanArgs(_tempDir.Path));
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+
+        // Simulate a job stuck in "Starting…": launched long ago, never emitted any output.
+        job.StartedAt = DateTime.UtcNow.AddMinutes(-20);
+        job.LastOutputAt = null;
+
+        service.RunStuckJobCheck();
+
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Timeout, job.Status);
+        Assert.Contains("No output for 10 minutes", job.StatusMessage);
+        Assert.NotNull(job.CompletedAt);
+    }
+
+    [Fact]
+    public void RunStuckJobCheck_FreshRunningJobWithinGraceWindow_IsNotReaped()
+    {
+        var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+
+        var id = service.CreateTestJob(new ExecutePlanArgs(_tempDir.Path));
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        // StartedAt defaults to "now" from CreateTestJob and LastOutputAt is null — well within
+        // the stale-output timeout plus grace, so the reaper must leave it alone.
+
+        service.RunStuckJobCheck();
+
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Running, job.Status);
+    }
+
     [Fact]
     public void Constructor_AcceptsLogger()
     {

@@ -134,7 +134,7 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 |---------|-------------|
 | `tendril plan list` | List plans (supports filters) |
 | `tendril plan create <title>` | Low-level create of the plan folder/yaml — **edit-only primitive, not for creating a plan from a chat request** (start a `CreatePlan` job instead) |
-| `tendril plan update <plan-id>` | Update plan from stdin |
+| `tendril plan update <plan-id>` | Update plan from a file or stdin (--file/--stdin) |
 | `tendril plan set <plan-id> <field> <value>` | Set a plan field |
 | `tendril plan get <plan-id> [field]` | Get plan data |
 | `tendril plan validate <plan-id>` | Validate plan health |
@@ -147,8 +147,7 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `tendril plan remove-related-plan <plan-id> <folder>` | Remove related plan |
 | `tendril plan add-depends-on <plan-id> <folder>` | Add dependency |
 | `tendril plan remove-depends-on <plan-id> <folder>` | Remove dependency |
-| `tendril plan add-log <plan-id> <action>` | Add execution log entry |
-| `tendril plan write-revision <plan-id>` | Write revision from stdin — **only to edit an existing plan; never to create a new plan** (start a `CreatePlan` job instead) |
+| `tendril plan write-revision <plan-id>` | Write revision from a file or stdin (--file/--stdin) — **only to edit an existing plan; never to create a new plan** (start a `CreatePlan` job instead) |
 | `tendril plan get-revision <plan-id> [--number <n>]` | Print revision content (latest by default, or a specific numbered revision) |
 | `tendril plan cleanup <plan-id>` | Remove worktrees |
 | `tendril plan set-verification <plan-id> <name> <status>` | Set verification status |
@@ -180,6 +179,7 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 |---------|-------------|
 | `tendril job start <Type> <plan-id> [options]` | Start a job on the running Tendril server |
 | `tendril job status <job-id> -m <message>` | Report job status to the server |
+| `tendril job add-log <job-id> <action> [--summary=<text>]` | Append a narrative log entry to this job's log |
 
 **Job types and options for `tendril job start`:**
 
@@ -209,8 +209,8 @@ These commands are for internal use by other promptwares (e.g., a verification s
 |---------|-------------|
 | `tendril promptware run <name>` | Run a promptware directly (bypasses job service) |
 | `tendril promptware read-memory <name> <file>` | Read promptware memory |
-| `tendril promptware write-memory <name> <file>` | Write promptware memory (stdin) |
-| `tendril promptware write-tool <name> <file>` | Write promptware tool (stdin) |
+| `tendril promptware write-memory <name> <file>` | Write promptware memory (--file/--stdin) |
+| `tendril promptware write-tool <name> <file>` | Write promptware tool (--file/--stdin) |
 
 ### Project Commands
 
@@ -252,7 +252,7 @@ When the user asks you to create a plan:
 ## Important Notes
 
 - **Never read or write `plan.yaml` directly** -- always use `tendril plan` CLI commands.
-- **`tendril job start` and `tendril job status` require the Tendril server to be running.** They communicate via HTTP to the master instance (discovered via `TENDRIL_HOME/.master`).
+- **`tendril job start` and `tendril job status` require the Tendril server to be running.** They communicate via HTTP to the master instance (discovered via `TENDRIL_HOME/.master`). `tendril job add-log` does not need the server — it writes straight to disk.
 - Verification statuses: `Pending`, `Pass`, `Fail`, `Skipped`.
 - Plan states: `Draft`, `Creating`, `Updating`, `Executing`, `Review`, `Failed`, `Completed`, `Skipped`, `Blocked`, `Icebox`.
 - To create a new plan, start a CreatePlan job: `tendril job start CreatePlan --description="<description>" --project="<project>"` (see "Creating Plans Interactively"). Use the lower-level `tendril plan create` / `write-revision` commands only to edit an existing plan's content, never to create a new plan from a chat request.

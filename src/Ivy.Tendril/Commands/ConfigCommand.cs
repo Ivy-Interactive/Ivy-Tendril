@@ -45,9 +45,9 @@ public class ConfigSetSettings : CommandSettings
 
     public override Spectre.Console.ValidationResult Validate()
     {
-        if (SourceCount > 1)
-            return Spectre.Console.ValidationResult.Error(
-                "Provide the value in exactly one way: an inline <value>, --file, or --stdin.");
+        var sourceValidation = CliValidation.ValidateSingleSource(SourceCount, "an inline <value>, --file, or --stdin");
+        if (!sourceValidation.Successful)
+            return sourceValidation;
 
         return CliValidation.ValidateField(Key, ConfigGetSettings.ValidFields);
     }
@@ -85,9 +85,7 @@ public class ConfigSetCommand(IAgentRunner runner) : Command<ConfigSetSettings>
 {
     protected override int Execute(CommandContext context, ConfigSetSettings settings, CancellationToken cancellationToken)
     {
-        var value = settings.Stdin ? Console.In.ReadToEnd()
-            : !string.IsNullOrEmpty(settings.FilePath) ? File.ReadAllText(settings.FilePath)
-            : settings.Value;
+        var value = ConsoleHelper.ResolveInput(settings.Stdin, settings.FilePath, settings.Value);
 
         var config = new ConfigService();
         // throws on bad int / out-of-range / unknown coding agent, before any write

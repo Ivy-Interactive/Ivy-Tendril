@@ -200,15 +200,6 @@ public static class FirmwareCompiler
 
         return files.Count == 0 ? emptyLabel : string.Join(", ", files);
     }
-
-    public static string GetLogFile(string programFolder, string jobId)
-    {
-        var logsFolder = Path.Combine(programFolder, "Logs");
-        Directory.CreateDirectory(logsFolder);
-        var logFile = Path.Combine(logsFolder, $"{jobId}.md");
-        File.WriteAllText(logFile, "*Execution in progress...*\n");
-        return logFile;
-    }
 }
 
 public record FirmwareContext(

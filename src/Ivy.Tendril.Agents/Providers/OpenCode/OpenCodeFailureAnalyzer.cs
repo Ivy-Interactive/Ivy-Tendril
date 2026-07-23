@@ -121,12 +121,16 @@ public sealed class OpenCodeFailureAnalyzer : IFailureAnalyzer
             };
         }
 
+        var lastStderr = context.StderrLines.LastOrDefault(l => !string.IsNullOrWhiteSpace(l));
+
         if (context.ExitCode is not null and not 0)
         {
             return new FailureAnalysis
             {
                 Kind = FailureKind.ProcessCrash,
-                Reason = $"OpenCode exited with code {context.ExitCode}",
+                Reason = lastStderr != null
+                    ? $"OpenCode exited with code {context.ExitCode}: {lastStderr}"
+                    : $"OpenCode exited with code {context.ExitCode}",
                 ContextLines = context.StderrLines,
                 IsRetryable = true,
             };
@@ -135,7 +139,9 @@ public sealed class OpenCodeFailureAnalyzer : IFailureAnalyzer
         return new FailureAnalysis
         {
             Kind = FailureKind.Unknown,
-            Reason = "Unknown failure",
+            Reason = lastStderr != null
+                ? $"OpenCode failed: {lastStderr}"
+                : $"OpenCode failed with an unknown error (exit code {context.ExitCode?.ToString() ?? "unknown"})",
             ContextLines = context.StderrLines,
             IsRetryable = false,
         };

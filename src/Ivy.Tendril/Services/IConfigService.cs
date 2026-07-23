@@ -1,6 +1,6 @@
 namespace Ivy.Tendril.Services;
 
-public interface IConfigService
+public interface IConfigService : IDisposable
 {
     TendrilSettings Settings { get; }
     string TendrilHome { get; }

@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
@@ -50,19 +49,11 @@ public class PlanRemoveWorktreeCommand : Command<PlanRemoveWorktreeSettings>
 
         var branchName = settings.Branch ?? DeriveBranchName(planFolder);
         var repoRoot = ResolveRepoRoot(worktreePath);
+        var removeStdErr = "";
 
         if (repoRoot != null)
         {
-            var psi = new ProcessStartInfo("git", $"worktree remove --force \"{worktreePath}\"")
-            {
-                WorkingDirectory = repoRoot,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            using var process = Process.Start(psi);
-            process?.WaitForExit(30000);
+            (_, _, removeStdErr) = GitHelper.RunGit($"worktree remove --force \"{worktreePath}\"", repoRoot, 30000);
 
             if (!Directory.Exists(worktreePath))
             {
@@ -82,7 +73,10 @@ public class PlanRemoveWorktreeCommand : Command<PlanRemoveWorktreeSettings>
             return 0;
         }
 
-        throw new InvalidOperationException("Failed to remove worktree.");
+        var detail = string.IsNullOrWhiteSpace(removeStdErr)
+            ? "git worktree remove and force-delete both failed; no git stderr was captured."
+            : $"git worktree remove reported:\n{removeStdErr.Trim()}";
+        throw new InvalidOperationException($"Failed to remove worktree at {worktreePath}. {detail}");
     }
 
     private static string? ResolveRepoRoot(string worktreePath)
@@ -107,17 +101,11 @@ public class PlanRemoveWorktreeCommand : Command<PlanRemoveWorktreeSettings>
         return $"tendril/{folderName}";
     }
 
-    private static void DeleteBranch(string repoRoot, string branchName)
+    private void DeleteBranch(string repoRoot, string branchName)
     {
-        var psi = new ProcessStartInfo("git", $"branch -D \"{branchName}\"")
-        {
-            WorkingDirectory = repoRoot,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
-        using var process = Process.Start(psi);
-        process?.WaitForExit(10000);
+        // Best-effort: the branch may already be gone (e.g. re-run after a prior cleanup).
+        var (exitCode, _, stdErr) = GitHelper.RunGit($"branch -D \"{branchName}\"", repoRoot, 10000);
+        if (exitCode != 0)
+            _logger.LogDebug("Could not delete branch {Branch} in {RepoRoot}: {StdErr}", branchName, repoRoot, stdErr.Trim());
     }
 }

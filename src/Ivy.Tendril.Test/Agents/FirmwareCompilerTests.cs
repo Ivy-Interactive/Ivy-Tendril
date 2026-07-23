@@ -126,43 +126,6 @@ public class FirmwareCompilerTests : IDisposable
         Assert.Contains("**Tools:**", result);
     }
 
-    // --- GetLogFile ---
-
-    [Fact]
-    public void GetLogFile_CreatesFileWithJobId()
-    {
-        var programFolder = Path.Combine(_tempDir, "TestProgram");
-        Directory.CreateDirectory(programFolder);
-
-        var logFile = FirmwareCompiler.GetLogFile(programFolder, "00042");
-
-        Assert.EndsWith("00042.md", logFile);
-        Assert.Contains("Logs", logFile);
-    }
-
-    [Fact]
-    public void GetLogFile_CreatesLogsDirectory()
-    {
-        var programFolder = Path.Combine(_tempDir, "NewProgram");
-        Directory.CreateDirectory(programFolder);
-
-        FirmwareCompiler.GetLogFile(programFolder, "00001");
-
-        Assert.True(Directory.Exists(Path.Combine(programFolder, "Logs")));
-    }
-
-    [Fact]
-    public void GetLogFile_WritesPlaceholderContent()
-    {
-        var programFolder = Path.Combine(_tempDir, "ReserveTest");
-        Directory.CreateDirectory(programFolder);
-
-        var logFile = FirmwareCompiler.GetLogFile(programFolder, "00001");
-
-        Assert.True(File.Exists(logFile));
-        Assert.Contains("Execution in progress", File.ReadAllText(logFile));
-    }
-
     // --- Projects Section ---
 
     [Fact]

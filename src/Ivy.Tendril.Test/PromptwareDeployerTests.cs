@@ -50,20 +50,16 @@ public class PromptwareDeployerTests : IDisposable
     }
 
     [Fact]
-    public void Deploy_ExtractsZipAndPreservesLogsMemory()
+    public void Deploy_ExtractsZipAndPreservesMemory()
     {
-        // Arrange: Create target directory with existing Logs and Memory
+        // Arrange: Create target directory with existing Memory
         var targetDir = Path.Combine(_tempDir, "Promptwares");
         var promptwareADir = Path.Combine(targetDir, "PromptwareA");
-        var logsDir = Path.Combine(promptwareADir, "Logs");
         var memoryDir = Path.Combine(promptwareADir, "Memory");
 
-        Directory.CreateDirectory(logsDir);
         Directory.CreateDirectory(memoryDir);
 
-        var existingLog = Path.Combine(logsDir, "00001.md");
         var existingMemory = Path.Combine(memoryDir, "test.md");
-        File.WriteAllText(existingLog, "# Existing Log");
         File.WriteAllText(existingMemory, "# Existing Memory");
 
         // Create mock zip with new promptware content
@@ -77,11 +73,20 @@ public class PromptwareDeployerTests : IDisposable
         Assert.True(File.Exists(programFile), "Program.md should be deployed");
         Assert.Contains("# PromptwareA Program", File.ReadAllText(programFile));
 
-        // Assert: Existing Logs and Memory were preserved
-        Assert.True(File.Exists(existingLog), "Existing log file should be preserved");
-        Assert.Equal("# Existing Log", File.ReadAllText(existingLog));
+        // Assert: Existing Memory was preserved
         Assert.True(File.Exists(existingMemory), "Existing memory file should be preserved");
         Assert.Equal("# Existing Memory", File.ReadAllText(existingMemory));
+    }
+
+    [Fact]
+    public void Deploy_DoesNotCreateALogsDirectory()
+    {
+        // Job artifacts live in <TendrilHome>/Jobs/, never under a promptware.
+        var targetDir = Path.Combine(_tempDir, "Promptwares");
+
+        PromptwareDeployer.DeployFromZip(CreateMockZip(), targetDir);
+
+        Assert.False(Directory.Exists(Path.Combine(targetDir, "PromptwareA", "Logs")));
     }
 
     [Fact]
@@ -104,7 +109,7 @@ public class PromptwareDeployerTests : IDisposable
     }
 
     [Fact]
-    public void Deploy_EnsuresLogsMemoryToolsExist()
+    public void Deploy_EnsuresMemoryAndToolsExist()
     {
         // Arrange: fresh install — target has no promptware folders yet.
         var targetDir = Path.Combine(_tempDir, "Promptwares");
@@ -112,15 +117,15 @@ public class PromptwareDeployerTests : IDisposable
         // Act
         PromptwareDeployer.DeployFromZip(CreateMockZip(), targetDir);
 
-        // Assert: all three runtime folders exist even though the zip ships none of them
+        // Assert: both runtime folders exist even though the zip ships neither
         //         (CreateMockZip mirrors the real stripped zip — Program.md only)
         var promptwareADir = Path.Combine(targetDir, "PromptwareA");
-        foreach (var folder in new[] { "Logs", "Memory", "Tools" })
+        foreach (var folder in new[] { "Memory", "Tools" })
             Assert.True(Directory.Exists(Path.Combine(promptwareADir, folder)),
                 $"{folder}/ should exist after deploy");
     }
 
-    // Mirrors the real shipped zip, which strips Logs/, Memory/, and Tools/
+    // Mirrors the real shipped zip, which strips Memory/ and Tools/
     // (pack-promptwares.ps1): a promptware ships as Program.md only.
     private static MemoryStream CreateMockZip()
     {

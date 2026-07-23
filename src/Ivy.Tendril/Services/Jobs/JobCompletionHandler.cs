@@ -586,12 +586,12 @@ internal class JobCompletionHandler
             {
                 var seen = new HashSet<string>(recordedKeys, StringComparer.OrdinalIgnoreCase);
                 foreach (var line in job.OutputLines)
-                foreach (Match m in GitHubPrUrlPattern.Matches(line))
-                {
-                    if (!planRepoNames.Contains(m.Groups["repo"].Value)) continue;
-                    if (!seen.Add(CanonicalPrKey(m))) continue;
-                    added.Add(m.Value);
-                }
+                    foreach (Match m in GitHubPrUrlPattern.Matches(line))
+                    {
+                        if (!planRepoNames.Contains(m.Groups["repo"].Value)) continue;
+                        if (!seen.Add(CanonicalPrKey(m))) continue;
+                        added.Add(m.Value);
+                    }
             }
 
             // Nothing to record and no PR on the plan → leave state to whatever the agent set.
@@ -637,7 +637,7 @@ internal class JobCompletionHandler
             if (plansDir == null || !Directory.Exists(plansDir)) return;
 
             if (TryVerifyByReportedId(job, plansDir) ||
-                TryVerifyByOutputRegex(job) ||
+                TryVerifyByOutputRegex(job, plansDir) ||
                 TryVerifyByFilesystem(job, plansDir))
             {
                 MoveAttachmentsToPlanFolder(job);
@@ -756,16 +756,21 @@ internal class JobCompletionHandler
         return false;
     }
 
-    private static bool TryVerifyByOutputRegex(JobItem job)
+    private static bool TryVerifyByOutputRegex(JobItem job, string plansDir)
     {
+        // `tendril plan create` no longer prints a `Plan created: <folder>` marker (see
+        // PlanCreateCommand.Execute), but it always prints `PlanId: <id>` — resolve that ID to
+        // its folder the same way TryVerifyByReportedId does, so this fallback still works
+        // independently of the agent calling `tendril job status --plan-id`.
         var outputText = string.Join("\n", job.OutputLines);
-        var createdMatch = Regex.Match(outputText, @"Plan created:\s*([\w-]+)");
-        if (createdMatch.Success)
-        {
-            job.PlanFile = createdMatch.Groups[1].Value;
-            return true;
-        }
-        return false;
+        var planIdMatch = Regex.Match(outputText, @"PlanId:\s*([\w-]+)");
+        if (!planIdMatch.Success) return false;
+
+        var folder = PlanYamlHelper.FindPlanFolderById(plansDir, planIdMatch.Groups[1].Value);
+        if (folder == null) return false;
+
+        job.PlanFile = folder;
+        return true;
     }
 
     private static bool IsDuplicatePlan(JobItem job)
@@ -950,81 +955,13 @@ internal class JobCompletionHandler
     {
         try
         {
-            PromptwareLogWriter.WriteLog(job);
+            var fallback = _configService is null ? null : JobLogPaths.Log(_configService.TendrilHome, job);
+            JobLogWriter.WriteLog(job, BuildPlanOutcomeSummary(job), fallback);
         }
         catch
         {
             // ignored
         }
-
-        if (_planReaderService == null || string.IsNullOrEmpty(job.PlanFile))
-            return;
-
-        if (job.TypedArgs is CreatePlanArgs)
-            return;
-
-        try
-        {
-            var logContent = BuildJobLogContent(job);
-            _planReaderService.AddLog(job.PlanFile, job.Type, logContent, job.Id);
-            WriteFailedJobOutputIfNeeded(job);
-        }
-        catch
-        {
-            // ignored
-        }
-    }
-
-    private string BuildJobLogContent(JobItem job)
-    {
-        var duration = job.DurationSeconds.HasValue ? $"{job.DurationSeconds}s" : "unknown";
-        var logContent = $"# {job.Type}\n\n" +
-                         $"- **JobId:** {job.Id}\n" +
-                         $"- **Status:** {job.Status}\n" +
-                         $"- **Started:** {job.StartedAt:u}\n" +
-                         $"- **Completed:** {job.CompletedAt:u}\n" +
-                         $"- **Duration:** {duration}\n" +
-                         $"- **Provider:** {job.Provider}\n";
-
-        if (!string.IsNullOrEmpty(job.SessionId))
-            logContent += $"- **SessionId:** {job.SessionId}\n";
-
-        if (job.Cost.HasValue)
-            logContent += $"- **Cost:** ${job.Cost:F4}\n";
-
-        if (job.Tokens.HasValue)
-            logContent += $"- **Tokens:** {job.Tokens:N0}\n";
-
-        if (job.Status == JobStatus.Timeout && job.StatusMessage != null)
-            logContent += $"- **Timeout Reason:** {job.StatusMessage}\n";
-
-        logContent += BuildPlanOutcomeSummary(job);
-
-        return logContent;
-    }
-
-    private void WriteFailedJobOutputIfNeeded(JobItem job)
-    {
-        if (job.Status is not JobStatus.Failed and not JobStatus.Timeout || job.OutputLines.Count == 0)
-            return;
-
-        var planFolder = job.TypedArgs?.PlanFolder;
-
-        if (string.IsNullOrEmpty(planFolder) || !Directory.Exists(planFolder))
-        {
-            var logRoot = Path.Combine(
-                Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? ".",
-                "Logs", "Jobs");
-            FileHelper.EnsureDirectory(logRoot);
-            planFolder = logRoot;
-        }
-
-        var logsDir = Path.Combine(planFolder, "Logs");
-        FileHelper.EnsureDirectory(logsDir);
-        var outputFile = Path.Combine(logsDir, $"{job.Type}-{job.Id}.output.log");
-        File.WriteAllLines(outputFile, job.OutputLines);
-
-        job.EnqueueSystemOutput($"[Tendril] Full output saved to: {outputFile}");
     }
 
     private static string BuildPlanOutcomeSummary(JobItem job)

@@ -18,6 +18,7 @@ internal class AppShellRouter
     {
         OpenPage,
         SwitchToExistingTab,
+        RefreshExistingTab,
         CreateNewTab,
         Error,
         Noop
@@ -87,9 +88,14 @@ internal class AppShellRouter
             var existingTabIndex = FindTabIndexByAppId(currentTabs, navigateArgs.AppId);
             if (existingTabIndex >= 0 && appDescriptor?.AllowDuplicateTabs != true)
             {
+                var newArgsJson = navigateArgs.ToAppHost().AppArgs;
+                var existingArgsJson = currentTabs[existingTabIndex].AppHost?.AppArgs;
+                var action = newArgsJson != null && newArgsJson != existingArgsJson
+                    ? RouteAction.RefreshExistingTab
+                    : RouteAction.SwitchToExistingTab;
                 return new RouteResult
                 {
-                    Action = RouteAction.SwitchToExistingTab,
+                    Action = action,
                     TabIndex = existingTabIndex,
                     TabId = currentTabs[existingTabIndex].Id
                 };

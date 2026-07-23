@@ -3,6 +3,7 @@ Jobs/
 Logs/
 Plans/
 Trash/
+Temp/*
 Repos/
 Attachments/
 *.db

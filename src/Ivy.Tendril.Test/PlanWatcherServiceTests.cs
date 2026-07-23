@@ -117,7 +117,7 @@ public class PlanWatcherServiceTests : IDisposable
         // genuine regression guard for #1257 rather than something the plain debounce would pass.
         using var watcher = new PlanWatcherService(_configService, null, new[] { 800, 2500 });
         using var syncService = new PlanDatabaseSyncService(
-            planReader, database, watcher, NullLogger<PlanDatabaseSyncService>.Instance);
+            planReader, database, watcher, _configService, NullLogger<PlanDatabaseSyncService>.Instance);
 
         // Initial sync with no plans → enables database-backed reads.
         syncService.PerformInitialSync();

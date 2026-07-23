@@ -61,9 +61,12 @@ A plan folder is fully transparent and resides locally on your disk:
 ├── verification/      # Verification results (build output, formatting logs)
 ├── artifacts/         # Screenshots, generated assets
 ├── worktrees/         # Git worktree paths used during execution
-├── logs/              # Uncensored execution logs from the agent
 └── costs.csv          # Granular Token and cost tracking
 ```
+
+Execution logs do not live in the plan folder. Every job that runs against a plan writes its log, prompt
+and raw agent output to `<TendrilHome>/Jobs/`, named `{jobId}-{planId}-{promptware}` — so a plan's full
+execution history survives even if the plan is reset to Draft.
 
 ## Revisions
 

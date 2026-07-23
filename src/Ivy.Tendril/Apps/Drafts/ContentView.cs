@@ -59,7 +59,7 @@ public class ContentView(
             if (!isOpen.Value) return null;
             return new Sheet(
                 () => isOpen.Set(false),
-                new JobDebugSheet(jobId, jobService, planService, config),
+                new JobDebugSheet(jobId, jobService, planService, config, () => isOpen.Set(false)),
                 "Job Debug"
             ).Width(UxHelper.SheetWidth).Resizable();
         });
@@ -137,9 +137,17 @@ public class ContentView(
 
         object BuildTitleArea(bool isMobile)
         {
+            object SourceButton() => new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
+
+            var hasSourceUrl = !string.IsNullOrEmpty(selectedPlan.SourceUrl);
+
             var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full().Min(Size.Px(0)))
                 | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
-                    .Width(Size.Grow().Min(Size.Px(0)));
+                    .Width(Size.Shrink().Min(Size.Px(0)));
+
+            if (hasSourceUrl)
+                desktopTitleLayout |= SourceButton();
 
             if (selectedPlan.DependsOn.Count > 0)
             {
@@ -157,15 +165,25 @@ public class ContentView(
                 .Width(Size.Full().Min(Size.Px(0)))
                 .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
+            var mobileTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
+                | MobileItemPicker.Build(
+                        $"#{selectedPlan.Id} {selectedPlan.Title}",
+                        allPlans,
+                        p => $"#{p.Id} {p.Title}",
+                        p => p.FolderName == selectedPlan.FolderName,
+                        p => selectedPlanState.Set(p))
+                    .Width(Size.Grow().Min(Size.Px(0)));
+
+            if (hasSourceUrl)
+                mobileTitleLayout |= SourceButton();
+
+            var mobileTitle = new Box(mobileTitleLayout).BorderThickness(0).Padding(0)
+                .Width(Size.Full().Min(Size.Px(0)))
+                .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
             return Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow().Min(Size.Px(0)))
                    | desktopTitle
-                   | MobileItemPicker.Build(
-                           $"#{selectedPlan.Id} {selectedPlan.Title}",
-                           allPlans,
-                           p => $"#{p.Id} {p.Title}",
-                           p => p.FolderName == selectedPlan.FolderName,
-                           p => selectedPlanState.Set(p))
-                       .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+                   | mobileTitle;
         }
 
         object BuildControls(bool isMobile)
@@ -190,21 +208,7 @@ public class ContentView(
                                     ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
                             }));
 
-            if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
-            {
-                var leftSide = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                               | new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
-                                   .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
-
-                return Layout.Horizontal()
-                       .Width(isMobile ? Size.Full() : Size.Fit())
-                       .AlignContent(isMobile ? Align.SpaceBetween : Align.Right)
-                       .Gap(2)
-                       | leftSide
-                       | rightSide;
-            }
-
-            return rightSide;
+            return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
         }
 
         var header = ResponsiveHeader.Build(BuildTitleArea, BuildControls);
@@ -393,9 +397,9 @@ public class ContentView(
         }
     }
 
-    internal static object BuildFailureCallout(PlanFile plan)
+    internal static object BuildFailureCallout(PlanFile plan, string tendrilHome)
     {
-        return BuildVerificationFailureCallout(plan) ?? BuildLogFailureCallout(plan);
+        return BuildVerificationFailureCallout(plan) ?? BuildLogFailureCallout(plan, tendrilHome);
     }
 
     private static object? BuildVerificationFailureCallout(PlanFile plan)
@@ -428,25 +432,25 @@ public class ContentView(
         return Callout.Destructive(string.Join("\n\n", parts), "Execution Failed");
     }
 
-    private static object BuildLogFailureCallout(PlanFile plan)
+    private static object BuildLogFailureCallout(PlanFile plan, string tendrilHome)
     {
-        var logsDir = Path.Combine(plan.FolderPath, "Logs");
-        if (!Directory.Exists(logsDir))
-            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
-        var lastLog = Directory.GetFiles(logsDir, "*.md")
-            .OrderByDescending(f => f)
-            .FirstOrDefault();
+        var planId = JobLogPaths.PlanIdFromFolderName(Path.GetFileName(plan.FolderPath));
+        var lastLog = planId == null
+            ? null
+            : JobLogPaths.LogsForPlanId(tendrilHome, planId).LastOrDefault();
         if (lastLog == null)
-            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
+            return Callout.Destructive("No details available. Check the job logs.", "Execution Failed");
 
         var logContent = FileHelper.ReadAllText(lastLog);
-        var summary = MatchSection(logContent, "Summary");
+        // "Final Output" is the heading JobLogWriter actually emits — the agent's last response, which is
+        // the most useful thing to surface on a failed plan.
+        var summary = MatchSection(logContent, "Final Output");
         if (summary != null)
             return Callout.Destructive(summary, "Execution Failed");
 
         var statusMatch = Regex.Match(logContent, @"\*\*Status:\*\*\s*(.+)");
         if (!statusMatch.Success)
-            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
+            return Callout.Destructive("No details available. Check the job logs.", "Execution Failed");
         var status = statusMatch.Groups[1].Value.Trim();
         if (status == nameof(PlanStatus.Completed))
             return Callout.Warning(

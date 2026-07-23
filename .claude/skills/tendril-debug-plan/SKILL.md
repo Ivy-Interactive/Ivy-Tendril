@@ -39,19 +39,30 @@ Read these files from the plan folder (`$TENDRIL_PLANS/{planid}-*/`):
 | ------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `plan.yaml`         | Plan metadata: state, repos, commits, PRs, verifications, dependsOn                                        |
 | `revisions/*.md`    | Plan scope, acceptance criteria, verification checkboxes. Last one is the one that is the executable one.  |
-| `logs/*.md`         | Per-step execution logs with outcome data (commits, verifications, cost). Also Tendril CLI logs.           |
 | `costs.csv`         | Token/cost breakdown per promptware (if available)                                                         |
 | `verification/*.md` | Verification reports (PreExecution, IvyFrameworkVerification, etc.)                                        |
 | `worktrees/`        | Check if worktrees were created/cleaned up                                                                 |
 
-Also check promptware-level logs:
+The plan folder holds **no logs**. Every job that ran against the plan wrote its artifacts flat into
+`$TENDRIL_HOME/Jobs/`, named `{jobId}-{planId}-{promptware}`. Find them all for a plan with:
 
-* `$TENDRIL_HOME/Promptwares/{Type}/Logs/{PlanId}.md` — agent summary
-* `$TENDRIL_HOME/Promptwares/{Type}/Logs/{PlanId}.raw.jsonl` — full session data
+```bash
+ls "$TENDRIL_HOME/Jobs/"*"-{planid}-"*
+```
+
+| File | Purpose |
+|------|---------|
+| `{stem}.md` | Job Log — status, timings, cost, CLI command, final output, agent `## Agent Log` narrative |
+| `{stem}.prompt.md` | Job Prompt — the exact prompt handed to the agent |
+| `{stem}.raw.jsonl` | Job Raw Log — full unparsed CLI session data |
+| `{stem}.eventwire.jsonl` | Job Eventwire Log — Tendril's parsed event stream |
+
+Note that the `CreatePlan` job that created the plan is named `{jobId}-CreatePlan` with **no** plan id,
+so it will not appear in the glob above. Use `/tendril-debug-job` to drill into any single job.
 
 ### Phase 2 — Locate and Analyze Session JSONL
 
-Each log entry in `logs/` contains a `SessionId`. The raw Claude session data lives at:
+Each Job Log contains a `SessionId`. The raw Claude session data lives at:
 
 ```
 ~/.claude/projects/*/{SessionId}.jsonl

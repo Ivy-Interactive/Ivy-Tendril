@@ -1,3 +1,4 @@
+using Ivy.Tendril.Commands;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -6,10 +7,9 @@ namespace Ivy.Tendril.Controllers;
 
 [ApiController]
 [Route("api/jobs")]
-public class JobController(IJobService jobService) : ControllerBase
+public class JobController(IJobService jobService, IConfigService configService) : ControllerBase
 {
-    private static string NormalizeJobId(string jobId) =>
-        int.TryParse(jobId, out var num) ? num.ToString("D5") : jobId;
+    private static string NormalizeJobId(string jobId) => Helpers.JobId.Normalize(jobId);
 
     [HttpPost]
     public IActionResult StartJob([FromBody] JobArgsBase args)
@@ -55,6 +55,26 @@ public class JobController(IJobService jobService) : ControllerBase
         return Ok(new { status = "Failure reported" });
     }
 
+    /// <summary>Appends an <c>## Agent Log</c> section to the job's log in <c>&lt;TendrilHome&gt;/Jobs/</c>.</summary>
+    [HttpPost("{jobId}/logs")]
+    public IActionResult AddLog(string jobId, [FromBody] AddLogRequest request)
+    {
+        try
+        {
+            var logPath = JobAddLogCommand.WriteLog(
+                configService.TendrilHome, NormalizeJobId(jobId), request.Action, request.Summary);
+            return Ok(new { message = $"Log written: {Path.GetFileName(logPath)}" });
+        }
+        catch (FileNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpGet("health")]
     public IActionResult Health() => Ok(new { status = "ok", pid = Environment.ProcessId });
 }
@@ -62,3 +82,5 @@ public class JobController(IJobService jobService) : ControllerBase
 public record UpdateJobStatusRequest(string Message, string? PlanId = null, string? PlanTitle = null);
 
 public record ReportJobFailureRequest(string Message);
+
+public record AddLogRequest(string Action, string? Summary = null);

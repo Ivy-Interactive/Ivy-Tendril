@@ -147,6 +147,23 @@ public class CodexFailureAnalyzerTests
     }
 
     [Fact]
+    public void Analyze_NonZeroExitCode_WithStderr_IncludesLastStderrInReason()
+    {
+        var ctx = new FailureContext
+        {
+            Events = [],
+            AgentId = AgentId.Codex,
+            ExitCode = 1,
+            StderrLines = ["some error message here"],
+        };
+
+        var result = _analyzer.Analyze(ctx);
+
+        Assert.Equal(FailureKind.ProcessCrash, result.Kind);
+        Assert.Contains("exited with code 1: some error message here", result.Reason);
+    }
+
+    [Fact]
     public void Analyze_NoSignals_ReturnsUnknown()
     {
         var ctx = new FailureContext

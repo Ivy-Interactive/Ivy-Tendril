@@ -6,22 +6,25 @@ internal class TestPlanConfigService : IConfigService
 {
     private readonly List<ProjectConfig> _projects;
 
-    public TestPlanConfigService(string repoDir, string projectName = "TestProject")
+    public TestPlanConfigService(string repoDir, string projectName = "TestProject",
+        IReadOnlyList<ProjectVerificationRef>? verifications = null, string? tendrilHome = null)
     {
+        TendrilHome = tendrilHome ?? "";
         _projects =
         [
             new ProjectConfig
             {
                 Name = projectName,
-                Repos = [new RepoRef { Path = repoDir }]
+                Repos = [new RepoRef { Path = repoDir }],
+                Verifications = verifications?.ToList() ?? []
             }
         ];
     }
 
     public TendrilSettings Settings => new() { Projects = _projects };
-    public string TendrilHome => "";
+    public string TendrilHome { get; }
     public string ConfigPath => "";
-    public string PlanFolder => "";
+    public string PlanFolder => string.IsNullOrEmpty(TendrilHome) ? "" : Path.Combine(TendrilHome, "Plans");
     public List<ProjectConfig> Projects => _projects;
     public List<LevelConfig> Levels => [];
     public string[] LevelNames => [];
@@ -53,4 +56,5 @@ internal class TestPlanConfigService : IConfigService
     public void CompleteOnboarding(string tendrilHome) { }
     public void OpenInEditor(string path) { }
     public string PolishMarkdown(string content) => content;
+    public void Dispose() { }
 }

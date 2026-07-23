@@ -200,7 +200,7 @@ public sealed class PlanTools : AuthenticatedToolBase
         {
             var removed = plan.Repos.RemoveAll(r => r.Equals(repoPath, StringComparison.OrdinalIgnoreCase));
             if (removed == 0)
-                throw new InvalidOperationException($"Repository not found in plan: {repoPath}");
+                CliValidation.ThrowRepoNotFound(repoPath, plan.Repos);
         }, $"Removed repository: {repoPath}");
     }
 
@@ -253,20 +253,6 @@ public sealed class PlanTools : AuthenticatedToolBase
             plan.Updated = DateTime.UtcNow;
             PlanCommandHelpers.WritePlan(planFolder, plan);
             return $"Set verification '{name}' to '{parsedStatus}'";
-        });
-    }
-
-    [McpServerTool(Name = "tendril_plan_add_log"), Description("Write an execution log entry to a plan")]
-    public string AddLog(
-        [Description("Plan ID")] string planId,
-        [Description("Action name (e.g., CreatePlan, ExecutePlan)")] string action,
-        [Description("Optional summary text")] string? summary = null)
-    {
-        return ExecuteAuthenticated(() =>
-        {
-            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
-            var logPath = PlanAddLogCommand.WriteLog(planFolder, action, summary);
-            return $"Log written: {Path.GetFileName(logPath)}";
         });
     }
 
@@ -470,7 +456,10 @@ public sealed class PlanTools : AuthenticatedToolBase
                     plan.DependsOn.Add(PlanCommandHelpers.ResolvePlanFolderName(dep));
 
             PlanCommandHelpers.WritePlan(planFolder, plan);
-            return $"Plan created: {folderName}\nPlanId: {planId}\nDirectory: {planFolder}";
+
+            var lines = new List<string> { $"PlanId: {planId}", $"Directory: {planFolder}", "Verifications:" };
+            lines.AddRange(plan.Verifications.Select(v => $"{v.Name}:{v.Status}"));
+            return string.Join('\n', lines);
         });
     }
 

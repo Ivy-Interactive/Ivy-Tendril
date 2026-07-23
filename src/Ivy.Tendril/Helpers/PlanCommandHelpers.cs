@@ -151,6 +151,9 @@ public static class PlanCommandHelpers
             .ToList();
     }
 
+    private const int ReadPlanMaxRetries = 5;
+    private const int ReadPlanRetryDelayMs = 50;
+
     /// <summary>
     ///     Reads a plan.yaml file and deserializes it.
     /// </summary>
@@ -160,8 +163,25 @@ public static class PlanCommandHelpers
         if (!File.Exists(yamlPath))
             throw new FileNotFoundException($"plan.yaml not found at {yamlPath}");
 
-        var content = FileHelper.ReadAllText(yamlPath);
-        var plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(content);
+        // Coordinate with writers (PlanReaderService / WritePlan) that hold this lock while
+        // performing a non-atomic truncate+write, so we never read a mid-write empty file.
+        using var _ = PlanFileLock.Acquire(planFolder);
+
+        PlanYaml? plan = null;
+        for (var attempt = 0; attempt < ReadPlanMaxRetries; attempt++)
+        {
+            var content = FileHelper.ReadAllText(yamlPath);
+            if (!string.IsNullOrWhiteSpace(content))
+            {
+                plan = YamlHelper.Deserializer.Deserialize<PlanYaml>(content);
+                if (plan != null)
+                    break;
+            }
+
+            if (attempt < ReadPlanMaxRetries - 1)
+                Thread.Sleep(ReadPlanRetryDelayMs);
+        }
+
         if (plan == null)
             throw new InvalidOperationException($"Failed to deserialize plan.yaml at {yamlPath}");
 

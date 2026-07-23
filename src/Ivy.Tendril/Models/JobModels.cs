@@ -24,15 +24,17 @@ public enum JobStatus
 public record JobItem
 {
     /// <summary>
-    /// Maximum number of output lines retained per job during execution.
-    /// Lines beyond this limit are discarded (not just hidden from display).
-    /// Memory is freed when EvictStaleJobs() removes completed jobs after 1 hour.
-    /// Output is not persisted to SQLite—this in-memory queue is the only retention.
+    /// Maximum number of output lines retained per job <em>in memory</em> during execution.
+    /// Lines beyond this limit are dropped from the queue, not from disk: the eventwire file under
+    /// &lt;TendrilHome&gt;/Jobs/ is appended to as events are produced and keeps the complete stream.
+    /// Memory is freed when EvictStaleJobs() removes completed jobs after 1 hour; the file is
+    /// rehydrated on demand (tail-truncated to this same limit).
     /// </summary>
-    private const int MaxOutputLines = 10_000;
+    internal const int MaxOutputLines = 10_000;
     private int _completionGuard;
     private readonly Subject<string> _outputSubject = new();
     private StreamWriter? _rawLogWriter;
+    private StreamWriter? _eventWireWriter;
     private readonly object _rawLogLock = new();
 
     [JsonIgnore]
@@ -53,6 +55,15 @@ public record JobItem
     public bool CancellationRequested { get; set; }
 
     /// <summary>
+    /// True once this launch attempt has acquired a permit from the job-slot semaphore. Distinct
+    /// from <c>Status == Running</c>: the pre-Running launch guard (repo-ownership check, #1340)
+    /// can run — and release the slot via <c>FailJobAndReleaseSlot</c> — before <c>Status</c> ever
+    /// flips to <see cref="JobStatus.Running"/>, so a concurrent <c>StopJob</c> keyed off
+    /// <c>Status == Running</c> would wrongly skip releasing a slot it doesn't realize is held.
+    /// </summary>
+    public bool SlotReserved { get; set; }
+
+    /// <summary>
     /// Plan state captured at job start, before the start transition. On Stop/Delete/
     /// Failed the plan is reverted to this "came-from" state. In-memory only (not
     /// persisted); after an app restart the fallback mapping in
@@ -62,7 +73,8 @@ public record JobItem
     public PlanStatus? PreviousPlanState { get; set; }
 
     public string? SessionId { get; set; }
-    public string Provider { get; init; } = "claude";
+    // Settable: the standalone CLI runners resolve the agent after the job object exists.
+    public string Provider { get; set; } = "claude";
     public string? Model { get; set; }
     public int Priority { get; init; }
     public List<string>? WaitForJobIds { get; init; }
@@ -81,6 +93,12 @@ public record JobItem
     public int? ProcessId { get; set; }
     public string? StatusMessage { get; set; }
     public ConcurrentQueue<string> OutputLines { get; set; } = new();
+
+    /// <summary>
+    /// Guards against re-reading the EventWire file from disk on every GetJob call
+    /// once this job's output has been hydrated (or confirmed to have none).
+    /// </summary>
+    [JsonIgnore] public bool OutputHydrated { get; set; }
     public DateTime? LastOutputAt { get; set; }
     public CancellationTokenSource? TimeoutCts { get; set; }
     private volatile bool _staleOutputDetected;
@@ -99,6 +117,17 @@ public record JobItem
     // Reported by the agent via HTTP during execution
     public string? ReportedPlanId { get; set; }
     public string? ReportedPlanTitle { get; set; }
+
+    /// <summary>
+    /// Plan id this job relates to: the 5-digit prefix of <see cref="PlanFile"/>,
+    /// falling back to the reported/allocated id (CreatePlan jobs hold a description
+    /// in PlanFile, not a folder name). "" when the job is not tied to any plan.
+    /// </summary>
+    public string ResolvePlanId() =>
+        Helpers.JobLogPaths.PlanIdFromFolderName(PlanFile)
+        ?? ReportedPlanId
+        ?? AllocatedPlanId
+        ?? "";
 
     // Explicit failure reason declared by the promptware via `tendril job fail`.
     // When set, this wins over the output-scraping heuristic in SetCompletionStatus.
@@ -120,7 +149,7 @@ public record JobItem
         set
         {
             _logFilePath = value;
-            OpenRawLogWriter();
+            OpenLogWriters();
         }
     }
 
@@ -137,10 +166,7 @@ public record JobItem
                 Model = initEvt.Model;
 
             var serialized = _eventSerializer.Serialize(evt);
-            OutputLines.Enqueue(serialized);
-            while (OutputLines.Count > MaxOutputLines)
-                OutputLines.TryDequeue(out _);
-            _outputSubject.OnNext(serialized);
+            RecordEvent(serialized);
         }
     }
 
@@ -149,11 +175,7 @@ public record JobItem
         _eventSerializer ??= new JsonEventSerializer();
         AppendToRawLog(message);
         var evt = new TextEvent { Kind = AgentEventKind.Text, Text = message };
-        var serialized = _eventSerializer.Serialize(evt);
-        OutputLines.Enqueue(serialized);
-        while (OutputLines.Count > MaxOutputLines)
-            OutputLines.TryDequeue(out _);
-        _outputSubject.OnNext(serialized);
+        RecordEvent(_eventSerializer.Serialize(evt));
     }
 
     public void FlushParser()
@@ -161,54 +183,93 @@ public record JobItem
         if (EventParser is null) return;
         _eventSerializer ??= new JsonEventSerializer();
         foreach (var evt in EventParser.Flush())
-        {
-            var serialized = _eventSerializer.Serialize(evt);
-            OutputLines.Enqueue(serialized);
-            _outputSubject.OnNext(serialized);
-        }
+            RecordEvent(_eventSerializer.Serialize(evt));
     }
 
-    private void OpenRawLogWriter()
+    /// <summary>
+    /// Appends an event to the eventwire file (complete) and to the in-memory queue (tail-capped at
+    /// <see cref="MaxOutputLines"/>), then publishes it to live subscribers.
+    /// </summary>
+    private void RecordEvent(string serialized)
+    {
+        AppendToEventWire(serialized);
+        OutputLines.Enqueue(serialized);
+        while (OutputLines.Count > MaxOutputLines)
+            OutputLines.TryDequeue(out _);
+        _outputSubject.OnNext(serialized);
+    }
+
+    /// <summary>
+    /// Opens the raw and eventwire streams next to the Job Log. Both are appended to as output arrives, so a
+    /// job killed by a crash still leaves a complete record on disk — nothing is deferred to completion.
+    /// </summary>
+    private void OpenLogWriters()
     {
         if (string.IsNullOrEmpty(_logFilePath)) return;
-        var rawPath = Path.ChangeExtension(_logFilePath, ".raw.jsonl");
+        _rawLogWriter = OpenAppender(Path.ChangeExtension(_logFilePath, ".raw.jsonl"));
+        _eventWireWriter = OpenAppender(Path.ChangeExtension(_logFilePath, ".eventwire.jsonl"));
+    }
+
+    private static StreamWriter? OpenAppender(string path)
+    {
         try
         {
-            _rawLogWriter = new StreamWriter(rawPath, append: true, System.Text.Encoding.UTF8)
-            {
-                AutoFlush = true
-            };
+            return new StreamWriter(path, append: true, System.Text.Encoding.UTF8) { AutoFlush = true };
         }
         catch
         {
-            _rawLogWriter = null;
+            return null;
         }
     }
 
-    private void AppendToRawLog(string line)
+    private void AppendToRawLog(string line) => Append(_rawLogWriter, line);
+
+    private void AppendToEventWire(string serializedEvent) => Append(_eventWireWriter, serializedEvent);
+
+    private void Append(StreamWriter? writer, string line)
     {
-        if (_rawLogWriter is null) return;
+        if (writer is null) return;
         lock (_rawLogLock)
         {
-            try { _rawLogWriter.WriteLine(line); }
+            try { writer.WriteLine(line); }
             catch { /* best-effort — don't crash the job */ }
         }
     }
 
+    /// <summary>
+    /// Closes the raw CLI transcript once the agent process has exited. Kept separate from
+    /// <see cref="CloseLogWriters"/> because completion still enqueues Tendril's own events
+    /// ("[Tendril] …", "[hook:…]") — those belong in the eventwire, but must not pollute the raw log,
+    /// which is by definition the unparsed output of the agent CLI.
+    /// </summary>
     internal void CloseRawLog()
     {
         lock (_rawLogLock)
         {
-            try { _rawLogWriter?.Dispose(); }
-            catch { }
+            try { _rawLogWriter?.Dispose(); } catch { }
             _rawLogWriter = null;
+        }
+    }
+
+    internal void CloseLogWriters()
+    {
+        lock (_rawLogLock)
+        {
+            try { _rawLogWriter?.Dispose(); } catch { }
+            try { _eventWireWriter?.Dispose(); } catch { }
+            _rawLogWriter = null;
+            _eventWireWriter = null;
         }
     }
 
     public void DisposeResources(ILogger? logger = null)
     {
         _outputSubject.OnCompleted();
-        CloseRawLog();
+        CloseLogWriters();
+
+        // The prompt can be large and is already durable at {stem}.prompt.md. CliCommand is NOT freed here:
+        // it is a persisted column, and clearing it before PersistJob would blank it in the database.
+        CompiledPrompt = null;
 
         try
         {

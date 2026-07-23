@@ -62,7 +62,8 @@ public class CodingAgentStepView(
         new("codex",    "Codex",    AgentBranding.IconFor("codex")),
         new("gemini",   "Gemini",   AgentBranding.IconFor("gemini")),
         new("antigravity", "Antigravity", AgentBranding.IconFor("antigravity")),
-        new("opencode", "OpenCode", AgentBranding.IconFor("opencode"))
+        new("opencode", "OpenCode", AgentBranding.IconFor("opencode")),
+        new("ivy", "Ivy Agent", AgentBranding.IconFor("ivy"))
     ];
 
     public override object Build()
@@ -144,14 +145,6 @@ public class CodingAgentStepView(
                     await progressCts.CancelAsync();
                     progressValue.Set(null);
                     progressMessage.Set(null);
-
-                    if (missing.Key == agentKey)
-                    {
-                        isStepLoading.Set(false);
-                        error.Set("Please make sure your agent is present and you are authorized.");
-                        selectedAgent.Set(null);
-                        return;
-                    }
 
                     var tcs = new TaskCompletionSource<bool>();
                     showInstallDialog(new InstallDialogArgs(missing, tcs));

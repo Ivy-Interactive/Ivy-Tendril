@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Jobs;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
@@ -44,11 +45,11 @@ public class PromptwareRunSettings : CommandSettings
     public string? ConfigPath { get; init; }
 
     [CommandOption("--agent")]
-    [Description("Override agent provider (claude, antigravity, codex, copilot, opencode)")]
+    [Description("Override agent provider (claude, antigravity, codex, copilot, opencode, ivy)")]
     public string? Agent { get; init; }
 
     [CommandOption("--cli-log")]
-    [Description("Path to write CLI invocation log (JSONL)")]
+    [Description("Debug instrument: path to a JSONL file recording every `tendril` CLI call the agent makes. Not a job artifact — job logs live in <TendrilHome>/Jobs/.")]
     public string? CliLog { get; init; }
 
     [CommandOption("--dry-run")]
@@ -128,7 +129,10 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             customInstructions = specificCfg.CustomInstructions;
 
         var jobId = JobIdAllocator.AllocateJobId(configService.TendrilHome);
-        var logFile = FirmwareCompiler.GetLogFile(programFolder, jobId);
+        // Agents pass this to `tendril job add-log` to target their own job log.
+        values["TendrilJobId"] = jobId;
+        var logJob = JobLogWriter.BuildCliRunJob(jobId, settings.Promptware, values);
+        var logFile = JobLogWriter.SeedLog(configService.TendrilHome, logJob);
         var firmwareContext = new FirmwareContext(programFolder, values, customInstructions);
         var prompt = FirmwareCompiler.Compile(firmwareContext);
 
@@ -166,13 +170,9 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             return 0;
         }
 
-        string? promptFilePath = null;
-        if (!resolution.UsesStdinPrompt)
-        {
-            var tempDir = Path.GetTempPath();
-            promptFilePath = Path.Combine(tempDir, $"prompt-{Guid.NewGuid():N}.md");
-            File.WriteAllText(promptFilePath, prompt);
-        }
+        logJob.CompiledPrompt = prompt;
+        var promptPath = JobLogWriter.WritePrompt(configService.TendrilHome, logJob);
+        var promptFilePath = resolution.UsesStdinPrompt ? null : promptPath;
 
         var launchConfig = new AgentLaunchConfig
         {
@@ -205,6 +205,15 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         _logger.LogInformation("Running {Promptware} via {ProviderName} (model={Model}, effort={Effort})", settings.Promptware, resolution.AgentId, resolution.Model, resolution.Effort);
 
         var cliCommand = AgentProcessHelper.FormatCliCommand(psi);
+        var startedAt = DateTime.UtcNow;
+
+        // Start streaming before the process does, so a killed run still leaves a complete
+        // raw.jsonl and eventwire.jsonl on disk. Assigning LogFilePath opens both appenders.
+        logJob.Provider = resolution.AgentId;
+        logJob.EventParser = _agentRunner.GetParser(resolution.AgentId);
+        logJob.StartedAt = startedAt;
+        logJob.CliCommand = cliCommand;
+        logJob.LogFilePath = logFile;
 
         using var process = Process.Start(psi);
         if (process == null)
@@ -217,8 +226,6 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
             process.StandardInput.Close();
         }
 
-        var outputLines = new List<string>();
-
         var outputTask = Task.Run(() =>
         {
             while (!process.StandardOutput.EndOfStream)
@@ -227,7 +234,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
                 if (line != null)
                 {
                     Console.WriteLine(line);
-                    outputLines.Add(line);
+                    logJob.EnqueueOutput(line);
                 }
             }
         }, cancellationToken);
@@ -240,7 +247,7 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
                 if (line != null)
                 {
                     Console.Error.WriteLine(line);
-                    outputLines.Add($"[stderr] {line}");
+                    logJob.EnqueueOutput($"[stderr] {line}");
                 }
             }
         }, cancellationToken);
@@ -250,24 +257,20 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
 
         try
         {
-            var job = new JobItem
-            {
-                Provider = resolution.AgentId,
-                EventParser = _agentRunner.GetParser(resolution.AgentId),
-                Status = process.ExitCode == 0 ? JobStatus.Completed : JobStatus.Failed,
-                CompletedAt = DateTime.UtcNow,
-                ExitCode = process.ExitCode,
-                LogFilePath = logFile,
-                CompiledPrompt = prompt,
-                CliCommand = cliCommand
-            };
-            foreach (var line in outputLines)
-                job.EnqueueOutput(line);
+            var completedAt = DateTime.UtcNow;
+            logJob.FlushParser();
+            logJob.Status = process.ExitCode == 0 ? JobStatus.Completed : JobStatus.Failed;
+            logJob.CompletedAt = completedAt;
+            logJob.DurationSeconds = (int)(completedAt - startedAt).TotalSeconds;
+            logJob.ExitCode = process.ExitCode;
 
-            PromptwareLogWriter.WriteLog(job);
-            PromptwareLogWriter.WriteRawLog(logFile, outputLines);
+            JobLogWriter.WriteLog(logJob);
         }
         catch { }
+        finally
+        {
+            logJob.CloseLogWriters();
+        }
 
         return process.ExitCode;
     }
