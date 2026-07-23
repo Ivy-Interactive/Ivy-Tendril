@@ -88,6 +88,8 @@ internal static class ServiceRegistration
 
         server.Services.AddSingleton<VersionCheckService>();
         server.Services.AddSingleton<IVersionCheckService>(sp => sp.GetRequiredService<VersionCheckService>());
+        server.Services.AddSingleton<PluginUpdateService>();
+        server.Services.AddSingleton<IPluginUpdateService>(sp => sp.GetRequiredService<PluginUpdateService>());
         server.Services.AddSingleton<IPromptwareRunner, PromptwareRunner>();
 
         server.Services.AddSingleton<OnboardingSetupService>();

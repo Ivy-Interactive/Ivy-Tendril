@@ -54,6 +54,7 @@ public class PluginsSetupView : ViewBase
         var configFactory = UseService<IIvyPluginConfigFactory>();
         var uninstallService = UseService<PluginUninstallService>();
         var dependencyResolver = UseService<NuGetDependencyResolver>();
+        var updateService = UseService<IPluginUpdateService>();
         var tendrilArgs = UseService<TendrilArgs>();
         var httpClientFactory = UseService<IHttpClientFactory>();
         UsePluginState();
@@ -66,8 +67,14 @@ public class PluginsSetupView : ViewBase
                     $"{tendrilArgs.ServicesUrl}/plugins", ct) ?? [];
             }
         );
+        var updatesQuery = UseQuery(
+            key: "pluginUpdates",
+            fetcher: async _ => await updateService.CheckForUpdatesAsync()
+        );
         // Shared state: maps packageId → progress (0-100) for currently-installing plugins
         var installingPlugins = UseState(new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>());
+        // Shared state: maps packageId → progress (0-100) for currently-updating plugins
+        var updatingPlugins = UseState(new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>());
 
         var activePlugins = pluginManager.GetActivePluginIds();
         var unconfiguredPlugins = pluginManager.GetUnconfiguredPlugins();
@@ -110,26 +117,83 @@ public class PluginsSetupView : ViewBase
                        var schema = pluginManager.GetPluginSchema(id);
                        var pluginConfig = configFactory.Create(id);
                        var customView = pluginManager.BuildPluginConfigurationView(id, pluginConfig);
-                       var header = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                           | PluginIconHelper.ToWidget(manifest?.Icon)
-                           | Text.Block(manifest?.Title ?? id);
-                       var content = Layout.Vertical().Gap(3)
+                       var updateInfo = updatesQuery.Value?.FirstOrDefault(u =>
+                           u.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase) && u.HasUpdate);
+                       var isUpdating = updatingPlugins.Value.ContainsKey(id);
+                       var header = Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween)
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                               | new Button("Reload", onClick: _ =>
-                               {
-                                   var success = pluginManager.ReloadPlugin(id);
-                                   client.Toast(success ? $"Reloaded '{id}'" : $"Failed to reload '{id}'",
-                                       success ? "Reloaded" : "Error");
-                                   return ValueTask.CompletedTask;
-                               }, variant: ButtonVariant.Outline, icon: Icons.RefreshCw)
-                               | new Button("Unload", onClick: _ =>
-                               {
-                                   var success = pluginManager.UnloadPlugin(id);
-                                   client.Toast(success ? $"Unloaded '{id}'" : $"Failed to unload '{id}'",
-                                       success ? "Unloaded" : "Error");
-                                   return ValueTask.CompletedTask;
-                               }, variant: ButtonVariant.Outline, icon: Icons.Power)
-                               | BuildUninstallButton(id, manifest?.Title, pluginDirectories.GetValueOrDefault(id), uninstallService, client))
+                               | PluginIconHelper.ToWidget(manifest?.Icon)
+                               | Text.Block(manifest?.Title ?? id))
+                           | (updateInfo != null && !isUpdating
+                               ? (Layout.Horizontal().Gap(1).AlignContent(Align.Right)
+                                   | new Badge($"v{updateInfo.LatestVersion}", BadgeVariant.Secondary)
+                                   | new Icon(Icons.ArrowUp, Colors.Primary))
+                               : null!);
+                       var content = Layout.Vertical().Gap(3)
+                           | (isUpdating
+                               ? (object)new Progress(updatingPlugins.Value[id].Progress)
+                               : (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                                   | (updateInfo != null
+                                       ? new Button("Update", onClick: async _ =>
+                                       {
+                                           var title = manifest?.Title ?? id;
+                                           var icon = manifest?.Icon;
+                                           var showLoadingCts = new CancellationTokenSource();
+                                           var loadingVisible = false;
+
+                                           var progress = new Progress<int>(pct =>
+                                           {
+                                               if (!loadingVisible) return;
+                                               updatingPlugins.Set(dict => new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>(dict)
+                                                   { [id] = (title, icon, pct) });
+                                           });
+
+                                           #pragma warning disable CS4014
+                                           Task.Delay(400, showLoadingCts.Token).ContinueWith(__ =>
+                                           {
+                                               loadingVisible = true;
+                                               updatingPlugins.Set(dict => new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>(dict)
+                                                   { [id] = (title, icon, 0) });
+                                           }, TaskContinuationOptions.OnlyOnRanToCompletion);
+                                           #pragma warning restore CS4014
+
+                                           try
+                                           {
+                                               await updateService.UpdatePluginAsync(id, progress);
+                                               client.Toast($"Updated '{title}' to v{updateInfo.LatestVersion}", "Updated");
+                                           }
+                                           catch (Exception ex)
+                                           {
+                                               client.Toast($"Failed to update: {ex.Message}", "Error");
+                                           }
+                                           finally
+                                           {
+                                               showLoadingCts.Cancel();
+                                               showLoadingCts.Dispose();
+                                               updatingPlugins.Set(dict =>
+                                               {
+                                                   var next = new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>(dict);
+                                                   next.Remove(id);
+                                                   return next;
+                                               });
+                                           }
+                                       }, variant: ButtonVariant.Primary, icon: Icons.Download)
+                                       : null!)
+                                   | new Button("Reload", onClick: _ =>
+                                   {
+                                       var success = pluginManager.ReloadPlugin(id);
+                                       client.Toast(success ? $"Reloaded '{id}'" : $"Failed to reload '{id}'",
+                                           success ? "Reloaded" : "Error");
+                                       return ValueTask.CompletedTask;
+                                   }, variant: ButtonVariant.Outline, icon: Icons.RefreshCw)
+                                   | new Button("Unload", onClick: _ =>
+                                   {
+                                       var success = pluginManager.UnloadPlugin(id);
+                                       client.Toast(success ? $"Unloaded '{id}'" : $"Failed to unload '{id}'",
+                                           success ? "Unloaded" : "Error");
+                                       return ValueTask.CompletedTask;
+                                   }, variant: ButtonVariant.Outline, icon: Icons.Power)
+                                   | BuildUninstallButton(id, manifest?.Title, pluginDirectories.GetValueOrDefault(id), uninstallService, client)))
                            | (customView
                                ?? (schema is not null
                                    ? new PluginConfigurationView(id, schema, configFactory).Key(id)
@@ -199,6 +263,20 @@ public class PluginsSetupView : ViewBase
                | new Separator()
                | (Layout.Horizontal().Gap(2)
                    | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, dependencyResolver, installingPlugins, pluginManager)
+                   | (updatesQuery.Value?.Any(u => u.HasUpdate) == true && updatingPlugins.Value.Count == 0
+                       ? new Button("Update All", onClick: async _ =>
+                       {
+                           try
+                           {
+                               await updateService.UpdateAllAsync();
+                               client.Toast("All plugins updated", "Updated");
+                           }
+                           catch (Exception ex)
+                           {
+                               client.Toast($"Some updates failed: {ex.Message}", "Error");
+                           }
+                       }, variant: ButtonVariant.Outline, icon: Icons.CircleArrowUp)
+                       : null!)
                    | new Button("Open Plugins Folder", onClick: _ =>
                    {
                        PlatformHelper.OpenInFileManager(pluginsDir);
