@@ -181,11 +181,11 @@ Add this to your `.csproj`:
 | `named` | An icon name from the built-in [Lucide](https://lucide.dev/icons) icon set or brand icons (e.g., `Linear`, `Slack`, `Gamepad2`, `Bell`) | `{"kind": "named", "value": "Linear"}` |
 | `url` | A URL to an external image | `{"kind": "url", "value": "https://example.com/icon.png"}` |
 
-The icon specified in `tendril.json` is used in the **marketplace listing** (the "Available Plugins" section in Settings). It is separate from the runtime icon declared in your `PluginManifest` — though they should typically match.
+The icon specified in `tendril.json` is used in the **marketplace listing** (the "Available Plugins" section in Settings). It **must** match the runtime icon declared in your `PluginManifest.Icon` — see [Metadata Consistency](#metadata-consistency) below.
 
 **Why both `tendril.json` and `PluginManifest.Icon`?**
 
-The marketplace icon (`tendril.json`) is extracted from the `.nupkg` when a version is submitted — it's used to display icons before the plugin is installed. The runtime icon (`PluginManifest.Icon`) is used once the plugin is loaded. They serve different audiences (store listing vs. installed plugin UI) but should be kept in sync.
+The marketplace icon (`tendril.json`) is extracted from the `.nupkg` when a version is submitted — it's used to display icons before the plugin is installed. The runtime icon (`PluginManifest.Icon`) is used once the plugin is loaded. They serve different audiences (store listing vs. installed plugin UI) but must always be the same value.
 
 **Complete `.csproj` example with all metadata:**
 
@@ -290,6 +290,46 @@ public record PluginManifest
 - `Id` must be globally unique. Convention: `Ivy.Tendril.Plugin.<Name>` for first-party, `<Org>.Tendril.Plugin.<Name>` for third-party.
 - Plugin version is determined from the NuGet package version (set via `<Version>` in `.csproj`), not from the manifest.
 - If `MinimumHostVersion` is set and the host is older, the plugin is skipped with an error log.
+
+#### Metadata Consistency
+
+The following values **must** be exactly the same between your runtime `PluginManifest` and your build-time metadata files:
+
+| Runtime (`PluginManifest`) | Build-time (`.csproj` / `.nuspec`) | Build-time (`tendril.json`) |
+|---|---|---|
+| `Id` | `<PackageId>` (`.csproj`) or `<id>` (`.nuspec`) | — |
+| `Title` | `<Title>` (`.csproj`) or `<title>` (`.nuspec`) | — |
+| `Icon` | — | `icon.kind` + `icon.value` |
+
+These values are declared in multiple places because they serve different stages of the plugin lifecycle (marketplace listing, NuGet packaging, and runtime loading), but they must always agree.
+
+**Example of correct consistency:**
+
+```csharp
+// In your plugin class:
+public PluginManifest Manifest { get; } = new()
+{
+    Id = "Ivy.Tendril.Plugin.MyPlugin",   // ← Must match <PackageId>
+    Title = "My Plugin",                   // ← Must match <Title>
+    Icon = PluginIcon.Named("Puzzle"),     // ← Must match tendril.json
+};
+```
+
+```xml
+<!-- In your .csproj: -->
+<PackageId>Ivy.Tendril.Plugin.MyPlugin</PackageId>  <!-- Must match Manifest.Id -->
+<Title>My Plugin</Title>                              <!-- Must match Manifest.Title -->
+```
+
+```json
+// In tendril.json:
+{
+  "icon": {
+    "kind": "named",
+    "value": "Puzzle"   // Must match Manifest.Icon
+  }
+}
+```
 
 ### Plugin Icons
 
