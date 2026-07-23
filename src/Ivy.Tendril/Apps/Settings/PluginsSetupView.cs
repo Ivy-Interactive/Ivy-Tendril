@@ -1,7 +1,9 @@
 using System.IO.Compression;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Ivy.Apps;
 using Ivy.Core.Plugins;
+using Ivy.Desktop;
 using Ivy.Plugins;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
@@ -103,7 +105,7 @@ public class PluginsSetupView : ViewBase
                        | new Icon(Icons.Plug, Colors.Muted).Width(Size.Units(10)).Height(Size.Units(10))
                        | Text.Block("No plugins installed").Bold()
                        | Text.Block("Get started by adding your first plugin.").Muted().Small()
-                       | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, dependencyResolver, installingPlugins, pluginManager, ButtonVariant.Primary));
+                       | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, dependencyResolver, installingPlugins, pluginManager, httpClientFactory, ButtonVariant.Primary));
         }
 
         return Layout.Vertical().Gap(4).Padding(4).Width(Size.Auto().Max(Size.Units(120)))
@@ -263,7 +265,7 @@ public class PluginsSetupView : ViewBase
                    : null!)
                | new Separator()
                | (Layout.Horizontal().Gap(2)
-                   | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, dependencyResolver, installingPlugins, pluginManager)
+                   | new AddPluginsDialogView(availableQuery.Loading, availablePlugins, pluginsDir, client, dependencyResolver, installingPlugins, pluginManager, httpClientFactory)
                    | (updatesQuery.Value?.Any(u => u.HasUpdate) == true && updatingPlugins.Value.Count == 0
                        ? new Button("Update All", onClick: async _ =>
                        {
@@ -288,12 +290,18 @@ public class PluginsSetupView : ViewBase
     private class AddPluginsDialogView(
         bool loading, AvailablePlugin[]? plugins, string pluginsDir, IClientProvider client,
         NuGetDependencyResolver dependencyResolver, IState<Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>> installingPlugins,
-        IPluginManager pluginManager, ButtonVariant buttonVariant = ButtonVariant.Outline) : ViewBase
+        IPluginManager pluginManager, IHttpClientFactory httpClientFactory, ButtonVariant buttonVariant = ButtonVariant.Outline) : ViewBase
     {
         public override object Build()
         {
             var isOpen = UseState(false);
             var searchQuery = UseState("");
+            var nugetDialogOpen = UseState(false);
+            var nugetId = UseState("");
+            var nugetInstalling = UseState(false);
+            var localDialogOpen = UseState(false);
+            var localPath = UseState("");
+            Context.TryUseService<DesktopWindow>(out var desktop);
 
             var filtered = plugins?
                 .Where(p =>
@@ -392,6 +400,36 @@ public class PluginsSetupView : ViewBase
                     }).ToArray();
             }
 
+            // Build menu items for the "Add Unapproved Plugin" dropdown
+            var localPluginLabel = desktop != null ? "Browse for local plugin..." : "Add local plugin...";
+            var addUnapprovedButton = new Button("Add Unapproved Plugin", icon: Icons.Plus, variant: ButtonVariant.Outline)
+                .WithDropDown(
+                    new MenuItem(localPluginLabel, Icon: Icons.FolderOpen, Tag: "browse"),
+                    new MenuItem("Add NuGet package...", Icon: Icons.Package, Tag: "nuget"))
+                .OnSelect(evt =>
+                {
+                    switch (evt.Value)
+                    {
+                        case "browse":
+                            if (desktop != null)
+                            {
+                                var picked = desktop.ShowSelectFolderDialog("Select plugin folder");
+                                if (picked is { Length: > 0 } && !string.IsNullOrEmpty(picked[0]))
+                                {
+                                    AddLocalPluginReference(picked[0], pluginsDir, client);
+                                }
+                            }
+                            else
+                            {
+                                localDialogOpen.Set(true);
+                            }
+                            break;
+                        case "nuget":
+                            nugetDialogOpen.Set(true);
+                            break;
+                    }
+                });
+
             return new Fragment(
                 new Button("Add Plugins", _ =>
                 {
@@ -406,10 +444,59 @@ public class PluginsSetupView : ViewBase
                         | searchQuery.ToTextInput().Placeholder("Search plugins...")
                         | dialogContent
                     ),
+                    new DialogFooter(addUnapprovedButton)
+                ).Width(Size.Rem(40)) : null,
+                // Add NuGet Package dialog
+                nugetDialogOpen.Value ? new Dialog(
+                    _ => { nugetDialogOpen.Set(false); nugetId.Set(""); },
+                    new DialogHeader("Add NuGet Package"),
+                    new DialogBody(
+                        Layout.Vertical().Gap(3)
+                        | Text.Muted("Enter a NuGet package ID to install directly from nuget.org.")
+                        | nugetId.ToTextInput().Placeholder("Package ID (e.g. MyCompany.Plugin)")
+                            .OnSubmit(() => { _ = InstallNuGetByIdAsync(nugetId, nugetInstalling, nugetDialogOpen, client, pluginsDir, dependencyResolver, installingPlugins, pluginManager, httpClientFactory); })
+                    ),
                     new DialogFooter(
-                        new Button("Done", _ => { isOpen.Value = false; searchQuery.Value = ""; }, variant: ButtonVariant.Outline)
-                    )
-                ).Width(Size.Rem(40)) : null
+                        new Button("Cancel", _ => { nugetDialogOpen.Set(false); nugetId.Set(""); }, variant: ButtonVariant.Outline),
+                        new Button("Install", onClick: async _ =>
+                        {
+                            await InstallNuGetByIdAsync(nugetId, nugetInstalling, nugetDialogOpen, client, pluginsDir, dependencyResolver, installingPlugins, pluginManager, httpClientFactory);
+                        }, variant: ButtonVariant.Primary, icon: Icons.Download)
+                            .Disabled(string.IsNullOrWhiteSpace(nugetId.Value) || nugetInstalling.Value)
+                            .Loading(nugetInstalling.Value))
+                ).Width(Size.Rem(30)) : null,
+                // Add Local Plugin dialog (web fallback when no desktop picker)
+                localDialogOpen.Value ? new Dialog(
+                    _ => { localDialogOpen.Set(false); localPath.Set(""); },
+                    new DialogHeader("Add Local Plugin"),
+                    new DialogBody(
+                        Layout.Vertical().Gap(3)
+                        | Text.Muted("Enter the absolute path to a local plugin folder.")
+                        | localPath.ToTextInput().Placeholder("/path/to/plugin/folder")
+                            .OnSubmit(() =>
+                            {
+                                if (!string.IsNullOrWhiteSpace(localPath.Value))
+                                {
+                                    AddLocalPluginReference(localPath.Value.Trim(), pluginsDir, client);
+                                    localPath.Set("");
+                                    localDialogOpen.Set(false);
+                                }
+                            })
+                    ),
+                    new DialogFooter(
+                        new Button("Cancel", _ => { localDialogOpen.Set(false); localPath.Set(""); }, variant: ButtonVariant.Outline),
+                        new Button("Add", _ =>
+                        {
+                            if (!string.IsNullOrWhiteSpace(localPath.Value))
+                            {
+                                AddLocalPluginReference(localPath.Value.Trim(), pluginsDir, client);
+                                localPath.Set("");
+                                localDialogOpen.Set(false);
+                            }
+                            return ValueTask.CompletedTask;
+                        }, variant: ButtonVariant.Primary, icon: Icons.FolderPlus)
+                            .Disabled(string.IsNullOrWhiteSpace(localPath.Value)))
+                ).Width(Size.Rem(30)) : null
             );
         }
     }
@@ -468,6 +555,87 @@ public class PluginsSetupView : ViewBase
             if (Directory.Exists(tempDir))
                 Directory.Delete(tempDir, recursive: true);
             throw;
+        }
+    }
+
+    private static void AddLocalPluginReference(string selectedPath, string pluginsDir, IClientProvider client)
+    {
+        try
+        {
+            var refsPath = Path.Combine(pluginsDir, PluginReferencesWatcher.FileName);
+            var lines = File.Exists(refsPath)
+                ? File.ReadAllLines(refsPath).ToList()
+                : [];
+
+            // Add as a YAML list entry
+            lines.Add($"- {selectedPath}");
+            Directory.CreateDirectory(pluginsDir);
+            File.WriteAllLines(refsPath, lines);
+
+            client.Toast($"Added local plugin reference: {Path.GetFileName(selectedPath)}", "Plugin Added");
+        }
+        catch (Exception ex)
+        {
+            client.Toast($"Failed to add plugin reference: {ex.Message}", "Error");
+        }
+    }
+
+    private static async Task InstallNuGetByIdAsync(
+        IState<string> nugetId, IState<bool> nugetInstalling, IState<bool> dialogOpen, IClientProvider client,
+        string pluginsDir, NuGetDependencyResolver dependencyResolver,
+        IState<Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>> installingPlugins,
+        IPluginManager pluginManager, IHttpClientFactory httpClientFactory)
+    {
+        var packageId = nugetId.Value?.Trim();
+        if (string.IsNullOrWhiteSpace(packageId)) return;
+
+        nugetInstalling.Set(true);
+        try
+        {
+            // Fetch latest version from NuGet flat-container index
+            using var http = httpClientFactory.CreateClient();
+            var indexUrl = $"https://api.nuget.org/v3-flatcontainer/{packageId.ToLowerInvariant()}/index.json";
+            var response = await http.GetAsync(indexUrl);
+            if (!response.IsSuccessStatusCode)
+            {
+                client.Toast($"Package '{packageId}' not found on NuGet.", "Error");
+                return;
+            }
+
+            var indexJson = await response.Content.ReadFromJsonAsync<JsonElement>();
+            var versions = indexJson.GetProperty("versions");
+            var latestVersion = versions[versions.GetArrayLength() - 1].GetString()!;
+
+            var plugin = new AvailablePlugin(packageId, latestVersion, "", packageId, null, null, null, null, null);
+
+            installingPlugins.Set(dict => new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>(dict)
+                { [packageId] = (packageId, null, 0) });
+
+            var progress = new Progress<int>(pct =>
+            {
+                installingPlugins.Set(dict => new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>(dict)
+                    { [packageId] = (packageId, null, pct) });
+            });
+
+            await InstallPluginAsync(plugin, pluginsDir, dependencyResolver, progress);
+            pluginManager.LoadPlugin(Path.Combine(pluginsDir, packageId));
+            client.Toast($"Installed '{packageId}' v{latestVersion}", "Installed");
+            nugetId.Set("");
+            dialogOpen.Set(false);
+        }
+        catch (Exception ex)
+        {
+            client.Toast($"Failed to install '{packageId}': {ex.Message}", "Error");
+        }
+        finally
+        {
+            nugetInstalling.Set(false);
+            installingPlugins.Set(dict =>
+            {
+                var next = new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>(dict);
+                next.Remove(packageId!);
+                return next;
+            });
         }
     }
 
