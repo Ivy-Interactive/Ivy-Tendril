@@ -255,7 +255,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
             {
                 consecutiveFailures++;
                 _errorMessage = $"Tunnel startup failed: {ex.Message}";
-                if (ex.Message.Contains("api.trycloudflare.com") || ex.Message.Contains("deadline exceeded") || ex.Message.Contains("Timeout"))
+                if (ex is TimeoutException || ex.Message.Contains("api.trycloudflare.com") || ex.Message.Contains("deadline exceeded") || ex.Message.Contains("Timeout") || ex.Message.Contains("within"))
                 {
                     _errorMessage += ". This usually indicates that your ISP or network is blocking 'trycloudflare.com'. Try changing your DNS resolver (e.g. to 1.1.1.1 or 8.8.8.8) or using a VPN.";
                 }
