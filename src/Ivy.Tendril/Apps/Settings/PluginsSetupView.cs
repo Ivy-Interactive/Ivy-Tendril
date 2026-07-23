@@ -120,13 +120,14 @@ public class PluginsSetupView : ViewBase
                        var updateInfo = updatesQuery.Value?.FirstOrDefault(u =>
                            u.PackageId.Equals(id, StringComparison.OrdinalIgnoreCase) && u.HasUpdate);
                        var isUpdating = updatingPlugins.Value.ContainsKey(id);
-                       var header = Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween)
+                       var hasUpdateBadge = updateInfo != null && !isUpdating;
+                       var header = Layout.Horizontal().Gap(2).AlignContent(hasUpdateBadge ? Align.SpaceBetween : Align.Left)
                            | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
                                | PluginIconHelper.ToWidget(manifest?.Icon)
                                | Text.Block(manifest?.Title ?? id))
-                           | (updateInfo != null && !isUpdating
+                           | (hasUpdateBadge
                                ? (Layout.Horizontal().Gap(1).AlignContent(Align.Right)
-                                   | new Badge($"v{updateInfo.LatestVersion}", BadgeVariant.Secondary)
+                                   | new Badge($"v{updateInfo!.LatestVersion}", BadgeVariant.Secondary)
                                    | new Icon(Icons.ArrowUp, Colors.Primary))
                                : null!);
                        var content = Layout.Vertical().Gap(3)

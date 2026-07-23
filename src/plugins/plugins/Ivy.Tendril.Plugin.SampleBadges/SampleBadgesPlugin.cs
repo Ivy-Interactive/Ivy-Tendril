@@ -16,7 +16,6 @@ public class SampleBadgesPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
     {
         Id = "Ivy.Tendril.Plugin.SampleBadges",
         Title = "Sample Badges",
-        Version = new Version(1, 0, 0),
         Icon = PluginIcon.Named("Bell"),
     };
 

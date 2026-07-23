@@ -57,7 +57,6 @@ public class MyPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
     {
         Id = "Ivy.Tendril.Plugin.MyPlugin",
         Title = "My Plugin",
-        Version = new Version(1, 0, 0),
         Icon = PluginIcon.Named("Puzzle"),
     };
 
@@ -282,7 +281,6 @@ public record PluginManifest
 {
     public required string Id { get; init; }              // Unique ID (e.g., "Ivy.Tendril.Plugin.Linear")
     public required string Title { get; init; }           // Display name (e.g., "Linear")
-    public required Version Version { get; init; }        // Semantic version
     public Version? MinimumHostVersion { get; init; }     // Minimum Tendril version required
     public PluginIcon? Icon { get; init; }                // Display icon
 }
@@ -290,6 +288,7 @@ public record PluginManifest
 
 **Notes:**
 - `Id` must be globally unique. Convention: `Ivy.Tendril.Plugin.<Name>` for first-party, `<Org>.Tendril.Plugin.<Name>` for third-party.
+- Plugin version is determined from the NuGet package version (set via `<Version>` in `.csproj`), not from the manifest.
 - If `MinimumHostVersion` is set and the host is older, the plugin is skipped with an error log.
 
 ### Plugin Icons
@@ -1331,7 +1330,6 @@ public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
     {
         Id = "Ivy.Tendril.Plugin.Linear",
         Title = "Linear",
-        Version = new Version(1, 0, 0),
         Icon = PluginIcon.Named("Linear"),
     };
 

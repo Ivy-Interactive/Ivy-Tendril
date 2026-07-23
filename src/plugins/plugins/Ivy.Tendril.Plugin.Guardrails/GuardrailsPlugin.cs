@@ -15,7 +15,6 @@ public class GuardrailsPlugin : IIvyPlugin<ITendrilPluginContext>
     {
         Id = "Ivy.Tendril.Plugin.Guardrails",
         Title = "Project Guardrails",
-        Version = new Version(1, 0, 0),
         Icon = PluginIcon.Named("Shield"),
     };
 

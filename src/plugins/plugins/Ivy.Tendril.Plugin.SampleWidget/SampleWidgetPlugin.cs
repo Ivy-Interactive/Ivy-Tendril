@@ -11,7 +11,6 @@ public class SampleWidgetPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
     {
         Id = "Ivy.Tendril.Plugin.SampleWidget",
         Title = "Sample Widget",
-        Version = new Version(1, 0, 0),
         Icon = PluginIcon.Named("Sparkles"),
     };
 

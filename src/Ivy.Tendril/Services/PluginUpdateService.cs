@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Xml.Linq;
 using Ivy.Core.Plugins;
 using Ivy.Plugins;
 using Microsoft.Extensions.Logging;
@@ -99,17 +100,18 @@ internal class PluginUpdateService(
         if (uninstallService.GetInstallationType(pluginDir) != PluginInstallationType.NuGet)
             return null;
 
-        // Get the installed version from the manifest
-        var manifest = pluginManager.GetPluginManifest(pluginId);
-        if (manifest?.Version == null) return null;
-
         // Compare against registry
         if (!registryLookup.TryGetValue(pluginId, out var registryPlugin))
             return null;
 
-        var installedVersion = manifest.Version.ToString(3);
-        var hasUpdate = Version.TryParse(registryPlugin.Version, out var latestParsed)
-            && latestParsed > manifest.Version;
+        // Read the installed NuGet package version from the .nuspec in the plugin directory.
+        // NuGet-installed plugins always have a .nuspec; if somehow missing, skip this plugin.
+        var installedVersion = GetInstalledNuGetVersion(pluginDir);
+        if (installedVersion == null) return null;
+
+        var hasUpdate = Version.TryParse(installedVersion, out var installedParsed)
+            && Version.TryParse(registryPlugin.Version, out var latestParsed)
+            && latestParsed > installedParsed;
 
         return new PluginUpdateInfo(
             pluginId,
@@ -118,6 +120,27 @@ internal class PluginUpdateService(
             registryPlugin.Hash,
             hasUpdate,
             now);
+    }
+
+    /// <summary>
+    /// Reads the package version from the .nuspec file in the installed plugin directory.
+    /// </summary>
+    private static string? GetInstalledNuGetVersion(string pluginDir)
+    {
+        try
+        {
+            var nuspecPath = Directory.GetFiles(pluginDir, "*.nuspec", SearchOption.TopDirectoryOnly)
+                .FirstOrDefault();
+            if (nuspecPath == null) return null;
+
+            var doc = XDocument.Load(nuspecPath);
+            var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
+            return doc.Root?.Element(ns + "metadata")?.Element(ns + "version")?.Value;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public async Task UpdatePluginAsync(string packageId, IProgress<int>? progress = null, CancellationToken cancellationToken = default)
