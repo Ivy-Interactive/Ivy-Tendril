@@ -43,10 +43,7 @@ internal class PluginUpdateService(
     public async Task<IReadOnlyList<PluginUpdateInfo>> CheckForUpdatesAsync(bool forceRefresh = false)
     {
         if (!forceRefresh && _cachedResult != null && DateTime.UtcNow - _lastCheckTime < CacheDuration)
-        {
-            Console.WriteLine($"[CheckUpdates] Cache hit (age: {DateTime.UtcNow - _lastCheckTime:mm\\:ss})");
             return _cachedResult;
-        }
 
         var now = DateTime.UtcNow;
 
@@ -54,7 +51,6 @@ internal class PluginUpdateService(
         {
             // Gather installed NuGet plugin versions
             var installedPlugins = GetInstalledNuGetPlugins();
-            Console.WriteLine($"[CheckUpdates] Checking {installedPlugins.Length} installed plugins: {string.Join(", ", installedPlugins.Select(p => $"{p.PackageId}@{p.Version}"))}");
 
             using var http = httpClientFactory.CreateClient();
             http.Timeout = TimeSpan.FromSeconds(15);
@@ -65,24 +61,15 @@ internal class PluginUpdateService(
             };
 
             if (_etag != null)
-            {
                 request.Headers.IfNoneMatch.ParseAdd(_etag);
-                Console.WriteLine($"[CheckUpdates] Sending If-None-Match: {_etag}");
-            }
-            else
-            {
-                Console.WriteLine("[CheckUpdates] No ETag cached (first request)");
-            }
 
             var response = await http.SendAsync(request);
-            Console.WriteLine($"[CheckUpdates] Response: {(int)response.StatusCode} {response.StatusCode}");
 
             if (response.StatusCode == HttpStatusCode.NotModified)
             {
                 // Registry hasn't changed — keep cached result
                 _lastCheckTime = now;
                 _cachedResult ??= [];
-                Console.WriteLine($"[CheckUpdates] 304 — registry unchanged, returning {_cachedResult.Count} cached entries");
                 return _cachedResult;
             }
 
@@ -90,13 +77,9 @@ internal class PluginUpdateService(
 
             // Store ETag for next request
             if (response.Headers.ETag != null)
-            {
                 _etag = response.Headers.ETag.ToString();
-                Console.WriteLine($"[CheckUpdates] Stored new ETag: {_etag}");
-            }
 
             var updateEntries = await response.Content.ReadFromJsonAsync<PluginUpdateEntry[]>() ?? [];
-            Console.WriteLine($"[CheckUpdates] Server returned {updateEntries.Length} update(s): {string.Join(", ", updateEntries.Select(e => $"{e.PackageId}→{e.Version}"))}");
 
             // Build update info list from the server's diff response
             var installedLookup = installedPlugins.ToDictionary(
@@ -125,7 +108,6 @@ internal class PluginUpdateService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            Console.WriteLine($"[CheckUpdates] ERROR: {ex.GetType().Name}: {ex.Message}");
             logger.LogDebug(ex, "Failed to check for plugin updates");
             _cachedResult ??= [];
             return _cachedResult;
@@ -201,20 +183,13 @@ internal class PluginUpdateService(
 
     private async Task UpdatePluginCoreAsync(string packageId, IProgress<int>? progress, CancellationToken ct)
     {
-        Console.WriteLine($"[UpdatePlugin] Starting update for '{packageId}'");
-
         // Find the update info
         var updates = await CheckForUpdatesAsync();
         var updateInfo = updates.FirstOrDefault(u =>
             u.PackageId.Equals(packageId, StringComparison.OrdinalIgnoreCase) && u.HasUpdate);
 
         if (updateInfo == null)
-        {
-            Console.WriteLine($"[UpdatePlugin] No update found for '{packageId}' (updates count: {updates.Count}, hasUpdate entries: {updates.Count(u => u.HasUpdate)})");
             throw new InvalidOperationException($"No update available for plugin '{packageId}'");
-        }
-
-        Console.WriteLine($"[UpdatePlugin] Updating '{packageId}' from {updateInfo.InstalledVersion} to {updateInfo.LatestVersion}");
 
         var pluginsDir = Path.Combine(configService.TendrilHome, "plugins");
         var pluginDir = Path.Combine(pluginsDir, packageId);
@@ -229,30 +204,24 @@ internal class PluginUpdateService(
             var nupkgUrl = $"https://api.nuget.org/v3-flatcontainer/{id}/{version}/{id}.{version}.nupkg";
 
             // Download nupkg (0-10%)
-            Console.WriteLine($"[UpdatePlugin] Downloading {nupkgUrl}");
             progress?.Report(0);
             using var http = httpClientFactory.CreateClient();
             http.Timeout = TimeSpan.FromSeconds(60);
             var nupkgBytes = await http.GetByteArrayAsync(nupkgUrl, ct);
-            Console.WriteLine($"[UpdatePlugin] Downloaded {nupkgBytes.Length} bytes");
             progress?.Report(10);
 
             // Verify SHA256 hash
             var computedHash = Convert.ToBase64String(SHA256.HashData(nupkgBytes));
             var expectedHash = updateInfo.LatestHash;
-            Console.WriteLine($"[UpdatePlugin] Hash check — expected: {expectedHash}, computed: {computedHash}");
             if (!string.Equals(computedHash, expectedHash, StringComparison.OrdinalIgnoreCase))
             {
-                Console.WriteLine($"[UpdatePlugin] HASH MISMATCH — aborting");
                 throw new InvalidOperationException(
                     $"Plugin hash verification failed for '{packageId}'. " +
                     $"Expected: {expectedHash}, Got: {computedHash}");
             }
 
             // Extract nupkg to temp dir (10-20%)
-            Console.WriteLine($"[UpdatePlugin] Extracting to {tempDir}");
             using var archive = new ZipArchive(new MemoryStream(nupkgBytes));
-            var extractedCount = 0;
             foreach (var entry in archive.Entries)
             {
                 if (string.IsNullOrEmpty(entry.Name)) continue;
@@ -266,35 +235,27 @@ internal class PluginUpdateService(
                 await using var entryStream = entry.Open();
                 await using var fileStream = File.Create(destPath);
                 await entryStream.CopyToAsync(fileStream, ct);
-                extractedCount++;
             }
-            Console.WriteLine($"[UpdatePlugin] Extracted {extractedCount} files");
             progress?.Report(20);
 
             // Resolve and download transitive dependencies (20-90%)
-            Console.WriteLine($"[UpdatePlugin] Resolving dependencies for {packageId} {updateInfo.LatestVersion}");
             var depProgress = new Progress<int>(p => progress?.Report(20 + (int)(p / 100.0 * 70)));
             await dependencyResolver.ResolveAndInstallDependenciesAsync(
                 tempDir, packageId, updateInfo.LatestVersion, depProgress, ct);
-            Console.WriteLine($"[UpdatePlugin] Dependencies resolved");
             progress?.Report(90);
 
             // Unload the old plugin
-            Console.WriteLine($"[UpdatePlugin] Unloading old plugin");
             pluginManager.UnloadPlugin(packageId);
 
             // Remove old directory and move new one in
             if (Directory.Exists(pluginDir))
                 Directory.Delete(pluginDir, recursive: true);
             Directory.Move(tempDir, pluginDir);
-            Console.WriteLine($"[UpdatePlugin] Moved to {pluginDir}");
 
             // Eagerly load the updated plugin
-            Console.WriteLine($"[UpdatePlugin] Loading updated plugin");
             pluginManager.LoadPlugin(pluginDir);
             progress?.Report(100);
 
-            Console.WriteLine($"[UpdatePlugin] Successfully updated '{packageId}' to {updateInfo.LatestVersion}");
             logger.LogInformation("Updated plugin {PackageId} from {Old} to {New}",
                 packageId, updateInfo.InstalledVersion, updateInfo.LatestVersion);
 
@@ -306,7 +267,7 @@ internal class PluginUpdateService(
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[UpdatePlugin] FAILED for '{packageId}': {ex.GetType().Name}: {ex.Message}");
+            logger.LogWarning(ex, "Failed to update plugin {PackageId}", packageId);
             // Clean up temp on failure
             if (Directory.Exists(tempDir))
                 Directory.Delete(tempDir, recursive: true);
@@ -316,10 +277,8 @@ internal class PluginUpdateService(
 
     public async Task UpdateAllAsync(IProgress<int>? progress = null, CancellationToken cancellationToken = default)
     {
-        Console.WriteLine("[UpdateAll] Starting update all");
         var updates = await CheckForUpdatesAsync();
         var pluginsToUpdate = updates.Where(u => u.HasUpdate).ToList();
-        Console.WriteLine($"[UpdateAll] {pluginsToUpdate.Count} plugin(s) to update: {string.Join(", ", pluginsToUpdate.Select(p => $"{p.PackageId} {p.InstalledVersion}→{p.LatestVersion}"))}");
 
         if (pluginsToUpdate.Count == 0) return;
 
@@ -338,11 +297,9 @@ internal class PluginUpdateService(
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                Console.WriteLine($"[UpdateAll] Plugin '{plugin.PackageId}' failed: {ex.GetType().Name}: {ex.Message}");
                 logger.LogWarning(ex, "Failed to update plugin {PackageId}, continuing with remaining", plugin.PackageId);
             }
         }
-        Console.WriteLine("[UpdateAll] Finished");
     }
 
     private string? GetPluginDirectory(string pluginId)
