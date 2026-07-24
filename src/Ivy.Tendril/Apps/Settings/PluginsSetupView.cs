@@ -138,7 +138,7 @@ public class PluginsSetupView : ViewBase
                                ? (object)new Progress(updatingPlugins.Value[id].Progress)
                                : updateInfo != null
                                    ? (object)(Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween)
-                                       | Text.Block($"v{updateInfo.LatestVersion} available").Muted().Small()
+                                       | Text.Block($"v{updateInfo.LatestVersion} available (you have v{updateInfo.InstalledVersion})").Muted().Small()
                                        | new Button("Update", onClick: async _ =>
                                        {
                                            var title = manifest?.Title ?? id;
