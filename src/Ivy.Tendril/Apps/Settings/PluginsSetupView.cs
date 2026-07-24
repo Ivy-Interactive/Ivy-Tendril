@@ -71,7 +71,8 @@ public class PluginsSetupView : ViewBase
         );
         var updatesQuery = UseQuery(
             key: "pluginUpdates",
-            fetcher: async _ => await updateService.CheckForUpdatesAsync()
+            fetcher: async _ => await updateService.CheckForUpdatesAsync(),
+            options: new QueryOptions { RefreshInterval = TimeSpan.FromMinutes(10) }
         );
         // Shared state: maps packageId → progress (0-100) for currently-installing plugins
         var installingPlugins = UseState(new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>());
@@ -273,16 +274,61 @@ public class PluginsSetupView : ViewBase
                    | (updatesQuery.Value?.Any(u => u.HasUpdate) == true && updatingPlugins.Value.Count == 0
                        ? new Button("Update All", onClick: async _ =>
                        {
-                           try
+                           var pluginsToUpdate = updatesQuery.Value?.Where(u => u.HasUpdate).ToList();
+                           if (pluginsToUpdate == null || pluginsToUpdate.Count == 0) return;
+
+                           var failures = new List<string>();
+
+                           foreach (var update in pluginsToUpdate)
                            {
-                               await updateService.UpdateAllAsync();
-                               updatesQuery.Mutator.Invalidate();
+                               var title = pluginManager.GetPluginManifest(update.PackageId)?.Title ?? update.PackageId;
+                               var icon = pluginManager.GetPluginManifest(update.PackageId)?.Icon;
+                               var showLoadingCts = new CancellationTokenSource();
+                               var loadingVisible = false;
+
+                               var progress = new Progress<int>(pct =>
+                               {
+                                   if (!loadingVisible) return;
+                                   updatingPlugins.Set(dict => new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>(dict)
+                                       { [update.PackageId] = (title, icon, pct) });
+                               });
+
+                               #pragma warning disable CS4014
+                               Task.Delay(400, showLoadingCts.Token).ContinueWith(__ =>
+                               {
+                                   loadingVisible = true;
+                                   updatingPlugins.Set(dict => new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>(dict)
+                                       { [update.PackageId] = (title, icon, 0) });
+                               }, TaskContinuationOptions.OnlyOnRanToCompletion);
+                               #pragma warning restore CS4014
+
+                               try
+                               {
+                                   await updateService.UpdatePluginAsync(update.PackageId, progress);
+                               }
+                               catch (Exception ex) when (ex is not OperationCanceledException)
+                               {
+                                   failures.Add(title);
+                                   client.Toast($"Failed to update '{title}': {ex.Message}", "Error");
+                               }
+                               finally
+                               {
+                                   showLoadingCts.Cancel();
+                                   showLoadingCts.Dispose();
+                                   updatingPlugins.Set(dict =>
+                                   {
+                                       var next = new Dictionary<string, (string Title, PluginIcon? Icon, int Progress)>(dict);
+                                       next.Remove(update.PackageId);
+                                       return next;
+                                   });
+                               }
+                           }
+
+                           updatesQuery.Mutator.Invalidate();
+                           if (failures.Count == 0)
                                client.Toast("All plugins updated", "Updated");
-                           }
-                           catch (Exception ex)
-                           {
-                               client.Toast($"Some updates failed: {ex.Message}", "Error");
-                           }
+                           else
+                               client.Toast($"{failures.Count} plugin(s) failed to update", "Error");
                        }, variant: ButtonVariant.Outline, icon: Icons.CircleArrowUp)
                        : null!)
                    | new Button("Open Plugins Folder", onClick: _ =>
