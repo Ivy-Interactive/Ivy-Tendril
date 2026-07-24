@@ -135,9 +135,10 @@ public class PluginsSetupView : ViewBase
                        var content = Layout.Vertical().Gap(3)
                            | (isUpdating
                                ? (object)new Progress(updatingPlugins.Value[id].Progress)
-                               : (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                                   | (updateInfo != null
-                                       ? new Button("Update", onClick: async _ =>
+                               : updateInfo != null
+                                   ? (object)(Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween)
+                                       | Text.Block($"v{updateInfo.LatestVersion} available").Muted().Small()
+                                       | new Button("Update", onClick: async _ =>
                                        {
                                            var title = manifest?.Title ?? id;
                                            var icon = manifest?.Icon;
@@ -163,6 +164,7 @@ public class PluginsSetupView : ViewBase
                                            try
                                            {
                                                await updateService.UpdatePluginAsync(id, progress);
+                                               updatesQuery.Mutator.Invalidate();
                                                client.Toast($"Updated '{title}' to v{updateInfo.LatestVersion}", "Updated");
                                            }
                                            catch (Exception ex)
@@ -180,23 +182,25 @@ public class PluginsSetupView : ViewBase
                                                    return next;
                                                });
                                            }
-                                       }, variant: ButtonVariant.Primary, icon: Icons.Download)
-                                       : null!)
-                                   | new Button("Reload", onClick: _ =>
-                                   {
-                                       var success = pluginManager.ReloadPlugin(id);
-                                       client.Toast(success ? $"Reloaded '{id}'" : $"Failed to reload '{id}'",
-                                           success ? "Reloaded" : "Error");
-                                       return ValueTask.CompletedTask;
-                                   }, variant: ButtonVariant.Outline, icon: Icons.RefreshCw)
-                                   | new Button("Unload", onClick: _ =>
-                                   {
-                                       var success = pluginManager.UnloadPlugin(id);
-                                       client.Toast(success ? $"Unloaded '{id}'" : $"Failed to unload '{id}'",
-                                           success ? "Unloaded" : "Error");
-                                       return ValueTask.CompletedTask;
-                                   }, variant: ButtonVariant.Outline, icon: Icons.Power)
-                                   | BuildUninstallButton(id, manifest?.Title, pluginDirectories.GetValueOrDefault(id), uninstallService, client)))
+                                       }, variant: ButtonVariant.Primary, icon: Icons.Download).Small())
+                                   : null!)
+                           | (updateInfo != null ? new Separator() : null!)
+                           | (Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+                               | new Button("Reload", onClick: _ =>
+                               {
+                                   var success = pluginManager.ReloadPlugin(id);
+                                   client.Toast(success ? $"Reloaded '{id}'" : $"Failed to reload '{id}'",
+                                       success ? "Reloaded" : "Error");
+                                   return ValueTask.CompletedTask;
+                               }, variant: ButtonVariant.Outline, icon: Icons.RefreshCw)
+                               | new Button("Unload", onClick: _ =>
+                               {
+                                   var success = pluginManager.UnloadPlugin(id);
+                                   client.Toast(success ? $"Unloaded '{id}'" : $"Failed to unload '{id}'",
+                                       success ? "Unloaded" : "Error");
+                                   return ValueTask.CompletedTask;
+                               }, variant: ButtonVariant.Outline, icon: Icons.Power)
+                               | BuildUninstallButton(id, manifest?.Title, pluginDirectories.GetValueOrDefault(id), uninstallService, client))
                            | (customView
                                ?? (schema is not null
                                    ? new PluginConfigurationView(id, schema, configFactory).Key(id)
@@ -272,6 +276,7 @@ public class PluginsSetupView : ViewBase
                            try
                            {
                                await updateService.UpdateAllAsync();
+                               updatesQuery.Mutator.Invalidate();
                                client.Toast("All plugins updated", "Updated");
                            }
                            catch (Exception ex)
