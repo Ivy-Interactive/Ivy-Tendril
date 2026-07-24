@@ -213,7 +213,7 @@ The marketplace icon (`tendril.json`) is extracted from the `.nupkg` when a vers
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Ivy.Tendril.Plugin.Abstractions" Version="1.1.12" />
+    <PackageReference Include="Ivy.Tendril.Plugin.Abstractions" Version="1.1.14" />
   </ItemGroup>
 </Project>
 ```
@@ -1445,8 +1445,8 @@ Ivy.Tendril.Plugin.Linear/
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Ivy.Tendril.Plugin.Abstractions" Version="1.1.12" />
-    <PackageReference Include="Ivy.Tendril.Plugin.Extended.Abstractions" Version="1.1.12" />
+    <PackageReference Include="Ivy.Tendril.Plugin.Abstractions" Version="1.1.14" />
+    <PackageReference Include="Ivy.Tendril.Plugin.Extended.Abstractions" Version="1.1.14" />
     <!-- Plugin-specific dependencies -->
     <PackageReference Include="StrawberryShake.Transport.Http" Version="16.0.7" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
