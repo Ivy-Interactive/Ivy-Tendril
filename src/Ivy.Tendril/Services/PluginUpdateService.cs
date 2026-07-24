@@ -186,9 +186,9 @@ internal class PluginUpdateService(
             progress?.Report(10);
 
             // Verify SHA256 hash
-            var computedHash = Convert.ToHexString(SHA256.HashData(nupkgBytes)).ToLowerInvariant();
-            var expectedHash = updateInfo.LatestHash.ToLowerInvariant();
-            if (computedHash != expectedHash)
+            var computedHash = Convert.ToBase64String(SHA256.HashData(nupkgBytes));
+            var expectedHash = updateInfo.LatestHash;
+            if (!string.Equals(computedHash, expectedHash, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
                     $"Plugin hash verification failed for '{packageId}'. " +
