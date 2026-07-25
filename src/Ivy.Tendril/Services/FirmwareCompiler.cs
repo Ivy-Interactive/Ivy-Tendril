@@ -46,6 +46,8 @@ public static class FirmwareCompiler
         tendril promptware read-memory {PROMPTWARE_NAME} <filename>.md
         ```
 
+        A `[[name]]` cross-reference inside a memory means the file `name.md`. If a read fails, the memory was likely pruned: run `tendril promptware list-memory {PROMPTWARE_NAME}` for the current list instead of guessing filenames.
+
         Complete your task and present the user with a summary.
 
         ## Reflection

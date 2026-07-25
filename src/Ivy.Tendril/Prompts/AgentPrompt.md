@@ -208,6 +208,7 @@ These commands are for internal use by other promptwares (e.g., a verification s
 | Command | Description |
 |---------|-------------|
 | `tendril promptware run <name>` | Run a promptware directly (bypasses job service) |
+| `tendril promptware list-memory <name>` | List a promptware's memory files |
 | `tendril promptware read-memory <name> <file>` | Read promptware memory |
 | `tendril promptware write-memory <name> <file>` | Write promptware memory (--file/--stdin) |
 | `tendril promptware write-tool <name> <file>` | Write promptware tool (--file/--stdin) |
