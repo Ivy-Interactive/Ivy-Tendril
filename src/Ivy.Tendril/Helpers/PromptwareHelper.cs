@@ -52,4 +52,24 @@ public static class PromptwareHelper
 
         return sourceRoot;
     }
+
+    public static void RequireProgramFolder(string programFolder, string promptwareName, string? tendrilHome)
+    {
+        if (File.Exists(Path.Combine(programFolder, "Program.md")))
+            return;
+
+        var promptsRoot = ResolvePromptsRoot(tendrilHome);
+        var available = Directory.Exists(promptsRoot)
+            ? string.Join(", ", Directory.EnumerateDirectories(promptsRoot)
+                .Where(d => File.Exists(Path.Combine(d, "Program.md")))
+                .Select(Path.GetFileName)
+                .OrderBy(n => n, StringComparer.Ordinal))
+            : "";
+        if (string.IsNullOrEmpty(available))
+            available = "(none)";
+
+        throw new FileNotFoundException(
+            $"Promptware not found: {promptwareName}. Available promptwares: {available}",
+            programFolder);
+    }
 }
