@@ -58,6 +58,12 @@ public static class CliValidation
         return SpectreValidation.Success();
     }
 
+    public static SpectreValidation ValidateProjectName(string? name)
+    {
+        var error = InputSanitizer.DescribeProjectNameError(name);
+        return error is null ? SpectreValidation.Success() : SpectreValidation.Error(error);
+    }
+
     public static SpectreValidation ValidateField(string? value, string[] validFields)
     {
         if (string.IsNullOrWhiteSpace(value))
