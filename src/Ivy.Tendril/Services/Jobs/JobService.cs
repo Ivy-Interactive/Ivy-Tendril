@@ -547,7 +547,7 @@ public class JobService : IJobService
         }
         catch
         {
-            // Best-effort — don't crash on timer callback
+            // Best-effort: don't crash on timer callback
         }
 
         try
