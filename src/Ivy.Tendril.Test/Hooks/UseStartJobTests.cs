@@ -111,6 +111,8 @@ public class UseStartJobTests
         {
         }
 
+        public int StopAllJobs() => 0;
+
         public void DeleteJob(string id)
         {
         }

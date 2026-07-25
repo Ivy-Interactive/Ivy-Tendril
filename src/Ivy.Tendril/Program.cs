@@ -492,6 +492,8 @@ public class Program
                     .WithDescription("Read a promptware memory file to STDOUT");
                 pw.AddCommand<PromptwareWriteMemoryCommand>("write-memory")
                     .WithDescription("Write a promptware memory file from STDIN");
+                pw.AddCommand<PromptwareDeleteMemoryCommand>("delete-memory")
+                    .WithDescription("Delete a promptware memory file that is no longer true");
                 pw.AddCommand<PromptwareWriteToolCommand>("write-tool")
                     .WithDescription("Write a promptware tool file from STDIN");
             });

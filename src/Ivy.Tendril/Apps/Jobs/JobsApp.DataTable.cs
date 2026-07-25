@@ -46,9 +46,13 @@ public partial class JobsApp
         StackedProgress? jobsProgress,
         IState<bool> confirmDeleteOpen,
         IState<string?> deleteJobId,
-        IState<bool> confirmStopQueuedOpen)
+        IState<bool> confirmStopQueuedOpen,
+        IState<bool> confirmStopAllOpen)
     {
         var queuedCount = jobs.Count(j => j.Status == JobStatus.Queued);
+        var activeJobCount = jobs.Count(j => j.Status is JobStatus.Running or JobStatus.Queued
+                                                      or JobStatus.Pending or JobStatus.Blocked);
+
         var dataTable = rows.AsQueryable()
             .ToDataTable(t => t.Id)
             .Density(new Responsive<Density?> { Default = Density.Large, Desktop = Density.Medium })
@@ -283,11 +287,43 @@ public partial class JobsApp
 
                 return ValueTask.CompletedTask;
             })
-            .HeaderRight(_ => Layout.Horizontal()
-                              | (jobsProgress != null ? jobsProgress : null!)
-                              | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(
-                                  BuildHeaderMenuItems(queuedCount, jobService, refreshToken,
-                                      confirmStopQueuedOpen)));
+            .HeaderRight(_ =>
+            {
+                var overflowItems = new List<MenuItem>();
+
+                if (queuedCount > 0)
+                {
+                    overflowItems.Add(new MenuItem($"Stop All Queued ({queuedCount})", Icon: Icons.Pause, Tag: "StopAllQueued")
+                        .OnSelect(() => confirmStopQueuedOpen.Set(true)));
+                }
+
+                if (activeJobCount > 0)
+                {
+                    overflowItems.Add(new MenuItem($"Stop All ({activeJobCount})", Icon: Icons.Pause, Tag: "StopAll")
+                        .OnSelect(() => confirmStopAllOpen.Set(true)));
+                }
+
+                overflowItems.Add(new MenuItem("Clear Completed", Icon: Icons.Trash, Tag: "ClearCompleted")
+                    .OnSelect(() =>
+                    {
+                        jobService.ClearCompletedJobs();
+                        refreshToken.Refresh();
+                    }));
+                overflowItems.Add(new MenuItem("Clear Failed", Icon: Icons.Trash, Tag: "ClearFailed").OnSelect(() =>
+                {
+                    jobService.ClearFailedJobs();
+                    refreshToken.Refresh();
+                }));
+                overflowItems.Add(new MenuItem("Clear All Finished", Icon: Icons.Trash, Tag: "ClearAll").OnSelect(() =>
+                {
+                    jobService.ClearAllJobs();
+                    refreshToken.Refresh();
+                }));
+
+                return Layout.Horizontal()
+                       | (jobsProgress != null ? jobsProgress : null!)
+                       | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(overflowItems.ToArray());
+            });
 
         var confirmDialog = confirmDeleteOpen.Value ? new Dialog(
             _ => confirmDeleteOpen.Set(false),
@@ -328,40 +364,22 @@ public partial class JobsApp
             )
         ) : null;
 
-        return new Fragment(dataTable, confirmDialog, confirmStopQueuedDialog);
-    }
+        var stopAllDialog = confirmStopAllOpen.Value ? new Dialog(
+            _ => confirmStopAllOpen.Set(false),
+            new DialogHeader("Stop All Jobs"),
+            new DialogBody(Text.P($"Stop all {activeJobCount} active job(s)? Running agents are killed and their plans revert to their previous state. This cannot be undone.")),
+            new DialogFooter(
+                new Button("Cancel").Outline().OnClick(() => confirmStopAllOpen.Set(false)),
+                new Button("Stop All").Destructive().ShortcutKey("Enter").AutoFocus().OnClick(() =>
+                {
+                    var count = jobService.StopAllJobs();
+                    confirmStopAllOpen.Set(false);
+                    client.Toast($"Stopped {count} job{(count == 1 ? "" : "s")}", "Jobs Stopped");
+                    refreshToken.Refresh();
+                })
+            )
+        ) : null;
 
-    private static MenuItem[] BuildHeaderMenuItems(
-        int queuedCount,
-        IJobService jobService,
-        RefreshToken refreshToken,
-        IState<bool> confirmStopQueuedOpen)
-    {
-        var items = new List<MenuItem>();
-
-        if (queuedCount > 0)
-        {
-            items.Add(new MenuItem($"Stop All Queued ({queuedCount})", Icon: Icons.Pause, Tag: "StopAllQueued")
-                .OnSelect(() => confirmStopQueuedOpen.Set(true)));
-        }
-
-        items.Add(new MenuItem("Clear Completed", Icon: Icons.Trash, Tag: "ClearCompleted")
-            .OnSelect(() =>
-            {
-                jobService.ClearCompletedJobs();
-                refreshToken.Refresh();
-            }));
-        items.Add(new MenuItem("Clear Failed", Icon: Icons.Trash, Tag: "ClearFailed").OnSelect(() =>
-        {
-            jobService.ClearFailedJobs();
-            refreshToken.Refresh();
-        }));
-        items.Add(new MenuItem("Clear All Finished", Icon: Icons.Trash, Tag: "ClearAll").OnSelect(() =>
-        {
-            jobService.ClearAllJobs();
-            refreshToken.Refresh();
-        }));
-
-        return items.ToArray();
+        return new Fragment(dataTable, confirmDialog, confirmStopQueuedDialog, stopAllDialog);
     }
 }

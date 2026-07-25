@@ -283,6 +283,36 @@ public class JobService : IJobService
             ProcessJobQueue();
     }
 
+    public int StopAllJobs()
+    {
+        var stopped = new HashSet<string>();
+
+        // Re-snapshot between passes: StopJob releases the stopped job's slot and calls
+        // ProcessJobQueue, which can promote a Queued job to Running while this sweep is
+        // in flight. Three passes is enough to drain that; the bound keeps a pathological
+        // launch/stop loop from spinning forever.
+        for (var pass = 0; pass < 3; pass++)
+        {
+            var active = _jobs.Values
+                .Where(j => j.Status is JobStatus.Running or JobStatus.Queued
+                                     or JobStatus.Pending or JobStatus.Blocked)
+                .Select(j => j.Id)
+                .Where(id => !stopped.Contains(id))
+                .ToList();
+
+            if (active.Count == 0) break;
+
+            foreach (var id in active)
+            {
+                StopJob(id);
+                if (_jobs.TryGetValue(id, out var job) && job.Status == JobStatus.Stopped)
+                    stopped.Add(id);
+            }
+        }
+
+        return stopped.Count;
+    }
+
     public void DeleteJob(string id)
     {
         if (_jobs.TryRemove(id, out var removed))
