@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 using Ivy.Desktop;
 using Ivy.Helpers;
 using Ivy.Tendril.Agents;
@@ -45,6 +46,29 @@ public class Program
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
+        var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
+        if (!Console.IsInputRedirected)
+        {
+            try
+            {
+                Console.InputEncoding = utf8NoBom;
+            }
+            catch { }
+        }
+
+        try
+        {
+            Console.OutputEncoding = utf8NoBom;
+        }
+        catch { }
+
+        try
+        {
+            AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings { Out = new AnsiConsoleOutput(Console.Out) });
+        }
+        catch { }
+
         if (args.Contains(DetachedLaunchMarker))
         {
             try
@@ -67,9 +91,6 @@ public class Program
             }
             catch { }
         }
-
-        Console.InputEncoding = System.Text.Encoding.UTF8;
-        Console.OutputEncoding = System.Text.Encoding.UTF8;
 
         VelopackApp.Build().Run();
 
