@@ -333,6 +333,28 @@ public class JobServiceStartupTests
         Assert.False(job.Detached);
     }
 
+    [Fact]
+    public void StartJob_PersistsJobToDatabaseWhileStillRunning()
+    {
+        var db = new FakeDatabaseService();
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), database: db);
+
+        // StartJob persists the job as soon as it is registered in StartJobInternal, not just
+        // on completion, so the row shows up even though the process launch below will fail
+        // in this test environment (no real coding agent available).
+        string id;
+        try
+        {
+            id = service.StartJob(new CreatePlanArgs("Test Job", "Auto"));
+        }
+        catch
+        {
+            id = service.GetJobs().Single().Id;
+        }
+
+        Assert.NotNull(db.GetJobById(id));
+    }
+
     private class FakeConfigService : IConfigService
     {
         public FakeConfigService(string tendrilHome)
@@ -388,7 +410,10 @@ public class JobServiceStartupTests
         public List<JobItem> GetRecentJobs(int limit = 100)
         {
             if (ThrowOnGetRecentJobs) throw new Exception("DB error");
-            return Jobs;
+            // Snapshot: LoadHistoricalJobs iterates the result while reconciling, and reconciling
+            // a job persists it back via UpsertJob — mutating Jobs directly here would corrupt
+            // that iteration.
+            return Jobs.ToList();
         }
 
         public JobItem? GetJobById(string id)
@@ -514,6 +539,8 @@ public class JobServiceStartupTests
         public void UpsertJob(JobItem job)
         {
             UpsertedJobIds.Add(job.Id);
+            Jobs.RemoveAll(j => j.Id == job.Id);
+            Jobs.Add(job);
         }
 
         public List<string> PurgeOldJobs(int keepCount = 500)
