@@ -348,6 +348,7 @@ public class ConfigService : IConfigService, IDisposable
         ExpandSettingsVariables();
         ExpandRepoPaths();
         ValidateRepoPathsAreNotWorktrees();
+        ValidateProjectNames();
         CreateRequiredDirectories();
         SyncAuthFromEnvironmentAndPersistIfNeeded();
     }
@@ -695,6 +696,22 @@ public class ConfigService : IConfigService, IDisposable
                     "This will cause nested worktrees during plan execution. " +
                     "Update config.yaml to point to the main repo, not a worktree.",
                     item.Name, item.Repo.Path);
+            }
+        }
+    }
+
+    internal void ValidateProjectNames()
+    {
+        if (Settings?.Projects == null) return;
+
+        foreach (var project in Settings.Projects)
+        {
+            if (!InputSanitizer.IsValidProjectName(project.Name))
+            {
+                _logger.LogError(
+                    "CRITICAL: Project name '{ProjectName}' contains characters that are not allowed " +
+                    "(letters, digits, dots, dashes and underscores only). Rename it in config.yaml before " +
+                    "running plans or project setup.", project.Name);
             }
         }
     }

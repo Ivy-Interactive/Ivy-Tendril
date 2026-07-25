@@ -187,6 +187,55 @@ public class GithubServiceTests
     }
 
     [Fact]
+    public void BuildIssueListArgs_Uses_Default_Limit_When_Not_Specified()
+    {
+        var args = GithubService.BuildIssueListArgs(new IssueSearchRequest("o", "r"));
+
+        Assert.Contains("--limit 1000", args);
+        Assert.Contains("--repo o/r --state open", args);
+        Assert.DoesNotContain("--search", args);
+        Assert.DoesNotContain("--assignee", args);
+        Assert.DoesNotContain("--label", args);
+    }
+
+    [Fact]
+    public void BuildIssueListArgs_Uses_Requested_Limit()
+    {
+        var args = GithubService.BuildIssueListArgs(new IssueSearchRequest("o", "r", Limit: 250));
+
+        Assert.Contains("--limit 250", args);
+    }
+
+    [Fact]
+    public void BuildIssueListArgs_Clamps_Limit_Above_Maximum()
+    {
+        var args = GithubService.BuildIssueListArgs(new IssueSearchRequest("o", "r", Limit: 5000));
+
+        Assert.Contains("--limit 1000", args);
+    }
+
+    [Fact]
+    public void BuildIssueListArgs_Falls_Back_To_Default_For_Nonpositive_Limit()
+    {
+        var zeroArgs = GithubService.BuildIssueListArgs(new IssueSearchRequest("o", "r", Limit: 0));
+        var negativeArgs = GithubService.BuildIssueListArgs(new IssueSearchRequest("o", "r", Limit: -1));
+
+        Assert.Contains("--limit 1000", zeroArgs);
+        Assert.Contains("--limit 1000", negativeArgs);
+    }
+
+    [Fact]
+    public void BuildIssueListArgs_Includes_Query_Assignee_And_Labels()
+    {
+        var args = GithubService.BuildIssueListArgs(new IssueSearchRequest(
+            "o", "r", Query: "bug", Assignee: "octocat", Labels: ["a", "b"]));
+
+        Assert.Contains("--search \"bug\"", args);
+        Assert.Contains("--assignee octocat", args);
+        Assert.Contains("--label \"a,b\"", args);
+    }
+
+    [Fact]
     public async Task GetAssigneesAsync_Returns_Error_When_Command_Fails()
     {
         var configService = new ConfigService(new TendrilSettings());

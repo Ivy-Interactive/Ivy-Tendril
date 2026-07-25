@@ -113,6 +113,13 @@ public record JobItem
     /// once this job's output has been hydrated (or confirmed to have none).
     /// </summary>
     [JsonIgnore] public bool OutputHydrated { get; set; }
+
+    /// <summary>
+    /// True for a job restored from the database after a master restart: its agent process is
+    /// still alive but this process holds no Process handle or output stream for it.
+    /// </summary>
+    [JsonIgnore] public bool Detached { get; set; }
+
     public DateTime? LastOutputAt { get; set; }
     public CancellationTokenSource? TimeoutCts { get; set; }
     private volatile bool _staleOutputDetected;

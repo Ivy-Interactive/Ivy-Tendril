@@ -674,8 +674,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand, Cleared, RateLimitedUntil, RateLimitRetries)
-                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand, @cleared, @rateLimitedUntil, @rateLimitRetries)
+                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand, Cleared, ProcessId, ReportedPlanId, ReportedPlanTitle, ReportedFailureReason, RateLimitedUntil, RateLimitRetries)
+                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand, @cleared, @processId, @reportedPlanId, @reportedPlanTitle, @reportedFailureReason, @rateLimitedUntil, @rateLimitRetries)
                               """;
             cmd.Parameters.AddWithValue("@id", job.Id);
             cmd.Parameters.AddWithValue("@type", job.Type);
@@ -699,6 +699,11 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.Parameters.AddWithValue("@workingDirectory", (object?)job.WorkingDirectory ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@cliCommand", (object?)job.CliCommand ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@cleared", job.Cleared ? 1 : 0);
+            cmd.Parameters.AddWithValue("@processId", (object?)job.ProcessId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@reportedPlanId", (object?)job.ReportedPlanId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@reportedPlanTitle", (object?)job.ReportedPlanTitle ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@reportedFailureReason",
+                (object?)job.ReportedFailureReason ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@rateLimitedUntil",
                 job.RateLimitedUntil?.ToString("O", CultureInfo.InvariantCulture) ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("@rateLimitRetries", job.RateLimitRetries);
@@ -710,7 +715,15 @@ public class PlanDatabaseService : IPlanDatabaseService
     {
         using (new ReadLockHandle(_lock))
         {
-            return ReadList("SELECT * FROM Jobs WHERE Cleared = 0 ORDER BY CompletedAt DESC LIMIT @limit",
+            // In-flight rows (NULL CompletedAt) sort first: SQLite puts NULLs last under DESC, so
+            // without the CASE they would be the first rows dropped by LIMIT once enough completed
+            // jobs accumulate — exactly the jobs LoadHistoricalJobs needs in order to restore them.
+            return ReadList(
+                """
+                SELECT * FROM Jobs WHERE Cleared = 0
+                ORDER BY CASE WHEN CompletedAt IS NULL THEN 0 ELSE 1 END, CompletedAt DESC
+                LIMIT @limit
+                """,
                 MapJobRow,
                 new SqliteParameter("@limit", limit));
         }
@@ -778,6 +791,18 @@ public class PlanDatabaseService : IPlanDatabaseService
                 ? null
                 : reader.GetString(reader.GetOrdinal("CliCommand")),
             Cleared = reader.GetInt32(reader.GetOrdinal("Cleared")) != 0,
+            ProcessId = reader.IsDBNull(reader.GetOrdinal("ProcessId"))
+                ? null
+                : reader.GetInt32(reader.GetOrdinal("ProcessId")),
+            ReportedPlanId = reader.IsDBNull(reader.GetOrdinal("ReportedPlanId"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("ReportedPlanId")),
+            ReportedPlanTitle = reader.IsDBNull(reader.GetOrdinal("ReportedPlanTitle"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("ReportedPlanTitle")),
+            ReportedFailureReason = reader.IsDBNull(reader.GetOrdinal("ReportedFailureReason"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("ReportedFailureReason")),
             RateLimitedUntil = reader.IsDBNull(reader.GetOrdinal("RateLimitedUntil"))
                 ? null
                 : DateTime.Parse(reader.GetString(reader.GetOrdinal("RateLimitedUntil")),
