@@ -219,6 +219,12 @@ Content-Type: application/json
 
 Updates progress for a running job. Used by promptware agents via the `tendril job status` CLI command.
 
+Returns `404 { "error": "Job not found" }` if the job id is unknown to the server (for example, the
+server restarted since the job started, or the job was deleted). The `tendril job status` CLI treats
+that response as a warning printed to stderr rather than a command failure, since a dropped progress
+report should not make an otherwise-successful agent script look broken. The same applies to
+`tendril job fail` against `PUT /api/jobs/{jobId}/fail`.
+
 ### Health Check
 
 ```
