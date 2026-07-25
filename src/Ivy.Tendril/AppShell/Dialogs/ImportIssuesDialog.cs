@@ -275,7 +275,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
         if (isFetching.Value)
         {
             issuesPanel = Layout.Vertical().Gap(2).AlignContent(Align.Center)
-                .Height(Size.Rem(16)).Width(Size.Full())
+                .Height(Size.Rem(18)).Width(Size.Full())
                 | new Loading()
                 | Text.Muted("Fetching issues from GitHub...");
         }
@@ -284,13 +284,13 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             if (groups.All(g => g.Issues.Count == 0))
             {
                 issuesPanel = Layout.Vertical().AlignContent(Align.Center)
-                    .Height(Size.Rem(10)).Width(Size.Full())
+                    .Height(Size.Rem(12)).Width(Size.Full())
                     | Text.Muted("No issues found matching the filters.");
             }
             else
             {
                 var repo = repos.FirstOrDefault(r => r.DisplayName == selectedRepo.Value);
-                var scrollContent = Layout.Vertical().Gap(4).Width(Size.Full());
+                var groupPanels = Layout.Vertical().Gap(4).Width(Size.Full());
 
                 foreach (var group in groups)
                 {
@@ -310,29 +310,33 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                             () => { if (issueUrl != null) client.OpenUrl(issueUrl); });
                     }).ToArray();
 
-                    scrollContent |= Layout.Vertical().Gap(2).Width(Size.Full())
-                        | Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween).Width(Size.Full())
-                            | Text.Label(FormatGroupHeader(group, groupSelectedCount))
-                            | (Layout.Horizontal().Gap(1)
-                                | new Button("All").Ghost().Small()
-                                    .Disabled(groupSelectedCount == groupIssues.Count || groupIssues.Count == 0)
-                                    .OnClick(() => SelectAllInGroup(groupIssues))
-                                | new Button("None").Ghost().Small()
-                                    .Disabled(groupSelectedCount == 0)
-                                    .OnClick(() => SelectNoneInGroup(groupIssues)))
-                        | (groupIssues.Count > 0
-                            ? (Layout.Vertical().Gap(0).Width(Size.Full()) | issueRows)
-                            : Text.Muted("No issues for this assignee."));
+                    var groupHeader = Layout.Horizontal().Gap(2).AlignContent(Align.SpaceBetween).Width(Size.Full())
+                        | Text.Label(FormatGroupHeader(group, groupSelectedCount))
+                        | (Layout.Horizontal().Gap(1)
+                            | new Button("All").Ghost().Small()
+                                .Disabled(groupSelectedCount == groupIssues.Count || groupIssues.Count == 0)
+                                .OnClick(() => SelectAllInGroup(groupIssues))
+                            | new Button("None").Ghost().Small()
+                                .Disabled(groupSelectedCount == 0)
+                                .OnClick(() => SelectNoneInGroup(groupIssues)));
+
+                    var groupContent = groupIssues.Count > 0
+                        ? (object)(Layout.Vertical().Gap(0).Width(Size.Full()) | issueRows)
+                        : Text.Muted("No issues for this assignee.");
+
+                    // HeaderLayout keeps the All/None header pinned above its own ScrollArea,
+                    // so it stays visible while the issue rows beneath it scroll.
+                    groupPanels |= Layout.Vertical().Height(Size.Rem(26)).Width(Size.Full())
+                        | new HeaderLayout(groupHeader, groupContent);
                 }
 
-                issuesPanel = Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Rem(22)).Width(Size.Full())
-                    | scrollContent;
+                issuesPanel = groupPanels;
             }
         }
         else
         {
             issuesPanel = Layout.Vertical().AlignContent(Align.Center)
-                .Height(Size.Rem(10)).Width(Size.Full())
+                .Height(Size.Rem(12)).Width(Size.Full())
                 | Text.Muted("Choose a repository, set filters, and click Fetch Issues.");
         }
 
