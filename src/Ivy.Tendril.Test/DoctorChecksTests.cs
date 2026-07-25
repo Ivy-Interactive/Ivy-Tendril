@@ -67,6 +67,52 @@ public class DoctorChecksTests : IDisposable
     }
 
     [Fact]
+    public async Task InstallationCheck_LegacyDotnetToolPresent_ReportsError()
+    {
+        var original = TendrilInstallHelper.UserProfileOverride;
+        TendrilInstallHelper.UserProfileOverride = _tempDir.Path;
+
+        try
+        {
+            var storeDir = Path.Combine(_tempDir.Path, ".dotnet", "tools", ".store", "ivy.tendril", "1.0.0");
+            Directory.CreateDirectory(storeDir);
+
+            var check = new InstallationCheck();
+            var result = await check.RunAsync();
+
+            var legacyStatus = result.Statuses.FirstOrDefault(s => s.Label == "Legacy .NET tool");
+            Assert.NotNull(legacyStatus);
+            Assert.Equal(StatusKind.Error, legacyStatus.Kind);
+            Assert.True(result.HasErrors);
+        }
+        finally
+        {
+            TendrilInstallHelper.UserProfileOverride = original;
+        }
+    }
+
+    [Fact]
+    public async Task InstallationCheck_NoLegacyDotnetTool_ReportsOk()
+    {
+        var original = TendrilInstallHelper.UserProfileOverride;
+        TendrilInstallHelper.UserProfileOverride = _tempDir.Path;
+
+        try
+        {
+            var check = new InstallationCheck();
+            var result = await check.RunAsync();
+
+            var legacyStatus = result.Statuses.FirstOrDefault(s => s.Label == "Legacy .NET tool");
+            Assert.NotNull(legacyStatus);
+            Assert.Equal(StatusKind.Ok, legacyStatus.Kind);
+        }
+        finally
+        {
+            TendrilInstallHelper.UserProfileOverride = original;
+        }
+    }
+
+    [Fact]
     public void PrintStatus_WithBracketCharacters_DoesNotThrow()
     {
         var exception = Record.Exception(() =>
