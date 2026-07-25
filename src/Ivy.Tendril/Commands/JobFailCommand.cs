@@ -27,25 +27,20 @@ public class JobFailCommand : Command<JobFailSettings>
 {
     protected override int Execute(CommandContext context, JobFailSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            MasterClient.PutJson(
-                $"api/jobs/{settings.JobId}/fail",
-                new { message = settings.Message },
-                notFoundMessage: $"Job '{settings.JobId}' is not known to the running Tendril server (it may have restarted, or the job was deleted).",
-                cancellationToken: cancellationToken);
+        // Best-effort: an agent that is already failing must not be derailed by a second failure
+        // from the reporting call itself.
+        var (ok, error) = MasterClient.TryPutJson(
+            $"api/jobs/{settings.JobId}/fail", new { message = settings.Message }, cancellationToken);
 
-            // This only records the failure reason. The promptware is still responsible
-            // for exiting non-zero (e.g. `exit 1`) to actually fail the job.
-            Console.WriteLine($"Failure reported for job {settings.JobId}");
-        }
-        catch (Exception ex)
+        if (!ok)
         {
-            // Recording the failure reason is best effort. The agent's own non-zero exit
-            // is what actually marks the job failed, so a dropped report loses no information.
-            Console.Error.WriteLine($"Warning: could not report failure for job {settings.JobId}: {ex.Message}");
+            Console.Error.WriteLine($"Warning: could not report failure for job {settings.JobId}: {error}");
+            return 0;
         }
 
+        // This only records the failure reason. The promptware is still responsible
+        // for exiting non-zero (e.g. `exit 1`) to actually fail the job.
+        Console.WriteLine($"Failure reported for job {settings.JobId}");
         return 0;
     }
 }

@@ -32,23 +32,19 @@ public class JobStatusCommand : Command<JobStatusSettings>
 {
     protected override int Execute(CommandContext context, JobStatusSettings settings, CancellationToken cancellationToken)
     {
-        try
-        {
-            MasterClient.PutJson(
-                $"api/jobs/{settings.JobId}/status",
-                new { message = settings.Message, planId = settings.PlanId, planTitle = settings.PlanTitle },
-                notFoundMessage: $"Job '{settings.JobId}' is not known to the running Tendril server (it may have restarted, or the job was deleted).",
-                cancellationToken: cancellationToken);
+        // Progress telemetry must never fail an agent run: warn and still exit 0.
+        var (ok, error) = MasterClient.TryPutJson(
+            $"api/jobs/{settings.JobId}/status",
+            new { message = settings.Message, planId = settings.PlanId, planTitle = settings.PlanTitle },
+            cancellationToken);
 
-            Console.WriteLine($"Status updated for job {settings.JobId}");
-        }
-        catch (Exception ex)
+        if (!ok)
         {
-            // Status reporting is telemetry for the Jobs UI. A failed report must not fail
-            // the agent's script, which is what actually determines job success/failure.
-            Console.Error.WriteLine($"Warning: could not report status for job {settings.JobId}: {ex.Message}");
+            Console.Error.WriteLine($"Warning: could not report status for job {settings.JobId}: {error}");
+            return 0;
         }
 
+        Console.WriteLine($"Status updated for job {settings.JobId}");
         return 0;
     }
 }
