@@ -211,6 +211,7 @@ These commands are for internal use by other promptwares (e.g., a verification s
 | `tendril promptware list-memory <name>` | List a promptware's memory files |
 | `tendril promptware read-memory <name> <file>` | Read promptware memory |
 | `tendril promptware write-memory <name> <file>` | Write promptware memory (--file/--stdin) |
+| `tendril promptware delete-memory <name> <file>` | Delete an outdated promptware memory |
 | `tendril promptware write-tool <name> <file>` | Write promptware tool (--file/--stdin) |
 
 ### Project Commands

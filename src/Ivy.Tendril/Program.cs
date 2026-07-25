@@ -57,6 +57,11 @@ public class Program
             catch { }
         }
         PathHelper.AugmentPath(forceShellPath: false);
+
+        var legacyRedirectExitCode = TryRedirectLegacyToolInvocation(args);
+        if (legacyRedirectExitCode.HasValue)
+            return legacyRedirectExitCode.Value;
+
         PathHelper.EnsureCliSymlink();
 
         if (OperatingSystem.IsWindows())
@@ -389,6 +394,59 @@ public class Program
         return argv0Name.Equals("tendril", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// When this process is the stale `dotnet tool install` copy of tendril and a newer
+    /// installer-managed CLI is present, forwards the invocation to that CLI and returns its
+    /// exit code. Returns null when the run should proceed normally in this process.
+    /// </summary>
+    private static int? TryRedirectLegacyToolInvocation(string[] args)
+    {
+        if (Environment.GetEnvironmentVariable("TENDRIL_NO_LEGACY_REDIRECT") == "1")
+            return null;
+        if (args.Contains(DetachedLaunchMarker))
+            return null;
+
+        try
+        {
+            if (!TendrilInstallHelper.IsLegacyDotnetToolProcess())
+                return null;
+
+            var installedCli = TendrilInstallHelper.FindInstalledCli();
+            if (installedCli == null)
+                return null;
+
+            if (Environment.GetEnvironmentVariable("TENDRIL_QUIET") != "1")
+            {
+                var version = TendrilInstallHelper.GetLegacyToolVersion();
+                Console.Error.WriteLine(
+                    $"Warning: you are running the outdated Ivy.Tendril .NET tool (v{version ?? "unknown"}). " +
+                    $"Forwarding to the installed version at {installedCli}. " +
+                    "Remove the stale tool with: dotnet tool uninstall --global Ivy.Tendril");
+            }
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = installedCli,
+                UseShellExecute = false
+            };
+            foreach (var arg in args)
+                psi.ArgumentList.Add(arg);
+            psi.Environment["TENDRIL_NO_LEGACY_REDIRECT"] = "1";
+
+            using var process = Process.Start(psi);
+            if (process == null)
+                return null;
+
+            process.WaitForExit();
+            return process.ExitCode;
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write($"[Program] TryRedirectLegacyToolInvocation failed: {ex}");
+            return null;
+        }
+    }
+
     private static int RelaunchDesktopDetached(string[] filteredArgs)
     {
         var processPath = Environment.ProcessPath;
@@ -494,6 +552,8 @@ public class Program
                     .WithDescription("List a promptware's memory files");
                 pw.AddCommand<PromptwareWriteMemoryCommand>("write-memory")
                     .WithDescription("Write a promptware memory file from STDIN");
+                pw.AddCommand<PromptwareDeleteMemoryCommand>("delete-memory")
+                    .WithDescription("Delete a promptware memory file that is no longer true");
                 pw.AddCommand<PromptwareWriteToolCommand>("write-tool")
                     .WithDescription("Write a promptware tool file from STDIN");
             });

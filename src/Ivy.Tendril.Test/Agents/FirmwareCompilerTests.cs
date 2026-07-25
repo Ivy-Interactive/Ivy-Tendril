@@ -138,6 +138,44 @@ public class FirmwareCompilerTests : IDisposable
         Assert.Contains("list-memory Test", result);
     }
 
+    [Fact]
+    public void Compile_ContainsDeleteMemoryInstructions()
+    {
+        var context = new FirmwareContext(
+            "/programs/CreatePlan",
+            new Dictionary<string, string>());
+
+        var result = FirmwareCompiler.Compile(context);
+
+        Assert.Contains("tendril promptware delete-memory CreatePlan <filename>.md", result);
+    }
+
+    [Fact]
+    public void Compile_ListsMemoryFileWithFirstLineDescription()
+    {
+        var memoryDir = Path.Combine(_tempDir, "Memory");
+        Directory.CreateDirectory(memoryDir);
+        File.WriteAllText(Path.Combine(memoryDir, "some-memory.md"), "# Some Heading\n\nBody text.");
+
+        var context = new FirmwareContext(_tempDir, new Dictionary<string, string>());
+        var result = FirmwareCompiler.Compile(context);
+
+        Assert.Contains("some-memory.md", result);
+        Assert.Contains("Some Heading", result);
+    }
+
+    [Fact]
+    public void Compile_EmptyMemoryFolder_RendersEmptyLabel()
+    {
+        var context = new FirmwareContext(
+            "/programs/Test",
+            new Dictionary<string, string>());
+
+        var result = FirmwareCompiler.Compile(context);
+
+        Assert.Contains("(no memory yet)", result);
+    }
+
     // --- Projects Section ---
 
     [Fact]
