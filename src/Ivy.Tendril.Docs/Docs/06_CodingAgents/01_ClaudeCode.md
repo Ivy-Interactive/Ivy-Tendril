@@ -50,7 +50,9 @@ The profile is selected automatically based on the plan's complexity level, or c
 | Claude Fable | `claude-fable-5` | 1M | $10.00 / $50.00 |
 | Claude Opus 5 | `claude-opus-5` | 1M | $5.00 / $25.00 |
 | Claude Opus | `opus` | 1M | $5.00 / $25.00 |
-| Claude Sonnet | `sonnet` | 200k | $3.00 / $15.00 |
+| Claude Sonnet | `sonnet` | 1M | $2.00 / $10.00 |
 | Claude Haiku | `haiku` | 200k | $1.00 / $5.00 |
 
 `opus`, `sonnet`, and `haiku` are Claude Code aliases that track Anthropic's current model for that tier, while `claude-opus-5` and `claude-fable-5` are pinned IDs.
+
+Claude Sonnet's introductory pricing of $2.00 / $10.00 applies through 2026-08-31; standard pricing of $3.00 / $15.00 applies after.

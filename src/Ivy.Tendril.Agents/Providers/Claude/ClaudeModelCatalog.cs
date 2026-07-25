@@ -58,18 +58,19 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
         },
         new()
         {
+            // Introductory pricing ($2 / $10) applies through 2026-08-31; standard pricing is $3 / $15 after.
             Id = "sonnet", DisplayName = "Claude Sonnet",
             Capabilities = MidCaps,
-            ContextWindow = 200_000, MaxOutputTokens = 16_000,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
             Provider = "anthropic",
-            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
-            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
+            InputPerMillion = 2.00m, OutputPerMillion = 10.00m,
+            CacheWritePerMillion = 2.50m, CacheReadPerMillion = 0.20m,
         },
         new()
         {
             Id = "haiku", DisplayName = "Claude Haiku",
             Capabilities = LiteCaps,
-            ContextWindow = 200_000, MaxOutputTokens = 8_192,
+            ContextWindow = 200_000, MaxOutputTokens = 64_000,
             Provider = "anthropic",
             InputPerMillion = 1.00m, OutputPerMillion = 5.00m,
             CacheWritePerMillion = 1.25m, CacheReadPerMillion = 0.10m,
