@@ -460,6 +460,57 @@ public class DatabaseMigratorTests : IDisposable
         Assert.DoesNotContain("Risk", columns);
     }
 
+    [Fact]
+    public void Migration_017_JobsRateLimit_AddsColumnsAndRoundTripsValues()
+    {
+        new Migration_001_InitialSchema().Apply(_connection);
+        new Migration_002_Fts5Search().Apply(_connection);
+        new Migration_003_JobsTable().Apply(_connection);
+        new Migration_004_SourceUrl().Apply(_connection);
+        new Migration_005_CostsLogTimestampIndex().Apply(_connection);
+        new Migration_006_CostsCompositeIndex().Apply(_connection);
+        new Migration_007_FtsSourceUrl().Apply(_connection);
+        new Migration_008_PrStatusTable().Apply(_connection);
+        new Migration_009_JobsArgs().Apply(_connection);
+        new Migration_010_RecommendationImpactRisk().Apply(_connection);
+        new Migration_011_JobsTypedArgs().Apply(_connection);
+        new Migration_012_JobsPlanFileIndex().Apply(_connection);
+        new Migration_013_JobsWorkingDirAndCliCommand().Apply(_connection);
+        new Migration_014_JobsCleared().Apply(_connection);
+        new Migration_015_RenamePlanStates().Apply(_connection);
+        new Migration_016_DropRecommendationRisk().Apply(_connection);
+        new Migration_017_JobsRateLimit().Apply(_connection);
+
+        Assert.Equal(17, GetUserVersion());
+
+        var columns = new List<string>();
+        using var pragmaCmd = _connection.CreateCommand();
+        pragmaCmd.CommandText = "PRAGMA table_info(Jobs);";
+        using (var reader = pragmaCmd.ExecuteReader())
+        {
+            while (reader.Read())
+                columns.Add(reader.GetString(reader.GetOrdinal("name")));
+        }
+
+        Assert.Contains("RateLimitedUntil", columns);
+        Assert.Contains("RateLimitRetries", columns);
+
+        // The cooldown has to survive a restart, so both columns must persist as written.
+        using var insertCmd = _connection.CreateCommand();
+        insertCmd.CommandText = """
+                                INSERT INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, RateLimitedUntil, RateLimitRetries)
+                                VALUES ('job-rl', 'ExecutePlan', 'Plan', 'Proj', 'Blocked', 'claude', '2026-01-01T12:00:00.0000000Z', 2)
+                                """;
+        insertCmd.ExecuteNonQuery();
+
+        using var selectCmd = _connection.CreateCommand();
+        selectCmd.CommandText = "SELECT RateLimitedUntil, RateLimitRetries FROM Jobs WHERE Id = 'job-rl';";
+        using var row = selectCmd.ExecuteReader();
+        Assert.True(row.Read());
+        Assert.Equal("2026-01-01T12:00:00.0000000Z", row.GetString(0));
+        Assert.Equal(2, row.GetInt32(1));
+    }
+
     private class FakeMigration : IMigration
     {
         private readonly List<int>? _tracker;

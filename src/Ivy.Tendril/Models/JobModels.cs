@@ -84,6 +84,20 @@ public record JobItem
     // Soft-cleared from the Jobs app; still shown in plan Details history
     public bool Cleared { get; set; }
 
+    /// <summary>
+    /// UTC instant at which a rate-limit-parked job becomes eligible to run again. Non-null is
+    /// also the marker that distinguishes a rate-limited <see cref="JobStatus.Blocked" /> job from
+    /// a dependency-blocked one: rate-limited jobs are restarted only by the job service's
+    /// cooldown resume pass, never by the dependency re-check.
+    /// </summary>
+    public DateTime? RateLimitedUntil { get; set; }
+
+    /// <summary>
+    /// How many times this work item has already been re-queued because of a provider rate limit.
+    /// Threaded through each restart so the retry cap terminates.
+    /// </summary>
+    public int RateLimitRetries { get; set; }
+
     [JsonIgnore]
     public IEventParser? EventParser { get; set; }
     private IEventSerializer? _eventSerializer;

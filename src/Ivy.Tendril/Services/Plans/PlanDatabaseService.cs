@@ -674,8 +674,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand, Cleared)
-                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand, @cleared)
+                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand, Cleared, RateLimitedUntil, RateLimitRetries)
+                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand, @cleared, @rateLimitedUntil, @rateLimitRetries)
                               """;
             cmd.Parameters.AddWithValue("@id", job.Id);
             cmd.Parameters.AddWithValue("@type", job.Type);
@@ -699,6 +699,9 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.Parameters.AddWithValue("@workingDirectory", (object?)job.WorkingDirectory ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@cliCommand", (object?)job.CliCommand ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@cleared", job.Cleared ? 1 : 0);
+            cmd.Parameters.AddWithValue("@rateLimitedUntil",
+                job.RateLimitedUntil?.ToString("O", CultureInfo.InvariantCulture) ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@rateLimitRetries", job.RateLimitRetries);
             cmd.ExecuteNonQuery();
         }
     }
@@ -774,7 +777,12 @@ public class PlanDatabaseService : IPlanDatabaseService
             CliCommand = reader.IsDBNull(reader.GetOrdinal("CliCommand"))
                 ? null
                 : reader.GetString(reader.GetOrdinal("CliCommand")),
-            Cleared = reader.GetInt32(reader.GetOrdinal("Cleared")) != 0
+            Cleared = reader.GetInt32(reader.GetOrdinal("Cleared")) != 0,
+            RateLimitedUntil = reader.IsDBNull(reader.GetOrdinal("RateLimitedUntil"))
+                ? null
+                : DateTime.Parse(reader.GetString(reader.GetOrdinal("RateLimitedUntil")),
+                    CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+            RateLimitRetries = reader.GetInt32(reader.GetOrdinal("RateLimitRetries"))
         };
     }
 
