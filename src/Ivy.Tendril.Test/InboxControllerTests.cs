@@ -113,6 +113,11 @@ public class InboxControllerTests
         {
         }
 
+        public int StopQueuedJobs()
+        {
+            return 0;
+        }
+
         public List<JobItem> GetJobs()
         {
             return new List<JobItem>();

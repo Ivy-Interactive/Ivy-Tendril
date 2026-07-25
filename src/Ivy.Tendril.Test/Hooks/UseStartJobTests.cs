@@ -127,6 +127,11 @@ public class UseStartJobTests
         {
         }
 
+        public int StopQueuedJobs()
+        {
+            return 0;
+        }
+
         public JobItem? GetJob(string id)
         {
             return null;
