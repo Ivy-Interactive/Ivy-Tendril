@@ -858,6 +858,40 @@ public class PlanDatabaseServiceTests : IDisposable
     }
 
     [Fact]
+    public void GetRecentJobs_IncludesRunningJobDespiteLimit()
+    {
+        // Seed more completed jobs than the default limit (100), all with a CompletedAt
+        // timestamp. A plain "ORDER BY CompletedAt DESC" sorts NULL last in SQLite, so a
+        // running job (CompletedAt IS NULL) would otherwise be the first row LIMIT discards.
+        for (var i = 0; i < 110; i++)
+            _db.UpsertJob(new JobItem
+            {
+                Id = $"completed-{i:D4}",
+                Type = "ExecutePlan",
+                PlanFile = $"plan-{i}",
+                Project = "Tendril",
+                Status = JobStatus.Completed,
+                Provider = "claude",
+                CompletedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(i)
+            });
+
+        _db.UpsertJob(new JobItem
+        {
+            Id = "running-job",
+            Type = "ExecutePlan",
+            PlanFile = "plan-running",
+            Project = "Tendril",
+            Status = JobStatus.Running,
+            Provider = "claude",
+            CompletedAt = null
+        });
+
+        var jobs = _db.GetRecentJobs();
+
+        Assert.Contains(jobs, j => j.Id == "running-job");
+    }
+
+    [Fact]
     public void UpsertJob_UpdatesExistingJob()
     {
         var job = new JobItem
