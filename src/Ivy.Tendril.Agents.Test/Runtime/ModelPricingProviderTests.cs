@@ -14,8 +14,8 @@ public class ModelPricingProviderTests
 
         Assert.NotNull(pricing);
         Assert.Equal("opus", pricing.Model);
-        Assert.Equal(10m, pricing.InputPerMillion);
-        Assert.Equal(50m, pricing.OutputPerMillion);
+        Assert.Equal(5m, pricing.InputPerMillion);
+        Assert.Equal(25m, pricing.OutputPerMillion);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class ModelPricingProviderTests
             inputTokens: 1_000_000,
             outputTokens: 1_000_000);
 
-        Assert.Equal(10m + 50m, cost);
+        Assert.Equal(5m + 25m, cost);
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public class ModelPricingProviderTests
             cacheReadTokens: 1_000_000,
             cacheWriteTokens: 1_000_000);
 
-        Assert.Equal(1.00m + 12.50m, cost);
+        Assert.Equal(0.50m + 6.25m, cost);
     }
 
     [Fact]
@@ -164,8 +164,8 @@ public class ModelPricingProviderTests
     {
         var pricing = _provider.GetPricing("opus")!;
 
-        Assert.Equal(12.50m, pricing.CacheWritePerMillion);
-        Assert.Equal(1.00m, pricing.CacheReadPerMillion);
+        Assert.Equal(6.25m, pricing.CacheWritePerMillion);
+        Assert.Equal(0.50m, pricing.CacheReadPerMillion);
     }
 
     [Fact]
