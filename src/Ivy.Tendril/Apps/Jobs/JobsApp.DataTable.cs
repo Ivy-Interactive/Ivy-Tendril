@@ -46,8 +46,10 @@ public partial class JobsApp
         StackedProgress? jobsProgress,
         IState<bool> confirmDeleteOpen,
         IState<string?> deleteJobId,
+        IState<bool> confirmStopQueuedOpen,
         IState<bool> confirmStopAllOpen)
     {
+        var queuedCount = jobs.Count(j => j.Status == JobStatus.Queued);
         var activeJobCount = jobs.Count(j => j.Status is JobStatus.Running or JobStatus.Queued
                                                       or JobStatus.Pending or JobStatus.Blocked);
 
@@ -289,6 +291,12 @@ public partial class JobsApp
             {
                 var overflowItems = new List<MenuItem>();
 
+                if (queuedCount > 0)
+                {
+                    overflowItems.Add(new MenuItem($"Stop All Queued ({queuedCount})", Icon: Icons.Pause, Tag: "StopAllQueued")
+                        .OnSelect(() => confirmStopQueuedOpen.Set(true)));
+                }
+
                 if (activeJobCount > 0)
                 {
                     overflowItems.Add(new MenuItem($"Stop All ({activeJobCount})", Icon: Icons.Pause, Tag: "StopAll")
@@ -306,7 +314,7 @@ public partial class JobsApp
                     jobService.ClearFailedJobs();
                     refreshToken.Refresh();
                 }));
-                overflowItems.Add(new MenuItem("Clear All", Icon: Icons.Trash, Tag: "ClearAll").OnSelect(() =>
+                overflowItems.Add(new MenuItem("Clear All Finished", Icon: Icons.Trash, Tag: "ClearAll").OnSelect(() =>
                 {
                     jobService.ClearAllJobs();
                     refreshToken.Refresh();
@@ -340,6 +348,22 @@ public partial class JobsApp
             )
         ) : null;
 
+        var confirmStopQueuedDialog = confirmStopQueuedOpen.Value ? new Dialog(
+            _ => confirmStopQueuedOpen.Set(false),
+            new DialogHeader("Stop Queued Jobs"),
+            new DialogBody(Text.P($"Stop all {queuedCount} queued jobs? Running jobs are not affected.")),
+            new DialogFooter(
+                new Button("Cancel").Outline().OnClick(() => confirmStopQueuedOpen.Set(false)),
+                new Button("Stop All").Destructive().ShortcutKey("Enter").AutoFocus().OnClick(() =>
+                {
+                    var count = jobService.StopQueuedJobs();
+                    confirmStopQueuedOpen.Set(false);
+                    client.Toast($"Stopped {count} queued job(s).", "Jobs");
+                    refreshToken.Refresh();
+                })
+            )
+        ) : null;
+
         var stopAllDialog = confirmStopAllOpen.Value ? new Dialog(
             _ => confirmStopAllOpen.Set(false),
             new DialogHeader("Stop All Jobs"),
@@ -356,6 +380,6 @@ public partial class JobsApp
             )
         ) : null;
 
-        return new Fragment(dataTable, confirmDialog, stopAllDialog);
+        return new Fragment(dataTable, confirmDialog, confirmStopQueuedDialog, stopAllDialog);
     }
 }

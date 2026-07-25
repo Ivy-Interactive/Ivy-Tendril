@@ -21,6 +21,9 @@ public interface IJobService : IDisposable
     void ClearCompletedJobs();
     void ClearFailedJobs();
     void ClearAllJobs();
+
+    /// <summary>Stops every Queued job. Returns the number stopped.</summary>
+    int StopQueuedJobs();
     List<JobItem> GetJobs();
     List<JobItem> GetJobsForPlan(string planFile);
     JobItem? GetJob(string id);
