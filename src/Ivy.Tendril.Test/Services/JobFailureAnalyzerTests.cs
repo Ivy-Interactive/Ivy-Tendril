@@ -66,4 +66,35 @@ public class JobFailureAnalyzerTests
         Assert.DoesNotContain("Claude API", reason);
         Assert.Contains("Could not resolve host", reason);
     }
+
+    // A failed result event reporting an exhausted per-day quota is prefixed differently from a
+    // short-term limit, so the message tells the user this is a much longer wait (issue #1756).
+    [Fact]
+    public void FailedResultEvent_DailyTokenQuota_PrefixedAsQuotaExhausted()
+    {
+        var output = new List<string>
+        {
+            """{"kind":"result","response":"API Error: Request rejected (429) - Too many tokens per day, please wait before trying again.","is_success":false,"duration_ms":812}"""
+        };
+
+        var reason = JobFailureAnalyzer.ExtractFailureReason(output, "ExecutePlan");
+
+        Assert.StartsWith("Daily token quota exhausted:", reason);
+        Assert.Contains("Too many tokens per day", reason);
+        Assert.DoesNotContain("is_success", reason);
+    }
+
+    // A short-term limit in the same shape keeps the existing usage-limit wording.
+    [Fact]
+    public void FailedResultEvent_SessionLimit_PrefixedAsUsageLimit()
+    {
+        var output = new List<string>
+        {
+            """{"kind":"result","response":"You have hit your session limit, resets 4pm (Europe/Stockholm)","is_success":false}"""
+        };
+
+        var reason = JobFailureAnalyzer.ExtractFailureReason(output, "ExecutePlan");
+
+        Assert.StartsWith("Claude usage limit reached:", reason);
+    }
 }

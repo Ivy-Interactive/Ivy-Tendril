@@ -22,16 +22,21 @@ public sealed class ClaudeFailureAnalyzer : IFailureAnalyzer
         var stderr = string.Join("\n", context.StderrLines);
         var lastResultResponse = context.Events.OfType<ResultEvent>().LastOrDefault()?.Response ?? "";
 
-        if (ContainsAny(stderr, "rate limit", "429", "too many requests", "session limit", "usage limit")
-            || ContainsAny(lastResultResponse, "rate limit", "session limit", "usage limit"))
+        // Shared with the job scheduler (which parks and auto-retries rate-limited jobs), so the
+        // cooldown it applies always matches the reason reported here.
+        var rateLimitScope = RateLimitClassifier.Classify([stderr, lastResultResponse]);
+        if (rateLimitScope != RateLimitScope.None)
         {
+            var isDailyQuota = rateLimitScope == RateLimitScope.DailyQuota;
             return new FailureAnalysis
             {
                 Kind = FailureKind.RateLimit,
-                Reason = "Rate limited by the API",
+                Reason = isDailyQuota ? "Daily token quota exhausted" : "Rate limited by the API",
                 ContextLines = context.StderrLines,
                 IsRetryable = true,
-                Suggestion = "Wait before retrying or switch to a different model",
+                Suggestion = isDailyQuota
+                    ? "Waiting for the quota window to reset before retrying"
+                    : "Wait before retrying or switch to a different model",
             };
         }
 

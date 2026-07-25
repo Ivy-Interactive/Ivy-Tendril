@@ -194,10 +194,6 @@ internal static class JobFailureAnalyzer
         return null;
     }
 
-    private static readonly Regex UsageLimitPattern = new(
-        @"hit your (?:session|usage) limit|usage limit reached|limit reached",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
     private static string FormatFailedResultMessage(string response)
     {
         var firstLine = response
@@ -209,9 +205,14 @@ internal static class JobFailureAnalyzer
         if (sanitized.Length > 300)
             sanitized = sanitized[..300];
 
-        return UsageLimitPattern.IsMatch(sanitized)
-            ? $"Claude usage limit reached: {sanitized}"
-            : sanitized;
+        // A per-day quota is labelled distinctly from a per-minute burst limit: the two need
+        // very different waits, and the scheduler picks its cooldown off the same classifier.
+        return RateLimitClassifier.Classify(sanitized) switch
+        {
+            RateLimitScope.DailyQuota => $"Daily token quota exhausted: {sanitized}",
+            RateLimitScope.ShortTerm => $"Claude usage limit reached: {sanitized}",
+            _ => sanitized
+        };
     }
 
     internal static string? TryReadFailureArtifact(List<string> outputLines)
