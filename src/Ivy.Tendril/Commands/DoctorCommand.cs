@@ -81,16 +81,17 @@ public static class DoctorCommand
     private static void PrintHeader(string title)
     {
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"[cyan]── {title} ──[/]");
+        var rule = CliOutput.IsPlain ? "--" : "──";
+        AnsiConsole.MarkupLine($"[cyan]{rule} {title} {rule}[/]");
     }
 
     internal static void PrintStatus(string label, string value, DoctorChecks.StatusKind kind)
     {
         var (symbol, color) = kind switch
         {
-            DoctorChecks.StatusKind.Ok => ("✓", "green"),
+            DoctorChecks.StatusKind.Ok => (CliOutput.Glyph(true), "green"),
             DoctorChecks.StatusKind.Warn => ("!", "yellow"),
-            DoctorChecks.StatusKind.Error => ("✗", "red"),
+            DoctorChecks.StatusKind.Error => (CliOutput.Glyph(false), "red"),
             _ => (" ", "grey")
         };
         AnsiConsole.MarkupLine($"[{color}]{symbol} {label.EscapeMarkup().PadRight(40)}{value.EscapeMarkup()}[/]");
