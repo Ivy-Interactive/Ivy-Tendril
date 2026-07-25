@@ -147,6 +147,73 @@ public class JobServiceStartupTests
         }
     }
 
+    [Fact]
+    public void UpdateJobStatus_JobOnlyInDatabase_RehydratesAndSucceeds()
+    {
+        // Simulates a master restart: the job is gone from the in-memory dictionary
+        // (fresh JobService, no StartJob call) but was persisted to the database while running.
+        var db = new FakeDatabaseService
+        {
+            Jobs = { new JobItem { Id = "job-restarted", Status = JobStatus.Running } }
+        };
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), database: db);
+
+        var ok = service.UpdateJobStatus("job-restarted", "Running verifications...", "01234", "My Plan");
+
+        Assert.True(ok);
+        var job = service.GetJobs().Single(j => j.Id == "job-restarted");
+        Assert.Equal("Running verifications...", job.StatusMessage);
+        Assert.Equal("01234", job.ReportedPlanId);
+        Assert.Equal("My Plan", job.ReportedPlanTitle);
+    }
+
+    [Fact]
+    public void ReportJobFailure_JobOnlyInDatabase_RehydratesAndSucceeds()
+    {
+        var db = new FakeDatabaseService
+        {
+            Jobs = { new JobItem { Id = "job-restarted", Status = JobStatus.Running } }
+        };
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), database: db);
+
+        var ok = service.ReportJobFailure("job-restarted", "Worktree creation failed");
+
+        Assert.True(ok);
+        var job = service.GetJobs().Single(j => j.Id == "job-restarted");
+        Assert.Equal("Worktree creation failed", job.ReportedFailureReason);
+    }
+
+    [Fact]
+    public void UpdateJobStatus_UnknownToBothMemoryAndDatabase_ReturnsFalse()
+    {
+        var db = new FakeDatabaseService();
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), database: db);
+
+        Assert.False(service.UpdateJobStatus("nonexistent", "message"));
+    }
+
+    [Fact]
+    public void StartJob_PersistsJobToDatabaseWhileStillRunning()
+    {
+        var db = new FakeDatabaseService();
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), database: db);
+
+        // StartJob persists the job as soon as it is registered in StartJobInternal, not just
+        // on completion, so the row shows up even though the process launch below will fail
+        // in this test environment (no real coding agent available).
+        string id;
+        try
+        {
+            id = service.StartJob(new CreatePlanArgs("Test Job", "Auto"));
+        }
+        catch
+        {
+            id = service.GetJobs().Single().Id;
+        }
+
+        Assert.NotNull(db.GetJobById(id));
+    }
+
     private class FakeConfigService : IConfigService
     {
         public FakeConfigService(string tendrilHome)
@@ -323,6 +390,8 @@ public class JobServiceStartupTests
 
         public void UpsertJob(JobItem job)
         {
+            Jobs.RemoveAll(j => j.Id == job.Id);
+            Jobs.Add(job);
         }
 
         public List<string> PurgeOldJobs(int keepCount = 500)

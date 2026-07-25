@@ -707,7 +707,10 @@ public class PlanDatabaseService : IPlanDatabaseService
     {
         using (new ReadLockHandle(_lock))
         {
-            return ReadList("SELECT * FROM Jobs WHERE Cleared = 0 ORDER BY CompletedAt DESC LIMIT @limit",
+            // CompletedAt IS NULL DESC sorts running jobs (CompletedAt IS NULL) first, so
+            // they aren't the first rows discarded by LIMIT (SQLite otherwise sorts NULL
+            // last in a plain "CompletedAt DESC").
+            return ReadList("SELECT * FROM Jobs WHERE Cleared = 0 ORDER BY CompletedAt IS NULL DESC, CompletedAt DESC LIMIT @limit",
                 MapJobRow,
                 new SqliteParameter("@limit", limit));
         }

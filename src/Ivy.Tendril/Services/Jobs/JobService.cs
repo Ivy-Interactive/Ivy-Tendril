@@ -553,7 +553,7 @@ public class JobService : IJobService
 
     public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null)
     {
-        if (!_jobs.TryGetValue(id, out var job))
+        if (!TryGetOrRehydrateJob(id, out var job))
             return false;
 
         job.StatusMessage = message;
@@ -562,20 +562,42 @@ public class JobService : IJobService
         if (!string.IsNullOrEmpty(planTitle))
             job.ReportedPlanTitle = planTitle;
 
+        PersistJob(job);
         RaiseJobsPropertyChanged();
         return true;
     }
 
     public bool ReportJobFailure(string id, string message)
     {
-        if (!_jobs.TryGetValue(id, out var job))
+        if (!TryGetOrRehydrateJob(id, out var job))
             return false;
 
         // Record the reason only; the job process is still running and the terminal
         // state transition still happens later in CompleteJob/SetCompletionStatus.
         job.ReportedFailureReason = message;
 
+        PersistJob(job);
         RaiseJobsPropertyChanged();
+        return true;
+    }
+
+    /// <summary>
+    ///     Looks up a job in memory, falling back to the database if the master process
+    ///     restarted since the job started (in-memory <see cref="_jobs"/> is empty on
+    ///     restart, but the job is persisted via <see cref="PersistJob"/> as soon as it
+    ///     starts). Rehydrated jobs are re-added to <see cref="_jobs"/> so subsequent
+    ///     lookups don't need to hit the database again.
+    /// </summary>
+    private bool TryGetOrRehydrateJob(string id, out JobItem job)
+    {
+        if (_jobs.TryGetValue(id, out job!))
+            return true;
+
+        var dbJob = _database?.GetJobById(id);
+        if (dbJob == null)
+            return false;
+
+        job = _jobs.GetOrAdd(id, dbJob);
         return true;
     }
 
@@ -729,6 +751,11 @@ public class JobService : IJobService
             return id;
 
         _jobs[id] = job;
+
+        // Persist immediately so a status report or a UI refresh can find this job even if
+        // the master process restarts while it's still running (only PersistJob was previously
+        // called on completion, so an in-flight job existed only in memory).
+        PersistJob(job);
 
         if (TryBlockForDependencies(job, skipDependencyCheck))
             return id;
