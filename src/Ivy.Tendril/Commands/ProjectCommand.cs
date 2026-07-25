@@ -26,7 +26,10 @@ public class ProjectAddSettings : CommandSettings
 
     public override Spectre.Console.ValidationResult Validate()
     {
-        return CliValidation.RequireNonEmpty(Name, "name");
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(Name, "name"),
+            CliValidation.ValidateProjectName(Name)
+        );
     }
 }
 
@@ -74,7 +77,10 @@ public class ProjectSetSettings : CommandSettings
     {
         return CliValidation.Combine(
             CliValidation.RequireNonEmpty(Name, "name"),
-            CliValidation.ValidateField(Field, ValidFields)
+            CliValidation.ValidateField(Field, ValidFields),
+            string.Equals(Field, "name", StringComparison.OrdinalIgnoreCase)
+                ? CliValidation.ValidateProjectName(Value)
+                : Spectre.Console.ValidationResult.Success()
         );
     }
 }
@@ -425,6 +431,9 @@ public class ProjectSetCommand : Command<ProjectSetSettings>
         switch (settings.Field.ToLower())
         {
             case "name":
+                var nameError = InputSanitizer.DescribeProjectNameError(settings.Value);
+                if (nameError != null)
+                    throw new InvalidOperationException(nameError);
                 match.Name = settings.Value;
                 break;
             case "color":
