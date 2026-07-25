@@ -127,6 +127,18 @@ public class FirmwareCompilerTests : IDisposable
     }
 
     [Fact]
+    public void Compile_IncludesListMemoryHintWithPromptwareName()
+    {
+        var context = new FirmwareContext(
+            "/programs/Test",
+            new Dictionary<string, string>());
+
+        var result = FirmwareCompiler.Compile(context);
+
+        Assert.Contains("list-memory Test", result);
+    }
+
+    [Fact]
     public void Compile_ContainsDeleteMemoryInstructions()
     {
         var context = new FirmwareContext(
