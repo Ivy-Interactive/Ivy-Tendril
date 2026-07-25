@@ -54,7 +54,19 @@ public class ProjectAgentStepView(
 
             try
             {
-                var name = InputSanitizer.SanitizeProjectName(projectName.Value);
+                var nameError = InputSanitizer.DescribeProjectNameError(projectName.Value);
+                if (nameError != null)
+                {
+                    await progressCts.CancelAsync();
+                    progressValue.Set(null);
+                    progressMessage.Set(null);
+                    error.Set(nameError);
+                    isCloning.Set(false);
+                    isStepLoading.Set(false);
+                    return;
+                }
+
+                var name = projectName.Value;
                 var existingProject = config.Settings.Projects
                     .FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
