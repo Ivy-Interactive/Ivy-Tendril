@@ -91,10 +91,47 @@ public class Program
 
         bool isDetachedChild = args.Contains(DetachedLaunchMarker);
 
+        var invocationKind = CliDispatcher.Classify(filteredArgs);
+
+        if (invocationKind == CliInvocationKind.Help)
+        {
+            var helpApp = ConfigureCliCommands(new ServiceCollection());
+            try
+            {
+                return helpApp.Run(filteredArgs.Length == 0 ? new[] { "--help" } : filteredArgs);
+            }
+            catch (CommandParseException)
+            {
+                // First token wasn't a registered command (e.g. "add project --help") but a
+                // help token is present somewhere in the args — fall back to top-level help
+                // rather than letting Spectre's parse failure escape as an "unknown command" error.
+                return helpApp.Run(new[] { "--help" });
+            }
+        }
+
+        if (invocationKind == CliInvocationKind.Unknown)
+        {
+            AnsiConsole.MarkupLine($"[red]Unknown command '{filteredArgs[0].EscapeMarkup()}'.[/] Run [green]tendril --help[/] to see available commands.");
+            ConfigureCliCommands(new ServiceCollection()).Run(new[] { "--help" });
+            return 1;
+        }
+
+        if (invocationKind == CliInvocationKind.LegacyCliCommand)
+        {
+            var hashExitCode = HashPasswordCommand.Handle(filteredArgs);
+            if (hashExitCode >= 0)
+                return hashExitCode;
+
+            var mcpExitCode = McpCommand.Handle(filteredArgs);
+            if (mcpExitCode >= 0)
+                return mcpExitCode;
+        }
+
         // Check if we are launching the web server/desktop UI (not executing a CLI subcommand)
-        bool isServerLaunch = filteredArgs.Length == 0 || !ShouldHandleAsCliCommand(filteredArgs[0]);
+        bool isServerLaunch = invocationKind == CliInvocationKind.ServerLaunch;
         if (isServerLaunch && !isDetachedChild)
         {
+            CrashLog.Write($"[{DateTime.UtcNow:O}] Server launch (kind={invocationKind}) | raw args: {string.Join(" ", Environment.GetCommandLineArgs())}");
             var checkArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
             var checkServer = TendrilServer.Create(filteredArgs, checkArgs);
             if (useDesktop)
@@ -130,7 +167,7 @@ public class Program
         }
 
         // Handle CLI commands using Spectre.Console.Cli
-        if (filteredArgs.Length > 0)
+        if (invocationKind == CliInvocationKind.CliCommand || invocationKind == CliInvocationKind.Version)
         {
             var cliServices = new ServiceCollection();
             var cliLogLevel = verbose ? LogLevel.Debug : quiet ? LogLevel.Warning : LogLevel.Information;
@@ -151,56 +188,43 @@ public class Program
             cliServices.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
 
             var app = ConfigureCliCommands(cliServices);
-            var firstArg = filteredArgs[0];
 
             // Handle --version flag by converting it to "version" command
-            if (firstArg == "--version")
+            if (invocationKind == CliInvocationKind.Version)
                 filteredArgs = new[] { "version" };
 
-            if (ShouldHandleAsCliCommand(firstArg))
+            try
             {
-                try
+                var cliLog = Environment.GetEnvironmentVariable("TENDRIL_CLI_LOG");
+                if (!string.IsNullOrEmpty(cliLog))
                 {
-                    var cliLog = Environment.GetEnvironmentVariable("TENDRIL_CLI_LOG");
-                    if (!string.IsNullOrEmpty(cliLog))
-                    {
-                        var commandLine = string.Join(" ", filteredArgs);
-                        var sw = Stopwatch.StartNew();
-                        var exitCode = app.Run(filteredArgs);
-                        sw.Stop();
-                        CliInvocationLog.Append(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
-                        return exitCode;
-                    }
-                    return app.Run(filteredArgs);
+                    var commandLine = string.Join(" ", filteredArgs);
+                    var sw = Stopwatch.StartNew();
+                    var exitCode = app.Run(filteredArgs);
+                    sw.Stop();
+                    CliInvocationLog.Append(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
+                    return exitCode;
                 }
-                catch (CommandParseException ex)
-                {
-                    AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
-                    return 1;
-                }
-                catch (CommandRuntimeException ex)
-                {
-                    AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
-                    return 1;
-                }
-                catch (Exception ex)
-                {
-                    Console.Error.WriteLine($"Error: {ex.Message}");
-                    if (verbose)
-                        Console.Error.WriteLine(ex.ToString());
-                    return 1;
-                }
+                return app.Run(filteredArgs);
+            }
+            catch (CommandParseException ex)
+            {
+                AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
+                return 1;
+            }
+            catch (CommandRuntimeException ex)
+            {
+                AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
+                return 1;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error: {ex.Message}");
+                if (verbose)
+                    Console.Error.WriteLine(ex.ToString());
+                return 1;
             }
         }
-
-        // Legacy handlers for commands not yet migrated to Spectre.Console.Cli
-        var hashExitCode = HashPasswordCommand.Handle(filteredArgs);
-        if (hashExitCode >= 0)
-            return hashExitCode;
-
-        var mcpExitCode = McpCommand.Handle(filteredArgs);
-        if (mcpExitCode >= 0)
-            return mcpExitCode;
 
         CrashLog.Write($"[{DateTime.UtcNow:O}] Tendril starting (PID {Environment.ProcessId}) | {GetMemoryStats()}");
 
@@ -342,19 +366,6 @@ public class Program
         return (verbose, quiet, forceDesktop, forceWeb, beta, filtered);
     }
 
-    private static bool ShouldHandleAsCliCommand(string firstArg)
-    {
-        string[] cliCommands = new[]
-        {
-            "doctor", "db-version", "db-migrate", "db-reset",
-            "update-promptwares", "job", "plan", "promptware",
-            "trash", "verification", "project", "project-analyzer", "models", "config",
-            "version", "--version", "report-bug", "reset", "update",
-            "--help", "-h", "run", "generate-certs"
-        };
-        return cliCommands.Contains(firstArg);
-    }
-
     private static bool IsPackagedApp()
     {
         return Velopack.Locators.VelopackLocator.Current?.CurrentlyInstalledVersion != null;
@@ -445,13 +456,15 @@ public class Program
         }
     }
 
-    private static CommandApp ConfigureCliCommands(ServiceCollection cliServices)
+    internal static CommandApp ConfigureCliCommands(ServiceCollection cliServices, IAnsiConsole? console = null)
     {
         var registrar = new TypeRegistrar(cliServices);
         var app = new CommandApp(registrar);
         app.Configure(config =>
         {
             config.PropagateExceptions();
+            if (console != null)
+                config.Settings.Console = console;
 
             // Doctor command
             config.AddCommand<DoctorCliCommand>("doctor")
@@ -756,11 +769,19 @@ public class Program
             window.ClearBadge();
     }
 
-    private static bool IsPortInUse(int port)
+    internal static bool IsPortInUse(int port)
+    {
+        // Kestrel can bind the IPv6 loopback only, leaving the IPv4 probe below to report
+        // "free" even though the port is taken — so a bind failure on either family counts.
+        return IsPortBoundOn(System.Net.IPAddress.Loopback, port)
+            || IsPortBoundOn(System.Net.IPAddress.IPv6Loopback, port);
+    }
+
+    private static bool IsPortBoundOn(System.Net.IPAddress address, int port)
     {
         try
         {
-            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, port);
+            var listener = new System.Net.Sockets.TcpListener(address, port);
             listener.Start();
             listener.Stop();
             return false;
