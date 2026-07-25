@@ -108,24 +108,18 @@ public class ReportBugCommand : Command<ReportBugSettings>
 
     private static void DisplayFileList(List<BugReportService.BugReportFile> files)
     {
-        var table = new Spectre.Console.Table();
-        table.AddColumn("File");
-        table.AddColumn(new Spectre.Console.TableColumn("Size").RightAligned());
-
         long totalSize = 0;
+        var rows = new List<IReadOnlyList<string>>();
         foreach (var file in files)
         {
             var size = file.Content?.Length ?? new FileInfo(file.AbsolutePath).Length;
             totalSize += size;
-            table.AddRow(
-                file.ZipEntryPath.EscapeMarkup(),
-                FormatSize(size));
+            rows.Add(new[] { file.ZipEntryPath, FormatSize(size) });
         }
 
-        table.AddEmptyRow();
-        table.AddRow("[bold]Total[/]", $"[bold]{FormatSize(totalSize)}[/]");
+        rows.Add(new[] { "Total", FormatSize(totalSize) });
 
-        AnsiConsole.Write(table);
+        CliOutput.WriteTable(["File", "Size"], rows);
     }
 
     private static string FormatSize(long bytes)

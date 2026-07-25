@@ -322,42 +322,36 @@ public class ProjectGetCommand : Command<ProjectGetSettings>
         if (project.Repos.Count > 0)
         {
             AnsiConsole.MarkupLine("\n[bold]Repositories[/]");
-            var repoTable = new Spectre.Console.Table();
-            repoTable.AddColumn("Path");
-            repoTable.AddColumn("PR Rule");
-            repoTable.AddColumn("Base Branch");
-            foreach (var r in project.Repos)
-                repoTable.AddRow(
-                    r.Path.EscapeMarkup(),
-                    r.PrRule.EscapeMarkup(),
-                    (r.BaseBranch ?? "-").EscapeMarkup());
-            AnsiConsole.Write(repoTable);
+            var repoRows = project.Repos.Select(r => (IReadOnlyList<string>)new[]
+            {
+                r.Path,
+                r.PrRule,
+                r.BaseBranch ?? "-"
+            });
+            CliOutput.WriteTable(["Path", "PR Rule", "Base Branch"], repoRows);
         }
 
         if (project.Verifications.Count > 0)
         {
             AnsiConsole.MarkupLine("\n[bold]Verifications[/]");
-            var verTable = new Spectre.Console.Table();
-            verTable.AddColumn("Name");
-            verTable.AddColumn("Required");
-            foreach (var v in project.Verifications)
-                verTable.AddRow(v.Name.EscapeMarkup(), v.Required ? "Yes" : "No");
-            AnsiConsole.Write(verTable);
+            var verRows = project.Verifications.Select(v => (IReadOnlyList<string>)new[]
+            {
+                v.Name,
+                v.Required ? "Yes" : "No"
+            });
+            CliOutput.WriteTable(["Name", "Required"], verRows);
         }
 
         if (project.ReviewActions.Count > 0)
         {
             AnsiConsole.MarkupLine("\n[bold]Review Actions[/]");
-            var raTable = new Spectre.Console.Table();
-            raTable.AddColumn("Name");
-            raTable.AddColumn("Command");
-            raTable.AddColumn("Condition");
-            foreach (var ra in project.ReviewActions)
-                raTable.AddRow(
-                    ra.Name.EscapeMarkup(),
-                    ra.Command.EscapeMarkup(),
-                    ra.Condition.EscapeMarkup());
-            AnsiConsole.Write(raTable);
+            var raRows = project.ReviewActions.Select(ra => (IReadOnlyList<string>)new[]
+            {
+                ra.Name,
+                ra.Command,
+                ra.Condition
+            });
+            CliOutput.WriteTable(["Name", "Command", "Condition"], raRows);
         }
 
         if (project.BuildDependencies.Count > 0)
