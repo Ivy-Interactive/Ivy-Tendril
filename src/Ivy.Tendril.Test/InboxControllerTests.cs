@@ -97,6 +97,8 @@ public class InboxControllerTests
         {
         }
 
+        public int StopAllJobs() => 0;
+
         public void DeleteJob(string id)
         {
         }

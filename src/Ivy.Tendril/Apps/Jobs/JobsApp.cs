@@ -21,6 +21,7 @@ public partial class JobsApp : ViewBase
         var openFile = UseState<string?>(null);
         var confirmDeleteOpen = UseState(false);
         var deleteJobId = UseState<string?>(null);
+        var confirmStopAllOpen = UseState(false);
 
         var (planSheet, showPlan) = UseTrigger<string>((isOpen, planPath) =>
         {
@@ -89,7 +90,7 @@ public partial class JobsApp : ViewBase
 
         var dataTable = JobsApp.BuildDataTable(nav, rows, refreshToken, updateStream, config, planService,
             jobService, client, showPlan, showOutput, showPrompt, showDebug, showRerun, jobs, projectColors, jobsProgress,
-            confirmDeleteOpen, deleteJobId);
+            confirmDeleteOpen, deleteJobId, confirmStopAllOpen);
 
         var layout = Layout.Vertical().Height(Size.Full());
 
