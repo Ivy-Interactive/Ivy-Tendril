@@ -197,7 +197,10 @@ public class JobServiceFailureReasonTests : IDisposable
         // Regression: a pre-set StatusMessage that happens to contain the phrase "exit code"
         // must not be mistaken for the generic fallback and replaced by the agent-level analyzer,
         // even when the analyzer would otherwise recognize the stderr content (e.g. rate limit).
-        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), agentRunner: TestAgentRunner.Create());
+        // rateLimitMaxRetries: 0 so the rate-limit stderr does not park the job (that behavior has
+        // its own coverage in JobServiceRateLimitTests).
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            agentRunner: TestAgentRunner.Create(), rateLimitMaxRetries: 0);
         var planFolder = CreateValidPlanFolder();
         // CreateTestJob, not StartJob: this ctor has no IConfigService, so a real launch would fail the
         // job before CompleteJob ever ran ("No agent program found").
@@ -332,7 +335,10 @@ public class JobServiceFailureReasonTests : IDisposable
         // Even though the text-based scan can already extract a specific stderr line here (so it
         // wouldn't hit the generic fallback), the provider-specific analyzer understands what that
         // line actually means (a retryable rate limit) and should still be consulted first.
-        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), agentRunner: TestAgentRunner.Create());
+        // rateLimitMaxRetries: 0 keeps this test about the analyzer text beating the raw stderr scan:
+        // with auto-retry enabled the job is parked as Blocked instead (JobServiceRateLimitTests).
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            agentRunner: TestAgentRunner.Create(), rateLimitMaxRetries: 0);
         var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
         var job = service.GetJob(id)!;
         job.OutputLines.Enqueue("[stderr] rate limit exceeded");
@@ -379,7 +385,10 @@ public class JobServiceFailureReasonTests : IDisposable
     {
         // Regression for CreatePlan job 00292, which failed with the raw serialized
         // ResultEvent JSON blob shown as the job's failure reason instead of Claude's message.
-        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+        // rateLimitMaxRetries: 0 keeps this test about the message: with auto-retry enabled a
+        // session limit parks the job as Blocked instead (JobServiceRateLimitTests).
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            rateLimitMaxRetries: 0);
         var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
         var job = service.GetJob(id)!;
         job.OutputLines.Enqueue(
@@ -396,7 +405,9 @@ public class JobServiceFailureReasonTests : IDisposable
     [Fact]
     public void CompleteJob_ZeroExitCode_FailedSessionLimitResult_MarksFailedWithCleanMessage()
     {
-        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+        // See above: auto-retry is disabled so the assertion stays on the cleaned-up message.
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            rateLimitMaxRetries: 0);
         var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
         var job = service.GetJob(id)!;
         job.OutputLines.Enqueue(

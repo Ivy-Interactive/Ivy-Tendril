@@ -31,6 +31,15 @@ public class JobService : IJobService
     private readonly JobCompletionHandler _completionHandler;
     private readonly IAgentRunner? _agentRunner;
     private Timer? _blockedJobCheckTimer;
+
+    // While set (and in the future), the whole queue is held back: the provider rate limited us and
+    // feeding it more jobs would just burn the same exhausted quota, ~3 minutes per job (issue #1756).
+    // Read and written under _queueLock.
+    private DateTime? _rateLimitPausedUntil;
+    private TimeSpan _rateLimitCooldown;
+    private TimeSpan _rateLimitDailyCooldown;
+    private int _rateLimitMaxRetries;
+
     public JobService(
         IConfigService configService,
         ILogger<JobService>? logger = null,
@@ -53,6 +62,9 @@ public class JobService : IJobService
         _jobTimeout = TimeSpan.FromMinutes(configService.Settings.JobTimeout);
         _staleOutputTimeout = TimeSpan.FromMinutes(configService.Settings.StaleOutputTimeout);
         _maxConcurrentJobs = configService.Settings.MaxConcurrentJobs;
+        _rateLimitCooldown = TimeSpan.FromMinutes(configService.Settings.RateLimitCooldown);
+        _rateLimitDailyCooldown = TimeSpan.FromMinutes(configService.Settings.RateLimitDailyCooldown);
+        _rateLimitMaxRetries = configService.Settings.RateLimitMaxRetries;
         _jobSlotSemaphore = _maxConcurrentJobs > 0
             ? new SemaphoreSlim(_maxConcurrentJobs, _maxConcurrentJobs)
             : new SemaphoreSlim(0, 1);
@@ -77,13 +89,19 @@ public class JobService : IJobService
         ITelemetryService? telemetryService = null,
         IPlanDatabaseService? database = null,
         ILogger<JobService>? logger = null,
-        IAgentRunner? agentRunner = null)
+        IAgentRunner? agentRunner = null,
+        TimeSpan? rateLimitCooldown = null,
+        TimeSpan? rateLimitDailyCooldown = null,
+        int rateLimitMaxRetries = 3)
     {
         _syncContext = SynchronizationContext.Current;
         _logger = logger ?? NullLogger<JobService>.Instance;
         _jobTimeout = jobTimeout;
         _staleOutputTimeout = staleOutputTimeout;
         _maxConcurrentJobs = maxConcurrentJobs;
+        _rateLimitCooldown = rateLimitCooldown ?? TimeSpan.FromMinutes(5);
+        _rateLimitDailyCooldown = rateLimitDailyCooldown ?? TimeSpan.FromMinutes(60);
+        _rateLimitMaxRetries = rateLimitMaxRetries;
         _jobSlotSemaphore = maxConcurrentJobs > 0
             ? new SemaphoreSlim(maxConcurrentJobs, maxConcurrentJobs)
             : new SemaphoreSlim(0, 1);
@@ -136,8 +154,15 @@ public class JobService : IJobService
         // the completion summary, permission denials and hook output. Those must reach the eventwire file,
         // so its appender stays open until DisposeResources below.
         job.CloseRawLog();
-        _completionHandler.HandleCompletion(
-            job, _jobs, PersistJob, RaiseNotification, RaiseJobsPropertyChanged, StartJobSkipDepCheck);
+
+        // A provider rate limit is not this job's fault and not terminal: park it as Blocked and
+        // pause the queue instead of running the full completion path, which would revert the plan
+        // to Draft and leave the user to re-execute it by hand.
+        if (job.Status == JobStatus.Failed && TryDeferForRateLimit(job))
+            HandleRateLimitDeferral(job);
+        else
+            _completionHandler.HandleCompletion(
+                job, _jobs, PersistJob, RaiseNotification, RaiseJobsPropertyChanged, StartJobSkipDepCheck);
 
         if (job.Status == JobStatus.Completed)
             job.StatusMessage = null;
@@ -218,6 +243,143 @@ public class JobService : IJobService
         job.CompletedAt = DateTime.UtcNow;
         if (job.StartedAt.HasValue)
             job.DurationSeconds = (int)(job.CompletedAt.Value - job.StartedAt.Value).TotalSeconds;
+    }
+
+    /// <summary>
+    ///     Decides whether a failed job was rejected by the provider for a rate limit or an
+    ///     exhausted quota and, if so, parks it as <see cref="JobStatus.Blocked" /> with a
+    ///     cooldown and pauses the whole queue for that long. Returns false (leaving the job
+    ///     Failed) when the failure is unrelated, auto-retry is disabled, or this work item has
+    ///     already used up its rate-limit retries.
+    /// </summary>
+    private bool TryDeferForRateLimit(JobItem job)
+    {
+        if (_rateLimitMaxRetries <= 0) return false;
+
+        // The analyzer-derived StatusMessage covers the common case; the output tail catches
+        // limits the agent only reported in its event stream.
+        var candidates = new List<string>();
+        if (!string.IsNullOrWhiteSpace(job.StatusMessage))
+            candidates.Add(job.StatusMessage);
+        candidates.AddRange(job.OutputLines.TakeLast(50));
+
+        var scope = RateLimitClassifier.Classify(candidates);
+        if (scope == RateLimitScope.None) return false;
+
+        if (job.RateLimitRetries >= _rateLimitMaxRetries)
+        {
+            job.StatusMessage =
+                $"{job.StatusMessage} (gave up after {job.RateLimitRetries} rate-limit retries)".TrimStart();
+            return false;
+        }
+
+        var isDailyQuota = scope == RateLimitScope.DailyQuota;
+        var reason = string.IsNullOrWhiteSpace(job.StatusMessage)
+            ? isDailyQuota ? "Daily token quota exhausted" : "Rate limited by the provider"
+            : job.StatusMessage!;
+
+        var until = DateTime.UtcNow + (isDailyQuota ? _rateLimitDailyCooldown : _rateLimitCooldown);
+        job.Status = JobStatus.Blocked;
+        job.RateLimitedUntil = until;
+        job.StatusMessage =
+            $"{reason} - auto-retry after {until.ToLocalTime():HH:mm} " +
+            $"(attempt {job.RateLimitRetries + 1}/{_rateLimitMaxRetries})";
+
+        lock (_queueLock)
+        {
+            var basis = _rateLimitPausedUntil ?? DateTime.UtcNow;
+            _rateLimitPausedUntil = basis > until ? basis : until;
+        }
+
+        _logger.LogWarning(
+            "Job {JobId}: provider rate limited ({Scope}), parked until {Until:O}", job.Id, scope, until);
+        return true;
+    }
+
+    /// <summary>
+    ///     Completion handling for a job parked by <see cref="TryDeferForRateLimit" />. Deliberately
+    ///     narrower than <see cref="JobCompletionHandler.HandleCompletion" />: no after-hooks, no
+    ///     artifact sync, no plan-state advancement and no inbox cleanup, because the job has not
+    ///     finished, it is going to run again once the cooldown expires.
+    /// </summary>
+    private void HandleRateLimitDeferral(JobItem job)
+    {
+        // Keeps the plan out of Draft, so it is not hand-restarted into the same exhausted quota.
+        ResetPlanStateToBlocked(job);
+        _completionHandler.WriteJobLog(job);
+        _telemetryService?.TrackJobCompleted(job.Type, job.Status, job.DurationSeconds, job.Provider);
+        RaiseNotification(new JobNotification(
+            $"{job.Type} Rate Limited", $"{job.PlanFile}: {job.StatusMessage}", false));
+    }
+
+    /// <summary>
+    ///     Restarts every job whose rate-limit cooldown has elapsed, oldest first, threading the
+    ///     retry count through so the cap terminates. Rate-limited jobs are owned exclusively by
+    ///     this pass; <see cref="Plans.DependencyChecker.RetryBlockedJobs" /> skips them.
+    /// </summary>
+    private void ResumeRateLimitedJobs()
+    {
+        var now = DateTime.UtcNow;
+        var due = _jobs.Values
+            .Where(j => j.Status == JobStatus.Blocked && j.RateLimitedUntil <= now && j.TypedArgs != null)
+            .OrderBy(j => j.CompletedAt ?? j.StartedAt ?? DateTime.MaxValue)
+            .ToList();
+
+        foreach (var job in due)
+        {
+            var planFolder = job.TypedArgs!.PlanFolder;
+            if (!string.IsNullOrEmpty(planFolder) && HasActiveJobForPlan(planFolder)) continue;
+            if (!_jobs.TryRemove(job.Id, out _)) continue;
+
+            // InboxFile is passed through so CreatePlan inbox cleanup still finds its file.
+            StartJobInternal(job.TypedArgs, job.InboxFile, rateLimitRetries: job.RateLimitRetries + 1);
+
+            RaiseNotification(new JobNotification(
+                $"{job.Type} Retrying",
+                $"{job.PlanFile}: rate-limit cooldown elapsed, auto-restarting",
+                true));
+        }
+    }
+
+    private bool HasActiveJobForPlan(string planFolder)
+        => _jobs.Values.Any(j =>
+            j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
+            !string.IsNullOrEmpty(j.TypedArgs?.PlanFolder) &&
+            j.TypedArgs!.PlanFolder!.Equals(planFolder, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    ///     True while the queue is held back by a provider rate limit. Queued jobs stay Queued and
+    ///     are drained by the blocked-job timer once the cooldown expires.
+    /// </summary>
+    private bool IsRateLimitPaused(out DateTime pausedUntil)
+    {
+        lock (_queueLock)
+        {
+            if (_rateLimitPausedUntil is { } until && until > DateTime.UtcNow)
+            {
+                pausedUntil = until;
+                return true;
+            }
+        }
+        pausedUntil = default;
+        return false;
+    }
+
+    private static string FormatRateLimitPausedMessage(DateTime pausedUntil)
+        => $"Paused: provider rate limited until {pausedUntil.ToLocalTime():HH:mm}";
+
+    private void MarkQueuedJobsPaused(DateTime pausedUntil)
+    {
+        var message = FormatRateLimitPausedMessage(pausedUntil);
+        var changed = false;
+        foreach (var job in _jobs.Values.Where(j => j.Status == JobStatus.Queued))
+        {
+            if (job.StatusMessage == message) continue;
+            job.StatusMessage = message;
+            changed = true;
+        }
+        if (changed)
+            RaiseJobsPropertyChanged();
     }
 
     public void StopJob(string id)
@@ -368,6 +530,26 @@ public class JobService : IJobService
 
     private void OnBlockedJobCheckTimer(object? state)
     {
+        try
+        {
+            bool cooldownElapsed;
+            lock (_queueLock)
+            {
+                cooldownElapsed = _rateLimitPausedUntil is { } until && until <= DateTime.UtcNow;
+                if (cooldownElapsed) _rateLimitPausedUntil = null;
+            }
+
+            if (cooldownElapsed)
+            {
+                ResumeRateLimitedJobs();
+                ProcessJobQueue();
+            }
+        }
+        catch
+        {
+            // Best-effort — don't crash on timer callback
+        }
+
         try
         {
             var hasBlocked = _jobs.Values.Any(j => j.Status == JobStatus.Blocked);
@@ -565,6 +747,15 @@ public class JobService : IJobService
         {
             var historicalJobs = _database.GetRecentJobs();
             foreach (var job in historicalJobs) _jobs.TryAdd(job.Id, job);
+
+            // Re-arm the queue pause from any job parked mid-cooldown, so restarting the app does
+            // not immediately re-burn the quota. Already-expired values are resumed by the first
+            // blocked-job timer tick.
+            var latestCooldown = _jobs.Values
+                .Where(j => j.Status == JobStatus.Blocked && j.RateLimitedUntil.HasValue)
+                .Max(j => j.RateLimitedUntil);
+            if (latestCooldown.HasValue)
+                lock (_queueLock) { _rateLimitPausedUntil = latestCooldown; }
         }
         catch
         {
@@ -654,12 +845,16 @@ public class JobService : IJobService
 
         if (!_jobs.TryRemove(id, out _)) return;
 
-        // Plan transition is handled centrally by StartJobInternal.
-        StartJobInternal(typedArgs, inboxFilePath: null, skipDependencyCheck: true, skipWaitForCheck: true);
+        // Plan transition is handled centrally by StartJobInternal. Force Start is also the manual
+        // override for a rate-limit cooldown: it bypasses the pause for this one job and leaves the
+        // pause itself in place for everything else.
+        StartJobInternal(typedArgs, inboxFilePath: null, skipDependencyCheck: true, skipWaitForCheck: true,
+            bypassRateLimitPause: true);
         RaiseJobsStructureChanged();
     }
 
-    private string StartJobInternal(JobArgsBase args, string? inboxFilePath, bool skipDependencyCheck = false, bool skipWaitForCheck = false)
+    private string StartJobInternal(JobArgsBase args, string? inboxFilePath, bool skipDependencyCheck = false,
+        bool skipWaitForCheck = false, bool bypassRateLimitPause = false, int rateLimitRetries = 0)
     {
         if (args is SyncRepoArgs syncRepoArgs)
         {
@@ -671,7 +866,7 @@ public class JobService : IJobService
         var id = _configService != null
             ? JobIdAllocator.AllocateJobId(_configService.TendrilHome)
             : Guid.NewGuid().ToString("N")[..5];
-        var job = BuildJobItem(id, args, inboxFilePath);
+        var job = BuildJobItem(id, args, inboxFilePath, rateLimitRetries);
 
         if (TryRejectConflictingJob(job))
             return id;
@@ -691,6 +886,17 @@ public class JobService : IJobService
         // place (only once the job is actually starting, not while blocked) so
         // Stop/Delete/Failed can revert the plan to where it came from.
         CaptureAndTransitionPlanStateForStart(job);
+
+        // Pressing Execute during a cooldown queues the job instead of burning another few minutes
+        // against the exhausted quota. Force Start is the deliberate override.
+        if (!bypassRateLimitPause && IsRateLimitPaused(out var pausedUntil))
+        {
+            job.Status = JobStatus.Queued;
+            job.StatusMessage = FormatRateLimitPausedMessage(pausedUntil);
+            lock (_queueLock) { _jobQueue.Enqueue(id, -job.Priority); }
+            RaiseJobsStructureChanged();
+            return id;
+        }
 
         if (!_jobSlotSemaphore.Wait(0))
         {
@@ -743,7 +949,7 @@ public class JobService : IJobService
         _planReaderService.TransitionState(folderName, target.Value);
     }
 
-    private JobItem BuildJobItem(string id, JobArgsBase args, string? inboxFilePath)
+    private JobItem BuildJobItem(string id, JobArgsBase args, string? inboxFilePath, int rateLimitRetries = 0)
     {
         var (planFile, project, priority) = ExtractJobMetadata(args);
 
@@ -757,7 +963,8 @@ public class JobService : IJobService
             TypedArgs = args,
             Provider = _configService?.Settings.CodingAgent ?? "claude",
             Priority = priority,
-            WaitForJobIds = args.WaitForJobs
+            WaitForJobIds = args.WaitForJobs,
+            RateLimitRetries = rateLimitRetries
         };
 
         if (args is CreatePlanArgs)
@@ -972,6 +1179,9 @@ public class JobService : IJobService
         if (_configService == null) return;
         _jobTimeout = TimeSpan.FromMinutes(_configService.Settings.JobTimeout);
         _staleOutputTimeout = TimeSpan.FromMinutes(_configService.Settings.StaleOutputTimeout);
+        _rateLimitCooldown = TimeSpan.FromMinutes(_configService.Settings.RateLimitCooldown);
+        _rateLimitDailyCooldown = TimeSpan.FromMinutes(_configService.Settings.RateLimitDailyCooldown);
+        _rateLimitMaxRetries = _configService.Settings.RateLimitMaxRetries;
 
         var newMaxConcurrent = _configService.Settings.MaxConcurrentJobs;
         if (newMaxConcurrent != _maxConcurrentJobs)
@@ -1016,6 +1226,15 @@ public class JobService : IJobService
 
     private void ProcessJobQueue()
     {
+        // While the provider has rate limited us, dequeuing the next job just burns the same
+        // exhausted quota. Jobs stay Queued and the blocked-job timer drains them after the
+        // cooldown; the message explains the stall in the UI.
+        if (IsRateLimitPaused(out var pausedUntil))
+        {
+            MarkQueuedJobsPaused(pausedUntil);
+            return;
+        }
+
         while (true)
         {
             if (!_jobSlotSemaphore.Wait(0))

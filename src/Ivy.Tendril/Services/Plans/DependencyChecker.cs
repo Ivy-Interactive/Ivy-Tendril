@@ -100,6 +100,11 @@ internal class DependencyChecker
             var planFolder = blockedJob.TypedArgs?.PlanFolder ?? "";
             if (string.IsNullOrEmpty(planFolder)) continue;
 
+            // A job parked for a provider rate limit is Blocked with its plan dependencies already
+            // satisfied, so without this guard it would be restarted the instant it was parked.
+            // Those jobs are owned by JobService.ResumeRateLimitedJobs, which waits out the cooldown.
+            if (blockedJob.RateLimitedUntil != null) continue;
+
             // A job blocked on sibling jobs (WaitForJobs) is retried by
             // JobCompletionHandler.HandleWaitForJobsDependents when those jobs finish — not here.
             // Restarting it while its WaitForJobs are still pending would immediately re-block it,
