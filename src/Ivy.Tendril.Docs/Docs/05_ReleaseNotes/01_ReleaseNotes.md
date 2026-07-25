@@ -14,6 +14,39 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.1.16 (2026-07-24)
+
+### Features
+
+- **Ivy Agent Integration** — Introduced integration for the new standalone Ivy Agent. Added a one-click installer in the settings UI to download `ivy-agent-cli` from Azure CDN, configuration options for custom Ivy Proxy URLs, and beta warning callouts. The integration is currently gated behind the `TENDRIL_BETA` or `IVY_BETA` environment flags.
+- **Compact Badge Selectors** — Replaced full-width project and priority select fields in the Create Plan dialog with compact, modern badge buttons (`BadgeSelect` widget) to save screen space, supporting horizontal scrolling for lists of project badges.
+
+### Improvements
+
+- **Cloudflare Tunnel DNS Diagnostics** — Surfaces detailed `cloudflared` startup and connection errors in the UI with troubleshooting advice (such as checking DNS resolvers) when tunnels fail to connect.
+- **Settings View Cleanup** — Refactored settings inputs to use native C# `.Description(...)` builder properties instead of custom layout elements, maintaining design system consistency.
+
+### Bug Fixes
+
+- **Add Project Dialog Layering** — Fixed the "New Project" button in the Create Plan dialog which previously closed the sheet and navigated away. It now opens the Add Project dialog directly on top of the Create Plan screen to keep the user in context.
+- **Tunnel URL Parsing** — Fixed a parser bug where the cloudflared tunnel URL failed to extract correctly by ignoring references to `api.trycloudflare.com`.
+
+## 1.1.14 (2026-07-21)
+
+### Features
+
+- **Third Party Notices** — Added `THIRD_PARTY_NOTICES.md` to document bundled third-party dependency licenses.
+
+### Improvements
+
+- **ContentInput Optimistic State** — Implemented optimistic local text state updates in the `ContentInput` widget. When the input field is focused, incoming property updates are deferred to prevent clobbering the user's active typing.
+
+### Bug Fixes
+
+- **Cloudflared Installer** — Resolved a setup crash in the automatic `cloudflared` binary installer and downloader.
+- **Codex Failure Analysis** — Fixed an issue with the Codex coding agent integration, improving model catalog validation and failure parsing.
+- **Tunnel Configuration Typos** — Resolved string and layout typos in the Tunnel Setup Settings screen.
+
 ## 1.1.12 (2026-07-03)
 
 ### Improvements
