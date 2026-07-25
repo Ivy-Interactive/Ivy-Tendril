@@ -20,6 +20,7 @@ public class JobService : IJobService
     private TimeSpan _jobTimeout;
     private readonly ConcurrentDictionary<string, JobItem> _jobs = new();
     private int _maxConcurrentJobs;
+    private int _structureChangedSuppressed;
     private readonly ModelPricingService? _modelPricingService;
     private readonly IPlanReaderService? _planReaderService;
     private readonly IPlanWatcherService? _planWatcherService;
@@ -465,6 +466,26 @@ public class JobService : IJobService
     public void ClearAllJobs()
         => ClearJobsByStatus(j => j.Status is not JobStatus.Running and not JobStatus.Queued);
 
+    public int StopQueuedJobs()
+    {
+        var ids = _jobs.Values.Where(j => j.Status == JobStatus.Queued).Select(j => j.Id).ToList();
+        if (ids.Count == 0) return 0;
+
+        Interlocked.Increment(ref _structureChangedSuppressed);
+        try
+        {
+            foreach (var id in ids)
+                StopJob(id);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _structureChangedSuppressed);
+        }
+
+        RaiseJobsStructureChanged();
+        return ids.Count;
+    }
+
     private void ClearJobsByStatus(Func<JobItem, bool> predicate)
     {
         var ids = _jobs.Values.Where(predicate).Select(j => j.Id).ToList();
@@ -595,6 +616,7 @@ public class JobService : IJobService
 
     private void RaiseJobsStructureChanged()
     {
+        if (Volatile.Read(ref _structureChangedSuppressed) > 0) return;
         if (_syncContext != null)
             _syncContext.Post(_ =>
             {
