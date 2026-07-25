@@ -166,6 +166,15 @@ public class TendrilSettings
     public int GitTimeout { get; set; } = 10;
     public int MaxConcurrentJobs { get; set; } = 5;
 
+    /// <summary>Minutes the job queue stays paused after a short-term provider rate limit.</summary>
+    public int RateLimitCooldown { get; set; } = 5;
+
+    /// <summary>Minutes the job queue stays paused after a daily token quota is exhausted.</summary>
+    public int RateLimitDailyCooldown { get; set; } = 60;
+
+    /// <summary>Automatic retries per job for provider rate limits. 0 disables auto-retry.</summary>
+    public int RateLimitMaxRetries { get; set; } = 3;
+
     public List<ProjectConfig> Projects { get; set; } = new();
     public List<VerificationConfig> Verifications { get; set; } = new();
     public string PlanTemplate { get; set; } = "";
@@ -459,6 +468,30 @@ public class ConfigService : IConfigService, IDisposable
             _logger.LogWarning("MaxConcurrentJobs {Value} is out of bounds (1-100). Using default 5.",
                 Settings.MaxConcurrentJobs);
             Settings.MaxConcurrentJobs = 5;
+        }
+
+        // RateLimitCooldown: 1-1440 minutes (24 hours max)
+        if (Settings.RateLimitCooldown < 1 || Settings.RateLimitCooldown > 1440)
+        {
+            _logger.LogWarning("RateLimitCooldown {Value} is out of bounds (1-1440 minutes). Using default 5.",
+                Settings.RateLimitCooldown);
+            Settings.RateLimitCooldown = 5;
+        }
+
+        // RateLimitDailyCooldown: 1-1440 minutes (24 hours max)
+        if (Settings.RateLimitDailyCooldown < 1 || Settings.RateLimitDailyCooldown > 1440)
+        {
+            _logger.LogWarning("RateLimitDailyCooldown {Value} is out of bounds (1-1440 minutes). Using default 60.",
+                Settings.RateLimitDailyCooldown);
+            Settings.RateLimitDailyCooldown = 60;
+        }
+
+        // RateLimitMaxRetries: 0-10 (0 disables auto-retry)
+        if (Settings.RateLimitMaxRetries < 0 || Settings.RateLimitMaxRetries > 10)
+        {
+            _logger.LogWarning("RateLimitMaxRetries {Value} is out of bounds (0-10). Using default 3.",
+                Settings.RateLimitMaxRetries);
+            Settings.RateLimitMaxRetries = 3;
         }
     }
 
