@@ -10,6 +10,9 @@ namespace Ivy.Tendril.Services.Git;
 
 public class GithubService(IConfigService config, ILogger<GithubService> logger) : IGithubService
 {
+    public const int DefaultIssueLimit = 1000;
+    public const int MaxIssueLimit = 1000;
+
     // ConcurrentDictionary required: multiple UseQuery calls from different views/dialogs
     // can fetch different repos simultaneously, causing concurrent writes to different keys.
     private readonly ConcurrentDictionary<string, List<string>> _assigneeCache = new();
@@ -61,14 +64,7 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
     {
         try
         {
-            var args =
-                $"issue list --repo {request.Owner}/{request.Repo} --state open --limit 100 --json number,title,body,labels,assignees";
-            if (!string.IsNullOrWhiteSpace(request.Query))
-                args += $" --search \"{request.Query}\"";
-            if (!string.IsNullOrWhiteSpace(request.Assignee))
-                args += $" --assignee {request.Assignee}";
-            if (request.Labels is { Length: > 0 })
-                args += $" --label \"{string.Join(",", request.Labels)}\"";
+            var args = BuildIssueListArgs(request);
 
             var psi = new ProcessStartInfo("gh", args)
             {
@@ -110,6 +106,20 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
             _logger.LogWarning(ex, "Failed to search issues for {Owner}/{Repo}", request.Owner, request.Repo);
             return ([], $"Failed to fetch issues: {ex.Message}");
         }
+    }
+
+    internal static string BuildIssueListArgs(IssueSearchRequest request)
+    {
+        var limit = request.Limit <= 0 ? DefaultIssueLimit : Math.Min(request.Limit, MaxIssueLimit);
+        var args =
+            $"issue list --repo {request.Owner}/{request.Repo} --state open --limit {limit} --json number,title,body,labels,assignees";
+        if (!string.IsNullOrWhiteSpace(request.Query))
+            args += $" --search \"{request.Query}\"";
+        if (!string.IsNullOrWhiteSpace(request.Assignee))
+            args += $" --assignee {request.Assignee}";
+        if (request.Labels is { Length: > 0 })
+            args += $" --label \"{string.Join(",", request.Labels)}\"";
+        return args;
     }
 
     internal static List<GitHubIssue> ParseIssuesFromJson(string json)
@@ -342,8 +352,9 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
     private async Task<(List<string> labels, string? error)> FetchLabelsFromGhCliAsync(string owner, string repo)
     {
         var (labels, error) = await ExecuteGhCliAsync(
-            $"api repos/{owner}/{repo}/labels --jq \".[].name\"",
+            $"api repos/{owner}/{repo}/labels --paginate --jq \".[].name\"",
             output => output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            .Distinct()
                             .OrderBy(x => x)
                             .ToList(),
             new List<string>());
@@ -370,8 +381,9 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
     private async Task<(List<string> assignees, string? error)> FetchAssigneesFromGhCliAsync(string owner, string repo)
     {
         var (assignees, error) = await ExecuteGhCliAsync(
-            $"api repos/{owner}/{repo}/assignees --jq \".[].login\"",
+            $"api repos/{owner}/{repo}/assignees --paginate --jq \".[].login\"",
             output => output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            .Distinct()
                             .OrderBy(x => x)
                             .ToList(),
             new List<string>());
@@ -388,4 +400,5 @@ public record IssueSearchRequest(
     string Repo,
     string? Query = null,
     string? Assignee = null,
-    string[]? Labels = null);
+    string[]? Labels = null,
+    int Limit = GithubService.DefaultIssueLimit);

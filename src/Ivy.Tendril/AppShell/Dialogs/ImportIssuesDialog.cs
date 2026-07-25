@@ -25,6 +25,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
         var fetchedIssueGroups = UseState<IReadOnlyList<FetchedIssueGroup>?>(null);
         var selectedIssueNumbers = UseState<HashSet<int>>([]);
         var errorMessage = UseState<string?>(null);
+        var resultsTruncated = UseState(false);
         var isFetching = UseState(false);
         var isImporting = UseState(false);
         var assigneesError = UseState<string?>(null);
@@ -81,6 +82,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
             fetchedIssueGroups.Set(null);
             selectedIssueNumbers.Set([]);
             errorMessage.Set(null);
+            resultsTruncated.Set(false);
             selectedAssignees.Set(Array.Empty<string>());
             selectedLabels.Set(Array.Empty<string>());
             assigneesError.Set(null);
@@ -150,6 +152,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
 
             isFetching.Set(true);
             errorMessage.Set(null);
+            resultsTruncated.Set(false);
             fetchedIssueGroups.Set(null);
             selectedIssueNumbers.Set([]);
             try
@@ -190,6 +193,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                 }
 
                 fetchedIssueGroups.Set(groups);
+                resultsTruncated.Set(groups.Any(g => g.Issues.Count >= GithubService.MaxIssueLimit));
                 var allIssueNumbers = groups
                     .SelectMany(g => g.Issues)
                     .Select(i => i.Number)
@@ -362,6 +366,9 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                     .OnClick(async () => await FetchIssues())
                 | (errorMessage.Value is { } error
                     ? Text.Danger(error).Small()
+                    : null)
+                | (resultsTruncated.Value
+                    ? Text.Muted($"Showing the first {GithubService.MaxIssueLimit} issues. Narrow the search, labels, or assignees to see the rest.").Small()
                     : null)
                 | issuesPanel
             ),
