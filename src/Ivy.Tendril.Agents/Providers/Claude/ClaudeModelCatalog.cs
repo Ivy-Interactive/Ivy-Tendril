@@ -40,12 +40,21 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
         },
         new()
         {
+            Id = "claude-opus-5", DisplayName = "Claude Opus 5",
+            Capabilities = FullCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
+            Provider = "anthropic",
+            InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
+            CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
+        },
+        new()
+        {
             Id = "opus", DisplayName = "Claude Opus",
             Capabilities = FullCaps,
-            ContextWindow = 200_000, MaxOutputTokens = 32_000,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
             Provider = "anthropic", IsDefault = true,
-            InputPerMillion = 10.00m, OutputPerMillion = 50.00m,
-            CacheWritePerMillion = 12.50m, CacheReadPerMillion = 1.00m,
+            InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
+            CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
         },
         new()
         {
