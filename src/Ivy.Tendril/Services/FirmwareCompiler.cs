@@ -46,6 +46,8 @@ public static class FirmwareCompiler
         tendril promptware read-memory {PROMPTWARE_NAME} <filename>.md
         ```
 
+        A `[[name]]` cross-reference inside a memory means the file `name.md`. If a read fails, the memory was likely pruned: run `tendril promptware list-memory {PROMPTWARE_NAME}` for the current list instead of guessing filenames.
+
         Complete your task and present the user with a summary.
 
         ## Reflection
@@ -66,8 +68,18 @@ public static class FirmwareCompiler
         '@ | tendril promptware write-memory {PROMPTWARE_NAME} <filename>.md
         ```
 
-        - Note that learnings might be falsified over time. Pruning memory is just as important as storing new memory.
-        - Many sessions don't have any new learnings. Only store memory when you need it.
+        To delete a memory file that is no longer true:
+        ```bash
+        tendril promptware delete-memory {PROMPTWARE_NAME} <filename>.md
+        ```
+
+        **Memory hygiene (do this before writing any new memory):**
+        - Read the listed memories that overlap what you touched this session. A memory you did not verify is a memory you cannot trust.
+        - If this session proved a memory wrong (a command it calls broken now works, a workaround it prescribes is no longer needed, a path or flag it names no longer exists), delete it with `delete-memory`. Do not keep it for history.
+        - Never write a memory saying that something is fixed or works now. Such a memory is only meaningful against the memory that said it was broken, so delete that one instead of adding a second file.
+        - If a memory is only partly stale, rewrite the whole file with `write-memory` under the same filename (it overwrites) instead of adding a near duplicate.
+        - Learnings get falsified over time. Pruning memory is as important as storing it.
+        - Many sessions have no new learnings. Only store memory when you need it.
         """;
 
     public static string Compile(FirmwareContext context)
@@ -82,7 +94,7 @@ public static class FirmwareCompiler
             .Select(kv => $"{kv.Key}: {NormalizeHeaderValue(kv.Key, kv.Value)}"));
 
         var toolsListing = ListDirectoryFiles(Path.Combine(context.ProgramFolder, "Tools"), "(no tools yet)");
-        var memoryListing = ListDirectoryFiles(Path.Combine(context.ProgramFolder, "Memory"), "(no memory yet)");
+        var memoryListing = ListMemoryFiles(Path.Combine(context.ProgramFolder, "Memory"));
 
         var promptwareName = Path.GetFileName(context.ProgramFolder);
 
@@ -199,6 +211,45 @@ public static class FirmwareCompiler
             .ToList();
 
         return files.Count == 0 ? emptyLabel : string.Join(", ", files);
+    }
+
+    private static string ListMemoryFiles(string directory, string emptyLabel = "(no memory yet)")
+    {
+        if (!Directory.Exists(directory))
+            return emptyLabel;
+
+        var files = Directory.GetFiles(directory)
+            .Select(Path.GetFileName)
+            .Where(f => f != null && !f.StartsWith('.'))
+            .OrderBy(f => f)
+            .ToList();
+
+        if (files.Count == 0)
+            return emptyLabel;
+
+        var lines = files.Select(f => $"- {f} - {DescribeMemoryFile(Path.Combine(directory, f!))}");
+        return "\n" + string.Join("\n", lines);
+    }
+
+    private static string DescribeMemoryFile(string filePath)
+    {
+        var filename = Path.GetFileName(filePath);
+
+        try
+        {
+            var firstLine = File.ReadLines(filePath)
+                .Select(l => l.TrimStart('#', ' ').Trim())
+                .FirstOrDefault(l => !string.IsNullOrWhiteSpace(l));
+
+            if (string.IsNullOrWhiteSpace(firstLine))
+                return filename;
+
+            return firstLine.Length > 100 ? firstLine[..100] : firstLine;
+        }
+        catch (IOException)
+        {
+            return filename;
+        }
     }
 }
 

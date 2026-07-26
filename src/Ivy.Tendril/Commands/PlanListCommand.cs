@@ -100,20 +100,15 @@ public class PlanListCommand : Command<PlanListSettings>
                     AnsiConsole.MarkupLine("[dim]No plans found.[/]");
                     return 0;
                 }
-                var table = new Spectre.Console.Table();
-                table.AddColumn("Id");
-                table.AddColumn("Title");
-                table.AddColumn("State");
-                table.AddColumn("Project");
-                table.AddColumn("Level");
-                foreach (var r in results)
-                    table.AddRow(
-                        r.Id.EscapeMarkup(),
-                        Truncate(r.Title, 40).EscapeMarkup(),
-                        r.State.EscapeMarkup(),
-                        r.Project.EscapeMarkup(),
-                        r.Level.EscapeMarkup());
-                AnsiConsole.Write(table);
+                var rows = results.Select(r => (IReadOnlyList<string>)new[]
+                {
+                    r.Id,
+                    Truncate(r.Title, 40),
+                    r.State,
+                    r.Project,
+                    r.Level
+                });
+                CliOutput.WriteTable(["Id", "Title", "State", "Project", "Level"], rows);
                 break;
         }
 

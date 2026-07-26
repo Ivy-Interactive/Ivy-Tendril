@@ -43,3 +43,16 @@ Tendril maps effort levels to OpenCode models:
 OpenCode supports multiple backend providers (Anthropic, OpenAI, Google, etc.) and manages model selection internally. Use `tendril models` to see discovered models.
 
 The profile is selected automatically based on the plan's complexity level, or can be configured per promptware in `config.yaml`.
+
+## Local Ollama Setup
+
+When running OpenCode with local Ollama models, you can configure a custom server URL in **Settings > Coding Agent** under **Ollama Host / Base URL**. Alternatively, specify the server URL directly in `config.yaml`:
+
+```yaml
+codingAgents:
+- name: opencode
+  environmentVariables:
+    OLLAMA_HOST: "http://localhost:11434"
+    OLLAMA_BASE_URL: "http://localhost:11434"
+```
+
