@@ -13,7 +13,7 @@ public class TunnelSetupView : ViewBase
         var tunnelService = UseService<ICloudflaredService>();
         var copyToClipboard = UseClipboard();
 
-        var error = UseState<string?>(null);
+        var error = UseState<string?>(tunnelService.ErrorMessage);
         var status = UseState(tunnelService.Status);
         var tunnelUrl = UseState<string?>(tunnelService.TunnelUrl);
         var (alertView, showAlert) = UseAlert();
@@ -24,12 +24,14 @@ public class TunnelSetupView : ViewBase
             {
                 status.Set(newStatus);
                 tunnelUrl.Set(tunnelService.TunnelUrl);
+                error.Set(tunnelService.ErrorMessage);
             }
 
             tunnelService.StatusChanged += OnStatusChanged;
 
             status.Set(tunnelService.Status);
             tunnelUrl.Set(tunnelService.TunnelUrl);
+            error.Set(tunnelService.ErrorMessage);
 
             return Disposable.Create(() => tunnelService.StatusChanged -= OnStatusChanged);
         });
@@ -102,7 +104,7 @@ public class TunnelSetupView : ViewBase
                         if (!installed)
                         {
                             status.Set(TunnelStatus.Disabled);
-                            showAlert("Cloudflared is not installed. Would you like to download and install it?", async result =>
+                            showAlert("Cloudflare is not installed. Would you like to download and install it?", async result =>
                             {
                                 if (result == AlertResult.Ok)
                                 {
@@ -114,7 +116,7 @@ public class TunnelSetupView : ViewBase
                                     }
                                     catch (Exception ex)
                                     {
-                                        error.Set($"Failed to install cloudflared: {ex.Message}");
+                                        error.Set($"Failed to install Cloudflare: {ex.Message}");
                                         status.Set(TunnelStatus.Disabled);
                                     }
                                 }

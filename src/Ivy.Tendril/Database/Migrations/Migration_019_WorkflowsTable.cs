@@ -3,31 +3,31 @@ using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Database.Migrations;
 
-public class Migration_017_ConnectionsTable : IMigration
+public class Migration_019_WorkflowsTable : IMigration
 {
-    public int Version => 17;
-    public string Description => "Create Connections table to store external integrations";
+    public int Version => 19;
+    public string Description => "Create Workflows table to store custom automations";
 
     public void Apply(SqliteConnection connection, ILogger? logger = null)
     {
         using var cmd = connection.CreateCommand();
         cmd.CommandText = """
-            CREATE TABLE Connections (
+            CREATE TABLE Workflows (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 Name TEXT NOT NULL UNIQUE,
-                Provider TEXT NOT NULL,
-                ConnectionString TEXT NOT NULL,
-                Permissions TEXT NOT NULL,
+                Description TEXT,
+                Definition TEXT NOT NULL,
+                IsActive INTEGER NOT NULL DEFAULT 1,
                 Created TEXT NOT NULL,
                 Updated TEXT NOT NULL
             );
 
-            CREATE INDEX idx_connections_name ON Connections(Name);
+            CREATE INDEX idx_workflows_name ON Workflows(Name);
             """;
         cmd.ExecuteNonQuery();
 
         using var setVersionCmd = connection.CreateCommand();
-        setVersionCmd.CommandText = "PRAGMA user_version = 17;";
+        setVersionCmd.CommandText = "PRAGMA user_version = 19;";
         setVersionCmd.ExecuteNonQuery();
     }
 }

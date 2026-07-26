@@ -47,6 +47,7 @@ public sealed class AgentValidator
             AgentId.Claude => "claude",
             AgentId.Copilot => Providers.Copilot.CopilotBinaryResolver.Resolve().FileName,
             AgentId.OpenCode => Providers.OpenCode.OpenCodeBinaryResolver.Resolve(),
+            AgentId.Ivy => Providers.Ivy.IvyBinaryResolver.Resolve(),
             _ => cli.Id
         };
         if (!BinaryResolver.IsInstalled(binaryName))

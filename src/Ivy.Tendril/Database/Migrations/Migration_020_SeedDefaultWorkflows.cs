@@ -4,9 +4,9 @@ using System;
 
 namespace Ivy.Tendril.Database.Migrations;
 
-public class Migration_019_SeedDefaultWorkflows : IMigration
+public class Migration_020_SeedDefaultWorkflows : IMigration
 {
-    public int Version => 19;
+    public int Version => 20;
     public string Description => "Seed default Code Quality and Code Security workflows";
 
     public void Apply(SqliteConnection connection, ILogger? logger = null)
@@ -39,7 +39,7 @@ public class Migration_019_SeedDefaultWorkflows : IMigration
         cmd.ExecuteNonQuery();
 
         using var setVersionCmd = connection.CreateCommand();
-        setVersionCmd.CommandText = "PRAGMA user_version = 19;";
+        setVersionCmd.CommandText = "PRAGMA user_version = 20;";
         setVersionCmd.ExecuteNonQuery();
     }
 }

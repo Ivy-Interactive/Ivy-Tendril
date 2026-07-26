@@ -26,6 +26,8 @@ public partial class JobsApp : ViewBase
         var deleteJobId = UseState<string?>(null);
         var selectedStatus = UseState("All");
         var selectedType = UseState("All");
+        var confirmStopQueuedOpen = UseState(false);
+        var confirmStopAllOpen = UseState(false);
 
         var (planSheet, showPlan) = UseTrigger<string>((isOpen, planPath) =>
         {
@@ -126,7 +128,7 @@ public partial class JobsApp : ViewBase
 
         var dataTable = JobsApp.BuildDataTable(nav, rows, refreshToken, updateStream, config, planService,
             jobService, client, showPlan, showOutput, showPrompt, showDebug, showRerun, jobs, projectColors, jobsProgress,
-            confirmDeleteOpen, deleteJobId, typeFilter, statusFilter);
+            confirmDeleteOpen, deleteJobId, typeFilter, statusFilter, confirmStopQueuedOpen, confirmStopAllOpen);
 
         var layout = Layout.Vertical().Height(Size.Full());
 

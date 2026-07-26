@@ -45,7 +45,7 @@ public class PromptwareRunSettings : CommandSettings
     public string? ConfigPath { get; init; }
 
     [CommandOption("--agent")]
-    [Description("Override agent provider (claude, antigravity, codex, copilot, opencode)")]
+    [Description("Override agent provider (claude, antigravity, codex, copilot, opencode, ivy)")]
     public string? Agent { get; init; }
 
     [CommandOption("--cli-log")]

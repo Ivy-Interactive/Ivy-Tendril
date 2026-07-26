@@ -84,6 +84,8 @@ public class WorkflowTriggerServiceTests
         public void ForceStartJob(string id) { }
         public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
         public void StopJob(string id) { }
+        public int StopQueuedJobs() => 0;
+        public int StopAllJobs() => 0;
         public void DeleteJob(string id) { }
         public void ClearCompletedJobs() { }
         public void ClearFailedJobs() { }

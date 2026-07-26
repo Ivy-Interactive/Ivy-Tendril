@@ -79,9 +79,9 @@
 /* Main Input Card */
 .civ-input-card {
   background: var(--civ-bg);
-  border: 1px solid var(--civ-border);
+  border: none;
   border-radius: var(--radius-fields);
-  padding: 12px;
+  padding: 0 8px;
   box-shadow: var(--civ-card-shadow);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -363,7 +363,7 @@
 .civ-submit-btn.civ-submit-btn-labeled:hover:not(:disabled) {
   background: var(--civ-primary);
   opacity: 0.9;
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .civ-submit-text {

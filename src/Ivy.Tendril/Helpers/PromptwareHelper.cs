@@ -400,4 +400,24 @@ public static class PromptwareHelper
                Environment.CommandLine.Contains("xunit", StringComparison.OrdinalIgnoreCase) ||
                AppDomain.CurrentDomain.GetAssemblies().Any(a => a.FullName?.Contains("xunit", StringComparison.OrdinalIgnoreCase) == true || a.FullName?.Contains("Microsoft.TestPlatform", StringComparison.OrdinalIgnoreCase) == true);
     }
+
+    public static void RequireProgramFolder(string programFolder, string promptwareName, string? tendrilHome)
+    {
+        if (File.Exists(Path.Combine(programFolder, "Program.md")))
+            return;
+
+        var promptsRoot = ResolvePromptsRoot(tendrilHome);
+        var available = Directory.Exists(promptsRoot)
+            ? string.Join(", ", Directory.EnumerateDirectories(promptsRoot)
+                .Where(d => File.Exists(Path.Combine(d, "Program.md")))
+                .Select(Path.GetFileName)
+                .OrderBy(n => n, StringComparer.Ordinal))
+            : "";
+        if (string.IsNullOrEmpty(available))
+            available = "(none)";
+
+        throw new FileNotFoundException(
+            $"Promptware not found: {promptwareName}. Available promptwares: {available}",
+            programFolder);
+    }
 }

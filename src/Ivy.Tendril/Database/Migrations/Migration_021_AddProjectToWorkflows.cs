@@ -3,9 +3,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Database.Migrations;
 
-public class Migration_020_AddProjectToWorkflows : IMigration
+public class Migration_021_AddProjectToWorkflows : IMigration
 {
-    public int Version => 20;
+    public int Version => 21;
     public string Description => "Add Project column to Workflows table and make Name unique per Project";
 
     public void Apply(SqliteConnection connection, ILogger? logger = null)
@@ -41,7 +41,7 @@ public class Migration_020_AddProjectToWorkflows : IMigration
         cmd.ExecuteNonQuery();
 
         using var setVersionCmd = connection.CreateCommand();
-        setVersionCmd.CommandText = "PRAGMA user_version = 20;";
+        setVersionCmd.CommandText = "PRAGMA user_version = 21;";
         setVersionCmd.ExecuteNonQuery();
     }
 }

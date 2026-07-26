@@ -44,4 +44,25 @@ describe("ContentInput", () => {
     expect(shortcut).toBeTruthy();
     expect(shortcut?.textContent).toContain("↵");
   });
+
+  it("does not overwrite the input text with incoming value prop while focused", () => {
+    const { rerender } = render(<ContentInput id="civ-1" value="initial" autoFocus={true} />);
+    const textarea = screen.getByPlaceholderText("How can I help you today?") as HTMLTextAreaElement;
+    
+    // Simulate user typing (which updates local state)
+    fireEvent.change(textarea, { target: { value: "initial typed" } });
+    
+    // Simulate backend sending updated value (which includes typed text or whatever)
+    rerender(<ContentInput id="civ-1" value="initial" autoFocus={true} />);
+    expect(textarea.value).toBe("initial typed");
+  });
+
+  it("overwrites the input text with incoming value prop when not focused", () => {
+    const { rerender } = render(<ContentInput id="civ-1" value="initial" autoFocus={false} />);
+    const textarea = screen.getByPlaceholderText("How can I help you today?") as HTMLTextAreaElement;
+    
+    // Simulate backend sending updated value
+    rerender(<ContentInput id="civ-1" value="updated" autoFocus={false} />);
+    expect(textarea.value).toBe("updated");
+  });
 });

@@ -31,6 +31,7 @@ public static class AgentBranding
             AgentId.Gemini => Icons.Gemini,
             AgentId.Antigravity => Icons.Antigravity,
             AgentId.OpenCode => Icons.OpenCode,
+            AgentId.Ivy => Icons.IvyCorner,
             _ => DefaultIcon,
         };
     }

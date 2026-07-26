@@ -31,8 +31,12 @@ public class ConnectionTests : IDisposable
     public void Dispose()
     {
         _db.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         if (Directory.Exists(_testHome))
-            Directory.Delete(_testHome, true);
+        {
+            try { Directory.Delete(_testHome, true); }
+            catch { }
+        }
     }
 
     [Fact]
@@ -260,8 +264,12 @@ public class ConnectionTests : IDisposable
         }
         finally
         {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
             if (Directory.Exists(tempHome))
-                Directory.Delete(tempHome, true);
+            {
+                try { Directory.Delete(tempHome, true); }
+                catch { }
+            }
         }
     }
 

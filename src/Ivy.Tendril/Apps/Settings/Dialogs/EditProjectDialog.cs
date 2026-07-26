@@ -139,12 +139,14 @@ public class EditProjectDialog(
 
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         var hasInvalidRepos = RepoPathValidator.HasInvalidLocalRepos(editRepos.Value, tendrilHome);
+        var nameError = InputSanitizer.DescribeProjectNameError(editName.Value);
 
         var saveButton = new Button(isNew ? "Add" : "Save").Primary()
-            .Disabled(hasInvalidRepos)
+            .Disabled(hasInvalidRepos || nameError != null)
             .OnClick(async () =>
             {
                 if (string.IsNullOrWhiteSpace(editName.Value)) return;
+                if (nameError != null) return;
 
                 // Perform base branch validation
                 foreach (var repo in editRepos.Value)
@@ -210,7 +212,7 @@ public class EditProjectDialog(
                     new Tab("Basic",
                         Layout.Vertical().Gap(4)
                         | Text.Block("Configure the project's name, color, and AI context.").Muted()
-                        | editName.ToTextInput("Project name...").WithField().Label("Name")
+                        | editName.ToTextInput("Project name...").Invalid(nameError).WithField().Label("Name")
                         | editColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker).Nullable().WithField().Label("Color")
                         | editContext.ToTextareaInput("Project context or prompt for AI agents (optional)...").Rows(4)
                             .WithField().Label("Context / Prompt (Optional)")

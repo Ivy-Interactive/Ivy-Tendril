@@ -32,10 +32,12 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         _logger = logger;
     }
 
+    private string? _errorMessage;
     public string? TunnelUrl => _currentSession?.TunnelUrl;
     public TunnelStatus Status => _status;
     public bool IsConnected => _status == TunnelStatus.Connected;
     public bool IsInstalled => _isInstalled;
+    public string? ErrorMessage => _errorMessage;
 
     public event Action<TunnelStatus>? StatusChanged;
 
@@ -112,6 +114,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         _config.Settings.Tunnel.Enabled = false;
         _config.SaveSettings();
 
+        _errorMessage = null;
         SetStatus(TunnelStatus.Disabled);
     }
 
@@ -120,6 +123,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         _cts?.Cancel();
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
+        _errorMessage = null;
         SetStatus(TunnelStatus.Connecting);
         _supervisorTask = Task.Run(() => SupervisorLoopAsync(_cts.Token));
     }
@@ -250,7 +254,13 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
             catch (Exception ex)
             {
                 consecutiveFailures++;
+                _errorMessage = $"Tunnel startup failed: {ex.Message}";
+                if (ex is TimeoutException || ex.Message.Contains("api.trycloudflare.com") || ex.Message.Contains("deadline exceeded") || ex.Message.Contains("Timeout") || ex.Message.Contains("within"))
+                {
+                    _errorMessage += ". This usually indicates that your ISP or network is blocking 'trycloudflare.com'. Try changing your DNS resolver (e.g. to 1.1.1.1 or 8.8.8.8) or using a VPN.";
+                }
                 SetStatus(TunnelStatus.Connecting);
+                StatusChanged?.Invoke(TunnelStatus.Connecting);
                 _logger.LogWarning(ex, "Tunnel session failed (attempt {Count}/{Max})",
                     consecutiveFailures, maxRestarts);
             }

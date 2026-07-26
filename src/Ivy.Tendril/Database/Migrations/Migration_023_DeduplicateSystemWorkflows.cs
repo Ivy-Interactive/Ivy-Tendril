@@ -4,9 +4,9 @@ using System;
 
 namespace Ivy.Tendril.Database.Migrations;
 
-public class Migration_022_DeduplicateSystemWorkflows : IMigration
+public class Migration_023_DeduplicateSystemWorkflows : IMigration
 {
-    public int Version => 22;
+    public int Version => 23;
     public string Description => "Delete duplicate project-specific system workflows";
 
     public void Apply(SqliteConnection connection, ILogger? logger = null)
@@ -18,7 +18,7 @@ public class Migration_022_DeduplicateSystemWorkflows : IMigration
         cmd.ExecuteNonQuery();
 
         using var setVersionCmd = connection.CreateCommand();
-        setVersionCmd.CommandText = "PRAGMA user_version = 22;";
+        setVersionCmd.CommandText = "PRAGMA user_version = 23;";
         setVersionCmd.ExecuteNonQuery();
     }
 }

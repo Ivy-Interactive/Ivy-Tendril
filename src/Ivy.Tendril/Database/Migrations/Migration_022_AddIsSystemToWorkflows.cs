@@ -4,9 +4,9 @@ using System;
 
 namespace Ivy.Tendril.Database.Migrations;
 
-public class Migration_021_AddIsSystemToWorkflows : IMigration
+public class Migration_022_AddIsSystemToWorkflows : IMigration
 {
-    public int Version => 21;
+    public int Version => 22;
     public string Description => "Add IsSystem column to Workflows table and seed default system lifecycle workflows";
 
     public void Apply(SqliteConnection connection, ILogger? logger = null)
@@ -32,7 +32,7 @@ public class Migration_021_AddIsSystemToWorkflows : IMigration
         cmd.ExecuteNonQuery();
 
         using var setVersionCmd = connection.CreateCommand();
-        setVersionCmd.CommandText = "PRAGMA user_version = 21;";
+        setVersionCmd.CommandText = "PRAGMA user_version = 22;";
         setVersionCmd.ExecuteNonQuery();
     }
 }

@@ -1,5 +1,6 @@
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Test;
@@ -437,11 +438,20 @@ verifications: []
             config.PropagateExceptions();
             config.AddBranch("project", project =>
             {
+                project.AddCommand<ProjectListCommand>("list");
                 project.AddCommand<ProjectGetCommand>("get");
+                project.AddCommand<ProjectAddCommand>("add");
+                project.AddCommand<ProjectRemoveCommand>("remove");
+                project.AddCommand<ProjectSetCommand>("set");
+                project.AddCommand<ProjectAddRepoCommand>("add-repo");
                 project.AddCommand<ProjectRemoveRepoCommand>("remove-repo");
-                project.AddCommand<ProjectRemoveBuildDepCommand>("remove-build-dep");
-                project.AddCommand<ProjectRemoveReviewActionCommand>("remove-review-action");
+                project.AddCommand<ProjectAddVerificationCommand>("add-verification");
+                project.AddCommand<ProjectRemoveVerificationCommand>("remove-verification");
                 project.AddCommand<ProjectMoveVerificationCommand>("move-verification");
+                project.AddCommand<ProjectAddBuildDepCommand>("add-build-dep");
+                project.AddCommand<ProjectRemoveBuildDepCommand>("remove-build-dep");
+                project.AddCommand<ProjectAddReviewActionCommand>("add-review-action");
+                project.AddCommand<ProjectRemoveReviewActionCommand>("remove-review-action");
             });
         });
         return app;
@@ -561,5 +571,22 @@ verifications: []
 
         var reloaded = CreateConfig();
         Assert.Equal(2, reloaded.Settings.Projects[0].Verifications.Count);
+    }
+
+    [Fact]
+    public void GetProject_ProgramConfigureCliCommands_ExecutesSuccessfully()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig { Name = "voidzero-vite-plus", Color = "Blue" });
+        config.SaveSettings();
+
+        var cliServices = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        cliServices.AddSingleton<IConfigService>(config);
+        cliServices.AddSingleton<ConfigService>(config);
+
+        var app = Program.ConfigureCliCommands(cliServices);
+        var exitCode = app.Run(["project", "get", "voidzero-vite-plus"]);
+
+        Assert.Equal(0, exitCode);
     }
 }

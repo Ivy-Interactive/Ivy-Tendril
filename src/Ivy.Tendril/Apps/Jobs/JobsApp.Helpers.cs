@@ -113,7 +113,13 @@ public partial class JobsApp
         return collapsed.Trim();
     }
 
-    private static string GetPromptDisplay(JobItem j, IPlanReaderService planService)
+    private static readonly Regex MarkdownLinkRegex =
+        new(@"\[([^\]]+)\]\((?:[^)]*)\)", RegexOptions.Compiled);
+
+    internal static string FlattenMarkdownLinks(string text)
+        => string.IsNullOrEmpty(text) ? text : MarkdownLinkRegex.Replace(text, "$1");
+
+    internal static string GetPromptDisplay(JobItem j, IPlanReaderService planService)
     {
         // Try WorkflowRun first to skip any path operations
         if (j.TypedArgs is WorkflowRunArgs)
@@ -164,9 +170,9 @@ public partial class JobsApp
         return false;
     }
 
-    private static string TruncatePrompt(string? text)
+    internal static string TruncatePrompt(string? text)
     {
-        var cleaned = CleanPromptText(text ?? string.Empty);
+        var cleaned = FlattenMarkdownLinks(CleanPromptText(text ?? string.Empty));
         return cleaned.Length > PromptDisplayMaxLength
             ? cleaned[..PromptDisplayMaxLength] + "..."
             : cleaned;

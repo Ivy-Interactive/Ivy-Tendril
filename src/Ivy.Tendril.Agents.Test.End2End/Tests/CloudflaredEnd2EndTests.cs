@@ -42,6 +42,7 @@ public class CloudflaredEnd2EndTests
         Assert.Null(TunnelSession.ParseTunnelUrl("Starting tunnel..."));
         Assert.Null(TunnelSession.ParseTunnelUrl(""));
         Assert.Null(TunnelSession.ParseTunnelUrl("https://example.com"));
+        Assert.Null(TunnelSession.ParseTunnelUrl("failed to request quick Tunnel: Post \"https://api.trycloudflare.com/tunnel\": context deadline exceeded"));
     }
 
     [Fact]

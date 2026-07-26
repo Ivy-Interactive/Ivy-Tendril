@@ -250,10 +250,12 @@ public class InboxWatcherServiceTests : IDisposable
 
         public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
         public void StopJob(string id) { }
+        public int StopAllJobs() => 0;
         public void DeleteJob(string id) { }
         public void ClearCompletedJobs() { }
         public void ClearFailedJobs() { }
         public void ClearAllJobs() { }
+        public int StopQueuedJobs() => 0;
         public List<JobItem> GetJobs() => new();
         public List<JobItem> GetJobsForPlan(string planFile) => new();
         public JobItem? GetJob(string id) => null;
@@ -401,10 +403,12 @@ public class InboxWatcherServiceTests : IDisposable
 
         public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
         public void StopJob(string id) { }
+        public int StopAllJobs() => 0;
         public void DeleteJob(string id) { }
         public void ClearCompletedJobs() { }
         public void ClearFailedJobs() { }
         public void ClearAllJobs() { }
+        public int StopQueuedJobs() => 0;
         public List<JobItem> GetJobs() => new();
         public List<JobItem> GetJobsForPlan(string planFile) => new();
         public JobItem? GetJob(string id) => null;
@@ -438,10 +442,12 @@ public class InboxWatcherServiceTests : IDisposable
 
         public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
         public void StopJob(string id) { }
+        public int StopAllJobs() => 0;
         public void DeleteJob(string id) { }
         public void ClearCompletedJobs() { }
         public void ClearFailedJobs() { }
         public void ClearAllJobs() { }
+        public int StopQueuedJobs() => 0;
         public List<JobItem> GetJobs() => new();
         public List<JobItem> GetJobsForPlan(string planFile) => new();
         public JobItem? GetJob(string id) => null;

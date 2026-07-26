@@ -46,7 +46,10 @@ public static class MasterClient
     /// (e.g. "api/jobs/00001/status"), throwing on a non-success status. Shared by the CLI
     /// commands that report job state so the discover/serialize/PUT convention lives in one place.
     /// </summary>
-    public static void PutJson(string relativePath, object payload, CancellationToken cancellationToken = default)
+    /// <param name="notFoundMessage">
+    /// Overrides the default 404 message with caller-supplied text (e.g. naming the job id).
+    /// </param>
+    public static void PutJson(string relativePath, object payload, string? notFoundMessage = null, CancellationToken cancellationToken = default)
     {
         var discovery = Discover();
         using var client = CreateHttpClient(discovery);
@@ -54,9 +57,92 @@ public static class MasterClient
         var json = JsonSerializer.Serialize(payload, JsonOptions);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        var response = client.PutAsync($"{discovery.BaseUrl}/{relativePath.TrimStart('/')}", content, cancellationToken)
-            .GetAwaiter().GetResult();
-        response.EnsureSuccessStatusCode();
+        HttpResponseMessage response;
+        try
+        {
+            response = client.PutAsync($"{discovery.BaseUrl}/{relativePath.TrimStart('/')}", content, cancellationToken)
+                .GetAwaiter().GetResult();
+        }
+        catch (TaskCanceledException)
+        {
+            throw new InvalidOperationException($"Server did not respond in time (5s timeout) for {relativePath}.");
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new InvalidOperationException($"Failed to connect to Tendril server for {relativePath}: {ex.Message}");
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var responseBody = response.Content.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult();
+
+            if ((int)response.StatusCode == 404 && notFoundMessage != null)
+                throw new InvalidOperationException(notFoundMessage);
+
+            throw new InvalidOperationException(DescribeFailure((int)response.StatusCode, relativePath, responseBody));
+        }
+    }
+
+    /// <summary>
+    /// Turns a failed HTTP response into a message naming the endpoint and, when the body
+    /// carries an <c>{"error": ...}</c> property, the server's own explanation. Shared by
+    /// <see cref="PutJson"/> and <see cref="SubmitJob"/> so both agree on wording.
+    /// </summary>
+    internal static string DescribeFailure(int statusCode, string relativePath, string responseBody)
+    {
+        if (statusCode == 401)
+            return "Authentication failed. Check Api.ApiKey in config.yaml.";
+
+        if (statusCode == 404)
+            return $"Server does not know '{relativePath}' (404). The Tendril server may have restarted since the job started, or the job was deleted.";
+
+        try
+        {
+            var errorDoc = JsonDocument.Parse(responseBody);
+            if (errorDoc.RootElement.TryGetProperty("error", out var errorProp))
+                return errorProp.GetString() ?? "Unknown server error";
+        }
+        catch (JsonException) { }
+
+        return $"Server returned {statusCode} for {relativePath}: {responseBody}";
+    }
+
+    /// <summary>
+    /// Best-effort variant of <see cref="PutJson" /> for progress telemetry: returns the failure
+    /// reason instead of throwing, so a transient server-side problem (or a master restart that lost
+    /// the job) can't turn a status report into a non-zero exit for a running agent.
+    /// </summary>
+    public static (bool Ok, string? Error) TryPutJson(string relativePath, object payload,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var discovery = Discover();
+            using var client = CreateHttpClient(discovery);
+
+            var json = JsonSerializer.Serialize(payload, JsonOptions);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = client
+                .PutAsync($"{discovery.BaseUrl}/{relativePath.TrimStart('/')}", content, cancellationToken)
+                .GetAwaiter().GetResult();
+
+            return response.IsSuccessStatusCode
+                ? (true, null)
+                : (false, $"server returned {(int)response.StatusCode} {response.ReasonPhrase}");
+        }
+        catch (TaskCanceledException)
+        {
+            return (false, $"server did not respond in time ({DefaultTimeout.TotalSeconds:0}s timeout)");
+        }
+        catch (HttpRequestException ex)
+        {
+            return (false, $"failed to connect to the Tendril server: {ex.Message}");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return (false, ex.Message);
+        }
     }
 
     public static DiscoveryResult Discover(string? tendrilHome = null)
@@ -122,20 +208,7 @@ public static class MasterClient
         var responseJson = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
 
         if (!response.IsSuccessStatusCode)
-        {
-            if ((int)response.StatusCode == 401)
-                throw new InvalidOperationException("Authentication failed. Check Api.ApiKey in config.yaml.");
-
-            try
-            {
-                var errorDoc = JsonDocument.Parse(responseJson);
-                if (errorDoc.RootElement.TryGetProperty("error", out var errorProp))
-                    throw new InvalidOperationException(errorProp.GetString() ?? "Unknown server error");
-            }
-            catch (JsonException) { }
-
-            throw new InvalidOperationException($"Server returned {(int)response.StatusCode}: {responseJson}");
-        }
+            throw new InvalidOperationException(DescribeFailure((int)response.StatusCode, "api/jobs", responseJson));
 
         var result = JsonSerializer.Deserialize<JobStartResponse>(responseJson, JsonOptions);
         return result ?? throw new InvalidOperationException("Empty response from server");

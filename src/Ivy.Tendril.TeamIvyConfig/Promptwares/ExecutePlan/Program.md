@@ -37,8 +37,7 @@ Focus on making progress, not achieving perfect understanding. A working impleme
 
 ### 1. Read Plan
 
-- Read `plan.yaml` from the plan folder (project, repos, title)
-- Read the latest revision from `Revisions/` (highest numbered .md file)
+- Read `plan.yaml` and the latest revision from `Revisions/` (highest numbered .md file) together in a single batched read operation to reduce spin-up overhead
 - Extract the plan ID from the folder name (e.g. `01105` from `01105-TestPlan`)
 - Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Reading plan..." --plan-id=<plan-id> --plan-title="<title>"`
 

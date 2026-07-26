@@ -176,6 +176,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const [currentMode, setCurrentMode] = useState(selectedMode);
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [fileMeta, setFileMeta] = useState<Record<string, { lineCount?: number; size: string }>>({});
@@ -187,10 +188,15 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   const menuRef = useRef<HTMLDivElement>(null);
   const modeMenuRef = useRef<HTMLDivElement>(null);
   const filesRef = useRef(files);
+  const textRef = useRef(text);
 
   useEffect(() => {
     filesRef.current = files;
   }, [files]);
+
+  useEffect(() => {
+    textRef.current = text;
+  }, [text]);
 
   useEffect(() => {
     if (autoFocus && textareaRef.current) {
@@ -290,9 +296,14 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   // Sync value prop to text and files state
   useEffect(() => {
     const { cleanText, filePaths } = parseValue(value);
-    setText(cleanText);
     setFiles(filePaths);
-  }, [value]);
+
+    if (cleanText === "") {
+      setText("");
+    } else if (!isFocused && cleanText !== textRef.current) {
+      setText(cleanText);
+    }
+  }, [value, isFocused]);
 
   // Textarea Auto-Growing Height
   useEffect(() => {
@@ -767,6 +778,18 @@ export const ContentInput: React.FC<ContentInputProps> = ({
           onChange={(e) => handleTextChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
+          onFocus={() => {
+            setIsFocused(true);
+            if (dispatchEvent) {
+              dispatchEvent("OnFocus", id, []);
+            }
+          }}
+          onBlur={() => {
+            setIsFocused(false);
+            if (dispatchEvent) {
+              dispatchEvent("OnBlur", id, []);
+            }
+          }}
           placeholder={placeholder}
           rows={1}
           disabled={voiceStatus === "connecting" || voiceStatus === "processing"}

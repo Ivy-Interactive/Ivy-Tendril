@@ -40,4 +40,36 @@ public class InputSanitizerTests
     {
         Assert.Equal(expected, InputSanitizer.IsValidEmail(input));
     }
+
+    [Theory]
+    [InlineData("foo/bar", false)]
+    [InlineData("foo\\bar", false)]
+    [InlineData("my project", false)]
+    [InlineData(".", false)]
+    [InlineData("..", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    [InlineData("MyProject", true)]
+    [InlineData("my-project_v2.0", true)]
+    [InlineData("Ivy-Tendril", true)]
+    public void IsValidProjectName_ReturnsExpected(string? input, bool expected)
+    {
+        Assert.Equal(expected, InputSanitizer.IsValidProjectName(input));
+    }
+
+    [Fact]
+    public void DescribeProjectNameError_InvalidName_ReturnsMessageWithNameAndSuggestion()
+    {
+        var error = InputSanitizer.DescribeProjectNameError("foo/bar");
+
+        Assert.NotNull(error);
+        Assert.Contains("foo/bar", error);
+        Assert.Contains("foobar", error);
+    }
+
+    [Fact]
+    public void DescribeProjectNameError_ValidName_ReturnsNull()
+    {
+        Assert.Null(InputSanitizer.DescribeProjectNameError("Ivy-Tendril"));
+    }
 }

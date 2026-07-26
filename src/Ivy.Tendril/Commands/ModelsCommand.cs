@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Helpers;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -81,24 +82,18 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
 
     private static void RenderTable(ModelCatalogResult result)
     {
-        var table = new Spectre.Console.Table();
-        table.Border(TableBorder.Rounded);
-
-        table.AddColumn("Model");
-        table.AddColumn("Display Name");
-        table.AddColumn(new TableColumn("Input $/M").RightAligned());
-        table.AddColumn(new TableColumn("Output $/M").RightAligned());
-        table.AddColumn(new TableColumn("Cache R $/M").RightAligned());
-        table.AddColumn(new TableColumn("Cache W $/M").RightAligned());
-        table.AddColumn("Source");
-        table.AddColumn("Default");
-        table.AddColumn("Vision");
+        var headers = new[]
+        {
+            "Model", "Display Name", "Input $/M", "Output $/M", "Cache R $/M", "Cache W $/M",
+            "Source", "Default", "Vision"
+        };
 
         var sourceIndex = new Dictionary<string, int>();
+        var rows = new List<IReadOnlyList<string>>();
 
         foreach (var model in result.Models)
         {
-            var isDefault = model.IsDefault ? "[green]*[/]" : "";
+            var isDefault = model.IsDefault ? "*" : "";
             var sourceRef = "";
 
             if (model.PricingSource is not null)
@@ -108,24 +103,26 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
                     idx = sourceIndex.Count + 1;
                     sourceIndex[model.PricingSource] = idx;
                 }
-                sourceRef = $"[dim]{idx}[/]";
+                sourceRef = idx.ToString();
             }
 
-            var hasVision = model.Capabilities.HasFlag(ModelCapabilities.ImageInput) ? "[green]✓[/]" : "[dim]-[/]";
+            var hasVision = model.Capabilities.HasFlag(ModelCapabilities.ImageInput) ? CliOutput.Glyph(true) : "-";
 
-            table.AddRow(
-                model.Id.EscapeMarkup(),
-                model.DisplayName.EscapeMarkup(),
+            rows.Add(new[]
+            {
+                model.Id,
+                model.DisplayName,
                 FormatPrice(model.InputPerMillion),
                 FormatPrice(model.OutputPerMillion),
                 FormatPrice(model.CacheReadPerMillion),
                 FormatPrice(model.CacheWritePerMillion),
                 sourceRef,
                 isDefault,
-                hasVision);
+                hasVision
+            });
         }
 
-        AnsiConsole.Write(table);
+        CliOutput.WriteTable(headers, rows, TableBorder.Rounded);
 
         if (sourceIndex.Count > 0)
         {

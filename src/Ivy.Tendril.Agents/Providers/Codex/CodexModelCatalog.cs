@@ -19,13 +19,39 @@ public sealed class CodexModelCatalog : CachedModelCatalogProvider
     [
         new()
         {
+            Id = "gpt-5.6-terra", DisplayName = "GPT-5.6-Terra",
+            Capabilities = DefaultCaps,
+            ContextWindow = 272_000, MaxOutputTokens = 16_000,
+            Provider = "openai", IsDefault = true,
+            InputPerMillion = 1.10m, OutputPerMillion = 4.40m,
+            CacheReadPerMillion = 0.275m, CacheWritePerMillion = 1.375m,
+        },
+        new()
+        {
+            Id = "gpt-5.6-luna", DisplayName = "GPT-5.6-Luna",
+            Capabilities = DefaultCaps,
+            ContextWindow = 272_000, MaxOutputTokens = 16_000,
+            Provider = "openai",
+            InputPerMillion = 1.50m, OutputPerMillion = 6.00m,
+            CacheReadPerMillion = 0.375m, CacheWritePerMillion = 1.875m,
+        },
+        new()
+        {
+            Id = "gpt-5.5", DisplayName = "GPT-5.5",
+            Capabilities = DefaultCaps,
+            ContextWindow = 400_000, MaxOutputTokens = 32_000,
+            Provider = "openai",
+            InputPerMillion = 10.00m, OutputPerMillion = 40.00m,
+            CacheReadPerMillion = 2.50m, CacheWritePerMillion = 12.50m,
+        },
+        new()
+        {
             Id = "gpt-5.4", DisplayName = "GPT-5.4",
             Capabilities = DefaultCaps,
             ContextWindow = 400_000, MaxOutputTokens = 32_000,
-            Provider = "openai", IsDefault = true,
+            Provider = "openai",
             InputPerMillion = 10.00m, OutputPerMillion = 40.00m,
             CacheReadPerMillion = 2.50m, CacheWritePerMillion = 12.50m,
-
         },
         new()
         {

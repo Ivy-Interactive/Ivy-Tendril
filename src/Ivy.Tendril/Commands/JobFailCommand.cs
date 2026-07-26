@@ -27,7 +27,16 @@ public class JobFailCommand : Command<JobFailSettings>
 {
     protected override int Execute(CommandContext context, JobFailSettings settings, CancellationToken cancellationToken)
     {
-        MasterClient.PutJson($"api/jobs/{settings.JobId}/fail", new { message = settings.Message }, cancellationToken);
+        // Best-effort: an agent that is already failing must not be derailed by a second failure
+        // from the reporting call itself.
+        var (ok, error) = MasterClient.TryPutJson(
+            $"api/jobs/{settings.JobId}/fail", new { message = settings.Message }, cancellationToken);
+
+        if (!ok)
+        {
+            Console.Error.WriteLine($"Warning: could not report failure for job {settings.JobId}: {error}");
+            return 0;
+        }
 
         // This only records the failure reason. The promptware is still responsible
         // for exiting non-zero (e.g. `exit 1`) to actually fail the job.

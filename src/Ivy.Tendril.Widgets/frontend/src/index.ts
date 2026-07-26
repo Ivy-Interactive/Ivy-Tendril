@@ -7,6 +7,7 @@ import { BrainMap } from "./BrainMap/BrainMap";
 import { WorkflowBuilder } from "./WorkflowBuilder/WorkflowBuilder";
 import { PlanDiffView } from "./PlanDiffView/PlanDiffView";
 import { AgentChat } from "./AgentChat/AgentChat";
+import { BadgeSelect } from "./BadgeSelect";
 
 if (typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).IvyTendrilWidgets = {
@@ -19,6 +20,7 @@ if (typeof window !== "undefined") {
     WorkflowBuilder,
     PlanDiffView,
     AgentChat,
+    BadgeSelect,
   };
 }
 
@@ -32,4 +34,5 @@ export {
   WorkflowBuilder,
   PlanDiffView,
   AgentChat,
+  BadgeSelect,
 };

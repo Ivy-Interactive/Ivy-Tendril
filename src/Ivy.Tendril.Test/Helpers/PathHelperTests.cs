@@ -124,4 +124,41 @@ public class PathHelperTests
             Environment.SetEnvironmentVariable("PATH", originalPath);
         }
     }
+
+    [Fact]
+    public void AugmentPath_PlacesDotnetToolsAfterLocalBin()
+    {
+        if (OperatingSystem.IsWindows()) return;
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var dotnetTools = Path.Combine(home, ".dotnet", "tools");
+        var localBin = Path.Combine(home, ".local", "bin");
+
+        // Only meaningful when both directories exist on this machine; otherwise AugmentPath
+        // never adds the missing one and the ordering assertion below would be vacuous.
+        if (!Directory.Exists(dotnetTools) || !Directory.Exists(localBin)) return;
+
+        var originalPath = Environment.GetEnvironmentVariable("PATH");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("PATH", string.Empty);
+
+            PathHelper.AugmentPath(forceShellPath: false);
+
+            var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+            var dirs = path.Split(':', StringSplitOptions.RemoveEmptyEntries);
+
+            var localBinIndex = Array.IndexOf(dirs, localBin);
+            var dotnetToolsIndex = Array.IndexOf(dirs, dotnetTools);
+
+            Assert.True(localBinIndex >= 0, "~/.local/bin should be present in PATH");
+            Assert.True(dotnetToolsIndex >= 0, "~/.dotnet/tools should be present in PATH");
+            Assert.True(localBinIndex < dotnetToolsIndex, "~/.local/bin should come before ~/.dotnet/tools");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("PATH", originalPath);
+        }
+    }
 }
