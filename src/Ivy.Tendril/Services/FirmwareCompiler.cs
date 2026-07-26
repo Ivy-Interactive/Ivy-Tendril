@@ -41,9 +41,9 @@ public static class FirmwareCompiler
         **Memory:**
         {MEMORY}
 
-        To read a memory file:
+        To read memory files (batch multiple files in one call to reduce spin-up overhead):
         ```bash
-        tendril promptware read-memory {PROMPTWARE_NAME} <filename>.md
+        tendril promptware read-memory {PROMPTWARE_NAME} <filename1>.md [filename2.md ...]
         ```
 
         Complete your task and present the user with a summary.

@@ -26,8 +26,7 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
 
 ### 1. Read Plan
 
-- Read `plan.yaml` from the plan folder (project, commits, repos)
-- Read the latest revision for the plan title and description
+- Read `plan.yaml` (project, commits, repos) and the latest revision together in a single batched read operation to reduce spin-up overhead
 - **Read the PR option flags** from the firmware header. These drive every decision below. If a flag is absent, use the default shown:
   - `PrMerge` — `true`/`false` (default: `true`) — **whether to merge the PR after creating it**
   - `PrDeleteBranch` — `true`/`false` (default: `true`)
