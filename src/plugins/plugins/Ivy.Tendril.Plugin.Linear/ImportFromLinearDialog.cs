@@ -282,7 +282,7 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
 
                 inbox.AddRange(selected.Select(issue => new InboxItem
                 {
-                    Description = $"[{issue.Identifier}]({issue.Url})\n\n{issue.Description ?? "No description."}",
+                    Description = FormatIssueDescription(issue),
                     SourceUrl = issue.Url,
                     SourceIdentifier = issue.Identifier,
                     Labels = issue.Labels
@@ -302,6 +302,16 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
             }
 
             return Task.CompletedTask;
+        }
+
+        // The title carries most of the signal for the plan being created from this issue — many
+        // Linear issues have a title and an empty description, so it must not be dropped here.
+        static string FormatIssueDescription(LinearIssueInfo issue)
+        {
+            var body = string.IsNullOrWhiteSpace(issue.Description)
+                ? "(No description)"
+                : issue.Description;
+            return $"# {issue.Title}\n\n[{issue.Identifier}]({issue.Url})\n\n{body}";
         }
 
         void ToggleIssue(string id)
