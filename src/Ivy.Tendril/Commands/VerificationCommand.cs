@@ -6,7 +6,12 @@ using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
 
-public class VerificationListSettings : CommandSettings { }
+public class VerificationListSettings : CommandSettings
+{
+    [CommandOption("--json")]
+    [Description("Emit a machine-readable JSON array of { name, prompt } with the full, untruncated prompt")]
+    public bool Json { get; set; }
+}
 
 public class VerificationAddSettings : CommandSettings
 {
@@ -108,24 +113,34 @@ public class VerificationListCommand : Command<VerificationListSettings>
         var config = new ConfigService();
         var verifications = config.Settings.Verifications;
 
+        if (settings.Json)
+        {
+            // Plain stdout (not AnsiConsole) so the output is clean, parseable JSON for agents.
+            var payload = verifications.Select(v => new { name = v.Name, prompt = v.Prompt });
+            Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(payload));
+            return 0;
+        }
+
         if (verifications.Count == 0)
         {
             AnsiConsole.MarkupLine("[dim]No verification definitions found.[/]");
             return 0;
         }
 
-        var table = new Spectre.Console.Table();
-        table.AddColumn("Name");
-        table.AddColumn("Prompt");
+        var rows = verifications.Select(v => (IReadOnlyList<string>)new[] { v.Name, FormatPromptForDisplay(v.Prompt) });
+        CliOutput.WriteTable(["Name", "Prompt"], rows);
+        return 0;
+    }
 
-        foreach (var v in verifications)
+    private static string FormatPromptForDisplay(string prompt)
+    {
+        if (CliOutput.IsPlain)
         {
-            var prompt = v.Prompt.Length > 60 ? v.Prompt[..60] + "..." : v.Prompt;
-            table.AddRow(v.Name.EscapeMarkup(), prompt.EscapeMarkup());
+            var firstLine = prompt.Split('\n')[0].Trim();
+            return firstLine.Length > 120 ? firstLine[..120] + "..." : firstLine;
         }
 
-        AnsiConsole.Write(table);
-        return 0;
+        return prompt.Length > 60 ? prompt[..60] + "..." : prompt;
     }
 }
 

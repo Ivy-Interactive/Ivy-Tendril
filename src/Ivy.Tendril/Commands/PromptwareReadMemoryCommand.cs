@@ -39,36 +39,66 @@ public class PromptwareReadMemoryCommand : Command<PromptwareReadMemorySettings>
         var writer = outputWriter ?? Console.Out;
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         var programFolder = PromptwareHelper.ResolvePromptwareFolder(settings.Name, tendrilHome);
+        PromptwareHelper.RequireProgramFolder(programFolder, settings.Name, tendrilHome);
+
         var memoryDir = Path.Combine(programFolder, "Memory");
 
         if (settings.Filenames.Length == 1)
         {
-            var filename = Path.GetFileName(settings.Filenames[0]);
-            var filePath = Path.Combine(memoryDir, filename);
+            var rawFilename = settings.Filenames[0];
+            var resolvedPath = PromptwareMemoryResolver.Resolve(memoryDir, rawFilename);
 
-            if (!File.Exists(filePath))
-                throw new FileNotFoundException($"Memory file not found: {filename}", filePath);
+            if (resolvedPath is null)
+            {
+                throw BuildFileNotFoundException(memoryDir, settings.Name, rawFilename);
+            }
 
-            writer.Write(File.ReadAllText(filePath));
+            writer.Write(File.ReadAllText(resolvedPath));
             return 0;
         }
 
         var sb = new StringBuilder();
         for (var i = 0; i < settings.Filenames.Length; i++)
         {
-            var filename = Path.GetFileName(settings.Filenames[i]);
-            var filePath = Path.Combine(memoryDir, filename);
+            var rawFilename = settings.Filenames[i];
+            var resolvedPath = PromptwareMemoryResolver.Resolve(memoryDir, rawFilename);
 
-            if (!File.Exists(filePath))
-                throw new FileNotFoundException($"Memory file not found: {filename}", filePath);
+            if (resolvedPath is null)
+            {
+                throw BuildFileNotFoundException(memoryDir, settings.Name, rawFilename);
+            }
 
+            var displayFilename = Path.GetFileName(resolvedPath);
             if (i > 0) sb.AppendLine();
-            sb.AppendLine($"=== {filename} ===");
-            sb.AppendLine(File.ReadAllText(filePath));
+            sb.AppendLine($"=== {displayFilename} ===");
+            sb.AppendLine(File.ReadAllText(resolvedPath));
         }
 
         writer.Write(sb.ToString());
         return 0;
+    }
+
+    private static FileNotFoundException BuildFileNotFoundException(string memoryDir, string promptwareName, string filename)
+    {
+        var normalized = PromptwareMemoryResolver.NormalizeName(filename);
+
+        var available = Directory.Exists(memoryDir)
+            ? string.Join(", ", Directory.EnumerateFiles(memoryDir)
+                .Select(Path.GetFileName)
+                .Where(f => !string.IsNullOrEmpty(f) && !f!.StartsWith('.'))
+                .OrderBy(f => f, StringComparer.Ordinal))
+            : "";
+        if (string.IsNullOrEmpty(available))
+            available = "(none)";
+
+        var suggestions = PromptwareMemoryResolver.Suggest(memoryDir, filename);
+        var didYouMean = suggestions.Count > 0 ? $"\nDid you mean: {suggestions[0]}?" : "";
+
+        var message = $"Memory file not found: {normalized} (promptware: {promptwareName})\n" +
+                      $"Available memories: {available}{didYouMean}\n" +
+                      $"This memory may have been pruned. Run `tendril promptware list-memory {promptwareName}` for the current list, and do not re-reference a memory that no longer exists.";
+
+        return new FileNotFoundException(message, Path.Combine(memoryDir, normalized));
     }
 }
 

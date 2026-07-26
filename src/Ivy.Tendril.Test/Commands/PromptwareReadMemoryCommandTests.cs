@@ -24,6 +24,17 @@ public class PromptwareReadMemoryCommandTests : IDisposable
         }
     }
 
+    private string CreateTestMemoryDir(string promptwareName)
+    {
+        var pwDir = Path.Combine(_tempHome, "Promptwares", promptwareName);
+        Directory.CreateDirectory(pwDir);
+        File.WriteAllText(Path.Combine(pwDir, "Program.md"), "# Test Program");
+
+        var memoryDir = Path.Combine(pwDir, "Memory");
+        Directory.CreateDirectory(memoryDir);
+        return memoryDir;
+    }
+
     [Fact]
     public void Validation_Fails_When_Name_Or_Filenames_Empty()
     {
@@ -37,8 +48,7 @@ public class PromptwareReadMemoryCommandTests : IDisposable
     [Fact]
     public void Execute_SingleFile_OutputsContentWithoutHeader()
     {
-        var memoryDir = Path.Combine(_tempHome, "Promptwares", "TestPromptware", "Memory");
-        Directory.CreateDirectory(memoryDir);
+        var memoryDir = CreateTestMemoryDir("TestPromptware");
         File.WriteAllText(Path.Combine(memoryDir, "notes.md"), "Sample memory content");
 
         using var sw = new StringWriter();
@@ -52,8 +62,7 @@ public class PromptwareReadMemoryCommandTests : IDisposable
     [Fact]
     public void Execute_MultipleFiles_OutputsBatchedContentWithHeaders()
     {
-        var memoryDir = Path.Combine(_tempHome, "Promptwares", "TestPromptware", "Memory");
-        Directory.CreateDirectory(memoryDir);
+        var memoryDir = CreateTestMemoryDir("TestPromptware");
         File.WriteAllText(Path.Combine(memoryDir, "notes.md"), "Sample memory content");
         File.WriteAllText(Path.Combine(memoryDir, "quirks.md"), "Quirks list content");
 
@@ -72,8 +81,7 @@ public class PromptwareReadMemoryCommandTests : IDisposable
     [Fact]
     public void Execute_MissingFile_ThrowsFileNotFoundException()
     {
-        var memoryDir = Path.Combine(_tempHome, "Promptwares", "TestPromptware", "Memory");
-        Directory.CreateDirectory(memoryDir);
+        CreateTestMemoryDir("TestPromptware");
 
         var settings = new PromptwareReadMemorySettings { Name = "TestPromptware", Filenames = ["nonexistent.md"] };
 

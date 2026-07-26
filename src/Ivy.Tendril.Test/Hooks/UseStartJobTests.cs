@@ -111,6 +111,8 @@ public class UseStartJobTests
         {
         }
 
+        public int StopAllJobs() => 0;
+
         public void DeleteJob(string id)
         {
         }
@@ -125,6 +127,11 @@ public class UseStartJobTests
 
         public void ClearAllJobs()
         {
+        }
+
+        public int StopQueuedJobs()
+        {
+            return 0;
         }
 
         public JobItem? GetJob(string id)
