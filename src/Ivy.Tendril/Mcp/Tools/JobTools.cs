@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Ivy.Tendril.Commands;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using ModelContextProtocol.Server;
 
@@ -26,6 +27,23 @@ public sealed class JobTools : AuthenticatedToolBase
         {
             var logPath = JobAddLogCommand.WriteLog(_configService.TendrilHome, jobId, action, summary);
             return $"Log written: {Path.GetFileName(logPath)}";
+        });
+    }
+
+    [McpServerTool(Name = "tendril_job_status"),
+     Description("Update the status message and plan context of a job in the Tendril UI")]
+    public string UpdateStatus(
+        [Description("Job ID (e.g., '00011')")] string jobId,
+        [Description("Status message to display")] string message,
+        [Description("Optional plan ID")] string? planId = null,
+        [Description("Optional plan title")] string? planTitle = null)
+    {
+        return ExecuteAuthenticated(() =>
+        {
+            MasterClient.PutJson(
+                $"api/jobs/{jobId}/status",
+                new { message, planId, planTitle });
+            return $"Status updated for job {jobId}";
         });
     }
 }

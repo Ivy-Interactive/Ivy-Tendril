@@ -3,7 +3,7 @@ using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Apps.Recommendations;
 
-[App(title: "Recommendations", icon: Icons.Lightbulb, group: ["Apps"], order: Constants.Recommendations)]
+[App(title: "Recommendations", icon: Icons.Lightbulb, group: ["Automations"], order: Constants.Recommendations)]
 public class RecommendationsApp : ViewBase
 {
     public override object Build()

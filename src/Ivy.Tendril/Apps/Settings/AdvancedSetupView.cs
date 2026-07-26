@@ -15,14 +15,24 @@ public class AdvancedSetupView : ViewBase
         var maxConcurrentJobs = UseState(config.Settings.MaxConcurrentJobs);
         var editorCommand = UseState(config.Settings.Editor.Command);
         var editorLabel = UseState(config.Settings.Editor.Label);
+        var alwaysUseDefaultChatType = UseState(config.Settings.AlwaysUseDefaultChatType);
+        var defaultChatType = UseState(config.Settings.DefaultChatType ?? "CLI");
 
         var hasChanges = jobTimeout.Value != config.Settings.JobTimeout
                          || staleOutputTimeout.Value != config.Settings.StaleOutputTimeout
                          || maxConcurrentJobs.Value != config.Settings.MaxConcurrentJobs
                          || editorCommand.Value != config.Settings.Editor.Command
-                         || editorLabel.Value != config.Settings.Editor.Label;
+                         || editorLabel.Value != config.Settings.Editor.Label
+                         || alwaysUseDefaultChatType.Value != config.Settings.AlwaysUseDefaultChatType
+                         || defaultChatType.Value != config.Settings.DefaultChatType;
 
-        var form = Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        var chatTypeOptions = new[]
+        {
+            new Option<string>("CLI-chat (PTY Terminal)", "CLI"),
+            new Option<string>("Agent chat (Conversational UI)", "Agent")
+        };
+
+        var form = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
                    | Text.Block("Advanced Settings").Bold()
                    | Text.Block("Configure timeouts, concurrency limits, and editor preferences.").Muted().Small()
                    | Text.Block("Timeouts").Bold()
@@ -40,6 +50,12 @@ public class AdvancedSetupView : ViewBase
                            : null)
                    | editorLabel.ToTextInput("e.g. VS Code, Vim")
                        .WithField().Label("Label")
+                   | Text.Block("Default Agent Chat Session").Bold()
+                   | alwaysUseDefaultChatType.ToBoolInput()
+                       .Label("Always use default chat type (skip option dialog)")
+                   | defaultChatType.ToSelectInput(chatTypeOptions)
+                       .Disabled(!alwaysUseDefaultChatType.Value)
+                       .WithField().Label("Default Chat Session Type")
                    | new Button("Save").Primary()
                        .Disabled(!hasChanges)
                        .OnClick(() =>
@@ -49,6 +65,8 @@ public class AdvancedSetupView : ViewBase
                            config.Settings.MaxConcurrentJobs = maxConcurrentJobs.Value;
                            config.Settings.Editor.Command = editorCommand.Value;
                            config.Settings.Editor.Label = editorLabel.Value;
+                           config.Settings.AlwaysUseDefaultChatType = alwaysUseDefaultChatType.Value;
+                           config.Settings.DefaultChatType = defaultChatType.Value;
                            config.SaveSettings();
                            client.Toast("Settings saved and applied", "Saved");
                        });

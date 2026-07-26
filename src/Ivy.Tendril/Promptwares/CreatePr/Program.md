@@ -297,6 +297,19 @@ fi
 
 > **Note:** If `--merge` fails with "Merge commits are not allowed", retry with `--squash` instead.
 
+### 4.5. Update Brainwares Memory Vault (only if merged)
+
+If the PR was merged in Step 4:
+
+1. **Get the actual diff** of the merged changes. You can do this by running `git diff HEAD~1 HEAD` in the original repository (after pulling), or by using `gh pr diff <pr-number> --repo <owner/repo>`.
+2. **Scan for memories status.** Run `bw --project <TendrilProject> status` to identify any outdated reference hashes or broken relations. Note that the vault path is automatically resolved by the `bw` CLI and matches the project.
+3. **Update memories based on the diff.** For any affected files:
+   - If a file's structure or behavior changed, update its corresponding memory note. You MUST read the note using `bw --project <TendrilProject> read <note_name>` and write/update it using `bw --project <TendrilProject> write <note_name>` (e.g. `echo "<content>" | bw --project <TendrilProject> write <note_name>`). Do NOT attempt to read or edit memory markdown files directly on the filesystem.
+   - Run `bw --project <TendrilProject> update <note_name>` to synchronize and update the code-reference hashes.
+   - If new source or config files were added, document them in a new memory note by running `bw --project <TendrilProject> add <note_name>` (if it does not exist) and link them using `bw --project <TendrilProject> link <note_name> <file_path>`.
+   - Identify dependencies or related notes, and relate them using `bw --project <TendrilProject> relate <source> <target>`. Do NOT write or embed Obsidian-style double-bracket wiki-links `[[note]]` in the note body.
+4. **Clean check.** Run `bw --project <TendrilProject> status` to ensure that the memory vault is clean, verified, and has no outdated hashes or broken links for the modified files.
+
 ### 5. Clean Up Worktrees
 
 Report status: `tendril job status TendrilJobId --message="Cleaning up worktrees..."`
@@ -350,6 +363,7 @@ Some plans create new repos and push directly to main (e.g., repo scaffolding). 
 
 ### Rules
 
+- **⚡ MCP Latency Optimization:** If the `tendril` MCP server is registered in your environment (providing tools like `tendril_job_status`, `tendril_plan_add_pr`, etc.), you **MUST** call these native tools instead of their corresponding bash CLI commands (e.g. `tendril job status`, `tendril plan add-pr`). Native MCP tools bypass process startup overhead and execute near-instantly.
 - **ALL 7 steps are mandatory** (including 2.5) — do not stop after creating the PR. In
   particular, **step 6 is a required closeout**: record every PR URL via `tendril plan add-pr` and
   set the plan state to `Completed`. A run that creates a PR but skips step 6 is a **failed** run.

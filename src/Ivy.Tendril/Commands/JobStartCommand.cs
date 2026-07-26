@@ -65,6 +65,10 @@ public class JobStartSettings : CommandSettings
     [CommandOption("--source-path")]
     public string? SourcePath { get; set; }
 
+    [Description("Run as express job, skipping draft creation and immediately executing")]
+    [CommandOption("--express")]
+    public bool Express { get; set; }
+
     [Description("Repository path for SyncRepo (required)")]
     [CommandOption("--repo-path")]
     public string? RepoPath { get; set; }
@@ -99,8 +103,17 @@ public class JobStartSettings : CommandSettings
         if (!result.Successful) return result;
 
         if (!Constants.JobTypes.BuiltIn.Contains(JobType, StringComparer.OrdinalIgnoreCase))
-            return Spectre.Console.ValidationResult.Error(
-                $"Unknown job type '{JobType}'. Valid types: {string.Join(", ", Constants.JobTypes.BuiltIn)}");
+        {
+            var promptsRoot = PromptwareHelper.ResolvePromptsRoot();
+            var customFolder = Path.Combine(promptsRoot, JobType);
+            var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
+            var resolvedFolder = PromptwareHelper.ResolvePromptwareFolder(JobType, tendrilHome);
+            if (!File.Exists(Path.Combine(customFolder, "Program.md")) && !File.Exists(Path.Combine(resolvedFolder, "Program.md")))
+            {
+                return Spectre.Console.ValidationResult.Error(
+                    $"Unknown job type or custom agent '{JobType}'. Valid types: {string.Join(", ", Constants.JobTypes.BuiltIn)} or a valid custom agent folder containing Program.md");
+            }
+        }
 
         return Spectre.Console.ValidationResult.Success();
     }
@@ -146,7 +159,27 @@ public class JobStartCommand : Command<JobStartSettings>
                 settings.Project,
                 settings.Priority ?? 0,
                 settings.Force,
-                settings.SourcePath);
+                settings.SourcePath,
+                Express: settings.Express);
+        }
+
+        if (string.Equals(jobType, Constants.JobTypes.UpdateMemories, StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrEmpty(settings.Project))
+                throw new ArgumentException("--project is required for UpdateMemories");
+            var files = (settings.Instructions ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(f => f.Trim()).ToList();
+            return new UpdateMemoriesArgs(settings.Project, files);
+        }
+
+        if (string.Equals(jobType, Constants.JobTypes.EditMemory, StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrEmpty(settings.Project))
+                throw new ArgumentException("--project is required for EditMemory");
+            if (string.IsNullOrEmpty(settings.Note))
+                throw new ArgumentException("--note is required for EditMemory (specify the memory name/path)");
+            if (string.IsNullOrEmpty(settings.Instructions))
+                throw new ArgumentException("--instructions is required for EditMemory (specify the prompt/text for the AI edit)");
+            return new EditMemoryArgs(settings.Project, settings.Note, settings.Instructions);
         }
 
         if (string.Equals(jobType, Constants.JobTypes.SyncRepo, StringComparison.OrdinalIgnoreCase))
@@ -212,6 +245,38 @@ public class JobStartCommand : Command<JobStartSettings>
             return new RetryPlanArgs(planFolder, settings.ChangeRequest);
         }
 
-        throw new ArgumentException($"Unknown job type: {jobType}. Valid types: {string.Join(", ", Constants.JobTypes.BuiltIn)}");
+        if (string.Equals(jobType, Constants.JobTypes.CodeQuality, StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrEmpty(settings.Project))
+                throw new ArgumentException("--project is required for CodeQuality");
+            return new CodeQualityArgs(settings.Project);
+        }
+
+        if (string.Equals(jobType, Constants.JobTypes.CodeSecurity, StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrEmpty(settings.Project))
+                throw new ArgumentException("--project is required for CodeSecurity");
+            return new CodeSecurityArgs(settings.Project);
+        }
+
+        if (string.Equals(jobType, Constants.JobTypes.Documentation, StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrEmpty(settings.Project))
+                throw new ArgumentException("--project is required for Documentation");
+            return new DocumentationArgs(settings.Project);
+        }
+
+        var promptsRoot = PromptwareHelper.ResolvePromptsRoot();
+        var customFolder = Path.Combine(promptsRoot, jobType);
+        var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
+        var resolvedFolder = PromptwareHelper.ResolvePromptwareFolder(jobType, tendrilHome);
+        if (File.Exists(Path.Combine(customFolder, "Program.md")) || File.Exists(Path.Combine(resolvedFolder, "Program.md")))
+        {
+            if (string.IsNullOrEmpty(settings.Project))
+                throw new ArgumentException("--project is required for custom agent");
+            return new CustomAgentArgs(jobType, settings.Project);
+        }
+
+        throw new ArgumentException($"Unknown job type or custom agent: {jobType}. Valid types: {string.Join(", ", Constants.JobTypes.BuiltIn)}");
     }
 }

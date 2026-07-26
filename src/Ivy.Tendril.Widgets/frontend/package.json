@@ -13,12 +13,15 @@
     "@dnd-kit/sortable": "10.0.0",
     "@dnd-kit/utilities": "3.2.2",
     "@hpcc-js/wasm-graphviz": "1.22.0",
+    "echarts": "^5.6.0",
     "lucide-react": "0.511.0",
     "mermaid": "11.15.0",
     "pdfjs-dist": "6.0.227",
+    "react-diff-view": "^3.3.3",
     "react-markdown": "9.1.0",
     "react-syntax-highlighter": "16.1.1",
-    "remark-gfm": "4.0.1"
+    "remark-gfm": "4.0.1",
+    "unidiff": "^1.0.4"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

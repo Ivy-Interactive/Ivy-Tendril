@@ -167,7 +167,7 @@ public class InboxWatcherService : IInboxWatcherService
             return;
 
         var content = await FileHelper.ReadAllTextAsync(filePath);
-        var (project, description, sourcePath) = ParseContent(content);
+        var (project, description, sourcePath, express) = ParseContent(content);
 
         if (string.IsNullOrWhiteSpace(description))
         {
@@ -192,11 +192,11 @@ public class InboxWatcherService : IInboxWatcherService
             return;
         }
 
-        var args = new CreatePlanArgs(description, project, SourcePath: sourcePath);
+        var args = new CreatePlanArgs(description, project, SourcePath: sourcePath, Express: express);
         _jobService.StartJob(args, processingPath);
     }
 
-    internal static (string project, string description, string? sourcePath) ParseContent(string content)
+    internal static (string project, string description, string? sourcePath, bool express) ParseContent(string content)
     {
         if (content.StartsWith("---"))
         {
@@ -208,6 +208,7 @@ public class InboxWatcherService : IInboxWatcherService
 
                 string? project = null;
                 string? sourcePath = null;
+                bool express = false;
 
                 foreach (var line in frontmatter.Split('\n'))
                 {
@@ -216,12 +217,17 @@ public class InboxWatcherService : IInboxWatcherService
                         project = trimmed.Substring("project:".Length).Trim();
                     else if (trimmed.StartsWith("sourcePath:", StringComparison.OrdinalIgnoreCase))
                         sourcePath = trimmed.Substring("sourcePath:".Length).Trim();
+                    else if (trimmed.StartsWith("express:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var val = trimmed.Substring("express:".Length).Trim();
+                        express = bool.TryParse(val, out var parsedExpress) && parsedExpress;
+                    }
                 }
 
-                return (project ?? "Auto", description, sourcePath);
+                return (project ?? "Auto", description, sourcePath, express);
             }
         }
 
-        return ("Auto", content, null);
+        return ("Auto", content, null, false);
     }
 }

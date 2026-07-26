@@ -146,6 +146,12 @@ date: <CurrentTime>
 
    If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, write `Verification/PreExecution.md` with `Result: Fail`, write `Artifacts/summary.md` documenting the no-op, set every verification to `Skipped` via `tendril plan set-verification <plan-id> <name> Skipped`, and fail the plan **without creating a worktree** — running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process.
 
+### 1.8. Check Vault Status
+
+Before creating worktrees, verify the Promptwares memory vault status:
+1. Run `bw --project <TendrilProject> status` to inspect the available memories, outdated references, or technical debt notes.
+2. Read any relevant memories (such as the project's stack or design notes) to align your execution steps with established conventions.
+
 ### 2. Create Worktrees
 
 Report status: `tendril job status TendrilJobId --message="Creating worktrees..."`
@@ -481,6 +487,19 @@ Do NOT include items that are part of the current plan's scope. Do NOT include r
 
 **This file is mandatory.** Step 8 will verify it exists and fail the plan if it is missing.
 
+### 7.7. Update and Maintain Memory Vault
+
+Report status: `tendril job status TendrilJobId --message="Updating memory vault..."`
+
+After implementing changes and running verifications, keep the Promptwares memory vault synchronized:
+1. Run `bw --project <TendrilProject> status` to identify any memory notes that have become outdated due to your changes.
+2. For each outdated memory note, read its contents using `bw --project <TendrilProject> read <note_name>`, update its contents to reflect the new codebase state (e.g., modified API surfaces, renamed variables/methods, new components), and write/update them using `bw --project <TendrilProject> write <note_name>` and `bw --project <TendrilProject> update <note_name>` to synchronize the hashes. Note that the memory vault may be located under `.brainwares/` in the repository, or in the global central vault (e.g. `~/.tendril/Promptwares/memories/` or the path printed by `bw status`). Do NOT attempt to read or edit memory markdown files directly on the filesystem.
+3. If you created any new source files, configuration files, or components:
+   - Proactively document them in a memory note (creating a new one if necessary: `bw --project <TendrilProject> add <note_name>`). **Do not create memories for files that are mentioned or matched in `.gitignore`.**
+   - Run `bw --project <TendrilProject> link <note_name> <file_path>` to link and track their initial hashes.
+4. **Cross-reference related notes**: Identify dependencies or related notes, and relate them using `bw --project <TendrilProject> relate <source> <target>`. Do NOT write or embed Obsidian-style double-bracket wiki-links `[[note]]` in the note body.
+5. Keep the vault verified and clean.
+
 ### 8. Final Clean Check
 
 Report status: `tendril job status TendrilJobId --message="Running final checks..."`
@@ -496,6 +515,10 @@ After all verifications pass:
 4. Verify `<TendrilPlanFolder>/Artifacts/recommendations.md` exists. If missing, go back to Step 7.6.
 
 5. Verify `<TendrilPlanFolder>/Artifacts/summary.md` exists. If missing, go back to Step 7.5.
+
+6. **Verify Brainwares Vault Status (MANDATORY)**:
+   - Run `bw --project <TendrilProject> status`
+   - The command MUST return a clean state (no outdated references, no missing files). If there are any outdated or missing memory references reported, you MUST go back to Step 7.7, update the memory notes, run `bw --project <TendrilProject> update <note_name>`, and loop until `bw status` is completely clean. Do not finish the job with an unsynced vault.
 
 ### 8.5. Worktree Lifecycle
 
@@ -513,6 +536,7 @@ You are running in non-interactive mode and CANNOT ask questions. If you are uns
 
 ### Rules
 
+- **⚡ MCP Latency Optimization:** If the `tendril` MCP server is registered in your environment (providing tools like `tendril_job_status`, `tendril_plan_add_commit`, etc.), you **MUST** call these native tools instead of their corresponding bash CLI commands (e.g. `tendril job status`, `tendril plan add-commit`). Native MCP tools bypass process startup overhead and execute near-instantly.
 - All work happens in worktree directories, never in the original repos
 - Make logically grouped commits — not one giant commit
 - Worktrees must be clean (no uncommitted files) when finished

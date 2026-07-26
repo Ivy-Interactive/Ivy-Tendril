@@ -1,0 +1,283 @@
+.ac-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: inherit;
+}
+
+.ac-shell * {
+  box-sizing: border-box;
+}
+
+.ac-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Scrollbar styles */
+.ac-body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.ac-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ac-body::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+.ac-body::-webkit-scrollbar-thumb:hover {
+  background: var(--input);
+}
+
+/* Bubbles layout */
+.ac-bubble-row {
+  display: flex;
+  gap: 0.75rem;
+  max-width: 85%;
+  animation: ac-fade-in 0.25s ease-out;
+}
+
+@keyframes ac-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ac-bubble-row-user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.ac-bubble-row-agent {
+  align-self: flex-start;
+  max-width: 95%;
+  width: 100%;
+}
+
+.ac-bubble-row-agent .ac-bubble {
+  flex: 1 1 auto;
+}
+
+.ac-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  background-color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
+}
+
+.ac-bubble-row-user .ac-avatar {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border-color: transparent;
+}
+
+.ac-bubble {
+  background-color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  min-width: 0;
+}
+
+.ac-bubble-row-user .ac-bubble {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border-color: transparent;
+}
+
+.ac-bubble-row-user .ac-bubble-row-user .ac-bubble {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.ac-sender-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  margin-bottom: 0.25rem;
+}
+
+.ac-bubble-row-user .ac-sender-label {
+  color: color-mix(in srgb, var(--primary-foreground) 80%, transparent);
+  text-align: right;
+}
+
+.ac-content {
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+/* Markdown typography inside assistant messages */
+.ac-content p {
+  margin: 0.5rem 0;
+}
+.ac-content p:first-child {
+  margin-top: 0;
+}
+.ac-content p:last-child {
+  margin-bottom: 0;
+}
+
+.ac-content code {
+  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+  background-color: color-mix(in srgb, var(--foreground) 6%, transparent);
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+}
+
+.ac-content pre {
+  margin: 0.75rem 0;
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  overflow-x: auto;
+}
+
+.ac-content pre code {
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+.ac-content ul,
+.ac-content ol {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+
+.ac-content a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.ac-bubble-row-user .ac-content a {
+  color: var(--primary-foreground);
+}
+
+/* Shimmering loading status */
+.ac-status-shimmer {
+  font-weight: 500;
+  background: linear-gradient(
+    90deg,
+    var(--muted-foreground) 0%,
+    var(--foreground) 50%,
+    var(--muted-foreground) 100%
+  );
+  background-size: 200% 100%;
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: ac-shine 2.5s ease-in-out infinite;
+}
+
+@keyframes ac-shine {
+  to {
+    background-position: 200% center;
+  }
+}
+
+/* Input area */
+.ac-input-container {
+  padding: 1rem 1.5rem 1.5rem;
+  background-color: var(--background);
+  border-top: 1px solid var(--border);
+}
+
+.ac-form {
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background-color: var(--background);
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ac-form:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.ac-textarea {
+  width: 100%;
+  border: none;
+  background-color: transparent;
+  resize: none;
+  padding: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--foreground);
+  outline: none;
+  min-height: 2.5rem;
+}
+
+.ac-textarea::placeholder {
+  color: var(--muted-foreground);
+}
+
+.ac-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 0.25rem;
+}
+
+.ac-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.15s;
+}
+
+.ac-button-send {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.ac-button-send:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.ac-button-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ac-button-cancel {
+  background-color: var(--destructive);
+  color: var(--destructive-foreground);
+}
+
+.ac-button-cancel:hover {
+  opacity: 0.9;
+}

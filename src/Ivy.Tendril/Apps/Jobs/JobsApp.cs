@@ -1,4 +1,7 @@
+using System.Linq;
 using System.Reactive.Linq;
+using Ivy;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Apps.Jobs.Dialogs;
 using Ivy.Tendril.Apps.Jobs.Sheets;
 using Ivy.Tendril.Apps.Views.Sheets;
@@ -7,7 +10,7 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Jobs;
 
-[App(title: "Jobs", icon: Icons.Activity, group: ["Apps"], order: Constants.Jobs)]
+[App(title: "Jobs", icon: Icons.Activity, group: ["Automations"], order: Constants.Jobs)]
 public partial class JobsApp : ViewBase
 {
     public override object Build()
@@ -21,6 +24,8 @@ public partial class JobsApp : ViewBase
         var openFile = UseState<string?>(null);
         var confirmDeleteOpen = UseState(false);
         var deleteJobId = UseState<string?>(null);
+        var selectedStatus = UseState("All");
+        var selectedType = UseState("All");
         var confirmStopQueuedOpen = UseState(false);
         var confirmStopAllOpen = UseState(false);
 
@@ -79,19 +84,51 @@ public partial class JobsApp : ViewBase
 
         UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken));
         UseInterval(() => JobsApp.AutoRefreshCheck(jobService, refreshToken), TimeSpan.FromSeconds(5));
+        UseEffect(() => { refreshToken.Refresh(); }, selectedType, selectedStatus);
 
         var updateStream = UseDataTableUpdates(
             Observable.Interval(TimeSpan.FromSeconds(1))
                 .SelectMany(_ => JobsApp.BuildDataTableUpdates(jobService)));
 
         var jobs = jobService.GetJobs();
+
+        var availableTypes = new List<string> { "All" };
+        availableTypes.AddRange(jobs.Select(j => j.Type).Where(t => !string.IsNullOrEmpty(t)).Distinct().OrderBy(t => t));
+
+        var statusOptions = new List<string> { "All" };
+        statusOptions.AddRange(Enum.GetNames<JobStatus>());
+
+        var filteredJobs = jobs;
+        if (selectedStatus.Value != "All" && Enum.TryParse<JobStatus>(selectedStatus.Value, out var filterStatus))
+        {
+            filteredJobs = filteredJobs.Where(j => j.Status == filterStatus).ToList();
+        }
+        if (selectedType.Value != "All")
+        {
+            filteredJobs = filteredJobs.Where(j => j.Type == selectedType.Value).ToList();
+        }
+
         var projectColors = BuildProjectColorMapping(config);
-        var rows = BuildJobRows(jobs, planService);
-        var jobsProgress = jobs.Count > 0 ? BuildStatusProgress(jobs, config) : null;
+        var rows = BuildJobRows(filteredJobs, planService);
+        var jobsProgress = filteredJobs.Count > 0 ? BuildStatusProgress(filteredJobs, config) : null;
+
+        var typeOptions = availableTypes
+            .Select(t => new Option<string>(t == "All" ? "Type: All" : $"Type: {t}", t))
+            .ToArray<IAnyOption>();
+
+        var statusOptionsWithLabels = statusOptions
+            .Select(s => new Option<string>(s == "All" ? "Status: All" : $"Status: {s}", s))
+            .ToArray<IAnyOption>();
+
+        var typeFilter = selectedType.ToSelectInput(typeOptions)
+            .Width(Size.Px(180));
+
+        var statusFilter = selectedStatus.ToSelectInput(statusOptionsWithLabels)
+            .Width(Size.Px(180));
 
         var dataTable = JobsApp.BuildDataTable(nav, rows, refreshToken, updateStream, config, planService,
             jobService, client, showPlan, showOutput, showPrompt, showDebug, showRerun, jobs, projectColors, jobsProgress,
-            confirmDeleteOpen, deleteJobId, confirmStopQueuedOpen, confirmStopAllOpen);
+            confirmDeleteOpen, deleteJobId, typeFilter, statusFilter, confirmStopQueuedOpen, confirmStopAllOpen);
 
         var layout = Layout.Vertical().Height(Size.Full());
 

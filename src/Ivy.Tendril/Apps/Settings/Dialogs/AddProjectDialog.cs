@@ -150,7 +150,10 @@ public class AddProjectDialog(
                 },
                 onNext: () =>
                 {
-                    step.Set(2);
+                    hasCreated.Set(false); // Clear so we don't delete on close
+                    isOpen.Set(false);
+                    refreshToken.Refresh();
+                    client.Toast($"Project '{editName.Value}' added, setup job started in background.", "Success");
                 },
                 onSkip: null,
                 skipAgent: skipAgent.Value,

@@ -8,6 +8,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OpenAI;
 
+using System.Linq;
+using Ivy.Tendril.Services.Connections;
+
 namespace Ivy.Tendril;
 
 internal static class ServiceRegistration
@@ -94,6 +97,15 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<IOnboardingSetupService>(sp => sp.GetRequiredService<OnboardingSetupService>());
         server.Services.AddSingleton<GithubService>();
         server.Services.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
+        // Dynamically discover and register all connection providers in this assembly
+        var providerInterface = typeof(IConnectionProvider);
+        var providerTypes = typeof(ServiceRegistration).Assembly.GetTypes()
+            .Where(t => providerInterface.IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+        foreach (var type in providerTypes)
+        {
+            server.Services.AddSingleton(providerInterface, type);
+        }
+        server.Services.AddSingleton<IConnectionExecutorService, ConnectionExecutorService>();
         server.Services.AddSingleton<IGitService>(sp =>
             new GitService(
                 sp.GetRequiredService<IConfigService>(),
@@ -126,7 +138,7 @@ internal static class ServiceRegistration
                 throw new InvalidOperationException("Cannot create PlanDatabaseService: TendrilHome is not configured. Complete onboarding first.");
             var dbPath = Path.Combine(cfg.TendrilHome, "tendril.db");
             var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger<PlanDatabaseService>();
-            return new PlanDatabaseService(dbPath, logger);
+            return new PlanDatabaseService(dbPath, logger, cfg.TendrilHome);
         });
         server.Services.AddSingleton<PlanDatabaseSyncService>(sp =>
         {
@@ -157,7 +169,8 @@ internal static class ServiceRegistration
                 sp.GetRequiredService<ITelemetryService>(),
                 sp.GetRequiredService<IPlanWatcherService>(),
                 string.IsNullOrEmpty(cfg.TendrilHome) ? null : sp.GetRequiredService<IPlanDatabaseService>(),
-                sp.GetRequiredService<IAgentRunner>());
+                sp.GetRequiredService<IAgentRunner>(),
+                sp.GetRequiredService<IConnectionExecutorService>());
         });
         server.Services.AddSingleton<IJobService>(sp => sp.GetRequiredService<JobService>());
         server.Services.AddSingleton<PlanWatcherService>(sp =>
@@ -167,14 +180,16 @@ internal static class ServiceRegistration
             return new PlanWatcherService(config, logger);
         });
         server.Services.AddSingleton<IPlanWatcherService>(sp => sp.GetRequiredService<PlanWatcherService>());
+        server.Services.AddSingleton<IAgentChatManager, AgentChatManager>();
         server.Services.AddSingleton<TendrilProcessStatusService>(sp =>
         {
             var planReader = sp.GetRequiredService<IPlanReaderService>();
             var jobService = sp.GetRequiredService<IJobService>();
             var planWatcher = sp.GetRequiredService<IPlanWatcherService>();
             var config = sp.GetRequiredService<IConfigService>();
+            var chatManager = sp.GetRequiredService<IAgentChatManager>();
             var logger = sp.GetRequiredService<ILogger<TendrilProcessStatusService>>();
-            return new TendrilProcessStatusService(planReader, jobService, planWatcher, config, logger);
+            return new TendrilProcessStatusService(planReader, jobService, planWatcher, config, chatManager, logger);
         });
         server.Services.AddSingleton<ITendrilProcessStatusService>(sp => sp.GetRequiredService<TendrilProcessStatusService>());
         server.Services.AddSingleton<InboxWatcherService>(sp =>
@@ -192,13 +207,25 @@ internal static class ServiceRegistration
             return new WorktreeCleanupService(config.PlanFolder, logger, lifecycleLogger);
         });
         server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<WorktreeCleanupService>());
+        server.Services.AddSingleton<WorkflowTriggerService>(sp =>
+        {
+            var database = sp.GetRequiredService<IPlanDatabaseService>();
+            var jobService = sp.GetRequiredService<IJobService>();
+            var planReader = sp.GetRequiredService<IPlanReaderService>();
+            var planWatcher = sp.GetRequiredService<IPlanWatcherService>();
+            var logger = sp.GetRequiredService<ILogger<WorkflowTriggerService>>();
+            return new WorkflowTriggerService(database, jobService, planReader, planWatcher, logger);
+        });
+        server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<WorkflowTriggerService>());
+
         server.Services.AddSingleton<PrStatusSyncService>(sp =>
         {
             var database = sp.GetRequiredService<IPlanDatabaseService>();
             var githubService = sp.GetRequiredService<IGithubService>();
             var planReader = sp.GetRequiredService<IPlanReaderService>();
+            var triggerService = sp.GetRequiredService<WorkflowTriggerService>();
             var logger = sp.GetRequiredService<ILogger<PrStatusSyncService>>();
-            return new PrStatusSyncService(database, githubService, planReader, logger);
+            return new PrStatusSyncService(database, githubService, planReader, triggerService, logger);
         });
         server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<PrStatusSyncService>());
 

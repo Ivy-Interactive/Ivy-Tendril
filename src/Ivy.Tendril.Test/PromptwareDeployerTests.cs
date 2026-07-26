@@ -27,26 +27,10 @@ public class PromptwareDeployerTests : IDisposable
     }
 
     [Fact]
-    public void IsEmbeddedAvailable_ReturnsFalse_InDebugBuilds()
+    public void IsEmbeddedAvailable_ReturnsTrue_InAllBuilds()
     {
-        // In debug/test builds, the embedded resource is not included
         var result = PromptwareDeployer.IsEmbeddedAvailable();
-        Assert.False(result);
-    }
-
-    [Fact]
-    public void Deploy_ThrowsWhenNoEmbeddedResource()
-    {
-        var targetDir = Path.Combine(_tempDir, "Promptwares");
-        Assert.Throws<InvalidOperationException>(() => PromptwareDeployer.Deploy(targetDir));
-    }
-
-    [Fact]
-    public void NeedsUpdate_ReturnsFalse_WhenNoEmbeddedResource()
-    {
-        var targetDir = Path.Combine(_tempDir, "Promptwares");
-        Directory.CreateDirectory(targetDir);
-        Assert.False(PromptwareDeployer.NeedsUpdate(targetDir));
+        Assert.True(result);
     }
 
     [Fact]

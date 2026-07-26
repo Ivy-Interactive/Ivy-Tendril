@@ -162,6 +162,7 @@ public record JobItem
 
     public void EnqueueOutput(string line)
     {
+        LastOutputAt = DateTime.UtcNow;
         EventParser ??= new ClaudeEventParser();
         _eventSerializer ??= new JsonEventSerializer();
         AppendToRawLog(line);
@@ -179,6 +180,7 @@ public record JobItem
 
     public void EnqueueSystemOutput(string message)
     {
+        LastOutputAt = DateTime.UtcNow;
         _eventSerializer ??= new JsonEventSerializer();
         AppendToRawLog(message);
         var evt = new TextEvent { Kind = AgentEventKind.Text, Text = message };

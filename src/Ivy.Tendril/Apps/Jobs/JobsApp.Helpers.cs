@@ -12,6 +12,22 @@ public partial class JobsApp
         if (job.TypedArgs is CreatePlanArgs cp)
             return cp.Description;
 
+        if (job.TypedArgs is UpdateMemoriesArgs um)
+        {
+            var filesStr = string.Join(", ", um.Files);
+            return $"Update memories for: {filesStr}";
+        }
+
+        if (job.TypedArgs is EditMemoryArgs em)
+        {
+            return $"AI Edit memory note: {em.Memory}\nInstructions: {em.Instructions}";
+        }
+
+        if (job.TypedArgs is WorkflowRunArgs)
+        {
+            return job.PlanFile;
+        }
+
         if (planService != null && !string.IsNullOrEmpty(job.PlanFile))
         {
             var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
@@ -105,6 +121,10 @@ public partial class JobsApp
 
     internal static string GetPromptDisplay(JobItem j, IPlanReaderService planService)
     {
+        // Try WorkflowRun first to skip any path operations
+        if (j.TypedArgs is WorkflowRunArgs)
+            return TruncatePrompt(j.PlanFile);
+
         // Try loading plan title from service
         if (TryGetPlanTitle(j.PlanFile, planService, out var planTitle))
             return TruncatePrompt(planTitle);
@@ -116,6 +136,14 @@ public partial class JobsApp
         // Try CreatePlan description
         if (j.TypedArgs is CreatePlanArgs)
             return TruncatePrompt(GetFullPrompt(j) ?? j.PlanFile);
+
+        // Try UpdateMemories files
+        if (j.TypedArgs is UpdateMemoriesArgs um)
+            return TruncatePrompt($"Update memories for: {string.Join(", ", um.Files)}");
+
+        // Try EditMemory
+        if (j.TypedArgs is EditMemoryArgs em)
+            return TruncatePrompt($"AI Edit memory note: {em.Memory}");
 
         // Try SyncRepo path
         if (j.TypedArgs is SyncRepoArgs syncArgs)

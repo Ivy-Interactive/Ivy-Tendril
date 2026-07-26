@@ -37,45 +37,131 @@ public class PromptwareReadMemoryCommand : Command<PromptwareReadMemorySettings>
     internal static int ExecuteInternal(PromptwareReadMemorySettings settings, TextWriter? outputWriter = null)
     {
         var writer = outputWriter ?? Console.Out;
+        var workspaceDir = Directory.GetCurrentDirectory();
+        var vaultPath = PromptwareHelper.ResolveBrainwaresVaultDir(workspaceDir);
+
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         var programFolder = PromptwareHelper.ResolvePromptwareFolder(settings.Name, tendrilHome);
         PromptwareHelper.RequireProgramFolder(programFolder, settings.Name, tendrilHome);
-
         var memoryDir = Path.Combine(programFolder, "Memory");
+
+        var contents = new List<string>();
+
+        foreach (var rawFilename in settings.Filenames)
+        {
+            var readContent = ReadSingleMemory(settings.Name, rawFilename, vaultPath, memoryDir);
+            contents.Add(readContent);
+        }
 
         if (settings.Filenames.Length == 1)
         {
-            var rawFilename = settings.Filenames[0];
-            var resolvedPath = PromptwareMemoryResolver.Resolve(memoryDir, rawFilename);
-
-            if (resolvedPath is null)
-            {
-                throw BuildFileNotFoundException(memoryDir, settings.Name, rawFilename);
-            }
-
-            writer.Write(File.ReadAllText(resolvedPath));
-            return 0;
+            writer.Write(contents[0]);
         }
-
-        var sb = new StringBuilder();
-        for (var i = 0; i < settings.Filenames.Length; i++)
+        else
         {
-            var rawFilename = settings.Filenames[i];
-            var resolvedPath = PromptwareMemoryResolver.Resolve(memoryDir, rawFilename);
-
-            if (resolvedPath is null)
+            var sb = new StringBuilder();
+            for (var i = 0; i < settings.Filenames.Length; i++)
             {
-                throw BuildFileNotFoundException(memoryDir, settings.Name, rawFilename);
+                var displayFilename = Path.GetFileName(settings.Filenames[i]);
+                if (i > 0) sb.AppendLine();
+                sb.AppendLine($"=== {displayFilename} ===");
+                sb.AppendLine(contents[i]);
             }
-
-            var displayFilename = Path.GetFileName(resolvedPath);
-            if (i > 0) sb.AppendLine();
-            sb.AppendLine($"=== {displayFilename} ===");
-            sb.AppendLine(File.ReadAllText(resolvedPath));
+            writer.Write(sb.ToString());
         }
 
-        writer.Write(sb.ToString());
         return 0;
+    }
+
+    private static string ReadSingleMemory(string promptwareName, string rawFilename, string? vaultPath, string? memoryDir)
+    {
+        if (vaultPath != null)
+        {
+            var noteName = Path.GetFileNameWithoutExtension(rawFilename);
+            try
+            {
+                var bwPath = PromptwareHelper.GetBwPath();
+                var arguments = $"--vault \"{vaultPath}\" read {noteName}";
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = bwPath,
+                    Arguments = arguments,
+                    WorkingDirectory = Directory.GetCurrentDirectory(),
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var proc = System.Diagnostics.Process.Start(psi);
+                if (proc != null)
+                {
+                    var stdout = proc.StandardOutput.ReadToEnd();
+                    var stderr = proc.StandardError.ReadToEnd();
+                    proc.WaitForExit();
+                    if (proc.ExitCode == 0 && !string.IsNullOrWhiteSpace(stdout))
+                    {
+                        return stdout;
+                    }
+                }
+            }
+            catch
+            {
+                // fallback to file-based read
+            }
+        }
+
+        if (memoryDir != null && Directory.Exists(memoryDir))
+        {
+            var resolvedPath = PromptwareMemoryResolver.Resolve(memoryDir, rawFilename);
+            if (resolvedPath != null && File.Exists(resolvedPath))
+            {
+                return File.ReadAllText(resolvedPath);
+            }
+        }
+
+        var filename = Path.GetFileName(rawFilename);
+        if (!filename.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+        {
+            filename += ".md";
+        }
+
+        var localVault = PromptwareHelper.ResolveBrainwaresVaultDir();
+        if (localVault != null)
+        {
+            var localFilePath = Path.Combine(localVault, "memories", filename);
+            if (File.Exists(localFilePath))
+            {
+                return File.ReadAllText(localFilePath);
+            }
+
+            var userProfileHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
+            var projName = PromptwareHelper.FindProjectNameForPath(Directory.GetCurrentDirectory(), userProfileHome);
+            if (!string.IsNullOrEmpty(projName))
+            {
+                var projFilePath = Path.Combine(localVault, "memories", projName, filename);
+                if (File.Exists(projFilePath))
+                {
+                    return File.ReadAllText(projFilePath);
+                }
+            }
+        }
+
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var globalFilePath = Path.Combine(userProfile, ".config", "brainwares", "memories", filename);
+        if (File.Exists(globalFilePath))
+        {
+            return File.ReadAllText(globalFilePath);
+        }
+
+        var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? Path.Combine(userProfile, ".tendril");
+        var templateFilePath = Path.Combine(tendrilHome, "Promptwares", promptwareName, "Memory", filename);
+        if (File.Exists(templateFilePath))
+        {
+            return File.ReadAllText(templateFilePath);
+        }
+
+        throw BuildFileNotFoundException(memoryDir ?? "", promptwareName, rawFilename);
     }
 
     private static FileNotFoundException BuildFileNotFoundException(string memoryDir, string promptwareName, string filename)

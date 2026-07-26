@@ -90,7 +90,18 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
 
 Report status: `tendril job status TendrilJobId --message="Researching codebase..."`
 
-- **Check for duplicate plans** first — **unless `Force: true` is set in the firmware header**, in which case skip duplicate detection entirely. However, if you discover related existing plans during research (e.g., from grep results or memory), still link them via `--related-plan` on `tendril plan create`. `Force` means "create the plan regardless" — not "ignore prior work." Check the `DuplicateCandidates` firmware value. If present, it contains pre-computed matches (format: `folderName|title|state` per line). For each match, perform **state-aware duplicate detection** on those specific plans only. If `DuplicateCandidates` is absent, no potential duplicates were found — skip duplicate detection. When matches are found, decide as follows:
+#### 3.1. Retrieve Relevant Memories (CRITICAL FIRST STEP)
+
+Before you read any source files, run grep, check GitHub, or outline a plan, you MUST read and search the Promptwares memory vault to establish full codebase context:
+1. Run `bw --project <TendrilProject> status` to inspect all available memory notes in the vault.
+2. Query/search for memories relevant to the task (e.g. using `bw --project <TendrilProject> query <keyword>` or reading `index.md`).
+3. If relevant memories are found, you MUST run `bw --project <TendrilProject> read <name>` to read them and align your proposed plan with established choices.
+4. **DO NOT REDISCOVER OR RE-DOCUMENT:** If a memory note already exists detailing the system, patterns, or architecture relevant to your task, you MUST build upon it. Do not attempt to summarize or document these details yourself from scratch — rely on the existing memory as the source of truth.
+5. **VERIFY CODE REFERENCE HASHES:** For any file-based memory notes relevant to your task, verify whether their code reference hashes are still valid. Look at the output of `bw status` to see if any are reported as outdated. If a memory note has an invalid/outdated hash, you MUST examine the actual file changes to see why the memory became outdated, and include steps in your plan's implementation checklist to update and sync those memories (`bw update`).
+6. In your plan's `## Problem` or `## Background` section, explicitly reference and cite these memory notes if they are relevant.
+
+#### 3.2. Check for Duplicate Plans
+- Check for duplicate plans first — **unless `Force: true` is set in the firmware header**, in which case skip duplicate detection entirely. However, if you discover related existing plans during research (e.g., from grep results or memory), still link them via `--related-plan` on `tendril plan create`. `Force` means "create the plan regardless" — not "ignore prior work." Check the `DuplicateCandidates` firmware value. If present, it contains pre-computed matches (format: `folderName|title|state` per line). For each match, perform **state-aware duplicate detection** on those specific plans only. If `DuplicateCandidates` is absent, no potential duplicates were found — skip duplicate detection. When matches are found, decide as follows:
 
   #### Step 1: Read existing plan state
   
@@ -177,6 +188,8 @@ gh search issues "<keyword>" --repo <owner>/<repo> --json title,url,number,state
 ```
 
 Derive the repo owner/name from the **Projects** section repos. If an open issue already covers the task, reference it in the plan's revision and avoid creating workaround plans.
+
+
 
 ### 3.5. Validate Code State
 
@@ -412,8 +425,14 @@ The `## Tests` section MUST include two parts:
    
    Never leave test scope unspecified — this causes the full suite to run unnecessarily.
 
+If the plan introduces new architectural decisions, design patterns, or major new components:
+1. Run `bw --project <TendrilProject> add design-<plan-id> --title "Design: <plan title>" --tags "design, architecture, <project>"` to create a new design memory note.
+2. Write a comprehensive description of the planned components, data structures, or patterns to the newly created memory note.
+3. **Cross-reference relevant codebase notes**: Embed Obsidian-style wiki-links `[[note-name]]` pointing to the memories of files that are referenced, impacted, or created by this design (e.g. `[[keyboard-manager]]`).
+
 ### Rules
 
+- **⚡ MCP Latency Optimization:** If the `tendril` MCP server is registered in your environment (providing tools like `tendril_job_status`, `tendril_plan_create`, `tendril_plan_write_revision`), you **MUST** call these native tools instead of their corresponding bash CLI commands (e.g. `tendril job status`, `tendril plan create`, `tendril plan write-revision`). Native MCP tools bypass process startup overhead and execute near-instantly.
 - **Diagrams**: Markdown supports Graphviz/DOT (```dot or ```graphviz code blocks) and Mermaid (```mermaid code blocks). **Prefer Graphviz/DOT over Mermaid** — it produces cleaner layouts for architecture and flow diagrams. Use diagrams sparingly — only when a visual genuinely clarifies the concept. Most plans don't need diagrams.
 - **🚫 NEVER modify source code. NEVER implement changes. You READ source code for research, you WRITE only via `tendril` CLI commands (plan commands, `tendril trash write`). Any direct file write is a critical violation that wastes the entire session. The permission system WILL block you and you WILL fail.**
 - **!CRITICAL: Every CreatePlan execution MUST produce at least one plan folder. Even if the task is an analysis, review, or investigation — always create a plan with actionable steps. Never just analyze and report back without a plan.**

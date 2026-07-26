@@ -41,22 +41,22 @@ tendril verification set <name> <field> <value>
 
 ### Project verifications (references)
 ```bash
-tendril project add-verification <project-name> <verification-name> --required [--after=<other>]
-tendril project remove-verification <project-name> <verification-name>
-tendril project move-verification <project-name> <verification-name> --after=<other>
-tendril project move-verification <project-name> <verification-name> --before=<other>
-tendril project move-verification <project-name> <verification-name> --position=<n>
+tendril project add-verification <ProjectName> <verification-name> --required [--after=<other>]
+tendril project remove-verification <ProjectName> <verification-name>
+tendril project move-verification <ProjectName> <verification-name> --after=<other>
+tendril project move-verification <ProjectName> <verification-name> --before=<other>
+tendril project move-verification <ProjectName> <verification-name> --position=<n>
 ```
 
 ### Review actions
 ```bash
-tendril project add-review-action <project-name> <name> --command="<cmd>" --condition="<condition>"
-tendril project remove-review-action <project-name> <name>
+tendril project add-review-action <ProjectName> <name> --command="<cmd>" --condition="<condition>"
+tendril project remove-review-action <ProjectName> <name>
 ```
 
 ### Stack hash
 ```bash
-tendril project set <project-name> stackHash <hash>
+tendril project set <ProjectName> stackHash <hash>
 ```
 
 ## Execution Steps
@@ -100,11 +100,11 @@ For each detected tech stack, ensure the following verification definitions exis
 For each verification:
 1. Check if it already exists in `tendril verification list`
 2. If not, create it with `tendril verification add <name> --prompt="<prompt>"`
-3. Add it to the project with `tendril project add-verification <project-name> <name> --required`
+3. Add it to the project with `tendril project add-verification <ProjectName> <name> --required`
 
 Always add `CheckResult` as a verification (it exists in the default config):
 ```bash
-tendril project add-verification <project-name> CheckResult --required
+tendril project add-verification <ProjectName> CheckResult --required
 ```
 
 ### 2.5. Ensure Correct Verification Order
@@ -116,16 +116,16 @@ Verifications run top-to-bottom during plan execution. The correct order is:
 3. **Tests** — e.g. `DotnetTest`, `NpmTest`, `RustTest`, `GoTest`
 4. **CheckResult** — always last
 
-After adding all verifications, verify ordering with `tendril project get <project-name>` and fix with:
+After adding all verifications, verify ordering with `tendril project get <ProjectName>` and fix with:
 ```bash
-tendril project move-verification <project-name> <name> --after=<other>
+tendril project move-verification <ProjectName> <name> --after=<other>
 ```
 
 Use `--after` when adding verifications to place them correctly from the start:
 ```bash
-tendril project add-verification <project-name> DotnetBuild --required --after=DotnetFormat
-tendril project add-verification <project-name> DotnetTest --required --after=DotnetBuild
-tendril project add-verification <project-name> CheckResult --required --after=DotnetTest
+tendril project add-verification <ProjectName> DotnetBuild --required --after=DotnetFormat
+tendril project add-verification <ProjectName> DotnetTest --required --after=DotnetBuild
+tendril project add-verification <ProjectName> CheckResult --required --after=DotnetTest
 ```
 
 ### 3. Setup Review Actions
@@ -160,7 +160,7 @@ For each review action:
 - **command**: The command to launch the application
 
 ```bash
-tendril project add-review-action <project-name> "<name>" \
+tendril project add-review-action <ProjectName> "<name>" \
   --command="<launch command>" \
   --condition="Test-Path \"Worktrees/<RepoName>/<path>\""
 ```
@@ -218,11 +218,24 @@ lib.py/test:pytest
 
 Self-check before persisting: segments in Rule-1 order; absent layers omitted; only defining tokens, ordered by Rules 3–4 (base before meta); all slugs normalized; one alphabetical `test:` segment or none; **no spaces anywhere**. Then save it:
 ```bash
-tendril project set <project-name> stackHash <hash>
+tendril project set <ProjectName> stackHash <hash>
 ```
 
-### 5. Summary
+### 5. Document the Tech Stack in the Memory Vault
+
+If the `Promptwares` memory vault is available (run `bw --project <ProjectName> status` to check):
+1. Check if a memory note named `project-stack` exists. If not, run `bw --project <ProjectName> add project-stack --title "Project Tech Stack" --tags "stack, framework, setup"` to create it.
+2. Write a comprehensive description of the detected tech stack to the created memory note (typically `memories/<ProjectName>/project-stack.md` inside the vault directory). The note should contain:
+   - A summary of the primary language(s) and framework(s) for the frontend, backend, or library.
+   - Database engine(s) used.
+   - Tools used for building, formatting/linting, and testing.
+   - Any external service dependencies.
+   - The generated Stack Descriptor Hash (SDH).
+3. Run `bw --project <ProjectName> update project-stack` to update and synchronize the tracked code references.
+
+### 6. Summary
 
 Print a summary of what was configured:
 - Verifications added
 - Review actions added
+- Stack documented in memory vault

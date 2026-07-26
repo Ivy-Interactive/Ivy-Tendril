@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -31,6 +33,7 @@ public class JobService : IJobService
     private readonly JobLauncher _jobLauncher;
     private readonly JobCompletionHandler _completionHandler;
     private readonly IAgentRunner? _agentRunner;
+    private readonly IConnectionExecutorService? _connectionExecutor;
     private Timer? _blockedJobCheckTimer;
     public JobService(
         IConfigService configService,
@@ -40,7 +43,8 @@ public class JobService : IJobService
         ITelemetryService? telemetryService = null,
         IPlanWatcherService? planWatcherService = null,
         IPlanDatabaseService? database = null,
-        IAgentRunner? agentRunner = null)
+        IAgentRunner? agentRunner = null,
+        IConnectionExecutorService? connectionExecutor = null)
     {
         _syncContext = SynchronizationContext.Current;
         _configService = configService;
@@ -51,6 +55,7 @@ public class JobService : IJobService
         _planWatcherService = planWatcherService;
         _database = database;
         _agentRunner = agentRunner;
+        _connectionExecutor = connectionExecutor;
         _jobTimeout = TimeSpan.FromMinutes(configService.Settings.JobTimeout);
         _staleOutputTimeout = TimeSpan.FromMinutes(configService.Settings.StaleOutputTimeout);
         _maxConcurrentJobs = configService.Settings.MaxConcurrentJobs;
@@ -59,7 +64,7 @@ public class JobService : IJobService
             : new SemaphoreSlim(0, 1);
         _inboxPath = Path.Combine(configService.TendrilHome, "Inbox");
         var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot(configService.TendrilHome);
-        _jobLauncher = new JobLauncher(configService, agentRunner, _logger, promptsRoot);
+        _jobLauncher = new JobLauncher(configService, agentRunner, database, connectionExecutor, this, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
             configService, _logger, modelPricingService, planReaderService,
             telemetryService, planWatcherService, promptsRoot);
@@ -78,7 +83,8 @@ public class JobService : IJobService
         ITelemetryService? telemetryService = null,
         IPlanDatabaseService? database = null,
         ILogger<JobService>? logger = null,
-        IAgentRunner? agentRunner = null)
+        IAgentRunner? agentRunner = null,
+        IConnectionExecutorService? connectionExecutor = null)
     {
         _syncContext = SynchronizationContext.Current;
         _logger = logger ?? NullLogger<JobService>.Instance;
@@ -93,8 +99,9 @@ public class JobService : IJobService
         _telemetryService = telemetryService;
         _database = database;
         _agentRunner = agentRunner;
+        _connectionExecutor = connectionExecutor;
         var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot();
-        _jobLauncher = new JobLauncher(null, agentRunner!, _logger, promptsRoot);
+        _jobLauncher = new JobLauncher(null, agentRunner!, database, connectionExecutor, this, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
             null, _logger, null, planReaderService, telemetryService,
             null, promptsRoot);
@@ -813,6 +820,113 @@ public class JobService : IJobService
 
     private string StartJobInternal(JobArgsBase args, string? inboxFilePath, bool skipDependencyCheck = false, bool skipWaitForCheck = false)
     {
+        if (args is UpdateMemoriesArgs um && string.IsNullOrEmpty(um.PlanFolderPath) && _configService != null)
+        {
+            var projectName = um.Project;
+            if (string.IsNullOrEmpty(projectName) || projectName.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+            {
+                projectName = _configService.Projects.FirstOrDefault()?.Name ?? "Auto";
+            }
+
+            var resolvedProject = _configService.Projects.FirstOrDefault(p =>
+                p.Name.Equals(projectName, StringComparison.OrdinalIgnoreCase));
+
+            if (resolvedProject != null && resolvedProject.Repos.Count > 0)
+            {
+                try
+                {
+                    var plansDir = PlanCommandHelpers.GetPlansDirectory();
+                    var planId = PlanYamlHelper.AllocatePlanId(plansDir);
+                    var filesDesc = um.Files.Count > 3
+                        ? $"{string.Join(", ", um.Files.Take(3))} and {um.Files.Count - 3} more"
+                        : string.Join(", ", um.Files);
+                    var safeTitle = PlanYamlHelper.ToSafeTitle($"Update memories for {filesDesc}");
+                    var folderName = $"{planId}-{safeTitle}";
+                    var planFolder = Path.Combine(plansDir, folderName);
+
+                    Directory.CreateDirectory(planFolder);
+                    FileHelper.GrantBroadWriteAccess(planFolder);
+
+                    var plan = new PlanYaml
+                    {
+                        State = nameof(PlanStatus.Executing),
+                        Project = resolvedProject.Name,
+                        Level = "Feature",
+                        Title = $"Update memories for {filesDesc}",
+                        Created = DateTime.UtcNow,
+                        Updated = DateTime.UtcNow,
+                        InitialPrompt = $"Update memories for: {string.Join(", ", um.Files)}",
+                        Priority = 0
+                    };
+
+                    foreach (var repoPath in resolvedProject.RepoPaths)
+                        plan.Repos.Add(repoPath);
+
+                    PlanCommandHelpers.ApplyProjectVerifications(plan, resolvedProject, new Dictionary<string, VerificationStatus>());
+
+                    PlanCommandHelpers.WritePlan(planFolder, plan);
+
+                    args = um with { Project = resolvedProject.Name, PlanFolderPath = planFolder };
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to allocate plan for UpdateMemories job");
+                }
+            }
+        }
+
+        if (args is EditMemoryArgs em && string.IsNullOrEmpty(em.PlanFolderPath) && _configService != null)
+        {
+            var projectName = em.Project;
+            if (string.IsNullOrEmpty(projectName) || projectName.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+            {
+                projectName = _configService.Projects.FirstOrDefault()?.Name ?? "Auto";
+            }
+
+            var resolvedProject = _configService.Projects.FirstOrDefault(p =>
+                p.Name.Equals(projectName, StringComparison.OrdinalIgnoreCase));
+
+            if (resolvedProject != null && resolvedProject.Repos.Count > 0)
+            {
+                try
+                {
+                    var plansDir = PlanCommandHelpers.GetPlansDirectory();
+                    var planId = PlanYamlHelper.AllocatePlanId(plansDir);
+                    var safeTitle = PlanYamlHelper.ToSafeTitle($"AIEditMemory{Path.GetFileName(em.Memory)}");
+                    var folderName = $"{planId}-{safeTitle}";
+                    var planFolder = Path.Combine(plansDir, folderName);
+
+                    Directory.CreateDirectory(planFolder);
+                    FileHelper.GrantBroadWriteAccess(planFolder);
+
+                    var plan = new PlanYaml
+                    {
+                        State = nameof(PlanStatus.Executing),
+                        Project = resolvedProject.Name,
+                        Level = "Feature",
+                        Title = $"AI Edit memory note: {em.Memory}",
+                        Created = DateTime.UtcNow,
+                        Updated = DateTime.UtcNow,
+                        InitialPrompt = $"Edit memory note: {em.Memory}. Instructions:\n{em.Instructions}",
+                        Priority = 0
+                    };
+
+                    foreach (var repoPath in resolvedProject.RepoPaths)
+                        plan.Repos.Add(repoPath);
+
+                    PlanCommandHelpers.ApplyProjectVerifications(plan, resolvedProject, new Dictionary<string, VerificationStatus>());
+
+                    PlanCommandHelpers.WritePlan(planFolder, plan);
+
+                    args = em with { Project = resolvedProject.Name, PlanFolderPath = planFolder };
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to allocate plan for EditMemory job");
+                }
+            }
+        }
+
         if (args is SyncRepoArgs syncRepoArgs)
         {
             var existingId = TryFindExistingSyncRepoJob(syncRepoArgs);
@@ -929,7 +1043,7 @@ public class JobService : IJobService
         return job;
     }
 
-    private static (string PlanFile, string Project, int Priority) ExtractJobMetadata(JobArgsBase args)
+    private (string PlanFile, string Project, int Priority) ExtractJobMetadata(JobArgsBase args)
     {
         if (args is CreatePlanArgs cp)
         {
@@ -937,15 +1051,108 @@ public class JobService : IJobService
             return (planFile, cp.Project, cp.Priority);
         }
 
+        if (args is SetupProjectArgs setup)
+        {
+            return ($"Add {setup.ProjectName} project to Tendril", setup.ProjectName, 0);
+        }
+
         var folder = args.PlanFolder ?? "";
         var file = Path.GetFileName(folder);
-        if (!Directory.Exists(folder))
-            return (file, "Auto", 0);
+
+        string project = "Auto";
+        if (args is WorkflowRunArgs wr)
+        {
+            project = wr.Project;
+            if ((string.IsNullOrEmpty(project) || project == "Auto") && _database != null)
+            {
+                var wf = _database.GetWorkflowById(wr.WorkflowId);
+                if (wf != null)
+                {
+                    project = wf.Project;
+                }
+            }
+            if (string.IsNullOrEmpty(project))
+            {
+                project = "Auto";
+            }
+            
+            string planFile = "Workflow Run";
+            if (_database != null)
+            {
+                var wf = _database.GetWorkflowById(wr.WorkflowId);
+                if (wf != null)
+                {
+                    planFile = $"Run workflow: {wf.Name}";
+                    if (!string.IsNullOrEmpty(wr.TriggerPayload))
+                    {
+                        try
+                        {
+                            using var doc = JsonDocument.Parse(wr.TriggerPayload);
+                            var root = doc.RootElement;
+                            if (root.TryGetProperty("Event", out var eventProp))
+                            {
+                                var eventVal = eventProp.GetString();
+                                if (eventVal == "plan_completed_and_merged")
+                                {
+                                    var planTitle = root.TryGetProperty("PlanTitle", out var titleProp) ? titleProp.GetString() : null;
+                                    if (!string.IsNullOrEmpty(planTitle))
+                                    {
+                                        planFile = $"Run workflow: {wf.Name} (Plan merged: {planTitle})";
+                                    }
+                                    else
+                                    {
+                                        planFile = $"Run workflow: {wf.Name} (Event: plan_completed_and_merged)";
+                                    }
+                                }
+                                else if (!string.IsNullOrEmpty(eventVal))
+                                {
+                                    planFile = $"Run workflow: {wf.Name} (Event: {eventVal})";
+                                }
+                            }
+                            else if (root.TryGetProperty("Trigger", out var triggerProp) && triggerProp.GetString() == "schedule")
+                            {
+                                var cron = root.TryGetProperty("Cron", out var cronProp) ? cronProp.GetString() : null;
+                                if (!string.IsNullOrEmpty(cron))
+                                {
+                                    planFile = $"Run workflow: {wf.Name} (Schedule: {cron})";
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore parsing issues, fallback to default title
+                        }
+                    }
+                }
+            }
+            return (planFile, project, 0);
+        }
+        else if (args is UpdateMemoriesArgs um) project = um.Project;
+        else if (args is EditMemoryArgs em) project = em.Project;
+        else if (args is CodeQualityArgs cq) project = cq.Project;
+        else if (args is CodeSecurityArgs cs) project = cs.Project;
+        else if (args is DocumentationArgs doc) project = doc.Project;
+        else if (args is CustomAgentArgs ca) project = ca.Project;
+
+        if (string.IsNullOrEmpty(project))
+        {
+            project = "Auto";
+        }
+
+        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+        {
+            var defaultFile = file;
+            if (string.IsNullOrEmpty(defaultFile))
+            {
+                defaultFile = args.Type;
+            }
+            return (defaultFile, project, 0);
+        }
 
         var plan = ReadPlanYaml(folder);
         return plan != null
-            ? (file, plan.Project, plan.Priority)
-            : (file, "Auto", 0);
+            ? (file, plan.Project != "Auto" && plan.Project != "" ? plan.Project : project, plan.Priority)
+            : (file, project, 0);
     }
 
     private void SetupInboxTracking(JobItem job, string id, JobArgsBase args, string? inboxFilePath)

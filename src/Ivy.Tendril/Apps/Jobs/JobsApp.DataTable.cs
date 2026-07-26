@@ -46,6 +46,8 @@ public partial class JobsApp
         StackedProgress? jobsProgress,
         IState<bool> confirmDeleteOpen,
         IState<string?> deleteJobId,
+        object typeFilter,
+        object statusFilter,
         IState<bool> confirmStopQueuedOpen,
         IState<bool> confirmStopAllOpen)
     {
@@ -320,7 +322,9 @@ public partial class JobsApp
                     refreshToken.Refresh();
                 }));
 
-                return Layout.Horizontal()
+                return Layout.Horizontal().AlignContent(Align.Center)
+                       | typeFilter
+                       | statusFilter
                        | (jobsProgress != null ? jobsProgress : null!)
                        | new Button().Icon(Icons.EllipsisVertical).Ghost().WithDropDown(overflowItems.ToArray());
             });

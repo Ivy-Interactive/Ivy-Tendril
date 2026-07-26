@@ -53,7 +53,7 @@ public class OnboardingApp : ViewBase
                         isStepLoading.Set(false);
                         projectSubStep.Set(0);
                     },
-                    onNext: () => projectSubStep.Set(2)),
+                    onNext: () => stepperIndex.Set(3)),
                 2 => new ProjectCrudStepView(
                     projectName,
                     isStepLoading,

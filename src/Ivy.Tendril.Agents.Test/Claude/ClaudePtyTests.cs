@@ -300,15 +300,13 @@ public class ClaudePtyTests
 
         var spec = _pty.BuildPtySpec(config);
 
-        var mcpIndices = spec.CommandLine
-            .Select((v, i) => (v, i))
-            .Where(x => x.v == "--mcp-server")
-            .Select(x => x.i)
-            .ToList();
-
-        Assert.Equal(2, mcpIndices.Count);
-        Assert.Equal("server1", spec.CommandLine[mcpIndices[0] + 1]);
-        Assert.Equal("server2", spec.CommandLine[mcpIndices[1] + 1]);
+        var idx = IndexOf(spec.CommandLine, "--mcp-config");
+        var configPath = spec.CommandLine[idx + 1];
+        Assert.True(File.Exists(configPath));
+        var content = File.ReadAllText(configPath);
+        Assert.Contains("\"server1\"", content);
+        Assert.Contains("\"server2\"", content);
+        File.Delete(configPath);
     }
 
     [Fact]

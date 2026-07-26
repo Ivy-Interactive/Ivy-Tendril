@@ -78,6 +78,14 @@ internal class JobCompletionHandler
             var planFolder = job.TypedArgs?.PlanFolder ?? "";
             _dependencyChecker.RetryBlockedDependents(planFolder, jobs, startJobSkipDepCheck);
         }
+
+        if (isSuccess && job.TypedArgs is CreatePlanArgs cp && cp.Express && !string.IsNullOrEmpty(job.PlanFile))
+        {
+            var absolutePlanPath = Path.IsPathRooted(job.PlanFile)
+                ? job.PlanFile
+                : Path.Combine(_configService!.PlanFolder, job.PlanFile);
+            startJobSkipDepCheck(new ExecutePlanArgs(absolutePlanPath));
+        }
     }
 
     private static void SurfacePermissionDenials(JobItem job)
@@ -156,6 +164,8 @@ internal class JobCompletionHandler
                 EnsurePlanStateTransitioned(job);
                 break;
             case CreateIssueArgs:
+            case UpdateMemoriesArgs:
+            case EditMemoryArgs:
                 SetPlanState(job, nameof(PlanStatus.Completed));
                 break;
             case UpdatePlanArgs or ExpandPlanArgs:

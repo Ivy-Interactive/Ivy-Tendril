@@ -77,7 +77,11 @@ public class PromptwareRunner : IPromptwareRunner
         var programFolder = PromptwareHelper.ResolvePromptwareFolder(options.Promptware, _configService.TendrilHome, options.PromptwarePath);
         var programMd = Path.Combine(programFolder, "Program.md");
 
-        if (!File.Exists(programMd))
+        var workspaceDir = _configService.Projects.FirstOrDefault()?.RepoPaths.FirstOrDefault();
+        var workingDir = string.IsNullOrEmpty(workspaceDir) ? Directory.GetCurrentDirectory() : workspaceDir;
+        var vaultPath = PromptwareHelper.ResolveBrainwaresVaultDir(workingDir);
+
+        if (vaultPath == null && !File.Exists(programMd))
             throw new FileNotFoundException($"Program.md not found at {programMd}", programMd);
 
         var values = new Dictionary<string, string>(options.Values);
@@ -93,7 +97,10 @@ public class PromptwareRunner : IPromptwareRunner
 
         var jobId = JobIdAllocator.AllocateJobId(_configService.TendrilHome);
         // Agents pass this to `tendril job add-log` to target their own job log.
-        values["TendrilJobId"] = jobId;
+        if (options.Promptware != "AgentChat")
+        {
+            values["TendrilJobId"] = jobId;
+        }
         var logJob = JobLogWriter.BuildCliRunJob(jobId, options.Promptware, values);
         var logFile = JobLogWriter.SeedLog(_configService.TendrilHome, logJob);
         var firmwareContext = new FirmwareContext(programFolder, values);
@@ -124,6 +131,14 @@ public class PromptwareRunner : IPromptwareRunner
             psi.Environment["TENDRIL_HOME"] = tendrilHome;
         psi.Environment["TENDRIL_CONFIG"] = _configService.ConfigPath;
         psi.Environment["TENDRIL_PLANS"] = _configService.PlanFolder;
+
+        if (options.Values.TryGetValue("ProjectName", out var projectName) && !string.IsNullOrEmpty(projectName))
+            psi.Environment["BW_PROJECT"] = projectName;
+        else if (options.Values.TryGetValue("TendrilProject", out var tendrilProject) && !string.IsNullOrEmpty(tendrilProject))
+            psi.Environment["BW_PROJECT"] = tendrilProject;
+
+        if (!string.IsNullOrEmpty(vaultPath))
+            psi.Environment["BW_VAULT"] = vaultPath;
 
         AgentProcessHelper.EnsureTendrilOnPath(psi);
         AgentProcessHelper.ResolveCommandShim(psi);
@@ -192,6 +207,26 @@ public class PromptwareRunner : IPromptwareRunner
         var toolsDir = Path.Combine(promptwareFolder, "Tools");
         if (!toolsDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
             dirs.Add(toolsDir);
+
+        var workspaceDir = _configService.Projects.FirstOrDefault()?.RepoPaths.FirstOrDefault();
+        var workingDir = string.IsNullOrEmpty(workspaceDir) ? Directory.GetCurrentDirectory() : workspaceDir;
+        var vaultPath = PromptwareHelper.ResolveBrainwaresVaultDir(workingDir);
+        if (vaultPath != null)
+        {
+            var memoriesDir = Path.Combine(vaultPath, "memories");
+            if (!memoriesDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+                dirs.Add(memoriesDir);
+            if (!vaultPath.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+                dirs.Add(vaultPath);
+        }
+
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var globalMemoriesDir = Path.Combine(userProfile, ".config", "brainwares", "memories");
+        if (!globalMemoriesDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+            dirs.Add(globalMemoriesDir);
+        var globalConfigDir = Path.Combine(userProfile, ".config", "brainwares");
+        if (!globalConfigDir.StartsWith(homePrefix, StringComparison.OrdinalIgnoreCase))
+            dirs.Add(globalConfigDir);
 
         return [.. dirs];
     }

@@ -3,6 +3,10 @@ import { AgentViewer } from "./AgentViewer";
 import { DraftMarkdown } from "./DraftMarkdown";
 import { SortableVerificationList } from "./SortableVerificationList";
 import { ContentInput } from "./ContentInput/ContentInput";
+import { BrainMap } from "./BrainMap/BrainMap";
+import { WorkflowBuilder } from "./WorkflowBuilder/WorkflowBuilder";
+import { PlanDiffView } from "./PlanDiffView/PlanDiffView";
+import { AgentChat } from "./AgentChat/AgentChat";
 import { BadgeSelect } from "./BadgeSelect";
 
 if (typeof window !== "undefined") {
@@ -12,6 +16,10 @@ if (typeof window !== "undefined") {
     DraftMarkdown,
     SortableVerificationList,
     ContentInput,
+    BrainMap,
+    WorkflowBuilder,
+    PlanDiffView,
+    AgentChat,
     BadgeSelect,
   };
 }
@@ -22,5 +30,9 @@ export {
   DraftMarkdown,
   SortableVerificationList,
   ContentInput,
+  BrainMap,
+  WorkflowBuilder,
+  PlanDiffView,
+  AgentChat,
   BadgeSelect,
 };

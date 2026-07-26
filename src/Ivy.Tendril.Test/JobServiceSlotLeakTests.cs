@@ -11,7 +11,7 @@ namespace Ivy.Tendril.Test;
 public class JobServiceSlotLeakTests
 {
     private static JobLauncher CreateLauncher() =>
-        new(configService: null, agentRunner: null, NullLogger.Instance, promptsRoot: "");
+        new(configService: null, agentRunner: null, database: null, connectionExecutor: null, jobService: null, NullLogger.Instance, promptsRoot: "");
 
     private static JobItem CreateJob(string id) => new()
     {

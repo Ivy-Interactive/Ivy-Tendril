@@ -42,17 +42,47 @@ public class PromptwareWriteMemoryCommand : Command<PromptwareWriteMemorySetting
     protected override int Execute(CommandContext context, PromptwareWriteMemorySettings settings, CancellationToken cancellationToken)
     {
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
-        var programFolder = PromptwareHelper.ResolvePromptwareFolder(settings.Name, tendrilHome);
-
-        var memoryDir = Path.Combine(programFolder, "Memory");
+        var memoryDir = PromptwareHelper.ResolveMemoryDirectory(settings.Name, tendrilHome);
         Directory.CreateDirectory(memoryDir);
 
         var filename = Path.GetFileName(settings.Filename);
+        if (!filename.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
+        {
+            filename += ".md";
+        }
         var filePath = Path.Combine(memoryDir, filename);
 
         var content = ConsoleHelper.ResolveInput(settings.Stdin, settings.FilePath, null);
         if (string.IsNullOrWhiteSpace(content))
             throw new ArgumentException("No content provided (use --file or --stdin)");
+
+        var workspaceDir = Directory.GetCurrentDirectory();
+        var vaultPath = PromptwareHelper.ResolveBrainwaresVaultDir(workspaceDir);
+
+        var noteName = Path.GetFileNameWithoutExtension(filename);
+        var noteFile = Path.Combine(memoryDir, noteName + ".md");
+
+        if (!File.Exists(noteFile))
+        {
+            try
+            {
+                var bwPath = PromptwareHelper.GetBwPath();
+                var arguments = vaultPath != null ? $"--vault \"{vaultPath}\" add {noteName}" : $"add {noteName} --global";
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = bwPath,
+                    Arguments = arguments,
+                    WorkingDirectory = Directory.GetCurrentDirectory(),
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var proc = System.Diagnostics.Process.Start(psi);
+                proc?.WaitForExit();
+            }
+            catch { /* fallback if CLI execution fails */ }
+        }
 
         File.WriteAllText(filePath, content);
         Console.Write(filePath);
