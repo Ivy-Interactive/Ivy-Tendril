@@ -43,6 +43,7 @@ public class CodingAgentSetupView : ViewBase
         var showTestDialog = UseState(false);
         var ivyApiKey = UseState(GetIvyApiKeyFromConfig(config));
         var ivyBaseUrl = UseState(GetIvyBaseUrlFromConfig(config));
+        var ollamaUrl = UseState(GetOllamaUrlFromConfig(config, selectedAgent.Value));
 
         var modelsQuery = UseQuery<ModelInfo[], string>(
             selectedAgent.Value,
@@ -84,6 +85,7 @@ public class CodingAgentSetupView : ViewBase
             deepModel.Set(GetProfileModel(config, selectedAgent.Value, "deep"));
             balancedModel.Set(GetProfileModel(config, selectedAgent.Value, "balanced"));
             quickModel.Set(GetProfileModel(config, selectedAgent.Value, "quick"));
+            ollamaUrl.Set(GetOllamaUrlFromConfig(config, selectedAgent.Value));
             lastAgent.Set(selectedAgent.Value);
         }
 
@@ -101,8 +103,9 @@ public class CodingAgentSetupView : ViewBase
         
         var hasApiKeyChanges = selectedAgent.Value == "ivy" && ivyApiKey.Value != GetIvyApiKeyFromConfig(config);
         var hasBaseUrlChanges = selectedAgent.Value == "ivy" && ivyBaseUrl.Value != GetIvyBaseUrlFromConfig(config);
+        var hasOllamaUrlChanges = selectedAgent.Value == "opencode" && ollamaUrl.Value != GetOllamaUrlFromConfig(config, selectedAgent.Value);
 
-        var hasChanges = selectedAgent.Value != config.Settings.CodingAgent || hasProfileChanges || hasApiKeyChanges || hasBaseUrlChanges;
+        var hasChanges = selectedAgent.Value != config.Settings.CodingAgent || hasProfileChanges || hasApiKeyChanges || hasBaseUrlChanges || hasOllamaUrlChanges;
 
         var registeredAgents = runner.RegisteredAgents;
         var visibleAgents = Agents.Where(a => registeredAgents.Contains(a.Key)).ToArray();
@@ -188,6 +191,14 @@ public class CodingAgentSetupView : ViewBase
                            .Label("Ivy Proxy Base URL (Optional)")
                            .Description("Optional. Overrides the default base URL for the Ivy API proxy."))
                    : null!)
+               | (selectedAgent.Value == "opencode"
+                   ? (object)(Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                       | new Spacer().Height(Size.Units(2))
+                       | ollamaUrl.ToTextInput("http://localhost:11434")
+                           .WithField()
+                           .Label("Ollama Host / Base URL (Optional)")
+                           .Description("Optional. Overrides the default Ollama server URL (sets OLLAMA_HOST and OLLAMA_BASE_URL environment variables)."))
+                   : null!)
                | new Spacer().Height(Size.Units(4))
                | (Layout.Horizontal().Gap(2)
                    | new Button("Test Agent").Outline()
@@ -201,6 +212,7 @@ public class CodingAgentSetupView : ViewBase
                            SaveProfiles(config, selectedAgent.Value, deepModel.Value, balancedModel.Value, quickModel.Value);
                            SaveIvyApiKey(config, ivyApiKey.Value);
                            SaveIvyBaseUrl(config, ivyBaseUrl.Value);
+                           SaveOllamaUrl(config, selectedAgent.Value, ollamaUrl.Value);
                            config.SaveSettings();
                            client.Toast("Coding agent settings saved", "Saved");
                        }))
@@ -333,6 +345,45 @@ public class CodingAgentSetupView : ViewBase
             ac.EnvironmentVariables["ANTHROPIC_BASE_URL"] = url;
         }
     }
+
+    private static string GetOllamaUrlFromConfig(IConfigService config, string agentId)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
+        if (ac != null)
+        {
+            if (ac.EnvironmentVariables.TryGetValue("OLLAMA_HOST", out var host) && !string.IsNullOrEmpty(host))
+                return host;
+            if (ac.EnvironmentVariables.TryGetValue("OLLAMA_BASE_URL", out var baseUrl) && !string.IsNullOrEmpty(baseUrl))
+                return baseUrl;
+        }
+        return "";
+    }
+
+    private static void SaveOllamaUrl(IConfigService config, string agentId, string url)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
+
+        if (ac == null)
+        {
+            if (string.IsNullOrEmpty(url)) return;
+            ac = new AgentConfig { Name = agentId };
+            config.Settings.CodingAgents.Add(ac);
+        }
+
+        if (string.IsNullOrEmpty(url))
+        {
+            ac.EnvironmentVariables.Remove("OLLAMA_HOST");
+            ac.EnvironmentVariables.Remove("OLLAMA_BASE_URL");
+        }
+        else
+        {
+            ac.EnvironmentVariables["OLLAMA_HOST"] = url;
+            ac.EnvironmentVariables["OLLAMA_BASE_URL"] = url;
+        }
+    }
+
 
     private static async Task<bool> InstallIvyAgentAsync(IClientProvider client)
     {
