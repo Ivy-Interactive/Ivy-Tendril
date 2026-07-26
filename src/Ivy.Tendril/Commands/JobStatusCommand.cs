@@ -32,10 +32,17 @@ public class JobStatusCommand : Command<JobStatusSettings>
 {
     protected override int Execute(CommandContext context, JobStatusSettings settings, CancellationToken cancellationToken)
     {
-        MasterClient.PutJson(
+        // Progress telemetry must never fail an agent run: warn and still exit 0.
+        var (ok, error) = MasterClient.TryPutJson(
             $"api/jobs/{settings.JobId}/status",
             new { message = settings.Message, planId = settings.PlanId, planTitle = settings.PlanTitle },
             cancellationToken);
+
+        if (!ok)
+        {
+            Console.Error.WriteLine($"Warning: could not report status for job {settings.JobId}: {error}");
+            return 0;
+        }
 
         Console.WriteLine($"Status updated for job {settings.JobId}");
         return 0;

@@ -199,9 +199,11 @@ public static class PathHelper
                 "/opt/homebrew/sbin",
                 "/usr/local/bin",
                 "/usr/local/sbin",
-                Path.Combine(home, ".dotnet", "tools"),
                 Path.Combine(home, ".npm-global", "bin"),
-                Path.Combine(home, ".local", "bin")
+                Path.Combine(home, ".local", "bin"),
+                // Legacy `dotnet tool install -g` shim directory. Kept last so the installer's
+                // CLI symlink locations above always win over a stale .NET tool copy of tendril.
+                Path.Combine(home, ".dotnet", "tools")
             };
 
             if (forceShellPath)

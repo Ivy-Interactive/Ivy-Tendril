@@ -23,6 +23,9 @@ Project and verification configuration is available via `tendril project list` a
 
 ## Available CLI Commands
 
+**Note:** Always pass `<project-name>` quoted (e.g. `"$ProjectName"`). A legacy project name
+containing unusual characters (spaces, shell metacharacters) can otherwise mangle the command line.
+
 ### Stack analysis
 ```bash
 tendril project-analyzer <repo-path>   # prints a trimmed YAML stack report (supports . and relative paths)
@@ -60,7 +63,7 @@ tendril project set <project-name> stackHash <hash>
 
 ### 1. Gather Context
 
-1. Run `tendril verification list` to see existing global verification definitions.
+1. Run `tendril verification list --json` to see existing global verification definitions (the flag emits machine-readable JSON with full, untruncated prompts).
 2. Run `tendril project list` to confirm the project exists.
 3. Detect the tech stack of each repo. Prefer the analyzer over manual inspection:
    - Run `tendril project-analyzer <repo-path>` (the path supports `.` and relative paths) for each repo. 

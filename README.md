@@ -49,6 +49,8 @@ dotnet tool install -g Ivy.Tendril
 
 > **Tip:** PowerShell 7, Git and gh CLI need to be present on your machine if you install using the `dotnet tool` command.
 
+> **Note:** The `dotnet tool` install and the Quick Install above are separate installs that can both end up on `PATH`. If you move from the .NET tool to the installer, run `dotnet tool uninstall --global Ivy.Tendril` so `tendril` on `PATH` cannot resolve to the older, frozen tool copy. Run `tendril doctor` to check for a conflicting install.
+
 ### Run
 
 ```bash

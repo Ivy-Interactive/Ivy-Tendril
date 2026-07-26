@@ -189,18 +189,13 @@ public class PlanRecListCommand : Command<PlanRecListSettings>
             return 0;
         }
 
-        var table = new Spectre.Console.Table();
-        table.AddColumn("Title");
-        table.AddColumn("State");
-        table.AddColumn("Impact");
-
-        foreach (var rec in recs)
-            table.AddRow(
-                rec.Title.EscapeMarkup(),
-                rec.State.EscapeMarkup(),
-                (rec.Impact ?? "-").EscapeMarkup());
-
-        AnsiConsole.Write(table);
+        var rows = recs.Select(rec => (IReadOnlyList<string>)new[]
+        {
+            rec.Title,
+            rec.State,
+            rec.Impact ?? "-"
+        });
+        CliOutput.WriteTable(["Title", "State", "Impact"], rows);
         return 0;
     }
 }

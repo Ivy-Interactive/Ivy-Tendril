@@ -160,6 +160,7 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | Command | Description |
 |---------|-------------|
 | `tendril verification list` | List verification definitions |
+| `tendril verification list --json` | List verification definitions as JSON (full, untruncated prompts) |
 | `tendril verification get <name>` | Get verification details |
 | `tendril verification add <name>` | Add verification definition |
 | `tendril verification remove <name>` | Remove verification definition |

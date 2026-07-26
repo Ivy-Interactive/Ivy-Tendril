@@ -108,14 +108,8 @@ public class PlanVerificationListCommand : Command<PlanVerificationListSettings>
             return 0;
         }
 
-        var table = new Spectre.Console.Table();
-        table.AddColumn("Name");
-        table.AddColumn("Status");
-
-        foreach (var v in verifications)
-            table.AddRow(v.Name.EscapeMarkup(), v.Status.ToString().EscapeMarkup());
-
-        AnsiConsole.Write(table);
+        var rows = verifications.Select(v => (IReadOnlyList<string>)new[] { v.Name, v.Status.ToString() });
+        CliOutput.WriteTable(["Name", "Status"], rows);
         return 0;
     }
 }
