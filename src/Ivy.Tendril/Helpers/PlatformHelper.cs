@@ -73,7 +73,7 @@ public static class PlatformHelper
                 {
                     FileName = "open",
                     Arguments = $"-a Terminal \"{scriptPath}\"",
-                    UseShellExecute = true
+                    UseShellExecute = false
                 });
                 return true;
             }
@@ -104,21 +104,24 @@ public static class PlatformHelper
     {
         try
         {
-            var psi = new ProcessStartInfo { UseShellExecute = true };
+            var psi = new ProcessStartInfo();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 psi.FileName = "wt.exe";
                 psi.Arguments = $"-d \"{workingDirectory}\"";
+                psi.UseShellExecute = true;
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 psi.FileName = "open";
                 psi.Arguments = $"-a Terminal \"{workingDirectory}\"";
+                psi.UseShellExecute = false;
             }
             else
             {
                 psi.FileName = "xdg-open";
-                psi.Arguments = workingDirectory;
+                psi.Arguments = $"\"{workingDirectory}\"";
+                psi.UseShellExecute = false;
             }
 
             Process.Start(psi);
@@ -214,7 +217,7 @@ public static class PlatformHelper
                     {
                         FileName = "open",
                         Arguments = $"\"{target}\"",
-                        UseShellExecute = true
+                        UseShellExecute = false
                     });
                     return true;
                 }
@@ -228,21 +231,24 @@ public static class PlatformHelper
     {
         try
         {
-            var psi = new ProcessStartInfo { UseShellExecute = true };
+            var psi = new ProcessStartInfo();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 psi.FileName = "explorer.exe";
-                psi.Arguments = folderPath;
+                psi.Arguments = $"\"{folderPath}\"";
+                psi.UseShellExecute = true;
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 psi.FileName = "open";
-                psi.Arguments = folderPath;
+                psi.Arguments = $"\"{folderPath}\"";
+                psi.UseShellExecute = false;
             }
             else
             {
                 psi.FileName = "xdg-open";
-                psi.Arguments = folderPath;
+                psi.Arguments = $"\"{folderPath}\"";
+                psi.UseShellExecute = false;
             }
 
             Process.Start(psi);
