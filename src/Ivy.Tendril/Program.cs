@@ -445,7 +445,7 @@ public class Program
         }
     }
 
-    private static CommandApp ConfigureCliCommands(ServiceCollection cliServices)
+    internal static CommandApp ConfigureCliCommands(ServiceCollection cliServices)
     {
         var registrar = new TypeRegistrar(cliServices);
         var app = new CommandApp(registrar);
