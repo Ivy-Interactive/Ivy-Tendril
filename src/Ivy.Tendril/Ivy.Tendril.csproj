@@ -13,7 +13,6 @@
     <DefaultItemExcludes>$(DefaultItemExcludes);Promptwares/**</DefaultItemExcludes>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
-
   <PropertyGroup>
     <PackageId>Ivy.Tendril</PackageId>
     <IsPackable>true</IsPackable>
@@ -25,17 +24,14 @@
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
-
   <ItemGroup>
     <InternalsVisibleTo Include="Ivy.Tendril.Test" />
   </ItemGroup>
-
   <ItemGroup>
     <EmbeddedResource Include="Assets/**/*" />
     <EmbeddedResource Include="Prompts/**/*" />
     <EmbeddedResource Include="../Tendril.svg" Link="Assets/Tendril.svg" />
   </ItemGroup>
-
   <!-- PackageReferences -->
   <ItemGroup>
     <PackageReference Include="Ivy.StackAnalyzer" Version="1.0.1" />
@@ -53,7 +49,6 @@
     <PackageReference Include="Velopack" Version="0.0.1298" />
     <PackageReference Include="YamlDotNet" Version="17.0.0" />
   </ItemGroup>
-
   <!-- Ivy Framework (source) -->
   <ItemGroup Condition="'$(IvySource)' == 'true'">
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy/Ivy.csproj" />
@@ -65,18 +60,16 @@
     <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.QRCode/Ivy.Widgets.QRCode.csproj" />
     <ProjectReference Include="../../../Ivy-Framework/src/widgets/Ivy.Widgets.Xterm/Ivy.Widgets.Xterm.csproj" />
   </ItemGroup>
-
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy" Version="1.3.13" />
-    <PackageReference Include="Ivy.Desktop" Version="1.3.13" />
-    <PackageReference Include="Ivy.Hooks.Pty" Version="1.3.13" />
-    <PackageReference Include="Ivy.Widgets.ActivityHeatmap" Version="1.3.13" />
-    <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.3.13" />
-    <PackageReference Include="Ivy.Widgets.DiffView" Version="1.3.13" />
-    <PackageReference Include="Ivy.Widgets.QRCode" Version="1.3.13" />
-    <PackageReference Include="Ivy.Widgets.Xterm" Version="1.3.13" />
+    <PackageReference Include="Ivy" Version="1.3.15" />
+    <PackageReference Include="Ivy.Desktop" Version="1.3.15" />
+    <PackageReference Include="Ivy.Hooks.Pty" Version="1.3.15" />
+    <PackageReference Include="Ivy.Widgets.ActivityHeatmap" Version="1.3.15" />
+    <PackageReference Include="Ivy.Widgets.AnimatedStatusLabel" Version="1.3.15" />
+    <PackageReference Include="Ivy.Widgets.DiffView" Version="1.3.15" />
+    <PackageReference Include="Ivy.Widgets.QRCode" Version="1.3.15" />
+    <PackageReference Include="Ivy.Widgets.Xterm" Version="1.3.15" />
   </ItemGroup>
-
   <!-- Ivy Analyser -->
   <ItemGroup Condition="'$(IvySource)' == 'true'">
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy.Analyser/Ivy.Analyser.csproj">
@@ -87,29 +80,25 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' != 'true'">
-    <PackageReference Include="Ivy.Analyser" Version="1.3.13">
+    <PackageReference Include="Ivy.Analyser" Version="1.3.15">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
   </ItemGroup>
-
   <!-- Tendril ProjectReferences -->
   <ItemGroup>
     <ProjectReference Include="../Ivy.Tendril.Agents/Ivy.Tendril.Agents.csproj" />
     <ProjectReference Include="../Ivy.Tendril.Widgets/Ivy.Tendril.Widgets.csproj" />
   </ItemGroup>
-
   <ItemGroup>
     <None Update="example.config.yaml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="../../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
-
   <ItemGroup>
     <Folder Include="Apps\Review\Tabs\" />
   </ItemGroup>
-
   <Target Name="SetCommitId" BeforeTargets="GetAssemblyAttributes">
     <!-- CI passes -p:CommitId=<sha>; locally fall back to git. Embedded as assembly metadata
          and read at runtime by BugReportService to tag bug reports with the source revision. -->
@@ -123,7 +112,6 @@
       </AssemblyAttribute>
     </ItemGroup>
   </Target>
-
   <Target Name="PackPromptwaresZip" BeforeTargets="PrepareForBuild" Condition="'$(Configuration)' == 'Release'">
     <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildThisFileDirectory)pack-promptwares.ps1&quot; -IntermediateOutputPath &quot;$(IntermediateOutputPath).&quot;" />
     <ItemGroup>

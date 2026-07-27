@@ -15,8 +15,7 @@ The firmware header contains:
 
 ### 1. Read Plan
 
-- Read `plan.yaml` from the plan folder
-- Read the latest revision for the plan title and Problem section
+- Read `plan.yaml` and the latest revision for the plan title and Problem section together in a single batched read operation to reduce spin-up overhead
 - Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Creating issue..." --plan-id=<plan-id> --plan-title="<title>"`
 
 ### 2. Identify GitHub Repository

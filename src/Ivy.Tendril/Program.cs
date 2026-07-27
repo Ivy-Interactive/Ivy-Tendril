@@ -37,6 +37,11 @@ public class Program
     [DllImport("libc", SetLastError = true)]
     private static extern int setsid();
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AttachConsole(int dwProcessId);
+
+    private const int ATTACH_PARENT_PROCESS = -1;
+
     // Must be a static field to prevent GC from collecting the delegate
     private static ConsoleCtrlHandlerDelegate? _consoleCtrlHandler;
 
@@ -46,6 +51,48 @@ public class Program
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
+        try
+        {
+            VelopackApp.Build().Run();
+        }
+        catch { }
+
+        var (verbose, quiet, forceDesktop, forceWeb, beta, filteredArgs) = ParseGlobalFlags(args);
+
+        bool isTool = IsTendrilToolInvocation();
+        bool isPackagedApp = IsPackagedApp();
+        bool useDesktop = (forceDesktop || isPackagedApp || (isTool && !verbose && !quiet) || (!isTool && !isPackagedApp && !forceWeb)) && !forceWeb;
+        if (useDesktop && OperatingSystem.IsLinux())
+        {
+            // On Linux, default to web mode (foreground server) unless desktop is explicitly forced
+            if (!forceDesktop)
+            {
+                useDesktop = false;
+            }
+        }
+
+        var invocationKind = CliDispatcher.Classify(filteredArgs);
+
+        if (OperatingSystem.IsWindows())
+        {
+            // If we are executing a CLI command (or explicitly starting in web/console mode),
+            // try to attach to the parent console so console output is visible.
+            if (invocationKind != CliInvocationKind.ServerLaunch || !useDesktop)
+            {
+                if (AttachConsole(ATTACH_PARENT_PROCESS))
+                {
+                    try
+                    {
+                        var stdout = Console.OpenStandardOutput();
+                        Console.SetOut(new StreamWriter(stdout, new UTF8Encoding(false)) { AutoFlush = true });
+                        var stderr = Console.OpenStandardError();
+                        Console.SetError(new StreamWriter(stderr, new UTF8Encoding(false)) { AutoFlush = true });
+                    }
+                    catch { }
+                }
+            }
+        }
+
         var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
         if (!Console.IsInputRedirected)
@@ -97,27 +144,7 @@ public class Program
             catch { }
         }
 
-        VelopackApp.Build().Run();
-
-        var (verbose, quiet, forceDesktop, forceWeb, beta, filteredArgs) = ParseGlobalFlags(args);
-
-        bool isTool = IsTendrilToolInvocation();
-        bool isPackagedApp = IsPackagedApp();
-        bool useDesktop = (forceDesktop || isPackagedApp || (isTool && !verbose && !quiet)) && !forceWeb;
-        if (useDesktop && OperatingSystem.IsLinux())
-        {
-            // On Linux, default to web mode (foreground server) unless desktop is explicitly forced
-            if (!forceDesktop)
-            {
-                useDesktop = false;
-            }
-        }
-
-
-
         bool isDetachedChild = args.Contains(DetachedLaunchMarker);
-
-        var invocationKind = CliDispatcher.Classify(filteredArgs);
 
         if (invocationKind == CliInvocationKind.Help)
         {
@@ -394,7 +421,14 @@ public class Program
 
     private static bool IsPackagedApp()
     {
-        return Velopack.Locators.VelopackLocator.Current?.CurrentlyInstalledVersion != null;
+        try
+        {
+            return Velopack.Locators.VelopackLocator.Current?.CurrentlyInstalledVersion != null;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     private static bool ShouldDetachDesktopLaunch(string[] filteredArgs, bool verbose)
