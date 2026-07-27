@@ -71,7 +71,7 @@ function Get-LatestStableVersion {
             $versionCache[$PackageId] = $null
             return $null
         }
-        $latest = $stableVersions | ForEach-Object { [System.Management.Automation.SemanticVersion]$_ } | Sort-Object | Select-Object -Last 1
+        $latest = $stableVersions | Where-Object { $_ -match '^\d+\.\d+\.\d+$' } | ForEach-Object { [System.Management.Automation.SemanticVersion]$_ } | Sort-Object | Select-Object -Last 1
         $latestString = $latest.ToString()
         $versionCache[$PackageId] = $latestString
         return $latestString
