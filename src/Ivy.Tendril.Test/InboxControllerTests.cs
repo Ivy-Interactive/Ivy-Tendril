@@ -97,6 +97,8 @@ public class InboxControllerTests
         {
         }
 
+        public int StopAllJobs() => 0;
+
         public void DeleteJob(string id)
         {
         }
@@ -111,6 +113,11 @@ public class InboxControllerTests
 
         public void ClearAllJobs()
         {
+        }
+
+        public int StopQueuedJobs()
+        {
+            return 0;
         }
 
         public List<JobItem> GetJobs()
@@ -129,6 +136,11 @@ public class InboxControllerTests
         }
 
         public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null)
+        {
+            return false;
+        }
+
+        public bool ReportJobFailure(string id, string message)
         {
             return false;
         }

@@ -26,25 +26,14 @@ public static class LogAssertions
 
     public static string? GetJobLog(string tendrilHome, string planId)
     {
-        var promptwaresDir = Path.Combine(tendrilHome, "Promptwares");
-        if (!Directory.Exists(promptwaresDir))
-            return null;
+        var logFile = JobLogs(tendrilHome).FirstOrDefault(f => IsForPlan(f, planId));
+        if (logFile == null) return null;
 
-        foreach (var typeDir in Directory.GetDirectories(promptwaresDir))
-        {
-            var logsDir = Path.Combine(typeDir, "Logs");
-            if (!Directory.Exists(logsDir)) continue;
+        if (File.Exists(logFile))
+            return File.ReadAllText(logFile);
 
-            var logFile = Path.Combine(logsDir, $"{planId}.md");
-            if (File.Exists(logFile))
-                return File.ReadAllText(logFile);
-
-            var rawLog = Path.Combine(logsDir, $"{planId}.raw.jsonl");
-            if (File.Exists(rawLog))
-                return File.ReadAllText(rawLog);
-        }
-
-        return null;
+        var rawLog = Path.ChangeExtension(logFile, ".raw.jsonl");
+        return File.Exists(rawLog) ? File.ReadAllText(rawLog) : null;
     }
 
     public static void AssertLogContains(string tendrilHome, string planId, string expectedText)
@@ -54,32 +43,26 @@ public static class LogAssertions
         Assert.Contains(expectedText, log!, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static IEnumerable<string> FindLogFiles(string tendrilHome)
+    /// <summary>
+    /// The Job Logs in <c>&lt;TendrilHome&gt;/Jobs/</c>. Excludes <c>.prompt.md</c>, which is the verbatim
+    /// agent prompt rather than a log — its prose routinely mentions "error" and would trip AssertNoErrors.
+    /// </summary>
+    private static IEnumerable<string> JobLogs(string tendrilHome)
     {
-        var files = new List<string>();
+        var jobsDir = Path.Combine(tendrilHome, "Jobs");
+        if (!Directory.Exists(jobsDir)) return [];
 
-        var promptwaresDir = Path.Combine(tendrilHome, "Promptwares");
-        if (Directory.Exists(promptwaresDir))
-        {
-            foreach (var typeDir in Directory.GetDirectories(promptwaresDir))
-            {
-                var logsDir = Path.Combine(typeDir, "Logs");
-                if (Directory.Exists(logsDir))
-                    files.AddRange(Directory.GetFiles(logsDir, "*.md"));
-            }
-        }
-
-        var plansDir = Path.Combine(tendrilHome, "Plans");
-        if (Directory.Exists(plansDir))
-        {
-            foreach (var planDir in Directory.GetDirectories(plansDir))
-            {
-                var logsDir = Path.Combine(planDir, "logs");
-                if (Directory.Exists(logsDir))
-                    files.AddRange(Directory.GetFiles(logsDir));
-            }
-        }
-
-        return files;
+        return Directory.GetFiles(jobsDir, "*.md")
+            .Where(f => !f.EndsWith(".prompt.md", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(Path.GetFileName, StringComparer.Ordinal);
     }
+
+    /// <summary>Job log stems are <c>{jobId}-{planId}-{promptware}</c>.</summary>
+    private static bool IsForPlan(string logFile, string planId)
+    {
+        var parts = Path.GetFileNameWithoutExtension(logFile).Split('-');
+        return parts.Length >= 3 && parts[1] == planId;
+    }
+
+    private static IEnumerable<string> FindLogFiles(string tendrilHome) => JobLogs(tendrilHome);
 }

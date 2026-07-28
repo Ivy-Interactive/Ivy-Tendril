@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Formats.Tar;
+using System.IO.Compression;
 using System.Runtime.InteropServices;
 using Ivy.Tendril.Agents.Helpers;
 using Microsoft.Extensions.Logging;
@@ -53,8 +55,37 @@ public sealed class CloudflaredInstaller
         response.EnsureSuccessStatusCode();
 
         await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        await using var fileStream = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
-        await stream.CopyToAsync(fileStream, ct);
+
+        if (binaryName.EndsWith(".tgz", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogInformation("Decompressing tarball and extracting cloudflared binary");
+            await using var gzipStream = new GZipStream(stream, CompressionMode.Decompress);
+            using var tarReader = new TarReader(gzipStream);
+            var extracted = false;
+            while (tarReader.GetNextEntry() is TarEntry entry)
+            {
+                if (entry.Name == "cloudflared" || entry.Name.EndsWith("/cloudflared", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (entry.DataStream is not null)
+                    {
+                        await using var fileStream = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                        await entry.DataStream.CopyToAsync(fileStream, ct);
+                        extracted = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!extracted)
+            {
+                throw new FileNotFoundException("Could not find 'cloudflared' binary inside the downloaded archive.");
+            }
+        }
+        else
+        {
+            await using var fileStream = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            await stream.CopyToAsync(fileStream, ct);
+        }
 
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
@@ -79,8 +110,8 @@ public sealed class CloudflaredInstaller
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             return RuntimeInformation.ProcessArchitecture == Architecture.Arm64
-                ? "cloudflared-darwin-arm64"
-                : "cloudflared-darwin-amd64";
+                ? "cloudflared-darwin-arm64.tgz"
+                : "cloudflared-darwin-amd64.tgz";
 
         return RuntimeInformation.ProcessArchitecture == Architecture.Arm64
             ? "cloudflared-linux-arm64"

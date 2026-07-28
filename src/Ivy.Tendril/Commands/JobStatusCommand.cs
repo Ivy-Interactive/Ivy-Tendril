@@ -1,6 +1,4 @@
 using System.ComponentModel;
-using System.Text;
-using System.Text.Json;
 using Ivy.Tendril.Helpers;
 using Spectre.Console.Cli;
 
@@ -32,23 +30,19 @@ public class JobStatusSettings : CommandSettings
 
 public class JobStatusCommand : Command<JobStatusSettings>
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-
     protected override int Execute(CommandContext context, JobStatusSettings settings, CancellationToken cancellationToken)
     {
-        var discovery = MasterClient.Discover();
-        using var client = MasterClient.CreateHttpClient(discovery);
+        // Progress telemetry must never fail an agent run: warn and still exit 0.
+        var (ok, error) = MasterClient.TryPutJson(
+            $"api/jobs/{settings.JobId}/status",
+            new { message = settings.Message, planId = settings.PlanId, planTitle = settings.PlanTitle },
+            cancellationToken);
 
-        var payload = new { message = settings.Message, planId = settings.PlanId, planTitle = settings.PlanTitle };
-        var json = JsonSerializer.Serialize(payload, JsonOptions);
-        var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        var response = client.PutAsync($"{discovery.BaseUrl}/api/jobs/{settings.JobId}/status", content, cancellationToken)
-            .GetAwaiter().GetResult();
-        response.EnsureSuccessStatusCode();
+        if (!ok)
+        {
+            Console.Error.WriteLine($"Warning: could not report status for job {settings.JobId}: {error}");
+            return 0;
+        }
 
         Console.WriteLine($"Status updated for job {settings.JobId}");
         return 0;

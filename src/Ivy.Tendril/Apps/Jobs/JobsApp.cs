@@ -21,11 +21,13 @@ public partial class JobsApp : ViewBase
         var openFile = UseState<string?>(null);
         var confirmDeleteOpen = UseState(false);
         var deleteJobId = UseState<string?>(null);
+        var confirmStopQueuedOpen = UseState(false);
+        var confirmStopAllOpen = UseState(false);
 
         var (planSheet, showPlan) = UseTrigger<string>((isOpen, planPath) =>
         {
             if (!isOpen.Value) return null;
-            var planSheetView = new PlanSheet(planPath, planService, openFile);
+            var planSheetView = new PlanSheet(planPath, planService, openFile, config);
             var sheet = new Sheet(
                 () => isOpen.Set(false),
                 planSheetView.Build(),
@@ -62,7 +64,7 @@ public partial class JobsApp : ViewBase
             if (!isOpen.Value) return null;
             return new Sheet(
                 () => isOpen.Set(false),
-                new JobDebugSheet(jobId, jobService, planService, config),
+                new JobDebugSheet(jobId, jobService, planService, config, () => isOpen.Set(false)),
                 "Job Debug"
             ).Width(UxHelper.SheetWidth).Resizable();
         });
@@ -75,21 +77,29 @@ public partial class JobsApp : ViewBase
             return new RerunJobDialog(isOpen, job, jobService, () => refreshToken.Refresh());
         });
 
-        UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken));
-        UseInterval(() => JobsApp.AutoRefreshCheck(jobService, refreshToken), TimeSpan.FromSeconds(5));
+        var renderedSignature = UseRef("");
 
+        UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken));
+        UseInterval(() =>
+        {
+            if (JobsApp.ComputeStructuralSignature(jobService.GetJobs()) == renderedSignature.Value) return;
+            refreshToken.Refresh();
+        }, TimeSpan.FromSeconds(5));
+
+        var sentCells = UseRef(new Dictionary<string, string>(StringComparer.Ordinal));
         var updateStream = UseDataTableUpdates(
             Observable.Interval(TimeSpan.FromSeconds(1))
-                .SelectMany(_ => JobsApp.BuildDataTableUpdates(jobService)));
+                .SelectMany(_ => JobsApp.BuildDataTableUpdates(jobService, sentCells.Value)));
 
         var jobs = jobService.GetJobs();
+        renderedSignature.Value = JobsApp.ComputeStructuralSignature(jobs);
         var projectColors = BuildProjectColorMapping(config);
         var rows = BuildJobRows(jobs, planService);
         var jobsProgress = jobs.Count > 0 ? BuildStatusProgress(jobs, config) : null;
 
         var dataTable = JobsApp.BuildDataTable(nav, rows, refreshToken, updateStream, config, planService,
             jobService, client, showPlan, showOutput, showPrompt, showDebug, showRerun, jobs, projectColors, jobsProgress,
-            confirmDeleteOpen, deleteJobId);
+            confirmDeleteOpen, deleteJobId, confirmStopQueuedOpen, confirmStopAllOpen);
 
         var layout = Layout.Vertical().Height(Size.Full());
 

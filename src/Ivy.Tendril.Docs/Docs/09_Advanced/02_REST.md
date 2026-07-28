@@ -114,15 +114,6 @@ Content-Type: application/json
 
 Valid statuses: `Pending`, `Pass`, `Fail`, `Skipped`.
 
-### Add Log
-
-```
-POST /api/plans/{planId}/logs
-Content-Type: application/json
-
-{ "action": "ExecutePlan", "summary": "Completed successfully" }
-```
-
 ## Recommendations
 
 ### List Recommendations
@@ -206,6 +197,17 @@ GET /api/jobs/{jobId}
 
 Returns the current status of a job.
 
+### Add Log
+
+Appends an `## Agent Log` section to the job's log in `<TendrilHome>/Jobs/`.
+
+```
+POST /api/jobs/{jobId}/logs
+Content-Type: application/json
+
+{ "action": "ExecutePlan", "summary": "Completed successfully" }
+```
+
 ### Update Job Status
 
 ```
@@ -216,6 +218,12 @@ Content-Type: application/json
 ```
 
 Updates progress for a running job. Used by promptware agents via the `tendril job status` CLI command.
+
+Returns `404 { "error": "Job not found" }` if the job id is unknown to the server (for example, the
+server restarted since the job started, or the job was deleted). The `tendril job status` CLI treats
+that response as a warning printed to stderr rather than a command failure, since a dropped progress
+report should not make an otherwise-successful agent script look broken. The same applies to
+`tendril job fail` against `PUT /api/jobs/{jobId}/fail`.
 
 ### Health Check
 

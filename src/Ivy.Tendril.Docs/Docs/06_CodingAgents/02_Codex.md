@@ -36,8 +36,8 @@ Tendril maps effort levels to Codex models:
 
 | Profile | Model | Use Case |
 |---------|-------|----------|
-| `deep` | gpt-5.4 | Complex multi-file changes |
-| `balanced` | gpt-5.4-mini | Standard plan execution |
-| `quick` | gpt-5.3-codex | Simple fixes and small edits |
+| `deep` | gpt-5.5 | Complex multi-file changes |
+| `balanced` | gpt-5.6-terra | Standard plan execution |
+| `quick` | gpt-5.6-luna | Simple fixes and small edits |
 
 The profile is selected automatically based on the plan's complexity level, or can be configured per promptware in `config.yaml`.

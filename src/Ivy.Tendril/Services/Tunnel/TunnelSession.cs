@@ -43,7 +43,7 @@ public sealed partial class TunnelSession : IDisposable
             psi.ArgumentList.Add("--no-tls-verify");
 
         _process = Process.Start(psi)
-            ?? throw new InvalidOperationException("Failed to start cloudflared process");
+            ?? throw new InvalidOperationException("Failed to start Cloudflare process");
 
         // Tie the process lifetime to ours: if Tendril dies without a graceful shutdown
         // (crash, console close, forced kill), the OS still terminates cloudflared instead
@@ -60,7 +60,7 @@ public sealed partial class TunnelSession : IDisposable
 
         await using var reg = timeoutCts.Token.Register(() =>
             _urlTcs.TrySetException(new TimeoutException(
-                $"Cloudflared did not produce a tunnel URL within {UrlTimeout.TotalSeconds}s")));
+                $"Cloudflare did not produce a tunnel URL within {UrlTimeout.TotalSeconds}s")));
 
         var url = await _urlTcs.Task;
         TunnelUrl = url;
@@ -106,7 +106,16 @@ public sealed partial class TunnelSession : IDisposable
     public static string? ParseTunnelUrl(string line)
     {
         var match = TunnelUrlRegex().Match(line);
-        return match.Success ? match.Value : null;
+        if (match.Success)
+        {
+            var url = match.Value;
+            if (url.Equals("https://api.trycloudflare.com", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+            return url;
+        }
+        return null;
     }
 
     [GeneratedRegex(@"https://[a-z0-9-]+\.trycloudflare\.com", RegexOptions.IgnoreCase)]

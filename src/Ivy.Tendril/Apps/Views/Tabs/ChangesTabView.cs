@@ -106,7 +106,7 @@ public class ChangesTabView(
         if (hideFormatting.Value && hiddenCount > 0)
             toolbar |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
 
-        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(0, 0, 0, 2)
+        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(0, 0, 2, 2)
             | treePanel
             | diffsLayout;
 

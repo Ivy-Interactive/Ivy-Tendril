@@ -20,6 +20,10 @@ public class ReportBugSettings : CommandSettings
     [Description("Bug description")]
     public string? Description { get; set; }
 
+    [CommandOption("--github-user")]
+    [Description("Your GitHub username (optional, so we can follow up on the issue)")]
+    public string? GithubUser { get; set; }
+
     [CommandOption("-y|--yes")]
     [Description("Skip confirmation prompt")]
     public bool Yes { get; set; }
@@ -75,7 +79,7 @@ public class ReportBugCommand : Command<ReportBugSettings>
         }
 
         AnsiConsole.MarkupLine("[dim]Uploading bug report...[/]");
-        var result = service.SubmitReportAsync(description, files, cancellationToken).GetAwaiter().GetResult();
+        var result = service.SubmitReportAsync(description, files, settings.GithubUser, cancellationToken).GetAwaiter().GetResult();
 
         if (result == null)
             throw new InvalidOperationException("Upload failed.");
@@ -104,24 +108,18 @@ public class ReportBugCommand : Command<ReportBugSettings>
 
     private static void DisplayFileList(List<BugReportService.BugReportFile> files)
     {
-        var table = new Spectre.Console.Table();
-        table.AddColumn("File");
-        table.AddColumn(new Spectre.Console.TableColumn("Size").RightAligned());
-
         long totalSize = 0;
+        var rows = new List<IReadOnlyList<string>>();
         foreach (var file in files)
         {
             var size = file.Content?.Length ?? new FileInfo(file.AbsolutePath).Length;
             totalSize += size;
-            table.AddRow(
-                file.ZipEntryPath.EscapeMarkup(),
-                FormatSize(size));
+            rows.Add(new[] { file.ZipEntryPath, FormatSize(size) });
         }
 
-        table.AddEmptyRow();
-        table.AddRow("[bold]Total[/]", $"[bold]{FormatSize(totalSize)}[/]");
+        rows.Add(new[] { "Total", FormatSize(totalSize) });
 
-        AnsiConsole.Write(table);
+        CliOutput.WriteTable(["File", "Size"], rows);
     }
 
     private static string FormatSize(long bytes)

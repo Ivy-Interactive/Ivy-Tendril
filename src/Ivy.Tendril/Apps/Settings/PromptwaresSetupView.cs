@@ -1,3 +1,4 @@
+using System.Reactive.Disposables;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
@@ -13,6 +14,13 @@ public class PromptwaresSetupView : ViewBase
         var (triggerView, showTrigger) = UseTrigger((IState<bool> isOpen, string? existingKey) =>
             new EditPromptwareDialogContent(isOpen, existingKey, config, client, refreshToken));
         var (alertView, showAlert) = UseAlert();
+
+        UseEffect(() =>
+        {
+            void OnSettingsReloaded(object? sender, EventArgs e) => refreshToken.Refresh();
+            config.SettingsReloaded += OnSettingsReloaded;
+            return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);
+        });
 
         var promptwares = config.Settings.Promptwares;
 

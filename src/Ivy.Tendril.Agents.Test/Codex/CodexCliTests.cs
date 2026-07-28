@@ -168,6 +168,23 @@ public class CodexCliTests
     }
 
     [Fact]
+    public void BuildProcessSpec_EnablesNetworkAccessInWorkspaceWriteSandbox()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "Hello",
+            WorkingDirectory = "/tmp",
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        var argList = spec.Arguments.ToList();
+        var configIdx = argList.IndexOf("-c");
+        Assert.True(configIdx >= 0);
+        Assert.Equal("sandbox_workspace_write.network_access=true", argList[configIdx + 1]);
+    }
+
+    [Fact]
     public void BuildProcessSpec_WithModel_IncludesModelFlag()
     {
         var config = new AgentLaunchConfig

@@ -65,15 +65,17 @@ The tests use `Ivy-Interactive/Ivy-Templates` — a real dotnet project with `Pr
     00001-PlanFolderName/
       plan.yaml
       revisions/
-      logs/
   Promptwares/
-    CreatePlan/Logs/{planId}.md
-    ExecutePlan/Logs/{planId}.md
-    CreatePr/Logs/{planId}.md
-  jobs/
-    {jobId}.status                   ← Status file (JSON)
+    CreatePlan/ ExecutePlan/ CreatePr/    ← program folders only, no Logs/
+  Jobs/
+    .counter                              ← Job ID counter
+    {jobId}-CreatePlan.md                 ← Job Log (+ .prompt.md, .raw.jsonl, .eventwire.jsonl)
+    {jobId}-{planId}-ExecutePlan.md
   Logs/
     worktrees.log
+
+%TEMP%/tendril-pw-{runId}-artifacts/  ← PromptwareTestFixture.TestArtifactsDir (NOT under TENDRIL_HOME)
+  execute-plan-claude.cli.jsonl       ← `--cli-log`: the tendril CLI calls the agent made
 ```
 
 ## What the tests cover
@@ -101,7 +103,7 @@ The tests use `Ivy-Interactive/Ivy-Templates` — a real dotnet project with `Pr
 - **`--find-available-port`** is required to avoid port conflicts between test runs.
 - **Git pack files are read-only on Windows** — must clear read-only attributes before `Directory.Delete`.
 - **After page reload, the sidebar may not immediately show new plans.** Retry with reloads.
-- **CLI logs (`*-job.jsonl`) are only produced when running the installed `tendril` binary**, not when running via `dotnet run`. The `LogAssertions` methods are lenient about missing logs for this reason.
+- **The `--cli-log` file is a test instrument, not a job artifact.** It records every `tendril` CLI call the agent made (`{timestamp, command, exitCode, durationMs}` per line) and is asserted on by `CliLogAssertions`. Get its path from `_fixture.CliLogPath(name)`, which writes to `TestArtifactsDir` — a sibling of `TENDRIL_HOME`, never inside it. Only `promptware run --cli-log` produces one; app-launched jobs never do. Job logs are a separate thing entirely and live in `Jobs/` (see `LogAssertions`, which is lenient about missing logs under `dotnet run`).
 - **Tests sharing the `E2E` collection must use unique plan descriptions.** Otherwise `FindPlanFolder` can match a folder from a previous test's plan.
 
 ## Troubleshooting test failures
@@ -110,8 +112,8 @@ The tests use `Ivy-Interactive/Ivy-Templates` — a real dotnet project with `Pr
 
 1. **Check the error message** — timeout errors include the last 20-30 lines of Tendril stdout and the Plans directory contents.
 2. **Check screenshots** — on failure, screenshots are saved to `%TEMP%/tendril-e2e-*.png`. Look at sidebar state, dialog state, etc.
-3. **Check promptware logs** — use `LogAssertions.GetJobLog(tendrilHome, planId)` to read the full agent execution log.
-4. **Check status files** — look in `$TENDRIL_HOME/jobs/*.status` for the last reported job status (JSON with message, planId, planTitle).
+3. **Check job logs** — use `LogAssertions.GetJobLog(tendrilHome, planId)` to read the plan's job log from `<TendrilHome>/Jobs/`.
+4. **Check the last reported status** — `GET /api/jobs/{jobId}` returns it, or read the `StatusMessage` column of the `Jobs` table in `tendril.db`. Job status is never written to disk.
 5. **Check Tendril stdout/stderr** — accessible via `_fixture.Tendril.StdoutLines` / `StderrLines` in tests.
 
 ### Common failure patterns
@@ -121,7 +123,7 @@ The tests use `Ivy-Interactive/Ivy-Templates` — a real dotnet project with `Pr
 - **Sidebar click timeout / "subtree intercepts pointer events"** — An overlay element (news card, tooltip, loading state) is blocking clicks. The `TENDRIL_E2E` env var suppresses news cards. If new overlays appear, add `force: true` fallback in `DashboardPage.ClickSidebarItem`.
 - **"New Plan" button not found** — The sidebar failed to render (check for exceptions in Tendril stdout) or the button hasn't appeared yet (increase `WaitForAsync` timeout).
 - **"Plan not visible in sidebar"** — The plan folder exists but the UI hasn't refreshed. The test retries with reloads for 120s. If it still fails, the sidebar rendering may have changed.
-- **"plan.yaml not created"** — The coding agent failed or timed out. Check promptware logs for the agent's error output.
+- **"plan.yaml not created"** — The coding agent failed or timed out. Check the job logs in `<TendrilHome>/Jobs/` for the agent's error output.
 - **"state: Review not found"** — ExecutePlan didn't complete. Check if the agent errored, if verifications failed, or if the process was killed early.
 - **"PR URL not found in plan.yaml"** — CreatePR promptware failed. Check GitHub auth (`gh auth status`) and fork permissions.
 - **Port conflict in CleanupTests** — The `TendrilProcessFixture_CleansUpTempDirectories` test starts its own Tendril instance. If the main E2E fixture is still running, ports may collide even with `--find-available-port`. The test handles this gracefully via try/catch on `TimeoutException`.
@@ -134,7 +136,7 @@ Promptwares report progress via `tendril job status`:
 tendril job status <TendrilJobId> --message "Creating plan..." --plan-id 00001 --plan-title "My Plan"
 ```
 
-The `<TendrilJobId>` value is provided as a firmware header in the agent's prompt. This writes a JSON status file to `$TENDRIL_HOME/Jobs/{jobId}.status`, which is polled by JobMonitor every 1 second and forwarded to the Jobs UI.
+The `<TendrilJobId>` value is provided as a firmware header in the agent's prompt. The command issues an HTTP `PUT api/jobs/{jobId}/status` to the running master instance (discovered via `$TENDRIL_HOME/.master`), which sets `job.StatusMessage` in memory; the Jobs table picks it up on the next cell-update tick. **Nothing is written to disk — there is no status file.**
 
 ### Verifiable status fields
 
@@ -145,13 +147,11 @@ The `<TendrilJobId>` value is provided as a firmware header in the agent's promp
 ### How to verify promptware status in tests
 
 ```csharp
-// Check that promptware logs contain expected status messages
+// Check that job logs contain expected status messages
 LogAssertions.AssertLogContains(tendrilHome, planId, "Creating plan...");
 
-// Check status file directly
-var statusPath = Path.Combine(tendrilHome, "jobs", $"{jobId}.status");
-var json = File.ReadAllText(statusPath);
-// Parse and assert message, planId, planTitle
+// Check the last reported status via the running server
+// GET api/jobs/{jobId} -> { id, status, message }
 
 // Check captured stdout for CLI invocations
 var statusLines = fixture.Tendril.StdoutLines
@@ -189,11 +189,11 @@ Each agent has different CLI invocation patterns and auth requirements:
 
 We should add tests that verify promptwares properly call `tendril job status` with correct arguments:
 
-1. **Status file assertions** — after a job completes, read `$TENDRIL_HOME/jobs/{jobId}.status` and verify it contains planId and planTitle.
-2. **Log content assertions** — check promptware logs for expected status messages ("Creating plan...", "Reading plan...", "Verifying: DotnetBuild").
+1. **Status assertions** — after a job completes, `GET api/jobs/{jobId}` (or read the `Jobs` table) and verify the reported message, planId and planTitle.
+2. **Log content assertions** — check job logs for expected status messages ("Creating plan...", "Reading plan...", "Verifying: DotnetBuild").
 3. **Stdout capture** — search `fixture.Tendril.StdoutLines` for CLI invocation traces.
 
-Consider adding a structured log in Tendril's `JobLauncher.RunStatusFilePoller()` that records every status update received, so tests can assert on the full status progression without relying on the transient status file.
+Only the *last* status message survives — `JobService.UpdateJobStatus` overwrites `job.StatusMessage` in place. To assert on the full progression, have the promptware record each step with `tendril job add-log`, which appends rather than overwrites, then read the job log back.
 
 ### Reactive wait strategy
 

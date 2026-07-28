@@ -22,7 +22,7 @@ public class CopilotFailureAnalyzerTests
 
         Assert.Equal(FailureKind.Timeout, result.Kind);
         Assert.True(result.IsRetryable);
-        Assert.Contains("GitHub Copilot", result.Reason);
+        Assert.Contains("Copilot", result.Reason);
         Assert.Contains("timeout", result.Reason, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -41,7 +41,7 @@ public class CopilotFailureAnalyzerTests
 
         Assert.Equal(FailureKind.IdleTimeout, result.Kind);
         Assert.True(result.IsRetryable);
-        Assert.Contains("GitHub Copilot", result.Reason);
+        Assert.Contains("Copilot", result.Reason);
         Assert.Contains("idle", result.Reason, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -109,6 +109,8 @@ public class CopilotFailureAnalyzerTests
     [InlineData("invalid model specified")]
     [InlineData("model not found")]
     [InlineData("model does not exist")]
+    [InlineData("not available")]
+    [InlineData("Model \"gpt-5.2\" from --model flag is not available.")]
     public void Analyze_InvalidModel_ReturnsInvalidModel(string stderrLine)
     {
         var ctx = new FailureContext
@@ -162,7 +164,7 @@ public class CopilotFailureAnalyzerTests
         Assert.Equal(FailureKind.ProcessCrash, result.Kind);
         Assert.True(result.IsRetryable);
         Assert.Contains("137", result.Reason);
-        Assert.Contains("GitHub Copilot", result.Reason);
+        Assert.Contains("Copilot", result.Reason);
     }
 
     [Fact]

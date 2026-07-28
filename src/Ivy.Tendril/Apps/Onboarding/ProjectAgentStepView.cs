@@ -35,6 +35,9 @@ public class ProjectAgentStepView(
         var authCode = UseState<string?>(null);
         var isCloning = UseState(false);
 
+        var (installDialog, showInstallDialog) = UseTrigger<InstallDialogArgs>((isOpen, args) =>
+            new InstallMissingDialog(isOpen, args));
+
         UseEffect(async () =>
         {
             if (session.Started.Value) return;
@@ -51,7 +54,19 @@ public class ProjectAgentStepView(
 
             try
             {
-                var name = InputSanitizer.SanitizeProjectName(projectName.Value);
+                var nameError = InputSanitizer.DescribeProjectNameError(projectName.Value);
+                if (nameError != null)
+                {
+                    await progressCts.CancelAsync();
+                    progressValue.Set(null);
+                    progressMessage.Set(null);
+                    error.Set(nameError);
+                    isCloning.Set(false);
+                    isStepLoading.Set(false);
+                    return;
+                }
+
+                var name = projectName.Value;
                 var existingProject = config.Settings.Projects
                     .FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
@@ -124,29 +139,34 @@ public class ProjectAgentStepView(
                         await agentCheckCts.CancelAsync();
                         progressValue.Set(null);
                         progressMessage.Set(null);
-                        error.Set($"Please make sure your agent ({info.DisplayName}) is present and you are authorized.");
-                        isStepLoading.Set(false);
-                        return;
-                    }
 
-                    progressMessage.Set($"Verifying {info.DisplayName} authentication...");
-                    var authStatus = await healthCheck.CheckAuthAsync();
-                    if (authStatus.Status != AuthStatus.Authenticated)
-                    {
-                        progressMessage.Set($"Signing In to {info.DisplayName}... (Browser Will Open)");
-                        authCode.Set(null);
-
-                        var callbacks = new AuthFlowCallbacks
+                        var agentCheck = new SoftwareCheck(
+                            info.DisplayName,
+                            agentKey,
+                            info.InstallUrl ?? "",
+                            true,
+                            () => Task.FromResult(installStatus.IsInstalled))
                         {
-                            OnUrl = url => { client.OpenUrl(url); return Task.CompletedTask; },
-                            OnCode = code => authCode.Set(code),
+                            LastError = installStatus.Error
                         };
-                        await healthCheck.RunAuthFlowAsync(callbacks, CancellationToken.None);
-                        authCode.Set(null);
 
-                        progressMessage.Set($"Verifying {info.DisplayName} authentication...");
-                        authStatus = await healthCheck.CheckAuthAsync();
-                        if (authStatus.Status != AuthStatus.Authenticated)
+                        var tcs = new TaskCompletionSource<bool>();
+                        showInstallDialog(new InstallDialogArgs(agentCheck, tcs));
+                        var resumed = await tcs.Task;
+
+                        if (!resumed)
+                        {
+                            isStepLoading.Set(false);
+                            return;
+                        }
+
+                        // Re-check installation after user dismisses dialog
+                        progressMessage.Set($"Checking {info.DisplayName} installation...");
+                        agentCheckCts = new CancellationTokenSource();
+                        _ = UxHelper.AnimateProgressAsync(progressValue, agentCheckCts.Token);
+
+                        installStatus = await healthCheck.CheckInstallAsync();
+                        if (!installStatus.IsInstalled)
                         {
                             await agentCheckCts.CancelAsync();
                             progressValue.Set(null);
@@ -154,6 +174,37 @@ public class ProjectAgentStepView(
                             error.Set($"Please make sure your agent ({info.DisplayName}) is present and you are authorized.");
                             isStepLoading.Set(false);
                             return;
+                        }
+                    }
+
+                    if (agentKey != "opencode" && agentKey != "ivy")
+                    {
+                        progressMessage.Set($"Verifying {info.DisplayName} authentication...");
+                        var authStatus = await healthCheck.CheckAuthAsync();
+                        if (authStatus.Status != AuthStatus.Authenticated)
+                        {
+                            progressMessage.Set($"Signing In to {info.DisplayName}... (Browser Will Open)");
+                            authCode.Set(null);
+
+                            var callbacks = new AuthFlowCallbacks
+                            {
+                                OnUrl = url => { client.OpenUrl(url); return Task.CompletedTask; },
+                                OnCode = code => authCode.Set(code),
+                            };
+                            await healthCheck.RunAuthFlowAsync(callbacks, CancellationToken.None);
+                            authCode.Set(null);
+
+                            progressMessage.Set($"Verifying {info.DisplayName} authentication...");
+                            authStatus = await healthCheck.CheckAuthAsync();
+                            if (authStatus.Status != AuthStatus.Authenticated)
+                            {
+                                await agentCheckCts.CancelAsync();
+                                progressValue.Set(null);
+                                progressMessage.Set(null);
+                                error.Set($"Please make sure your agent ({info.DisplayName}) is present and you are authorized.");
+                                isStepLoading.Set(false);
+                                return;
+                            }
                         }
                     }
                 }
@@ -215,10 +266,15 @@ public class ProjectAgentStepView(
                 error.Set($"Failed to set up project: {ex.Message}");
                 isCloning.Set(false);
                 isStepLoading.Set(false);
+                session.Running.Set(false);
             }
         }, setupTrigger != null ? [setupTrigger, EffectTrigger.OnMount()] : [EffectTrigger.OnMount()]);
 
-        var running = session.Running.Value || isCloning.Value;
+        // With no setupTrigger the run starts on mount, so the step counts as
+        // about-to-start from the moment it renders until the session has started.
+        var aboutToStart = (setupTrigger == null || setupTrigger.Value) && !session.Started.Value;
+
+        var running = session.Running.Value || isCloning.Value || aboutToStart;
 
         var buttonArea = Layout.Horizontal().Width(Size.Full())
             | new Button("Back").Outline().Large().Icon(Icons.ArrowLeft)
@@ -233,7 +289,22 @@ public class ProjectAgentStepView(
         // output arrives, the AgentViewer's own status label (below the stream) shows the
         // "Starting…" loading indicator, so we don't render a separate Loading() above it —
         // that avoided a layout shift when the bordered/padded Box swapped in on first output.
-        var showStream = !isCloning.Value && (session.Running.Value || session.HasOutput.Value);
+        var showStream = !isCloning.Value && (session.Running.Value || session.HasOutput.Value || aboutToStart);
+
+        var viewer = new AgentViewer()
+            .Stream(session.Stream)
+            .AutoScroll(true)
+            .ShowStatusLabel(true)
+            .Width(Size.Full())
+            .Height(Size.Full()) with
+        {
+            OnComplete = _ =>
+            {
+                session.Running.Set(false);
+                isStepLoading.Set(false);
+                return ValueTask.CompletedTask;
+            }
+        };
 
         return Layout.Vertical().Margin(0, 0, 0, 2)
                | (showHeader ? Text.H3("Setting up your project") : null!)
@@ -249,19 +320,13 @@ public class ProjectAgentStepView(
                    ? (object)new Progress(progressValue.Value.Value)
                    : null!)
                | (showStream
-                   ? (object)new Box(
-                        new AgentViewer()
-                            .Stream(session.Stream)
-                            .AutoScroll(true)
-                            .ShowStatusLabel(true)
-                            .Width(Size.Full())
-                            .Height(Size.Full())
-                      )
+                   ? (object)new Box(viewer)
                         .Width(Size.Full())
                         .Height(Size.Units(100).Max(Size.Fraction(0.6f)))
                         .Padding(4, 4, 0, 4)
                    : null!)
                | buttonArea
-               | (showHeader ? (object)new Spacer().Height(Size.Units(4)) : null!);
+               | (showHeader ? (object)new Spacer().Height(Size.Units(4)) : null!)
+               | installDialog;
     }
 }

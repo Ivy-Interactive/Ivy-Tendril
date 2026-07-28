@@ -455,12 +455,6 @@ public class ClaudeEventParserTests
     }
 
     [Fact]
-    public void Reset_DoesNotThrow()
-    {
-        _parser.Reset();
-    }
-
-    [Fact]
     public void AgentId_IsClaude()
     {
         Assert.Equal(Ivy.Tendril.Agents.Abstractions.AgentId.Claude, _parser.AgentId);

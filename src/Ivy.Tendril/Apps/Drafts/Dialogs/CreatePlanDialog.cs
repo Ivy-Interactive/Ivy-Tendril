@@ -1,11 +1,14 @@
 using Ivy;
 using Ivy.Core.Hooks;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Widgets;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using System;
 using System.IO;
 using Ivy.Tendril.Apps.Agent;
+using Ivy.Tendril.Apps.Settings;
+using Ivy.Tendril.Apps.Settings.Dialogs;
 
 namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
@@ -29,7 +32,7 @@ public class CreatePlanDialog(
         _ => 0
     };
 
-    // Builds the seed prompt for the "Continue with Agent" flow. The description is
+    // Builds the seed prompt for the "Continue with <agent>" flow. The description is
     // trimmed, a single project reads "the project X", multiple read "the projects X or Y",
     // and "Auto" lets the agent pick the project itself.
     internal static string BuildAgentPrompt(string[] projects, string description)
@@ -53,13 +56,15 @@ public class CreatePlanDialog(
         var selectedProjects = UseState(_defaultProjects);
         var selectedPriority = UseState("Normal");
         var configService = UseService<IConfigService>();
+        var agentRunner = UseService<IAgentRunner>();
+        var client = UseService<IClientProvider>();
+        var refreshToken = UseRefreshToken();
+        var isAddProjectOpen = UseState(false);
         var uploadSessionId = UseState(() => Guid.NewGuid().ToString("N"));
-
         var (breakpoint, breakpointListener) = Context.UseBreakpoint();
-
         var uploadedFiles = UseState(new List<string>());
 
-        var uploadContext = this.UseUpload(async (fileUpload, stream, token) =>
+        var uploadContext = UseUpload(async (fileUpload, stream, token) =>
         {
             var tempDir = Path.Combine(configService.TendrilHome, "Attachments", uploadSessionId.Value);
             Directory.CreateDirectory(tempDir);
@@ -82,24 +87,32 @@ public class CreatePlanDialog(
             uploadedFiles.Set(newList);
         });
 
-        var exclusiveProjects = new ConvertedState<string[], string[]>(
-            selectedProjects,
-            forward: v => v,
-            backward: newValue =>
-            {
-                var current = selectedProjects.Value;
-                if (newValue.Contains("Auto") && !current.Contains("Auto"))
-                    return ["Auto"];
-                if (newValue.Contains("Auto") && newValue.Any(p => p != "Auto"))
-                    return newValue.Where(p => p != "Auto").ToArray();
-                return newValue;
-            }
-        );
+        // e.g. "Continue with Claude Code" — branded to the configured coding agent.
+        var continueLabel = $"Chat with {AgentBranding.For(configService.Settings.CodingAgent, agentRunner).Label}";
 
-        var options = new List<IAnyOption>();
-        if (projectNames.Count > 1)
-            options.Add(new Option<string>("Auto", "Auto", icon: Icons.WandSparkles));
-        options.AddRange(projectNames.Select(p => new Option<string>(p, p)));
+        var currentProjectNames = configService.Projects.Select(p => p.Name).ToList();
+        var hasAutoOption = currentProjectNames.Count > 1;
+
+        // "Auto" is exclusive: picking it clears real projects, picking a real project clears "Auto".
+        void SetProjects(string[] newValue)
+        {
+            var current = selectedProjects.Value;
+            string[] next;
+            if (newValue.Contains("Auto") && !current.Contains("Auto"))
+                next = ["Auto"];
+            else if (newValue.Contains("Auto") && newValue.Any(p => p != "Auto"))
+                next = newValue.Where(p => p != "Auto").ToArray();
+            else if (newValue.Length == 0)
+                next = hasAutoOption ? ["Auto"] : currentProjectNames.Take(1).ToArray();
+            else
+                next = newValue;
+            selectedProjects.Set(next);
+        }
+
+        var projectOptions = new List<BadgeSelectOption>();
+        if (hasAutoOption)
+            projectOptions.Add(new BadgeSelectOption("Auto", "Auto", "WandSparkles", Removable: false));
+        projectOptions.AddRange(currentProjectNames.Select(p => new BadgeSelectOption(p, p)));
 
         var planWasCreated = false;
         void HandleClose()
@@ -122,14 +135,50 @@ public class CreatePlanDialog(
             onClose();
         }
 
+        var projectPicker = new BadgeSelect
+            {
+                Options = projectOptions.ToArray(),
+                Value = selectedProjects.Value,
+                Placeholder = "Select project(s)",
+                Icon = selectedProjects.Value.Contains("Auto") || selectedProjects.Value.Length == 0
+                    ? "WandSparkles"
+                    : "Folder",
+                Multiple = true,
+                Tooltip = "Select project(s)",
+            }
+            .WithOnChange(SetProjects)
+            .Width(Size.Percent(66));
+
+        var priorityPicker = new BadgeSelect
+            {
+                Options = PriorityOptions.Select(p => new BadgeSelectOption(p, p)).ToArray(),
+                Value = [selectedPriority.Value],
+                Placeholder = "Priority",
+                Icon = "Flag",
+                Multiple = false,
+                Tooltip = "Priority",
+            }
+            .WithOnChange(values => selectedPriority.Set(values.FirstOrDefault() ?? "Normal"))
+            .Width(Size.Percent(33));
+
+        var newProjectButton = new Button()
+            .Icon(Icons.Plus)
+            .Small().Ghost()
+            .Tooltip("New Project")
+            .OnClick(() => isAddProjectOpen.Set(true));
+
         var bodyContent =
-                Layout.Vertical()
-                | exclusiveProjects.ToSelectInput(options).Variant(SelectInputVariant.Toggle).WithField().Label("Select Project(s)")
-                | selectedPriority.ToSelectInput(PriorityOptions).Variant(SelectInputVariant.Toggle).WithField().Label("Priority")
+                Layout.Vertical().Margin(0,2,0,0)
+                | (Layout.Horizontal().Gap(1).AlignContent(Align.Left).Width(Size.Full())
+                    | (Layout.Horizontal().Gap(1).Width(Size.Grow())
+                        | projectPicker
+                        | priorityPicker)
+                    | newProjectButton)
                 | new Ivy.Tendril.Widgets.ContentInput
                 {
                     UploadUrl = uploadContext.Value.UploadUrl,
-                    OnSubmit = e =>
+                    AutoFocus = true,
+                    OnSubmit = _ =>
                     {
                         if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
                         {
@@ -145,7 +194,7 @@ public class CreatePlanDialog(
                     },
                     OnMenuAction = e =>
                     {
-                        if (e.Value == "Continue with Agent")
+                        if (e.Value == continueLabel)
                         {
                             if (string.IsNullOrWhiteSpace(createPlanText.Value)) return ValueTask.CompletedTask;
                             var projects = selectedProjects.Value.Any()
@@ -191,11 +240,8 @@ public class CreatePlanDialog(
                 }
                     .Bind(createPlanText)
                     .SubmitLabel("Create")
-                    .MenuOptions("Continue with Agent")
-                    .Placeholder("Enter task description...")
-                    .WithField()
-                    .Label("Describe the task for the new plan")
-                    .Required();
+                    .MenuOptions(continueLabel)
+                    .Placeholder("Enter task description...");
 
         object planSurface = breakpoint.Value == Breakpoint.Mobile
             ? new Sheet(
@@ -210,6 +256,9 @@ public class CreatePlanDialog(
                 new DialogBody(bodyContent))
                 .Width(Size.Rem(30));
 
-        return new Fragment(breakpointListener, planSurface);
+        return new Fragment(
+            breakpointListener,
+            planSurface,
+            new AddProjectDialog(isAddProjectOpen, configService, client, refreshToken));
     }
 }

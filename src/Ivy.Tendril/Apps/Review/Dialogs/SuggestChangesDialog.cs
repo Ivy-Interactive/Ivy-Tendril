@@ -22,12 +22,7 @@ public class SuggestChangesDialog(
         if (!_dialogOpen.Value) return null;
 
         return new Dialog(
-            _ =>
-            {
-                isCreating.Set(false);
-                suggestText.Set("");
-                _dialogOpen.Set(false);
-            },
+            _ => _dialogOpen.Set(false),
             new DialogHeader($"Request Changes for Plan #{_selectedPlan.Id}"),
             new DialogBody(
                 Layout.Vertical()
@@ -35,12 +30,7 @@ public class SuggestChangesDialog(
                 | suggestText.ToTextareaInput("Enter your suggestions...").Rows(6).AutoFocus()
             ),
             new DialogFooter(
-                new Button("Cancel").Outline().OnClick(() =>
-                {
-                    isCreating.Set(false);
-                    suggestText.Set("");
-                    _dialogOpen.Set(false);
-                }),
+                new Button("Cancel").Outline().OnClick(() => _dialogOpen.Set(false)),
                 new Button("Request Changes").Primary().Disabled(isCreating.Value || string.IsNullOrWhiteSpace(suggestText.Value)).ShortcutKey("Ctrl+Enter").OnClick(() =>
                 {
                     if (!string.IsNullOrWhiteSpace(suggestText.Value) && !isCreating.Value)
@@ -50,8 +40,6 @@ public class SuggestChangesDialog(
                         // Verification reset + plan transition (and pre-state snapshot) handled by JobService.StartJob.
                         _jobService.StartJob(new RetryPlanArgs(_selectedPlan.FolderPath, suggestText.Value));
                         _refreshPlans();
-                        isCreating.Set(false);
-                        suggestText.Set("");
                         _dialogOpen.Set(false);
                     }
                 })

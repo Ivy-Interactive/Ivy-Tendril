@@ -8,18 +8,18 @@ You are an interactive assistant for the human operator. Users open this session
 
 ## Environment
 
-- **TENDRIL_HOME**: `D:/Tendril/`
-- **Plans folder**: `D:/Plans/`
-- **Config**: `D:/Tendril//config.yaml`
-- **Database**: `D:/Tendril//tendril.db`
+- **TENDRIL_HOME**: `D:/Tendril`
+- **Plans folder**: `D:/Plans`
+- **Config**: `D:/Tendril/config.yaml`
+- **Database**: `D:/Tendril/tendril.db`
 
 ```
-D:/Tendril//
+D:/Tendril/
   config.yaml          # Projects, agents, verifications, promptware settings
   tendril.db           # SQLite database (plan state, jobs, costs)
   Plans/               # Plan folders ({ID}-{Title}/)
   Promptwares/         # Deployed promptware programs
-  Logs/Jobs/           # Failed job output
+  Jobs/                # Every job's log, prompt, raw output and eventwire stream
 ```
 
 ## Plan Lifecycle
@@ -75,7 +75,7 @@ Autonomous agents that handle each pipeline stage. Each has a `Program.md` (inst
 
 ## Plan Structure
 
-Plans live in `D:/Plans//{ID}-{SafeTitle}/`:
+Plans live in `D:/Plans/{ID}-{SafeTitle}/`:
 
 ```
 00142-FixLoginBug/
@@ -140,7 +140,6 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `tendril plan remove-related-plan <plan-id> <folder>` | Remove related plan |
 | `tendril plan add-depends-on <plan-id> <folder>` | Add dependency |
 | `tendril plan remove-depends-on <plan-id> <folder>` | Remove dependency |
-| `tendril plan add-log <plan-id> <action>` | Add execution log entry |
 | `tendril plan write-revision <plan-id>` | Write revision from stdin |
 | `tendril plan cleanup <plan-id>` | Remove worktrees |
 | `tendril plan set-verification <plan-id> <name> <status>` | Set verification status |
@@ -172,6 +171,7 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 |---------|-------------|
 | `tendril job start <Type> <plan-id> [options]` | Start a job on the running Tendril server |
 | `tendril job status <job-id> -m <message>` | Report job status to the server |
+| `tendril job add-log <job-id> <action> [--summary=<text>]` | Append a narrative log entry to this job's log |
 
 **Job types and options for `tendril job start`:**
 
@@ -220,6 +220,17 @@ These commands are for internal use by other promptwares (e.g., a verification s
 | `tendril project add-review-action <name>` | Add review action |
 | `tendril project remove-review-action <name> <action>` | Remove review action |
 
+### Config Commands
+
+Read/write top-level settings in `config.yaml`. Valid keys: `codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate`.
+
+| Command | Description |
+|---------|-------------|
+| `tendril config get <key>` | Print a config value (raw, to stdout) |
+| `tendril config set <key> <value>` | Set a config value (validated before saving) |
+| `tendril config set <key> --file <path>` | Set from a file — use for long/multiline `planTemplate` |
+| `tendril config set <key> --stdin` | Set from stdin — use for long/multiline `planTemplate` |
+
 ## Creating Plans Interactively
 
 When the user asks you to create a plan:
@@ -235,7 +246,7 @@ When the user asks you to create a plan:
 ## Important Notes
 
 - **Never read or write `plan.yaml` directly** -- always use `tendril plan` CLI commands.
-- **`tendril job start` and `tendril job status` require the Tendril server to be running.** They communicate via HTTP to the master instance (discovered via `TENDRIL_HOME/.master`).
+- **`tendril job start` and `tendril job status` require the Tendril server to be running.** They communicate via HTTP to the master instance (discovered via `TENDRIL_HOME/.master`). `tendril job add-log` does not need the server — it writes straight to disk.
 - Verification statuses: `Pending`, `Pass`, `Fail`, `Skipped`.
 - Plan states: `Draft`, `Creating`, `Updating`, `Executing`, `Review`, `Failed`, `Completed`, `Skipped`, `Blocked`, `Icebox`.
 - To create a new plan, start a CreatePlan job: `tendril job start CreatePlan --description="<description>" --project="<project>"` (see "Creating Plans Interactively"). Use the lower-level `tendril plan create` / `write-revision` commands only to edit an existing plan's content, never to create a new plan from a chat request.

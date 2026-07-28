@@ -5,7 +5,7 @@ namespace Ivy.Tendril.Agents.Providers.Gemini;
 public sealed class GeminiPty : IAgentPty
 {
     public string Id => AgentId.Gemini;
-    public string DisplayName => "Gemini CLI";
+    public string DisplayName => "Gemini";
 
     public AgentCapabilities Capabilities =>
         AgentCapabilities.ModelSelection |
@@ -15,6 +15,9 @@ public sealed class GeminiPty : IAgentPty
 
     public TransportKind SupportedTransports => TransportKind.Pty;
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles => [];
+
+    // Gemini reads GEMINI.md (NOT AGENTS.md) for project/system instructions.
+    public string? ContextFileName => "GEMINI.md";
 
     public string? TranslateToolName(string canonicalTool) => null;
 
@@ -33,16 +36,27 @@ public sealed class GeminiPty : IAgentPty
     {
         var args = new List<string> { "gemini" };
 
+        // FullAuto → auto-approve every action. The interactive TUI uses the
+        // `--yolo` switch (the granular `--approval-mode` flag exists only on
+        // newer headless builds, so `--yolo` is what works across versions).
         if (config.PermissionMode == PermissionMode.FullAuto)
-        {
-            args.Add("--approval-mode");
-            args.Add("yolo");
-        }
+            args.Add("--yolo");
+
+        // Trust the workspace for this session so the first-run trust prompt never appears
+        // (more explicit than GEMINI_CLI_TRUST_WORKSPACE; both are harmless together).
+        args.Add("--skip-trust");
 
         if (!string.IsNullOrEmpty(config.Model))
         {
             args.Add("--model");
             args.Add(config.Model);
+        }
+
+        // Initial task: -i (--prompt-interactive) executes the prompt then continues interactively.
+        if (!string.IsNullOrEmpty(config.InitialPrompt))
+        {
+            args.Add("-i");
+            args.Add(config.InitialPrompt);
         }
 
         foreach (var arg in config.ExtraArguments)

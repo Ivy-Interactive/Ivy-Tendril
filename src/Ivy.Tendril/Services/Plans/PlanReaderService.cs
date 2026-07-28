@@ -266,6 +266,9 @@ public class PlanReaderService(
     /// <param name="content">Markdown content of the new revision.</param>
     public void SaveRevision(string folderName, string content)
     {
+        // Polish links once up front so the database mirror and the on-disk file agree.
+        content = config.PolishMarkdown(content);
+
         // Update database first for instant UI feedback.
         var planId = ExtractPlanId(folderName);
         if (planId.HasValue && _database != null)
@@ -287,7 +290,7 @@ public class PlanReaderService(
             var revisionsDir = Path.Combine(PlansDirectory, folderName, "Revisions");
             FileHelper.EnsureDirectory(revisionsDir);
 
-            var nextNumber = GetNextRevisionNumber(revisionsDir);
+            var nextNumber = RevisionWriter.NextRevisionNumber(revisionsDir);
             var revisionPath = Path.Combine(revisionsDir, $"{nextNumber:D3}.md");
             FileHelper.WriteAllText(revisionPath, content);
 
@@ -387,23 +390,6 @@ public class PlanReaderService(
     }
 
     /// <summary>
-    ///     Appends a log entry to a plan's logs directory.
-    /// </summary>
-    /// <param name="folderName">Name of the plan folder.</param>
-    /// <param name="action">Action name used in the log filename (e.g. <c>ExecutePlan</c>).</param>
-    /// <param name="content">Markdown content of the log entry.</param>
-    public void AddLog(string folderName, string action, string content, string? jobId = null)
-    {
-        var logsDir = Path.Combine(PlansDirectory, folderName, "Logs");
-        FileHelper.EnsureDirectory(logsDir);
-
-        var logPath = !string.IsNullOrEmpty(jobId)
-            ? Path.Combine(logsDir, $"{jobId}-{action}.md")
-            : Path.Combine(logsDir, $"{action}.md");
-        FileHelper.WriteAllText(logPath, content);
-    }
-
-    /// <summary>
     ///     Deletes a plan folder and all its contents, including any associated git worktrees.
     /// </summary>
     /// <param name="folderName">Name of the plan folder.</param>
@@ -422,14 +408,10 @@ public class PlanReaderService(
         _recommendationsCache.Invalidate();
         CountsInvalidated?.Invoke();
 
-        // Delete folder in background (can be slow due to git worktree removal).
+        // Delete folder out-of-band (NOT via _writeQueue) so slow worktree/directory
+        // removal never blocks other plan writes.
         var folderPath = Path.Combine(PlansDirectory, folderName);
-        WriteFileInBackground(() =>
-        {
-            if (!Directory.Exists(folderPath)) return;
-            WorktreeCleanupService.RemoveWorktrees(folderPath, logger, worktreeLifecycleLogger);
-            WorktreeCleanupService.ForceDeleteDirectory(folderPath, logger);
-        });
+        WorktreeCleanupService.DeletePlanFolderInBackground(folderPath, logger, worktreeLifecycleLogger);
     }
 
     /// <summary>
@@ -754,6 +736,66 @@ public class PlanReaderService(
             {
                 rec.State = RecommendationStatus.Accepted;
                 rec.DeclineReason = null;
+            }
+
+            FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
+        }, Path.Combine(PlansDirectory, folderName));
+    }
+
+    public void AcceptRecommendationsAndRetry(string folderName, IReadOnlyCollection<string> titles)
+    {
+        var planId = ExtractPlanId(folderName);
+
+        // Track state transition in telemetry.
+        if (planId.HasValue)
+        {
+            var currentPlan = GetPlanByFolder(Path.Combine(PlansDirectory, folderName));
+            var oldState = currentPlan?.Status.ToString() ?? "Unknown";
+            telemetryService?.TrackPlanStateTransition(oldState, PlanStatus.Executing.ToString());
+        }
+
+        // Update database atomically for all mutations.
+        if (planId.HasValue && _database != null)
+        {
+            _database.UpdatePlanState(planId.Value, PlanStatus.Executing);
+            foreach (var title in titles)
+                _database.UpdateRecommendationState(planId.Value, title, RecommendationStatus.Accepted, null);
+        }
+
+        _planCountsCache.Invalidate();
+        _recommendationsCache.Invalidate();
+        CountsInvalidated?.Invoke();
+        planWatcherService?.NotifyChanged(folderName);
+
+        // Single background write that performs all mutations atomically on disk.
+        WriteFileInBackground(() =>
+        {
+            var planYamlPath = Path.Combine(PlansDirectory, folderName, "plan.yaml");
+            if (!File.Exists(planYamlPath)) return;
+
+            var yaml = FileHelper.ReadAllText(planYamlPath);
+            var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml) ?? new PlanYaml();
+
+            // Reset verifications
+            foreach (var v in planYaml.Verifications)
+            {
+                if (v.Status != VerificationStatus.Skipped)
+                    v.Status = VerificationStatus.Pending;
+            }
+
+            // Transition state
+            planYaml.State = PlanStatus.Executing.ToString();
+            planYaml.Updated = DateTime.UtcNow;
+
+            // Accept recommendations
+            foreach (var title in titles)
+            {
+                var rec = planYaml.Recommendations?.FirstOrDefault(r => r.Title == title);
+                if (rec != null)
+                {
+                    rec.State = RecommendationStatus.Accepted;
+                    rec.DeclineReason = null;
+                }
             }
 
             FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
@@ -1177,18 +1219,6 @@ public class PlanReaderService(
         return FileHelper.ExtractCompletedTimestamp(logFilePath);
     }
 
-    private static int GetNextRevisionNumber(string revisionsDir)
-    {
-        var existing = Directory.GetFiles(revisionsDir, "*.md");
-        if (existing.Length == 0) return 1;
-
-        return existing
-            .Select(f => Path.GetFileNameWithoutExtension(f))
-            .Select(n => int.TryParse(n, out var num) ? num : 0)
-            .DefaultIfEmpty(0)
-            .Max() + 1;
-    }
-
     public record PlanCountSnapshot(
         int Drafts,
         int Review,
@@ -1219,4 +1249,9 @@ public record Recommendation(
     PlanStatus SourcePlanStatus,
     string? DeclineReason = null,
     string? Impact = null
-);
+)
+{
+    /// <summary>Plan id without leading zeros, e.g. "60" for "00060".</summary>
+    public string ShortPlanId =>
+        PlanId.TrimStart('0') is { Length: > 0 } trimmed ? trimmed : PlanId;
+}

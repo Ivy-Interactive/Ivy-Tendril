@@ -150,7 +150,7 @@ public class JobServiceTimeoutTests : IDisposable
     }
 
     [Fact]
-    public void ClearFailedJobs_RemovesFailedAndTimeoutJobs()
+    public void ClearFailedJobs_RemovesOnlyFailedJobs()
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
 
@@ -168,7 +168,7 @@ public class JobServiceTimeoutTests : IDisposable
         Assert.NotNull(service.GetJob(runningId));
         Assert.NotNull(service.GetJob(completedId));
         Assert.Null(service.GetJob(failedId));
-        Assert.Null(service.GetJob(timeoutId));
+        Assert.NotNull(service.GetJob(timeoutId));
     }
 
     [Fact]
@@ -301,6 +301,50 @@ codingAgent: claude
     }
 
     [Fact]
+    public async Task RunStaleOutputWatchdog_NoOutputEver_TripsStale()
+    {
+        // A job that never emits any output keeps LastOutputAt null; the watchdog must still declare
+        // it stale relative to when monitoring began so it can't hang "running…" forever (#1455).
+        var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMilliseconds(500));
+
+        var id = service.CreateTestJob(new ExecutePlanArgs(_tempDir.Path));
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Null(job.LastOutputAt);
+
+        var cts = job.TimeoutCts!;
+        var watchdogTask = service.RunStaleOutputWatchdog(id, cts);
+
+        var completed = await Task.WhenAny(watchdogTask, Task.Delay(TimeSpan.FromSeconds(5)));
+        Assert.Equal(watchdogTask, completed);
+        Assert.True(job.StaleOutputDetected);
+        Assert.True(cts.IsCancellationRequested);
+    }
+
+    [Fact]
+    public async Task RunStaleOutputWatchdog_NoOutputWithinWindow_DoesNotTrip()
+    {
+        // A freshly launched job with no output yet must not be killed before the stale window.
+        var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(5));
+
+        var id = service.CreateTestJob(new ExecutePlanArgs(_tempDir.Path));
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+
+        var cts = job.TimeoutCts!;
+        var watchdogTask = service.RunStaleOutputWatchdog(id, cts);
+
+        await Task.Delay(TimeSpan.FromSeconds(2));
+
+        Assert.False(job.StaleOutputDetected);
+        Assert.False(cts.IsCancellationRequested);
+
+        // Stop the watchdog and let it exit gracefully.
+        cts.Cancel();
+        await Task.WhenAny(watchdogTask, Task.Delay(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
     public void ProcessId_CapturedOnJobItem()
     {
         var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
@@ -325,6 +369,50 @@ codingAgent: claude
 
         process.WaitForExit();
         service.CompleteJob(id, 0);
+    }
+
+    // Regression for #plan-00053: a job stranded Running with no monitor ever armed (e.g. because
+    // the launch hung before JobMonitor.Start ran) previously had no path to completion — none of
+    // the per-job watchdogs exist to rescue it. RunStuckJobCheck is the global safety net that scans
+    // all Running jobs using StartedAt as the baseline, independent of whether a monitor ever started.
+    [Fact]
+    public void RunStuckJobCheck_StaleRunningJobWithNoMonitor_ReapsAsTimeoutWithStaleReason()
+    {
+        var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+
+        var id = service.CreateTestJob(new ExecutePlanArgs(_tempDir.Path));
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+
+        // Simulate a job stuck in "Starting…": launched long ago, never emitted any output.
+        job.StartedAt = DateTime.UtcNow.AddMinutes(-20);
+        job.LastOutputAt = null;
+
+        service.RunStuckJobCheck();
+
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Timeout, job.Status);
+        Assert.Contains("No output for 10 minutes", job.StatusMessage);
+        Assert.NotNull(job.CompletedAt);
+    }
+
+    [Fact]
+    public void RunStuckJobCheck_FreshRunningJobWithinGraceWindow_IsNotReaped()
+    {
+        var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+
+        var id = service.CreateTestJob(new ExecutePlanArgs(_tempDir.Path));
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        // StartedAt defaults to "now" from CreateTestJob and LastOutputAt is null — well within
+        // the stale-output timeout plus grace, so the reaper must leave it alone.
+
+        service.RunStuckJobCheck();
+
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Running, job.Status);
     }
 
     [Fact]

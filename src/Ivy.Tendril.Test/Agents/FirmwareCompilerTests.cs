@@ -126,41 +126,54 @@ public class FirmwareCompilerTests : IDisposable
         Assert.Contains("**Tools:**", result);
     }
 
-    // --- GetLogFile ---
-
     [Fact]
-    public void GetLogFile_CreatesFileWithJobId()
+    public void Compile_IncludesListMemoryHintWithPromptwareName()
     {
-        var programFolder = Path.Combine(_tempDir, "TestProgram");
-        Directory.CreateDirectory(programFolder);
+        var context = new FirmwareContext(
+            "/programs/Test",
+            new Dictionary<string, string>());
 
-        var logFile = FirmwareCompiler.GetLogFile(programFolder, "00042");
+        var result = FirmwareCompiler.Compile(context);
 
-        Assert.EndsWith("00042.md", logFile);
-        Assert.Contains("Logs", logFile);
+        Assert.Contains("list-memory Test", result);
     }
 
     [Fact]
-    public void GetLogFile_CreatesLogsDirectory()
+    public void Compile_ContainsDeleteMemoryInstructions()
     {
-        var programFolder = Path.Combine(_tempDir, "NewProgram");
-        Directory.CreateDirectory(programFolder);
+        var context = new FirmwareContext(
+            "/programs/CreatePlan",
+            new Dictionary<string, string>());
 
-        FirmwareCompiler.GetLogFile(programFolder, "00001");
+        var result = FirmwareCompiler.Compile(context);
 
-        Assert.True(Directory.Exists(Path.Combine(programFolder, "Logs")));
+        Assert.Contains("tendril promptware delete-memory CreatePlan <filename>.md", result);
     }
 
     [Fact]
-    public void GetLogFile_WritesPlaceholderContent()
+    public void Compile_ListsMemoryFileWithFirstLineDescription()
     {
-        var programFolder = Path.Combine(_tempDir, "ReserveTest");
-        Directory.CreateDirectory(programFolder);
+        var memoryDir = Path.Combine(_tempDir, "Memory");
+        Directory.CreateDirectory(memoryDir);
+        File.WriteAllText(Path.Combine(memoryDir, "some-memory.md"), "# Some Heading\n\nBody text.");
 
-        var logFile = FirmwareCompiler.GetLogFile(programFolder, "00001");
+        var context = new FirmwareContext(_tempDir, new Dictionary<string, string>());
+        var result = FirmwareCompiler.Compile(context);
 
-        Assert.True(File.Exists(logFile));
-        Assert.Contains("Execution in progress", File.ReadAllText(logFile));
+        Assert.Contains("some-memory.md", result);
+        Assert.Contains("Some Heading", result);
+    }
+
+    [Fact]
+    public void Compile_EmptyMemoryFolder_RendersEmptyLabel()
+    {
+        var context = new FirmwareContext(
+            "/programs/Test",
+            new Dictionary<string, string>());
+
+        var result = FirmwareCompiler.Compile(context);
+
+        Assert.Contains("(no memory yet)", result);
     }
 
     // --- Projects Section ---

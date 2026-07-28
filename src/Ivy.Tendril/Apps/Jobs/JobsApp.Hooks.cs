@@ -21,16 +21,14 @@ public partial class JobsApp
         });
     }
 
-    private static void AutoRefreshCheck(IJobService jobService, RefreshToken refreshToken)
-    {
-        var hasActiveOrRecentJobs = jobService.GetJobs().Any(j =>
-            j.Status == JobStatus.Running ||
-            (j.Status is JobStatus.Stopped or JobStatus.Failed or JobStatus.Timeout or JobStatus.Completed
-             && j.CompletedAt.HasValue
-             && DateTime.UtcNow - j.CompletedAt.Value < TimeSpan.FromSeconds(5)));
-
-        if (hasActiveOrRecentJobs)
-            refreshToken.Refresh();
-    }
+    /// <summary>
+    /// Signature over the parts of a job row not already covered by <see cref="BuildDataTableUpdates"/>'s
+    /// cell update stream (Timer, Cost, Tokens, AgentOutput, Status, StatusMessage). Status is
+    /// included here too because it also drives <see cref="CanRerun"/> and the header's
+    /// StackedProgress, not just the badge cell.
+    /// </summary>
+    internal static string ComputeStructuralSignature(IReadOnlyList<JobItem> jobs) =>
+        string.Join("|", jobs.Select(j =>
+            $"{j.Id};{j.Status};{j.PlanFile};{j.ReportedPlanId};{j.Type};{j.Project}"));
 }
 

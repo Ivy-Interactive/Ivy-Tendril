@@ -33,6 +33,8 @@ Use the **Import Issues** dialog to fetch GitHub issues and convert them into Te
 
 Each imported issue retains a link back to the original GitHub issue for traceability.
 
+A single fetch returns up to 1000 open issues (GitHub's search ceiling); use the search, label, or assignee filters to narrow larger backlogs.
+
 ## Automatic PR Creation
 
 When a plan reaches the **Completed** state, the **CreatePr** promptware automatically:

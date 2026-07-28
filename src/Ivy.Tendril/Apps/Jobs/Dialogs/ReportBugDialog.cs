@@ -9,6 +9,7 @@ public class ReportBugDialog(IState<bool> isOpen, string jobId) : ViewBase
         var client = UseService<IClientProvider>();
         var config = UseService<IConfigService>();
         var description = UseState("");
+        var githubUser = UseState("");
         var isSubmitting = UseState(false);
 
         async Task Submit()
@@ -20,7 +21,7 @@ public class ReportBugDialog(IState<bool> isOpen, string jobId) : ViewBase
             {
                 var service = new BugReportService(config);
                 var files = service.CollectFilesForJob(jobId);
-                var result = await service.SubmitReportAsync(description.Value, files);
+                var result = await service.SubmitReportAsync(description.Value, files, githubUser.Value);
 
                 if (result != null)
                 {
@@ -49,8 +50,11 @@ public class ReportBugDialog(IState<bool> isOpen, string jobId) : ViewBase
                 Layout.Vertical().Gap(2)
                 | Text.Muted("Describe the issue. Job logs and a sanitized copy of your config (secrets removed) will be attached to a public GitHub issue.")
                 | description.ToTextareaInput()
-                    .Placeholder("What went wrong?")
+                    .Placeholder("What went wrong? How can we reproduce this?")
                     .Rows(4)
+                    .Disabled(isSubmitting.Value)
+                | githubUser.ToTextInput()
+                    .Placeholder("Your GitHub Username (Optional)")
                     .Disabled(isSubmitting.Value)),
             new DialogFooter(
                 new Button("Cancel").Ghost().OnClick(() => isOpen.Set(false)).Disabled(isSubmitting.Value),

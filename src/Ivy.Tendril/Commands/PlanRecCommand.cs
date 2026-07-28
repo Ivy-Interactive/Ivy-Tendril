@@ -37,15 +37,29 @@ public class PlanRecAddSettings : CommandSettings
     public string Title { get; set; } = "";
 
     [CommandOption("-d|--description")]
-    [Description("Recommendation description (reads from stdin if omitted)")]
+    [Description("Recommendation description (inline; use --file/--stdin for long text)")]
     public string? Description { get; set; }
+
+    [CommandOption("-f|--file")]
+    [Description("Read the description verbatim from this file (good for long/multiline text)")]
+    public string? FilePath { get; set; }
+
+    [CommandOption("--stdin")]
+    [Description("Read the description verbatim from standard input")]
+    public bool Stdin { get; set; }
 
     [CommandOption("--impact")]
     [Description("Impact level (Small, Medium, High)")]
     public string? Impact { get; set; }
 
+    public int SourceCount => CliValidation.CountSources(Stdin, FilePath, Description ?? "");
+
     public override Spectre.Console.ValidationResult Validate()
     {
+        var sourceValidation = CliValidation.ValidateSingleSource(SourceCount, "--description, --file, or --stdin");
+        if (!sourceValidation.Successful)
+            return sourceValidation;
+
         return CliValidation.Combine(
             CliValidation.RequireNonEmpty(PlanId, "plan-id"),
             CliValidation.RequireNonEmpty(Title, "title"),
@@ -175,18 +189,13 @@ public class PlanRecListCommand : Command<PlanRecListSettings>
             return 0;
         }
 
-        var table = new Spectre.Console.Table();
-        table.AddColumn("Title");
-        table.AddColumn("State");
-        table.AddColumn("Impact");
-
-        foreach (var rec in recs)
-            table.AddRow(
-                rec.Title.EscapeMarkup(),
-                rec.State.EscapeMarkup(),
-                (rec.Impact ?? "-").EscapeMarkup());
-
-        AnsiConsole.Write(table);
+        var rows = recs.Select(rec => (IReadOnlyList<string>)new[]
+        {
+            rec.Title,
+            rec.State,
+            rec.Impact ?? "-"
+        });
+        CliOutput.WriteTable(["Title", "State", "Impact"], rows);
         return 0;
     }
 }
@@ -210,13 +219,9 @@ public class PlanRecAddCommand : Command<PlanRecAddSettings>
         if (plan.Recommendations.Any(r => r.Title.Equals(settings.Title, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"Recommendation already exists: {settings.Title}");
 
-        var description = settings.Description;
-        if (string.IsNullOrEmpty(description))
-        {
-            if (!Console.IsInputRedirected)
-                throw new ArgumentException("Provide --description or pipe content via stdin");
-            description = Console.In.ReadToEnd().Trim();
-        }
+        var description = ConsoleHelper.ResolveInput(settings.Stdin, settings.FilePath, settings.Description);
+        if (string.IsNullOrWhiteSpace(description))
+            throw new ArgumentException("Provide --description, --file, or --stdin");
 
         plan.Recommendations.Add(new RecommendationYaml
         {

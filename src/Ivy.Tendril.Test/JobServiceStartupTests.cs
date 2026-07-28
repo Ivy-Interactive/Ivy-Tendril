@@ -1,3 +1,4 @@
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -5,6 +6,13 @@ namespace Ivy.Tendril.Test;
 
 public class JobServiceStartupTests
 {
+    /// <summary>Lays down the eventwire file a previous run would have streamed to disk.</summary>
+    private static void WriteEventWire(string tendrilHome, JobItem job, params string[] lines)
+    {
+        JobLogPaths.EnsureJobsDir(tendrilHome);
+        File.WriteAllLines(JobLogPaths.EventWire(tendrilHome, job), lines);
+    }
+
     [Fact]
     public void LoadHistoricalJobs_LoadsAllRecentJobs()
     {
@@ -70,15 +78,342 @@ public class JobServiceStartupTests
         Assert.Null(exception);
     }
 
+    [Fact]
+    public void GetJob_AfterRestart_RehydratesOutputFromEventWireFile()
+    {
+        var tendrilHome = Path.Combine(Path.GetTempPath(), $"tendril-restart-test-{Guid.NewGuid()}");
+        Directory.CreateDirectory(tendrilHome);
+        try
+        {
+            // The EventWire file the original run streamed to disk. Its name is derived from
+            // Id/Type/PlanFile, so those must match the row that comes back from the DB.
+            var originalJob = new JobItem { Id = "job-restart", Type = "ExecutePlan" };
+            WriteEventWire(tendrilHome, originalJob, "hello", "world");
+
+            // The SQLite row as it comes back on reload: metadata only, no output (matches production —
+            // OutputLines is never a database column).
+            var db = new FakeDatabaseService
+            {
+                Jobs = { new JobItem { Id = "job-restart", Status = JobStatus.Completed, Type = "ExecutePlan" } }
+            };
+
+            // Act: construct a fresh JobService over the same TendrilHome (simulating restart).
+            var config = new FakeConfigService(tendrilHome);
+            var service = new JobService(config, database: db);
+            var reloaded = service.GetJob("job-restart");
+
+            Assert.NotNull(reloaded);
+            Assert.Equal(new[] { "hello", "world" }, reloaded!.OutputLines.ToArray());
+        }
+        finally
+        {
+            try { Directory.Delete(tendrilHome, true); } catch { /* best-effort cleanup */ }
+        }
+    }
+
+    [Fact]
+    public void GetJob_HydratesOutputAtMostOnce()
+    {
+        var tendrilHome = Path.Combine(Path.GetTempPath(), $"tendril-hydrate-test-{Guid.NewGuid()}");
+        Directory.CreateDirectory(tendrilHome);
+        try
+        {
+            var originalJob = new JobItem { Id = "job-hydrate", Type = "ExecutePlan" };
+            WriteEventWire(tendrilHome, originalJob, "only-line");
+
+            var db = new FakeDatabaseService
+            {
+                Jobs = { new JobItem { Id = "job-hydrate", Status = JobStatus.Completed, Type = "ExecutePlan" } }
+            };
+
+            var config = new FakeConfigService(tendrilHome);
+            var service = new JobService(config, database: db);
+
+            var first = service.GetJob("job-hydrate");
+            Assert.NotNull(first);
+            Assert.Single(first!.OutputLines);
+
+            // Delete the backing file — if GetJob re-read from disk on every call, the
+            // second call would come back empty instead of using the cached, hydrated lines.
+            File.Delete(JobLogPaths.EventWire(tendrilHome, originalJob));
+
+            var second = service.GetJob("job-hydrate");
+            Assert.NotNull(second);
+            Assert.Single(second!.OutputLines);
+        }
+        finally
+        {
+            try { Directory.Delete(tendrilHome, true); } catch { /* best-effort cleanup */ }
+        }
+    }
+
+    [Fact]
+    public void UpdateJobStatus_JobOnlyInDatabase_RehydratesAndReturnsTrue()
+    {
+        var db = new FakeDatabaseService();
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), database: db);
+
+        // Seeded after construction so the row is only reachable through GetJobById — this is the
+        // master-restart shape: the agent outlived the server process that started it.
+        db.Jobs.Add(new JobItem
+        {
+            Id = "job-detached",
+            Type = "ExecutePlan",
+            Status = JobStatus.Running,
+            StartedAt = DateTime.UtcNow.AddMinutes(-1)
+        });
+
+        Assert.True(service.UpdateJobStatus("job-detached", "Verifying: DotnetBuild"));
+
+        var job = service.GetJob("job-detached");
+        Assert.NotNull(job);
+        Assert.Equal("Verifying: DotnetBuild", job!.StatusMessage);
+        Assert.Contains("job-detached", db.UpsertedJobIds);
+
+        // Re-registered in memory: the Jobs app shows it, and later reports don't need the fallback.
+        Assert.Contains(service.GetJobs(), j => j.Id == "job-detached");
+    }
+
+    [Fact]
+    public void UpdateJobStatus_JobInNeitherMemoryNorDatabase_ReturnsFalse()
+    {
+        var db = new FakeDatabaseService();
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), database: db);
+
+        Assert.False(service.UpdateJobStatus("no-such-job", "hello"));
+    }
+
+    [Fact]
+    public void UpdateJobStatus_DetachedJob_RefreshesStaleOutputHeartbeat()
+    {
+        var db = new FakeDatabaseService();
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), database: db);
+        db.Jobs.Add(new JobItem
+        {
+            Id = "job-heartbeat",
+            Type = "ExecutePlan",
+            Status = JobStatus.Running,
+            StartedAt = DateTime.UtcNow.AddHours(-3),
+            LastOutputAt = DateTime.UtcNow.AddHours(-3)
+        });
+
+        var before = DateTime.UtcNow;
+        Assert.True(service.UpdateJobStatus("job-heartbeat", "still working"));
+
+        var job = service.GetJob("job-heartbeat");
+        Assert.NotNull(job);
+        Assert.True(job!.LastOutputAt >= before);
+    }
+
+    [Fact]
+    public void ReportJobFailure_JobOnlyInDatabase_RehydratesAndReturnsTrue()
+    {
+        var db = new FakeDatabaseService();
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), database: db);
+        db.Jobs.Add(new JobItem
+        {
+            Id = "job-failing",
+            Type = "ExecutePlan",
+            Status = JobStatus.Running,
+            StartedAt = DateTime.UtcNow.AddMinutes(-1)
+        });
+
+        Assert.True(service.ReportJobFailure("job-failing", "Worktree creation failed"));
+
+        var job = service.GetJob("job-failing");
+        Assert.NotNull(job);
+        Assert.Equal("Worktree creation failed", job!.ReportedFailureReason);
+        Assert.Contains("job-failing", db.UpsertedJobIds);
+    }
+
+    [Fact]
+    public void UpdateJobStatus_ReportedPlanId_PersistedAndRestored()
+    {
+        var db = new FakeDatabaseService();
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), database: db);
+        var row = new JobItem
+        {
+            Id = "job-plan",
+            Type = "ExecutePlan",
+            Status = JobStatus.Running,
+            StartedAt = DateTime.UtcNow.AddMinutes(-1)
+        };
+        db.Jobs.Add(row);
+
+        Assert.True(service.UpdateJobStatus("job-plan", "Implementing...", "01500", "Test Plan"));
+
+        // The fake stores the same instance the service mutated, so a fresh service over the same
+        // database sees exactly what a real reload would read back from the persisted row.
+        var reloaded = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), database: db)
+            .GetJob("job-plan");
+        Assert.NotNull(reloaded);
+        Assert.Equal("01500", reloaded!.ReportedPlanId);
+        Assert.Equal("Test Plan", reloaded.ReportedPlanTitle);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(int.MaxValue)] // no process can hold this id
+    public void LoadHistoricalJobs_RunningJobWithDeadProcessId_MarkedFailed(int? processId)
+    {
+        var db = new FakeDatabaseService
+        {
+            Jobs =
+            {
+                new JobItem
+                {
+                    Id = "job-ghost", Type = "ExecutePlan", Status = JobStatus.Running,
+                    StartedAt = DateTime.UtcNow.AddMinutes(-30), ProcessId = processId
+                }
+            }
+        };
+
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), database: db);
+
+        var job = service.GetJob("job-ghost");
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Failed, job!.Status);
+        Assert.Equal("Interrupted by Tendril master restart", job.StatusMessage);
+        Assert.NotNull(job.CompletedAt);
+        Assert.False(job.Detached);
+        Assert.Contains("job-ghost", db.UpsertedJobIds);
+    }
+
+    [Fact]
+    public void LoadHistoricalJobs_RunningJobWithLiveProcessId_StaysRunningAndDetached()
+    {
+        // The test host is a guaranteed-live process. StartedAt is old enough that the stale-output
+        // check (1 min timeout + 2 min reap grace) would fire off the original anchor.
+        var db = new FakeDatabaseService
+        {
+            Jobs =
+            {
+                new JobItem
+                {
+                    Id = "job-alive", Type = "ExecutePlan", Status = JobStatus.Running,
+                    StartedAt = DateTime.UtcNow.AddMinutes(-4), ProcessId = Environment.ProcessId
+                }
+            }
+        };
+
+        var service = new JobService(TimeSpan.FromHours(6), TimeSpan.FromMinutes(1), database: db);
+
+        var job = service.GetJob("job-alive");
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Running, job!.Status);
+        Assert.True(job.Detached);
+        Assert.NotNull(job.LastOutputAt);
+
+        // The reload restarted the stale-output clock, so the very next timer tick must not reap it.
+        service.RunStuckJobCheck();
+        Assert.Equal(JobStatus.Running, service.GetJob("job-alive")!.Status);
+    }
+
+    [Fact]
+    public void LoadHistoricalJobs_BlockedJob_LeftUntouched()
+    {
+        var db = new FakeDatabaseService
+        {
+            Jobs =
+            {
+                new JobItem
+                {
+                    Id = "job-blocked", Type = "ExecutePlan", Status = JobStatus.Blocked,
+                    StatusMessage = "Waiting for 01499-Dependency"
+                }
+            }
+        };
+
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), database: db);
+
+        var job = service.GetJob("job-blocked");
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Blocked, job!.Status);
+        Assert.Equal("Waiting for 01499-Dependency", job.StatusMessage);
+        Assert.False(job.Detached);
+    }
+
+    [Fact]
+    public void StartJob_PersistsJobToDatabaseWhileStillRunning()
+    {
+        var db = new FakeDatabaseService();
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), database: db);
+
+        // StartJob persists the job as soon as it is registered in StartJobInternal, not just
+        // on completion, so the row shows up even though the process launch below will fail
+        // in this test environment (no real coding agent available).
+        string id;
+        try
+        {
+            id = service.StartJob(new CreatePlanArgs("Test Job", "Auto"));
+        }
+        catch
+        {
+            id = service.GetJobs().Single().Id;
+        }
+
+        Assert.NotNull(db.GetJobById(id));
+    }
+
+    private class FakeConfigService : IConfigService
+    {
+        public FakeConfigService(string tendrilHome)
+        {
+            TendrilHome = tendrilHome;
+        }
+
+        public TendrilSettings Settings => new();
+        public string TendrilHome { get; }
+        public string ConfigPath => "";
+        public string PlanFolder => "";
+        public List<ProjectConfig> Projects => [];
+        public List<LevelConfig> Levels => [];
+        public string[] LevelNames => [];
+        public EditorConfig Editor => new() { Command = "code", Label = "VS Code" };
+        public bool NeedsOnboarding => false;
+        public ConfigParseError? ParseError => null;
+
+        public ProjectConfig? GetProject(string name) => null;
+        public Colors? GetLevelColor(string level) => null;
+        public Colors? GetProjectColor(string projectName) => null;
+        public void SaveSettings() { }
+        public void ReloadSettings() { }
+        public bool TryAutoHeal() => false;
+        public void ResetToDefaults() { }
+        public void RetryLoadConfig() { }
+#pragma warning disable CS0067
+        public event EventHandler? SettingsReloaded;
+#pragma warning restore CS0067
+        public void SetPendingCodingAgent(string name) { }
+        public string? GetPendingCodingAgent() => null;
+        public void SetPendingTendrilHome(string path) { }
+        public string? GetPendingTendrilHome() => null;
+        public void SetPendingProject(ProjectConfig project) { }
+        public ProjectConfig? GetPendingProject() => null;
+        public void SetPendingVerificationDefinitions(List<VerificationConfig> definitions) { }
+        public List<VerificationConfig>? GetPendingVerificationDefinitions() => null;
+        public void CompleteOnboarding(string tendrilHome) { }
+        public void OpenInEditor(string path) { }
+        public string PolishMarkdown(string content) => content;
+        public void Dispose() { }
+    }
+
     private class FakeDatabaseService : IPlanDatabaseService
     {
         public List<JobItem> Jobs { get; } = new();
+
+        /// <summary>Ids passed to <see cref="UpsertJob" />, in call order.</summary>
+        public List<string> UpsertedJobIds { get; } = new();
+
         public bool ThrowOnGetRecentJobs { get; init; }
 
         public List<JobItem> GetRecentJobs(int limit = 100)
         {
             if (ThrowOnGetRecentJobs) throw new Exception("DB error");
-            return Jobs;
+            // Snapshot: LoadHistoricalJobs iterates the result while reconciling, and reconciling
+            // a job persists it back via UpsertJob — mutating Jobs directly here would corrupt
+            // that iteration.
+            return Jobs.ToList();
         }
 
         public JobItem? GetJobById(string id)
@@ -203,10 +538,14 @@ public class JobServiceStartupTests
 
         public void UpsertJob(JobItem job)
         {
+            UpsertedJobIds.Add(job.Id);
+            Jobs.RemoveAll(j => j.Id == job.Id);
+            Jobs.Add(job);
         }
 
-        public void PurgeOldJobs(int keepCount = 500)
+        public List<string> PurgeOldJobs(int keepCount = 500)
         {
+            return new List<string>();
         }
 
         public Dictionary<string, string> GetAllPrStatuses()

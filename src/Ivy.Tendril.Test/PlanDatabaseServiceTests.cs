@@ -858,6 +858,125 @@ public class PlanDatabaseServiceTests : IDisposable
     }
 
     [Fact]
+    public void UpsertJob_RoundTripsInFlightFields()
+    {
+        _db.UpsertJob(new JobItem
+        {
+            Id = "job-inflight",
+            Type = "ExecutePlan",
+            PlanFile = "01500-TestPlan",
+            Project = "Tendril",
+            Status = JobStatus.Running,
+            Provider = "claude",
+            StartedAt = new DateTime(2026, 4, 7, 10, 0, 0, DateTimeKind.Utc),
+            ProcessId = 31337,
+            ReportedPlanId = "01500",
+            ReportedPlanTitle = "Test Plan Title",
+            ReportedFailureReason = "verification failed"
+        });
+
+        var result = _db.GetJobById("job-inflight");
+
+        Assert.NotNull(result);
+        Assert.Equal(31337, result!.ProcessId);
+        Assert.Equal("01500", result.ReportedPlanId);
+        Assert.Equal("Test Plan Title", result.ReportedPlanTitle);
+        Assert.Equal("verification failed", result.ReportedFailureReason);
+    }
+
+    [Fact]
+    public void UpsertJob_NullInFlightFields_RoundTripAsNull()
+    {
+        _db.UpsertJob(new JobItem
+        {
+            Id = "job-bare",
+            Type = "ExecutePlan",
+            PlanFile = "01500-TestPlan",
+            Project = "Tendril",
+            Status = JobStatus.Pending,
+            Provider = "claude"
+        });
+
+        var result = _db.GetJobById("job-bare");
+
+        Assert.NotNull(result);
+        Assert.Null(result!.ProcessId);
+        Assert.Null(result.ReportedPlanId);
+        Assert.Null(result.ReportedPlanTitle);
+        Assert.Null(result.ReportedFailureReason);
+    }
+
+    [Fact]
+    public void GetRecentJobs_InFlightJobIsNotDroppedByLimit()
+    {
+        // SQLite sorts NULLs last under DESC, so an in-flight row (NULL CompletedAt) would be the
+        // first casualty of LIMIT once enough completed jobs exist.
+        _db.UpsertJob(new JobItem
+        {
+            Id = "job-running",
+            Type = "ExecutePlan",
+            PlanFile = "01500-TestPlan",
+            Project = "Tendril",
+            Status = JobStatus.Running,
+            Provider = "claude",
+            StartedAt = new DateTime(2026, 4, 7, 9, 0, 0, DateTimeKind.Utc)
+        });
+
+        for (var i = 0; i < 5; i++)
+            _db.UpsertJob(new JobItem
+            {
+                Id = $"job-done-{i}",
+                Type = "ExecutePlan",
+                PlanFile = "01500-TestPlan",
+                Project = "Tendril",
+                Status = JobStatus.Completed,
+                Provider = "claude",
+                CompletedAt = new DateTime(2026, 4, 7, 10, 0, 0, DateTimeKind.Utc).AddMinutes(i)
+            });
+
+        var jobs = _db.GetRecentJobs(3);
+
+        Assert.Equal(3, jobs.Count);
+        Assert.Equal("job-running", jobs[0].Id);
+        Assert.Contains(jobs, j => j.Id == "job-done-4"); // completed rows still sort newest-first
+        Assert.Contains(jobs, j => j.Id == "job-done-3");
+    }
+
+    [Fact]
+    public void GetRecentJobs_IncludesRunningJobDespiteLimit()
+    {
+        // Seed more completed jobs than the default limit (100), all with a CompletedAt
+        // timestamp. A plain "ORDER BY CompletedAt DESC" sorts NULL last in SQLite, so a
+        // running job (CompletedAt IS NULL) would otherwise be the first row LIMIT discards.
+        for (var i = 0; i < 110; i++)
+            _db.UpsertJob(new JobItem
+            {
+                Id = $"completed-{i:D4}",
+                Type = "ExecutePlan",
+                PlanFile = $"plan-{i}",
+                Project = "Tendril",
+                Status = JobStatus.Completed,
+                Provider = "claude",
+                CompletedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(i)
+            });
+
+        _db.UpsertJob(new JobItem
+        {
+            Id = "running-job",
+            Type = "ExecutePlan",
+            PlanFile = "plan-running",
+            Project = "Tendril",
+            Status = JobStatus.Running,
+            Provider = "claude",
+            CompletedAt = null
+        });
+
+        var jobs = _db.GetRecentJobs();
+
+        Assert.Contains(jobs, j => j.Id == "running-job");
+    }
+
+    [Fact]
     public void UpsertJob_UpdatesExistingJob()
     {
         var job = new JobItem
@@ -932,7 +1051,7 @@ public class PlanDatabaseServiceTests : IDisposable
 
         Assert.Equal(600, _db.GetRecentJobs(1000).Count);
 
-        _db.PurgeOldJobs();
+        var purgedIds = _db.PurgeOldJobs();
 
         var remaining = _db.GetRecentJobs(1000);
         Assert.Equal(500, remaining.Count);
@@ -943,6 +1062,13 @@ public class PlanDatabaseServiceTests : IDisposable
         // The newest jobs should remain
         Assert.Contains(remaining, j => j.Id == "job-0599");
         Assert.Contains(remaining, j => j.Id == "job-0100");
+
+        // The returned id list matches the removed rows, not the retained ones
+        Assert.Equal(100, purgedIds.Count);
+        Assert.Contains("job-0000", purgedIds);
+        Assert.Contains("job-0099", purgedIds);
+        Assert.DoesNotContain("job-0599", purgedIds);
+        Assert.DoesNotContain("job-0100", purgedIds);
     }
 
     [Fact]
@@ -960,10 +1086,11 @@ public class PlanDatabaseServiceTests : IDisposable
                 CompletedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(i)
             });
 
-        _db.PurgeOldJobs();
+        var purgedIds = _db.PurgeOldJobs();
 
         var remaining = _db.GetRecentJobs(1000);
         Assert.Equal(10, remaining.Count);
+        Assert.Empty(purgedIds);
     }
 
     [Fact]

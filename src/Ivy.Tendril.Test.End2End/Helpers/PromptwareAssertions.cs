@@ -79,15 +79,6 @@ public static class PromptwareAssertions
         Assert.Contains(containsText, result, StringComparison.OrdinalIgnoreCase);
     }
 
-    public static void AssertPromptwareLogWritten(string tendrilHome, string promptwareName)
-    {
-        var logsDir = Path.Combine(tendrilHome, "Promptwares", promptwareName, "Logs");
-        if (!Directory.Exists(logsDir)) return; // Lenient — logs may not exist in dotnet run mode
-
-        var logFiles = Directory.GetFiles(logsDir, "*.md");
-        Assert.True(logFiles.Length > 0,
-            $"No log files found in {logsDir}");
-    }
 
     public static void AssertExitSuccess(PromptwareResult result, string promptwareName)
     {

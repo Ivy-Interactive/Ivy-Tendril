@@ -14,7 +14,7 @@ public class UpdatePlanTests
     [MemberData(nameof(AgentTestData.Agents), MemberType = typeof(AgentTestData))]
     public async Task UpdatePlan_ModifiesPlan_KeepsStateDraft(string agent)
     {
-        var cliLog = Path.Combine(_fixture.TendrilHome, $"update-plan-{agent}.jsonl");
+        var cliLog = _fixture.CliLogPath($"update-plan-{agent}");
 
         var planFolder = PlanSetupHelper.CreateDraftPlan(
             _fixture.PlansDir,

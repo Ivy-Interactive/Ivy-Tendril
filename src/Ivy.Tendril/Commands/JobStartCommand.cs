@@ -73,6 +73,10 @@ public class JobStartSettings : CommandSettings
     [CommandOption("--base-branch")]
     public string? BaseBranch { get; set; }
 
+    [Description("How SyncRepo handles local changes: Stash (default), Commit, or PullRequest")]
+    [CommandOption("--untracked-policy")]
+    public string? UntrackedPolicy { get; set; }
+
     [Description("Skip merge for CreatePr")]
     [CommandOption("--no-merge")]
     public bool NoMerge { get; set; }
@@ -150,9 +154,17 @@ public class JobStartCommand : Command<JobStartSettings>
             if (string.IsNullOrEmpty(settings.RepoPath))
                 throw new ArgumentException("--repo-path is required for SyncRepo");
 
+            var policy = UntrackedChangesPolicy.Stash;
+            if (!string.IsNullOrEmpty(settings.UntrackedPolicy)
+                && (!Enum.TryParse(settings.UntrackedPolicy, ignoreCase: true, out policy)
+                    || !Enum.IsDefined(policy)))
+                throw new ArgumentException(
+                    $"Invalid --untracked-policy '{settings.UntrackedPolicy}'. Valid values: Stash, Commit, PullRequest");
+
             return new SyncRepoArgs(
                 settings.RepoPath,
-                settings.BaseBranch ?? GitHelper.ResolveDefaultBranch(settings.RepoPath));
+                settings.BaseBranch ?? GitHelper.ResolveDefaultBranch(settings.RepoPath),
+                UntrackedChangesPolicy: policy);
         }
 
         if (string.IsNullOrEmpty(settings.PlanId))

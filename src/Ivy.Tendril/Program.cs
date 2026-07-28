@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 using Ivy.Desktop;
 using Ivy.Helpers;
 using Ivy.Tendril.Agents;
@@ -36,6 +37,11 @@ public class Program
     [DllImport("libc", SetLastError = true)]
     private static extern int setsid();
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AttachConsole(int dwProcessId);
+
+    private const int ATTACH_PARENT_PROCESS = -1;
+
     // Must be a static field to prevent GC from collecting the delegate
     private static ConsoleCtrlHandlerDelegate? _consoleCtrlHandler;
 
@@ -45,6 +51,71 @@ public class Program
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
+        try
+        {
+            VelopackApp.Build().Run();
+        }
+        catch { }
+
+        var (verbose, quiet, forceDesktop, forceWeb, beta, filteredArgs) = ParseGlobalFlags(args);
+
+        bool isTool = IsTendrilToolInvocation();
+        bool isPackagedApp = IsPackagedApp();
+        bool useDesktop = (forceDesktop || isPackagedApp || (isTool && !verbose && !quiet) || (!isTool && !isPackagedApp && !forceWeb)) && !forceWeb;
+        if (useDesktop && OperatingSystem.IsLinux())
+        {
+            // On Linux, default to web mode (foreground server) unless desktop is explicitly forced
+            if (!forceDesktop)
+            {
+                useDesktop = false;
+            }
+        }
+
+        var invocationKind = CliDispatcher.Classify(filteredArgs);
+
+        if (OperatingSystem.IsWindows())
+        {
+            // If we are executing a CLI command (or explicitly starting in web/console mode),
+            // try to attach to the parent console so console output is visible.
+            if (invocationKind != CliInvocationKind.ServerLaunch || !useDesktop)
+            {
+                if (AttachConsole(ATTACH_PARENT_PROCESS))
+                {
+                    try
+                    {
+                        var stdout = Console.OpenStandardOutput();
+                        Console.SetOut(new StreamWriter(stdout, new UTF8Encoding(false)) { AutoFlush = true });
+                        var stderr = Console.OpenStandardError();
+                        Console.SetError(new StreamWriter(stderr, new UTF8Encoding(false)) { AutoFlush = true });
+                    }
+                    catch { }
+                }
+            }
+        }
+
+        var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
+        if (!Console.IsInputRedirected)
+        {
+            try
+            {
+                Console.InputEncoding = utf8NoBom;
+            }
+            catch { }
+        }
+
+        try
+        {
+            Console.OutputEncoding = utf8NoBom;
+        }
+        catch { }
+
+        try
+        {
+            AnsiConsole.Console = AnsiConsole.Create(new AnsiConsoleSettings { Out = new AnsiConsoleOutput(Console.Out) });
+        }
+        catch { }
+
         if (args.Contains(DetachedLaunchMarker))
         {
             try
@@ -57,6 +128,11 @@ public class Program
             catch { }
         }
         PathHelper.AugmentPath(forceShellPath: false);
+
+        var legacyRedirectExitCode = TryRedirectLegacyToolInvocation(args);
+        if (legacyRedirectExitCode.HasValue)
+            return legacyRedirectExitCode.Value;
+
         PathHelper.EnsureCliSymlink();
 
         if (OperatingSystem.IsWindows())
@@ -68,33 +144,47 @@ public class Program
             catch { }
         }
 
-        Console.InputEncoding = System.Text.Encoding.UTF8;
-        Console.OutputEncoding = System.Text.Encoding.UTF8;
+        bool isDetachedChild = args.Contains(DetachedLaunchMarker);
 
-        VelopackApp.Build().Run();
-
-        var (verbose, quiet, forceDesktop, forceWeb, beta, filteredArgs) = ParseGlobalFlags(args);
-
-        bool isTool = IsTendrilToolInvocation();
-        bool isPackagedApp = IsPackagedApp();
-        bool useDesktop = (forceDesktop || isPackagedApp || (isTool && !verbose && !quiet)) && !forceWeb;
-        if (useDesktop && OperatingSystem.IsLinux())
+        if (invocationKind == CliInvocationKind.Help)
         {
-            // On Linux, default to web mode (foreground server) unless desktop is explicitly forced
-            if (!forceDesktop)
+            var helpApp = ConfigureCliCommands(new ServiceCollection());
+            try
             {
-                useDesktop = false;
+                return helpApp.Run(filteredArgs.Length == 0 ? new[] { "--help" } : filteredArgs);
+            }
+            catch (CommandParseException)
+            {
+                // First token wasn't a registered command (e.g. "add project --help") but a
+                // help token is present somewhere in the args — fall back to top-level help
+                // rather than letting Spectre's parse failure escape as an "unknown command" error.
+                return helpApp.Run(new[] { "--help" });
             }
         }
 
+        if (invocationKind == CliInvocationKind.Unknown)
+        {
+            AnsiConsole.MarkupLine($"[red]Unknown command '{filteredArgs[0].EscapeMarkup()}'.[/] Run [green]tendril --help[/] to see available commands.");
+            ConfigureCliCommands(new ServiceCollection()).Run(new[] { "--help" });
+            return 1;
+        }
 
+        if (invocationKind == CliInvocationKind.LegacyCliCommand)
+        {
+            var hashExitCode = HashPasswordCommand.Handle(filteredArgs);
+            if (hashExitCode >= 0)
+                return hashExitCode;
 
-        bool isDetachedChild = args.Contains(DetachedLaunchMarker);
+            var mcpExitCode = McpCommand.Handle(filteredArgs);
+            if (mcpExitCode >= 0)
+                return mcpExitCode;
+        }
 
         // Check if we are launching the web server/desktop UI (not executing a CLI subcommand)
-        bool isServerLaunch = filteredArgs.Length == 0 || !ShouldHandleAsCliCommand(filteredArgs[0]);
+        bool isServerLaunch = invocationKind == CliInvocationKind.ServerLaunch;
         if (isServerLaunch && !isDetachedChild)
         {
+            CrashLog.Write($"[{DateTime.UtcNow:O}] Server launch (kind={invocationKind}) | raw args: {string.Join(" ", Environment.GetCommandLineArgs())}");
             var checkArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
             var checkServer = TendrilServer.Create(filteredArgs, checkArgs);
             if (useDesktop)
@@ -130,7 +220,7 @@ public class Program
         }
 
         // Handle CLI commands using Spectre.Console.Cli
-        if (filteredArgs.Length > 0)
+        if (invocationKind == CliInvocationKind.CliCommand || invocationKind == CliInvocationKind.Version)
         {
             var cliServices = new ServiceCollection();
             var cliLogLevel = verbose ? LogLevel.Debug : quiet ? LogLevel.Warning : LogLevel.Information;
@@ -151,56 +241,43 @@ public class Program
             cliServices.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
 
             var app = ConfigureCliCommands(cliServices);
-            var firstArg = filteredArgs[0];
 
             // Handle --version flag by converting it to "version" command
-            if (firstArg == "--version")
+            if (invocationKind == CliInvocationKind.Version)
                 filteredArgs = new[] { "version" };
 
-            if (ShouldHandleAsCliCommand(firstArg))
+            try
             {
-                try
+                var cliLog = Environment.GetEnvironmentVariable("TENDRIL_CLI_LOG");
+                if (!string.IsNullOrEmpty(cliLog))
                 {
-                    var cliLog = Environment.GetEnvironmentVariable("TENDRIL_CLI_LOG");
-                    if (!string.IsNullOrEmpty(cliLog))
-                    {
-                        var commandLine = string.Join(" ", filteredArgs);
-                        var sw = Stopwatch.StartNew();
-                        var exitCode = app.Run(filteredArgs);
-                        sw.Stop();
-                        JobStatusFile.AppendCliInvocationDirect(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
-                        return exitCode;
-                    }
-                    return app.Run(filteredArgs);
+                    var commandLine = string.Join(" ", filteredArgs);
+                    var sw = Stopwatch.StartNew();
+                    var exitCode = app.Run(filteredArgs);
+                    sw.Stop();
+                    CliInvocationLog.Append(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
+                    return exitCode;
                 }
-                catch (CommandParseException ex)
-                {
-                    AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
-                    return 1;
-                }
-                catch (CommandRuntimeException ex)
-                {
-                    AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
-                    return 1;
-                }
-                catch (Exception ex)
-                {
-                    Console.Error.WriteLine($"Error: {ex.Message}");
-                    if (verbose)
-                        Console.Error.WriteLine(ex.ToString());
-                    return 1;
-                }
+                return app.Run(filteredArgs);
+            }
+            catch (CommandParseException ex)
+            {
+                AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
+                return 1;
+            }
+            catch (CommandRuntimeException ex)
+            {
+                AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
+                return 1;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error: {ex.Message}");
+                if (verbose)
+                    Console.Error.WriteLine(ex.ToString());
+                return 1;
             }
         }
-
-        // Legacy handlers for commands not yet migrated to Spectre.Console.Cli
-        var hashExitCode = HashPasswordCommand.Handle(filteredArgs);
-        if (hashExitCode >= 0)
-            return hashExitCode;
-
-        var mcpExitCode = McpCommand.Handle(filteredArgs);
-        if (mcpExitCode >= 0)
-            return mcpExitCode;
 
         CrashLog.Write($"[{DateTime.UtcNow:O}] Tendril starting (PID {Environment.ProcessId}) | {GetMemoryStats()}");
 
@@ -262,12 +339,22 @@ public class Program
                 : OperatingSystem.IsMacOS() ? "Ivy.Tendril.Assets.icon.icns"
                 : "Ivy.Tendril.Assets.icon.png";
 
+            var version = typeof(Program).Assembly.GetName().Version;
+            var versionString = version?.ToString(3) ?? "1.1.12";
+
             var window = new DesktopWindow(server)
                 .Title("Ivy Tendril")
                 .AppId("Ivy Tendril")
                 .Size(1800, 1200)
                 .UseDpiScaling(false)
                 .Icon(typeof(Program), iconResource)
+                .AboutName("Ivy Tendril")
+                .AboutVersion(versionString)
+                .AboutCopyright("© 2026 Ivy Interactive")
+                .AboutWebsite("https://ivy.app")
+                .AboutLicense("Apache-2.0")
+                .AboutAuthor("Ivy Interactive")
+                .AboutComments("Tendril is an end-to-end AI coding agent orchestrator built on the Ivy Framework that manages AI coding plans, tracks costs, and automates pull request generation.")
                 .OnReady(w =>
                 {
                     if (server.ServiceProvider is { } sp)
@@ -332,22 +419,16 @@ public class Program
         return (verbose, quiet, forceDesktop, forceWeb, beta, filtered);
     }
 
-    private static bool ShouldHandleAsCliCommand(string firstArg)
-    {
-        string[] cliCommands = new[]
-        {
-            "doctor", "db-version", "db-migrate", "db-reset",
-            "update-promptwares", "job", "plan", "promptware",
-            "trash", "verification", "project", "project-analyzer", "models",
-            "version", "--version", "report-bug", "reset", "update",
-            "--help", "-h", "run"
-        };
-        return cliCommands.Contains(firstArg);
-    }
-
     private static bool IsPackagedApp()
     {
-        return Velopack.Locators.VelopackLocator.Current?.CurrentlyInstalledVersion != null;
+        try
+        {
+            return Velopack.Locators.VelopackLocator.Current?.CurrentlyInstalledVersion != null;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     private static bool ShouldDetachDesktopLaunch(string[] filteredArgs, bool verbose)
@@ -377,6 +458,59 @@ public class Program
         var argv0 = Environment.GetCommandLineArgs().FirstOrDefault() ?? string.Empty;
         var argv0Name = Path.GetFileNameWithoutExtension(argv0);
         return argv0Name.Equals("tendril", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// When this process is the stale `dotnet tool install` copy of tendril and a newer
+    /// installer-managed CLI is present, forwards the invocation to that CLI and returns its
+    /// exit code. Returns null when the run should proceed normally in this process.
+    /// </summary>
+    private static int? TryRedirectLegacyToolInvocation(string[] args)
+    {
+        if (Environment.GetEnvironmentVariable("TENDRIL_NO_LEGACY_REDIRECT") == "1")
+            return null;
+        if (args.Contains(DetachedLaunchMarker))
+            return null;
+
+        try
+        {
+            if (!TendrilInstallHelper.IsLegacyDotnetToolProcess())
+                return null;
+
+            var installedCli = TendrilInstallHelper.FindInstalledCli();
+            if (installedCli == null)
+                return null;
+
+            if (Environment.GetEnvironmentVariable("TENDRIL_QUIET") != "1")
+            {
+                var version = TendrilInstallHelper.GetLegacyToolVersion();
+                Console.Error.WriteLine(
+                    $"Warning: you are running the outdated Ivy.Tendril .NET tool (v{version ?? "unknown"}). " +
+                    $"Forwarding to the installed version at {installedCli}. " +
+                    "Remove the stale tool with: dotnet tool uninstall --global Ivy.Tendril");
+            }
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = installedCli,
+                UseShellExecute = false
+            };
+            foreach (var arg in args)
+                psi.ArgumentList.Add(arg);
+            psi.Environment["TENDRIL_NO_LEGACY_REDIRECT"] = "1";
+
+            using var process = Process.Start(psi);
+            if (process == null)
+                return null;
+
+            process.WaitForExit();
+            return process.ExitCode;
+        }
+        catch (Exception ex)
+        {
+            CrashLog.Write($"[Program] TryRedirectLegacyToolInvocation failed: {ex}");
+            return null;
+        }
     }
 
     private static int RelaunchDesktopDetached(string[] filteredArgs)
@@ -435,13 +569,15 @@ public class Program
         }
     }
 
-    private static CommandApp ConfigureCliCommands(ServiceCollection cliServices)
+    internal static CommandApp ConfigureCliCommands(ServiceCollection cliServices, IAnsiConsole? console = null)
     {
         var registrar = new TypeRegistrar(cliServices);
         var app = new CommandApp(registrar);
         app.Configure(config =>
         {
             config.PropagateExceptions();
+            if (console != null)
+                config.Settings.Console = console;
 
             // Doctor command
             config.AddCommand<DoctorCliCommand>("doctor")
@@ -450,6 +586,11 @@ public class Program
             // Project analyzer command
             config.AddCommand<ProjectAnalyzerCommand>("project-analyzer")
                 .WithDescription("Analyze a folder and print a YAML stack report");
+
+            // Generate certificates command (hidden, for build time)
+            config.AddCommand<GenerateCertsCommand>("generate-certs")
+                .WithDescription("Generate self-signed localhost certificate for desktop HTTPS")
+                .IsHidden();
 
             // Run command
             config.AddCommand<RunCommand>("run")
@@ -475,8 +616,12 @@ public class Program
                     .WithDescription("Run a promptware directly");
                 pw.AddCommand<PromptwareReadMemoryCommand>("read-memory")
                     .WithDescription("Read a promptware memory file to STDOUT");
+                pw.AddCommand<PromptwareListMemoryCommand>("list-memory")
+                    .WithDescription("List a promptware's memory files");
                 pw.AddCommand<PromptwareWriteMemoryCommand>("write-memory")
                     .WithDescription("Write a promptware memory file from STDIN");
+                pw.AddCommand<PromptwareDeleteMemoryCommand>("delete-memory")
+                    .WithDescription("Delete a promptware memory file that is no longer true");
                 pw.AddCommand<PromptwareWriteToolCommand>("write-tool")
                     .WithDescription("Write a promptware tool file from STDIN");
             });
@@ -492,8 +637,12 @@ public class Program
             {
                 job.AddCommand<JobStatusCommand>("status")
                     .WithDescription("Report job status (message, planId, planTitle)");
+                job.AddCommand<JobFailCommand>("fail")
+                    .WithDescription("Report a job failure with a descriptive message");
                 job.AddCommand<JobStartCommand>("start")
                     .WithDescription("Start a job via the running Tendril server");
+                job.AddCommand<JobAddLogCommand>("add-log")
+                    .WithDescription("Append a log entry to the job's log");
             });
 
             // Plan management commands
@@ -504,7 +653,7 @@ public class Program
                 plan.AddCommand<PlanCreateCommand>("create")
                     .WithDescription("Create a new plan");
                 plan.AddCommand<PlanUpdateCommand>("update")
-                    .WithDescription("Update plan from STDIN");
+                    .WithDescription("Update plan from a file or STDIN");
                 plan.AddCommand<PlanSetCommand>("set")
                     .WithDescription("Set a single field");
                 plan.AddCommand<PlanAddRepoCommand>("add-repo")
@@ -527,14 +676,16 @@ public class Program
                     .WithDescription("Update verification status");
                 plan.AddCommand<PlanGetCommand>("get")
                     .WithDescription("Read plan or field");
-                plan.AddCommand<PlanAddLogCommand>("add-log")
-                    .WithDescription("Write a log entry");
                 plan.AddCommand<PlanWriteRevisionCommand>("write-revision")
-                    .WithDescription("Write a revision file from STDIN");
+                    .WithDescription("Write a revision file from a file or STDIN");
+                plan.AddCommand<PlanGetRevisionCommand>("get-revision")
+                    .WithDescription("Print revision content");
                 plan.AddCommand<PlanValidateCommand>("validate")
                     .WithDescription("Validate plan health");
                 plan.AddCommand<PlanCleanupCommand>("cleanup")
                     .WithDescription("Remove worktrees from a plan");
+                plan.AddCommand<PlanAddWorktreeCommand>("add-worktree")
+                    .WithDescription("Create a git worktree for a plan");
                 plan.AddCommand<PlanRemoveWorktreeCommand>("remove-worktree")
                     .WithDescription("Remove a single worktree from a plan");
                 plan.AddCommand<PlanDoctorCommand>("doctor")
@@ -590,7 +741,7 @@ public class Program
             config.AddBranch("trash", trash =>
             {
                 trash.AddCommand<TrashWriteCommand>("write")
-                    .WithDescription("Write a file to Trash from STDIN");
+                    .WithDescription("Write a file to Trash from a file or STDIN");
             });
 
             config.AddBranch("project", project =>
@@ -623,6 +774,14 @@ public class Program
                     .WithDescription("Add a review action to a project");
                 project.AddCommand<ProjectRemoveReviewActionCommand>("remove-review-action")
                     .WithDescription("Remove a review action from a project");
+            });
+
+            config.AddBranch("config", cfg =>
+            {
+                cfg.AddCommand<ConfigGetCommand>("get")
+                    .WithDescription("Get a top-level config value");
+                cfg.AddCommand<ConfigSetCommand>("set")
+                    .WithDescription("Set a top-level config value");
             });
         });
         return app;
@@ -727,11 +886,19 @@ public class Program
             window.ClearBadge();
     }
 
-    private static bool IsPortInUse(int port)
+    internal static bool IsPortInUse(int port)
+    {
+        // Kestrel can bind the IPv6 loopback only, leaving the IPv4 probe below to report
+        // "free" even though the port is taken — so a bind failure on either family counts.
+        return IsPortBoundOn(System.Net.IPAddress.Loopback, port)
+            || IsPortBoundOn(System.Net.IPAddress.IPv6Loopback, port);
+    }
+
+    private static bool IsPortBoundOn(System.Net.IPAddress address, int port)
     {
         try
         {
-            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, port);
+            var listener = new System.Net.Sockets.TcpListener(address, port);
             listener.Start();
             listener.Stop();
             return false;

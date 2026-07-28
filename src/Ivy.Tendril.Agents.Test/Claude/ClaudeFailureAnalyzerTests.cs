@@ -239,6 +239,29 @@ public class ClaudeFailureAnalyzerTests
     }
 
     [Fact]
+    public void Analyze_SessionLimitInLastResultResponse_ReturnsRateLimit()
+    {
+        var resultEvent = new ResultEvent
+        {
+            Kind = AgentEventKind.Result,
+            Response = "You have hit your session limit, resets 4pm (Europe/Stockholm)",
+            IsSuccess = false,
+        };
+
+        var ctx = new FailureContext
+        {
+            Events = [resultEvent],
+            AgentId = AgentId.Claude,
+            ExitCode = 1,
+        };
+
+        var result = _analyzer.Analyze(ctx);
+
+        Assert.Equal(FailureKind.RateLimit, result.Kind);
+        Assert.True(result.IsRetryable);
+    }
+
+    [Fact]
     public void Analyze_MultiplePermissionDenials_CountsCorrectly()
     {
         var denials = new List<PermissionDenialEvent>
@@ -266,5 +289,39 @@ public class ClaudeFailureAnalyzerTests
         Assert.Equal(FailureKind.PermissionBlocked, result.Kind);
         Assert.Contains("3 tool call", result.Reason);
         Assert.Equal(3, result.ContextLines.Count);
+    }
+
+    [Fact]
+    public void Analyze_UnmatchedStderr_IncludesStderrInUnknownFallback()
+    {
+        var ctx = new FailureContext
+        {
+            Events = [],
+            StderrLines = ["some unrecognized diagnostic output"],
+            ExitCode = null,
+            AgentId = "claude",
+        };
+
+        var result = _analyzer.Analyze(ctx);
+
+        Assert.Equal(FailureKind.Unknown, result.Kind);
+        Assert.Contains("some unrecognized diagnostic output", result.Reason);
+    }
+
+    [Fact]
+    public void Analyze_UnknownFallback_NoStderr_IncludesExitCode()
+    {
+        var ctx = new FailureContext
+        {
+            Events = [],
+            StderrLines = [],
+            ExitCode = null,
+            AgentId = "claude",
+        };
+
+        var result = _analyzer.Analyze(ctx);
+
+        Assert.Equal(FailureKind.Unknown, result.Kind);
+        Assert.Contains("unknown error", result.Reason, StringComparison.OrdinalIgnoreCase);
     }
 }

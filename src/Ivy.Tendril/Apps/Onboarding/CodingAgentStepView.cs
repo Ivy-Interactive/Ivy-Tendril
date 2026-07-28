@@ -57,12 +57,13 @@ public class CodingAgentStepView(
 
     private static readonly AgentInfo[] Agents =
     [
-        new("claude",   "Claude",   Icons.ClaudeCode),
-        new("copilot",  "Copilot",  Icons.Copilot),
-        new("codex",    "Codex",    Icons.OpenAI),
-        new("gemini",   "Gemini",   Icons.Gemini),
-        new("antigravity", "Antigravity", Icons.Antigravity),
-        new("opencode", "OpenCode", Icons.OpenCode)
+        new("claude",   "Claude",   AgentBranding.IconFor("claude")),
+        new("copilot",  "Copilot",  AgentBranding.IconFor("copilot")),
+        new("codex",    "Codex",    AgentBranding.IconFor("codex")),
+        new("gemini",   "Gemini",   AgentBranding.IconFor("gemini")),
+        new("antigravity", "Antigravity", AgentBranding.IconFor("antigravity")),
+        new("opencode", "OpenCode", AgentBranding.IconFor("opencode")),
+        new("ivy", "Ivy Agent", AgentBranding.IconFor("ivy"))
     ];
 
     public override object Build()
@@ -144,14 +145,6 @@ public class CodingAgentStepView(
                     await progressCts.CancelAsync();
                     progressValue.Set(null);
                     progressMessage.Set(null);
-
-                    if (missing.Key == agentKey)
-                    {
-                        isStepLoading.Set(false);
-                        error.Set("Please make sure your agent is present and you are authorized.");
-                        selectedAgent.Set(null);
-                        return;
-                    }
 
                     var tcs = new TaskCompletionSource<bool>();
                     showInstallDialog(new InstallDialogArgs(missing, tcs));
@@ -295,6 +288,9 @@ public class CodingAgentStepView(
             },
             async () =>
             {
+                if (agentKey == "opencode")
+                    return HealthCheckStatus.Authenticated;
+
                 var result = await healthCheck.CheckAuthAsync();
                 return result.Status == AuthStatus.Authenticated
                     ? HealthCheckStatus.Authenticated

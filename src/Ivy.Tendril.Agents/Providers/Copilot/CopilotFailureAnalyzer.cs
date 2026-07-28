@@ -12,8 +12,8 @@ public sealed class CopilotFailureAnalyzer : IFailureAnalyzer
             {
                 Kind = context.IdleTimeout ? FailureKind.IdleTimeout : FailureKind.Timeout,
                 Reason = context.IdleTimeout
-                    ? "GitHub Copilot went idle beyond the configured threshold"
-                    : "GitHub Copilot exceeded the total timeout",
+                    ? "Copilot went idle beyond the configured threshold"
+                    : "Copilot exceeded the total timeout",
                 IsRetryable = true,
                 Suggestion = "Increase timeout or simplify the prompt",
             };
@@ -45,7 +45,7 @@ public sealed class CopilotFailureAnalyzer : IFailureAnalyzer
             };
         }
 
-        if (ContainsAny(stderr, "model", "invalid model", "not found", "does not exist"))
+        if (ContainsAny(stderr, "model", "invalid model", "not found", "does not exist", "not available"))
         {
             return new FailureAnalysis
             {
@@ -69,12 +69,16 @@ public sealed class CopilotFailureAnalyzer : IFailureAnalyzer
             };
         }
 
+        var lastStderr = context.StderrLines.LastOrDefault(l => !string.IsNullOrWhiteSpace(l));
+
         if (context.ExitCode is not null and not 0)
         {
             return new FailureAnalysis
             {
                 Kind = FailureKind.ProcessCrash,
-                Reason = $"GitHub Copilot exited with code {context.ExitCode}",
+                Reason = lastStderr != null
+                    ? $"Copilot exited with code {context.ExitCode}: {lastStderr}"
+                    : $"Copilot exited with code {context.ExitCode}",
                 ContextLines = context.StderrLines,
                 IsRetryable = true,
             };
@@ -83,7 +87,9 @@ public sealed class CopilotFailureAnalyzer : IFailureAnalyzer
         return new FailureAnalysis
         {
             Kind = FailureKind.Unknown,
-            Reason = "Unknown failure",
+            Reason = lastStderr != null
+                ? $"Copilot failed: {lastStderr}"
+                : $"Copilot failed with an unknown error (exit code {context.ExitCode?.ToString() ?? "unknown"})",
             ContextLines = context.StderrLines,
             IsRetryable = false,
         };

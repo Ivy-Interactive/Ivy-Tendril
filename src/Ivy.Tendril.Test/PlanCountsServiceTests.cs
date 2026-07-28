@@ -231,6 +231,11 @@ public class TendrilProcessStatusServiceTests : IDisposable
             throw new NotImplementedException();
         }
 
+        public int StopAllJobs()
+        {
+            throw new NotImplementedException();
+        }
+
         public void DeleteJob(string id)
         {
             throw new NotImplementedException();
@@ -251,7 +256,17 @@ public class TendrilProcessStatusServiceTests : IDisposable
             throw new NotImplementedException();
         }
 
+        public int StopQueuedJobs()
+        {
+            throw new NotImplementedException();
+        }
+
         public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null)
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool ReportJobFailure(string id, string message)
         {
             throw new NotImplementedException();
         }

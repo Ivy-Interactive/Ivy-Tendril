@@ -143,9 +143,12 @@ public class OpenCodeCliTests
 
         var spec = _cli.BuildProcessSpec(config);
 
-        Assert.Equal("opencode", spec.FileName);
+        // The name may resolve to an absolute path and, on Windows, to a shim such as `opencode.cmd`
+        // when opencode is installed via npm. Compare the bare name so the test does not depend on
+        // whether the machine running it happens to have opencode on PATH.
+        Assert.Equal("opencode", Path.GetFileNameWithoutExtension(spec.FileName));
         Assert.Contains("run", spec.Arguments);
-        Assert.Contains("--dangerously-skip-permissions", spec.Arguments);
+        Assert.Contains("--auto", spec.Arguments);
         Assert.Contains("--format", spec.Arguments);
         Assert.Contains("json", spec.Arguments);
         Assert.Equal("Hello", spec.StdinContent);

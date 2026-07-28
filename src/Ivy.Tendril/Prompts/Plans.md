@@ -131,7 +131,10 @@ Outputs:
 ```
 PlanId: <ID>
 Directory: <TendrilPlansFolder>/<ID>-<SafeTitle>
-Plan created: <ID>-<SafeTitle>
+Verifications:
+<Name>:<Status>
+<Name>:<Status>
+...
 ```
 
 Options:
@@ -147,18 +150,21 @@ Options:
 ### Writing revisions
 
 ```bash
-tendril plan write-revision <plan-id> <<'EOF'
+tendril plan write-revision <plan-id> --stdin <<'EOF'
 <revision content>
 EOF
 ```
 
-Reads content from STDIN and writes it to `revisions/<NNN>.md` in the plan folder. Auto-increments from the highest existing revision. Outputs the file path.
+Reads content from STDIN (when `--stdin` is passed) or `--file`, and writes it to `revisions/<NNN>.md` in the plan folder. Auto-increments from the highest existing revision. Outputs the file path.
 
 ### Writing execution logs
 
 ```bash
-tendril plan add-log <plan-id> <action> [--summary=<text>]
+tendril job add-log <job-id> <action> [--summary=<text>]
 ```
+
+Appends an `## Agent Log` section to your own job's log in `<TendrilHome>/Jobs/`. Pass the
+`TendrilJobId` value from your firmware header as `<job-id>`.
 
 ### Cleaning up worktrees
 
@@ -274,7 +280,7 @@ Verifications live in `plan.yaml` (not in the revision markdown), each with a `N
 
 ## Notes
 
-- **Local file links in plans:** `[Button.cs](file:///path/to/...)` so VS Code opens the path; keep the path as link text.
+- **Local file links in plans:** `[filename:line](file:///path/to/filename)` for source files with a line number, or `[filename](file:///path/to/filename)` without. The line number belongs only in the display text — never append it to the URL itself (no `:348` suffix and no `#L123` fragment), or VS Code can't open the path. Never use backticks in link text. **Only link files that already exist** — for a file the plan will create, write its path in inline code (e.g. `` `src/New/Thing.cs` ``), not as a link; links to non-existent paths render broken.
 - **Plan references:** `[Plan 03156](plan://03156)` to link to other plans. The link handler will navigate to that plan in the Plans app. The plan ID can be 5 digits (e.g., `plan://03156`) or without leading zeros (e.g., `plan://3156`).
 - Images: normal markdown `![alt](url)`.
 - **Diagrams:** Graphviz/DOT (```dot / ```graphviz) or Mermaid (```mermaid). **Prefer DOT** for layout. Use only when a diagram really helps.

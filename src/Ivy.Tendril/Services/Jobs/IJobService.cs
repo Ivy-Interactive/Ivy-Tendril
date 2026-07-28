@@ -14,13 +14,20 @@ public interface IJobService : IDisposable
     void ForceStartJob(string id);
     void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false);
     void StopJob(string id);
+
+    /// <summary>Stops every active job (Running, Queued, Pending, Blocked). Returns the number stopped.</summary>
+    int StopAllJobs();
     void DeleteJob(string id);
     void ClearCompletedJobs();
     void ClearFailedJobs();
     void ClearAllJobs();
+
+    /// <summary>Stops every Queued job. Returns the number stopped.</summary>
+    int StopQueuedJobs();
     List<JobItem> GetJobs();
     List<JobItem> GetJobsForPlan(string planFile);
     JobItem? GetJob(string id);
     bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null);
+    bool ReportJobFailure(string id, string message);
     bool IsInboxFileTracked(string filePath);
 }

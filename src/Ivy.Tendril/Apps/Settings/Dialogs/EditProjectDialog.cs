@@ -23,6 +23,9 @@ public class EditProjectDialog(
     private readonly IClientProvider _client = client;
     private readonly RefreshToken _refreshToken = refreshToken;
 
+    private static readonly JsonSerializerOptions VerificationJsonOptions =
+        new() { PropertyNameCaseInsensitive = true };
+
     public override object? Build()
     {
         var editName = UseState("");
@@ -132,38 +135,18 @@ public class EditProjectDialog(
                 editVerifications.Set(
                     ReorderProjectVerifications(indices, displayedVerifications, editVerifications.Value));
             })
-            .WithOnChange(json =>
-            {
-                var item = JsonSerializer.Deserialize<VerificationItem>(json);
-                if (item == null) return;
-
-                var list = new List<ProjectVerificationRef>(editVerifications.Value);
-                var existing = list.FirstOrDefault(v => v.Name == item.Name);
-
-                if (item.Enabled && existing == null)
-                {
-                    list.Add(new ProjectVerificationRef { Name = item.Name, Required = item.Required });
-                }
-                else if (!item.Enabled && existing != null)
-                {
-                    list.Remove(existing);
-                }
-                else if (existing != null)
-                {
-                    existing.Required = item.Required;
-                }
-
-                editVerifications.Set(list);
-            });
+            .WithOnChange(json => editVerifications.Set(ApplyVerificationChange(json, editVerifications.Value)));
 
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
         var hasInvalidRepos = RepoPathValidator.HasInvalidLocalRepos(editRepos.Value, tendrilHome);
+        var nameError = InputSanitizer.DescribeProjectNameError(editName.Value);
 
         var saveButton = new Button(isNew ? "Add" : "Save").Primary()
-            .Disabled(hasInvalidRepos)
+            .Disabled(hasInvalidRepos || nameError != null)
             .OnClick(async () =>
             {
                 if (string.IsNullOrWhiteSpace(editName.Value)) return;
+                if (nameError != null) return;
 
                 // Perform base branch validation
                 foreach (var repo in editRepos.Value)
@@ -229,7 +212,7 @@ public class EditProjectDialog(
                     new Tab("Basic",
                         Layout.Vertical().Gap(4)
                         | Text.Block("Configure the project's name, color, and AI context.").Muted()
-                        | editName.ToTextInput("Project name...").WithField().Label("Name")
+                        | editName.ToTextInput("Project name...").Invalid(nameError).WithField().Label("Name")
                         | editColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker).Nullable().WithField().Label("Color")
                         | editContext.ToTextareaInput("Project context or prompt for AI agents (optional)...").Rows(4)
                             .WithField().Label("Context / Prompt (Optional)")
@@ -334,6 +317,29 @@ public class EditProjectDialog(
         }
 
         return reordered;
+    }
+
+    /// <summary>
+    /// Applies a single enable/disable/required change from the verification list widget's
+    /// <c>OnChange</c> event (a camelCase JSON payload, e.g. <c>{"name":"DotnetTest","enabled":true,"required":true}</c>)
+    /// to the project's verification list.
+    /// </summary>
+    internal static List<ProjectVerificationRef> ApplyVerificationChange(
+        string json, List<ProjectVerificationRef> current)
+    {
+        var list = new List<ProjectVerificationRef>(current);
+        var item = JsonSerializer.Deserialize<VerificationItem>(json, VerificationJsonOptions);
+        if (item == null || string.IsNullOrEmpty(item.Name)) return list;
+
+        var existing = list.FirstOrDefault(v => v.Name == item.Name);
+        if (item.Enabled && existing == null)
+            list.Add(new ProjectVerificationRef { Name = item.Name, Required = item.Required });
+        else if (!item.Enabled && existing != null)
+            list.Remove(existing);
+        else if (existing != null)
+            existing.Required = item.Required;
+
+        return list;
     }
 }
 

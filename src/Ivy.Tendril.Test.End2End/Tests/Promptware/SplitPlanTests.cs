@@ -14,7 +14,7 @@ public class SplitPlanTests
     [MemberData(nameof(AgentTestData.Agents), MemberType = typeof(AgentTestData))]
     public async Task SplitPlan_CreatesChildPlans_MarksOriginalSkipped(string agent)
     {
-        var cliLog = Path.Combine(_fixture.TendrilHome, $"split-plan-{agent}.jsonl");
+        var cliLog = _fixture.CliLogPath($"split-plan-{agent}");
 
         var planFolder = PlanSetupHelper.CreateDraftPlan(
             _fixture.PlansDir,

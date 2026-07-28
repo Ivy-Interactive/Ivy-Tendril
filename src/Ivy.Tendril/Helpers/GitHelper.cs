@@ -82,6 +82,36 @@ public static class GitHelper
         return null;
     }
 
+    /// <summary>
+    /// Runs a git command and captures stdout/stderr without risking a pipe-buffer deadlock:
+    /// both streams are drained asynchronously while waiting for exit, rather than reading
+    /// one to completion before starting the other.
+    /// </summary>
+    public static (int ExitCode, string StdOut, string StdErr) RunGit(string arguments, string workingDirectory, int timeoutMs = 60000)
+    {
+        var psi = new ProcessStartInfo("git", arguments)
+        {
+            WorkingDirectory = workingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+        using var process = Process.Start(psi)!;
+        var outTask = process.StandardOutput.ReadToEndAsync();
+        var errTask = process.StandardError.ReadToEndAsync();
+        if (!process.WaitForExit(timeoutMs))
+        {
+            try { process.Kill(true); } catch { /* best effort */ }
+            var partialErr = errTask.IsCompletedSuccessfully ? errTask.Result : "";
+            var timeoutMessage = $"git {arguments} timed out after {timeoutMs}ms";
+            var combinedErr = string.IsNullOrEmpty(partialErr) ? timeoutMessage : $"{partialErr}\n{timeoutMessage}";
+            return (-1, outTask.IsCompletedSuccessfully ? outTask.Result : "", combinedErr);
+        }
+
+        return (process.ExitCode, outTask.GetAwaiter().GetResult(), errTask.GetAwaiter().GetResult());
+    }
+
     internal static string? RunGitCapture(string? workingDir, string args, int timeoutMs)
     {
         try
@@ -180,21 +210,21 @@ public static class GitHelper
                 return false;
             });
         }
-            return await Task.Run(() =>
+        return await Task.Run(() =>
+        {
+            var output = RunGitCapture(null, $"ls-remote --heads \"{expandedPath}\" \"{branchName}\"", 10000);
+            if (output != null)
             {
-                var output = RunGitCapture(null, $"ls-remote --heads \"{expandedPath}\" \"{branchName}\"", 10000);
-                if (output != null)
+                var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var line in lines)
                 {
-                    var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                    foreach (var line in lines)
-                    {
-                        if (line.Contains($"refs/heads/{branchName}"))
-                            return true;
-                    }
+                    if (line.Contains($"refs/heads/{branchName}"))
+                        return true;
                 }
+            }
 
-                return false;
-            });
+            return false;
+        });
     }
 
     private static bool RunGitShowRef(string repoPath, string refName)

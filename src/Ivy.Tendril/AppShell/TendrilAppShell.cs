@@ -3,6 +3,7 @@ using System.Reactive.Disposables;
 using System.Text.Json;
 using Ivy.Core;
 using Ivy.Core.Apps;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.Onboarding;
@@ -74,7 +75,25 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         return item;
     }
 
-    private static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status)
+    // The Agent app id (and its menu-item Tag) collapses to "agent" via AppHelpers.GetApp.
+    private const string AgentAppId = "agent";
+
+    // Re-brand the generic "Agent" menu item to the configured coding agent (e.g. "Claude Code"
+    // with the Claude icon), so the sidebar matches what actually launches.
+    private static MenuItem BrandAgentItem(MenuItem item, string agentId, IAgentRunner runner)
+    {
+        if (item.Tag is string tag && tag == AgentAppId)
+        {
+            var (label, icon) = AgentBranding.For(agentId, runner);
+            item = item.Label(label).Icon(icon);
+        }
+        if (item.Children is { Length: > 0 })
+            item = item with { Children = item.Children.Select(c => BrandAgentItem(c, agentId, runner)).ToArray() };
+        return item;
+    }
+
+    private static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status,
+        IConfigService config, IAgentRunner runner)
     {
         var badges = new Dictionary<string, int>
         {
@@ -85,7 +104,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             ["recommendations"] = status.RecommendationsCount,
             ["trash"] = status.TrashCount
         };
-        return repo.GetMenuItems().Select(m => AddBadge(m, badges)).ToArray();
+        var agentId = config.Settings.CodingAgent;
+        return repo.GetMenuItems()
+            .Select(m => AddBadge(m, badges))
+            .Select(m => BrandAgentItem(m, agentId, runner))
+            .ToArray();
     }
 
     public override object Build()
@@ -97,9 +120,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var selectedIndex = UseState<int?>();
         var appRepository = UseService<IAppRepository>();
         var client = UseService<IClientProvider>();
+        var versionService = UseService<IVersionCheckService>();
         var currentApp = UseState<AppHost?>();
         var statusService = UseService<ITendrilProcessStatusService>();
-        var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current));
+        var agentRunner = UseService<IAgentRunner>();
+        var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current, config, agentRunner));
         var status = UseState(() => statusService.Current);
         var sidebarOpen = UseState(settings.SidebarOpen);
         var args = UseService<AppContext>();
@@ -112,6 +137,12 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         {
             if (!isOpen.Value) return null;
             return new ImportIssuesDialog(isOpen, config);
+        });
+
+        var (updateDialog, showUpdateDialog) = UseTrigger<VersionInfo>((isOpen, info) =>
+        {
+            if (!isOpen.Value || info == null) return null;
+            return new UpdateTendrilDialog(isOpen, info);
         });
 
         UseEffect(async () =>
@@ -134,8 +165,18 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             });
         });
 
-        UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, status.Value)); },
+        UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, status.Value, config, agentRunner)); },
             appRepository.Reloaded.ToTrigger(), status);
+
+        // Rebuild the menu when settings are saved (e.g. the coding agent changes), so the
+        // branded "Agent" item updates immediately without needing a reload.
+        UseEffect(() =>
+        {
+            void OnSettingsReloaded(object? sender, EventArgs e) =>
+                menuItems.Set(BuildMenuItems(appRepository, status.Value, config, agentRunner));
+            config.SettingsReloaded += OnSettingsReloaded;
+            return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);
+        });
 
         var jobService = UseService<IJobService>();
 
@@ -183,10 +224,23 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 SidebarOpen = false
             };
 
+        // The Agent app's descriptor title/icon are the generic "Agent"/terminal; brand them
+        // to the configured coding agent so tabs and the browser title stay consistent.
+        (string Title, Icons? Icon) BrandedAppDisplay(AppDescriptor app)
+        {
+            if (app.Id == AgentAppId)
+            {
+                var (label, icon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
+                return (label, icon);
+            }
+            return (app.Title, app.Icon);
+        }
+
         void SetAppTitle(string appId)
         {
             var app = appRepository.GetAppOrDefault(appId);
-            if (app.Title is { } title) client.SetTitle(title, serverArgs.Metadata.Title);
+            var (title, _) = BrandedAppDisplay(app);
+            if (title is { } t) client.SetTitle(t, serverArgs.Metadata.Title);
         }
 
         bool IsErrorApp(string? appId)
@@ -225,6 +279,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
                     case AppShellRouter.RouteAction.SwitchToExistingTab:
                         HandleSwitchToExistingTab(navigateArgs, routeResult.TabIndex!.Value,
+                            routeResult.TabId!, replaceHistory);
+                        break;
+
+                    case AppShellRouter.RouteAction.RefreshExistingTab:
+                        HandleRefreshExistingTab(navigateArgs, routeResult.TabIndex!.Value,
                             routeResult.TabId!, replaceHistory);
                         break;
 
@@ -275,6 +334,27 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
         }
 
+        void SetAppTitleAndRedirect(NavigateArgs navigateArgs, string appId, string tabId,
+            bool replaceHistory)
+        {
+            SetAppTitle(appId);
+            if (navigateArgs.HistoryOp is HistoryOp.Push)
+                RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
+        }
+
+        void HandleRefreshExistingTab(NavigateArgs navigateArgs, int tabIndex,
+            string tabId, bool replaceHistory)
+        {
+            var tab = tabs.Value[tabIndex];
+            tabs.Set(tabs.Value.SetItem(tabIndex, tab with
+            {
+                AppHost = navigateArgs.ToAppHost(args.ConnectionId),
+                RefreshToken = Guid.NewGuid().ToString()
+            }));
+            selectedIndex.Set(tabIndex);
+            SetAppTitleAndRedirect(navigateArgs, tab.AppId, tabId, replaceHistory);
+        }
+
         void HandleCreateNewTab(NavigateArgs navigateArgs, string effectiveAppId,
             bool replaceHistory)
         {
@@ -283,13 +363,13 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             var tabId = Guid.NewGuid().ToString();
             var appHost = navigateArgs.ToAppHost(args.ConnectionId);
             var app = appRepository.GetAppOrDefault(effectiveAppId);
+            var (tabTitle, tabIcon) = BrandedAppDisplay(app);
 
-            var newTabs = tabs.Value.Add(new TabState(tabId, app.Id, app.Title, appHost,
-                app.Icon, Guid.NewGuid().ToString()));
+            var newTabs = tabs.Value.Add(new TabState(tabId, app.Id, tabTitle, appHost,
+                tabIcon, Guid.NewGuid().ToString()));
             tabs.Set(newTabs);
             selectedIndex.Set(newTabs.Length - 1);
-            SetAppTitle(app.Id);
-            RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
+            SetAppTitleAndRedirect(navigateArgs, app.Id, tabId, replaceHistory);
         }
 
         bool CheckTabExists(int tabId)
@@ -364,8 +444,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             if (!CheckTabExists(tabIndex)) return;
 
             var tab = tabs.Value[tabIndex];
-            tabs.Set(tabs.Value.RemoveAt(tabIndex)
-                .Insert(tabIndex, tab with { RefreshToken = Guid.NewGuid().ToString() }));
+            tabs.Set(tabs.Value.SetItem(tabIndex, tab with { RefreshToken = Guid.NewGuid().ToString() }));
             selectedIndex.Set(tabIndex);
         }
 
@@ -432,6 +511,38 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Tag("$import-issues")
                 .Icon(Icons.Download)
                 .OnSelect(showImportIssuesDialog),
+            MenuItem.Default("Check for Updates")
+                .Tag("$check-updates")
+                .Icon(Icons.CircleArrowUp)
+                .OnSelect(() =>
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var info = await versionService.CheckForUpdatesAsync(forceRefresh: true);
+                            if (info.HasUpdate)
+                            {
+                                showUpdateDialog(info);
+                            }
+                            else if (info.LatestVersion == null)
+                            {
+                                client.Toast("Couldn't check for updates. Please try again later.", "Update check failed")
+                                    .Destructive();
+                            }
+                            else
+                            {
+                                client.Toast($"You're on the latest version (v{info.CurrentVersion}).", "Up to date")
+                                    .Success();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            client.Toast($"Couldn't check for updates: {ex.Message}", "Update check failed")
+                                .Destructive();
+                        }
+                    });
+                }),
             MenuItem.Default("Theme")
                 .Tag("$theme")
                 .Icon(Icons.SunMoon)
@@ -498,7 +609,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 ),
                 settings.Width
             ).Open(sidebarOpen.Value).MainAppSidebar(),
-            importIssuesDialog
+            importIssuesDialog,
+            updateDialog
         );
     }
 

@@ -18,7 +18,7 @@ The plans directory path can be derived from the plan folder's parent directory.
 ### 1. Read the Plan
 
 - Read `plan.yaml` via `tendril plan get <plan-id>` from the plan folder
-- Read the latest revision from `Revisions/` (highest numbered .md file)
+- Read the latest revision: `tendril plan get-revision <TendrilPlanId>`
 - Identify distinct issues/tasks that should be separate plans
 - Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Splitting plan..." --plan-id=<plan-id> --plan-title="<title>"`
 
@@ -47,7 +47,7 @@ tendril plan create "<Title>" "<TendrilProject>" \
 
 **IMPORTANT:** Always pass `--plans-dir` with the plans directory (derive from the plan folder's parent). This ensures child plans are created in the correct directory regardless of environment variable inheritance. Repos are derived automatically from the project configuration.
 
-The command outputs `PlanId`, `Directory`, and `Plan created` lines. Parse the `Directory` to write the revision file.
+The command outputs `PlanId`, `Directory`, and a `Verifications` section. Parse the `Directory` to write the revision file.
 
 Include optional flags as needed (always use the `--option=value` form):
 - `--source-url="<url>"` — if the original plan had a sourceUrl
@@ -61,7 +61,7 @@ Do NOT read or modify `.counter` directly — `tendril plan create` handles ID a
 After creating each plan, write the revision via CLI:
 
 ```bash
-tendril plan write-revision <PlanId> <<'EOF'
+tendril plan write-revision <PlanId> --stdin <<'EOF'
 <revision content here>
 EOF
 ```
@@ -108,4 +108,4 @@ Do NOT modify the original plan — the launcher transitions it to `Skipped` aut
 - Each plan must include all paths and info for an LLM coding agent to execute end-to-end
 - Keep each plan short and concise — the limiting factor is a human reading it
 - Do NOT modify any source code — only read files and create plan folders
-- When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text or `#L123` fragments in URLs. Use `![alt](path)` for images.
+- When referencing local files, use markdown links: `[filename:line](file:///path/to/filename)` for source files with line numbers, or `[filename](file:///path/to/filename)` without. Never use backticks in link text, and never append a line number to the URL itself — no `:348` suffix and no `#L123` fragment; the line number belongs only in the display text. Only use `file:///` links for files that already exist; for a file the plan will create, write its path in inline code (`` `path/to/new/file` ``) instead of a link. Use `![alt](path)` for images.

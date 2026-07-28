@@ -39,6 +39,6 @@ public class DiscardPlanDialog(
                     WorktreeCleanupService.RemoveWorktreesInBackground(_selectedPlan.FolderPath);
                 })
             )
-        ).Width(Size.Rem(40));
+        );
     }
 }

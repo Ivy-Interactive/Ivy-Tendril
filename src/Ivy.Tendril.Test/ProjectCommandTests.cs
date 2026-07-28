@@ -1,4 +1,7 @@
+using Ivy.Tendril.Commands;
 using Ivy.Tendril.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Test;
 
@@ -423,5 +426,167 @@ verifications: []
         var reloaded = CreateConfig();
         Assert.Single(reloaded.Settings.Projects[0].BuildDependencies);
         Assert.Equal("Keep", reloaded.Settings.Projects[0].BuildDependencies[0]);
+    }
+
+    // --- Not Found Errors List Available Options ---
+
+    private static CommandApp BuildProjectApp()
+    {
+        var app = new CommandApp();
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("project", project =>
+            {
+                project.AddCommand<ProjectListCommand>("list");
+                project.AddCommand<ProjectGetCommand>("get");
+                project.AddCommand<ProjectAddCommand>("add");
+                project.AddCommand<ProjectRemoveCommand>("remove");
+                project.AddCommand<ProjectSetCommand>("set");
+                project.AddCommand<ProjectAddRepoCommand>("add-repo");
+                project.AddCommand<ProjectRemoveRepoCommand>("remove-repo");
+                project.AddCommand<ProjectAddVerificationCommand>("add-verification");
+                project.AddCommand<ProjectRemoveVerificationCommand>("remove-verification");
+                project.AddCommand<ProjectMoveVerificationCommand>("move-verification");
+                project.AddCommand<ProjectAddBuildDepCommand>("add-build-dep");
+                project.AddCommand<ProjectRemoveBuildDepCommand>("remove-build-dep");
+                project.AddCommand<ProjectAddReviewActionCommand>("add-review-action");
+                project.AddCommand<ProjectRemoveReviewActionCommand>("remove-review-action");
+            });
+        });
+        return app;
+    }
+
+    [Fact]
+    public void GetProject_NotFound_ListsAvailable()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig { Name = "Tendril" });
+        config.SaveSettings();
+
+        var app = BuildProjectApp();
+        var ex = Assert.Throws<InvalidOperationException>(() => app.Run(["project", "get", "Missing"]));
+
+        Assert.Contains("Available: Tendril", ex.Message);
+    }
+
+    [Fact]
+    public void RemoveRepo_NotFound_ListsAvailable()
+    {
+        var seededPath = Path.Combine(_tempDir.Path, "SeededRepo");
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig
+        {
+            Name = "Test",
+            Repos = [new RepoRef { Path = seededPath }]
+        });
+        config.SaveSettings();
+
+        var app = BuildProjectApp();
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => app.Run(["project", "remove-repo", "Test", Path.Combine(_tempDir.Path, "OtherRepo")]));
+
+        Assert.Contains($"Available: {seededPath}", ex.Message);
+    }
+
+    [Fact]
+    public void RemoveReviewAction_NotFound_ListsAvailable()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig
+        {
+            Name = "Test",
+            ReviewActions = [new ReviewActionConfig { Name = "Deploy" }]
+        });
+        config.SaveSettings();
+
+        var app = BuildProjectApp();
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => app.Run(["project", "remove-review-action", "Test", "Missing"]));
+
+        Assert.Contains("Available: Deploy", ex.Message);
+    }
+
+    [Fact]
+    public void RemoveBuildDep_NotFound_ListsAvailable()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig
+        {
+            Name = "Test",
+            BuildDependencies = ["Framework"]
+        });
+        config.SaveSettings();
+
+        var app = BuildProjectApp();
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => app.Run(["project", "remove-build-dep", "Test", "Missing"]));
+
+        Assert.Contains("Available: Framework", ex.Message);
+    }
+
+    [Fact]
+    public void MoveVerification_BeforeTargetNotFound_ListsAvailable()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig
+        {
+            Name = "Test",
+            Verifications = [
+                new ProjectVerificationRef { Name = "Lint" },
+                new ProjectVerificationRef { Name = "Build" }
+            ]
+        });
+        config.SaveSettings();
+
+        var app = BuildProjectApp();
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => app.Run(["project", "move-verification", "Test", "Lint", "--before", "Missing"]));
+
+        Assert.Contains("Available: Build, Lint", ex.Message);
+
+        var reloaded = CreateConfig();
+        Assert.Equal(2, reloaded.Settings.Projects[0].Verifications.Count);
+    }
+
+    [Fact]
+    public void MoveVerification_AfterTargetNotFound_ListsAvailable()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig
+        {
+            Name = "Test",
+            Verifications = [
+                new ProjectVerificationRef { Name = "Lint" },
+                new ProjectVerificationRef { Name = "Build" }
+            ]
+        });
+        config.SaveSettings();
+
+        var app = BuildProjectApp();
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => app.Run(["project", "move-verification", "Test", "Lint", "--after", "Missing"]));
+
+        Assert.Contains("Available: Build, Lint", ex.Message);
+
+        var reloaded = CreateConfig();
+        Assert.Equal(2, reloaded.Settings.Projects[0].Verifications.Count);
+    }
+
+    [Fact]
+    public void GetProject_ProgramConfigureCliCommands_ExecutesSuccessfully()
+    {
+        var config = CreateConfig();
+        config.Settings.Projects.Add(new ProjectConfig { Name = "voidzero-vite-plus", Color = "Blue" });
+        config.SaveSettings();
+
+        var cliServices = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        cliServices.AddSingleton<IConfigService>(config);
+        cliServices.AddSingleton<ConfigService>(config);
+
+        var app = Program.ConfigureCliCommands(cliServices);
+        var exitCode = app.Run(["project", "get", "voidzero-vite-plus"]);
+
+        Assert.Equal(0, exitCode);
     }
 }

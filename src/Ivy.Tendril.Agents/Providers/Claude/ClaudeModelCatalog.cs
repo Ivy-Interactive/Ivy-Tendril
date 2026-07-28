@@ -31,27 +31,46 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
     [
         new()
         {
-            Id = "opus", DisplayName = "Claude Opus",
+            Id = "claude-fable-5", DisplayName = "Claude Fable",
             Capabilities = FullCaps,
-            ContextWindow = 200_000, MaxOutputTokens = 32_000,
-            Provider = "anthropic", IsDefault = true,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
+            Provider = "anthropic",
             InputPerMillion = 10.00m, OutputPerMillion = 50.00m,
             CacheWritePerMillion = 12.50m, CacheReadPerMillion = 1.00m,
         },
         new()
         {
+            Id = "claude-opus-5", DisplayName = "Claude Opus 5",
+            Capabilities = FullCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
+            Provider = "anthropic",
+            InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
+            CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
+        },
+        new()
+        {
+            Id = "opus", DisplayName = "Claude Opus",
+            Capabilities = FullCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
+            Provider = "anthropic", IsDefault = true,
+            InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
+            CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
+        },
+        new()
+        {
+            // Introductory pricing ($2 / $10) applies through 2026-08-31; standard pricing is $3 / $15 after.
             Id = "sonnet", DisplayName = "Claude Sonnet",
             Capabilities = MidCaps,
-            ContextWindow = 200_000, MaxOutputTokens = 16_000,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
             Provider = "anthropic",
-            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
-            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
+            InputPerMillion = 2.00m, OutputPerMillion = 10.00m,
+            CacheWritePerMillion = 2.50m, CacheReadPerMillion = 0.20m,
         },
         new()
         {
             Id = "haiku", DisplayName = "Claude Haiku",
             Capabilities = LiteCaps,
-            ContextWindow = 200_000, MaxOutputTokens = 8_192,
+            ContextWindow = 200_000, MaxOutputTokens = 64_000,
             Provider = "anthropic",
             InputPerMillion = 1.00m, OutputPerMillion = 5.00m,
             CacheWritePerMillion = 1.25m, CacheReadPerMillion = 0.10m,

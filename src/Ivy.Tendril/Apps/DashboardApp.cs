@@ -91,7 +91,7 @@ public class DashboardApp : ViewBase
             .ToDataTable(t => t.SortDate)
             .RefreshToken(refreshToken)
             .Width(Size.Full())
-            .Height(Size.Px(307))
+            .Height(Size.Px(316))
             .Header(t => t.Date, "Date")
             .Header(t => t.Created, "Created")
             .Header(t => t.Completed, "Completed")
@@ -158,7 +158,8 @@ public class DashboardApp : ViewBase
                 .ToList();
         }
 
-        const string costMeasureName = "Cost ($)";
+        const string costMeasureName = "Cost";
+        const string costSeriesLabel = "Cost ($)";
         const string tokensMeasureName = "Tokens";
 
         var combinedChart = hourlyBurn.ToBarChart(
@@ -168,7 +169,7 @@ public class DashboardApp : ViewBase
                     Tooltip = new ChartTooltip().Animated(true),
                     Bars =
                     [
-                        new Bar(costMeasureName).Radius(0).YAxisIndex(0),
+                        new Bar(costMeasureName).Name(costSeriesLabel).Radius(0).YAxisIndex(0),
                         new Bar(tokensMeasureName).Radius(0).YAxisIndex(1)
                     ],
                     XAxis =

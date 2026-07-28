@@ -1,3 +1,4 @@
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Commands.DoctorChecks;
@@ -18,11 +19,13 @@ internal class EnvironmentCheck : IDoctorCheck
 
         if (string.IsNullOrEmpty(tendrilHome))
         {
-            statuses.Add(new CheckStatus("TENDRIL_HOME", "Not set", StatusKind.Error));
-            return new CheckResult(true, statuses);
+            statuses.Add(new CheckStatus("TENDRIL_HOME", "Not set (using default)", StatusKind.Ok));
+            tendrilHome = PathHelper.GetDefaultTendrilHome();
         }
-
-        statuses.Add(new CheckStatus("TENDRIL_HOME", tendrilHome, StatusKind.Ok));
+        else
+        {
+            statuses.Add(new CheckStatus("TENDRIL_HOME", tendrilHome, StatusKind.Ok));
+        }
 
         // Check config.yaml
         var configPath = Path.Combine(tendrilHome, "config.yaml");
@@ -42,7 +45,7 @@ internal class EnvironmentCheck : IDoctorCheck
             var configService = new ConfigService();
             if (configService.NeedsOnboarding)
             {
-                statuses.Add(new CheckStatus("Config", "Needs onboarding — config could not be loaded", StatusKind.Warn));
+                statuses.Add(new CheckStatus("Config", "Needs onboarding: config could not be loaded", StatusKind.Warn));
                 hasErrors = true;
             }
         }

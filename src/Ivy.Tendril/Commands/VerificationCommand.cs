@@ -6,7 +6,12 @@ using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
 
-public class VerificationListSettings : CommandSettings { }
+public class VerificationListSettings : CommandSettings
+{
+    [CommandOption("--json")]
+    [Description("Emit a machine-readable JSON array of { name, prompt } with the full, untruncated prompt")]
+    public bool Json { get; set; }
+}
 
 public class VerificationAddSettings : CommandSettings
 {
@@ -15,11 +20,25 @@ public class VerificationAddSettings : CommandSettings
     public string Name { get; set; } = "";
 
     [CommandOption("-p|--prompt")]
-    [Description("Verification prompt (reads from stdin if omitted)")]
+    [Description("Verification prompt (inline; use --file/--stdin for long text)")]
     public string? Prompt { get; set; }
+
+    [CommandOption("--file|-f")]
+    [Description("Read the prompt verbatim from this file (good for long/multiline prompts)")]
+    public string? FilePath { get; set; }
+
+    [CommandOption("--stdin")]
+    [Description("Read the prompt verbatim from standard input")]
+    public bool Stdin { get; set; }
+
+    public int SourceCount => CliValidation.CountSources(Stdin, FilePath, Prompt ?? "");
 
     public override Spectre.Console.ValidationResult Validate()
     {
+        var sourceValidation = CliValidation.ValidateSingleSource(SourceCount, "--prompt, --file, or --stdin");
+        if (!sourceValidation.Successful)
+            return sourceValidation;
+
         return CliValidation.RequireNonEmpty(Name, "name");
     }
 }
@@ -60,16 +79,29 @@ public class VerificationSetSettings : CommandSettings
     [CommandArgument(1, "<field>")]
     public string Field { get; set; } = "";
 
-    [Description("Field value")]
-    [CommandArgument(2, "<value>")]
+    [Description("New value. Omit when using --file or --stdin. Use --file/--stdin for long or multiline prompts.")]
+    [CommandArgument(2, "[value]")]
     public string Value { get; set; } = "";
+
+    [CommandOption("-f|--file")]
+    [Description("Read the value verbatim from this file (good for multiline prompt)")]
+    public string? FilePath { get; set; }
+
+    [CommandOption("--stdin")]
+    [Description("Read the value verbatim from standard input")]
+    public bool Stdin { get; set; }
+
+    public int SourceCount => CliValidation.CountSources(Stdin, FilePath, Value);
 
     public override Spectre.Console.ValidationResult Validate()
     {
+        var sourceValidation = CliValidation.ValidateSingleSource(SourceCount, "an inline <value>, --file, or --stdin");
+        if (!sourceValidation.Successful)
+            return sourceValidation;
+
         return CliValidation.Combine(
             CliValidation.RequireNonEmpty(Name, "name"),
-            CliValidation.ValidateField(Field, ValidFields),
-            CliValidation.RequireNonEmpty(Value, "value")
+            CliValidation.ValidateField(Field, ValidFields)
         );
     }
 }
@@ -81,24 +113,34 @@ public class VerificationListCommand : Command<VerificationListSettings>
         var config = new ConfigService();
         var verifications = config.Settings.Verifications;
 
+        if (settings.Json)
+        {
+            // Plain stdout (not AnsiConsole) so the output is clean, parseable JSON for agents.
+            var payload = verifications.Select(v => new { name = v.Name, prompt = v.Prompt });
+            Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(payload));
+            return 0;
+        }
+
         if (verifications.Count == 0)
         {
             AnsiConsole.MarkupLine("[dim]No verification definitions found.[/]");
             return 0;
         }
 
-        var table = new Spectre.Console.Table();
-        table.AddColumn("Name");
-        table.AddColumn("Prompt");
+        var rows = verifications.Select(v => (IReadOnlyList<string>)new[] { v.Name, FormatPromptForDisplay(v.Prompt) });
+        CliOutput.WriteTable(["Name", "Prompt"], rows);
+        return 0;
+    }
 
-        foreach (var v in verifications)
+    private static string FormatPromptForDisplay(string prompt)
+    {
+        if (CliOutput.IsPlain)
         {
-            var prompt = v.Prompt.Length > 60 ? v.Prompt[..60] + "..." : v.Prompt;
-            table.AddRow(v.Name.EscapeMarkup(), prompt.EscapeMarkup());
+            var firstLine = prompt.Split('\n')[0].Trim();
+            return firstLine.Length > 120 ? firstLine[..120] + "..." : firstLine;
         }
 
-        AnsiConsole.Write(table);
-        return 0;
+        return prompt.Length > 60 ? prompt[..60] + "..." : prompt;
     }
 }
 
@@ -111,7 +153,7 @@ public class VerificationGetCommand : Command<VerificationGetSettings>
             .FirstOrDefault(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
         if (match == null)
-            throw new InvalidOperationException($"Verification not found: {settings.Name}");
+            CliValidation.ThrowVerificationNotFound(settings.Name, config.Settings.Verifications.Select(v => v.Name));
 
         Console.Write(match.Prompt);
         return 0;
@@ -127,13 +169,9 @@ public class VerificationAddCommand : Command<VerificationAddSettings>
         if (config.Settings.Verifications.Any(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException($"Verification already exists: {settings.Name}");
 
-        var prompt = settings.Prompt;
-        if (string.IsNullOrEmpty(prompt))
-        {
-            if (!Console.IsInputRedirected)
-                throw new ArgumentException("Provide --prompt or pipe content via stdin");
-            prompt = Console.In.ReadToEnd().Trim();
-        }
+        var prompt = ConsoleHelper.ResolveInput(settings.Stdin, settings.FilePath, settings.Prompt);
+        if (string.IsNullOrWhiteSpace(prompt))
+            throw new ArgumentException("Provide --prompt, --file, or --stdin");
 
         config.Settings.Verifications.Add(new VerificationConfig
         {
@@ -156,7 +194,7 @@ public class VerificationRemoveCommand : Command<VerificationRemoveSettings>
             .FirstOrDefault(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
         if (match == null)
-            throw new InvalidOperationException($"Verification not found: {settings.Name}");
+            CliValidation.ThrowVerificationNotFound(settings.Name, config.Settings.Verifications.Select(v => v.Name));
 
         config.Settings.Verifications.Remove(match);
         config.SaveSettings();
@@ -174,22 +212,28 @@ public class VerificationSetCommand : Command<VerificationSetSettings>
             .FirstOrDefault(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
         if (match == null)
-            throw new InvalidOperationException($"Verification not found: {settings.Name}");
+            CliValidation.ThrowVerificationNotFound(settings.Name, config.Settings.Verifications.Select(v => v.Name));
+
+        var value = ConsoleHelper.ResolveInput(settings.Stdin, settings.FilePath, settings.Value);
+
+        if (string.IsNullOrEmpty(value))
+            throw new ArgumentException("value is required (use an inline <value>, --file, or --stdin)");
 
         switch (settings.Field.ToLower())
         {
             case "name":
-                match.Name = settings.Value;
+                match.Name = value;
                 break;
             case "prompt":
-                match.Prompt = settings.Value;
+                match.Prompt = value;
                 break;
             default:
                 throw new ArgumentException($"Unknown field: {settings.Field}. Valid fields: name, prompt");
         }
 
         config.SaveSettings();
-        Console.WriteLine($"Updated verification {settings.Field} to '{settings.Value}'");
+        var summary = value.Length <= 60 && !value.Contains('\n') ? $"to '{value}'" : $"({value.Length} chars)";
+        Console.WriteLine($"Updated verification {settings.Field} {summary}");
         return 0;
     }
 }

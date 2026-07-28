@@ -1,3 +1,4 @@
+using System.Reactive.Disposables;
 using Ivy.Tendril.Apps.Settings.Dialogs;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -13,6 +14,13 @@ public class ProjectsSetupView : ViewBase
         var refreshToken = UseRefreshToken();
         var editIndex = UseState<int?>(-1);
         var isAddOpen = UseState(false);
+
+        UseEffect(() =>
+        {
+            void OnSettingsReloaded(object? sender, EventArgs e) => refreshToken.Refresh();
+            config.SettingsReloaded += OnSettingsReloaded;
+            return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);
+        });
 
         var projects = config.Settings.Projects;
         var allVerifications = config.Settings.Verifications.Select(v => v.Name).ToList();

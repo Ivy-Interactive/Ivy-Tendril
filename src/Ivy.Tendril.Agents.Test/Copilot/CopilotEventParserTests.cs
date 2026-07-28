@@ -298,9 +298,4 @@ public class CopilotEventParserTests
         Assert.Equal(0, result.ExitCode);
     }
 
-    [Fact]
-    public void Reset_DoesNotThrow()
-    {
-        _parser.Reset();
-    }
 }

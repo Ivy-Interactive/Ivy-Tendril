@@ -49,7 +49,7 @@ public interface IPlanDatabaseService : IDisposable
     List<JobItem> GetRecentJobs(int limit = 100);
     JobItem? GetJobById(string id);
     List<JobItem> GetJobsForPlan(string planFile);
-    void PurgeOldJobs(int keepCount = 500);
+    List<string> PurgeOldJobs(int keepCount = 500);
     void DeleteJob(string id);
 
     // PR statuses

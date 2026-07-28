@@ -449,6 +449,48 @@ public class JobServiceRetryBlockedTests : IDisposable
 
 
     [Fact]
+    public void RetryBlockedJobs_WhenBlockedOnWaitForJobs_DoesNotChurnOrEmitSpuriousNotifications()
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        var planFolder = CreatePlanFolder("Draft");
+
+        var planReader = new FakePlanReaderService(_tempDir.Path);
+        var service = new JobService(
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromMinutes(10),
+            planReaderService: planReader);
+
+        // Long-running dependency job (stays Running)
+        var depId = service.CreateTestJob(new CreatePlanArgs("Dep job", "Auto"));
+        Assert.Equal(JobStatus.Running, service.GetJob(depId)!.Status);
+
+        // The waiting job blocks on the sibling job, not on plan-level dependsOn
+        var waitingId = service.StartJob(new ExecutePlanArgs(planFolder) { WaitForJobs = [depId] });
+        var waitingJob = service.GetJob(waitingId);
+        Assert.NotNull(waitingJob);
+        Assert.Equal(JobStatus.Blocked, waitingJob.Status);
+
+        var notifications = new List<JobNotification>();
+        service.NotificationReady += n => notifications.Add(n);
+
+        // Drive the 60-second blocked-job-check timer body deterministically
+        service.RunBlockedJobCheck();
+
+        // The job must be left exactly as it was — no churn, still blocked on the same dependency
+        var stillWaiting = service.GetJob(waitingId);
+        Assert.NotNull(stillWaiting);
+        Assert.Equal(JobStatus.Blocked, stillWaiting.Status);
+        Assert.Contains(depId, stillWaiting.StatusMessage);
+
+        Assert.DoesNotContain(notifications, n => n.Title == "Job Unblocked");
+        Assert.DoesNotContain(notifications, n => n.Title == "Job Blocked");
+
+        // Cleanup
+        Directory.Delete(planFolder, true);
+    }
+
+    [Fact]
     public async Task PeriodicCheck_WhenDependencySatisfiedExternally_UnblocksJob()
     {
         SynchronizationContext.SetSynchronizationContext(null);
@@ -574,10 +616,6 @@ public class JobServiceRetryBlockedTests : IDisposable
             return [];
         }
 
-        public void AddLog(string folderName, string action, string content, string? jobId = null)
-        {
-        }
-
         public void DeletePlan(string folderName)
         {
         }
@@ -654,6 +692,10 @@ public class JobServiceRetryBlockedTests : IDisposable
         }
 
         public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle)
+        {
+        }
+
+        public void AcceptRecommendationsAndRetry(string folderName, IReadOnlyCollection<string> titles)
         {
         }
     }

@@ -135,12 +135,34 @@ EXISTING=$(gh pr list --repo <owner/repo> --head <branch> --state open --json nu
 
 - **If `EXISTING` is empty → CREATE path (default).** For each pushed branch:
 
+**!SHELL SAFETY — use file-based args. Do NOT pipe the body through `--body "$(cat <<'EOF' …)"`
+or interpolate a multi-line body inline.** On some hosts (opencode / Windows) that mangles the
+command and fails with `unknown argument "…"; please quote all values that have spaces`, burning
+retries. Write the body to a **unique** temp file (use `mktemp` — never a fixed/shared name, because
+concurrent CreatePr jobs share `$TMPDIR`) and pass `--body-file`:
+
 ```bash
-gh pr create [--draft] --repo <owner/repo> --base <default-branch> --head <branch> --assignee @me --title "<title>" --body "$(cat <<'EOF'
-<body content>
-EOF
-)"
+# $body is already assembled per the Body rules below. Write it to a UNIQUE temp
+# file — NEVER a fixed/shared name. Up to MaxConcurrentJobs CreatePr jobs run at
+# once and share $TMPDIR, so a fixed path like $TMPDIR/pr-body.md is a
+# last-writer-wins race that swaps PR bodies between plans (#1551).
+body_file=$(mktemp)
+printf '%s' "$body" > "$body_file"
+gh pr create [--draft] --repo <owner/repo> --base <default-branch> --head <branch> \
+  --assignee @me --title "[<planId>] <plan title>" --body-file "$body_file"
+rm -f "$body_file"
 ```
+
+- The **title is a single `--title "…"` value** — never let the shell split it into multiple args.
+  If a host still splits it, assign it to a variable first and pass the variable:
+  ```bash
+  TITLE="[<planId>] <plan title>"
+  body_file=$(mktemp)
+  printf '%s' "$body" > "$body_file"
+  gh pr create --repo <owner/repo> --base <default-branch> --head <branch> \
+    --assignee @me --title "$TITLE" --body-file "$body_file"
+  rm -f "$body_file"
+  ```
 
 - **Base branch:**
   1. Read plan.yaml and get the project name
@@ -168,7 +190,7 @@ EOF
   body="${issueLink}${summaryContent}\n\n---\n${commitsList}${artifactMarkdown}\n\n---\nCreated using [Ivy Tendril](https://ivy.app)."
   ```
 - **Draft (custom options):** If custom options exist and `draft` is `true`, add `--draft` to the `gh pr create` command to create the PR in draft mode. If no custom options or `draft` is `false`, create as ready for review (default behavior).
-- **Reviewer (custom options):** If custom options exist and `reviewer` is non-empty, add `--reviewer <reviewer>` to the `gh pr create` command.
+- **Reviewer (custom options):** If custom options exist and `reviewer` is non-empty, add `--reviewer <reviewer>` to the `gh pr create` command. **Never pass a bare `--reviewer` with no value** — that fails with `flag needs an argument: --reviewer`. Omit the flag entirely when `PrReviewer` is empty.
 - **Assignee:** Always pass `--assignee @me` so the PR is assigned to the current (gh-authenticated) user. If assignment fails (e.g. the account cannot self-assign on a given repo), this is non-fatal — log a warning and continue; do not fail PR creation.
 
 ### 3.5. Add PR Comment (custom options)
@@ -291,7 +313,12 @@ tendril plan remove-worktree <TendrilPlanId> <repo-folder-name>
 
 If cleanup fails, log a warning but do not fail the overall CreatePr execution.
 
-### 6. Update Plan via CLI
+### 6. Update Plan via CLI — MANDATORY CLOSEOUT
+
+**!STOP — YOU ARE NOT DONE until this step is complete.** Creating the PR is not the finish line.
+Whether or not earlier steps were messy, retried, or partially failed, you MUST finish by:
+(1) recording every created/updated PR URL, and (2) setting the plan state to `Completed`. A run
+that stops before this leaves the PR invisible in Tendril and the plan stuck in Drafts.
 
 Use the CLI to update the plan — **never edit plan.yaml directly**.
 
@@ -305,13 +332,13 @@ tendril plan add-pr <plan-id> <pr-url>
 > equal `SourceUrl`). Read `plan.yaml` first and only run `add-pr` if the URL is not already present —
 > do not add a duplicate.
 
-**Update state to Completed:** If `PrMerge` is `true` and ALL PRs were successfully merged, update the state:
+**Set state to Completed:** Once a PR exists (created **or** updated) for the plan, set the state to
+`Completed` — **regardless of `PrMerge`**. A plan that has a PR is done; merge status is tracked
+separately as PR status and does not affect plan state.
 
 ```bash
 tendril plan set <plan-id> state Completed
 ```
-
-If `PrMerge` is `false`, do NOT update the state — the plan remains open for manual review and potential revisions.
 
 ### Edge Case: Direct-to-Main (No PR Needed)
 
@@ -323,7 +350,12 @@ Some plans create new repos and push directly to main (e.g., repo scaffolding). 
 
 ### Rules
 
-- **ALL 7 steps are mandatory** (including 2.5) — do not stop after creating the PR
+- **ALL 7 steps are mandatory** (including 2.5) — do not stop after creating the PR. In
+  particular, **step 6 is a required closeout**: record every PR URL via `tendril plan add-pr` and
+  set the plan state to `Completed`. A run that creates a PR but skips step 6 is a **failed** run.
+- **Final summary must be verifiable:** end by echoing each recorded PR URL and the final plan
+  state (e.g. `Recorded PR: <url> — plan 00015 state: Completed`) so an incomplete closeout is
+  self-evident.
 - One PR per repo worktree that has commits
 - Skip worktrees with no commits ahead of the base branch
 - Use `gh` CLI for all GitHub operations

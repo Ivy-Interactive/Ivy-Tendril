@@ -22,7 +22,6 @@
   font-size: 14px;
   line-height: 1.55;
   position: relative;
-  container-type: size;
 }
 
 .aov-shell * {
@@ -157,6 +156,9 @@
   color: var(--aov-fg);
   font-size: 14px;
   line-height: 1.6;
+  word-break: normal;
+  overflow-wrap: break-word;
+  min-width: 0;
 }
 
 .aov-markdown p {
@@ -175,7 +177,9 @@
   border: 1px solid var(--aov-border);
   border-radius: 4px;
   padding: 1px 5px;
-  font-size: 14px;
+  font-size: 0.9em;
+  font-weight: 500;
+  overflow-wrap: break-word;
 }
 
 .aov-markdown pre {
@@ -203,6 +207,7 @@
 .aov-markdown a {
   color: var(--aov-accent);
   text-decoration: underline;
+  overflow-wrap: break-word;
 }
 
 .aov-markdown h1,

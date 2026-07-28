@@ -20,6 +20,7 @@ public class JobService : IJobService
     private TimeSpan _jobTimeout;
     private readonly ConcurrentDictionary<string, JobItem> _jobs = new();
     private int _maxConcurrentJobs;
+    private int _structureChangedSuppressed;
     private readonly ModelPricingService? _modelPricingService;
     private readonly IPlanReaderService? _planReaderService;
     private readonly IPlanWatcherService? _planWatcherService;
@@ -29,6 +30,7 @@ public class JobService : IJobService
     private readonly ILogger<JobService> _logger;
     private readonly JobLauncher _jobLauncher;
     private readonly JobCompletionHandler _completionHandler;
+    private readonly IAgentRunner? _agentRunner;
     private Timer? _blockedJobCheckTimer;
     public JobService(
         IConfigService configService,
@@ -48,6 +50,7 @@ public class JobService : IJobService
         _telemetryService = telemetryService;
         _planWatcherService = planWatcherService;
         _database = database;
+        _agentRunner = agentRunner;
         _jobTimeout = TimeSpan.FromMinutes(configService.Settings.JobTimeout);
         _staleOutputTimeout = TimeSpan.FromMinutes(configService.Settings.StaleOutputTimeout);
         _maxConcurrentJobs = configService.Settings.MaxConcurrentJobs;
@@ -61,7 +64,7 @@ public class JobService : IJobService
             configService, _logger, modelPricingService, planReaderService,
             telemetryService, planWatcherService, promptsRoot);
         configService.SettingsReloaded += OnSettingsReloaded;
-        JobIdAllocator.SeedIfNeeded(configService.TendrilHome, promptsRoot);
+        JobIdAllocator.SeedIfNeeded(configService.TendrilHome);
         LoadHistoricalJobs();
         _blockedJobCheckTimer = new Timer(OnBlockedJobCheckTimer, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
     }
@@ -89,6 +92,7 @@ public class JobService : IJobService
         _planReaderService = planReaderService;
         _telemetryService = telemetryService;
         _database = database;
+        _agentRunner = agentRunner;
         var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot();
         _jobLauncher = new JobLauncher(null, agentRunner!, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
@@ -129,6 +133,9 @@ public class JobService : IJobService
             }
         }
 
+        // Close only the raw CLI transcript here: the agent has exited, but HandleCompletion still enqueues
+        // the completion summary, permission denials and hook output. Those must reach the eventwire file,
+        // so its appender stays open until DisposeResources below.
         job.CloseRawLog();
         _completionHandler.HandleCompletion(
             job, _jobs, PersistJob, RaiseNotification, RaiseJobsPropertyChanged, StartJobSkipDepCheck);
@@ -164,9 +171,47 @@ public class JobService : IJobService
                     job.StatusMessage = errorMessage;
                 }
             }
+            else if (!string.IsNullOrEmpty(job.ReportedFailureReason))
+            {
+                // A reason explicitly declared by the promptware via `tendril job fail`
+                // wins outright — including over any progress message previously set via
+                // `tendril job status` (which would otherwise leave a stale message shown).
+                job.StatusMessage = job.ReportedFailureReason;
+            }
             else
             {
-                job.StatusMessage ??= ExtractFailureReason(job.OutputLines.ToList(), job.Type);
+                // Only fall through to the generic scan (and possibly the agent-level analyzer
+                // below) when nothing has already set a message — an explicitly set StatusMessage
+                // must be preserved verbatim, even if it happens to mention "exit code".
+                if (job.StatusMessage == null)
+                {
+                    // Prefer the provider-specific IFailureAnalyzer (recognizes rate limits, auth
+                    // failures, invalid models, etc.) over the generic text scan below — most
+                    // failures have some stderr line, so the text scan would otherwise return that
+                    // raw line directly and the analyzer would never get a chance to improve it.
+                    FailureAnalysis? analysis = null;
+                    var analyzer = _agentRunner?.GetFailureAnalyzer(job.Provider);
+                    if (analyzer != null)
+                    {
+                        var stderrLines = job.OutputLines
+                            .Where(l => l.StartsWith("[stderr] "))
+                            .Select(l => l["[stderr] ".Length..])
+                            .ToList();
+                        analysis = analyzer.Analyze(new FailureContext
+                        {
+                            Events = [],
+                            StderrLines = stderrLines,
+                            ExitCode = exitCode,
+                            TimedOut = false,
+                            IdleTimeout = false,
+                            AgentId = job.Provider,
+                        });
+                    }
+
+                    job.StatusMessage = analysis is { Kind: not FailureKind.Unknown }
+                        ? analysis.Suggestion != null ? $"{analysis.Reason} ({analysis.Suggestion})" : analysis.Reason
+                        : ExtractFailureReason(job.OutputLines.ToList(), job.Type, exitCode);
+                }
             }
             job.Status = success ? JobStatus.Completed : JobStatus.Failed;
         }
@@ -188,7 +233,10 @@ public class JobService : IJobService
         if (!job.TryClaimCompletion()) return;
 
         job.FlushParser();
-        var wasRunning = job.Status == JobStatus.Running;
+        // Keyed off SlotReserved rather than Status == Running: the pre-Running launch guard
+        // (ValidateProjectReposOrFail, #1340) can hold the slot before Status ever flips to
+        // Running, so gating release on Status here would leak it if this races that guard.
+        var heldSlot = job.SlotReserved;
         try
         {
             job.TimeoutCts?.Cancel();
@@ -216,8 +264,8 @@ public class JobService : IJobService
 
         _completionHandler.WriteJobLog(job);
 
-        // Release job slot if the job was running
-        if (wasRunning)
+        // Release job slot if this launch attempt held one
+        if (heldSlot)
             _jobSlotSemaphore.Release();
 
         JobCompletionHandler.CleanupInboxFile(job);
@@ -231,8 +279,38 @@ public class JobService : IJobService
         RaiseJobsStructureChanged();
 
         // Try to start queued jobs now that a slot is free
-        if (wasRunning)
+        if (heldSlot)
             ProcessJobQueue();
+    }
+
+    public int StopAllJobs()
+    {
+        var stopped = new HashSet<string>();
+
+        // Re-snapshot between passes: StopJob releases the stopped job's slot and calls
+        // ProcessJobQueue, which can promote a Queued job to Running while this sweep is
+        // in flight. Three passes is enough to drain that; the bound keeps a pathological
+        // launch/stop loop from spinning forever.
+        for (var pass = 0; pass < 3; pass++)
+        {
+            var active = _jobs.Values
+                .Where(j => j.Status is JobStatus.Running or JobStatus.Queued
+                                     or JobStatus.Pending or JobStatus.Blocked)
+                .Select(j => j.Id)
+                .Where(id => !stopped.Contains(id))
+                .ToList();
+
+            if (active.Count == 0) break;
+
+            foreach (var id in active)
+            {
+                StopJob(id);
+                if (_jobs.TryGetValue(id, out var job) && job.Status == JobStatus.Stopped)
+                    stopped.Add(id);
+            }
+        }
+
+        return stopped.Count;
     }
 
     public void DeleteJob(string id)
@@ -241,6 +319,8 @@ public class JobService : IJobService
         {
             removed.DisposeResources(_logger);
             try { _database?.DeleteJob(id); } catch { /* Best-effort */ }
+            // The job's four artifacts in <TendrilHome>/Jobs/ are deliberately kept: deleting a job removes
+            // it from the UI and the database, not the forensic record of what it did.
 
             ApplyDeletePlanState(removed);
 
@@ -253,24 +333,57 @@ public class JobService : IJobService
     }
 
     /// <summary>
-    ///     Deleting a job reverts its plan to where it came from. For an ExecutePlan job
-    ///     (and only when the plan isn't already shipped) deleting discards the execution's
-    ///     work product entirely: the plan is reset to a clean Draft and worktrees/artifacts
-    ///     are removed.
+    ///     Deleting a job reverts its plan to where it came from. Terminal plans (Completed
+    ///     or Skipped — already shipped) are immutable: only the job history entry is removed,
+    ///     state and records are left untouched. For a non-terminal ExecutePlan job, deleting
+    ///     discards the execution's work product entirely: the plan is reset to a clean Draft
+    ///     and worktrees/artifacts are removed.
     /// </summary>
     private void ApplyDeletePlanState(JobItem removed)
     {
         var planFolder = removed.TypedArgs?.PlanFolder;
 
-        if (removed.TypedArgs is ExecutePlanArgs && _planReaderService != null
-            && !string.IsNullOrEmpty(planFolder))
+        if (_planReaderService != null && !string.IsNullOrEmpty(planFolder))
         {
             var current = _planReaderService.GetPlanByFolder(planFolder)?.Status;
-            var isTerminal = current is PlanStatus.Completed or PlanStatus.Skipped;
-            if (!isTerminal)
+
+            // Terminal plans (PR created, or manually Skipped) are immutable: deleting a
+            // finished history job must not move them backward. Remove the job only; leave
+            // state and records untouched.
+            if (current is PlanStatus.Completed or PlanStatus.Skipped)
+                return;
+
+            if (removed.TypedArgs is ExecutePlanArgs)
             {
-                _planReaderService.ResetToDraft(Path.GetFileName(planFolder));
-                WorktreeCleanupService.CleanPlanState(planFolder, _logger);
+                // Optimistic delete: the job is already gone from the UI, so reclaim the plan's
+                // worktrees and artifacts on a background thread and return immediately instead of
+                // blocking the UI on git subprocesses and multi-second directory deletes. Order
+                // matters: ResetToDraft (which flips the plan to a runnable Draft) runs only AFTER
+                // cleanup finishes, so an immediate re-execution can't race the still-running
+                // deletes and have its fresh worktree removed out from under it.
+                var planReaderService = _planReaderService;
+                string folderPath = planFolder;
+                var folderName = Path.GetFileName(folderPath);
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        WorktreeCleanupService.CleanPlanState(folderPath, _logger);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Background plan-state cleanup failed for {PlanFolder}", folderName);
+                        RaiseNotification(new JobNotification("Cleanup incomplete",
+                            $"Couldn't fully remove worktrees and artifacts for {folderName}; some disk space may not be reclaimed until it is cleared manually.",
+                            false));
+                    }
+                    finally
+                    {
+                        // Reset to Draft regardless of cleanup success so the plan stays usable;
+                        // done after cleanup so its directories are gone before it becomes runnable.
+                        planReaderService.ResetToDraft(folderName);
+                    }
+                });
                 return;
             }
         }
@@ -289,13 +402,65 @@ public class JobService : IJobService
         try
         {
             var hasBlocked = _jobs.Values.Any(j => j.Status == JobStatus.Blocked);
-            if (!hasBlocked) return;
-
-            _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
+            if (hasBlocked)
+                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
         }
         catch
         {
             // Best-effort — don't crash on timer callback
+        }
+
+        try
+        {
+            RunStuckJobCheck();
+        }
+        catch
+        {
+            // Best-effort — don't crash on timer callback
+        }
+    }
+
+    // Extra margin on top of the configured timeouts before a job is reaped, so a legitimately
+    // slow-but-progressing job isn't killed the instant it crosses the nominal threshold.
+    private static readonly TimeSpan StuckJobReapGrace = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    ///     Global safety net for jobs stranded Running with no path to completion — e.g. a launch
+    ///     that hung before <see cref="JobMonitor" /> ever armed its watchdogs (the "Starting…"
+    ///     forever bug). Unlike the per-job stale-output/hard-timeout watchdogs (armed only once
+    ///     <see cref="JobMonitor.Start" /> runs), this scans every Running job independent of whether
+    ///     its monitor ever started, using <see cref="JobItem.StartedAt" /> as the baseline. Runs on
+    ///     the existing 60s timer; exposed internally so tests can drive it deterministically.
+    /// </summary>
+    internal void RunStuckJobCheck()
+    {
+        var now = DateTime.UtcNow;
+
+        foreach (var job in _jobs.Values.Where(j => j.Status == JobStatus.Running).ToArray())
+        {
+            if (!job.StartedAt.HasValue) continue;
+
+            var staleAnchor = job.LastOutputAt ?? job.StartedAt.Value;
+            var isStale = _staleOutputTimeout > TimeSpan.Zero
+                          && now - staleAnchor > _staleOutputTimeout + StuckJobReapGrace;
+            var isHardCapped = now - job.StartedAt.Value > _jobTimeout + TimeSpan.FromMinutes(5) + StuckJobReapGrace;
+
+            if (!isStale && !isHardCapped) continue;
+
+            _logger.LogWarning(
+                "Job {JobId}: Reaped by stuck-job check ({Reason})", job.Id, isStale ? "stale output" : "hard cap");
+
+            try
+            {
+                if (job.Process is { HasExited: false })
+                    job.Process.Kill(entireProcessTree: true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Job {JobId}: Failed to kill process during stuck-job reap", job.Id);
+            }
+
+            CompleteJob(job.Id, null, timedOut: true, staleOutput: isStale);
         }
     }
 
@@ -326,10 +491,30 @@ public class JobService : IJobService
         => ClearJobsByStatus(j => j.Status == JobStatus.Completed);
 
     public void ClearFailedJobs()
-        => ClearJobsByStatus(j => j.Status is JobStatus.Failed or JobStatus.Timeout);
+        => ClearJobsByStatus(j => j.Status == JobStatus.Failed);
 
     public void ClearAllJobs()
         => ClearJobsByStatus(j => j.Status is not JobStatus.Running and not JobStatus.Queued);
+
+    public int StopQueuedJobs()
+    {
+        var ids = _jobs.Values.Where(j => j.Status == JobStatus.Queued).Select(j => j.Id).ToList();
+        if (ids.Count == 0) return 0;
+
+        Interlocked.Increment(ref _structureChangedSuppressed);
+        try
+        {
+            foreach (var id in ids)
+                StopJob(id);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _structureChangedSuppressed);
+        }
+
+        RaiseJobsStructureChanged();
+        return ids.Count;
+    }
 
     private void ClearJobsByStatus(Func<JobItem, bool> predicate)
     {
@@ -356,12 +541,39 @@ public class JobService : IJobService
 
     public JobItem? GetJob(string id)
     {
-        return _jobs.GetValueOrDefault(id) ?? _database?.GetJobById(id);
+        var job = _jobs.GetValueOrDefault(id) ?? _database?.GetJobById(id);
+        if (job is { OutputHydrated: false } && job.Status != JobStatus.Running
+            && job.OutputLines.IsEmpty && _configService != null)
+        {
+            job.OutputLines = JobEventWireStore.Read(_configService.TendrilHome, job) ?? job.OutputLines;
+            job.OutputHydrated = true;
+        }
+        return job;
+    }
+
+    /// <summary>
+    ///     Resolves a job for an agent-initiated report. Falls back to the database when the job is
+    ///     not in memory — after a master restart the agent process outlives the server that started
+    ///     it, and its next report must not 404. A rehydrated job is re-registered in
+    ///     <c>_jobs</c> so subsequent reports hit memory and the Jobs app shows it again.
+    /// </summary>
+    private JobItem? ResolveJobForReport(string id)
+    {
+        if (_jobs.TryGetValue(id, out var job))
+            return job;
+
+        var stored = _database?.GetJobById(id);
+        if (stored == null)
+            return null;
+
+        // TryAdd, not indexer assignment: a concurrent report may have won the race.
+        return _jobs.TryAdd(id, stored) ? stored : _jobs.GetValueOrDefault(id) ?? stored;
     }
 
     public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null)
     {
-        if (!_jobs.TryGetValue(id, out var job))
+        var job = ResolveJobForReport(id);
+        if (job == null)
             return false;
 
         job.StatusMessage = message;
@@ -370,6 +582,29 @@ public class JobService : IJobService
         if (!string.IsNullOrEmpty(planTitle))
             job.ReportedPlanTitle = planTitle;
 
+        // A detached agent (no Process handle here, e.g. after a master restart) produces no output
+        // stream for this process to observe, so its status calls are the only liveness signal we
+        // get. Treat them as a heartbeat so RunStuckJobCheck doesn't reap a job that is demonstrably
+        // still working. Jobs we do own are anchored by their real output instead.
+        if (job.Process == null)
+            job.LastOutputAt = DateTime.UtcNow;
+
+        PersistJob(job);
+        RaiseJobsPropertyChanged();
+        return true;
+    }
+
+    public bool ReportJobFailure(string id, string message)
+    {
+        var job = ResolveJobForReport(id);
+        if (job == null)
+            return false;
+
+        // Record the reason only; the job process is still running and the terminal
+        // state transition still happens later in CompleteJob/SetCompletionStatus.
+        job.ReportedFailureReason = message;
+
+        PersistJob(job);
         RaiseJobsPropertyChanged();
         return true;
     }
@@ -410,7 +645,9 @@ public class JobService : IJobService
         try
         {
             var historicalJobs = _database.GetRecentJobs();
-            foreach (var job in historicalJobs) _jobs.TryAdd(job.Id, job);
+            foreach (var job in historicalJobs)
+                if (_jobs.TryAdd(job.Id, job))
+                    ReconcileRestoredJob(job);
         }
         catch
         {
@@ -418,6 +655,75 @@ public class JobService : IJobService
         }
     }
 
+    /// <summary>
+    ///     Decides what to do with a non-terminal job restored from the database after a master
+    ///     restart. If its agent process is still alive the job keeps running detached (this process
+    ///     holds no Process handle for it); otherwise it is marked Failed so it doesn't linger as a
+    ///     ghost. Blocked jobs are left alone — the 60s blocked-job timer and ForceStartJob own them.
+    /// </summary>
+    private void ReconcileRestoredJob(JobItem job)
+    {
+        if (job.Status is not (JobStatus.Pending or JobStatus.Queued or JobStatus.Running))
+            return;
+
+        if (IsAgentProcessAlive(job))
+        {
+            job.Detached = true;
+            // Restart the stale-output clock from the reload: the original StartedAt may already be
+            // older than the stale-output timeout, which would make the next timer tick reap a
+            // healthy job before it ever gets a chance to report in.
+            job.LastOutputAt = DateTime.UtcNow;
+            _logger.LogInformation(
+                "Job {JobId}: Restored as detached (agent process {Pid} still alive)", job.Id, job.ProcessId);
+            return;
+        }
+
+        job.Status = JobStatus.Failed;
+        job.StatusMessage = "Interrupted by Tendril master restart";
+        job.CompletedAt = DateTime.UtcNow;
+        PersistJob(job);
+        _logger.LogWarning("Job {JobId}: Marked Failed — interrupted by a Tendril master restart", job.Id);
+    }
+
+    // Grace on the PID-reuse guard: the agent process starts shortly after the job does, so its
+    // StartTime should never be meaningfully later than the job's StartedAt. A much later start
+    // means the OS handed the same PID to an unrelated process.
+    private static readonly TimeSpan PidReuseGrace = TimeSpan.FromMinutes(5);
+
+    private static bool IsAgentProcessAlive(JobItem job)
+    {
+        if (job.ProcessId is not { } pid) return false;
+
+        try
+        {
+            using var process = System.Diagnostics.Process.GetProcessById(pid);
+            if (process.HasExited) return false;
+
+            // Best-effort PID-reuse guard; StartTime is not readable for every process.
+            try
+            {
+                if (job.StartedAt.HasValue
+                    && process.StartTime.ToUniversalTime() > job.StartedAt.Value + PidReuseGrace)
+                    return false;
+            }
+            catch
+            {
+                /* StartTime unavailable — fall back to "alive" */
+            }
+
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false; // No process with that id
+        }
+        catch (InvalidOperationException)
+        {
+            return false; // Process has exited and its handle is gone
+        }
+    }
+
+    // The eventwire file is streamed by JobItem as events arrive, so there is nothing to persist here.
     private void PersistJob(JobItem job)
     {
         try
@@ -440,6 +746,7 @@ public class JobService : IJobService
 
     private void RaiseJobsStructureChanged()
     {
+        if (Volatile.Read(ref _structureChangedSuppressed) > 0) return;
         if (_syncContext != null)
             _syncContext.Post(_ =>
             {
@@ -523,11 +830,21 @@ public class JobService : IJobService
 
         _jobs[id] = job;
 
+        // Persist while in flight, not just on completion: the agent reports status over HTTP and
+        // must still be resolvable if the master restarts mid-job (#1759).
+        PersistJob(job);
+
         if (TryBlockForDependencies(job, skipDependencyCheck))
+        {
+            PersistJob(job);
             return id;
+        }
 
         if (!skipWaitForCheck && TryBlockForWaitForJobs(job))
+        {
+            PersistJob(job);
             return id;
+        }
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or ExpandPlanArgs or UpdatePlanArgs or SplitPlanArgs)
             _planReaderService?.FlushPendingWritesAsync().GetAwaiter().GetResult();
@@ -542,10 +859,12 @@ public class JobService : IJobService
             job.Status = JobStatus.Queued;
             job.StatusMessage = $"Waiting (max {_maxConcurrentJobs} concurrent jobs)";
             lock (_queueLock) { _jobQueue.Enqueue(id, -job.Priority); }
+            PersistJob(job);
             RaiseJobsStructureChanged();
             return id;
         }
 
+        job.SlotReserved = true;
         LaunchJob(job);
         return id;
     }
@@ -717,12 +1036,15 @@ public class JobService : IJobService
         if (job.WaitForJobIds is not { Count: > 0 })
             return false;
 
-        var pendingIds = job.WaitForJobIds
-            .Where(id => _jobs.TryGetValue(id, out var dep) &&
-                         dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
-            .ToList();
+        var pending = new List<JobItem>();
+        foreach (var id in job.WaitForJobIds)
+        {
+            if (_jobs.TryGetValue(id, out var dep) &&
+                dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
+                pending.Add(dep);
+        }
 
-        if (pendingIds.Count == 0)
+        if (pending.Count == 0)
         {
             // Check if any already failed — cascade immediately
             var failedId = job.WaitForJobIds
@@ -744,33 +1066,54 @@ public class JobService : IJobService
         }
 
         job.Status = JobStatus.Blocked;
-        job.StatusMessage = $"Waiting for {(pendingIds.Count == 1 ? "job" : "jobs")}: {string.Join(", ", pendingIds)}";
-        RaiseNotification(new JobNotification("Job Blocked", $"{job.PlanFile}: waiting for {string.Join(", ", pendingIds)}", false));
+        var waitingFor = string.Join(", ", pending.Select(DescribeWaitDependency));
+        job.StatusMessage = $"Waiting for {waitingFor}";
+        RaiseNotification(new JobNotification("Job Blocked", $"{job.PlanFile}: waiting for {waitingFor}", false));
         RaiseJobsStructureChanged();
         return true;
+    }
+
+    private static string DescribeWaitDependency(JobItem dep)
+    {
+        var planId = dep.ResolvePlanId();
+        return string.IsNullOrEmpty(planId)
+            ? $"{dep.Type} (job {dep.Id})"
+            : $"{dep.Type} of plan {planId} (job {dep.Id})";
     }
 
     /// <summary>
     ///     Creates a job in "Running" state without launching a real process.
     ///     Used by tests to exercise CompleteJob without background monitor races.
     /// </summary>
-    internal string CreateTestJob(JobArgsBase args)
+    internal string CreateTestJob(JobArgsBase args, string? inboxFilePath = null)
     {
         var id = _configService != null
             ? JobIdAllocator.AllocateJobId(_configService.TendrilHome)
             : $"test-{Guid.NewGuid().ToString("N")[..5]}";
+
+        // Derive Project/Priority exactly as StartJob does. Project is not cosmetic: RunHooks resolves a
+        // job's hooks through GetProject(job.Project), so a job without it silently runs no hooks at all.
+        var (planFile, project, priority) = ExtractJobMetadata(args);
+
         var job = new JobItem
         {
             Id = id,
             Type = args.Type,
-            PlanFile = args.PlanFolder ?? args.Type,
+            PlanFile = string.IsNullOrEmpty(planFile) ? args.Type : planFile,
+            Project = project,
+            Priority = priority,
             Status = JobStatus.Running,
             StartedAt = DateTime.UtcNow,
             TypedArgs = args,
             TimeoutCts = new CancellationTokenSource()
         };
+        // Mirror StartJob (including its CreatePlanArgs guard) so inbox-recovery behaviour can be
+        // exercised without a launchable agent.
+        if (args is CreatePlanArgs)
+            SetupInboxTracking(job, id, args, inboxFilePath);
         _jobs[id] = job;
         _jobSlotSemaphore.Wait(0); // Acquire slot so CompleteJob can release it
+        job.SlotReserved = true;
         return id;
     }
 
@@ -825,6 +1168,10 @@ public class JobService : IJobService
             (when, type, folder, project, j) => RunHooks(when, type, folder, project, j),
             (id, exitCode, timedOut, staleOutput) => CompleteJob(id, exitCode, timedOut, staleOutput),
             RaiseJobsStructureChanged);
+
+        // Capture the launch details (Running, StartedAt, SessionId, ProcessId, WorkingDirectory,
+        // CliCommand) so a master restart can find — and reconcile — this job by its process id.
+        PersistJob(job);
     }
 
     internal void RunHooks(string when, string jobType, string planFolder, string project, JobItem job)
@@ -858,14 +1205,16 @@ public class JobService : IJobService
                 }
             }
 
+            queuedJob.SlotReserved = true;
+
             // Launch outside the lock (launching is expensive)
             LaunchJob(queuedJob);
         }
     }
 
 
-    internal static string ExtractFailureReason(List<string> outputLines, string jobType)
-        => JobFailureAnalyzer.ExtractFailureReason(outputLines, jobType);
+    internal static string ExtractFailureReason(List<string> outputLines, string jobType, int? exitCode = null)
+        => JobFailureAnalyzer.ExtractFailureReason(outputLines, jobType, exitCode);
 
     internal static string SanitizeForDisplay(string text)
         => JobFailureAnalyzer.SanitizeForDisplay(text);

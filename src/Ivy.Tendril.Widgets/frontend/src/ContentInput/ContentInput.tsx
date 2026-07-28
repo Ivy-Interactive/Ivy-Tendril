@@ -99,10 +99,23 @@ interface ContentInputProps {
   attachedFiles?: AttachedFile[];
   submitLabel?: string;
   menuOptions?: string[];
+  autoFocus?: boolean;
   onIvyEvent?: (eventName: string, id: string, argumentsArray: unknown[]) => void;
   eventHandler?: (eventName: string, id: string, argumentsArray: unknown[]) => void;
   events?: string[];
 }
+
+const findScrollableParent = (el: HTMLElement): HTMLElement | null => {
+  let node: HTMLElement | null = el.parentElement;
+  while (node) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if ((overflowY === "auto" || overflowY === "scroll") && node.scrollHeight > node.clientHeight) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return null;
+};
 
 const fileRegExp = /\s?\[file:\s*([^\]]+)\]/g;
 
@@ -124,7 +137,12 @@ const renderShortcut = (isMac: boolean) => {
       </>
     );
   }
-  return "Ctrl+Enter";
+  return (
+    <>
+      <span>Ctrl</span>
+      <span className="civ-shortcut-enter">↵</span>
+    </>
+  );
 };
 
 export const ContentInput: React.FC<ContentInputProps> = ({
@@ -137,6 +155,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   uploadUrl,
   selectedModel = "Build",
   attachedFiles = [],
+  autoFocus = false,
   submitLabel,
   menuOptions = [],
   onIvyEvent,
@@ -153,6 +172,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   const [recordError, setRecordError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [fileMeta, setFileMeta] = useState<Record<string, { lineCount?: number; size: string }>>({});
@@ -163,10 +183,21 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const filesRef = useRef(files);
+  const textRef = useRef(text);
 
   useEffect(() => {
     filesRef.current = files;
   }, [files]);
+
+  useEffect(() => {
+    textRef.current = text;
+  }, [text]);
+
+  useEffect(() => {
+    if (autoFocus && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [autoFocus]);
 
   const isImageFile = (path: string) => {
     const ext = path.split(".").pop()?.toLowerCase();
@@ -233,16 +264,34 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   // Sync value prop to text and files state
   useEffect(() => {
     const { cleanText, filePaths } = parseValue(value);
-    setText(cleanText);
     setFiles(filePaths);
-  }, [value]);
+
+    if (cleanText === "") {
+      setText("");
+    } else if (!isFocused && cleanText !== textRef.current) {
+      setText(cleanText);
+    }
+  }, [value, isFocused]);
 
   // Textarea Auto-Growing Height
   useEffect(() => {
     const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = "auto";
-      textarea.style.height = `${textarea.scrollHeight}px`;
+    if (!textarea) return;
+
+    const scrollParent = findScrollableParent(textarea);
+    const savedScrollTop = scrollParent?.scrollTop ?? 0;
+
+    const maxHeight = parseFloat(getComputedStyle(textarea).maxHeight) || Infinity;
+    textarea.style.height = "auto";
+    const next = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${next}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+
+    // Resetting height to "auto" reflows the dialog's scroll container, which can
+    // yank it to the top (tab navigation) or scroll the freshly pasted text out of
+    // view. Restore the position the container had before we touched the height.
+    if (scrollParent && scrollParent.scrollTop !== savedScrollTop) {
+      scrollParent.scrollTop = savedScrollTop;
     }
   }, [text, files]);
 
@@ -363,8 +412,11 @@ export const ContentInput: React.FC<ContentInputProps> = ({
     };
   }, []);
 
+  const canSubmit = (text.trim().length > 0 || files.length > 0) && voiceStatus === "idle";
+
   const handleSubmit = () => {
     if (voiceStatus !== "idle") return;
+    if (!text.trim() && files.length === 0) return;
     const fullText = text + files.map((f) => ` [file: ${f}]`).join("");
     if (dispatchEvent) {
       dispatchEvent("OnSubmit", id, [
@@ -694,6 +746,18 @@ export const ContentInput: React.FC<ContentInputProps> = ({
           onChange={(e) => handleTextChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
+          onFocus={() => {
+            setIsFocused(true);
+            if (dispatchEvent) {
+              dispatchEvent("OnFocus", id, []);
+            }
+          }}
+          onBlur={() => {
+            setIsFocused(false);
+            if (dispatchEvent) {
+              dispatchEvent("OnBlur", id, []);
+            }
+          }}
           placeholder={placeholder}
           rows={1}
           disabled={voiceStatus === "connecting" || voiceStatus === "processing"}
@@ -775,13 +839,13 @@ export const ContentInput: React.FC<ContentInputProps> = ({
             {/* Submit Button or Split Button */}
             {menuOptions && menuOptions.length > 0 ? (
               <div
-                className={`civ-split-btn-container ${!text.trim() || voiceStatus !== "idle" ? "disabled" : ""}`}
+                className={`civ-split-btn-container ${!canSubmit ? "disabled" : ""}`}
                 ref={menuRef}
               >
                 <button
                   className="civ-submit-btn civ-submit-btn-labeled civ-split-btn-left"
                   onClick={handleSubmit}
-                  disabled={!text.trim() || voiceStatus !== "idle"}
+                  disabled={!canSubmit}
                   type="button"
                   title={submitLabel || "Send"}
                 >
@@ -791,7 +855,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
                 <button
                   className="civ-split-btn-arrow"
                   onClick={() => setMenuOpen(!menuOpen)}
-                  disabled={!text.trim() || voiceStatus !== "idle"}
+                  disabled={!canSubmit}
                   type="button"
                   title="More options"
                 >
@@ -823,7 +887,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
               <button
                 className={`civ-submit-btn ${submitLabel ? "civ-submit-btn-labeled" : ""}`}
                 onClick={handleSubmit}
-                disabled={!text.trim() || voiceStatus !== "idle"}
+                disabled={!canSubmit}
                 type="button"
                 title={submitLabel || "Send"}
               >

@@ -23,7 +23,7 @@ public class PlanDatabaseSyncServiceTests : IDisposable
         _database = new PlanDatabaseService(_dbPath, NullLogger<PlanDatabaseService>.Instance);
         _watcher = new PlanWatcherService(configService);
         _syncService = new PlanDatabaseSyncService(
-            _planReader, _database, _watcher,
+            _planReader, _database, _watcher, configService,
             NullLogger<PlanDatabaseSyncService>.Instance);
     }
 

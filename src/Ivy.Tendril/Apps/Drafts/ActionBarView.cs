@@ -1,3 +1,5 @@
+using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
@@ -27,6 +29,9 @@ public class ActionBarView(
     public override object Build()
     {
         var client = UseService<IClientProvider>();
+        var nav = UseNavigation();
+        var agentRunner = UseService<IAgentRunner>();
+        var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
 
         if (isEditingState.Value)
         {
@@ -53,6 +58,9 @@ public class ActionBarView(
         // Standard overflow menu items (always at bottom of dropdowns)
         var standardOverflowItems = new[]
         {
+            new MenuItem($"Discuss with {agentLabel}", Icon: agentIcon, Tag: "DiscussWithAgent")
+                .OnSelect(() => nav.Navigate<AgentApp>(new AgentAppArgs(
+                    $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Draft mode."))),
             new MenuItem("Create Issue", Icon: Icons.Github, Tag: "CreateIssue").OnSelect(showCreateIssueDialog),
             new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
                 .OnSelect(() => { PlatformHelper.OpenInFileManager(selectedPlan.FolderPath); }),
@@ -182,7 +190,7 @@ public class ActionBarView(
                    .OnClick(StartSplit).Disabled(hasActiveSplitJob).FullOnly()
                | new Button("Expand").Icon(Icons.UnfoldVertical).Outline()
                    .OnClick(StartExpand).Disabled(hasActiveExpandJob).FullOnly()
-               | new Button("Delete").Icon(Icons.Trash).Outline()
+               | new Button("Delete").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
                    .OnClick(showDeleteDialog).FullOnly()
                // Full-tier dropdown: standard overflow items only
                | ActionBarResponsive.DropdownAtFull(

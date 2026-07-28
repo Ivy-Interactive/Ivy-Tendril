@@ -20,8 +20,10 @@ public sealed class ClaudeFailureAnalyzer : IFailureAnalyzer
         }
 
         var stderr = string.Join("\n", context.StderrLines);
+        var lastResultResponse = context.Events.OfType<ResultEvent>().LastOrDefault()?.Response ?? "";
 
-        if (ContainsAny(stderr, "rate limit", "429", "too many requests"))
+        if (ContainsAny(stderr, "rate limit", "429", "too many requests", "session limit", "usage limit")
+            || ContainsAny(lastResultResponse, "rate limit", "session limit", "usage limit"))
         {
             return new FailureAnalysis
             {
@@ -85,12 +87,16 @@ public sealed class ClaudeFailureAnalyzer : IFailureAnalyzer
             };
         }
 
+        var lastStderr = context.StderrLines.LastOrDefault(l => !string.IsNullOrWhiteSpace(l));
+
         if (context.ExitCode is not null and not 0)
         {
             return new FailureAnalysis
             {
                 Kind = FailureKind.ProcessCrash,
-                Reason = $"Claude Code exited with code {context.ExitCode}",
+                Reason = lastStderr != null
+                    ? $"Claude Code exited with code {context.ExitCode}: {lastStderr}"
+                    : $"Claude Code exited with code {context.ExitCode}",
                 ContextLines = context.StderrLines,
                 IsRetryable = true,
             };
@@ -99,7 +105,9 @@ public sealed class ClaudeFailureAnalyzer : IFailureAnalyzer
         return new FailureAnalysis
         {
             Kind = FailureKind.Unknown,
-            Reason = "Unknown failure",
+            Reason = lastStderr != null
+                ? $"Claude Code failed: {lastStderr}"
+                : $"Claude Code failed with an unknown error (exit code {context.ExitCode?.ToString() ?? "unknown"})",
             ContextLines = context.StderrLines,
             IsRetryable = false,
         };

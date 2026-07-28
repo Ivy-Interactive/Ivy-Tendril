@@ -53,14 +53,14 @@ tendril project remove-review-action <project-name> <name>
 
 ### Stack hash
 ```bash
-tendril project set <project-name> stackHash "<hash>"
+tendril project set <project-name> stackHash <hash>
 ```
 
 ## Execution Steps
 
 ### 1. Gather Context
 
-1. Run `tendril verification list` to see existing global verification definitions.
+1. Run `tendril verification list --json` to see existing global verification definitions (the flag emits machine-readable JSON with full, untruncated prompts).
 2. Run `tendril project list` to confirm the project exists.
 3. Detect the tech stack of each repo. Prefer the analyzer over manual inspection:
     - Run `tendril project-analyzer <repo-path>` (the path supports `.` and relative paths) for each repo.
@@ -130,6 +130,10 @@ tendril project add-verification <project-name> CheckResult --required --after=D
 Review actions make it easy to start the application from a worktree during code review.
 To ensure the setup works out-of-the-box on fresh worktrees, review actions MUST automatically install dependencies before running the application (e.g. using `&&` to chain the installation and start commands).
 
+Review-action commands execute inside `pwsh` on the reviewer's OS, so they MUST use cross-platform PowerShell. 
+
+Never emit the Windows-only `start`; to open a file/URL use `Start-Process` on Windows, `open` on macOS, `xdg-open` on Linux. Avoid unescaped `$` in the command — on macOS the action passes through a bash wrapper that would expand it.
+
 Inspect each repo to determine how to run the application. For website projects, prefer commands that open the browser automatically:
 - **.NET project** with a runnable entry point: `dotnet run --project Worktrees/<RepoName>/<path-to-project> --browse --find-available-port`
 - **Vite+ (`vite-plus`) project**: `cd Worktrees/<RepoName>/<path-to-frontend> && vp install && vp dev`
@@ -140,7 +144,12 @@ Inspect each repo to determine how to run the application. For website projects,
 - **Angular CLI**: `cd Worktrees/<RepoName>/<path> && npm install && ng serve --open` (adapt for `pnpm`/`yarn` if detected)
 - **Other Node.js app** (no open support): `cd Worktrees/<RepoName>/<path> && npm install && npm run dev` (adapt package manager as detected)
 - **Python app**: `cd Worktrees/<RepoName> && python -m pip install -r requirements.txt && python -m <module>` (or `flask run` / `uv run ...` / `poetry run ...` if detected)
-- **Static docs**: `start Worktrees/<RepoName>/docs/index.html`
+- **Static HTML / docs (no dev server)**: open the entry file with the current OS's default handler — the SetupProject agent runs on the machine that will review, so emit the command for the current OS:
+  - **Windows**: `Start-Process "Worktrees/<RepoName>/docs/index.html"`
+  - **macOS**: `open "Worktrees/<RepoName>/docs/index.html"`
+  - **Linux**: `xdg-open "Worktrees/<RepoName>/docs/index.html"`
+
+  (Adjust the `docs/index.html` sub-path to wherever the repo's entry HTML actually lives.)
 
 For each review action:
 - **name**: Short descriptive name (e.g. "App", "Docs", "Frontend", "API")
@@ -161,12 +170,18 @@ Map the analyzer YAML to the hash: each non-auxiliary, non-workspace-root `compo
 
 **Grammar**
 ```
-hash    = segment ( "|" segment )*
-segment = role [ "(" lang ")" ] ":" token ( "+" token )*
+hash    = segment ( "/" segment )*
+segment = role [ "." lang ] ":" token ( "+" token )*
 role    = "fe" | "mobile" | "desktop" | "be" | "fs" | "lib" | "db" | "infra" | "test"
 lang    = canonical language slug (omit for db/infra/test)
 token   = canonical technology slug
 ```
+
+**Shell-safety (important):** the hash uses `/` between segments and `.` for the
+language qualifier so it contains only letters, digits, and `+ - _ . : /` — never
+spaces or shell metacharacters. This lets it be passed as a bare CLI argument from
+any shell/agent **without quoting**. Never use `|`, `(`, `)`, `&`, `<`, or `>` in a
+hash; they break command parsing when an agent runs the `tendril` command.
 
 **Rules**
 
@@ -189,18 +204,18 @@ token   = canonical technology slug
 
 **Reference examples**
 ```
-fe(ts):react+next+tailwind|be(py):fastapi+sqlmodel|db:postgres|test:playwright+pytest
-fe(ts):react+vite+tailwind|be(py):fastapi|db:postgres+redis|test:vitest
-fs(py):django|db:postgres|test:pytest
-fe(cs):blazor|be(cs):aspnetcore+efcore|db:mssql|test:xunit
-be(go):gin+gorm|db:postgres
-mobile(dart):flutter|db:firebase
-lib(py)|test:pytest
+fe.ts:react+next+tailwind/be.py:fastapi+sqlmodel/db:postgres/test:playwright+pytest
+fe.ts:react+vite+tailwind/be.py:fastapi/db:postgres+redis/test:vitest
+fs.py:django/db:postgres/test:pytest
+fe.cs:blazor/be.cs:aspnetcore+efcore/db:mssql/test:xunit
+be.go:gin+gorm/db:postgres
+mobile.dart:flutter/db:firebase
+lib.py/test:pytest
 ```
 
 Self-check before persisting: segments in Rule-1 order; absent layers omitted; only defining tokens, ordered by Rules 3–4 (base before meta); all slugs normalized; one alphabetical `test:` segment or none; **no spaces anywhere**. Then save it:
 ```bash
-tendril project set <project-name> stackHash "<hash>"
+tendril project set <project-name> stackHash <hash>
 ```
 
 ### 5. Summary

@@ -150,7 +150,9 @@ curl -sSf https://cdn.ivy.app/install-tendril.sh | sh
 irm https://cdn.ivy.app/install-tendril.ps1 | iex
 ```
 
-### Run & Update
+> **Note:** The `dotnet tool` install and the Quick Install above are separate installs that can both end up on `PATH`. If you move from the .NET tool to the installer, run `dotnet tool uninstall --global Ivy.Tendril` so `tendril` on `PATH` cannot resolve to the older, frozen tool copy. Run `tendril doctor` to check for a conflicting install.
+
+### Run
 
 Start the Tendril server/application:
 ```bash

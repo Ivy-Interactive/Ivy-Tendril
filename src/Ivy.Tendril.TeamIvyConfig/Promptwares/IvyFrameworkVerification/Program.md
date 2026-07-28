@@ -17,8 +17,7 @@ The firmware header contains:
 
 ### 1. Read Plan
 
-- Read `plan.yaml` from the plan folder
-- Read the latest revision from `revisions/` to understand what changed
+- Read `plan.yaml` and the latest revision from `revisions/` together in a single batched read operation to reduce spin-up overhead
 - Determine if the changes affect visual/UI behavior
 
 **What counts as visual:** Any change that adds, removes, or modifies something that renders in the browser. This includes new icon mappings, new enum values that appear in the UI, new CSS classes, new component variants, new props with visual effects, etc. When in doubt, treat it as visual — a sample app that confirms "yes, this renders correctly" is always more valuable than skipping verification.
@@ -27,11 +26,7 @@ If the changes are strictly non-visual (docs, analyzers, refactoring, internal c
 
 ### 2. Research
 
-- Read `Memory/IvyFrameworkGotchas.md` for known API issues and workarounds
-- Read `Memory/PlaywrightKnowledge-Index.md` for an overview of the split knowledge files
-- Always read the critical files:
-  - `Memory/PlaywrightKnowledge-Process.md` — mandatory for all tests
-  - `Memory/PlaywrightKnowledge-Gotchas.md` — avoid known crash patterns
+- Read memory files (`Memory/IvyFrameworkGotchas.md`, `Memory/PlaywrightKnowledge-Index.md`, `Memory/PlaywrightKnowledge-Process.md`, `Memory/PlaywrightKnowledge-Gotchas.md`) together in a single batched read operation via `tendril promptware read-memory IvyFrameworkVerification <file1.md> <file2.md> ...` to minimize latency:
 - Read additional files based on the feature being verified (identified in Step 1):
   - For new test projects or framework setup: `Memory/PlaywrightKnowledge-Framework.md`
   - For widget testing: `Memory/PlaywrightKnowledge-Widgets.md`
@@ -209,7 +204,7 @@ import path from 'path';
 async function findFreePort(): Promise<number> {
   return new Promise((resolve) => {
     const server = net.createServer();
-    server.listen(0, () => {
+    server.listen(0, '127.0.0.1', () => {
       const addr = server.address();
       const port = typeof addr === 'string' ? 0 : addr?.port ?? 0;
       server.close(() => resolve(port));
@@ -489,12 +484,14 @@ Confirm all expected files exist before writing the report.
 Write to `<VerificationDir>/IvyFrameworkVerification.md`:
 
 ```markdown
+---
+result: Pass
+date: <CurrentTime>
+---
 # IvyFrameworkVerification
 
-- **Plan:** <planId> — <title>
-- **Date:** <CurrentTime>
-- **Result:** Pass / Fail
-- **Test Project:** <path to temp project>
+**Plan:** <planId> — <title>
+**Test Project:** <path to temp project>
 
 ## What was tested
 

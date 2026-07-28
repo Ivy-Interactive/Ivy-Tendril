@@ -59,7 +59,7 @@ public class ContentView(
             if (!isOpen.Value) return null;
             return new Sheet(
                 () => isOpen.Set(false),
-                new JobDebugSheet(jobId, jobService, planService, config),
+                new JobDebugSheet(jobId, jobService, planService, config, () => isOpen.Set(false)),
                 "Job Debug"
             ).Width(UxHelper.SheetWidth).Resizable();
         });
@@ -135,15 +135,19 @@ public class ContentView(
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
 
-        object BuildTitleArea()
+        object BuildTitleArea(bool isMobile)
         {
-            var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
-                | new Box(Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis))
-                    .BorderThickness(0).Padding(0).Width(Size.Fit().Min(Size.Px(0)));
+            object SourceButton() => new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
+                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
 
-            if (!string.IsNullOrEmpty(selectedPlan.SourceUrl))
-                desktopTitleLayout |= new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
-                    .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
+            var hasSourceUrl = !string.IsNullOrEmpty(selectedPlan.SourceUrl);
+
+            var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full().Min(Size.Px(0)))
+                | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
+                    .Width(Size.Shrink().Min(Size.Px(0)));
+
+            if (hasSourceUrl)
+                desktopTitleLayout |= SourceButton();
 
             if (selectedPlan.DependsOn.Count > 0)
             {
@@ -158,30 +162,42 @@ public class ContentView(
             }
 
             var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
+                .Width(Size.Full().Min(Size.Px(0)))
                 .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-            return Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow())
+            var mobileTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
+                | MobileItemPicker.Build(
+                        $"#{selectedPlan.Id} {selectedPlan.Title}",
+                        allPlans,
+                        p => $"#{p.Id} {p.Title}",
+                        p => p.FolderName == selectedPlan.FolderName,
+                        p => selectedPlanState.Set(p))
+                    .Width(Size.Grow().Min(Size.Px(0)));
+
+            if (hasSourceUrl)
+                mobileTitleLayout |= SourceButton();
+
+            var mobileTitle = new Box(mobileTitleLayout).BorderThickness(0).Padding(0)
+                .Width(Size.Full().Min(Size.Px(0)))
+                .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
+            return Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow().Min(Size.Px(0)))
                    | desktopTitle
-                   | MobileItemPicker.Build(
-                           $"#{selectedPlan.Id} {selectedPlan.Title}",
-                           allPlans,
-                           p => $"#{p.Id} {p.Title}",
-                           p => p.FolderName == selectedPlan.FolderName,
-                           p => selectedPlanState.Set(p))
-                       .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+                   | mobileTitle;
         }
 
-        object BuildControls()
+        object BuildControls(bool isMobile)
         {
-            var controls = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+            var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                            | Text.Rich()
+                               .NoWrap()
                                .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                                .Muted("plans", word: true);
 
             if (annotations.Value.Count > 0)
-                controls |= BuildAnnotationsUpdateButton(annotations);
+                rightSide |= BuildAnnotationsUpdateButton(annotations);
 
-            controls |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
+            rightSide |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
                             .Loading(isCheckingPreflight)
                             .Disabled(isCheckingPreflight)
                             .OnClick(() => runPreflight(selectedPlan.Project, result =>
@@ -192,7 +208,7 @@ public class ContentView(
                                     ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
                             }));
 
-            return controls;
+            return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
         }
 
         var header = ResponsiveHeader.Build(BuildTitleArea, BuildControls);
@@ -230,7 +246,7 @@ public class ContentView(
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
         }
 
-        content |= new VerificationReportSheet(openVerification, selectedPlan);
+        content |= new VerificationReportSheet(openVerification, selectedPlan, config);
         content |= new CommitDetailSheet(openCommit, selectedPlan, config, gitService);
 
         var hasActiveExpandJob = HasActiveJob<ExpandPlanArgs>();
@@ -270,9 +286,9 @@ public class ContentView(
                 preflightResult,
                 proceedLabel: "Create Without Syncing",
                 contextMessage: "These changes will NOT be included in this plan. The plan will execute against origin/<baseBranch>. If these changes are meant for this plan, commit and push them first.",
-                onSyncRepos: () =>
+                onSyncRepos: policy =>
                 {
-                    LaunchWithSync(preflightResult, pendingWaitJobIds.Value);
+                    LaunchWithSync(preflightResult, pendingWaitJobIds.Value, policy);
                     pendingWaitJobIds.Set((List<string>?)null);
                 },
                 onProceed: () =>
@@ -381,9 +397,9 @@ public class ContentView(
         }
     }
 
-    internal static object BuildFailureCallout(PlanFile plan)
+    internal static object BuildFailureCallout(PlanFile plan, string tendrilHome)
     {
-        return BuildVerificationFailureCallout(plan) ?? BuildLogFailureCallout(plan);
+        return BuildVerificationFailureCallout(plan) ?? BuildLogFailureCallout(plan, tendrilHome);
     }
 
     private static object? BuildVerificationFailureCallout(PlanFile plan)
@@ -416,25 +432,25 @@ public class ContentView(
         return Callout.Destructive(string.Join("\n\n", parts), "Execution Failed");
     }
 
-    private static object BuildLogFailureCallout(PlanFile plan)
+    private static object BuildLogFailureCallout(PlanFile plan, string tendrilHome)
     {
-        var logsDir = Path.Combine(plan.FolderPath, "Logs");
-        if (!Directory.Exists(logsDir))
-            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
-        var lastLog = Directory.GetFiles(logsDir, "*.md")
-            .OrderByDescending(f => f)
-            .FirstOrDefault();
+        var planId = JobLogPaths.PlanIdFromFolderName(Path.GetFileName(plan.FolderPath));
+        var lastLog = planId == null
+            ? null
+            : JobLogPaths.LogsForPlanId(tendrilHome, planId).LastOrDefault();
         if (lastLog == null)
-            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
+            return Callout.Destructive("No details available. Check the job logs.", "Execution Failed");
 
         var logContent = FileHelper.ReadAllText(lastLog);
-        var summary = MatchSection(logContent, "Summary");
+        // "Final Output" is the heading JobLogWriter actually emits — the agent's last response, which is
+        // the most useful thing to surface on a failed plan.
+        var summary = MatchSection(logContent, "Final Output");
         if (summary != null)
             return Callout.Destructive(summary, "Execution Failed");
 
         var statusMatch = Regex.Match(logContent, @"\*\*Status:\*\*\s*(.+)");
         if (!statusMatch.Success)
-            return Callout.Destructive("No details available. Check the logs folder.", "Execution Failed");
+            return Callout.Destructive("No details available. Check the job logs.", "Execution Failed");
         var status = statusMatch.Groups[1].Value.Trim();
         if (status == nameof(PlanStatus.Completed))
             return Callout.Warning(
@@ -464,7 +480,8 @@ public class ContentView(
         refreshPlans();
     }
 
-    private void LaunchWithSync(PreflightResult preflight, List<string>? waitJobIds = null)
+    private void LaunchWithSync(PreflightResult preflight, List<string>? waitJobIds = null,
+        UntrackedChangesPolicy policy = UntrackedChangesPolicy.Stash)
     {
         if (selectedPlan is null) return;
 
@@ -472,7 +489,7 @@ public class ContentView(
         var allWaitIds = hasWaits ? new List<string>(waitJobIds!) : new List<string>();
         foreach (var (repoPath, baseBranch, _) in preflight.DirtyRepos)
         {
-            var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch, selectedPlan.FolderPath));
+            var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch, selectedPlan.FolderPath, policy));
             allWaitIds.Add(jobId);
         }
 

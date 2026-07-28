@@ -20,7 +20,6 @@ public interface IPlanReaderService
     void RevertRevision(string folderName);
     string ReadLatestRevision(string folderName);
     List<(int Number, string Content, DateTime Modified)> GetRevisions(string folderName);
-    void AddLog(string folderName, string action, string content, string? jobId = null);
     void DeletePlan(string folderName);
     string ReadRawPlan(string folderName);
     void SavePlan(string folderName, string fullContent);
@@ -38,6 +37,7 @@ public interface IPlanReaderService
 
     List<RecommendationYaml> GetRecommendationsForPlan(string folderName);
     void AcceptRecommendationAndRetry(string folderName, string recommendationTitle);
+    void AcceptRecommendationsAndRetry(string folderName, IReadOnlyCollection<string> titles);
 
     void SyncPlanArtifacts(string planFolder);
     PlanFile? GetPlanByFolderFromDisk(string folderPath) => GetPlanByFolder(folderPath);

@@ -228,14 +228,17 @@ public class InboxWatcherServiceTests : IDisposable
 
         public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
         public void StopJob(string id) { }
+        public int StopAllJobs() => 0;
         public void DeleteJob(string id) { }
         public void ClearCompletedJobs() { }
         public void ClearFailedJobs() { }
         public void ClearAllJobs() { }
+        public int StopQueuedJobs() => 0;
         public List<JobItem> GetJobs() => new();
         public List<JobItem> GetJobsForPlan(string planFile) => new();
         public JobItem? GetJob(string id) => null;
         public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null) => false;
+        public bool ReportJobFailure(string id, string message) => false;
         public void Dispose() { }
 
 #pragma warning disable CS0067
@@ -378,14 +381,17 @@ public class InboxWatcherServiceTests : IDisposable
 
         public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
         public void StopJob(string id) { }
+        public int StopAllJobs() => 0;
         public void DeleteJob(string id) { }
         public void ClearCompletedJobs() { }
         public void ClearFailedJobs() { }
         public void ClearAllJobs() { }
+        public int StopQueuedJobs() => 0;
         public List<JobItem> GetJobs() => new();
         public List<JobItem> GetJobsForPlan(string planFile) => new();
         public JobItem? GetJob(string id) => null;
         public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null) => false;
+        public bool ReportJobFailure(string id, string message) => false;
         public void Dispose() { }
 
 #pragma warning disable CS0067
@@ -414,14 +420,17 @@ public class InboxWatcherServiceTests : IDisposable
 
         public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
         public void StopJob(string id) { }
+        public int StopAllJobs() => 0;
         public void DeleteJob(string id) { }
         public void ClearCompletedJobs() { }
         public void ClearFailedJobs() { }
         public void ClearAllJobs() { }
+        public int StopQueuedJobs() => 0;
         public List<JobItem> GetJobs() => new();
         public List<JobItem> GetJobsForPlan(string planFile) => new();
         public JobItem? GetJob(string id) => null;
         public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null) => false;
+        public bool ReportJobFailure(string id, string message) => false;
         public void Dispose() { }
 
 #pragma warning disable CS0067

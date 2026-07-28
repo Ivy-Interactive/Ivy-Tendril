@@ -178,6 +178,7 @@ public class TendrilSettings
     public Tunnel.TunnelConfig? Tunnel { get; set; }
     public bool Telemetry { get; set; } = true;
     public bool DesktopNotifications { get; set; } = true;
+    public string? DismissedUpdateVersion { get; set; }
 
     public List<LevelConfig> Levels { get; set; } = new()
     {
@@ -195,13 +196,14 @@ public class ConfigService : IConfigService, IDisposable
 {
     private readonly bool _explicitHome;
     private readonly ILogger<ConfigService> _logger;
-    private readonly List<string> _trackedTempFiles = new();
-    private readonly object _tempFileLock = new();
     private string[]? _levelNamesCache;
     private string? _pendingCodingAgent;
     private ProjectConfig? _pendingProject;
     private string? _pendingTendrilHome;
     private List<VerificationConfig>? _pendingVerificationDefinitions;
+    private FileSystemWatcher? _configWatcher;
+    private System.Timers.Timer? _reloadDebounceTimer;
+    private volatile bool _suppressNextReload;
 
     internal ConfigService(TendrilSettings settings, string? tendrilHome = null, ILogger<ConfigService>? logger = null)
     {
@@ -234,6 +236,56 @@ public class ConfigService : IConfigService, IDisposable
 
         Settings = loadResult.Config;
         FinalizeConfiguration();
+        InitializeConfigWatcher();
+    }
+
+    /// <summary>
+    ///     Watches <see cref="ConfigPath"/> for external writes (e.g. CLI CRUD commands running as
+    ///     a separate process) and reloads settings so the running TUI reflects them without a
+    ///     restart. Follows the same debounced-FSW pattern as <see cref="Plans.PlanWatcherService"/>.
+    /// </summary>
+    private void InitializeConfigWatcher()
+    {
+        var directory = Path.GetDirectoryName(ConfigPath);
+        if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
+            return;
+
+        _reloadDebounceTimer = new System.Timers.Timer(300) { AutoReset = false };
+        _reloadDebounceTimer.Elapsed += (_, _) => OnReloadDebounceElapsed();
+
+        _configWatcher = new FileSystemWatcher(directory, Path.GetFileName(ConfigPath))
+        {
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.CreationTime,
+            EnableRaisingEvents = true
+        };
+        _configWatcher.Changed += (_, _) => RestartDebounceTimer();
+        _configWatcher.Created += (_, _) => RestartDebounceTimer();
+    }
+
+    private void RestartDebounceTimer()
+    {
+        if (_reloadDebounceTimer == null) return;
+        _reloadDebounceTimer.Stop();
+        _reloadDebounceTimer.Start();
+    }
+
+    private void OnReloadDebounceElapsed()
+    {
+        // Internal SaveSettings() already reloaded synchronously; skip the redundant reload
+        // triggered by the watcher observing that same write.
+        if (_suppressNextReload)
+        {
+            _suppressNextReload = false;
+            return;
+        }
+
+        ReloadSettings();
+    }
+
+    public void Dispose()
+    {
+        _configWatcher?.Dispose();
+        _reloadDebounceTimer?.Dispose();
     }
 
     private (bool Success, TendrilSettings Config) TryLoadConfig()
@@ -287,6 +339,7 @@ public class ConfigService : IConfigService, IDisposable
         ExpandSettingsVariables();
         ExpandRepoPaths();
         ValidateRepoPathsAreNotWorktrees();
+        ValidateProjectNames();
         CreateRequiredDirectories();
         SyncAuthFromEnvironmentAndPersistIfNeeded();
     }
@@ -480,6 +533,7 @@ public class ConfigService : IConfigService, IDisposable
                 $"Generated YAML failed validation and was not saved: {ex.Message}", ex);
         }
 
+        _suppressNextReload = true;
         FileHelper.WriteAllText(ConfigPath, yaml);
         CreateConfigBackup();
     }
@@ -559,48 +613,25 @@ public class ConfigService : IConfigService, IDisposable
 
     public void OpenInEditor(string path)
     {
-        var processedPath = PreprocessForEditing(path);
-
         if (!Editor.IsAvailable)
         {
             throw new EditorNotAvailableException(Editor.Command, Editor.Label);
         }
 
-        PlatformHelper.OpenInEditor(Editor.Command, processedPath);
+        PlatformHelper.OpenInEditor(Editor.Command, path);
     }
 
-    public string PreprocessForEditing(string path)
+    /// <summary>
+    ///     Polishes markdown links (file-link repair, <c>:line</c>/<c>#L</c> anchor stripping,
+    ///     <c>plan://</c> conversion, bare-plan-number linking) against the configured repos and
+    ///     plans directory. Idempotent — safe to run at write time and again at render time.
+    /// </summary>
+    public string PolishMarkdown(string content)
     {
-        if (!path.EndsWith(".md", StringComparison.OrdinalIgnoreCase))
-            return path;
+        if (string.IsNullOrEmpty(content))
+            return content;
 
-        var content = File.ReadAllText(path);
-        var repoPaths = Projects
-            .SelectMany(p => p.Repos.Select(r => r.Path))
-            .Where(p => !string.IsNullOrEmpty(p))
-            .ToList();
-        var polisher = new MarkdownLinkPolisher();
-        var polished = polisher.PolishLinks(content, repoPaths, PlanFolder);
-
-        if (content == polished)
-            return path;
-
-        var tempPath = Path.Combine(Path.GetTempPath(), $"tendril-edit-{Guid.NewGuid()}.md");
-        File.WriteAllText(tempPath, polished);
-        lock (_tempFileLock) { _trackedTempFiles.Add(tempPath); }
-        return tempPath;
-    }
-
-    public void Dispose()
-    {
-        lock (_tempFileLock)
-        {
-            foreach (var path in _trackedTempFiles)
-            {
-                try { if (File.Exists(path)) File.Delete(path); } catch { }
-            }
-            _trackedTempFiles.Clear();
-        }
+        return new MarkdownLinkPolisher().PolishLinks(content, PlanFolder);
     }
 
     public void CompleteOnboarding(string tendrilHome)
@@ -632,6 +663,22 @@ public class ConfigService : IConfigService, IDisposable
                     "This will cause nested worktrees during plan execution. " +
                     "Update config.yaml to point to the main repo, not a worktree.",
                     item.Name, item.Repo.Path);
+            }
+        }
+    }
+
+    internal void ValidateProjectNames()
+    {
+        if (Settings?.Projects == null) return;
+
+        foreach (var project in Settings.Projects)
+        {
+            if (!InputSanitizer.IsValidProjectName(project.Name))
+            {
+                _logger.LogError(
+                    "CRITICAL: Project name '{ProjectName}' contains characters that are not allowed " +
+                    "(letters, digits, dots, dashes and underscores only). Rename it in config.yaml before " +
+                    "running plans or project setup.", project.Name);
             }
         }
     }
@@ -923,7 +970,9 @@ public class ConfigService : IConfigService, IDisposable
 
         // Scalar expansions
         Settings.CodingAgent = ExpandVar(Settings.CodingAgent);
-        Settings.PlanTemplate = ExpandVar(Settings.PlanTemplate);
+        // PlanTemplate is prose, not a path: it must NOT be path-normalized (that corrupts slashes/URLs)
+        // and must stay raw on disk so get/set round-trips cleanly. It is expanded at point of use in
+        // JobLauncher (with normalizePaths: false) instead.
 
         // Expand nested objects
         ExpandLlmConfig();

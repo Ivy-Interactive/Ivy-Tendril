@@ -69,12 +69,16 @@ public sealed class GeminiFailureAnalyzer : IFailureAnalyzer
             };
         }
 
+        var lastStderr = context.StderrLines.LastOrDefault(l => !string.IsNullOrWhiteSpace(l));
+
         if (context.ExitCode is not null and not 0)
         {
             return new FailureAnalysis
             {
                 Kind = FailureKind.ProcessCrash,
-                Reason = $"Gemini exited with code {context.ExitCode}",
+                Reason = lastStderr != null
+                    ? $"Gemini exited with code {context.ExitCode}: {lastStderr}"
+                    : $"Gemini exited with code {context.ExitCode}",
                 ContextLines = context.StderrLines,
                 IsRetryable = context.ExitCode != 2,
             };
@@ -83,7 +87,9 @@ public sealed class GeminiFailureAnalyzer : IFailureAnalyzer
         return new FailureAnalysis
         {
             Kind = FailureKind.Unknown,
-            Reason = "Unknown failure",
+            Reason = lastStderr != null
+                ? $"Gemini failed: {lastStderr}"
+                : $"Gemini failed with an unknown error (exit code {context.ExitCode?.ToString() ?? "unknown"})",
             ContextLines = context.StderrLines,
             IsRetryable = false,
         };
