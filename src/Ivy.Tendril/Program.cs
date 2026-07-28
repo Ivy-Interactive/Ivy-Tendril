@@ -53,11 +53,7 @@ public class Program
     {
         try
         {
-            VelopackApp.Build()
-                .WithFirstRun(_ => PathHelper.EnsureCliSymlink())
-                .WithAfterInstallFastCallback(_ => PathHelper.EnsureCliSymlink())
-                .WithAfterUpdateFastCallback(_ => PathHelper.EnsureCliSymlink())
-                .Run();
+            VelopackApp.Build().Run();
         }
         catch { }
 
