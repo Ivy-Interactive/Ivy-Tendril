@@ -25,6 +25,7 @@ Version history, new features, improvements, and bug fixes for each Tendril rele
 - **Configurable Ollama Agent URL** - Added configurable base URL option (`--url`) for local Ollama agent endpoints.
 - **Import Issues Capacity** - Expanded the Import Issues dialog limit from 100 to 1,000 issues with truncation warnings when reaching ceilings.
 - **In-Flight Job State Persistence** - Persisted active in-flight jobs in SQLite database so job status updates survive master process restarts.
+- **Windows Automatic CLI PATH Setup** - Automatically create `tendril.cmd` wrappers and register the application directory in the Windows User PATH on app launch and Velopack installer hooks.
 
 ### Improvements
 
