@@ -116,7 +116,7 @@ public static class TendrilServer
             )
             .WallpaperApp<WallpaperApp>()
             .HideArgsInUrl()
-            .UseTabs(true);
+            .UsePages();
 
         server.UseAppShell(() => new TendrilAppShell(appShellSettings));
 

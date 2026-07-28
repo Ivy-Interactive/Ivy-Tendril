@@ -466,6 +466,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         if (settings.Navigation == AppShellNavigation.Pages)
         {
             body = currentApp.Value;
+            if (body == null && settings.WallpaperAppId != null)
+                body = new AppHost(settings.WallpaperAppId, null, args.ConnectionId);
         }
         else
         {
@@ -572,13 +574,24 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             )
             .Variant(ButtonVariant.Ghost).Width(Size.Full());
 
+        var footerMenuItems = settings.FooterMenuItemsTransformer(settingsMenuItems, navigator).ToArray();
+
         var settingsMenu = new DropDownMenu(
                 DropDownMenu.DefaultSelectHandler(),
                 settingsTrigger)
             .Top()
-            .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
+            .Items(footerMenuItems);
 
         object? footer = settingsMenu;
+
+        var collapsedSettingsMenu = new DropDownMenu(
+                DropDownMenu.DefaultSelectHandler(),
+                new Button(null)
+                    .Icon(Icons.Settings)
+                    .Variant(ButtonVariant.Ghost)
+                    .Tooltip("Settings"))
+            .Top()
+            .Items(footerMenuItems);
 
         if (config.ParseError != null)
             return new ConfigErrorApp(config);
@@ -607,7 +620,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                     settings.Footer,
                     footer
                 ),
-                settings.Width
+                settings.Width,
+                sidebarHeaderCollapsed: Layout.Vertical().Gap(6).AlignContent(Align.Center)
+                    | new Image("/tendril/assets/Tendril.svg").Width(Size.Units(8)).Height(Size.Auto())
+                    | new NewPlanButton(iconOnly: true),
+                sidebarFooterCollapsed: collapsedSettingsMenu
             ).Open(sidebarOpen.Value).MainAppSidebar(),
             importIssuesDialog,
             updateDialog
