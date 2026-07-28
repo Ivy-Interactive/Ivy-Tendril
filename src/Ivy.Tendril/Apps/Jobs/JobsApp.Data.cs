@@ -71,10 +71,21 @@ public partial class JobsApp
         return new StackedProgress(statusSegments).ShowLabels();
     }
 
-    private static IEnumerable<DataTableCellUpdate> BuildDataTableUpdates(IJobService jobService)
+    /// <summary>
+    /// Builds the candidate cell set exactly as before, then keeps only cells whose value actually
+    /// changed since the previous tick, per <paramref name="lastSent"/> (keyed by "{jobId} {columnName}",
+    /// owned by the caller so it survives across ticks). Keys for jobs no longer returned by the
+    /// service are pruned so the cache cannot grow without bound as jobs are evicted.
+    /// </summary>
+    internal static IEnumerable<DataTableCellUpdate> BuildDataTableUpdates(
+        IJobService jobService, Dictionary<string, string> lastSent)
     {
         var currentJobs = jobService.GetJobs();
-        return currentJobs
+        var currentJobIds = currentJobs.Select(j => j.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var staleKey in lastSent.Keys.Where(k => !currentJobIds.Contains(k.Split(' ')[0])).ToList())
+            lastSent.Remove(staleKey);
+
+        var candidates = currentJobs
             .Where(j => j.Status == JobStatus.Running ||
                         ((j.Status is JobStatus.Stopped or JobStatus.Failed or JobStatus.Timeout or JobStatus.Completed)
                          && j.CompletedAt.HasValue
@@ -88,5 +99,14 @@ public partial class JobsApp
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.Status), JobsApp.FormatStatusBadge(j.Status)),
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.StatusMessage), JobsApp.GetStatusMessage(j))
             });
+
+        foreach (var update in candidates)
+        {
+            var key = $"{update.RowId} {update.ColumnName}";
+            var value = update.Value as string ?? update.Value?.ToString() ?? "";
+            if (lastSent.TryGetValue(key, out var previous) && previous == value) continue;
+            lastSent[key] = value;
+            yield return update;
+        }
     }
 }
