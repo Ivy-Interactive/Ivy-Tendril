@@ -38,14 +38,17 @@ internal class JobLauncher
     private readonly ILogger _logger;
     private readonly string _promptsRoot;
     private readonly PluginHookRegistry? _pluginHooks;
+    private readonly SourceLinkRegistry? _sourceLinks;
 
-    internal JobLauncher(IConfigService? configService, IAgentRunner? agentRunner, ILogger logger, string promptsRoot, PluginHookRegistry? pluginHooks = null)
+    internal JobLauncher(IConfigService? configService, IAgentRunner? agentRunner, ILogger logger, string promptsRoot,
+        PluginHookRegistry? pluginHooks = null, SourceLinkRegistry? sourceLinks = null)
     {
         _configService = configService;
         _agentRunner = agentRunner;
         _logger = logger;
         _promptsRoot = promptsRoot;
         _pluginHooks = pluginHooks;
+        _sourceLinks = sourceLinks;
     }
 
     internal void LaunchJob(
@@ -497,7 +500,6 @@ internal class JobLauncher
                 Description = description,
                 Project = job.Project,
                 SourceUrl = cp?.SourceUrl,
-                SourceIdentifier = cp?.SourceIdentifier,
             };
             _pluginHooks.FireBeforeCreatePlanAsync(evt).GetAwaiter().GetResult();
 
@@ -517,8 +519,6 @@ internal class JobLauncher
             values["Force"] = "true";
         if (!string.IsNullOrEmpty(cp?.SourceUrl))
             values["SourceUrl"] = cp.SourceUrl;
-        if (!string.IsNullOrEmpty(cp?.SourceIdentifier))
-            values["SourceIdentifier"] = cp.SourceIdentifier;
 
         return true;
     }
@@ -545,11 +545,17 @@ internal class JobLauncher
         if (planYaml == null)
             return (values, null, null);
 
-        // Add source tracking fields to firmware header if present
+        // Add the source URL to the firmware header, plus the short label for it when a plugin
+        // recognizes the tracker (e.g. "IVY-456" for Linear). The label is derived here rather
+        // than stored, so Tendril needs no knowledge of any tracker's URL format.
         if (!string.IsNullOrEmpty(planYaml.SourceUrl))
+        {
             values["SourceUrl"] = planYaml.SourceUrl;
-        if (!string.IsNullOrEmpty(planYaml.SourceIdentifier))
-            values["SourceIdentifier"] = planYaml.SourceIdentifier;
+
+            var sourceLabel = _sourceLinks?.TryGetLabel(planYaml.SourceUrl);
+            if (!string.IsNullOrEmpty(sourceLabel))
+                values["SourceIdentifier"] = sourceLabel;
+        }
 
         if (job.TypedArgs is UpdatePlanArgs { Instructions: not null } updateArgs)
             values["UpdateInstructions"] = updateArgs.Instructions;

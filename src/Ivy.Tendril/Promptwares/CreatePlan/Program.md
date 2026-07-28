@@ -17,7 +17,6 @@ The firmware header contains these key values:
 - **Force** (optional) — if `true`, skip duplicate detection entirely (see Step 3)
 - **SourcePath** (optional) — absolute path to the source that generated this plan (e.g. test working directory)
 - **SourceUrl** (optional) — pre-extracted source URL from the inbox frontmatter (e.g. GitHub issue URL, Linear URL)
-- **SourceIdentifier** (optional) — pre-extracted short identifier from the inbox frontmatter (e.g. `#123`, `IVY-456`)
 - **TendrilJobId** — your job ID for status reporting (use this literal value in `tendril job status` commands)
 - **TendrilHome** — the Tendril home directory (use for Trash path: `<TendrilHome>/Trash/`)
 
@@ -53,7 +52,7 @@ C) Unrelated tickets (→ delegate steps below)
 
 If it references related plans with `[number]` syntax (e.g. `[01205]`), find and read those plan files from `TendrilPlansFolder` for context.
 
-**Extract Source URL**: If `SourceUrl` and/or `SourceIdentifier` are present in the firmware header, use them directly (pass via `--source-url` and `--source-identifier` on `tendril plan create`). Otherwise, check if the task description contains a GitHub PR URL (`https://github.com/{owner}/{repo}/pull/{number}`) or issue URL (`https://github.com/{owner}/{repo}/issues/{number}`). If found, store it as `sourceUrl` in plan.yaml and derive `sourceIdentifier` as `#<number>`.
+**Extract Source URL**: If `SourceUrl` is present in the firmware header, use it directly (pass via `--source-url` on `tendril plan create`). Otherwise, check if the task description contains a GitHub PR URL (`https://github.com/{owner}/{repo}/pull/{number}`) or issue URL (`https://github.com/{owner}/{repo}/issues/{number}`), or any URL that looks like a tracking URL from another provider (e.g., Linear).
 
 - **Issue URL**: `gh issue view <url> --json title,body,comments` — fetch the title, body, and comments for context when writing the plan.
 - **PR URL**: the plan must be based on the **review feedback on the PR**, not just its description. Fetch the full conversation:
@@ -244,7 +243,6 @@ Parse `PlanId` and `Directory` from the output — use these for all subsequent 
 
 Include optional flags as needed (always use the `--option=value` form):
 - `--source-url="<url>"` — if a source URL was extracted or provided via firmware header in Step 1
-- `--source-identifier="<id>"` — if a source identifier was extracted or provided via firmware header in Step 1 (e.g. `#123`, `IVY-456`)
 - `--related-plan="<folder-name>"` — for each plan referenced via `[number]` syntax in the task description
 - `--depends-on="<folder-name>"` — for blocking dependencies (see Section 4.4)
 - `--priority=<number>` — if non-default priority

@@ -17,11 +17,12 @@ public record InboxItem
     /// </summary>
     public string Project { get; init; } = "Auto";
 
-    /// <summary>URL linking back to the source (e.g., GitHub issue, Linear issue).</summary>
+    /// <summary>
+    /// URL linking back to the source (e.g., GitHub issue, Linear issue). Tendril derives the
+    /// short label it displays for this URL from the plugin's registered
+    /// <see cref="Sources.ISourceLinks" /> resolver, so no identifier needs to be passed here.
+    /// </summary>
     public string? SourceUrl { get; init; }
-
-    /// <summary>Short identifier from the source system (e.g., "#123", "IVY-456").</summary>
-    public string? SourceIdentifier { get; init; }
 
     /// <summary>Optional labels for categorization. Written to frontmatter.</summary>
     public IReadOnlyList<string> Labels { get; init; } = [];

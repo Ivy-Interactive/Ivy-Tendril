@@ -23,6 +23,11 @@ public class LinearPlugin : IIvyPlugin<ITendrilExtendedPluginContext>
         var apiKey = context.Config.GetValue("ApiKey")!;
         var clientFactory = new LinearClientFactory(apiKey);
 
+        // Lets Tendril label Linear-sourced plans (PR bodies, inbox filenames) without knowing
+        // Linear's URL format. Also covers URLs that never came through the import dialog — a
+        // pasted link, or one an agent found in a task description.
+        context.SourceLinks.RegisterResolver(LinearSourceUrl.GetIdentifier);
+
         var openImportDialog = context.RegisterDialog(
             "$linear-import-dialog",
             dialogOpen => new ImportFromLinearDialog(dialogOpen, clientFactory, context.Inbox));

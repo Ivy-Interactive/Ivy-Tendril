@@ -1,7 +1,10 @@
 using Ivy;
 using Ivy.Core.Plugins;
 using Ivy.Plugins;
+using Ivy.Plugins.Hooks;
+using Ivy.Plugins.Inbox;
 using Ivy.Plugins.Messaging;
+using Ivy.Plugins.Sources;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -24,6 +27,34 @@ class MessagingPluginContext(Server server, WebApplicationBuilder builder)
     : PluginContextBase(server, builder), Ivy.Plugins.ITendrilPluginContext
 {
     public string TendrilHome { get; } = Environment.GetEnvironmentVariable("TENDRIL_HOME") ?? "";
+
+    // This harness exists to exercise messaging channels outside a running Tendril, so the rest of
+    // the plugin context is stubbed — a plugin can call these, they just do nothing here.
+    public IInbox Inbox { get; } = new NoOpInbox();
+    public IPluginHooks Hooks { get; } = new NoOpHooks();
+    public ISourceLinks SourceLinks { get; } = new NoOpSourceLinks();
+}
+
+class NoOpInbox : IInbox
+{
+    public void Add(string description) { }
+    public void Add(InboxItem item) { }
+    public void AddRange(IEnumerable<InboxItem> items) { }
+}
+
+class NoOpHooks : IPluginHooks
+{
+    public void BeforeJob(Func<BeforeJobEvent, CancellationToken, Task> handler) { }
+    public void AfterJob(Func<AfterJobEvent, CancellationToken, Task> handler) { }
+    public void BeforeCreatePlan(Func<BeforeCreatePlanEvent, CancellationToken, Task> handler) { }
+    public void AfterCreatePlan(Func<AfterCreatePlanEvent, CancellationToken, Task> handler) { }
+    public void BeforeConfigSave(Action<ConfigSaveEvent> handler) { }
+    public void AfterConfigReload(Action handler) { }
+}
+
+class NoOpSourceLinks : ISourceLinks
+{
+    public void RegisterResolver(Func<Uri, string?> resolver) { }
 }
 
 class MessagingPluginConfigFactory(string pluginsDir) : IIvyPluginConfigFactory

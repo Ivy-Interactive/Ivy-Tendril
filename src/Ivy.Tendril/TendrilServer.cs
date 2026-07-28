@@ -101,6 +101,7 @@ public static class TendrilServer
                         Microsoft.Extensions.Logging.Abstractions.NullLogger<TendrilPluginContext>.Instance);
                     builder.Services.AddSingleton<AppShell.ITendrilPluginContributions>(tendrilPluginContext);
                     builder.Services.AddSingleton(tendrilPluginContext.HookRegistry);
+                    builder.Services.AddSingleton(tendrilPluginContext.SourceLinkRegistry);
                     configService.PluginHooks = tendrilPluginContext.HookRegistry;
                     return tendrilPluginContext;
                 },

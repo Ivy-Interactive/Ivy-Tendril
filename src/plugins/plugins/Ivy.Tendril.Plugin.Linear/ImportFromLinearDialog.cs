@@ -284,7 +284,6 @@ internal class ImportFromLinearDialog(IState<bool> dialogOpen, LinearClientFacto
                 {
                     Description = FormatIssueDescription(issue),
                     SourceUrl = issue.Url,
-                    SourceIdentifier = issue.Identifier,
                     Labels = issue.Labels
                 }));
 

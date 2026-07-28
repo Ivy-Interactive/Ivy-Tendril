@@ -12,7 +12,7 @@ The firmware header contains:
 - **TendrilPlanFolder** — path to the plan folder
 - **CurrentTime** — current UTC timestamp
 - **SourceUrl** — (optional) source URL from plan.yaml (GitHub issue/PR, Linear issue, or other tracker)
-- **SourceIdentifier** — (optional) short identifier from plan.yaml (e.g. `#123`, `IVY-456`)
+- **SourceIdentifier** — (optional) short label for that URL (e.g. `IVY-456`), derived by the plugin that owns the tracker. Absent when no installed plugin recognizes the URL
 - **`Pr*` flags** — the explicit PR options (see step 1). These are the *only* source of truth for what to do.
 
 The plan structure and CLI commands are in the **Reference Documents** section of your firmware.
@@ -173,7 +173,7 @@ rm -f "$body_file"
 - **Title:** `[<planId>] <plan title>`
 - **Body:**
   1. **If SourceUrl is present in firmware header** and it's a GitHub issue URL (format: `https://github.com/owner/repo/issues/NUMBER`), prepend `Fixes #NUMBER\n\n` to the body
-  2. **Otherwise, if SourceUrl is present** (non-GitHub URL, e.g. Linear), prepend `Fixes [<SourceIdentifier>](<SourceUrl>)\n\n` (or `Fixes <SourceUrl>\n\n` if no identifier)
+  2. **Otherwise, if SourceUrl is present** (non-GitHub URL, e.g., Linear), prepend `Fixes <SourceIdentifier>\n\n` (or `Fixes <SourceUrl>\n\n` if no identifier)
   3. If `<TendrilPlanFolder>/Artifacts/summary.md` exists, use its content as the PR body (after the issue link)
   4. Otherwise, fall back to summary from Problem + Solution sections
   5. Append commit list

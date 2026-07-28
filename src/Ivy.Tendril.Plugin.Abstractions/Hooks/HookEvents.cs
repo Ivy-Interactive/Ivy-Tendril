@@ -40,7 +40,6 @@ public record BeforeCreatePlanEvent
     public required string Description { get; set; }
     public required string Project { get; set; }
     public string? SourceUrl { get; init; }
-    public string? SourceIdentifier { get; init; }
     public bool Cancelled { get; private set; }
     public string? CancellationReason { get; private set; }
 

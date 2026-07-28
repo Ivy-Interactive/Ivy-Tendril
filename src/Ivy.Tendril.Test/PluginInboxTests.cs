@@ -1,5 +1,6 @@
 using Ivy.Plugins.Inbox;
 using Ivy.Tendril.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test;
 
@@ -58,7 +59,6 @@ public class PluginInboxTests : IDisposable
             Description = "Dashboard renders slowly",
             Project = "Framework",
             SourceUrl = "https://linear.app/ivy/issue/IVY-456",
-            SourceIdentifier = "IVY-456",
             Labels = ["bug", "performance"]
         });
 
@@ -66,7 +66,6 @@ public class PluginInboxTests : IDisposable
         var content = File.ReadAllText(files[0]);
         Assert.Contains("project: Framework", content);
         Assert.Contains("sourceUrl: https://linear.app/ivy/issue/IVY-456", content);
-        Assert.Contains("sourceIdentifier: IVY-456", content);
         Assert.Contains("labels: [bug, performance]", content);
         Assert.Contains("Dashboard renders slowly", content);
     }
@@ -94,14 +93,16 @@ public class PluginInboxTests : IDisposable
     }
 
     [Fact]
-    public void Add_WithSourceIdentifier_UsesItInFilename()
+    public void Add_WhenAResolverLabelsTheSourceUrl_UsesTheLabelInFilename()
     {
-        var inbox = new PluginInbox(_inboxDir);
+        var sourceLinks = NewRegistry();
+        sourceLinks.RegisterResolver(url => url.Host == "linear.app" ? "IVY-456" : null);
+        var inbox = new PluginInbox(_inboxDir, sourceLinks);
 
         inbox.Add(new InboxItem
         {
             Description = "Some issue",
-            SourceIdentifier = "IVY-456"
+            SourceUrl = "https://linear.app/ivy/issue/IVY-456/some-issue"
         });
 
         var files = Directory.GetFiles(_inboxDir, "*.md");
@@ -110,7 +111,22 @@ public class PluginInboxTests : IDisposable
     }
 
     [Fact]
-    public void Add_WithoutSourceIdentifier_UsesHashInFilename()
+    public void Add_WhenNoResolverRecognizesTheSourceUrl_FallsBackToHashInFilename()
+    {
+        var inbox = new PluginInbox(_inboxDir, NewRegistry());
+
+        inbox.Add(new InboxItem
+        {
+            Description = "Some issue",
+            SourceUrl = "https://tracker.example.com/i/8f3a2"
+        });
+
+        var filename = Path.GetFileName(Directory.GetFiles(_inboxDir, "*.md")[0]);
+        Assert.Matches(@"^\d{8}T\d{6}-[a-f0-9]{8}\.md$", filename);
+    }
+
+    [Fact]
+    public void Add_WithoutSourceUrl_UsesHashInFilename()
     {
         var inbox = new PluginInbox(_inboxDir);
 
@@ -128,9 +144,9 @@ public class PluginInboxTests : IDisposable
         var inbox = new PluginInbox(_inboxDir);
 
         inbox.AddRange([
-            new InboxItem { Description = "Task 1", SourceIdentifier = "#1" },
-            new InboxItem { Description = "Task 2", SourceIdentifier = "#2" },
-            new InboxItem { Description = "Task 3", SourceIdentifier = "#3" }
+            new InboxItem { Description = "Task 1" },
+            new InboxItem { Description = "Task 2" },
+            new InboxItem { Description = "Task 3" }
         ]);
 
         var files = Directory.GetFiles(_inboxDir, "*.md");
@@ -156,8 +172,7 @@ public class PluginInboxTests : IDisposable
         {
             Description = "Fix the memory leak in chart rendering",
             Project = "Framework",
-            SourceUrl = "https://linear.app/ivy/issue/IVY-789",
-            SourceIdentifier = "IVY-789"
+            SourceUrl = "https://linear.app/ivy/issue/IVY-789"
         };
 
         var content = PluginInbox.FormatContent(item);
@@ -166,6 +181,8 @@ public class PluginInboxTests : IDisposable
         Assert.Equal("Framework", parsed.Project);
         Assert.Equal("Fix the memory leak in chart rendering", parsed.Description);
         Assert.Equal("https://linear.app/ivy/issue/IVY-789", parsed.SourceUrl);
-        Assert.Equal("IVY-789", parsed.SourceIdentifier);
     }
+
+    private static SourceLinkRegistry NewRegistry() =>
+        new(NullLogger<SourceLinkRegistry>.Instance, () => "test-plugin");
 }

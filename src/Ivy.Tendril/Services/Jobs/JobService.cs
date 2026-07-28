@@ -43,7 +43,8 @@ public class JobService : IJobService
         IPlanWatcherService? planWatcherService = null,
         IPlanDatabaseService? database = null,
         IAgentRunner? agentRunner = null,
-        PluginHookRegistry? pluginHooks = null)
+        PluginHookRegistry? pluginHooks = null,
+        SourceLinkRegistry? sourceLinks = null)
     {
         _syncContext = SynchronizationContext.Current;
         _configService = configService;
@@ -63,7 +64,7 @@ public class JobService : IJobService
         _pluginHooks = pluginHooks;
         _inboxPath = Path.Combine(configService.TendrilHome, "Inbox");
         var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot(configService.TendrilHome);
-        _jobLauncher = new JobLauncher(configService, agentRunner, _logger, promptsRoot, pluginHooks);
+        _jobLauncher = new JobLauncher(configService, agentRunner, _logger, promptsRoot, pluginHooks, sourceLinks);
         _completionHandler = new JobCompletionHandler(
             configService, _logger, modelPricingService, planReaderService,
             telemetryService, planWatcherService, promptsRoot, pluginHooks);

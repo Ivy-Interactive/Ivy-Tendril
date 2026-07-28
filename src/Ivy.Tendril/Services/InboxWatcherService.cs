@@ -193,7 +193,7 @@ public class InboxWatcherService : IInboxWatcherService
         }
 
         var args = new CreatePlanArgs(parsed.Description, parsed.Project,
-            SourcePath: parsed.SourcePath, SourceUrl: parsed.SourceUrl, SourceIdentifier: parsed.SourceIdentifier);
+            SourcePath: parsed.SourcePath, SourceUrl: parsed.SourceUrl);
         _jobService.StartJob(args, processingPath);
     }
 
@@ -210,7 +210,6 @@ public class InboxWatcherService : IInboxWatcherService
                 string? project = null;
                 string? sourcePath = null;
                 string? sourceUrl = null;
-                string? sourceIdentifier = null;
 
                 foreach (var line in frontmatter.Split('\n'))
                 {
@@ -221,17 +220,15 @@ public class InboxWatcherService : IInboxWatcherService
                         sourcePath = trimmed.Substring("sourcePath:".Length).Trim();
                     else if (trimmed.StartsWith("sourceUrl:", StringComparison.OrdinalIgnoreCase))
                         sourceUrl = trimmed.Substring("sourceUrl:".Length).Trim();
-                    else if (trimmed.StartsWith("sourceIdentifier:", StringComparison.OrdinalIgnoreCase))
-                        sourceIdentifier = trimmed.Substring("sourceIdentifier:".Length).Trim();
                 }
 
-                return new InboxParseResult(project ?? "Auto", description, sourcePath, sourceUrl, sourceIdentifier);
+                return new InboxParseResult(project ?? "Auto", description, sourcePath, sourceUrl);
             }
         }
 
-        return new InboxParseResult("Auto", content, null, null, null);
+        return new InboxParseResult("Auto", content, null, null);
     }
 
     internal record InboxParseResult(
-        string Project, string Description, string? SourcePath, string? SourceUrl, string? SourceIdentifier);
+        string Project, string Description, string? SourcePath, string? SourceUrl);
 }

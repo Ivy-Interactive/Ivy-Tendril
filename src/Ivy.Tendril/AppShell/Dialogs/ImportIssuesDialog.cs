@@ -249,7 +249,6 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                                    ---
                                    project: {projectName}
                                    sourceUrl: {issueUrl}
-                                   sourceIdentifier: #{issue.Number}
                                    ---
                                    [GitHub Issue #{issue.Number}]({issueUrl})
 

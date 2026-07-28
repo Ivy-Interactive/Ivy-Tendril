@@ -4,7 +4,7 @@ using Ivy.Plugins.Inbox;
 
 namespace Ivy.Tendril.Services;
 
-internal class PluginInbox(string inboxPath) : IInbox
+internal class PluginInbox(string inboxPath, SourceLinkRegistry? sourceLinks = null) : IInbox
 {
     public void Add(string description)
     {
@@ -14,7 +14,7 @@ internal class PluginInbox(string inboxPath) : IInbox
     public void Add(InboxItem item)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(item.Description, nameof(item.Description));
-        var filename = GenerateFilename(item);
+        var filename = GenerateFilename(item, sourceLinks?.TryGetLabel(item.SourceUrl));
         var content = FormatContent(item);
         Directory.CreateDirectory(inboxPath);
         File.WriteAllText(Path.Combine(inboxPath, filename), content);
@@ -26,11 +26,15 @@ internal class PluginInbox(string inboxPath) : IInbox
             Add(item);
     }
 
-    internal static string GenerateFilename(InboxItem item)
+    /// <summary>
+    ///     Names the file after the source's short label when a plugin resolver recognized the URL
+    ///     (e.g. <c>20260726T143000-IVY-456.md</c>), else after a hash of the description.
+    /// </summary>
+    internal static string GenerateFilename(InboxItem item, string? sourceLabel = null)
     {
         var timestamp = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss");
-        var identifier = !string.IsNullOrWhiteSpace(item.SourceIdentifier)
-            ? SanitizeForFilename(item.SourceIdentifier)
+        var identifier = !string.IsNullOrWhiteSpace(sourceLabel)
+            ? SanitizeForFilename(sourceLabel)
             : ShortHash(item.Description);
         return $"{timestamp}-{identifier}.md";
     }
@@ -40,7 +44,6 @@ internal class PluginInbox(string inboxPath) : IInbox
         var sb = new StringBuilder();
         var hasFrontmatter = item.Project != "Auto"
             || item.SourceUrl != null
-            || item.SourceIdentifier != null
             || item.Labels.Count > 0;
 
         if (hasFrontmatter)
@@ -50,8 +53,6 @@ internal class PluginInbox(string inboxPath) : IInbox
                 sb.AppendLine($"project: {item.Project}");
             if (item.SourceUrl != null)
                 sb.AppendLine($"sourceUrl: {item.SourceUrl}");
-            if (item.SourceIdentifier != null)
-                sb.AppendLine($"sourceIdentifier: {item.SourceIdentifier}");
             if (item.Labels.Count > 0)
                 sb.AppendLine($"labels: [{string.Join(", ", item.Labels)}]");
             sb.AppendLine("---");

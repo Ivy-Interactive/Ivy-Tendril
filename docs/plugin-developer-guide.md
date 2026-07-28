@@ -478,8 +478,7 @@ public void Configure(ITendrilPluginContext context)
             ctx.Inbox.AddRange(issues.Select(issue => new InboxItem
             {
                 Description = issue.Body,
-                SourceUrl = issue.Url,
-                SourceIdentifier = issue.Identifier
+                SourceUrl = issue.Url
             }));
 
             return ScheduledTaskResult.Success($"Imported {issues.Count} issues");
@@ -673,7 +672,6 @@ public record BeforeCreatePlanEvent
     public string Description { get; set; }            // Mutable — hooks can enrich/transform
     public string Project { get; set; }
     public string? SourceUrl { get; init; }
-    public string? SourceIdentifier { get; init; }
     public bool Cancelled { get; private set; }
     public void Cancel(string reason) { /* ... */ }
 }
@@ -1110,7 +1108,6 @@ public void Configure(ITendrilPluginContext context)
             """,
         Project = "Framework",
         SourceUrl = "https://linear.app/ivy/issue/IVY-456",
-        SourceIdentifier = "IVY-456",
         Labels = ["bug", "performance"]
     });
 }
@@ -1149,11 +1146,12 @@ public record InboxItem
     /// </summary>
     public string Project { get; init; } = "Auto";
 
-    /// <summary>URL linking back to the source (e.g., GitHub issue, Linear issue, Jira ticket).</summary>
+    /// <summary>
+    /// URL linking back to the source (e.g., GitHub issue, Linear issue, Jira ticket). Tendril
+    /// derives the short label it displays for this URL from your registered ISourceLinks
+    /// resolver — see "Labelling Source URLs" below — so no identifier is passed here.
+    /// </summary>
     public string? SourceUrl { get; init; }
-
-    /// <summary>Short identifier from the source system (e.g., "#123", "IVY-456").</summary>
-    public string? SourceIdentifier { get; init; }
 
     /// <summary>Optional labels for categorization. Written to frontmatter.</summary>
     public IReadOnlyList<string> Labels { get; init; } = [];
@@ -1168,7 +1166,6 @@ Calling `context.Inbox.Add(...)` writes a markdown file to `<TendrilHome>/Inbox/
 ---
 project: Framework
 sourceUrl: https://linear.app/ivy/issue/IVY-456
-sourceIdentifier: IVY-456
 labels: [bug, performance]
 ---
 The dashboard chart doesn't render when there are more than 1000 data points.
@@ -1177,7 +1174,7 @@ It throws a JavaScript heap out of memory error in the browser console.
 
 The `InboxWatcherService` detects the new file and creates a `CreatePlan` job from it — exactly the same pipeline as manually dropping a file into the Inbox folder. The API is a convenience layer that handles file naming, frontmatter formatting, and staggered writes (for `AddRange`).
 
-**File naming:** Files are named `<timestamp>-<sanitized-identifier-or-hash>.md` to avoid collisions. If `SourceIdentifier` is set, it's used in the filename (e.g., `20260620T091500-IVY-456.md`); otherwise a short hash of the description is used.
+**File naming:** Files are named `<timestamp>-<sanitized-label-or-hash>.md` to avoid collisions. If one of your registered `ISourceLinks` resolvers labels the `SourceUrl`, that label is used in the filename (e.g., `20260620T091500-IVY-456.md`); otherwise a short hash of the description is used.
 
 **Typical usage with scheduled tasks:**
 
@@ -1194,8 +1191,7 @@ context.RegisterScheduledTask(new ScheduledTaskDescriptor
         {
             Description = $"[{issue.Title}]({issue.Url})\n\n{issue.Body}",
             Project = "Auto",
-            SourceUrl = issue.Url,
-            SourceIdentifier = $"#{issue.Number}"
+            SourceUrl = issue.Url
         });
 
         ctx.Inbox.AddRange(items);
@@ -1204,7 +1200,47 @@ context.RegisterScheduledTask(new ScheduledTaskDescriptor
 });
 ```
 
-**Deduplication:** The API does **not** deduplicate automatically — if you add the same item twice, two plans will be created. Plugins are responsible for tracking what they've already imported (e.g., using plugin config values, a local JSON log, or checking `SourceIdentifier` against existing plan metadata).
+**Deduplication:** The API does **not** deduplicate automatically — if you add the same item twice, two plans will be created. Plugins are responsible for tracking what they've already imported (e.g., using plugin config values, a local JSON log, or checking `SourceUrl` against existing plan metadata).
+
+### Labelling Source URLs
+
+Tendril stores only a plan's `sourceUrl`. When it needs a short human-facing label for that URL — the anchor text in a `Fixes [IVY-456](…)` line of a PR description, or an inbox filename — it asks the installed plugins, because Tendril deliberately knows no issue tracker's URL format.
+
+Register a resolver in `Configure`:
+
+```csharp
+public void Configure(ITendrilPluginContext context)
+{
+    context.SourceLinks.RegisterResolver(url =>
+        url.Host.Equals("linear.app", StringComparison.OrdinalIgnoreCase)
+        && IssuePath.Match(url.AbsolutePath) is { Success: true } m
+            ? m.Groups["id"].Value
+            : null);
+}
+```
+
+**The `ISourceLinks` interface:**
+
+```csharp
+public interface ISourceLinks
+{
+    /// <summary>
+    /// Registers a resolver. Return the label for URLs this plugin recognizes, or null
+    /// for anything it doesn't own so other plugins get a turn.
+    /// </summary>
+    void RegisterResolver(Func<Uri, string?> resolver);
+}
+```
+
+**Contract:**
+
+- Return `null` for URLs you don't own — never a placeholder. The first non-null result wins, so a greedy resolver shadows every plugin registered after it.
+- Only absolute `http`/`https` URLs are passed to resolvers.
+- Resolvers run inline while a job's prompt is being built. Keep them to pure string matching: no I/O, no network, no blocking.
+- A resolver that throws is logged and skipped, and the next one is tried. It won't fail the job.
+- Resolvers are removed when your plugin is uninstalled. Plans keep their `sourceUrl`, and fall back to showing the bare URL.
+
+Because the resolver works from the URL alone, it also covers sources that never came through your plugin — a link a user pasted by hand, or one an agent found in a task description.
 
 ### Installing a Promptware
 
