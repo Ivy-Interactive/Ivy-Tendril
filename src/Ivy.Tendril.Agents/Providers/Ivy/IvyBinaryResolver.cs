@@ -9,7 +9,7 @@ internal static class IvyBinaryResolver
 
     public static string Resolve()
     {
-        if (_cachedPath != null) return _cachedPath;
+        if (_cachedPath != null && File.Exists(_cachedPath)) return _cachedPath;
 
         // 1. Check PATH
         var path = BinaryResolver.FindOnPath("ivy-agent");
@@ -24,7 +24,7 @@ internal static class IvyBinaryResolver
         
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            string[] extensions = [".cmd", ".exe", ".bat"];
+            string[] extensions = [".exe", ".cmd", ".bat"];
             foreach (var ext in extensions)
             {
                 var candidate = Path.Combine(fallbackDir, "ivy-agent" + ext);
@@ -43,7 +43,10 @@ internal static class IvyBinaryResolver
             }
         }
 
-        // Fallback to default name if not found anywhere
-        return _cachedPath = "ivy-agent";
+        // Fallback to default name if not found anywhere (do not cache invalid path)
+        _cachedPath = null;
+        return "ivy-agent";
     }
+
+    public static void ResetCache() => _cachedPath = null;
 }
