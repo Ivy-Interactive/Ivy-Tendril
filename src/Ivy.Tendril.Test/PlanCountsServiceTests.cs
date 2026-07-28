@@ -62,6 +62,7 @@ public class TendrilProcessStatusServiceTests : IDisposable
     {
         return new TendrilProcessStatusService(
             _planReader, _jobService, _planWatcher, _configService,
+            new FakeAgentChatManager(),
             NullLogger<TendrilProcessStatusService>.Instance);
     }
 
@@ -309,6 +310,19 @@ public class TendrilProcessStatusServiceTests : IDisposable
         public void RaisePlansChanged()
         {
             PlansChanged?.Invoke(null);
+        }
+    }
+
+    private class FakeAgentChatManager : IAgentChatManager
+    {
+        public int ActiveChatsCount => 0;
+        public IDisposable RegisterActiveChat(string chatId) => new DummyDisposable();
+#pragma warning disable CS0067
+        public event Action? ActiveChatsChanged;
+#pragma warning restore CS0067
+        private class DummyDisposable : IDisposable
+        {
+            public void Dispose() { }
         }
     }
 }

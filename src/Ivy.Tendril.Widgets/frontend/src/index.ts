@@ -3,6 +3,7 @@ import { AgentViewer } from "./AgentViewer";
 import { DraftMarkdown } from "./DraftMarkdown";
 import { SortableVerificationList } from "./SortableVerificationList";
 import { ContentInput } from "./ContentInput/ContentInput";
+import { AgentChat } from "./AgentChat/AgentChat";
 import { BadgeSelect } from "./BadgeSelect";
 
 if (typeof window !== "undefined") {
@@ -12,6 +13,7 @@ if (typeof window !== "undefined") {
     DraftMarkdown,
     SortableVerificationList,
     ContentInput,
+    AgentChat,
     BadgeSelect,
   };
 }
@@ -22,5 +24,6 @@ export {
   DraftMarkdown,
   SortableVerificationList,
   ContentInput,
+  AgentChat,
   BadgeSelect,
 };
