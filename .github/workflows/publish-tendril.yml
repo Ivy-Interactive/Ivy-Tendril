@@ -217,7 +217,7 @@ jobs:
             -p:ReadyToRun=false \
             -p:Version=${{ needs.version.outputs.version }} \
             -p:CommitId=${{ github.sha }} \
-            -p:OutputType=WinExe \
+            -p:UseWinExe=true \
             --self-contained true
 
       - name: Generate HTTPS Certificates
