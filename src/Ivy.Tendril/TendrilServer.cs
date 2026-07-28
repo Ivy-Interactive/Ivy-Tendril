@@ -1,3 +1,4 @@
+using System.Reflection;
 using Ivy.Core.Apps;
 using Ivy.Helpers;
 using Ivy.Tendril.Apps;
@@ -83,7 +84,11 @@ public static class TendrilServer
         });
 
         var assembly = typeof(TendrilServer).Assembly;
+        var isBeta = tendrilArgs.Beta ||
+                     Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
+                     Environment.GetEnvironmentVariable("IVY_BETA") == "1";
         server.AppRepository.AddFactory(() => AppHelpers.GetApps(assembly)
+            .Where(app => isBeta || app.Type.GetCustomAttribute<BetaAppAttribute>() == null)
             .ToArray());
         server.AddConnectionsFromAssembly(typeof(TendrilServer).Assembly);
 
