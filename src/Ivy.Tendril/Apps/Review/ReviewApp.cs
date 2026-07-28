@@ -5,7 +5,7 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Review;
 
-[App(title: "Review", icon: Icons.ThumbsUp, group: ["Apps"], order: Constants.Review,
+[App(title: "Review", icon: Icons.ThumbsUp, group: ["Agents"], order: Constants.Review,
     allowDuplicateTabs: false)]
 public class ReviewApp : ViewBase
 {

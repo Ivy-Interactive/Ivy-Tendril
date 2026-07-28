@@ -3,7 +3,7 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps;
 
-[App(title: "Help", icon: Icons.CircleQuestionMark, group: ["Apps"], order: Constants.Help)]
+[App(title: "Help", icon: Icons.CircleQuestionMark, group: ["Overview"], order: Constants.Help)]
 public class HelpApp : ViewBase
 {
     public override object Build()

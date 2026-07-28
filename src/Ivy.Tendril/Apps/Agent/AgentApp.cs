@@ -10,7 +10,7 @@ using Xterm = Ivy.Widgets.Xterm;
 
 namespace Ivy.Tendril.Apps.Agent;
 
-[App(title: "Agent", icon: Icons.Terminal, group: ["Apps"], order: Constants.Agent, isVisible: true, allowDuplicateTabs: true)]
+[App(title: "Chat", icon: Icons.Terminal, group: ["Agents"], order: Constants.Agent, isVisible: true, allowDuplicateTabs: false)]
 public class AgentApp : ViewBase
 {
     public override object Build()
