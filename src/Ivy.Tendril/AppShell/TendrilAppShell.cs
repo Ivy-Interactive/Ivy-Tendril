@@ -103,7 +103,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             ["icebox"] = status.IceboxCount,
             ["recommendations"] = status.RecommendationsCount,
             ["trash"] = status.TrashCount,
-            ["agent"] = status.ActiveAgentChatsCount,
             ["chat"] = status.ActiveAgentChatsCount
         };
         var agentId = config.Settings.CodingAgent;
