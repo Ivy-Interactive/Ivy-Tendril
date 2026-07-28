@@ -161,4 +161,11 @@ public class PathHelperTests
             Environment.SetEnvironmentVariable("PATH", originalPath);
         }
     }
+
+    [Fact]
+    public void EnsureWindowsCliSetup_DoesNotThrow()
+    {
+        PathHelper.EnsureWindowsCliSetup();
+        PathHelper.EnsureCliSymlink();
+    }
 }
