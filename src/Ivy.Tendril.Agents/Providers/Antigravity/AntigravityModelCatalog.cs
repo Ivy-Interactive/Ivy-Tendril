@@ -28,10 +28,38 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
     [
         new()
         {
-            Id = "gemini-3.5-flash-high", DisplayName = "Gemini 3.5 Flash (High)",
+            Id = "gemini-3.6-flash-high", DisplayName = "Gemini 3.6 Flash (High)",
             Capabilities = MidCaps,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google", IsDefault = true,
+        },
+        new()
+        {
+            Id = "gemini-3.6-flash-medium", DisplayName = "Gemini 3.6 Flash (Medium)",
+            Capabilities = MidCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "google",
+        },
+        new()
+        {
+            Id = "gemini-3.6-flash-low", DisplayName = "Gemini 3.6 Flash (Low)",
+            Capabilities = MidCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "google",
+        },
+        new()
+        {
+            Id = "gemini-3.6-flash", DisplayName = "Gemini 3.6 Flash",
+            Capabilities = MidCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "google",
+        },
+        new()
+        {
+            Id = "gemini-3.5-flash-high", DisplayName = "Gemini 3.5 Flash (High)",
+            Capabilities = MidCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "google",
         },
         new()
         {
