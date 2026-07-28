@@ -36,9 +36,26 @@ public static class AgentBranding
         };
     }
 
+    /// <summary>
+    /// Returns the configured agent's display name (e.g. "Claude Code") and icon,
+    /// falling back gracefully to <see cref="DefaultLabel"/>/<see cref="DefaultIcon"/>
+    /// for unknown or unregistered agents.
+    /// </summary>
     public static (string Label, Icons Icon) For(string? agentId, IAgentRunner runner)
     {
         var icon = IconFor(agentId);
-        return ("Chat", icon);
+
+        if (string.IsNullOrWhiteSpace(agentId))
+            return (DefaultLabel, icon);
+
+        try
+        {
+            var displayName = runner.GetCli(AgentProviderFactory.NormalizeAgentName(agentId)).DisplayName;
+            return (string.IsNullOrWhiteSpace(displayName) ? DefaultLabel : displayName, icon);
+        }
+        catch
+        {
+            return (DefaultLabel, icon);
+        }
     }
 }
