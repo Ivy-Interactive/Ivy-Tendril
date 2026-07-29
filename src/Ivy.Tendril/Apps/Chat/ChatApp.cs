@@ -27,6 +27,7 @@ public class ChatApp : ViewBase
         var activeSessionId = UseState<string?>(args?.SessionId);
         var selectedAgent = UseState(() => configService.Settings.CodingAgent ?? "claude");
         var selectedModel = UseState("claude-opus-4-7");
+        var lastSyncedSessionId = UseRef<string?>(null);
         var isStreaming = UseState(false);
         var streamingText = UseState("");
         var streamingStream = UseStream<string>();
@@ -42,13 +43,14 @@ public class ChatApp : ViewBase
 
         var activeSession = activeSessionId.Value != null ? chatService.GetSession(activeSessionId.Value) : null;
 
-        if (activeSession != null)
+        if (activeSession != null && lastSyncedSessionId.Value != activeSession.Id)
         {
-            if (selectedAgent.Value != activeSession.AgentId && !string.IsNullOrEmpty(activeSession.AgentId))
+            lastSyncedSessionId.Value = activeSession.Id;
+            if (!string.IsNullOrEmpty(activeSession.AgentId))
             {
                 selectedAgent.Set(activeSession.AgentId);
             }
-            if (selectedModel.Value != activeSession.ModelId && !string.IsNullOrEmpty(activeSession.ModelId))
+            if (!string.IsNullOrEmpty(activeSession.ModelId))
             {
                 selectedModel.Set(activeSession.ModelId);
             }
