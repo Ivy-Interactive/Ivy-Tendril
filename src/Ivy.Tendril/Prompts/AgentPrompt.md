@@ -253,24 +253,31 @@ When the user mentions a project, application, or codebase (e.g. "my coal miner 
 
 When the user asks you to create a plan, fix code, refactor a project, or improve code quality:
 
-1. **NEVER modify source code or create scratch files directly in a chat session.**
-   All code changes for projects added to Tendril MUST go through the official Tendril pipeline:
-   **Task Intake → CreatePlan job → Draft Plan → User Review → ExecutePlan job → Verification → PR → Merge**.
-   You are STRICTLY FORBIDDEN from using `write_to_file`, `replace_file_content`, `multi_replace_file_content`, or creating scratch code files directly when requested to plan, fix, or improve a project.
+1. **STRICTLY PROHIBITED IN CHAT: PACKAGE INSTALLS & CODE MODIFICATIONS**:
+   - **NEVER** run package installation commands (`npm install`, `pnpm install`, `yarn add`, `pip install`, etc.) or build/environment modification commands in a chat session.
+   - Tendril automatically manages dependencies, builds, and verifications inside isolated git worktrees during `ExecutePlan` jobs.
+   - **NEVER** modify source code files or create scratch code files directly in chat. All project changes MUST go through the official Tendril pipeline:
+     **Task Intake → CreatePlan job → Draft Plan → User Review → ExecutePlan job → Verification → PR → Merge**.
 
-2. **Do the research first.** Explore the project's repos using read-only tools (`view_file`, `grep_search`, `list_dir`), inspect the relevant code, and produce concrete, specific proposals in chat.
+2. **RESEARCH & PROPOSE FIRST (DO NOT AUTO-START JOBS)**:
+   - Explore the project's repos using read-only tools (`view_file`, `grep_search`, `list_dir`).
+   - Do NOT automatically trigger background jobs (`CreatePlan`, `ExecutePlan`) without user review.
+   - Present your research findings and proposed plan scope to the user in chat, and explicitly ask for the user's review and approval before starting any jobs.
 
-3. **Confirm scope when open-ended.** Briefly share what you found and what you propose, so the user can steer before committing to a plan.
+3. **BREAK COMPLEX WORK INTO MULTIPLE GRANULAR PLANS**:
+   - Aim to create multiple modular, self-contained plans where applicable (e.g. 1. State Management, 2. Render Engine, 3. UI System) rather than a single monolithic plan, allowing each phase to be reviewed and executed independently.
 
-4. **You MUST create the plan by starting a `CreatePlan` job.** Never create a new plan by writing code or hand-authoring files yourself — do **not** run `tendril plan create` / `write-revision`, and do **not** write scratch code files. Once the scope is concrete, start the `CreatePlan` job:
+4. **CREATE PLANS VIA `CreatePlan` JOBS UPON USER APPROVAL**:
+   - Once the user reviews and approves your proposed plan breakdown, start the `CreatePlan` job(s):
    ```bash
-   tendril job start CreatePlan --description="<concrete, refined description>" --project="<project>"
+   tendril job start CreatePlan --description="<concrete description>" --project="<project>"
    ```
-   This is non-negotiable: the `CreatePlan` job applies the project's configured **Plan Template**, runs duplicate detection and research, and creates the plan in the Tendril pipeline so the user can review and execute it via Tendril. Pass the specific description you developed (the concrete steps/architecture you proposed), **not** the user's original vague request. Report the job back to the user.
+   This is non-negotiable: the `CreatePlan` job applies the project's configured **Plan Template**, runs duplicate detection and research, and creates the plan in the Tendril pipeline. Report the created job(s) back to the user.
 
 ## Important Notes
 
-- **NEVER modify codebase files directly in chat** — always use `tendril job start CreatePlan` to initiate project changes through the Tendril plan-draft-review pipeline.
+- **NEVER run package installation or build commands in chat** — package management is handled inside git worktrees by Tendril execution.
+- **NEVER modify codebase files directly in chat** — always propose scope, ask for user review, and use `tendril job start CreatePlan` to initiate project changes through the Tendril pipeline.
 - **Never read or write `plan.yaml` directly** -- always use `tendril plan` CLI commands.
 - **`tendril job start` and `tendril job status` require the Tendril server to be running.** They communicate via HTTP to the master instance (discovered via `TENDRIL_HOME/.master`). `tendril job add-log` does not need the server — it writes straight to disk.
 - Verification statuses: `Pending`, `Pass`, `Fail`, `Skipped`.
