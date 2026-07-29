@@ -76,8 +76,12 @@ public sealed class AntigravityCli : IAgentCli
         foreach (var arg in config.ExtraArguments)
             args.Add(arg);
 
+        var finalPrompt = !string.IsNullOrEmpty(config.SystemPrompt)
+            ? config.SystemPrompt + "\n\n---\n\n" + config.Prompt
+            : config.Prompt;
+
         args.Add("--print");
-        if (!string.IsNullOrEmpty(config.PromptFilePath))
+        if (!string.IsNullOrEmpty(config.PromptFilePath) && string.IsNullOrEmpty(config.SystemPrompt))
         {
             var normalizedPath = config.PromptFilePath.Replace('\\', '/');
             args.Add($"@{normalizedPath}");
@@ -85,7 +89,7 @@ public sealed class AntigravityCli : IAgentCli
         else
         {
             var tempFile = Path.Combine(Path.GetTempPath(), $"tendril-agy-prompt-{Guid.NewGuid():N}.md");
-            File.WriteAllText(tempFile, config.Prompt);
+            File.WriteAllText(tempFile, finalPrompt);
             var normalizedTemp = tempFile.Replace('\\', '/');
             args.Add($"@{normalizedTemp}");
         }
