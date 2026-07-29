@@ -120,6 +120,64 @@ public class CliDispatcherTests
         }
     }
 
+    [Theory]
+    [InlineData("plna", "plan")]
+    [InlineData("jbo", "job")]
+    [InlineData("doctro", "doctor")]
+    [InlineData("verison", "version")]
+    [InlineData("db-rest", "db-reset")]
+    [InlineData("mpc", "mcp")]
+    public void SuggestCommand_SingleCharacterTypo_ReturnsCommand(string token, string expected)
+    {
+        Assert.Equal(expected, CliDispatcher.SuggestCommand(token));
+    }
+
+    [Fact]
+    public void SuggestCommand_IsCaseInsensitive()
+    {
+        Assert.Equal("plan", CliDispatcher.SuggestCommand("PLAN"));
+    }
+
+    [Theory]
+    [InlineData("--hepl", "--help")]
+    [InlineData("--prot", "--port")]
+    [InlineData("--verison", "--version")]
+    public void SuggestCommand_FlagTypo_ReturnsFlag(string token, string expected)
+    {
+        Assert.Equal(expected, CliDispatcher.SuggestCommand(token));
+    }
+
+    [Fact]
+    public void SuggestCommand_ExactCommand_ReturnsSameCommand()
+    {
+        Assert.Equal("plan", CliDispatcher.SuggestCommand("plan"));
+    }
+
+    [Theory]
+    [InlineData("nonsense")]
+    [InlineData("add")]
+    [InlineData("")]
+    [InlineData("zzzzzzzzzz")]
+    public void SuggestCommand_UnrelatedToken_ReturnsNull(string token)
+    {
+        Assert.Null(CliDispatcher.SuggestCommand(token));
+    }
+
+    [Fact]
+    public void SuggestCommand_BareWord_DoesNotSuggestFlag()
+    {
+        Assert.NotEqual("--help", CliDispatcher.SuggestCommand("hepl"));
+    }
+
+    [Fact]
+    public void SuggestCommand_EveryKnownCommand_SuggestsItself()
+    {
+        foreach (var command in CliDispatcher.TopLevelCommands.Concat(CliDispatcher.LegacyCliCommands))
+        {
+            Assert.Equal(command, CliDispatcher.SuggestCommand(command));
+        }
+    }
+
     [Fact]
     public void IsPortInUse_ReturnsTrue_WhenOnlyIPv6LoopbackIsBound()
     {

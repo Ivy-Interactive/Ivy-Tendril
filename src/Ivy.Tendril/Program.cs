@@ -164,8 +164,16 @@ public class Program
 
         if (invocationKind == CliInvocationKind.Unknown)
         {
-            AnsiConsole.MarkupLine($"[red]Unknown command '{filteredArgs[0].EscapeMarkup()}'.[/] Run [green]tendril --help[/] to see available commands.");
-            ConfigureCliCommands(new ServiceCollection()).Run(new[] { "--help" });
+            var suggestion = CliDispatcher.SuggestCommand(filteredArgs[0]);
+            if (suggestion is not null)
+            {
+                AnsiConsole.MarkupLine($"[red]Unknown command '{filteredArgs[0].EscapeMarkup()}'.[/] Did you mean '[green]{suggestion.EscapeMarkup()}[/]'? Run [green]tendril --help[/] to see available commands.");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"[red]Unknown command '{filteredArgs[0].EscapeMarkup()}'.[/] Run [green]tendril --help[/] to see available commands.");
+                ConfigureCliCommands(new ServiceCollection()).Run(new[] { "--help" });
+            }
             return 1;
         }
 

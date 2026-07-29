@@ -79,4 +79,70 @@ internal static class CliDispatcher
         }
         return true;
     }
+
+    // Suggests the closest known command/flag for an unrecognized token, e.g. "plna" -> "plan".
+    public static string? SuggestCommand(string token)
+    {
+        token = token.Trim();
+        if (token.Length == 0)
+            return null;
+
+        var candidates = token.StartsWith('-')
+            ? ServerFlags.Concat(["--help", "--version"])
+            : TopLevelCommands.Concat(LegacyCliCommands);
+
+        var lowerToken = token.ToLowerInvariant();
+        var maxDistance = token.Length <= 4 ? 1 : 2;
+
+        string? best = null;
+        var bestDistance = int.MaxValue;
+
+        foreach (var candidate in candidates)
+        {
+            var distance = OptimalStringAlignmentDistance(lowerToken, candidate.ToLowerInvariant());
+            if (distance > maxDistance)
+                continue;
+
+            if (best is null
+                || distance < bestDistance
+                || (distance == bestDistance && candidate.Length < best.Length)
+                || (distance == bestDistance && candidate.Length == best.Length && string.CompareOrdinal(candidate, best) < 0))
+            {
+                best = candidate;
+                bestDistance = distance;
+            }
+        }
+
+        return best;
+    }
+
+    // Optimal string alignment distance: Levenshtein plus adjacent-transposition swaps costing 1,
+    // so a single-character swap like "plna" -> "plan" scores 1 instead of 2.
+    private static int OptimalStringAlignmentDistance(string a, string b)
+    {
+        var lenA = a.Length;
+        var lenB = b.Length;
+        var d = new int[lenA + 1, lenB + 1];
+
+        for (var i = 0; i <= lenA; i++)
+            d[i, 0] = i;
+        for (var j = 0; j <= lenB; j++)
+            d[0, j] = j;
+
+        for (var i = 1; i <= lenA; i++)
+        {
+            for (var j = 1; j <= lenB; j++)
+            {
+                var cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                d[i, j] = Math.Min(
+                    Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                    d[i - 1, j - 1] + cost);
+
+                if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1])
+                    d[i, j] = Math.Min(d[i, j], d[i - 2, j - 2] + 1);
+            }
+        }
+
+        return d[lenA, lenB];
+    }
 }
