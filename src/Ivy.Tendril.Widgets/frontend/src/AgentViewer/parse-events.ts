@@ -71,18 +71,22 @@ export function parseEventWireStream(jsonStream: string): PresentationEvent[] {
         break;
       }
 
-      case "result":
+      case "result": {
         flushText();
-        out.push({ kind: "result", wire: evt });
+        const existingIdx = out.findIndex((o) => o.kind === "result");
+        if (existingIdx >= 0) {
+          out[existingIdx] = { kind: "result", wire: evt };
+        } else {
+          out.push({ kind: "result", wire: evt });
+        }
         break;
+      }
 
       case "error":
         flushText();
         out.push({ kind: "error", message: evt.message });
         break;
 
-      // file_change, permission_request, permission_denial, user_question
-      // are not rendered as visible events in the output view
       default:
         break;
     }
