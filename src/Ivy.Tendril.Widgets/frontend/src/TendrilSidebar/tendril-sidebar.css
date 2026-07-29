@@ -1,3 +1,15 @@
+/* Ensure parent containers in Ivy SidebarLayout stretch to full screen height */
+:has(> .tendril-sidebar),
+[class*="sidebar-panel"],
+[class*="sidebar-content"],
+[class*="external-widget"] {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  flex: 1 1 auto !important;
+}
+
 .tendril-sidebar {
   --ts-border: var(--border, #e5e7eb);
   --ts-fg: var(--foreground, #1f2937);
@@ -13,6 +25,7 @@
   display: flex;
   flex-direction: column;
   height: calc(100% + 24px);
+  min-height: calc(100vh - 24px);
   width: calc(100% + 24px);
   margin: -12px;
   background-color: var(--ts-bg);
