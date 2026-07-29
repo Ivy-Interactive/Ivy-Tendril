@@ -231,29 +231,44 @@ public class ChatApp : ViewBase
         {
             AgentId.Claude => [
                 ("opus", "Claude Opus"),
-                ("claude-opus-5", "Claude Opus 5"),
+                ("claude-opus-4-7", "Claude Opus 4.7"),
+                ("claude-opus-4-6", "Claude Opus 4.6"),
+                ("claude-3-opus", "Claude Opus 3.8"),
                 ("sonnet", "Claude Sonnet"),
-                ("haiku", "Claude Haiku")
+                ("claude-3.7-sonnet", "Claude Sonnet 3.7"),
+                ("claude-3.5-sonnet", "Claude Sonnet 3.5"),
+                ("haiku", "Claude Haiku"),
+                ("claude-3.5-haiku", "Claude Haiku 3.5")
             ],
             AgentId.OpenCode => [
                 ("kimi-k3", "Kimi k3"),
+                ("kimi-k2", "Kimi k2"),
                 ("deepseek-v3", "DeepSeek V3"),
+                ("deepseek-r1", "DeepSeek R1"),
+                ("claude-3.7-sonnet", "Claude Sonnet 3.7"),
+                ("gpt-4o", "GPT-4o"),
                 ("default", "OpenCode Default")
             ],
             AgentId.Gemini => [
                 ("gemini-2.5-pro", "Gemini 2.5 Pro"),
-                ("gemini-2.5-flash", "Gemini 2.5 Flash")
+                ("gemini-2.5-flash", "Gemini 2.5 Flash"),
+                ("gemini-2.0-flash", "Gemini 2.0 Flash")
             ],
             AgentId.Codex => [
                 ("gpt-4o", "GPT-4o"),
                 ("o3-mini", "o3-mini"),
-                ("o1", "o1")
+                ("o1", "o1"),
+                ("gpt-4.5", "GPT-4.5")
             ],
             AgentId.Antigravity => [
-                ("default", "Antigravity Default")
+                ("default", "Antigravity Default"),
+                ("claude-3.7-sonnet", "Claude Sonnet 3.7"),
+                ("gemini-2.5-pro", "Gemini 2.5 Pro")
             ],
             AgentId.Copilot => [
-                ("default", "Copilot Default")
+                ("default", "Copilot Default"),
+                ("gpt-4o", "GPT-4o"),
+                ("claude-3.7-sonnet", "Claude Sonnet 3.7")
             ],
             _ => [("default", "Default")]
         };
