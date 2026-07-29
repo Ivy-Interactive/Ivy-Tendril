@@ -36,6 +36,13 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({ wire }) => {
     statsList.push(<span key="denied">Denied: {wire.permission_denials.length}</span>);
   }
 
+  const hasResponse = Boolean(wire.response && wire.response.trim().length > 0);
+
+  // Return null if there is nothing to render, preventing empty container boxes
+  if (!isError && !hasResponse && statsList.length === 0) {
+    return null;
+  }
+
   return (
     <div className={`aov-result ${isError ? "error" : ""}`}>
       {isError && (
@@ -43,7 +50,7 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({ wire }) => {
           <span className="aov-result-title">❌ Error</span>
         </div>
       )}
-      {wire.response && (
+      {hasResponse && (
         <div className="aov-markdown aov-result-body">
           <Markdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
             {wire.response}
