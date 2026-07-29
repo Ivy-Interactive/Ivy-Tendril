@@ -22,7 +22,8 @@ public record ChatSessionDto(
     string ModelId,
     string CreatedAt,
     string UpdatedAt,
-    List<ChatMessageDto> Messages
+    List<ChatMessageDto> Messages,
+    string Status = "done"
 );
 
 public record AgentOptionDto(string Id, string Label);

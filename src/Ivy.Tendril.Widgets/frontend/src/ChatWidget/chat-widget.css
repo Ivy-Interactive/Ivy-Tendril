@@ -160,6 +160,34 @@
   gap: 6px;
 }
 
+.chat-session-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.chat-session-status.generating {
+  color: #22c55e;
+}
+
+.chat-session-status.waiting {
+  color: #eab308;
+}
+
+@keyframes chat-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.chat-spin {
+  animation: chat-spin 1.2s linear infinite;
+}
+
 .chat-session-item-actions {
   display: flex;
   align-items: center;

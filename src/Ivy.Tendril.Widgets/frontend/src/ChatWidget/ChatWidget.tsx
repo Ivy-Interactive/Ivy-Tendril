@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Trash2, Mic, Bot, Cpu, Search, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square, Clock } from "lucide-react";
+import { Plus, Trash2, Mic, Bot, Cpu, Search, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square, Clock, Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AgentViewer } from "../AgentViewer";
@@ -24,6 +24,7 @@ export interface ChatSessionDto {
   createdAt: string;
   updatedAt: string;
   messages: ChatMessageDto[];
+  status?: "generating" | "waiting" | "done";
 }
 
 export interface AgentOptionDto {
@@ -430,6 +431,7 @@ export function ChatWidget({
             filteredSessions.map((sess) => {
               const isActive = sess.id === activeSessionId;
               const isEditingThis = editingSessionId === sess.id;
+              const status = sess.status || "done";
               const dateStr = new Date(sess.updatedAt).toLocaleTimeString([], {
                 month: "numeric",
                 day: "numeric",
@@ -461,7 +463,19 @@ export function ChatWidget({
                       <span className="chat-session-title">{sess.title || "Untitled Chat"}</span>
                     )}
                     <div className="chat-session-meta">
-                      <span>{dateStr}</span>
+                      {status === "generating" ? (
+                        <span className="chat-session-status generating">
+                          <Loader2 size={10} className="chat-spin" />
+                          <span>Generating</span>
+                        </span>
+                      ) : status === "waiting" ? (
+                        <span className="chat-session-status waiting">
+                          <Clock size={10} />
+                          <span>Waiting</span>
+                        </span>
+                      ) : (
+                        <span>{dateStr}</span>
+                      )}
                       <span>• {sess.agentId}</span>
                     </div>
                   </div>

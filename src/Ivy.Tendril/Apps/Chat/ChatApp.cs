@@ -33,6 +33,7 @@ public class ChatApp : ViewBase
         var streamingText = UseState("");
         var streamingStream = UseStream<string>();
         var activeSessionRef = UseRef<IAgentSession?>(null);
+        var runningSessionIds = UseState(new HashSet<string>());
         var messageQueue = UseRef(new ConcurrentQueue<ChatSendMessageDto>());
         var initialHandled = UseRef(false);
 
@@ -83,23 +84,29 @@ public class ChatApp : ViewBase
             }
         }
 
-        var sessionDtos = sessions.Select(s => new ChatSessionDto(
-            s.Id,
-            s.Title,
-            s.AgentId,
-            s.ModelId,
-            s.CreatedAt.ToString("o"),
-            s.UpdatedAt.ToString("o"),
-            s.Messages.Select(m => new ChatMessageDto(
-                m.Id,
-                m.Role,
-                m.Content,
-                m.Timestamp.ToString("t"),
-                m.AgentId,
-                m.ModelId,
-                m.RawStream
-            )).ToList()
-        )).ToList();
+        var sessionDtos = sessions.Select(s =>
+        {
+            var isGenerating = runningSessionIds.Value.Contains(s.Id) || (isStreaming.Value && s.Id == activeSessionId.Value);
+            var status = isGenerating ? "generating" : "done";
+            return new ChatSessionDto(
+                s.Id,
+                s.Title,
+                s.AgentId,
+                s.ModelId,
+                s.CreatedAt.ToString("o"),
+                s.UpdatedAt.ToString("o"),
+                s.Messages.Select(m => new ChatMessageDto(
+                    m.Id,
+                    m.Role,
+                    m.Content,
+                    m.Timestamp.ToString("t"),
+                    m.AgentId,
+                    m.ModelId,
+                    m.RawStream
+                )).ToList(),
+                status
+            );
+        }).ToList();
 
         async Task ExecuteSendMessage(ChatSendMessageDto dto)
         {
@@ -114,6 +121,10 @@ public class ChatApp : ViewBase
                 targetSessionId = newSess.Id;
                 activeSessionId.Set(targetSessionId);
             }
+
+            // Track generating session
+            var nextRunning = new HashSet<string>(runningSessionIds.Value) { targetSessionId };
+            runningSessionIds.Set(nextRunning);
 
             // Save attachments to disk
             var attachedFilePaths = new List<string>();
@@ -253,6 +264,10 @@ public class ChatApp : ViewBase
                 isStreaming.Set(false);
                 streamingText.Set("");
 
+                var finishedSet = new HashSet<string>(runningSessionIds.Value);
+                finishedSet.Remove(targetSessionId);
+                runningSessionIds.Set(finishedSet);
+
                 // Process next message in queue if any
                 if (messageQueue.Value.TryDequeue(out var nextDto))
                 {
@@ -340,6 +355,7 @@ public class ChatApp : ViewBase
                     // Ignore cancel exceptions
                 }
                 isStreaming.Set(false);
+                runningSessionIds.Set(new HashSet<string>());
             },
             OnAgentChanged = e =>
             {
