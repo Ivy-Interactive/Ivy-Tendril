@@ -301,7 +301,7 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
 
   return (
     <div className="wfb-root-canvas-container">
-      {/* --- TOP BAR HEADER --- */}
+      {/* --- TOP BAR HEADER (FIXED PINNED AT TOP) --- */}
       <div className="wfb-top-bar">
         <div className="wfb-top-left">
           <div className="wfb-project-selector">
@@ -367,7 +367,7 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
         </div>
       </div>
 
-      {/* --- CANVAS WORKSPACE --- */}
+      {/* --- CANVAS WORKSPACE (SCROLLABLE & PANNEABLE AREA) --- */}
       <div
         className="wfb-canvas-workspace"
         ref={canvasRef}
@@ -384,23 +384,30 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
               refY="3"
               orient="auto"
             >
-              <polygon points="0 0, 8 3, 0 6" fill="rgba(150, 150, 150, 0.4)" />
+              <polygon points="0 0, 8 3, 0 6" fill="rgba(150, 150, 150, 0.5)" />
             </marker>
           </defs>
 
-          {/* Draw SVG Edge Connections with Badges */}
+          {/* Draw SVG Edge Connections with Accurate Coordinates */}
           {steps.map((step) =>
             step.next.map((targetId) => {
               const target = steps.find((s) => s.id === targetId);
               if (!target) return null;
 
-              const sourceX = step.x + 280;
-              const sourceY = step.y + 50;
-              const targetX = target.x;
-              const targetY = target.y + 50;
+              const isSourceTrigger = step.type.toLowerCase() === "trigger";
+              const sourceWidth = isSourceTrigger ? 140 : 260;
+              const sourceYOffset = isSourceTrigger ? 20 : 24;
 
-              const dx = targetX - sourceX;
-              const controlOffset = Math.min(180, Math.max(60, Math.abs(dx) * 0.5));
+              const isTargetTrigger = target.type.toLowerCase() === "trigger";
+              const targetYOffset = isTargetTrigger ? 20 : 24;
+
+              const sourceX = step.x + sourceWidth;
+              const sourceY = step.y + sourceYOffset;
+              const targetX = target.x;
+              const targetY = target.y + targetYOffset;
+
+              const dx = Math.max(40, targetX - sourceX);
+              const controlOffset = Math.min(160, Math.max(40, dx * 0.45));
 
               const pathData = `M ${sourceX} ${sourceY} C ${sourceX + controlOffset} ${sourceY}, ${targetX - controlOffset} ${targetY}, ${targetX} ${targetY}`;
 
@@ -525,76 +532,76 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
             </div>
           );
         })}
+      </div>
 
-        {/* --- FLOATING SEARCH OVERLAY POPUP --- */}
-        {showOverlay && (
-          <div className="wfb-overlay-popup">
-            <div className="wfb-overlay-search-bar">
-              <Search size={15} className="text-muted-foreground" />
-              <input
-                type="text"
-                className="wfb-overlay-input"
-                placeholder="Search Connections..."
-                value={overlaySearch}
-                onChange={(e) => setOverlaySearch(e.target.value)}
-                autoFocus
-              />
-            </div>
-
-            <div className="wfb-overlay-list">
-              {filteredIntegrations.map((item) => (
-                <div
-                  key={item.name}
-                  className="wfb-overlay-item"
-                  onClick={() => addNodeToCanvas("Connection", item.name, item.description)}
-                >
-                  <div className="wfb-overlay-item-icon">{item.icon}</div>
-                  <div className="wfb-overlay-item-info">
-                    <div className="wfb-overlay-item-name">{item.name}</div>
-                    <div className="wfb-overlay-item-desc">{item.description}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+      {/* --- FLOATING SEARCH OVERLAY POPUP (FIXED ON SCREEN) --- */}
+      {showOverlay && (
+        <div className="wfb-overlay-popup">
+          <div className="wfb-overlay-search-bar">
+            <Search size={15} className="text-muted-foreground" />
+            <input
+              type="text"
+              className="wfb-overlay-input"
+              placeholder="Search Connections..."
+              value={overlaySearch}
+              onChange={(e) => setOverlaySearch(e.target.value)}
+              autoFocus
+            />
           </div>
-        )}
 
-        {/* --- BOTTOM FLOATING ISLAND TOOLBAR --- */}
-        <div className="wfb-floating-island">
-          <button
-            className={`wfb-island-btn ${showOverlay === "connections" ? "active" : ""}`}
-            title="Search Connections"
-            onClick={() => setShowOverlay(showOverlay === "connections" ? null : "connections")}
-          >
-            <Plug size={16} />
-          </button>
-
-          <button
-            className={`wfb-island-btn ${showOverlay === "nodes" ? "active" : ""}`}
-            title="Add Promptware Node"
-            onClick={() => addNodeToCanvas("Prompt", "New Step", "Custom prompt step")}
-          >
-            <Terminal size={16} />
-          </button>
-
-          <button
-            className={`wfb-island-btn ${showOverlay === "triggers" ? "active" : ""}`}
-            title="Add Trigger Node"
-            onClick={() => addNodeToCanvas("Trigger", "+ Trigger", "")}
-          >
-            <Zap size={16} />
-          </button>
-
-          <div className="wfb-island-divider" />
-
-          <button
-            className="wfb-island-btn primary"
-            title="Run Test"
-            onClick={() => eventHandler("OnTestWorkflow", id, [currentWorkflowId])}
-          >
-            <Play size={15} fill="currentColor" />
-          </button>
+          <div className="wfb-overlay-list">
+            {filteredIntegrations.map((item) => (
+              <div
+                key={item.name}
+                className="wfb-overlay-item"
+                onClick={() => addNodeToCanvas("Connection", item.name, item.description)}
+              >
+                <div className="wfb-overlay-item-icon">{item.icon}</div>
+                <div className="wfb-overlay-item-info">
+                  <div className="wfb-overlay-item-name">{item.name}</div>
+                  <div className="wfb-overlay-item-desc">{item.description}</div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
+      )}
+
+      {/* --- BOTTOM FLOATING ISLAND TOOLBAR (FIXED ON SCREEN) --- */}
+      <div className="wfb-floating-island">
+        <button
+          className={`wfb-island-btn ${showOverlay === "connections" ? "active" : ""}`}
+          title="Search Connections"
+          onClick={() => setShowOverlay(showOverlay === "connections" ? null : "connections")}
+        >
+          <Plug size={16} />
+        </button>
+
+        <button
+          className={`wfb-island-btn ${showOverlay === "nodes" ? "active" : ""}`}
+          title="Add Promptware Node"
+          onClick={() => addNodeToCanvas("Prompt", "New Step", "Custom prompt step")}
+        >
+          <Terminal size={16} />
+        </button>
+
+        <button
+          className={`wfb-island-btn ${showOverlay === "triggers" ? "active" : ""}`}
+          title="Add Trigger Node"
+          onClick={() => addNodeToCanvas("Trigger", "+ Trigger", "")}
+        >
+          <Zap size={16} />
+        </button>
+
+        <div className="wfb-island-divider" />
+
+        <button
+          className="wfb-island-btn primary"
+          title="Run Test"
+          onClick={() => eventHandler("OnTestWorkflow", id, [currentWorkflowId])}
+        >
+          <Play size={15} fill="currentColor" />
+        </button>
       </div>
     </div>
   );
