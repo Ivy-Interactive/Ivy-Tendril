@@ -278,7 +278,7 @@ public class ContentView(
             }
         };
 
-        var view = Layout.Vertical();
+        var view = Layout.Vertical().Height(Size.Full()).Width(Size.Full()).RemoveParentPadding();
         if (header != null)
         {
             view |= header;

@@ -3,20 +3,39 @@
   flex-direction: column;
   width: 100%;
   height: 100%;
-  min-height: 100vh;
-  background: #fcfcfc;
-  color: #1a1a1a;
+  min-height: 100%;
+  flex: 1;
+  background: var(--background, #090a0f);
+  color: var(--foreground, #f3f4f6);
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
   position: relative;
   overflow: hidden;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-/* Dark mode compatibility */
-@media (prefers-color-scheme: dark) {
-  .wfb-root-canvas-container {
-    background: #0d0e12;
-    color: #e5e7eb;
-  }
+/* Custom Sleek Scrollbars */
+.wfb-canvas-workspace::-webkit-scrollbar,
+.wfb-overlay-list::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.wfb-canvas-workspace::-webkit-scrollbar-track,
+.wfb-overlay-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.wfb-canvas-workspace::-webkit-scrollbar-thumb,
+.wfb-overlay-list::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--foreground, #ffffff) 20%, transparent);
+  border-radius: 4px;
+}
+
+.wfb-canvas-workspace::-webkit-scrollbar-thumb:hover,
+.wfb-overlay-list::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--foreground, #ffffff) 35%, transparent);
 }
 
 /* --- TOP BAR HEADER --- */
@@ -24,11 +43,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 56px;
-  padding: 0 20px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  background: var(--card, #ffffff);
+  height: 52px;
+  min-height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  background: var(--card, #12131a);
+  color: var(--card-foreground, #f3f4f6);
   z-index: 50;
+  box-sizing: border-box;
 }
 
 .wfb-top-left {
@@ -43,11 +65,12 @@
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: var(--background, #f3f4f6);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: var(--muted, rgba(255, 255, 255, 0.06));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
   border-radius: 8px;
   font-size: 0.85rem;
   font-weight: 500;
+  color: var(--foreground, #f3f4f6);
 }
 
 .wfb-header-select {
@@ -55,11 +78,16 @@
   border: none;
   font-size: 0.85rem;
   font-weight: 600;
-  color: inherit;
+  color: var(--foreground, #f3f4f6);
   outline: none;
   cursor: pointer;
   appearance: none;
   padding-right: 4px;
+}
+
+.wfb-header-select option {
+  background: var(--card, #18181b);
+  color: var(--card-foreground, #f3f4f6);
 }
 
 .wfb-top-right {
@@ -72,9 +100,10 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
+  padding: 7px 14px;
   background: transparent;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  color: var(--foreground, #f3f4f6);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
   border-radius: 8px;
   font-size: 0.85rem;
   font-weight: 500;
@@ -83,16 +112,16 @@
 }
 
 .wfb-btn-outline:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--muted, rgba(255, 255, 255, 0.08));
 }
 
 .wfb-btn-primary {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 16px;
-  background: #000000;
-  color: #ffffff;
+  padding: 7px 16px;
+  background: var(--primary, #ffffff);
+  color: var(--primary-foreground, #000000);
   border: none;
   border-radius: 8px;
   font-size: 0.85rem;
@@ -108,12 +137,13 @@
 /* --- CANVAS WORKSPACE --- */
 .wfb-canvas-workspace {
   flex: 1;
+  width: 100%;
+  height: calc(100% - 52px);
   position: relative;
   overflow: auto;
-  background-color: var(--background, #fafafa);
-  background-image: radial-gradient(rgba(0, 0, 0, 0.08) 1.2px, transparent 1.2px);
+  background-color: var(--background, #090a0f);
+  background-image: radial-gradient(var(--border, rgba(255, 255, 255, 0.15)) 1.2px, transparent 1.2px);
   background-size: 24px 24px;
-  min-height: calc(100vh - 56px);
   user-select: none;
 }
 
@@ -128,31 +158,32 @@
 
 .wfb-connection-path {
   fill: none;
-  stroke: rgba(180, 180, 180, 0.6);
+  stroke: var(--muted-foreground, rgba(160, 160, 160, 0.5));
   stroke-width: 2.5px;
 }
 
 .wfb-edge-badge-bg {
-  fill: #ffffff;
-  stroke: rgba(0, 0, 0, 0.12);
+  fill: var(--card, #18181b);
+  stroke: var(--border, rgba(255, 255, 255, 0.15));
   stroke-width: 1px;
 }
 
 .wfb-edge-badge-text {
   font-size: 0.72rem;
   font-weight: 600;
-  fill: #4b5563;
+  fill: var(--card-foreground, #e5e7eb);
   dominant-baseline: middle;
 }
 
-/* --- NODE CARDS --- */
+/* --- NODE CARDS (THEME RESPONSIVE) --- */
 .wfb-canvas-node {
   position: absolute;
   width: 260px;
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: var(--card, #161722);
+  color: var(--card-foreground, #f3f4f6);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
   cursor: grab;
@@ -160,13 +191,13 @@
 }
 
 .wfb-canvas-node:hover {
-  border-color: rgba(0, 0, 0, 0.2);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  border-color: color-mix(in srgb, var(--ring, #3b82f6) 60%, var(--border, rgba(255, 255, 255, 0.2)));
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
 }
 
 .wfb-canvas-node.selected {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+  border-color: var(--ring, #3b82f6);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring, #3b82f6) 40%, transparent);
 }
 
 .wfb-canvas-node.node-trigger-pill {
@@ -174,6 +205,8 @@
   min-width: 130px;
   padding: 10px 16px;
   border-radius: 24px;
+  background: var(--card, #161722);
+  color: var(--card-foreground, #f3f4f6);
 }
 
 .wfb-node-header {
@@ -189,12 +222,13 @@
   gap: 8px;
   font-size: 0.9rem;
   font-weight: 650;
+  color: var(--card-foreground, #f3f4f6);
 }
 
 .wfb-node-opt-btn {
   background: transparent;
   border: none;
-  color: #9ca3af;
+  color: var(--muted-foreground, #9ca3af);
   cursor: pointer;
   padding: 2px;
   border-radius: 4px;
@@ -215,14 +249,17 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #f3f4f6;
+  background: var(--muted, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
   padding: 6px 10px;
   border-radius: 6px;
   font-size: 0.8rem;
+  color: var(--card-foreground, #f3f4f6);
 }
 
 .wfb-select-icon {
   font-size: 0.8rem;
+  color: var(--muted-foreground, #9ca3af);
 }
 
 .wfb-node-dropdown {
@@ -231,18 +268,24 @@
   outline: none;
   font-size: 0.8rem;
   font-weight: 550;
+  color: var(--card-foreground, #f3f4f6);
   width: 100%;
   cursor: pointer;
 }
 
+.wfb-node-dropdown option {
+  background: var(--card, #18181b);
+  color: var(--card-foreground, #f3f4f6);
+}
+
 .wfb-node-description {
   font-size: 0.78rem;
-  color: #6b7280;
+  color: var(--muted-foreground, #9ca3af);
   line-height: 1.35;
-  background: #fafafa;
+  background: var(--muted, rgba(255, 255, 255, 0.03));
   padding: 8px 10px;
   border-radius: 6px;
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.05));
 }
 
 .wfb-node-badges {
@@ -260,21 +303,21 @@
 }
 
 .badge-promptware {
-  background: #ecfdf5;
-  color: #059669;
-  border: 1px solid #a7f3d0;
+  background: color-mix(in srgb, #10b981 15%, transparent);
+  color: #34d399;
+  border: 1px solid color-mix(in srgb, #10b981 30%, transparent);
 }
 
 .badge-trigger {
-  background: #eff6ff;
-  color: #2563eb;
-  border: 1px solid #bfdbfe;
+  background: color-mix(in srgb, #3b82f6 15%, transparent);
+  color: #60a5fa;
+  border: 1px solid color-mix(in srgb, #3b82f6 30%, transparent);
 }
 
 .badge-connection {
-  background: #fff7ed;
-  color: #ea580c;
-  border: 1px solid #fed7aa;
+  background: color-mix(in srgb, #f97316 15%, transparent);
+  color: #fb923c;
+  border: 1px solid color-mix(in srgb, #f97316 30%, transparent);
 }
 
 /* --- FLOATING ISLAND TOOLBAR --- */
@@ -287,10 +330,10 @@
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: var(--popover, var(--card, #161722));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
   border-radius: 30px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
   z-index: 100;
 }
 
@@ -303,24 +346,24 @@
   border-radius: 50%;
   border: none;
   background: transparent;
-  color: #4b5563;
+  color: var(--muted-foreground, #9ca3af);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 
 .wfb-island-btn:hover {
-  background: #f3f4f6;
-  color: #111827;
+  background: var(--muted, rgba(255, 255, 255, 0.08));
+  color: var(--card-foreground, #ffffff);
 }
 
 .wfb-island-btn.active {
-  background: #e5e7eb;
-  color: #111827;
+  background: var(--muted, rgba(255, 255, 255, 0.15));
+  color: var(--card-foreground, #ffffff);
 }
 
 .wfb-island-btn.primary {
-  background: #000000;
-  color: #ffffff;
+  background: var(--primary, #ffffff);
+  color: var(--primary-foreground, #000000);
 }
 
 .wfb-island-btn.primary:hover {
@@ -330,7 +373,7 @@
 .wfb-island-divider {
   width: 1px;
   height: 20px;
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--border, rgba(255, 255, 255, 0.15));
   margin: 0 4px;
 }
 
@@ -342,10 +385,11 @@
   transform: translateX(-50%);
   width: 340px;
   max-height: 400px;
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: var(--popover, var(--card, #161722));
+  color: var(--popover-foreground, var(--card-foreground, #f3f4f6));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
   border-radius: 16px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -357,7 +401,7 @@
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.1));
 }
 
 .wfb-overlay-input {
@@ -366,6 +410,7 @@
   font-size: 0.85rem;
   width: 100%;
   background: transparent;
+  color: var(--card-foreground, #f3f4f6);
 }
 
 .wfb-overlay-list {
@@ -387,7 +432,7 @@
 }
 
 .wfb-overlay-item:hover {
-  background: #f3f4f6;
+  background: var(--muted, rgba(255, 255, 255, 0.08));
 }
 
 .wfb-overlay-item-icon {
@@ -397,7 +442,7 @@
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: #f9fafb;
+  background: var(--muted, rgba(255, 255, 255, 0.05));
 }
 
 .wfb-overlay-item-info {
@@ -408,10 +453,10 @@
 .wfb-overlay-item-name {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #111827;
+  color: var(--card-foreground, #f3f4f6);
 }
 
 .wfb-overlay-item-desc {
   font-size: 0.72rem;
-  color: #6b7280;
+  color: var(--muted-foreground, #9ca3af);
 }

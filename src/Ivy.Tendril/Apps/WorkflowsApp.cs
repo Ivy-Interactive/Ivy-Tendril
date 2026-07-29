@@ -159,8 +159,8 @@ public class WorkflowsApp : ViewBase
             () => showCreateDialog.Set(true)
         );
 
-        object mainView = content;
-
-        return new Fragment(mainView, createDialog);
+        return Layout.Vertical().Height(Size.Full()).Width(Size.Full()).RemoveParentPadding()
+            | content
+            | createDialog;
     }
 }
