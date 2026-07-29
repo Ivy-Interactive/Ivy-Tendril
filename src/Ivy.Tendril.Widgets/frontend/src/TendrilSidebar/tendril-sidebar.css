@@ -1,15 +1,41 @@
 .tendril-sidebar {
+  --ts-bg: var(--background, #fcfcfc);
+  --ts-border: var(--border, #e5e7eb);
+  --ts-fg: var(--foreground, #1f2937);
+  --ts-fg-muted: var(--muted-foreground, #6b7280);
+  --ts-hover-bg: color-mix(in srgb, var(--foreground, #111827) 6%, transparent);
+  --ts-active-bg: color-mix(in srgb, var(--foreground, #111827) 10%, transparent);
+  --ts-badge-bg: color-mix(in srgb, var(--muted-foreground, #6b7280) 15%, transparent);
+  --ts-badge-fg: var(--foreground, #111827);
+  --ts-new-plan-bg: var(--foreground, #000000);
+  --ts-new-plan-fg: var(--background, #ffffff);
+
   display: flex;
   flex-direction: column;
   height: 100%;
   width: 256px;
-  background-color: #fcfcfc;
-  border-right: 1px solid #e5e7eb;
+  background-color: var(--ts-bg);
+  border-right: 1px solid var(--ts-border);
   padding: 16px 12px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  color: #1f2937;
+  color: var(--ts-fg);
   user-select: none;
   box-sizing: border-box;
+}
+
+:root.dark .tendril-sidebar,
+.dark .tendril-sidebar,
+[data-theme="dark"] .tendril-sidebar {
+  --ts-bg: var(--background, #09090b);
+  --ts-border: var(--border, #27272a);
+  --ts-fg: var(--foreground, #f4f4f5);
+  --ts-fg-muted: var(--muted-foreground, #a1a1aa);
+  --ts-hover-bg: #27272a;
+  --ts-active-bg: #27272a;
+  --ts-badge-bg: #27272a;
+  --ts-badge-fg: #f4f4f5;
+  --ts-new-plan-bg: #ffffff;
+  --ts-new-plan-fg: #09090b;
 }
 
 .tendril-sidebar.collapsed {
@@ -48,19 +74,19 @@
   font-weight: 700;
   font-size: 15px;
   line-height: 1.2;
-  color: #111827;
+  color: var(--ts-fg);
 }
 
 .tendril-sidebar-version {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--ts-fg-muted);
   line-height: 1.2;
 }
 
 .tendril-sidebar-collapse-btn {
   background: none;
   border: none;
-  color: #4b5563;
+  color: var(--ts-fg-muted);
   cursor: pointer;
   padding: 6px;
   border-radius: 6px;
@@ -71,8 +97,8 @@
 }
 
 .tendril-sidebar-collapse-btn:hover {
-  background-color: #f3f4f6;
-  color: #111827;
+  background-color: var(--ts-hover-bg);
+  color: var(--ts-fg);
 }
 
 /* Action Buttons */
@@ -87,8 +113,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background-color: #000000;
-  color: #ffffff;
+  background-color: var(--ts-new-plan-bg);
+  color: var(--ts-new-plan-fg);
   border: none;
   border-radius: 8px;
   padding: 10px 14px;
@@ -97,11 +123,11 @@
   cursor: pointer;
   width: 100%;
   box-sizing: border-box;
-  transition: background-color 0.15s ease;
+  transition: opacity 0.15s ease;
 }
 
 .tendril-sidebar-new-plan-btn:hover {
-  background-color: #1f2937;
+  opacity: 0.9;
 }
 
 .tendril-sidebar-btn-left {
@@ -112,8 +138,13 @@
 
 .tendril-sidebar-shortcut {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--ts-fg-muted);
   font-weight: 500;
+}
+
+.tendril-sidebar-new-plan-btn .tendril-sidebar-shortcut {
+  color: var(--ts-new-plan-fg);
+  opacity: 0.7;
 }
 
 .tendril-sidebar-agent-item {
@@ -125,13 +156,12 @@
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  color: #374151;
+  color: var(--ts-fg);
   transition: background-color 0.15s ease;
 }
 
 .tendril-sidebar-agent-item:hover {
-  background-color: #f3f4f6;
-  color: #111827;
+  background-color: var(--ts-hover-bg);
 }
 
 /* Navigation Menu */
@@ -152,19 +182,18 @@
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  color: #374151;
+  color: var(--ts-fg);
   text-decoration: none;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .tendril-sidebar-item:hover {
-  background-color: #f3f4f6;
-  color: #111827;
+  background-color: var(--ts-hover-bg);
 }
 
 .tendril-sidebar-item.active {
-  background-color: #eeeeee;
-  color: #111827;
+  background-color: var(--ts-active-bg);
+  color: var(--ts-fg);
   font-weight: 600;
 }
 
@@ -177,17 +206,17 @@
 .tendril-sidebar-item-icon {
   width: 18px;
   height: 18px;
-  color: #4b5563;
+  color: var(--ts-fg-muted);
   flex-shrink: 0;
 }
 
 .tendril-sidebar-item.active .tendril-sidebar-item-icon {
-  color: #111827;
+  color: var(--ts-fg);
 }
 
 .tendril-sidebar-badge {
-  background-color: #f3f4f6;
-  color: #374151;
+  background-color: var(--ts-badge-bg);
+  color: var(--ts-badge-fg);
   font-size: 12px;
   font-weight: 600;
   padding: 1px 7px;
@@ -198,7 +227,7 @@
 
 .tendril-sidebar-divider {
   height: 1px;
-  background-color: #e5e7eb;
+  background-color: var(--ts-border);
   margin: 12px 4px;
 }
 
@@ -217,13 +246,12 @@
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  color: #374151;
+  color: var(--ts-fg);
   transition: background-color 0.15s ease;
 }
 
 .tendril-sidebar-group-header:hover {
-  background-color: #f3f4f6;
-  color: #111827;
+  background-color: var(--ts-hover-bg);
 }
 
 .tendril-sidebar-group-items {
@@ -243,17 +271,17 @@
   cursor: pointer;
   font-size: 13px;
   font-weight: 400;
-  color: #4b5563;
+  color: var(--ts-fg-muted);
   transition: background-color 0.15s ease;
 }
 
 .tendril-sidebar-subitem:hover {
-  background-color: #f3f4f6;
-  color: #111827;
+  background-color: var(--ts-hover-bg);
+  color: var(--ts-fg);
 }
 
 .tendril-sidebar-subitem.active {
-  background-color: #e5e7eb;
-  color: #111827;
+  background-color: var(--ts-active-bg);
+  color: var(--ts-fg);
   font-weight: 600;
 }

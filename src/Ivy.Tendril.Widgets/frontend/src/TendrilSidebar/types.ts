@@ -20,5 +20,6 @@ export interface TendrilSidebarProps {
   iceboxCount?: number;
   helpRequestCount?: number;
   collapsed?: boolean;
+  showCollapseButton?: boolean;
   eventHandler?: (eventName: string, widgetId: string, args: unknown[]) => void;
 }

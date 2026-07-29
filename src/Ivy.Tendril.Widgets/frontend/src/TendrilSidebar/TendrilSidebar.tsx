@@ -24,18 +24,15 @@ export function TendrilSidebar({
   agentShortcut = "⌘ A",
   newPlanShortcut = "⌘ K",
   activeItem = "dashboard",
-  draftCount = 8,
-  reviewCount = 3,
-  recommendationsCount = 5,
-  jobs = [
-    { id: "acme", name: "acme", count: 5 },
-    { id: "geo-corp", name: "geo-corp" },
-    { id: "untitled", name: "untitled", count: 2 },
-  ],
+  draftCount,
+  reviewCount,
+  recommendationsCount,
+  jobs = [],
   pullRequestCount,
   iceboxCount,
   helpRequestCount,
   collapsed = false,
+  showCollapseButton = false,
   eventHandler,
 }: TendrilSidebarProps) {
   const [jobsExpanded, setJobsExpanded] = useState(true);
@@ -78,14 +75,16 @@ export function TendrilSidebar({
             </div>
           )}
         </div>
-        <button
-          type="button"
-          className="tendril-sidebar-collapse-btn"
-          onClick={handleToggleCollapse}
-          title="Toggle Sidebar"
-        >
-          <PanelLeft size={18} />
-        </button>
+        {showCollapseButton && (
+          <button
+            type="button"
+            className="tendril-sidebar-collapse-btn"
+            onClick={handleToggleCollapse}
+            title="Toggle Sidebar"
+          >
+            <PanelLeft size={18} />
+          </button>
+        )}
       </div>
 
       {/* Action Buttons */}

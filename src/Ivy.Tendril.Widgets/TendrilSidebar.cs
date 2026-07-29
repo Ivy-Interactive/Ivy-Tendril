@@ -28,6 +28,7 @@ public record TendrilSidebar : WidgetBase<TendrilSidebar>
     [Prop] public int IceboxCount { get; init; }
     [Prop] public int HelpRequestCount { get; init; }
     [Prop] public bool Collapsed { get; init; }
+    [Prop] public bool ShowCollapseButton { get; init; }
 
     [Event] public EventHandler<Event<TendrilSidebar, string>>? OnSelect { get; init; }
     [Event] public EventHandler<Event<TendrilSidebar>>? OnNewPlan { get; init; }
@@ -81,6 +82,9 @@ public static class TendrilSidebarExtensions
 
     public static TendrilSidebar Collapsed(this TendrilSidebar w, bool collapsed = true) =>
         w with { Collapsed = collapsed };
+
+    public static TendrilSidebar ShowCollapseButton(this TendrilSidebar w, bool show = true) =>
+        w with { ShowCollapseButton = show };
 
     public static TendrilSidebar OnSelect(this TendrilSidebar w, Action<string> handler) =>
         w with

@@ -596,6 +596,17 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         var (agentLabel, _) = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
 
+        var configuredProjects = config.Projects;
+        var allJobs = jobService.GetJobs();
+        var projectSubItems = configuredProjects.Select(p =>
+        {
+            var count = allJobs.Count(j =>
+                j.Project != null &&
+                ProjectHelper.ParseProjects(j.Project)
+                    .Contains(p.Name, StringComparer.OrdinalIgnoreCase));
+            return new JobSubItem(p.Name, p.Name, count > 0 ? count : null);
+        }).ToArray();
+
         var tendrilSidebar = new Ivy.Tendril.Widgets.TendrilSidebar()
             .Version("v 1.0.20")
             .AgentName(agentLabel)
@@ -609,24 +620,20 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             .IceboxCount(status.Value.IceboxCount)
             .HelpRequestCount(0)
             .Collapsed(!sidebarOpen.Value)
-            .Jobs(
-                new JobSubItem("acme", "acme", 5),
-                new JobSubItem("geo-corp", "geo-corp"),
-                new JobSubItem("untitled", "untitled", 2)
-            )
+            .ShowCollapseButton(false)
+            .Jobs(projectSubItems)
             .OnSelect(item =>
             {
                 if (item.StartsWith("job:"))
                 {
-                    var jobId = item[4..];
-                    OpenApp(new NavigateArgs($"jobs?id={jobId}"));
+                    OpenApp(new NavigateArgs("jobs"));
                 }
                 else
                 {
                     OpenApp(new NavigateArgs(item));
                 }
             })
-            .OnNewPlan(() => OpenApp(new NavigateArgs("drafts?action=new")))
+            .OnNewPlan(() => OpenApp(new NavigateArgs("drafts")))
             .OnSelectAgent(() => OpenApp(new NavigateArgs(AgentAppId)))
             .OnToggleCollapse(() => sidebarOpen.Set(!sidebarOpen.Value));
 
