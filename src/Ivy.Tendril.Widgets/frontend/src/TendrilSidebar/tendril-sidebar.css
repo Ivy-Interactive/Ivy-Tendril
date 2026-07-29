@@ -1,12 +1,13 @@
-/* Ensure parent containers in Ivy SidebarLayout stretch to full screen height */
+/* Remove padding and margin from parent containers so tendril-sidebar fills the slot flush */
 :has(> .tendril-sidebar),
 [class*="sidebar-panel"],
 [class*="sidebar-content"],
 [class*="external-widget"] {
+  padding: 0 !important;
+  margin: 0 !important;
   display: flex !important;
   flex-direction: column !important;
   height: 100% !important;
-  min-height: 100% !important;
   flex: 1 1 auto !important;
 }
 
@@ -24,10 +25,8 @@
 
   display: flex;
   flex-direction: column;
-  height: calc(100% + 24px);
-  min-height: calc(100vh - 24px);
-  width: calc(100% + 24px);
-  margin: -12px;
+  height: 100%;
+  width: 100%;
   background-color: var(--ts-bg);
   padding: 12px 8px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -52,9 +51,8 @@
 }
 
 .tendril-sidebar.collapsed {
-  height: calc(100% + 24px) !important;
-  width: calc(100% + 24px) !important;
-  margin: -12px !important;
+  height: 100% !important;
+  width: 100% !important;
   padding: 12px 0 !important;
   align-items: center !important;
   box-sizing: border-box !important;
