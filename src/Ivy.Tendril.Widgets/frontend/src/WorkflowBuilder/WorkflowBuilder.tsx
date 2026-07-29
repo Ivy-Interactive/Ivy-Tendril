@@ -77,6 +77,76 @@ interface WorkflowBuilderProps {
   eventHandler: IvyEventHandler;
 }
 
+interface IvySelectOption {
+  value: string | number;
+  label: string;
+  icon?: React.ReactNode;
+}
+
+interface IvySelectProps {
+  value: string | number;
+  options: IvySelectOption[];
+  onChange: (val: any) => void;
+  icon?: React.ReactNode;
+  className?: string;
+}
+
+// Custom Ivy Framework Styled Dropdown Component
+const IvySelect: React.FC<IvySelectProps> = ({ value, options, onChange, icon, className = "" }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedOption = options.find((o) => String(o.value) === String(value)) || options[0];
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className={`wfb-custom-select ${className}`} ref={containerRef}>
+      <button
+        type="button"
+        className="wfb-custom-select-trigger"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+      >
+        <div className="wfb-custom-select-left">
+          {icon && <span className="wfb-custom-select-icon">{icon}</span>}
+          <span className="wfb-custom-select-value">{selectedOption?.label || value}</span>
+        </div>
+        <ChevronDown size={14} className="wfb-custom-select-chevron" />
+      </button>
+
+      {isOpen && (
+        <div className="wfb-custom-select-dropdown">
+          {options.map((opt) => (
+            <div
+              key={opt.value}
+              className={`wfb-custom-select-option ${String(opt.value) === String(value) ? "active" : ""}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange(opt.value);
+                setIsOpen(false);
+              }}
+            >
+              {opt.icon && <span className="wfb-opt-icon">{opt.icon}</span>}
+              <span>{opt.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
   id,
   workflowDefinitionJson = "",
@@ -234,15 +304,13 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
     }
   }, [steps]);
 
-  // Reliable card dragging using ref + e.preventDefault()
-  const startDragNode = (e: React.MouseEvent, stepId: string) => {
+  // Bulletproof Pointer Dragging for Node Cards
+  const startDragNode = (e: React.PointerEvent, stepId: string) => {
     if (isReadOnly) return;
 
     const targetEl = e.target as HTMLElement;
-    // Don't start drag if user clicked inside select, option, button, or port
     if (
-      targetEl.closest("select") ||
-      targetEl.closest("input") ||
+      targetEl.closest(".wfb-custom-select") ||
       targetEl.closest("button") ||
       targetEl.closest(".wfb-port")
     ) {
@@ -261,7 +329,7 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
     const initialX = targetStep.x;
     const initialY = targetStep.y;
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
+    const onPointerMove = (moveEvent: PointerEvent) => {
       moveEvent.preventDefault();
       const dx = moveEvent.clientX - startX;
       const dy = moveEvent.clientY - startY;
@@ -273,13 +341,13 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
       );
     };
 
-    const onMouseUp = () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
+    const onPointerUp = () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
     };
 
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
   };
 
   // Dragging out a new arrow connection from a port dot
@@ -370,6 +438,29 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
     setSteps((prev) => prev.map((s) => (s.id === stepId ? { ...s, ...updates } : s)));
   };
 
+  // Options for Promptware & Model Selects
+  const promptwareOptions: IvySelectOption[] = [
+    { value: "CodeQuality", label: "CodeQuality" },
+    { value: "CodeSecurity", label: "CodeSecurity" },
+    { value: "PlanDrafter", label: "PlanDrafter" },
+    { value: "PlanReviewer", label: "PlanReviewer" },
+    { value: "PRCreator", label: "PRCreator" },
+  ];
+
+  const modelOptions: IvySelectOption[] = [
+    { value: "Claude Code (Fable 5 High)", label: "Claude Code (Fable 5 High)" },
+    { value: "Claude Code (Opus 5 High)", label: "Claude Code (Opus 5 High)" },
+    { value: "Claude Code (Sonnet 3.5)", label: "Claude Code (Sonnet 3.5)" },
+    { value: "Ollama (Llama 3.3 70B)", label: "Ollama (Llama 3.3 70B)" },
+    { value: "Ollama (Qwen 2.5 Coder)", label: "Ollama (Qwen 2.5 Coder)" },
+    { value: "GPT-4o", label: "GPT-4o" },
+  ];
+
+  const projectSelectOptions: IvySelectOption[] = projects.map((p) => ({ value: p, label: p }));
+  const workflowSelectOptions: IvySelectOption[] = workflows.length > 0
+    ? workflows.map((w) => ({ value: w.id, label: w.name }))
+    : [{ value: 0, label: "Tendril Core Lifecycle" }];
+
   // Preset integrations for search overlay
   const presetIntegrations = [
     { name: "Slack", description: "Send and receive messages in your Slack channels.", icon: <MessageSquare size={16} className="text-orange-500" /> },
@@ -392,48 +483,28 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
       {/* --- TOP BAR HEADER (FIXED PINNED AT TOP) --- */}
       <div className="wfb-top-bar">
         <div className="wfb-top-left">
-          <div className="wfb-project-selector">
-            <Folder size={15} className="wfb-icon-muted" />
-            <select
-              className="wfb-header-select"
-              value={currentProject}
-              onChange={(e) => {
-                setCurrentProject(e.target.value);
-                eventHandler("OnProjectSelect", id, [e.target.value]);
-              }}
-            >
-              {projects.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-            <ChevronDown size={14} className="wfb-icon-muted" />
-          </div>
+          {/* Custom Ivy Project Selector */}
+          <IvySelect
+            value={currentProject}
+            options={projectSelectOptions}
+            icon={<Folder size={15} className="wfb-icon-muted" />}
+            onChange={(val) => {
+              setCurrentProject(val);
+              eventHandler("OnProjectSelect", id, [val]);
+            }}
+          />
 
-          <div className="wfb-workflow-selector">
-            <Workflow size={15} className="wfb-icon-muted" />
-            <select
-              className="wfb-header-select"
-              value={currentWorkflowId}
-              onChange={(e) => {
-                const wid = parseInt(e.target.value);
-                setCurrentWorkflowId(wid);
-                eventHandler("OnWorkflowSelect", id, [wid]);
-              }}
-            >
-              {workflows.length > 0 ? (
-                workflows.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))
-              ) : (
-                <option value={0}>Tendril Core Lifecycle</option>
-              )}
-            </select>
-            <ChevronDown size={14} className="wfb-icon-muted" />
-          </div>
+          {/* Custom Ivy Workflow Selector */}
+          <IvySelect
+            value={currentWorkflowId}
+            options={workflowSelectOptions}
+            icon={<Workflow size={15} className="wfb-icon-muted" />}
+            onChange={(val) => {
+              const wid = parseInt(val);
+              setCurrentWorkflowId(wid);
+              eventHandler("OnWorkflowSelect", id, [wid]);
+            }}
+          />
         </div>
 
         <div className="wfb-top-right">
@@ -576,7 +647,7 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                 isTrigger ? "node-trigger-pill" : ""
               }`}
               style={{ left: `${step.x}px`, top: `${step.y}px` }}
-              onMouseDown={(e) => startDragNode(e, step.id)}
+              onPointerDown={(e) => startDragNode(e, step.id)}
             >
               {/* Left Input Port Dot */}
               <div className="wfb-port wfb-port-in" title="Connect to this node">
@@ -617,38 +688,21 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                 <div className="wfb-node-body">
                   {isPrompt && (
                     <>
-                      {/* Select 1: Ivy Styled Promptware Selector */}
-                      <div className="wfb-node-select-row">
-                        <Layers size={14} className="wfb-select-icon text-cyan-400" />
-                        <select
-                          className="wfb-node-dropdown"
-                          value={step.connectionName || "CodeQuality"}
-                          onChange={(e) => updateStep(step.id, { connectionName: e.target.value })}
-                        >
-                          <option value="CodeQuality">CodeQuality</option>
-                          <option value="CodeSecurity">CodeSecurity</option>
-                          <option value="PlanDrafter">PlanDrafter</option>
-                          <option value="PlanReviewer">PlanReviewer</option>
-                          <option value="PRCreator">PRCreator</option>
-                        </select>
-                      </div>
+                      {/* Custom Ivy Styled Select 1: Promptware Selector */}
+                      <IvySelect
+                        value={step.connectionName || "CodeQuality"}
+                        options={promptwareOptions}
+                        icon={<Layers size={14} className="text-cyan-400" />}
+                        onChange={(val) => updateStep(step.id, { connectionName: val })}
+                      />
 
-                      {/* Select 2: Ivy Styled Agent-CLI / Model Selector */}
-                      <div className="wfb-node-select-row">
-                        <Terminal size={14} className="wfb-select-icon text-purple-400" />
-                        <select
-                          className="wfb-node-dropdown"
-                          value={step.model || "Claude Code (Fable 5 High)"}
-                          onChange={(e) => updateStep(step.id, { model: e.target.value })}
-                        >
-                          <option value="Claude Code (Fable 5 High)">Claude Code (Fable 5 High)</option>
-                          <option value="Claude Code (Opus 5 High)">Claude Code (Opus 5 High)</option>
-                          <option value="Claude Code (Sonnet 3.5)">Claude Code (Sonnet 3.5)</option>
-                          <option value="Ollama (Llama 3.3 70B)">Ollama (Llama 3.3 70B)</option>
-                          <option value="Ollama (Qwen 2.5 Coder)">Ollama (Qwen 2.5 Coder)</option>
-                          <option value="GPT-4o">GPT-4o</option>
-                        </select>
-                      </div>
+                      {/* Custom Ivy Styled Select 2: Agent-CLI / Model Selector */}
+                      <IvySelect
+                        value={step.model || "Claude Code (Fable 5 High)"}
+                        options={modelOptions}
+                        icon={<Terminal size={14} className="text-purple-400" />}
+                        onChange={(val) => updateStep(step.id, { model: val })}
+                      />
                     </>
                   )}
 
