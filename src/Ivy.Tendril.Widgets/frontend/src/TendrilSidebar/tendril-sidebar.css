@@ -1,14 +1,18 @@
-/* Remove padding and margin from parent containers so tendril-sidebar fills the slot flush */
+/* Ensure web component host tag and parent containers stretch to full 100vh height */
+:host,
+tendril-sidebar,
 :has(> .tendril-sidebar),
 [class*="sidebar-panel"],
 [class*="sidebar-content"],
 [class*="external-widget"] {
-  padding: 0 !important;
-  margin: 0 !important;
   display: flex !important;
   flex-direction: column !important;
   height: 100% !important;
+  min-height: 100% !important;
   flex: 1 1 auto !important;
+  width: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
 .tendril-sidebar {
@@ -26,6 +30,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 100vh;
   width: 100%;
   background-color: var(--ts-bg);
   padding: 12px 8px;
@@ -52,6 +57,7 @@
 
 .tendril-sidebar.collapsed {
   height: 100% !important;
+  min-height: 100vh !important;
   width: 100% !important;
   padding: 12px 0 !important;
   align-items: center !important;
@@ -395,8 +401,9 @@
 .tendril-sidebar-footer {
   display: flex;
   flex-direction: column;
-  margin-top: auto;
+  margin-top: auto !important;
   width: 100%;
+  padding-bottom: 4px;
 }
 
 .tendril-sidebar.collapsed .tendril-sidebar-footer {
@@ -404,5 +411,6 @@
   padding: 0 !important;
   margin-left: 0 !important;
   margin-right: 0 !important;
+  margin-top: auto !important;
   width: 100% !important;
 }
