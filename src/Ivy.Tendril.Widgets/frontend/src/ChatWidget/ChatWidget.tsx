@@ -50,6 +50,7 @@ type IvyEventHandler = (eventName: string, widgetId: string, args: unknown[]) =>
 export interface ChatWidgetProps {
   id: string;
   activeSessionId?: string | null;
+  streamingSessionId?: string | null;
   sessions?: ChatSessionDto[];
   agents?: AgentOptionDto[];
   models?: ModelOptionDto[];
@@ -182,6 +183,7 @@ interface QueuedItem {
 export function ChatWidget({
   id,
   activeSessionId,
+  streamingSessionId,
   sessions = [],
   agents = [],
   models = [],
@@ -584,7 +586,7 @@ export function ChatWidget({
             </div>
           )}
 
-          {isStreaming && (
+          {isStreaming && activeSessionId === streamingSessionId && (
             <div className="chat-message-row assistant">
               <div className="chat-message-bubble" style={{ width: "85%", maxWidth: "85%" }}>
                 <div className="chat-message-header">

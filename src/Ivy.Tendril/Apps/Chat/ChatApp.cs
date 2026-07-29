@@ -30,6 +30,7 @@ public class ChatApp : ViewBase
         var selectedModel = UseState("claude-opus-5");
         var lastSyncedSessionId = UseRef<string?>(null);
         var isStreaming = UseState(false);
+        var streamingSessionId = UseState<string?>(null);
         var streamingText = UseState("");
         var streamingStream = UseStream<string>();
         var activeSessionRef = UseRef<IAgentSession?>(null);
@@ -114,17 +115,13 @@ public class ChatApp : ViewBase
             var attachments = dto.Attachments ?? [];
             if (string.IsNullOrWhiteSpace(userPrompt) && attachments.Count == 0) return;
 
-            string targetSessionId = !string.IsNullOrEmpty(dto.SessionId) ? dto.SessionId : (activeSessionId.Value ?? "");
-            if (string.IsNullOrEmpty(targetSessionId))
-            {
-                var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value);
-                targetSessionId = newSess.Id;
-                activeSessionId.Set(targetSessionId);
-            }
+            string targetSessionId = dto.SessionId ?? "";
+            if (string.IsNullOrEmpty(targetSessionId)) return;
 
-            // Track generating session
+            // Track generating session and streaming session ID
             var nextRunning = new HashSet<string>(runningSessionIds.Value) { targetSessionId };
             runningSessionIds.Set(nextRunning);
+            streamingSessionId.Set(targetSessionId);
 
             // Save attachments to disk
             var attachedFilePaths = new List<string>();
@@ -263,6 +260,7 @@ public class ChatApp : ViewBase
                 activeSessionRef.Value = null;
                 isStreaming.Set(false);
                 streamingText.Set("");
+                streamingSessionId.Set(null);
 
                 var finishedSet = new HashSet<string>(runningSessionIds.Value);
                 finishedSet.Remove(targetSessionId);
@@ -278,13 +276,27 @@ public class ChatApp : ViewBase
 
         void SendMessage(ChatSendMessageDto dto)
         {
-            if (isStreaming.Value)
+            var userPrompt = dto.Prompt.Trim();
+            var attachments = dto.Attachments ?? [];
+            if (string.IsNullOrWhiteSpace(userPrompt) && attachments.Count == 0) return;
+
+            string targetSessionId = !string.IsNullOrEmpty(dto.SessionId) ? dto.SessionId : (activeSessionId.Value ?? "");
+            if (string.IsNullOrEmpty(targetSessionId))
             {
-                messageQueue.Value.Enqueue(dto);
+                var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value);
+                targetSessionId = newSess.Id;
+                activeSessionId.Set(targetSessionId);
+            }
+
+            var pinnedDto = new ChatSendMessageDto(userPrompt, dto.Attachments, targetSessionId);
+
+            if (runningSessionIds.Value.Count > 0)
+            {
+                messageQueue.Value.Enqueue(pinnedDto);
             }
             else
             {
-                _ = ExecuteSendMessage(dto);
+                _ = ExecuteSendMessage(pinnedDto);
             }
         }
 
@@ -297,6 +309,7 @@ public class ChatApp : ViewBase
         return new Ivy.Tendril.Widgets.ChatWidget
         {
             ActiveSessionId = activeSessionId.Value,
+            StreamingSessionId = streamingSessionId.Value,
             Sessions = sessionDtos,
             Agents = agentDtos,
             Models = modelDtos,
@@ -355,6 +368,7 @@ public class ChatApp : ViewBase
                     // Ignore cancel exceptions
                 }
                 isStreaming.Set(false);
+                streamingSessionId.Set(null);
                 runningSessionIds.Set(new HashSet<string>());
             },
             OnAgentChanged = e =>

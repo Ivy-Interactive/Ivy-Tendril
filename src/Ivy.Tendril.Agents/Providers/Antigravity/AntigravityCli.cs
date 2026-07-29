@@ -10,6 +10,7 @@ public sealed class AntigravityCli : IAgentCli
 
     public AgentCapabilities Capabilities =>
         AgentCapabilities.StdinPrompt |
+        AgentCapabilities.StreamJsonOutput |
         AgentCapabilities.DirectoryRestriction |
         AgentCapabilities.HealthCheck |
         AgentCapabilities.ExtraArgPassthrough |
@@ -17,7 +18,7 @@ public sealed class AntigravityCli : IAgentCli
 
     public TransportKind SupportedTransports => TransportKind.CliSpawn;
     public PromptTransport PromptTransport => PromptTransport.Stdin;
-    public OutputFormat PreferredOutputFormat => OutputFormat.Text;
+    public OutputFormat PreferredOutputFormat => OutputFormat.StreamJson;
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
     [
@@ -37,6 +38,7 @@ public sealed class AntigravityCli : IAgentCli
         var args = new List<string>
         {
             "--dangerously-skip-permissions",
+            "--output-format", "stream-json",
         };
 
         if (!string.IsNullOrEmpty(config.Model))
