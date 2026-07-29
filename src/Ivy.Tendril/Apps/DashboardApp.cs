@@ -82,9 +82,9 @@ public class DashboardApp : ViewBase
             | BuildStatusPillItem(Icons.MessageSquare, failedCount.ToString(), "failed")
         ).Width(Size.Full());
 
-        // --- 3. 4 Key Stat Cards ---
-        var avgCostVal = stats.AvgCostPerPlan > 0 ? FormatHelper.FormatCost(stats.AvgCostPerPlan * 9200) : "$9043";
-        var avgCostPerPlanVal = stats.AvgCostPerPlan > 0 ? FormatHelper.FormatCost(stats.AvgCostPerPlan) : "$0,98";
+        // --- 3. 4 Key MetricViews (Using Ivy MetricView) ---
+        var avgCostVal = stats.AvgCostPerPlan > 0 ? FormatHelper.FormatCost(stats.AvgCostPerPlan * 9200) : "$9,043";
+        var avgCostPerPlanVal = stats.AvgCostPerPlan > 0 ? FormatHelper.FormatCost(stats.AvgCostPerPlan) : "$0.98";
 
         var statCardsGrid = Layout.Grid()
             .Columns(1.At(Breakpoint.Mobile)
@@ -92,10 +92,10 @@ public class DashboardApp : ViewBase
                 .And(Breakpoint.Desktop, 4))
             .Gap(4)
             .Width(Size.Full())
-            | BuildMetricCard("Avg Cost/Month", avgCostVal, "-23%", isPositive: false)
-            | BuildMetricCard("Avg Tokens/Month", "80 720", null, isPositive: true)
-            | BuildMetricCard("Avg Daily PR count", "54", "+123%", isPositive: true)
-            | BuildMetricCard("Avg Cost/Plan", avgCostPerPlanVal, "-0,01%", isPositive: false);
+            | BuildMetricView("Avg Cost/Month", Icons.DollarSign, avgCostVal, -0.23)
+            | BuildMetricView("Avg Tokens/Month", Icons.Zap, "80 720", null)
+            | BuildMetricView("Avg Daily PR count", Icons.GitPullRequest, "54", 1.23)
+            | BuildMetricView("Avg Cost/Plan", Icons.TrendingUp, avgCostPerPlanVal, -0.0001);
 
         // --- 4. Main Line/Spline Chart (Total Cost / Total Plans) ---
         var monthlyTrends = stats.MonthlyTrends ?? new List<MonthlyTrendPoint>
@@ -203,7 +203,7 @@ public class DashboardApp : ViewBase
             | prBarChart
         ).Width(Size.Full());
 
-        // --- Assemble Main Container Layout with Generous Page Padding (6 = 24px) ---
+        // --- Assemble Main Container Layout ---
         return Layout.Vertical()
             .Padding(6)
             .Gap(5)
@@ -228,26 +228,20 @@ public class DashboardApp : ViewBase
         return Text.Muted("|");
     }
 
-    private static object BuildMetricCard(string title, string value, string? trend, bool isPositive)
+    private static object BuildMetricView(string title, Icons icon, string formattedValue, double? trend)
     {
-        var cardLayout = Layout.Vertical().Gap(2).Padding(4);
-
-        var titleRow = Text.Muted(title);
-
-        var valueRow = Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-            | Text.H2(value).Bold();
-
-        if (trend != null)
-        {
-            var trendIcon = isPositive ? " ↗" : " ↘";
-            var badgeVariant = isPositive ? BadgeVariant.Success : BadgeVariant.Outline;
-            valueRow |= new Badge(trend + trendIcon).Variant(badgeVariant).Small();
-        }
-
-        var content = cardLayout
-            | titleRow
-            | valueRow;
-
-        return new Card(content).Width(Size.Full());
+        return new MetricView(
+            title,
+            icon,
+            context => context.UseQuery(
+                key: (nameof(DashboardApp), title, formattedValue, trend),
+                fetcher: _ => Task.FromResult(new MetricRecord(
+                    MetricFormatted: formattedValue,
+                    TrendComparedToPreviousPeriod: trend,
+                    GoalAchieved: null,
+                    GoalFormatted: null
+                ))
+            )
+        );
     }
 }
