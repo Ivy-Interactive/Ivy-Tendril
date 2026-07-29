@@ -132,8 +132,8 @@ public class JobsAppRefreshGatingTests
         public void ForceStartJob(string id) => throw new NotSupportedException();
         public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) => throw new NotSupportedException();
         public void StopJob(string id) => throw new NotSupportedException();
-        public void StopAllJobs() => throw new NotSupportedException();
-        public void StopQueuedJobs() => throw new NotSupportedException();
+        public int StopAllJobs() => throw new NotSupportedException();
+        public int StopQueuedJobs() => throw new NotSupportedException();
         public void DeleteJob(string id) => throw new NotSupportedException();
         public void ClearCompletedJobs() => throw new NotSupportedException();
         public void ClearFailedJobs() => throw new NotSupportedException();

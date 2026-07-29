@@ -1,3 +1,6 @@
+using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
+
 namespace Ivy.Tendril.Helpers;
 
 public static class PromptwareHelper
@@ -55,7 +58,7 @@ public static class PromptwareHelper
 
     public static void RequireProgramFolder(string programFolder, string promptwareName, string? tendrilHome)
     {
-        if (File.Exists(Path.Combine(programFolder, "Program.md")))
+        if (File.Exists(Path.Combine(programFolder, "Program.md")) || Directory.Exists(programFolder))
             return;
 
         var promptsRoot = ResolvePromptsRoot(tendrilHome);
@@ -71,5 +74,56 @@ public static class PromptwareHelper
         throw new FileNotFoundException(
             $"Promptware not found: {promptwareName}. Available promptwares: {available}",
             programFolder);
+    }
+
+    public static string? FindProjectNameForPath(string path, string tendrilHome)
+    {
+        try
+        {
+            var configPath = Path.Combine(tendrilHome, "config.yaml");
+            if (!File.Exists(configPath)) return null;
+
+            var yaml = File.ReadAllText(configPath);
+            var settings = YamlHelper.Deserializer.Deserialize<TendrilSettings>(yaml);
+            if (settings?.Projects != null)
+            {
+                var targetPath = Path.GetFullPath(path).Replace('\\', '/').TrimEnd('/');
+                foreach (var p in settings.Projects)
+                {
+                    if (p.Repos == null) continue;
+                    foreach (var repo in p.Repos)
+                    {
+                        if (string.IsNullOrEmpty(repo.Path)) continue;
+                        try
+                        {
+                            var fullRepoPath = Path.GetFullPath(repo.Path).Replace('\\', '/').TrimEnd('/');
+                            if (targetPath.StartsWith(fullRepoPath, StringComparison.OrdinalIgnoreCase))
+                            {
+                                return p.Name;
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    public static string? FindGitRepositoryRoot(string startDir)
+    {
+        try
+        {
+            var dir = startDir;
+            while (dir != null)
+            {
+                if (Directory.Exists(Path.Combine(dir, ".git")))
+                    return dir;
+                dir = Path.GetDirectoryName(dir);
+            }
+        }
+        catch { }
+        return null;
     }
 }

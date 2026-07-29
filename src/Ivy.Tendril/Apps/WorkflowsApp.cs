@@ -161,13 +161,6 @@ public class WorkflowsApp : ViewBase
 
         object mainView = content;
 
-        if (showChat.Value)
-        {
-            mainView = Layout.Horizontal()
-                | content
-                | new Box(new AgentApp.AgentChatView(chatSessionId.Value)).Width(Size.Px(380));
-        }
-
         return new Fragment(mainView, createDialog);
     }
 }
