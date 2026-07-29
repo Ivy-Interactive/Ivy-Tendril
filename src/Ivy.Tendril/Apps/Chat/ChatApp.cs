@@ -290,7 +290,7 @@ public class ChatApp : ViewBase
 
             var pinnedDto = new ChatSendMessageDto(userPrompt, dto.Attachments, targetSessionId);
 
-            if (runningSessionIds.Value.Count > 0)
+            if (runningSessionIds.Value.Contains(targetSessionId))
             {
                 messageQueue.Value.Enqueue(pinnedDto);
             }

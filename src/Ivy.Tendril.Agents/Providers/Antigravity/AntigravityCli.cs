@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using Ivy.Tendril.Agents.Abstractions;
 
 namespace Ivy.Tendril.Agents.Providers.Antigravity;
@@ -81,7 +83,9 @@ public sealed class AntigravityCli : IAgentCli
         }
         else
         {
-            args.Add(config.Prompt);
+            var tempFile = Path.Combine(Path.GetTempPath(), $"tendril-agy-prompt-{Guid.NewGuid():N}.md");
+            File.WriteAllText(tempFile, config.Prompt);
+            args.Add($"@{tempFile}");
         }
 
         var env = new Dictionary<string, string>(GetDefaultEnvironment());
