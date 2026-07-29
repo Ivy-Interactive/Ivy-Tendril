@@ -158,8 +158,8 @@
 
 .wfb-connection-path {
   fill: none;
-  stroke: var(--muted-foreground, rgba(160, 160, 160, 0.5));
-  stroke-width: 2.5px;
+  stroke: var(--muted-foreground, rgba(180, 180, 180, 0.45));
+  stroke-width: 2px;
 }
 
 .wfb-connecting-preview {
@@ -201,15 +201,16 @@
 /* --- NODE CARDS & INTERACTIVE PORTS --- */
 .wfb-canvas-node {
   position: absolute;
-  width: 260px;
-  background: var(--card, #161722);
+  width: 280px;
+  background: var(--card, #14151f);
   color: var(--card-foreground, #f3f4f6);
   border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
   border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
   cursor: grab;
+  user-select: none;
   transition: box-shadow 0.15s, border-color 0.15s;
 }
 
@@ -229,20 +230,20 @@
 
 .wfb-canvas-node.node-trigger-pill {
   width: auto;
-  min-width: 130px;
+  min-width: 150px;
   padding: 10px 16px;
   border-radius: 24px;
-  background: var(--card, #161722);
+  background: var(--card, #14151f);
   color: var(--card-foreground, #f3f4f6);
 }
 
-/* Connection Port Dots on Node Edges - Math Aligned */
+/* Connection Port Dots on Node Edges - Math Aligned with y = step.y + 24px */
 .wfb-port {
   position: absolute;
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--card, #161722);
+  background: var(--card, #14151f);
   border: 2px solid var(--ring, #3b82f6);
   z-index: 20;
   cursor: crosshair;
@@ -322,27 +323,28 @@
   align-items: center;
   gap: 8px;
   background: var(--muted, rgba(255, 255, 255, 0.05));
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 0.8rem;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 0.82rem;
   color: var(--card-foreground, #f3f4f6);
 }
 
 .wfb-select-icon {
-  font-size: 0.8rem;
-  color: var(--muted-foreground, #9ca3af);
+  font-size: 0.82rem;
+  flex-shrink: 0;
 }
 
 .wfb-node-dropdown {
   background: transparent;
   border: none;
   outline: none;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 550;
   color: var(--card-foreground, #f3f4f6);
   width: 100%;
   cursor: pointer;
+  padding-right: 4px;
 }
 
 .wfb-node-dropdown option {

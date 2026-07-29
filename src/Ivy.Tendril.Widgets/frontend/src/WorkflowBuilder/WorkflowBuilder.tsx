@@ -16,7 +16,8 @@ import {
   CheckSquare,
   Users,
   Grid,
-  Plus
+  Plus,
+  Layers
 } from "lucide-react";
 import "./workflow-builder.css";
 
@@ -33,11 +34,11 @@ interface WorkflowStep {
   id: string;
   name: string;
   type: string; // "Trigger", "Connection", "Prompt"
-  connectionName: string;
+  connectionName: string; // Used for Promptware Name
   action: string;
   args: string;
   provider?: string;
-  model?: string;
+  model?: string; // Used for Agent-CLI / Model
   next: string[];
   x: number;
   y: number;
@@ -92,6 +93,9 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
   eventHandler,
 }) => {
   const [steps, setSteps] = useState<WorkflowStep[]>([]);
+  const stepsRef = useRef(steps);
+  stepsRef.current = steps;
+
   const [selectedNode, setSelectedNode] = useState<string | null>(selectedNodeId || null);
 
   // Dragging connection line state
@@ -107,11 +111,11 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
 
   const canvasRef = useRef<HTMLDivElement>(null);
 
-  // Precise node port coordinate helper (matching CSS ports 100%)
+  // Math aligned node port coordinates (280px wide card, port y at 24px center of header)
   const getNodePortCoords = (step: WorkflowStep) => {
     const isTrigger = step.type.toLowerCase() === "trigger";
-    const width = isTrigger ? 140 : 260;
-    const heightOffset = isTrigger ? 22 : 24; // Center of header row (24px) & center of trigger pill (22px)
+    const width = isTrigger ? 150 : 280;
+    const heightOffset = isTrigger ? 22 : 24;
 
     return {
       leftX: step.x,
@@ -130,8 +134,9 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
             ...s,
             x: s.x ?? (idx * 340 + 60),
             y: s.y ?? (idx % 2 === 0 ? 180 : 220),
+            connectionName: s.connectionName || "CodeQuality",
             provider: s.provider || "Claude Code",
-            model: s.model || "Fable 5 High",
+            model: s.model || "Claude Code (Fable 5 High)",
           }));
           setSteps(normalized);
           return;
@@ -158,11 +163,11 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
         id: "security",
         name: "Security Agent",
         type: "Prompt",
-        connectionName: "",
+        connectionName: "CodeSecurity",
         action: "",
         args: "Review every plan that gets drafted for security risks.",
         provider: "Claude Code",
-        model: "Fable 5 High",
+        model: "Claude Code (Fable 5 High)",
         next: [],
         x: 60,
         y: 380,
@@ -171,11 +176,11 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
         id: "draft",
         name: "Draft",
         type: "Prompt",
-        connectionName: "",
+        connectionName: "PlanDrafter",
         action: "",
         args: "",
         provider: "Claude Code",
-        model: "Fable 5 High",
+        model: "Claude Code (Fable 5 High)",
         next: ["review"],
         x: 440,
         y: 200,
@@ -184,11 +189,11 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
         id: "review",
         name: "Review",
         type: "Prompt",
-        connectionName: "",
+        connectionName: "PlanReviewer",
         action: "",
         args: "",
         provider: "Claude Code",
-        model: "Opus 5 High",
+        model: "Claude Code (Opus 5 High)",
         next: ["pr", "slack"],
         x: 820,
         y: 200,
@@ -197,11 +202,11 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
         id: "pr",
         name: "Pull Request",
         type: "Prompt",
-        connectionName: "",
+        connectionName: "PRCreator",
         action: "",
         args: "",
         provider: "Claude Code",
-        model: "Fable 5 High",
+        model: "Claude Code (Fable 5 High)",
         next: [],
         x: 1200,
         y: 180,
@@ -229,25 +234,35 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
     }
   }, [steps]);
 
-  // Global smooth node dragging
-  const startDragNode = (e: React.MouseEvent, step: WorkflowStep) => {
+  // Bulletproof global node dragging using ref + stepId
+  const startDragNode = (e: React.MouseEvent, stepId: string) => {
     if (isReadOnly) return;
+    // Don't drag if clicking interactive inputs or buttons inside node body
+    const targetEl = e.target as HTMLElement;
+    if (targetEl.tagName === "SELECT" || targetEl.tagName === "INPUT" || targetEl.tagName === "BUTTON" || targetEl.closest(".wfb-port")) {
+      return;
+    }
+
     e.stopPropagation();
-    setSelectedNode(step.id);
+    setSelectedNode(stepId);
+
+    const targetStep = stepsRef.current.find((s) => s.id === stepId);
+    if (!targetStep) return;
 
     const startX = e.clientX;
     const startY = e.clientY;
-    const initialX = step.x;
-    const initialY = step.y;
+    const initialX = targetStep.x;
+    const initialY = targetStep.y;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
+      moveEvent.preventDefault();
       const dx = moveEvent.clientX - startX;
       const dy = moveEvent.clientY - startY;
       const newX = Math.max(10, initialX + dx);
       const newY = Math.max(10, initialY + dy);
 
       setSteps((prev) =>
-        prev.map((s) => (s.id === step.id ? { ...s, x: newX, y: newY } : s))
+        prev.map((s) => (s.id === stepId ? { ...s, x: newX, y: newY } : s))
       );
     };
 
@@ -317,11 +332,11 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
       id: newId,
       name,
       type,
-      connectionName: type === "Connection" ? name : "",
+      connectionName: type === "Connection" ? name : "CodeQuality",
       action: type === "Connection" ? "SendMessage" : "",
       args: description,
       provider: "Claude Code",
-      model: "Fable 5 High",
+      model: "Claude Code (Fable 5 High)",
       next: [],
       x: 350 + Math.random() * 200,
       y: 250 + Math.random() * 150,
@@ -442,17 +457,17 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
           <defs>
             <marker
               id="arrowhead"
-              markerWidth="8"
-              markerHeight="6"
-              refX="7"
-              refY="3"
+              markerWidth="7"
+              markerHeight="5"
+              refX="6"
+              refY="2.5"
               orient="auto"
             >
-              <polygon points="0 0, 8 3, 0 6" fill="rgba(150, 150, 150, 0.5)" />
+              <polygon points="0 0, 7 2.5, 0 5" fill="rgba(200, 200, 200, 0.6)" />
             </marker>
           </defs>
 
-          {/* Draw SVG Edge Connections with Center-Edge Coordinates & Livestream Job Badges */}
+          {/* Draw SVG Edge Connections with Sleek 2px Stroke */}
           {steps.map((step) =>
             step.next.map((targetId) => {
               const target = steps.find((s) => s.id === targetId);
@@ -554,7 +569,7 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                 isTrigger ? "node-trigger-pill" : ""
               }`}
               style={{ left: `${step.x}px`, top: `${step.y}px` }}
-              onMouseDown={(e) => startDragNode(e, step)}
+              onMouseDown={(e) => startDragNode(e, step.id)}
             >
               {/* Left Input Port Dot */}
               <div className="wfb-port wfb-port-in" title="Connect to this node">
@@ -595,29 +610,36 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                 <div className="wfb-node-body">
                   {isPrompt && (
                     <>
+                      {/* Select 1: Promptware Selector */}
                       <div className="wfb-node-select-row">
-                        <span className="wfb-select-icon">✴</span>
+                        <Layers size={14} className="wfb-select-icon text-cyan-400" />
                         <select
                           className="wfb-node-dropdown"
-                          value={step.provider || "Claude Code"}
-                          onChange={(e) => updateStep(step.id, { provider: e.target.value })}
+                          value={step.connectionName || "CodeQuality"}
+                          onChange={(e) => updateStep(step.id, { connectionName: e.target.value })}
                         >
-                          <option value="Claude Code">Claude Code</option>
                           <option value="CodeQuality">CodeQuality</option>
                           <option value="CodeSecurity">CodeSecurity</option>
+                          <option value="PlanDrafter">PlanDrafter</option>
+                          <option value="PlanReviewer">PlanReviewer</option>
+                          <option value="PRCreator">PRCreator</option>
                         </select>
                       </div>
 
+                      {/* Select 2: Agent-CLI / Model Selector */}
                       <div className="wfb-node-select-row">
-                        <span className="wfb-select-icon">⚙</span>
+                        <Terminal size={14} className="wfb-select-icon text-purple-400" />
                         <select
                           className="wfb-node-dropdown"
-                          value={step.model || "Fable 5 High"}
+                          value={step.model || "Claude Code (Fable 5 High)"}
                           onChange={(e) => updateStep(step.id, { model: e.target.value })}
                         >
-                          <option value="Fable 5 High">Fable 5 High</option>
-                          <option value="Opus 5 High">Opus 5 High</option>
-                          <option value="Sonnet 3.5">Sonnet 3.5</option>
+                          <option value="Claude Code (Fable 5 High)">Claude Code (Fable 5 High)</option>
+                          <option value="Claude Code (Opus 5 High)">Claude Code (Opus 5 High)</option>
+                          <option value="Claude Code (Sonnet 3.5)">Claude Code (Sonnet 3.5)</option>
+                          <option value="Ollama (Llama 3.3 70B)">Ollama (Llama 3.3 70B)</option>
+                          <option value="Ollama (Qwen 2.5 Coder)">Ollama (Qwen 2.5 Coder)</option>
+                          <option value="GPT-4o">GPT-4o</option>
                         </select>
                       </div>
                     </>
