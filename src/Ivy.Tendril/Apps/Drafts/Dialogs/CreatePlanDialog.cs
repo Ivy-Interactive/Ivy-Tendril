@@ -202,7 +202,7 @@ public class CreatePlanDialog(
                                 : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
                             planWasCreated = true;
                             var prompt = BuildAgentPrompt(projects, createPlanText.Value);
-                            nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
+                            nav.Navigate<Ivy.Tendril.Apps.Chat.ChatApp>(new Ivy.Tendril.Apps.Chat.ChatAppArgs(prompt));
                             onClose();
                         }
                         return ValueTask.CompletedTask;
