@@ -28,6 +28,19 @@ public record ChatSessionDto(
 public record AgentOptionDto(string Id, string Label);
 public record ModelOptionDto(string Id, string DisplayName);
 
+public record ChatAttachmentDto(
+    string Name,
+    string ContentType,
+    long Size,
+    string? Base64Data = null,
+    string? LocalPath = null
+);
+
+public record ChatSendMessageDto(
+    string Prompt,
+    List<ChatAttachmentDto>? Attachments = null
+);
+
 [ExternalWidget(
     "frontend/dist/ivy-tendril-widgets.js",
     StylePath = "frontend/dist/ivy-tendril-widgets.css",
@@ -50,7 +63,8 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnDeleteSession { get; init; }
     [Event] public Func<Event<ChatWidget, string[]>, ValueTask>? OnRenameSession { get; init; }
     [Event] public Func<Event<ChatWidget, object>, ValueTask>? OnCreateSession { get; init; }
-    [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnSendMessage { get; init; }
+    [Event] public Func<Event<ChatWidget, ChatSendMessageDto>, ValueTask>? OnSendMessage { get; init; }
+    [Event] public Func<Event<ChatWidget, object>, ValueTask>? OnCancelStream { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnAgentChanged { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnModelChanged { get; init; }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Ivy;
@@ -21,6 +22,7 @@ public class ChatApp : ViewBase
         var configService = UseService<IConfigService>();
         var chatService = UseService<IChatHistoryService>();
         var agentRunner = UseService<IAgentRunner>();
+        var serializer = UseService<IEventSerializer>();
 
         var activeSessionId = UseState<string?>(args?.SessionId);
         var selectedAgent = UseState(() => configService.Settings.CodingAgent ?? "claude");
@@ -28,6 +30,7 @@ public class ChatApp : ViewBase
         var isStreaming = UseState(false);
         var streamingText = UseState("");
         var streamingStream = UseStream<string>();
+        var activeSessionRef = UseRef<IAgentSession?>(null);
         var initialHandled = UseRef(false);
 
         // Map sessions to DTOs
@@ -94,10 +97,11 @@ public class ChatApp : ViewBase
             )).ToList()
         )).ToList();
 
-        async Task SendMessage(string userPrompt)
+        async Task SendMessage(ChatSendMessageDto dto)
         {
-            var trimmed = userPrompt.Trim();
-            if (string.IsNullOrWhiteSpace(trimmed) || isStreaming.Value) return;
+            var userPrompt = dto.Prompt.Trim();
+            var attachments = dto.Attachments ?? [];
+            if (string.IsNullOrWhiteSpace(userPrompt) && attachments.Count == 0 || isStreaming.Value) return;
 
             string targetSessionId = activeSessionId.Value ?? "";
             if (string.IsNullOrEmpty(targetSessionId))
@@ -107,7 +111,46 @@ public class ChatApp : ViewBase
                 activeSessionId.Set(targetSessionId);
             }
 
-            chatService.AddMessage(targetSessionId, "user", trimmed, selectedAgent.Value, selectedModel.Value);
+            // Save attachments to disk
+            var attachedFilePaths = new List<string>();
+            if (attachments.Count > 0)
+            {
+                var attachDir = Path.Combine(configService.TendrilHome, "Attachments", targetSessionId);
+                if (!Directory.Exists(attachDir))
+                {
+                    Directory.CreateDirectory(attachDir);
+                }
+
+                foreach (var att in attachments)
+                {
+                    try
+                    {
+                        var filePath = Path.Combine(attachDir, att.Name);
+                        if (!string.IsNullOrEmpty(att.Base64Data) && att.Base64Data.Contains(","))
+                        {
+                            var base64 = att.Base64Data[(att.Base64Data.IndexOf(",") + 1)..];
+                            var bytes = Convert.FromBase64String(base64);
+                            File.WriteAllBytes(filePath, bytes);
+                            attachedFilePaths.Add(filePath);
+                        }
+                    }
+                    catch
+                    {
+                        // Best effort file save
+                    }
+                }
+            }
+
+            var promptWithAttachments = userPrompt;
+            if (attachedFilePaths.Count > 0)
+            {
+                var attachmentLines = string.Join("\n", attachedFilePaths.Select(p => $"[Attached file: {p}]"));
+                promptWithAttachments = string.IsNullOrWhiteSpace(promptWithAttachments)
+                    ? attachmentLines
+                    : $"{promptWithAttachments}\n\n{attachmentLines}";
+            }
+
+            chatService.AddMessage(targetSessionId, "user", promptWithAttachments, selectedAgent.Value, selectedModel.Value);
             isStreaming.Set(true);
             streamingText.Set("");
 
@@ -116,22 +159,35 @@ public class ChatApp : ViewBase
                 var context = new AgentResolutionContext
                 {
                     AgentId = selectedAgent.Value,
-                    Prompt = trimmed,
+                    Prompt = promptWithAttachments,
                     ModelOverride = selectedModel.Value,
                     WorkingDirectory = !string.IsNullOrEmpty(configService.TendrilHome) ? configService.TendrilHome : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                     PermissionMode = PermissionMode.FullAuto,
                 };
 
                 var session = await agentRunner.LaunchAsync(context);
+                activeSessionRef.Value = session;
 
                 var rawLines = new List<string>();
                 var rawLock = new object();
-                using var sub = session.RawOutput?.Subscribe(line =>
+
+                using var sub = session.Events.Subscribe(evt =>
                 {
-                    streamingStream.Write(line);
-                    lock (rawLock)
+                    try
                     {
-                        rawLines.Add(line);
+                        var wireJson = serializer.Serialize(evt);
+                        if (!string.IsNullOrEmpty(wireJson))
+                        {
+                            streamingStream.Write(wireJson);
+                            lock (rawLock)
+                            {
+                                rawLines.Add(wireJson);
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Ignore serialization exceptions
                     }
                 });
 
@@ -154,6 +210,7 @@ public class ChatApp : ViewBase
             }
             finally
             {
+                activeSessionRef.Value = null;
                 isStreaming.Set(false);
                 streamingText.Set("");
             }
@@ -162,7 +219,7 @@ public class ChatApp : ViewBase
         if (!initialHandled.Value && !string.IsNullOrWhiteSpace(args?.Prompt))
         {
             initialHandled.Value = true;
-            _ = Task.Run(async () => await SendMessage(args.Prompt));
+            _ = Task.Run(async () => await SendMessage(new ChatSendMessageDto(args.Prompt)));
         }
 
         return new Ivy.Tendril.Widgets.ChatWidget
@@ -210,6 +267,21 @@ public class ChatApp : ViewBase
             {
                 _ = SendMessage(e.Value);
                 return ValueTask.CompletedTask;
+            },
+            OnCancelStream = async _ =>
+            {
+                try
+                {
+                    if (activeSessionRef.Value != null)
+                    {
+                        await activeSessionRef.Value.StopAsync();
+                    }
+                }
+                catch
+                {
+                    // Ignore cancel exceptions
+                }
+                isStreaming.Set(false);
             },
             OnAgentChanged = e =>
             {

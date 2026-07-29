@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Trash2, Mic, Bot, Cpu, Search, MessageSquare, ChevronDown, Check, Pencil } from "lucide-react";
+import { Plus, Trash2, Mic, Bot, Cpu, Search, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AgentViewer } from "../AgentViewer";
@@ -34,6 +34,14 @@ export interface AgentOptionDto {
 export interface ModelOptionDto {
   id: string;
   displayName: string;
+}
+
+export interface ChatAttachmentDto {
+  name: string;
+  contentType: string;
+  size: number;
+  base64Data?: string;
+  localPath?: string;
 }
 
 type IvyEventHandler = (eventName: string, widgetId: string, args: unknown[]) => void;
@@ -158,6 +166,12 @@ function InlineSelect({ icon, value, options, onChange, title }: InlineSelectPro
 
 const noopEventHandler: IvyEventHandler = () => {};
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function ChatWidget({
   id,
   activeSessionId,
@@ -180,9 +194,11 @@ export function ChatWidget({
   const [editingTitleText, setEditingTitleText] = useState("");
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [sidebarEditingText, setSidebarEditingText] = useState("");
+  const [attachments, setAttachments] = useState<ChatAttachmentDto[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
 
@@ -244,12 +260,45 @@ export function ChatWidget({
   };
 
   const handleSendMessage = () => {
-    if (!promptText.trim() || isStreaming) return;
-    emit("OnSendMessage", promptText.trim());
+    if ((!promptText.trim() && attachments.length === 0) || isStreaming) return;
+    emit("OnSendMessage", { prompt: promptText.trim(), attachments });
     setPromptText("");
+    setAttachments([]);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
+  };
+
+  const handleCancelStream = () => {
+    emit("OnCancelStream");
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const base64Data = evt.target?.result as string;
+        setAttachments((prev) => [
+          ...prev,
+          {
+            name: file.name,
+            contentType: file.type || "application/octet-stream",
+            size: file.size,
+            base64Data,
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    e.target.value = "";
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -320,6 +369,14 @@ export function ChatWidget({
 
   return (
     <div className="chat-widget-root">
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        style={{ display: "none" }}
+        onChange={handleFileSelect}
+      />
+
       {/* Sidebar */}
       <div className="chat-sidebar">
         <div className="chat-sidebar-header">
@@ -517,6 +574,26 @@ export function ChatWidget({
         {/* Footer & Resizable Input Toolbar */}
         <div className="chat-footer">
           <div className="chat-input-box">
+            {/* Attachment preview pills */}
+            {attachments.length > 0 && (
+              <div className="chat-attachments-row">
+                {attachments.map((att, idx) => (
+                  <div key={idx} className="chat-attachment-chip">
+                    <Paperclip size={12} />
+                    <span className="chat-attachment-name">{att.name}</span>
+                    <span className="chat-attachment-size">({formatFileSize(att.size)})</span>
+                    <button
+                      type="button"
+                      className="chat-attachment-remove"
+                      onClick={() => removeAttachment(idx)}
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <textarea
               ref={textareaRef}
               className="chat-textarea"
@@ -545,6 +622,15 @@ export function ChatWidget({
 
                 <button
                   type="button"
+                  className="chat-action-btn"
+                  title="Attach file"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Paperclip size={15} />
+                </button>
+
+                <button
+                  type="button"
                   className={`chat-voice-btn ${isRecording ? "recording" : ""}`}
                   title="Voice input"
                   onClick={toggleVoiceRecording}
@@ -554,15 +640,27 @@ export function ChatWidget({
               </div>
 
               <div className="chat-input-actions-right">
-                <button
-                  type="button"
-                  className="chat-send-btn"
-                  disabled={!promptText.trim() || isStreaming}
-                  onClick={handleSendMessage}
-                >
-                  <span>Send</span>
-                  <span className="chat-shortcut-hint">↵</span>
-                </button>
+                {isStreaming ? (
+                  <button
+                    type="button"
+                    className="chat-cancel-btn"
+                    onClick={handleCancelStream}
+                    title="Stop agent"
+                  >
+                    <Square size={11} fill="#ef4444" />
+                    <span>Stop</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="chat-send-btn"
+                    disabled={!promptText.trim() && attachments.length === 0}
+                    onClick={handleSendMessage}
+                  >
+                    <span>Send</span>
+                    <span className="chat-shortcut-hint">↵</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
