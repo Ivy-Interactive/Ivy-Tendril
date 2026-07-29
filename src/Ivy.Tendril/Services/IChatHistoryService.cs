@@ -30,5 +30,6 @@ public interface IChatHistoryService
     ChatSessionModel CreateSession(string agentId, string modelId, string? title = null);
     void SaveSession(ChatSessionModel session);
     void DeleteSession(string id);
+    void RenameSession(string id, string newTitle);
     ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null);
 }

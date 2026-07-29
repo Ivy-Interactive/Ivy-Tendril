@@ -48,6 +48,7 @@ public record ChatWidget : WidgetBase<ChatWidget>
 
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnSelectSession { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnDeleteSession { get; init; }
+    [Event] public Func<Event<ChatWidget, string[]>, ValueTask>? OnRenameSession { get; init; }
     [Event] public Func<Event<ChatWidget, object>, ValueTask>? OnCreateSession { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnSendMessage { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnAgentChanged { get; init; }

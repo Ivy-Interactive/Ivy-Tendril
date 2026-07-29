@@ -192,6 +192,14 @@ public class ChatApp : ViewBase
                 }
                 return ValueTask.CompletedTask;
             },
+            OnRenameSession = e =>
+            {
+                if (e.Value != null && e.Value.Length >= 2)
+                {
+                    chatService.RenameSession(e.Value[0], e.Value[1]);
+                }
+                return ValueTask.CompletedTask;
+            },
             OnCreateSession = _ =>
             {
                 var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value);

@@ -125,6 +125,23 @@ public class ChatHistoryService : IChatHistoryService
         }
     }
 
+    public void RenameSession(string id, string newTitle)
+    {
+        if (string.IsNullOrEmpty(id) || string.IsNullOrWhiteSpace(newTitle)) return;
+        lock (_lock)
+        {
+            var session = GetSession(id);
+            if (session == null) return;
+            var updated = session with
+            {
+                Title = newTitle.Trim(),
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            _sessions[id] = updated;
+            PersistSessionToDisk(updated);
+        }
+    }
+
     public ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null)
     {
         lock (_lock)

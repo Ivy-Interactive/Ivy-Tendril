@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Trash2, Mic, Bot, Cpu, Search, MessageSquare, ChevronDown, Check } from "lucide-react";
+import { Plus, Trash2, Mic, Bot, Cpu, Search, MessageSquare, ChevronDown, Check, Pencil } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AgentViewer } from "../AgentViewer";
@@ -176,6 +176,11 @@ export function ChatWidget({
   const [searchTerm, setSearchTerm] = useState("");
   const [promptText, setPromptText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingTitleText, setEditingTitleText] = useState("");
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [sidebarEditingText, setSidebarEditingText] = useState("");
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -210,6 +215,32 @@ export function ChatWidget({
 
   const handleCreateSession = () => {
     emit("OnCreateSession");
+  };
+
+  const startHeaderTitleEdit = () => {
+    if (!activeSession) return;
+    setEditingTitleText(activeSession.title || "New Chat");
+    setIsEditingTitle(true);
+  };
+
+  const saveHeaderTitleEdit = () => {
+    if (activeSession && editingTitleText.trim() && editingTitleText.trim() !== activeSession.title) {
+      emit("OnRenameSession", activeSession.id, editingTitleText.trim());
+    }
+    setIsEditingTitle(false);
+  };
+
+  const startSidebarTitleEdit = (sess: ChatSessionDto, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingSessionId(sess.id);
+    setSidebarEditingText(sess.title || "New Chat");
+  };
+
+  const saveSidebarTitleEdit = (sessionId: string) => {
+    if (sidebarEditingText.trim()) {
+      emit("OnRenameSession", sessionId, sidebarEditingText.trim());
+    }
+    setEditingSessionId(null);
   };
 
   const handleSendMessage = () => {
@@ -315,6 +346,7 @@ export function ChatWidget({
           {filteredSessions.length > 0 ? (
             filteredSessions.map((sess) => {
               const isActive = sess.id === activeSessionId;
+              const isEditingThis = editingSessionId === sess.id;
               const dateStr = new Date(sess.updatedAt).toLocaleTimeString([], {
                 month: "numeric",
                 day: "numeric",
@@ -328,20 +360,46 @@ export function ChatWidget({
                   onClick={() => handleSelectSession(sess.id)}
                 >
                   <div className="chat-session-info">
-                    <span className="chat-session-title">{sess.title || "Untitled Chat"}</span>
+                    {isEditingThis ? (
+                      <input
+                        type="text"
+                        className="chat-sidebar-rename-input"
+                        value={sidebarEditingText}
+                        onChange={(e) => setSidebarEditingText(e.target.value)}
+                        onBlur={() => saveSidebarTitleEdit(sess.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveSidebarTitleEdit(sess.id);
+                          if (e.key === "Escape") setEditingSessionId(null);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        autoFocus
+                      />
+                    ) : (
+                      <span className="chat-session-title">{sess.title || "Untitled Chat"}</span>
+                    )}
                     <div className="chat-session-meta">
                       <span>{dateStr}</span>
                       <span>• {sess.agentId}</span>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="chat-delete-btn"
-                    title="Delete chat"
-                    onClick={(e) => handleDeleteSession(sess.id, e)}
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  <div className="chat-session-item-actions">
+                    <button
+                      type="button"
+                      className="chat-edit-btn"
+                      title="Rename chat"
+                      onClick={(e) => startSidebarTitleEdit(sess, e)}
+                    >
+                      <Pencil size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="chat-delete-btn"
+                      title="Delete chat"
+                      onClick={(e) => handleDeleteSession(sess.id, e)}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </div>
               );
             })
@@ -358,7 +416,25 @@ export function ChatWidget({
         {/* Header */}
         <div className="chat-main-header">
           <div className="chat-header-title-container">
-            <h1 className="chat-main-title">{activeSession?.title || "New Chat"}</h1>
+            {isEditingTitle ? (
+              <input
+                type="text"
+                className="chat-main-title-input"
+                value={editingTitleText}
+                onChange={(e) => setEditingTitleText(e.target.value)}
+                onBlur={saveHeaderTitleEdit}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveHeaderTitleEdit();
+                  if (e.key === "Escape") setIsEditingTitle(false);
+                }}
+                autoFocus
+              />
+            ) : (
+              <div className="chat-header-title-row" onClick={startHeaderTitleEdit} title="Click to rename chat">
+                <h1 className="chat-main-title">{activeSession?.title || "New Chat"}</h1>
+                <Pencil size={13} className="chat-title-pencil" />
+              </div>
+            )}
           </div>
           <div className="chat-header-badges">
             <span className="chat-badge">{selectedAgent}</span>
@@ -381,18 +457,25 @@ export function ChatWidget({
                   )}
                   {msg.role === "user" ? (
                     <div>{msg.content}</div>
-                  ) : msg.rawStream ? (
-                    <AgentViewer
-                      id={`msg-${msg.id}`}
-                      jsonStream={msg.rawStream}
-                      autoScroll={false}
-                      showThinking={true}
-                      showSystemEvents={false}
-                      showStatusLabel={false}
-                      eventHandler={noopEventHandler}
-                    />
                   ) : (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                    <div>
+                      {msg.rawStream && (
+                        <AgentViewer
+                          id={`msg-${msg.id}`}
+                          jsonStream={msg.rawStream}
+                          autoScroll={false}
+                          showThinking={true}
+                          showSystemEvents={false}
+                          showStatusLabel={false}
+                          eventHandler={noopEventHandler}
+                        />
+                      )}
+                      {msg.content && (
+                        <div className="chat-markdown-body">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
