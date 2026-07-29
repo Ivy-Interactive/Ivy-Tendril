@@ -273,7 +273,7 @@ public class ConnectionsApp : ViewBase
                         || i.Subtitle.Contains(searchQuery.Value, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        var leftList = Layout.Vertical().Gap(2);
+        var leftList = Layout.Vertical().Gap(2).Height(Size.Grow());
 
         foreach (var item in filteredCatalog)
         {
@@ -314,7 +314,7 @@ public class ConnectionsApp : ViewBase
 
         leftList = leftList | new Separator() | addCustomCard;
 
-        var leftPanel = Layout.Vertical().Gap(3).Width(Size.Rem(22))
+        var leftPanel = Layout.Vertical().Gap(3).Width(Size.Rem(22)).Height(Size.Full())
             | searchQuery.ToTextInput("Search integrations...")
                 .Prefix(Icons.Search.ToIcon().Color(Colors.Muted))
             | leftList;
@@ -383,7 +383,7 @@ public class ConnectionsApp : ViewBase
                     .OnClick(() => _ = SaveConnection())
               );
 
-        var rightPanel = Layout.Vertical().Gap(4).Width(Size.Grow())
+        var rightPanel = Layout.Vertical().Gap(4).Width(Size.Grow()).Height(Size.Full())
             | (Layout.Vertical().Gap(2)
                | (Layout.Horizontal().AlignContent(Align.Left)
                   | (Layout.Vertical().Width(Size.Grow())
@@ -398,10 +398,10 @@ public class ConnectionsApp : ViewBase
                 Layout.Vertical().Gap(3)
                    | Text.H3("Configuration").Bold()
                    | configForm
-              ).Padding(4);
+              ).Padding(4).Height(Size.Grow());
 
         return Layout.Vertical().Height(Size.Full()).RemoveParentPadding()
-            | (Layout.Horizontal().AlignContent(Align.Left).Gap(6).Padding(4)
+            | (Layout.Horizontal().AlignContent(Align.Left).Gap(6).Padding(4).Height(Size.Full())
                | leftPanel
                | rightPanel
               );
