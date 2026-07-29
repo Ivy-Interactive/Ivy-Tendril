@@ -17,7 +17,7 @@ using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Chat;
 
-[App(title: "Chat", icon: Icons.MessageSquare, group: ["Apps"], order: Constants.Chat, isVisible: true, allowDuplicateTabs: true)]
+[App(title: "Chat", icon: Icons.MessageSquare, group: ["Apps"], order: Constants.Chat, isVisible: false, allowDuplicateTabs: true)]
 public class ChatApp : ViewBase
 {
     public override object Build()
