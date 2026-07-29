@@ -1021,17 +1021,25 @@ public class PlanDatabaseService : IPlanDatabaseService
 
     private List<T> ReadList<T>(string sql, Func<SqliteDataReader, T> mapper, params SqliteParameter[] parameters)
     {
-        using var cmd = _connection.CreateCommand();
-        cmd.CommandText = sql;
-        foreach (var param in parameters)
-            cmd.Parameters.Add(param);
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = sql;
+            foreach (var param in parameters)
+                cmd.Parameters.Add(param);
 
-        var result = new List<T>();
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-            result.Add(mapper(reader));
+            var result = new List<T>();
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+                result.Add(mapper(reader));
 
-        return result;
+            return result;
+        }
+        catch (SqliteException ex) when (ex.SqliteErrorCode == 1 || ex.Message.Contains("no such table"))
+        {
+            _logger.LogWarning(ex, "Database table missing during query: {Sql}", sql);
+            return new List<T>();
+        }
     }
 
     /// <summary>
