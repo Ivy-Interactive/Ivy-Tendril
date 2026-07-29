@@ -79,13 +79,15 @@ public sealed class AntigravityCli : IAgentCli
         args.Add("--print");
         if (!string.IsNullOrEmpty(config.PromptFilePath))
         {
-            args.Add($"@{config.PromptFilePath}");
+            var normalizedPath = config.PromptFilePath.Replace('\\', '/');
+            args.Add($"@{normalizedPath}");
         }
         else
         {
             var tempFile = Path.Combine(Path.GetTempPath(), $"tendril-agy-prompt-{Guid.NewGuid():N}.md");
             File.WriteAllText(tempFile, config.Prompt);
-            args.Add($"@{tempFile}");
+            var normalizedTemp = tempFile.Replace('\\', '/');
+            args.Add($"@{normalizedTemp}");
         }
 
         var env = new Dictionary<string, string>(GetDefaultEnvironment());
