@@ -240,6 +240,15 @@ These commands are for internal use by other promptwares (e.g., a verification s
 
 Valid keys: `codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate`. Example: `tendril config get planTemplate` prints the configured Plan Template.
 
+## Finding Projects & Repositories
+
+When the user mentions a project, application, or codebase (e.g. "my coal miner game", "coalmininggame"):
+
+1. **ALWAYS run `tendril project list` first** to discover all registered Tendril projects and their repository paths!
+2. Run `tendril project get <project-name>` to inspect detailed metadata, repos, and verifications for that project.
+3. **DO NOT** run arbitrary filesystem searches (such as `Get-ChildItem -Path C:\Users\...` or searching user home folders) to guess project locations. Always use `tendril project list` / `tendril project get` to find the exact registered workspace paths.
+4. **IF THE PROJECT IS NOT FOUND**: Stop and inform the user that the project is not currently registered in Tendril, and ask the user to add the project to Tendril (`tendril project add <name>` or via the Projects UI) before proceeding.
+
 ## Creating Plans Interactively
 
 When the user asks you to create a plan, fix code, refactor a project, or improve code quality:
