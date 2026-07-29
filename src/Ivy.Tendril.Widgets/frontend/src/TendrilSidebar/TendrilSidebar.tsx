@@ -117,10 +117,7 @@ export function TendrilSidebar({
       {/* Header */}
       <div className="tendril-sidebar-header">
         <div className="tendril-sidebar-brand" title="Ivy Tendril">
-          <svg className="tendril-sidebar-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2a10 10 0 1 0 10 10H12V2z" fill="#059669" opacity="0.2" />
-            <path d="M4.5 9.5C6 4.5 11 3 15.5 5.5C19.5 7.5 21 12 19 16C17.5 19 13.5 21 9.5 19.5C6 18 4.5 14.5 6 11.5C7 9.5 9.5 8.5 11.5 9.5" />
-          </svg>
+          <img src="/tendril/assets/Tendril.svg" alt="Ivy Tendril" className="tendril-sidebar-logo" />
           {!isCollapsed && (
             <div className="tendril-sidebar-title-box">
               <span className="tendril-sidebar-title">Ivy Tendril</span>
