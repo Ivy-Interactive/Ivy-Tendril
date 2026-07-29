@@ -54,7 +54,7 @@ public class DashboardApp : ViewBase
             .AlignContent(Align.SpaceBetween)
             .AlignContent(Align.Center)
             .Width(Size.Full())
-            .Padding(0, 0, 4, 0)
+            .Padding(0, 0, 2, 0)
             | headerLeft
             | downloadReportBtn;
 
@@ -70,7 +70,7 @@ public class DashboardApp : ViewBase
                 .AlignContent(Align.SpaceBetween)
                 .AlignContent(Align.Center)
                 .Width(Size.Full())
-                .Padding(2, 4)
+                .Padding(3, 4)
             | BuildStatusPillItem(Icons.Feather, draftsCount.ToString(), "Drafts")
             | BuildStatusDivider()
             | BuildStatusPillItem(Icons.Trophy, inProgressCount.ToString(), "In Progress")
@@ -136,7 +136,7 @@ public class DashboardApp : ViewBase
             .Dimension("Month", e => e.Month)
             .Measure(thisYearMeasure, e => e.Sum(f => isCostTab ? f.ThisYearCost : f.ThisYearPlans))
             .Measure(lastYearMeasure, e => e.Sum(f => isCostTab ? f.LastYearCost : f.LastYearPlans))
-            .Height(Size.Px(280))
+            .Height(Size.Px(300))
             .Width(Size.Full());
 
         var chartTabSelector = Layout.Horizontal().Gap(2)
@@ -158,7 +158,7 @@ public class DashboardApp : ViewBase
             | chartLegend;
 
         var splineChartCard = new Card(
-            Layout.Vertical().Gap(2)
+            Layout.Vertical().Gap(3).Padding(4)
             | chartHeader
             | lineChart
         ).Width(Size.Full());
@@ -194,27 +194,25 @@ public class DashboardApp : ViewBase
                 })
             .Dimension("Period", e => e.Period)
             .Measure(prMeasure, e => e.Sum(f => (double)f.PrCount))
-            .Height(Size.Px(240))
+            .Height(Size.Px(260))
             .Width(Size.Full());
 
         var prChartCard = new Card(
-            Layout.Vertical().Gap(2)
+            Layout.Vertical().Gap(3).Padding(4)
             | Text.H3("Pull Requests").Bold()
             | prBarChart
         ).Width(Size.Full());
 
-        // --- Assemble Main Content Layout ---
-        var body = Layout.Vertical().Gap(4).Width(Size.Full())
+        // --- Assemble Main Container Layout with Generous Page Padding (6 = 24px) ---
+        return Layout.Vertical()
+            .Padding(6)
+            .Gap(5)
+            .Width(Size.Full())
             | topHeaderRow
             | statusPillBar
             | statCardsGrid
             | splineChartCard
             | prChartCard;
-
-        return new HeaderLayout(
-            Layout.Vertical(),
-            Layout.TopCenter() | (Layout.Vertical().Width(Size.Full().Max(1100)).TopMargin(4) | body)
-        );
     }
 
     private static object BuildStatusPillItem(Icons icon, string value, string label)
@@ -232,12 +230,12 @@ public class DashboardApp : ViewBase
 
     private static object BuildMetricCard(string title, string value, string? trend, bool isPositive)
     {
-        var cardLayout = Layout.Vertical().Gap(2).Padding(3);
+        var cardLayout = Layout.Vertical().Gap(2).Padding(4);
 
         var titleRow = Text.Muted(title);
 
         var valueRow = Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-            | Text.H1(value).Bold();
+            | Text.H2(value).Bold();
 
         if (trend != null)
         {
@@ -250,6 +248,6 @@ public class DashboardApp : ViewBase
             | titleRow
             | valueRow;
 
-        return new Card(content);
+        return new Card(content).Width(Size.Full());
     }
 }
