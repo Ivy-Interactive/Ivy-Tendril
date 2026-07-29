@@ -66,7 +66,7 @@ public sealed class AgentSession : IAgentSession
     {
         _state = SessionState.Starting;
 
-        if (spec.StdinContent is not null)
+        if (spec.RedirectStdin && spec.StdinContent is not null)
         {
             await ProcessRunner.WriteStdinAndCloseAsync(_process, spec.StdinContent, ct);
         }

@@ -103,7 +103,7 @@ public sealed class AntigravityCli : IAgentCli
             Arguments = args,
             WorkingDirectory = config.WorkingDirectory,
             Environment = env,
-            StdinContent = config.Prompt,
+            StdinContent = null,
             RedirectStdin = false,
         };
     }
