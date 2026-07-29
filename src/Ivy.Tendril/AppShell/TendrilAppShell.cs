@@ -13,6 +13,7 @@ using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Widgets;
 using Ivy.Widgets.Internal;
 using Microsoft.Extensions.Logging;
 
@@ -593,15 +594,48 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 | noop.ToSelectInput(new[] { "_" }.ToOptions()).Disabled();
         });
 
+        var (agentLabel, _) = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
+
+        var tendrilSidebar = new Ivy.Tendril.Widgets.TendrilSidebar()
+            .Version("v 1.0.20")
+            .AgentName(agentLabel)
+            .AgentShortcut("⌘ A")
+            .NewPlanShortcut("⌘ K")
+            .ActiveItem(currentApp.Value?.Id ?? "dashboard")
+            .DraftCount(status.Value.DraftCount)
+            .ReviewCount(status.Value.ReviewCount)
+            .RecommendationsCount(status.Value.RecommendationsCount)
+            .JobCount(status.Value.JobCount)
+            .IceboxCount(status.Value.IceboxCount)
+            .HelpRequestCount(0)
+            .Collapsed(!sidebarOpen.Value)
+            .Jobs(
+                new JobSubItem("acme", "acme", 5),
+                new JobSubItem("geo-corp", "geo-corp"),
+                new JobSubItem("untitled", "untitled", 2)
+            )
+            .OnSelect(item =>
+            {
+                if (item.StartsWith("job:"))
+                {
+                    var jobId = item[4..];
+                    OpenApp(new NavigateArgs($"jobs?id={jobId}"));
+                }
+                else
+                {
+                    OpenApp(new NavigateArgs(item));
+                }
+            })
+            .OnNewPlan(() => OpenApp(new NavigateArgs("drafts?action=new")))
+            .OnSelectAgent(() => OpenApp(new NavigateArgs(AgentAppId)))
+            .OnToggleCollapse(() => sidebarOpen.Set(!sidebarOpen.Value));
+
         return new Fragment(
             selectInputWarmup,
             new SidebarLayout(
                 body ?? null!,
-                sidebarMenu,
-                Layout.Vertical().Gap(2)
-                | settings.Header
-                | new NewPlanButton()
-                ,
+                tendrilSidebar,
+                null,
                 Layout.Vertical(
                     new SidebarNews(newsArticles.Value),
                     settings.Footer,

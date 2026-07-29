@@ -1,0 +1,259 @@
+.tendril-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 256px;
+  background-color: #fcfcfc;
+  border-right: 1px solid #e5e7eb;
+  padding: 16px 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #1f2937;
+  user-select: none;
+  box-sizing: border-box;
+}
+
+.tendril-sidebar.collapsed {
+  width: 64px;
+  padding: 16px 8px;
+}
+
+/* Header */
+.tendril-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding: 0 4px;
+}
+
+.tendril-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tendril-sidebar-logo {
+  width: 28px;
+  height: 28px;
+  color: #059669;
+  flex-shrink: 0;
+}
+
+.tendril-sidebar-title-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.tendril-sidebar-title {
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.2;
+  color: #111827;
+}
+
+.tendril-sidebar-version {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.2;
+}
+
+.tendril-sidebar-collapse-btn {
+  background: none;
+  border: none;
+  color: #4b5563;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease;
+}
+
+.tendril-sidebar-collapse-btn:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+/* Action Buttons */
+.tendril-sidebar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.tendril-sidebar-new-plan-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #000000;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  width: 100%;
+  box-sizing: border-box;
+  transition: background-color 0.15s ease;
+}
+
+.tendril-sidebar-new-plan-btn:hover {
+  background-color: #1f2937;
+}
+
+.tendril-sidebar-btn-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tendril-sidebar-shortcut {
+  font-size: 12px;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.tendril-sidebar-agent-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  transition: background-color 0.15s ease;
+}
+
+.tendril-sidebar-agent-item:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+/* Navigation Menu */
+.tendril-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.tendril-sidebar-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.tendril-sidebar-item:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.tendril-sidebar-item.active {
+  background-color: #eeeeee;
+  color: #111827;
+  font-weight: 600;
+}
+
+.tendril-sidebar-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tendril-sidebar-item-icon {
+  width: 18px;
+  height: 18px;
+  color: #4b5563;
+  flex-shrink: 0;
+}
+
+.tendril-sidebar-item.active .tendril-sidebar-item-icon {
+  color: #111827;
+}
+
+.tendril-sidebar-badge {
+  background-color: #f3f4f6;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 6px;
+  min-width: 16px;
+  text-align: center;
+}
+
+.tendril-sidebar-divider {
+  height: 1px;
+  background-color: #e5e7eb;
+  margin: 12px 4px;
+}
+
+/* Group Accordion */
+.tendril-sidebar-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.tendril-sidebar-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  transition: background-color 0.15s ease;
+}
+
+.tendril-sidebar-group-header:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.tendril-sidebar-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 16px;
+  margin-top: 2px;
+}
+
+.tendril-sidebar-subitem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 400;
+  color: #4b5563;
+  transition: background-color 0.15s ease;
+}
+
+.tendril-sidebar-subitem:hover {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.tendril-sidebar-subitem.active {
+  background-color: #e5e7eb;
+  color: #111827;
+  font-weight: 600;
+}
