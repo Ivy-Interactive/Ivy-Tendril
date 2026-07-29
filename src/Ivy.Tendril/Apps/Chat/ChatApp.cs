@@ -86,7 +86,7 @@ public class ChatApp : ViewBase
 
         var sessionDtos = sessions.Select(s =>
         {
-            var isGenerating = runningSessionIds.Value.Contains(s.Id) || (isStreaming.Value && s.Id == activeSessionId.Value);
+            var isGenerating = runningSessionIds.Value.Contains(s.Id);
             var status = isGenerating ? "generating" : "done";
             return new ChatSessionDto(
                 s.Id,
@@ -114,7 +114,7 @@ public class ChatApp : ViewBase
             var attachments = dto.Attachments ?? [];
             if (string.IsNullOrWhiteSpace(userPrompt) && attachments.Count == 0) return;
 
-            string targetSessionId = activeSessionId.Value ?? "";
+            string targetSessionId = !string.IsNullOrEmpty(dto.SessionId) ? dto.SessionId : (activeSessionId.Value ?? "");
             if (string.IsNullOrEmpty(targetSessionId))
             {
                 var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value);
@@ -302,7 +302,7 @@ public class ChatApp : ViewBase
             Models = modelDtos,
             SelectedAgent = selectedAgent.Value,
             SelectedModel = selectedModel.Value,
-            IsStreaming = isStreaming.Value,
+            IsStreaming = activeSessionId.Value != null && runningSessionIds.Value.Contains(activeSessionId.Value),
             StreamingText = streamingText.Value,
             StreamingStream = streamingStream,
 

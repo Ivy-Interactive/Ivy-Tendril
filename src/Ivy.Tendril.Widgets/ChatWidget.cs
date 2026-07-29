@@ -39,7 +39,8 @@ public record ChatAttachmentDto(
 
 public record ChatSendMessageDto(
     string Prompt,
-    List<ChatAttachmentDto>? Attachments = null
+    List<ChatAttachmentDto>? Attachments = null,
+    string? SessionId = null
 );
 
 [ExternalWidget(

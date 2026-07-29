@@ -279,7 +279,7 @@ export function ChatWidget({
     const trimmed = promptText.trim();
     if (!trimmed && attachments.length === 0) return;
 
-    const payload = { prompt: trimmed, attachments };
+    const payload = { prompt: trimmed, attachments, sessionId: activeSessionId };
     if (isStreaming) {
       setQueuedMessages((prev) => [
         ...prev,
