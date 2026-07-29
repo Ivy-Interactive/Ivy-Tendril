@@ -13,6 +13,7 @@ using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Widgets;
 using Ivy.Widgets.Internal;
 using Microsoft.Extensions.Logging;
 
@@ -593,20 +594,60 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 | noop.ToSelectInput(new[] { "_" }.ToOptions()).Disabled();
         });
 
+        var (agentLabel, _) = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
+
+        var configuredProjects = config.Projects;
+        var allJobs = jobService.GetJobs();
+        var projectSubItems = configuredProjects.Select(p =>
+        {
+            var count = allJobs.Count(j =>
+                j.Project != null &&
+                ProjectHelper.ParseProjects(j.Project)
+                    .Contains(p.Name, StringComparer.OrdinalIgnoreCase));
+            return new JobSubItem(p.Name, p.Name, count > 0 ? count : null);
+        }).ToArray();
+
+        var tendrilSidebar = new Ivy.Tendril.Widgets.TendrilSidebar()
+            .Version("v 1.0.20")
+            .AgentName(agentLabel)
+            .AgentShortcut("⌘ A")
+            .NewPlanShortcut("⌘ K")
+            .ActiveItem(currentApp.Value?.Id ?? "dashboard")
+            .DraftCount(status.Value.DraftCount)
+            .ReviewCount(status.Value.ReviewCount)
+            .RecommendationsCount(status.Value.RecommendationsCount)
+            .JobCount(status.Value.JobCount)
+            .IceboxCount(status.Value.IceboxCount)
+            .HelpRequestCount(0)
+            .Collapsed(!sidebarOpen.Value)
+            .ShowCollapseButton(false)
+            .Jobs(projectSubItems)
+            .OnSelect(item =>
+            {
+                if (item == "settings")
+                {
+                    navigator.Navigate<SettingsApp>();
+                }
+                else if (item.StartsWith("job:"))
+                {
+                    OpenApp(new NavigateArgs("jobs"));
+                }
+                else
+                {
+                    OpenApp(new NavigateArgs(item));
+                }
+            })
+            .OnNewPlan(() => OpenApp(new NavigateArgs("drafts")))
+            .OnSelectAgent(() => OpenApp(new NavigateArgs(AgentAppId)))
+            .OnToggleCollapse(() => sidebarOpen.Set(!sidebarOpen.Value));
+
         return new Fragment(
             selectInputWarmup,
             new SidebarLayout(
                 body ?? null!,
-                sidebarMenu,
-                Layout.Vertical().Gap(2)
-                | settings.Header
-                | new NewPlanButton()
-                ,
-                Layout.Vertical(
-                    new SidebarNews(newsArticles.Value),
-                    settings.Footer,
-                    footer
-                ),
+                tendrilSidebar,
+                null,
+                null,
                 settings.Width
             ).Open(sidebarOpen.Value).MainAppSidebar(),
             importIssuesDialog,
