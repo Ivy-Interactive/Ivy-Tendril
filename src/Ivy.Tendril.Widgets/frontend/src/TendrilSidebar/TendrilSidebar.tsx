@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   PanelLeft,
   Plus,
@@ -36,6 +36,8 @@ export function TendrilSidebar({
   eventHandler,
 }: TendrilSidebarProps) {
   const [jobsExpanded, setJobsExpanded] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isNarrow, setIsNarrow] = useState(false);
 
   const isMac = typeof navigator !== "undefined" && (
     navigator.platform?.toUpperCase().indexOf("MAC") >= 0 ||
@@ -49,6 +51,22 @@ export function TendrilSidebar({
     }
     return shortcut;
   };
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setIsNarrow(entry.contentRect.width <= 100);
+      }
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const isCollapsed = collapsed || isNarrow;
 
   const fireEvent = (eventName: string, ...args: unknown[]) => {
     if (eventHandler) {
@@ -94,7 +112,7 @@ export function TendrilSidebar({
   }, [isMac]);
 
   return (
-    <div className={`tendril-sidebar ${collapsed ? "collapsed" : ""}`}>
+    <div ref={containerRef} className={`tendril-sidebar ${isCollapsed ? "collapsed" : ""}`}>
       {/* Header */}
       <div className="tendril-sidebar-header">
         <div className="tendril-sidebar-brand" title="Ivy Tendril">
@@ -102,14 +120,14 @@ export function TendrilSidebar({
             <path d="M12 2a10 10 0 1 0 10 10H12V2z" fill="#059669" opacity="0.2" />
             <path d="M4.5 9.5C6 4.5 11 3 15.5 5.5C19.5 7.5 21 12 19 16C17.5 19 13.5 21 9.5 19.5C6 18 4.5 14.5 6 11.5C7 9.5 9.5 8.5 11.5 9.5" />
           </svg>
-          {!collapsed && (
+          {!isCollapsed && (
             <div className="tendril-sidebar-title-box">
               <span className="tendril-sidebar-title">Ivy Tendril</span>
               <span className="tendril-sidebar-version">{version}</span>
             </div>
           )}
         </div>
-        {showCollapseButton && !collapsed && (
+        {showCollapseButton && !isCollapsed && (
           <button
             type="button"
             className="tendril-sidebar-collapse-btn"
@@ -125,29 +143,29 @@ export function TendrilSidebar({
       <div className="tendril-sidebar-actions">
         <button
           type="button"
-          className={`tendril-sidebar-new-plan-btn ${collapsed ? "icon-only" : ""}`}
+          className={`tendril-sidebar-new-plan-btn ${isCollapsed ? "icon-only" : ""}`}
           onClick={handleNewPlan}
-          title={collapsed ? "New Plan" : undefined}
+          title={isCollapsed ? "New Plan" : undefined}
         >
           <div className="tendril-sidebar-btn-left">
             <Plus size={16} />
-            {!collapsed && <span>New Plan</span>}
+            {!isCollapsed && <span>New Plan</span>}
           </div>
-          {!collapsed && newPlanShortcut && (
+          {!isCollapsed && newPlanShortcut && (
             <span className="tendril-sidebar-shortcut">{formatShortcut(newPlanShortcut)}</span>
           )}
         </button>
 
         <div
-          className={`tendril-sidebar-agent-item ${activeItem === "agent" ? "active" : ""} ${collapsed ? "icon-only" : ""}`}
+          className={`tendril-sidebar-agent-item ${activeItem === "agent" ? "active" : ""} ${isCollapsed ? "icon-only" : ""}`}
           onClick={handleSelectAgent}
-          title={collapsed ? agentName : undefined}
+          title={isCollapsed ? agentName : undefined}
         >
           <div className="tendril-sidebar-btn-left">
             <Sparkles size={16} />
-            {!collapsed && <span>{agentName}</span>}
+            {!isCollapsed && <span>{agentName}</span>}
           </div>
-          {!collapsed && agentShortcut && (
+          {!isCollapsed && agentShortcut && (
             <span className="tendril-sidebar-shortcut">{formatShortcut(agentShortcut)}</span>
           )}
         </div>
@@ -158,24 +176,24 @@ export function TendrilSidebar({
         <div
           className={`tendril-sidebar-item ${activeItem === "dashboard" ? "active" : ""}`}
           onClick={() => handleSelect("dashboard")}
-          title={collapsed ? "Dashboard" : undefined}
+          title={isCollapsed ? "Dashboard" : undefined}
         >
           <div className="tendril-sidebar-item-left">
             <LayoutDashboard className="tendril-sidebar-item-icon" />
-            {!collapsed && <span>Dashboard</span>}
+            {!isCollapsed && <span>Dashboard</span>}
           </div>
         </div>
 
         <div
           className={`tendril-sidebar-item ${activeItem === "drafts" ? "active" : ""}`}
           onClick={() => handleSelect("drafts")}
-          title={collapsed ? "Drafts" : undefined}
+          title={isCollapsed ? "Drafts" : undefined}
         >
           <div className="tendril-sidebar-item-left">
             <Feather className="tendril-sidebar-item-icon" />
-            {!collapsed && <span>Drafts</span>}
+            {!isCollapsed && <span>Drafts</span>}
           </div>
-          {!collapsed && draftCount !== undefined && draftCount > 0 && (
+          {!isCollapsed && draftCount !== undefined && draftCount > 0 && (
             <span className="tendril-sidebar-badge">{draftCount}</span>
           )}
         </div>
@@ -183,13 +201,13 @@ export function TendrilSidebar({
         <div
           className={`tendril-sidebar-item ${activeItem === "review" ? "active" : ""}`}
           onClick={() => handleSelect("review")}
-          title={collapsed ? "Review" : undefined}
+          title={isCollapsed ? "Review" : undefined}
         >
           <div className="tendril-sidebar-item-left">
             <ThumbsUp className="tendril-sidebar-item-icon" />
-            {!collapsed && <span>Review</span>}
+            {!isCollapsed && <span>Review</span>}
           </div>
-          {!collapsed && reviewCount !== undefined && reviewCount > 0 && (
+          {!isCollapsed && reviewCount !== undefined && reviewCount > 0 && (
             <span className="tendril-sidebar-badge">{reviewCount}</span>
           )}
         </div>
@@ -197,18 +215,18 @@ export function TendrilSidebar({
         <div
           className={`tendril-sidebar-item ${activeItem === "recommendations" ? "active" : ""}`}
           onClick={() => handleSelect("recommendations")}
-          title={collapsed ? "Recommendations" : undefined}
+          title={isCollapsed ? "Recommendations" : undefined}
         >
           <div className="tendril-sidebar-item-left">
             <Lightbulb className="tendril-sidebar-item-icon" />
-            {!collapsed && <span>Recommendations</span>}
+            {!isCollapsed && <span>Recommendations</span>}
           </div>
-          {!collapsed && recommendationsCount !== undefined && recommendationsCount > 0 && (
+          {!isCollapsed && recommendationsCount !== undefined && recommendationsCount > 0 && (
             <span className="tendril-sidebar-badge">{recommendationsCount}</span>
           )}
         </div>
 
-        {!collapsed && <div className="tendril-sidebar-divider" />}
+        {!isCollapsed && <div className="tendril-sidebar-divider" />}
 
         {/* Jobs Accordion Group */}
         <div className="tendril-sidebar-group">
@@ -216,20 +234,20 @@ export function TendrilSidebar({
             className={`tendril-sidebar-group-header ${activeItem === "jobs" ? "active" : ""}`}
             onClick={() => {
               handleSelect("jobs");
-              if (!collapsed) setJobsExpanded(!jobsExpanded);
+              if (!isCollapsed) setJobsExpanded(!jobsExpanded);
             }}
-            title={collapsed ? "Jobs" : undefined}
+            title={isCollapsed ? "Jobs" : undefined}
           >
             <div className="tendril-sidebar-item-left">
               <Activity className="tendril-sidebar-item-icon" />
-              {!collapsed && <span>Jobs</span>}
+              {!isCollapsed && <span>Jobs</span>}
             </div>
-            {!collapsed && (
+            {!isCollapsed && (
               jobsExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />
             )}
           </div>
 
-          {!collapsed && jobsExpanded && jobs && jobs.length > 0 && (
+          {!isCollapsed && jobsExpanded && jobs && jobs.length > 0 && (
             <div className="tendril-sidebar-group-items">
               {jobs.map((job) => (
                 <div
@@ -251,13 +269,13 @@ export function TendrilSidebar({
         <div
           className={`tendril-sidebar-item ${activeItem === "pull-requests" ? "active" : ""}`}
           onClick={() => handleSelect("pull-requests")}
-          title={collapsed ? "Pull Requests" : undefined}
+          title={isCollapsed ? "Pull Requests" : undefined}
         >
           <div className="tendril-sidebar-item-left">
             <GitPullRequest className="tendril-sidebar-item-icon" />
-            {!collapsed && <span>Pull Requests</span>}
+            {!isCollapsed && <span>Pull Requests</span>}
           </div>
-          {!collapsed && pullRequestCount !== undefined && pullRequestCount > 0 && (
+          {!isCollapsed && pullRequestCount !== undefined && pullRequestCount > 0 && (
             <span className="tendril-sidebar-badge">{pullRequestCount}</span>
           )}
         </div>
@@ -265,13 +283,13 @@ export function TendrilSidebar({
         <div
           className={`tendril-sidebar-item ${activeItem === "icebox" ? "active" : ""}`}
           onClick={() => handleSelect("icebox")}
-          title={collapsed ? "Icebox" : undefined}
+          title={isCollapsed ? "Icebox" : undefined}
         >
           <div className="tendril-sidebar-item-left">
             <Snowflake className="tendril-sidebar-item-icon" />
-            {!collapsed && <span>Icebox</span>}
+            {!isCollapsed && <span>Icebox</span>}
           </div>
-          {!collapsed && iceboxCount !== undefined && iceboxCount > 0 && (
+          {!isCollapsed && iceboxCount !== undefined && iceboxCount > 0 && (
             <span className="tendril-sidebar-badge">{iceboxCount}</span>
           )}
         </div>
@@ -279,13 +297,13 @@ export function TendrilSidebar({
         <div
           className={`tendril-sidebar-item ${activeItem === "help" ? "active" : ""}`}
           onClick={() => handleSelect("help")}
-          title={collapsed ? "Help Requests" : undefined}
+          title={isCollapsed ? "Help Requests" : undefined}
         >
           <div className="tendril-sidebar-item-left">
             <HelpCircle className="tendril-sidebar-item-icon" />
-            {!collapsed && <span>Help Requests</span>}
+            {!isCollapsed && <span>Help Requests</span>}
           </div>
-          {!collapsed && helpRequestCount !== undefined && helpRequestCount > 0 && (
+          {!isCollapsed && helpRequestCount !== undefined && helpRequestCount > 0 && (
             <span className="tendril-sidebar-badge">{helpRequestCount}</span>
           )}
         </div>
