@@ -234,15 +234,22 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
     }
   }, [steps]);
 
-  // Bulletproof global node dragging using ref + stepId
+  // Reliable card dragging using ref + e.preventDefault()
   const startDragNode = (e: React.MouseEvent, stepId: string) => {
     if (isReadOnly) return;
-    // Don't drag if clicking interactive inputs or buttons inside node body
+
     const targetEl = e.target as HTMLElement;
-    if (targetEl.tagName === "SELECT" || targetEl.tagName === "INPUT" || targetEl.tagName === "BUTTON" || targetEl.closest(".wfb-port")) {
+    // Don't start drag if user clicked inside select, option, button, or port
+    if (
+      targetEl.closest("select") ||
+      targetEl.closest("input") ||
+      targetEl.closest("button") ||
+      targetEl.closest(".wfb-port")
+    ) {
       return;
     }
 
+    e.preventDefault();
     e.stopPropagation();
     setSelectedNode(stepId);
 
@@ -610,7 +617,7 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                 <div className="wfb-node-body">
                   {isPrompt && (
                     <>
-                      {/* Select 1: Promptware Selector */}
+                      {/* Select 1: Ivy Styled Promptware Selector */}
                       <div className="wfb-node-select-row">
                         <Layers size={14} className="wfb-select-icon text-cyan-400" />
                         <select
@@ -626,7 +633,7 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                         </select>
                       </div>
 
-                      {/* Select 2: Agent-CLI / Model Selector */}
+                      {/* Select 2: Ivy Styled Agent-CLI / Model Selector */}
                       <div className="wfb-node-select-row">
                         <Terminal size={14} className="wfb-select-icon text-purple-400" />
                         <select
