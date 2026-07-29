@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Ivy.Tendril.Agents.Abstractions;
 
 namespace Ivy.Tendril.Agents.Providers.Antigravity;
@@ -36,9 +37,14 @@ public sealed class AntigravityCli : IAgentCli
         var args = new List<string>
         {
             "--print",
-            "-",
             "--dangerously-skip-permissions",
         };
+
+        if (!string.IsNullOrEmpty(config.Model))
+        {
+            args.Add("--model");
+            args.Add(config.Model);
+        }
 
         if (!string.IsNullOrEmpty(config.SessionId))
         {
