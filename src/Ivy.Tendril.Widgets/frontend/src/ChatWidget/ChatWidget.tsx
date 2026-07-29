@@ -514,25 +514,22 @@ export function ChatWidget({
                   )}
                   {msg.role === "user" ? (
                     <div>{msg.content}</div>
+                  ) : msg.rawStream ? (
+                    <AgentViewer
+                      id={`msg-${msg.id}`}
+                      jsonStream={msg.rawStream}
+                      autoScroll={false}
+                      showThinking={true}
+                      showSystemEvents={false}
+                      showStatusLabel={false}
+                      eventHandler={noopEventHandler}
+                    />
                   ) : (
-                    <div>
-                      {msg.rawStream && (
-                        <AgentViewer
-                          id={`msg-${msg.id}`}
-                          jsonStream={msg.rawStream}
-                          autoScroll={false}
-                          showThinking={true}
-                          showSystemEvents={false}
-                          showStatusLabel={false}
-                          eventHandler={noopEventHandler}
-                        />
-                      )}
-                      {msg.content && (
-                        <div className="chat-markdown-body">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                        </div>
-                      )}
-                    </div>
+                    msg.content && (
+                      <div className="chat-markdown-body">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                      </div>
+                    )
                   )}
                 </div>
               </div>
