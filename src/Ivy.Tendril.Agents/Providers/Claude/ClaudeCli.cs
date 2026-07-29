@@ -76,7 +76,7 @@ public sealed class ClaudeCli : IAgentCli
         if (!string.IsNullOrEmpty(config.Model))
         {
             args.Add("--model");
-            args.Add(config.Model);
+            args.Add(NormalizeClaudeModel(config.Model));
         }
 
         if (config.Effort is not null)
@@ -154,4 +154,13 @@ public sealed class ClaudeCli : IAgentCli
             ["CI"] = "true",
             ["TERM"] = "dumb"
         };
+
+    private static string NormalizeClaudeModel(string model)
+    {
+        if (string.Equals(model, "default", StringComparison.OrdinalIgnoreCase)) return "opus";
+        if (model.Contains("opus", StringComparison.OrdinalIgnoreCase)) return "opus";
+        if (model.Contains("sonnet", StringComparison.OrdinalIgnoreCase)) return "sonnet";
+        if (model.Contains("haiku", StringComparison.OrdinalIgnoreCase)) return "haiku";
+        return model;
+    }
 }

@@ -48,6 +48,8 @@ export interface ChatWidgetProps {
   selectedModel?: string;
   isStreaming?: boolean;
   streamingText?: string;
+  streamingStream?: { id: string };
+  subscribeToStream?: (streamId: string, onData: (data: unknown) => void) => () => void;
   events?: string[];
   eventHandler?: IvyEventHandler;
 }
@@ -166,6 +168,8 @@ export function ChatWidget({
   selectedModel = "opus",
   isStreaming = false,
   streamingText = "",
+  streamingStream,
+  subscribeToStream,
   events = [],
   eventHandler,
 }: ChatWidgetProps) {
@@ -413,6 +417,8 @@ export function ChatWidget({
                 <AgentViewer
                   id="live-chat-agent-viewer"
                   jsonStream={streamingText}
+                  stream={streamingStream}
+                  subscribeToStream={subscribeToStream}
                   autoScroll={true}
                   showThinking={true}
                   showSystemEvents={false}

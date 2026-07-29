@@ -44,6 +44,7 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Prop] public string SelectedModel { get; init; } = "opus";
     [Prop] public bool IsStreaming { get; init; } = false;
     [Prop] public string? StreamingText { get; init; }
+    [Prop] public IWriteStream<string>? StreamingStream { get; init; }
 
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnSelectSession { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnDeleteSession { get; init; }

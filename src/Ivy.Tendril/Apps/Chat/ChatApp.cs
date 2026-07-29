@@ -24,9 +24,10 @@ public class ChatApp : ViewBase
 
         var activeSessionId = UseState<string?>(args?.SessionId);
         var selectedAgent = UseState(() => configService.Settings.CodingAgent ?? "claude");
-        var selectedModel = UseState("opus");
+        var selectedModel = UseState("claude-opus-4-7");
         var isStreaming = UseState(false);
         var streamingText = UseState("");
+        var streamingStream = UseStream<string>();
         var initialHandled = UseRef(false);
 
         // Map sessions to DTOs
@@ -123,11 +124,15 @@ public class ChatApp : ViewBase
 
                 var session = await agentRunner.LaunchAsync(context);
 
-                var rawLines = new ConcurrentBag<string>();
+                var rawLines = new List<string>();
+                var rawLock = new object();
                 using var sub = session.RawOutput?.Subscribe(line =>
                 {
-                    rawLines.Add(line);
-                    streamingText.Set(string.Join("\n", rawLines));
+                    streamingStream.Write(line);
+                    lock (rawLock)
+                    {
+                        rawLines.Add(line);
+                    }
                 });
 
                 var result = await session.WaitForCompletionAsync();
@@ -136,7 +141,11 @@ public class ChatApp : ViewBase
                     ? result.Response
                     : (result.IsSuccess ? "Task completed successfully." : "Agent execution completed with status code " + (result.ExitCode?.ToString() ?? "unknown"));
 
-                var fullRawStream = rawLines.Count > 0 ? string.Join("\n", rawLines) : null;
+                string? fullRawStream = null;
+                lock (rawLock)
+                {
+                    if (rawLines.Count > 0) fullRawStream = string.Join("\n", rawLines);
+                }
                 chatService.AddMessage(targetSessionId, "assistant", responseContent, selectedAgent.Value, selectedModel.Value, rawStream: fullRawStream);
             }
             catch (Exception ex)
@@ -166,6 +175,7 @@ public class ChatApp : ViewBase
             SelectedModel = selectedModel.Value,
             IsStreaming = isStreaming.Value,
             StreamingText = streamingText.Value,
+            StreamingStream = streamingStream,
 
             OnSelectSession = e =>
             {

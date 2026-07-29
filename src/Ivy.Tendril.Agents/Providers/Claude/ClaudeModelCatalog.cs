@@ -31,15 +31,6 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
     [
         new()
         {
-            Id = "claude-fable-5", DisplayName = "Claude Fable",
-            Capabilities = FullCaps,
-            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
-            Provider = "anthropic",
-            InputPerMillion = 10.00m, OutputPerMillion = 50.00m,
-            CacheWritePerMillion = 12.50m, CacheReadPerMillion = 1.00m,
-        },
-        new()
-        {
             Id = "claude-opus-5", DisplayName = "Claude Opus 5",
             Capabilities = FullCaps,
             ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
@@ -49,7 +40,16 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
         },
         new()
         {
-            Id = "opus", DisplayName = "Claude Opus",
+            Id = "claude-opus-4-8", DisplayName = "Claude Opus 4.8",
+            Capabilities = FullCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
+            Provider = "anthropic",
+            InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
+            CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
+        },
+        new()
+        {
+            Id = "claude-opus-4-7", DisplayName = "Claude Opus 4.7",
             Capabilities = FullCaps,
             ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
             Provider = "anthropic", IsDefault = true,
@@ -58,13 +58,48 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
         },
         new()
         {
-            // Introductory pricing ($2 / $10) applies through 2026-08-31; standard pricing is $3 / $15 after.
+            Id = "opus", DisplayName = "Claude Opus (Default)",
+            Capabilities = FullCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
+            Provider = "anthropic",
+            InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
+            CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
+        },
+        new()
+        {
+            Id = "claude-sonnet-4-6", DisplayName = "Claude Sonnet 4.6",
+            Capabilities = MidCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
+            Provider = "anthropic",
+            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
+            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
+        },
+        new()
+        {
+            Id = "claude-3.7-sonnet", DisplayName = "Claude Sonnet 3.7",
+            Capabilities = MidCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
+            Provider = "anthropic",
+            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
+            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
+        },
+        new()
+        {
             Id = "sonnet", DisplayName = "Claude Sonnet",
             Capabilities = MidCaps,
             ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
             Provider = "anthropic",
             InputPerMillion = 2.00m, OutputPerMillion = 10.00m,
             CacheWritePerMillion = 2.50m, CacheReadPerMillion = 0.20m,
+        },
+        new()
+        {
+            Id = "claude-haiku-4-5", DisplayName = "Claude Haiku 4.5",
+            Capabilities = LiteCaps,
+            ContextWindow = 200_000, MaxOutputTokens = 64_000,
+            Provider = "anthropic",
+            InputPerMillion = 1.00m, OutputPerMillion = 5.00m,
+            CacheWritePerMillion = 1.25m, CacheReadPerMillion = 0.10m,
         },
         new()
         {

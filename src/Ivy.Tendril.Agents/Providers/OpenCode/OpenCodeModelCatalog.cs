@@ -15,9 +15,43 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
     [
         new()
         {
+            Id = "kimi-k3", DisplayName = "Kimi k3",
+            Capabilities = DefaultCaps, Provider = "moonshot", IsDefault = true,
+        },
+        new()
+        {
+            Id = "kimi-k2", DisplayName = "Kimi k2",
+            Capabilities = DefaultCaps, Provider = "moonshot",
+        },
+        new()
+        {
+            Id = "deepseek-v3", DisplayName = "DeepSeek V3",
+            Capabilities = DefaultCaps, Provider = "deepseek",
+        },
+        new()
+        {
+            Id = "deepseek-r1", DisplayName = "DeepSeek R1",
+            Capabilities = DefaultCaps, Provider = "deepseek",
+        },
+        new()
+        {
+            Id = "claude-opus-4-7", DisplayName = "Claude Opus 4.7",
+            Capabilities = DefaultCaps, Provider = "anthropic",
+        },
+        new()
+        {
+            Id = "claude-sonnet-4-6", DisplayName = "Claude Sonnet 4.6",
+            Capabilities = DefaultCaps, Provider = "anthropic",
+        },
+        new()
+        {
+            Id = "gpt-5.5", DisplayName = "GPT-5.5",
+            Capabilities = DefaultCaps, Provider = "openai",
+        },
+        new()
+        {
             Id = "default", DisplayName = "OpenCode Default",
-            Capabilities = DefaultCaps,
-            Provider = "opencode", IsDefault = true,
+            Capabilities = DefaultCaps, Provider = "opencode",
         },
     ];
 
