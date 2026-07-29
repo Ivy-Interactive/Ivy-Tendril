@@ -107,11 +107,11 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
 
   const canvasRef = useRef<HTMLDivElement>(null);
 
-  // Helper for node port coordinates
+  // Precise node port coordinate helper (matching CSS ports 100%)
   const getNodePortCoords = (step: WorkflowStep) => {
     const isTrigger = step.type.toLowerCase() === "trigger";
     const width = isTrigger ? 140 : 260;
-    const heightOffset = isTrigger ? 22 : 45; // Edge center
+    const heightOffset = isTrigger ? 22 : 24; // Center of header row (24px) & center of trigger pill (22px)
 
     return {
       leftX: step.x,
@@ -452,7 +452,7 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
             </marker>
           </defs>
 
-          {/* Draw SVG Edge Connections with Center-Edge Coordinates */}
+          {/* Draw SVG Edge Connections with Center-Edge Coordinates & Livestream Job Badges */}
           {steps.map((step) =>
             step.next.map((targetId) => {
               const target = steps.find((s) => s.id === targetId);
@@ -471,10 +471,17 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
 
               const pathData = `M ${sourceX} ${sourceY} C ${sourceX + controlOffset} ${sourceY}, ${targetX - controlOffset} ${targetY}, ${targetX} ${targetY}`;
 
-              const midX = (sourceX + targetX) / 2;
-              const midY = (sourceY + targetY) / 2;
+              // Exact mid-point on cubic bezier curve at t = 0.5
+              const t = 0.5;
+              const p0x = sourceX, p0y = sourceY;
+              const p1x = sourceX + controlOffset, p1y = sourceY;
+              const p2x = targetX - controlOffset, p2y = targetY;
+              const p3x = targetX, p3y = targetY;
 
-              const stepCount = Math.abs(step.id.length * 3 + target.id.length * 2) % 15 + 4;
+              const midX = (1-t)*(1-t)*(1-t)*p0x + 3*(1-t)*(1-t)*t*p1x + 3*(1-t)*t*t*p2x + t*t*t*p3x;
+              const midY = (1-t)*(1-t)*(1-t)*p0y + 3*(1-t)*(1-t)*t*p1y + 3*(1-t)*t*t*p2y + t*t*t*p3y;
+
+              const jobCount = Math.abs(step.id.length * 3 + target.id.length * 2) % 15 + 4;
 
               return (
                 <g key={`${step.id}-${targetId}`}>
@@ -483,22 +490,24 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
                     className="wfb-connection-path"
                     markerEnd="url(#arrowhead)"
                   />
-                  <g transform={`translate(${midX - 16}, ${midY - 12})`}>
+                  {/* Livestream Job Badge */}
+                  <g transform={`translate(${midX - 22}, ${midY - 12})`}>
                     <rect
                       x="0"
                       y="0"
-                      width="34"
-                      height="22"
-                      rx="11"
+                      width="44"
+                      height="24"
+                      rx="12"
                       className="wfb-edge-badge-bg"
                     />
+                    <circle cx="11" cy="12" r="3" className="wfb-job-pulse-dot" />
                     <text
-                      x="17"
-                      y="14"
+                      x="27"
+                      y="13"
                       textAnchor="middle"
                       className="wfb-edge-badge-text"
                     >
-                      ⚙ {stepCount}
+                      {jobCount}
                     </text>
                   </g>
                 </g>
@@ -547,12 +556,12 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
               style={{ left: `${step.x}px`, top: `${step.y}px` }}
               onMouseDown={(e) => startDragNode(e, step)}
             >
-              {/* Left Input Port */}
+              {/* Left Input Port Dot */}
               <div className="wfb-port wfb-port-in" title="Connect to this node">
                 <div className="wfb-port-inner" />
               </div>
 
-              {/* Right Output Port (Drag Out to Connect) */}
+              {/* Right Output Port Dot (Drag Out to Connect) */}
               <div
                 className="wfb-port wfb-port-out"
                 title="Drag out to create new connection"

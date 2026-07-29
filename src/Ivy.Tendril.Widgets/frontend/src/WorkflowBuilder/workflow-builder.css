@@ -176,13 +176,24 @@
 
 .wfb-edge-badge-bg {
   fill: var(--card, #18181b);
-  stroke: var(--border, rgba(255, 255, 255, 0.15));
+  stroke: var(--border, rgba(255, 255, 255, 0.18));
   stroke-width: 1px;
+}
+
+.wfb-job-pulse-dot {
+  fill: #10b981;
+  animation: wfbPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes wfbPulse {
+  0% { opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { opacity: 0.4; }
 }
 
 .wfb-edge-badge-text {
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 650;
   fill: var(--card-foreground, #e5e7eb);
   dominant-baseline: middle;
 }
@@ -225,7 +236,7 @@
   color: var(--card-foreground, #f3f4f6);
 }
 
-/* Connection Port Dots on Node Edges */
+/* Connection Port Dots on Node Edges - Math Aligned */
 .wfb-port {
   position: absolute;
   width: 14px;
@@ -239,28 +250,33 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
 }
 
 .wfb-port-out {
   right: -7px;
-  top: 42px;
+  top: 24px;
+  transform: translateY(-50%);
 }
 
 .wfb-canvas-node.node-trigger-pill .wfb-port-out {
-  top: 13px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .wfb-port-in {
   left: -7px;
-  top: 42px;
+  top: 24px;
+  transform: translateY(-50%);
 }
 
 .wfb-canvas-node.node-trigger-pill .wfb-port-in {
-  top: 13px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .wfb-port:hover {
-  transform: scale(1.4);
+  transform: translateY(-50%) scale(1.4);
   background: var(--ring, #3b82f6);
   box-shadow: 0 0 10px rgba(59, 130, 246, 0.7);
 }
