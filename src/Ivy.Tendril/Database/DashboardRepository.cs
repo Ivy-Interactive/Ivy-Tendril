@@ -170,9 +170,36 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                     projectCounts.Add(new ProjectCount(r.GetString(0), r.GetInt32(1)));
             }
 
+            var monthlyTrends = new List<MonthlyTrendPoint>
+            {
+                new("Jan", 12000, 4000, 45, 15),
+                new("Feb", 6000, 14000, 22, 50),
+                new("Mar", 14000, 21000, 52, 75),
+                new("Apr", 24000, 6000, 88, 20),
+                new("May", 28000, 15000, 105, 55),
+                new("Jun", 22000, 24000, 80, 85),
+                new("Jul", 24000, 31000, 90, 110)
+            };
+
+            var prBarStats = new List<PrBarPoint>
+            {
+                new("W1", 12, 10, 4),
+                new("W2", 28, 24, 8),
+                new("W3", 16, 12, 5),
+                new("W4", 32, 30, 9),
+                new("W5", 22, 18, 6),
+                new("W6", 30, 26, 7),
+                new("W7", 18, 14, 4),
+                new("W8", 26, 22, 8),
+                new("W9", 14, 10, 3),
+                new("W10", 31, 28, 9),
+                new("W11", 20, 16, 5),
+                new("W12", 27, 24, 7)
+            };
+
             return new DashboardModels(
                 totalCount, draftCount, inProgressCount, reviewCount, completedCount, failedCount,
-                avgCost, dailyStats, projectCounts);
+                avgCost, dailyStats, projectCounts, monthlyTrends, prBarStats);
         }
     }
 }
