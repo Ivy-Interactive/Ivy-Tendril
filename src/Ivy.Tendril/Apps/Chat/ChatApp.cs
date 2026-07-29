@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -87,7 +88,8 @@ public class ChatApp : ViewBase
                 m.Content,
                 m.Timestamp.ToString("t"),
                 m.AgentId,
-                m.ModelId
+                m.ModelId,
+                m.RawStream
             )).ToList()
         )).ToList();
 
@@ -106,7 +108,7 @@ public class ChatApp : ViewBase
 
             chatService.AddMessage(targetSessionId, "user", trimmed, selectedAgent.Value, selectedModel.Value);
             isStreaming.Set(true);
-            streamingText.Set("Thinking...");
+            streamingText.Set("");
 
             try
             {
@@ -120,13 +122,22 @@ public class ChatApp : ViewBase
                 };
 
                 var session = await agentRunner.LaunchAsync(context);
+
+                var rawLines = new ConcurrentBag<string>();
+                using var sub = session.RawOutput?.Subscribe(line =>
+                {
+                    rawLines.Add(line);
+                    streamingText.Set(string.Join("\n", rawLines));
+                });
+
                 var result = await session.WaitForCompletionAsync();
 
                 var responseContent = !string.IsNullOrWhiteSpace(result.Response)
                     ? result.Response
                     : (result.IsSuccess ? "Task completed successfully." : "Agent execution completed with status code " + (result.ExitCode?.ToString() ?? "unknown"));
 
-                chatService.AddMessage(targetSessionId, "assistant", responseContent, selectedAgent.Value, selectedModel.Value);
+                var fullRawStream = rawLines.Count > 0 ? string.Join("\n", rawLines) : null;
+                chatService.AddMessage(targetSessionId, "assistant", responseContent, selectedAgent.Value, selectedModel.Value, rawStream: fullRawStream);
             }
             catch (Exception ex)
             {

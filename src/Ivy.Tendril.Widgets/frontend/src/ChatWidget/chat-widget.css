@@ -341,7 +341,7 @@
 .chat-input-actions-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .chat-input-actions-right {
@@ -350,42 +350,90 @@
   gap: 8px;
 }
 
-/* Underlined Inline Selects inside Input Toolbar */
-.chat-inline-select-wrapper {
-  display: flex;
+/* Custom Portal Underlined Inline Selects */
+.chat-inline-select-container {
+  position: relative;
+  display: inline-flex;
+}
+
+.chat-inline-select-trigger {
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 11.5px;
-  color: #71717a;
-  border-bottom: 1px solid #27272a;
-  padding-bottom: 2px;
-  transition: border-color 0.15s ease, color 0.15s ease;
-}
-
-.chat-inline-select-wrapper:hover {
-  border-bottom-color: #71717a;
-  color: #a1a1aa;
-}
-
-.chat-inline-select {
+  gap: 5px;
   background: transparent;
   border: none;
+  border-bottom: 1px solid #27272a;
+  padding: 2px 4px 4px 4px;
   color: #a1a1aa;
   font-size: 11.5px;
   font-weight: 500;
-  outline: none;
   cursor: pointer;
-  padding: 0 2px;
+  transition: all 0.15s ease;
+  line-height: 1;
 }
 
-.chat-inline-select:hover {
+.chat-inline-select-trigger:hover,
+.chat-inline-select-trigger.open {
+  border-bottom-color: #71717a;
   color: #fafafa;
 }
 
-.chat-inline-select option {
+.chat-select-chevron {
+  transition: transform 0.15s ease;
+  color: #71717a;
+}
+
+.chat-inline-select-trigger:hover .chat-select-chevron {
+  color: #fafafa;
+}
+
+.chat-inline-select-trigger.open .chat-select-chevron {
+  transform: rotate(180deg);
+  color: #fafafa;
+}
+
+/* Custom Portal Dropdown Menu */
+.chat-inline-select-menu {
   background-color: #18181b;
-  color: #fafafa;
+  border: 1px solid #27272a;
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.chat-inline-select-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
   padding: 6px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: #a1a1aa;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.chat-inline-select-item:hover {
+  background-color: #27272a;
+  color: #fafafa;
+}
+
+.chat-inline-select-item.selected {
+  background-color: #27272a;
+  color: #fafafa;
+  font-weight: 500;
+}
+
+.chat-select-check {
+  color: #a1a1aa;
 }
 
 .chat-voice-btn {

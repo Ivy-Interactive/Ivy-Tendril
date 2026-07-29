@@ -125,7 +125,7 @@ public class ChatHistoryService : IChatHistoryService
         }
     }
 
-    public ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null)
+    public ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null)
     {
         lock (_lock)
         {
@@ -141,7 +141,8 @@ public class ChatHistoryService : IChatHistoryService
                 Content: content,
                 Timestamp: DateTimeOffset.UtcNow,
                 AgentId: agentId ?? session.AgentId,
-                ModelId: modelId ?? session.ModelId
+                ModelId: modelId ?? session.ModelId,
+                RawStream: rawStream
             );
 
             var updatedMessages = new List<ChatMessageModel>(session.Messages) { msg };

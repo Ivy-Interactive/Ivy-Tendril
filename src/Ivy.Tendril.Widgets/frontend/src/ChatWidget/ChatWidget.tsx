@@ -1,7 +1,9 @@
-import React, { useState, useRef, useEffect } from "react";
-import { Plus, Trash2, Mic, Bot, Cpu, Search, MessageSquare } from "lucide-react";
+import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
+import { Plus, Trash2, Mic, Bot, Cpu, Search, MessageSquare, ChevronDown, Check } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { AgentViewer } from "../AgentViewer";
 import "./chat-widget.css";
 
 export interface ChatMessageDto {
@@ -11,6 +13,7 @@ export interface ChatMessageDto {
   timestamp: string;
   agentId?: string;
   modelId?: string;
+  rawStream?: string;
 }
 
 export interface ChatSessionDto {
@@ -48,6 +51,110 @@ export interface ChatWidgetProps {
   events?: string[];
   eventHandler?: IvyEventHandler;
 }
+
+interface InlineSelectOption {
+  value: string;
+  label: string;
+}
+
+interface InlineSelectProps {
+  icon?: React.ReactNode;
+  value: string;
+  options: InlineSelectOption[];
+  onChange: (value: string) => void;
+  title?: string;
+}
+
+function InlineSelect({ icon, value, options, onChange, title }: InlineSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const selectedOption = options.find((o) => o.value === value) || { value, label: value };
+
+  const updatePosition = () => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom - 4;
+    const openUp = spaceBelow < 150 && rect.top > spaceBelow;
+
+    setMenuStyle({
+      position: "fixed",
+      left: rect.left,
+      minWidth: Math.max(rect.width, 140),
+      maxHeight: 220,
+      top: openUp ? undefined : rect.bottom + 4,
+      bottom: openUp ? window.innerHeight - rect.top + 4 : undefined,
+      zIndex: 10000,
+    });
+  };
+
+  useLayoutEffect(() => {
+    if (open) {
+      updatePosition();
+    }
+  }, [open, options.length]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onReposition = () => updatePosition();
+
+    document.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("resize", onReposition);
+    window.addEventListener("scroll", onReposition, true);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("resize", onReposition);
+      window.removeEventListener("scroll", onReposition, true);
+    };
+  }, [open]);
+
+  return (
+    <div ref={triggerRef} className="chat-inline-select-container" title={title}>
+      <button
+        type="button"
+        className={`chat-inline-select-trigger ${open ? "open" : ""}`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {icon}
+        <span>{selectedOption.label}</span>
+        <ChevronDown size={11} className="chat-select-chevron" />
+      </button>
+
+      {open &&
+        createPortal(
+          <div ref={menuRef} className="chat-inline-select-menu" style={menuStyle}>
+            {options.map((opt) => {
+              const isSelected = opt.value === value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={`chat-inline-select-item ${isSelected ? "selected" : ""}`}
+                  onClick={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
+                >
+                  <span>{opt.label}</span>
+                  {isSelected && <Check size={12} className="chat-select-check" />}
+                </button>
+              );
+            })}
+          </div>,
+          document.body
+        )}
+    </div>
+  );
+}
+
+const noopEventHandler: IvyEventHandler = () => {};
 
 export function ChatWidget({
   id,
@@ -122,12 +229,12 @@ export function ChatWidget({
     }
   };
 
-  const handleAgentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    emit("OnAgentChanged", e.target.value);
+  const handleAgentChange = (val: string) => {
+    emit("OnAgentChanged", val);
   };
 
-  const handleModelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    emit("OnModelChanged", e.target.value);
+  const handleModelChange = (val: string) => {
+    emit("OnModelChanged", val);
   };
 
   const toggleVoiceRecording = () => {
@@ -172,6 +279,9 @@ export function ChatWidget({
       s.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.messages.some((m) => m.content.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  const agentSelectOptions = agents.map((a) => ({ value: a.id, label: a.label }));
+  const modelSelectOptions = models.map((m) => ({ value: m.id, label: m.displayName }));
 
   return (
     <div className="chat-widget-root">
@@ -257,7 +367,7 @@ export function ChatWidget({
           {activeSession && activeSession.messages && activeSession.messages.length > 0 ? (
             activeSession.messages.map((msg) => (
               <div key={msg.id} className={`chat-message-row ${msg.role}`}>
-                <div className="chat-message-bubble">
+                <div className="chat-message-bubble" style={msg.role === "assistant" && msg.rawStream ? { width: "85%", maxWidth: "85%" } : undefined}>
                   {msg.role === "assistant" && (
                     <div className="chat-message-header">
                       <Bot size={13} className="chat-message-author" />
@@ -267,6 +377,16 @@ export function ChatWidget({
                   )}
                   {msg.role === "user" ? (
                     <div>{msg.content}</div>
+                  ) : msg.rawStream ? (
+                    <AgentViewer
+                      id={`msg-${msg.id}`}
+                      jsonStream={msg.rawStream}
+                      autoScroll={false}
+                      showThinking={true}
+                      showSystemEvents={false}
+                      showStatusLabel={false}
+                      eventHandler={noopEventHandler}
+                    />
                   ) : (
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                   )}
@@ -285,12 +405,20 @@ export function ChatWidget({
 
           {isStreaming && (
             <div className="chat-message-row assistant">
-              <div className="chat-message-bubble">
+              <div className="chat-message-bubble" style={{ width: "85%", maxWidth: "85%" }}>
                 <div className="chat-message-header">
                   <Bot size={13} className="chat-message-author" />
                   <span className="chat-message-author">{selectedAgent}</span>
                 </div>
-                <div>{streamingText || "Thinking..."}</div>
+                <AgentViewer
+                  id="live-chat-agent-viewer"
+                  jsonStream={streamingText}
+                  autoScroll={true}
+                  showThinking={true}
+                  showSystemEvents={false}
+                  showStatusLabel={true}
+                  eventHandler={noopEventHandler}
+                />
               </div>
             </div>
           )}
@@ -310,35 +438,21 @@ export function ChatWidget({
             />
             <div className="chat-input-actions">
               <div className="chat-input-actions-left">
-                <div className="chat-inline-select-wrapper" title="Agentic CLI">
-                  <Bot size={13} />
-                  <select
-                    className="chat-inline-select"
-                    value={selectedAgent}
-                    onChange={handleAgentChange}
-                  >
-                    {agents.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <InlineSelect
+                  icon={<Bot size={13} />}
+                  value={selectedAgent}
+                  options={agentSelectOptions}
+                  onChange={handleAgentChange}
+                  title="Agentic CLI"
+                />
 
-                <div className="chat-inline-select-wrapper" title="Model">
-                  <Cpu size={13} />
-                  <select
-                    className="chat-inline-select"
-                    value={selectedModel}
-                    onChange={handleModelChange}
-                  >
-                    {models.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.displayName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <InlineSelect
+                  icon={<Cpu size={13} />}
+                  value={selectedModel}
+                  options={modelSelectOptions}
+                  onChange={handleModelChange}
+                  title="Model"
+                />
 
                 <button
                   type="button"

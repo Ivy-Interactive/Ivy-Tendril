@@ -11,7 +11,8 @@ public record ChatMessageDto(
     string Content,
     string Timestamp,
     string? AgentId = null,
-    string? ModelId = null
+    string? ModelId = null,
+    string? RawStream = null
 );
 
 public record ChatSessionDto(

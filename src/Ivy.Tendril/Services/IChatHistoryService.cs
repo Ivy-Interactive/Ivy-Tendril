@@ -9,7 +9,8 @@ public record ChatMessageModel(
     string Content,
     DateTimeOffset Timestamp,
     string? AgentId = null,
-    string? ModelId = null
+    string? ModelId = null,
+    string? RawStream = null
 );
 
 public record ChatSessionModel(
@@ -29,5 +30,5 @@ public interface IChatHistoryService
     ChatSessionModel CreateSession(string agentId, string modelId, string? title = null);
     void SaveSession(ChatSessionModel session);
     void DeleteSession(string id);
-    ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null);
+    ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null);
 }
