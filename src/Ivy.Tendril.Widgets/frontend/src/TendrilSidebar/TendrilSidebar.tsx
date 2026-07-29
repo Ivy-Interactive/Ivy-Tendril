@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   PanelLeft,
   Plus,
@@ -37,6 +37,19 @@ export function TendrilSidebar({
 }: TendrilSidebarProps) {
   const [jobsExpanded, setJobsExpanded] = useState(true);
 
+  const isMac = typeof navigator !== "undefined" && (
+    navigator.platform?.toUpperCase().indexOf("MAC") >= 0 ||
+    navigator.userAgent?.toUpperCase().indexOf("MAC") >= 0
+  );
+
+  const formatShortcut = (shortcut?: string) => {
+    if (!shortcut) return "";
+    if (!isMac) {
+      return shortcut.replace(/⌘/g, "Ctrl");
+    }
+    return shortcut;
+  };
+
   const fireEvent = (eventName: string, ...args: unknown[]) => {
     if (eventHandler) {
       eventHandler(eventName, id, args);
@@ -59,11 +72,32 @@ export function TendrilSidebar({
     fireEvent("OnToggleCollapse");
   };
 
+  // Keyboard shortcut listener for Ctrl+K / Cmd+K and Ctrl+A / Cmd+A
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isCmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+      if (isCmdOrCtrl && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        handleNewPlan();
+      } else if (isCmdOrCtrl && e.key.toLowerCase() === "a") {
+        const target = e.target as HTMLElement;
+        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+          return;
+        }
+        e.preventDefault();
+        handleSelectAgent();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isMac]);
+
   return (
     <div className={`tendril-sidebar ${collapsed ? "collapsed" : ""}`}>
       {/* Header */}
       <div className="tendril-sidebar-header">
-        <div className="tendril-sidebar-brand">
+        <div className="tendril-sidebar-brand" title="Ivy Tendril">
           <svg className="tendril-sidebar-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 2a10 10 0 1 0 10 10H12V2z" fill="#059669" opacity="0.2" />
             <path d="M4.5 9.5C6 4.5 11 3 15.5 5.5C19.5 7.5 21 12 19 16C17.5 19 13.5 21 9.5 19.5C6 18 4.5 14.5 6 11.5C7 9.5 9.5 8.5 11.5 9.5" />
@@ -75,7 +109,7 @@ export function TendrilSidebar({
             </div>
           )}
         </div>
-        {showCollapseButton && (
+        {showCollapseButton && !collapsed && (
           <button
             type="button"
             className="tendril-sidebar-collapse-btn"
@@ -88,42 +122,43 @@ export function TendrilSidebar({
       </div>
 
       {/* Action Buttons */}
-      {!collapsed && (
-        <div className="tendril-sidebar-actions">
-          <button
-            type="button"
-            className="tendril-sidebar-new-plan-btn"
-            onClick={handleNewPlan}
-          >
-            <div className="tendril-sidebar-btn-left">
-              <Plus size={16} />
-              <span>New Plan</span>
-            </div>
-            {newPlanShortcut && (
-              <span className="tendril-sidebar-shortcut">{newPlanShortcut}</span>
-            )}
-          </button>
-
-          <div
-            className={`tendril-sidebar-agent-item ${activeItem === "agent" ? "active" : ""}`}
-            onClick={handleSelectAgent}
-          >
-            <div className="tendril-sidebar-btn-left">
-              <Sparkles size={16} />
-              <span>{agentName}</span>
-            </div>
-            {agentShortcut && (
-              <span className="tendril-sidebar-shortcut">{agentShortcut}</span>
-            )}
+      <div className="tendril-sidebar-actions">
+        <button
+          type="button"
+          className={`tendril-sidebar-new-plan-btn ${collapsed ? "icon-only" : ""}`}
+          onClick={handleNewPlan}
+          title={collapsed ? "New Plan" : undefined}
+        >
+          <div className="tendril-sidebar-btn-left">
+            <Plus size={16} />
+            {!collapsed && <span>New Plan</span>}
           </div>
+          {!collapsed && newPlanShortcut && (
+            <span className="tendril-sidebar-shortcut">{formatShortcut(newPlanShortcut)}</span>
+          )}
+        </button>
+
+        <div
+          className={`tendril-sidebar-agent-item ${activeItem === "agent" ? "active" : ""} ${collapsed ? "icon-only" : ""}`}
+          onClick={handleSelectAgent}
+          title={collapsed ? agentName : undefined}
+        >
+          <div className="tendril-sidebar-btn-left">
+            <Sparkles size={16} />
+            {!collapsed && <span>{agentName}</span>}
+          </div>
+          {!collapsed && agentShortcut && (
+            <span className="tendril-sidebar-shortcut">{formatShortcut(agentShortcut)}</span>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Navigation List */}
       <div className="tendril-sidebar-nav">
         <div
           className={`tendril-sidebar-item ${activeItem === "dashboard" ? "active" : ""}`}
           onClick={() => handleSelect("dashboard")}
+          title={collapsed ? "Dashboard" : undefined}
         >
           <div className="tendril-sidebar-item-left">
             <LayoutDashboard className="tendril-sidebar-item-icon" />
@@ -134,6 +169,7 @@ export function TendrilSidebar({
         <div
           className={`tendril-sidebar-item ${activeItem === "drafts" ? "active" : ""}`}
           onClick={() => handleSelect("drafts")}
+          title={collapsed ? "Drafts" : undefined}
         >
           <div className="tendril-sidebar-item-left">
             <Feather className="tendril-sidebar-item-icon" />
@@ -147,6 +183,7 @@ export function TendrilSidebar({
         <div
           className={`tendril-sidebar-item ${activeItem === "review" ? "active" : ""}`}
           onClick={() => handleSelect("review")}
+          title={collapsed ? "Review" : undefined}
         >
           <div className="tendril-sidebar-item-left">
             <ThumbsUp className="tendril-sidebar-item-icon" />
@@ -160,6 +197,7 @@ export function TendrilSidebar({
         <div
           className={`tendril-sidebar-item ${activeItem === "recommendations" ? "active" : ""}`}
           onClick={() => handleSelect("recommendations")}
+          title={collapsed ? "Recommendations" : undefined}
         >
           <div className="tendril-sidebar-item-left">
             <Lightbulb className="tendril-sidebar-item-icon" />
@@ -178,8 +216,9 @@ export function TendrilSidebar({
             className={`tendril-sidebar-group-header ${activeItem === "jobs" ? "active" : ""}`}
             onClick={() => {
               handleSelect("jobs");
-              setJobsExpanded(!jobsExpanded);
+              if (!collapsed) setJobsExpanded(!jobsExpanded);
             }}
+            title={collapsed ? "Jobs" : undefined}
           >
             <div className="tendril-sidebar-item-left">
               <Activity className="tendril-sidebar-item-icon" />
@@ -212,6 +251,7 @@ export function TendrilSidebar({
         <div
           className={`tendril-sidebar-item ${activeItem === "pull-requests" ? "active" : ""}`}
           onClick={() => handleSelect("pull-requests")}
+          title={collapsed ? "Pull Requests" : undefined}
         >
           <div className="tendril-sidebar-item-left">
             <GitPullRequest className="tendril-sidebar-item-icon" />
@@ -225,6 +265,7 @@ export function TendrilSidebar({
         <div
           className={`tendril-sidebar-item ${activeItem === "icebox" ? "active" : ""}`}
           onClick={() => handleSelect("icebox")}
+          title={collapsed ? "Icebox" : undefined}
         >
           <div className="tendril-sidebar-item-left">
             <Snowflake className="tendril-sidebar-item-icon" />
@@ -238,6 +279,7 @@ export function TendrilSidebar({
         <div
           className={`tendril-sidebar-item ${activeItem === "help" ? "active" : ""}`}
           onClick={() => handleSelect("help")}
+          title={collapsed ? "Help Requests" : undefined}
         >
           <div className="tendril-sidebar-item-left">
             <HelpCircle className="tendril-sidebar-item-icon" />
@@ -251,3 +293,4 @@ export function TendrilSidebar({
     </div>
   );
 }
+

@@ -13,10 +13,9 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  width: 256px;
+  width: 100%;
   background-color: var(--ts-bg);
-  border-right: 1px solid var(--ts-border);
-  padding: 16px 12px;
+  padding: 12px 8px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   color: var(--ts-fg);
   user-select: none;
@@ -39,8 +38,9 @@
 }
 
 .tendril-sidebar.collapsed {
-  width: 64px;
-  padding: 16px 8px;
+  width: 100%;
+  padding: 12px 4px;
+  align-items: center;
 }
 
 /* Header */
@@ -48,8 +48,16 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   padding: 0 4px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.tendril-sidebar.collapsed .tendril-sidebar-header {
+  justify-content: center;
+  padding: 0;
+  margin-bottom: 12px;
 }
 
 .tendril-sidebar-brand {
@@ -58,9 +66,13 @@
   gap: 10px;
 }
 
+.tendril-sidebar.collapsed .tendril-sidebar-brand {
+  justify-content: center;
+}
+
 .tendril-sidebar-logo {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   color: #059669;
   flex-shrink: 0;
 }
@@ -107,6 +119,11 @@
   flex-direction: column;
   gap: 8px;
   margin-bottom: 16px;
+  width: 100%;
+}
+
+.tendril-sidebar.collapsed .tendril-sidebar-actions {
+  align-items: center;
 }
 
 .tendril-sidebar-new-plan-btn {
@@ -126,6 +143,14 @@
   transition: opacity 0.15s ease;
 }
 
+.tendril-sidebar-new-plan-btn.icon-only {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 8px;
+}
+
 .tendril-sidebar-new-plan-btn:hover {
   opacity: 0.9;
 }
@@ -134,6 +159,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  justify-content: center;
 }
 
 .tendril-sidebar-shortcut {
@@ -160,6 +186,14 @@
   transition: background-color 0.15s ease;
 }
 
+.tendril-sidebar-agent-item.icon-only {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 8px;
+}
+
 .tendril-sidebar-agent-item:hover {
   background-color: var(--ts-hover-bg);
 }
@@ -170,6 +204,7 @@
   flex-direction: column;
   gap: 2px;
   flex: 1;
+  width: 100%;
   overflow-y: auto;
 }
 
@@ -187,6 +222,11 @@
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
+.tendril-sidebar.collapsed .tendril-sidebar-item {
+  justify-content: center;
+  padding: 9px 0;
+}
+
 .tendril-sidebar-item:hover {
   background-color: var(--ts-hover-bg);
 }
@@ -201,6 +241,11 @@
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.tendril-sidebar.collapsed .tendril-sidebar-item-left {
+  gap: 0;
+  justify-content: center;
 }
 
 .tendril-sidebar-item-icon {
@@ -248,6 +293,11 @@
   font-weight: 500;
   color: var(--ts-fg);
   transition: background-color 0.15s ease;
+}
+
+.tendril-sidebar.collapsed .tendril-sidebar-group-header {
+  justify-content: center;
+  padding: 9px 0;
 }
 
 .tendril-sidebar-group-header:hover {

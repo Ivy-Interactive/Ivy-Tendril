@@ -57,7 +57,9 @@ public class JobService : IJobService
         _jobSlotSemaphore = _maxConcurrentJobs > 0
             ? new SemaphoreSlim(_maxConcurrentJobs, _maxConcurrentJobs)
             : new SemaphoreSlim(0, 1);
-        _inboxPath = Path.Combine(configService.TendrilHome, "Inbox");
+        _inboxPath = string.IsNullOrEmpty(configService.TendrilHome)
+            ? null
+            : Path.Combine(configService.TendrilHome, "Inbox");
         var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot(configService.TendrilHome);
         _jobLauncher = new JobLauncher(configService, agentRunner, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
