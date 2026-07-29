@@ -242,18 +242,26 @@ Valid keys: `codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `ma
 
 ## Creating Plans Interactively
 
-When the user asks you to create a plan:
+When the user asks you to create a plan, fix code, refactor a project, or improve code quality:
 
-1. **Do the work the description implies, first.** If the description asks you to *suggest*, *research*, *investigate*, *compare*, or *decide* something, actually do that work before creating the plan. Explore the project's repos, read the relevant code, and produce concrete, specific proposals. For example, "Suggest a few dev tools we can add" means you go look at the project and come back with named tools and why — it does **not** mean creating a plan titled "Suggest dev tools to add".
-2. **Confirm scope when it's open-ended.** Briefly share what you found and what you propose, so the user can steer before you commit it to a plan.
-3. **You MUST create the plan by starting a `CreatePlan` job.** Never create a new plan by writing its content yourself — do **not** run `tendril plan create` / `write-revision`, and do **not** hand-author the plan markdown. Once the scope is concrete, start the job:
+1. **NEVER modify source code or create scratch files directly in a chat session.**
+   All code changes for projects added to Tendril MUST go through the official Tendril pipeline:
+   **Task Intake → CreatePlan job → Draft Plan → User Review → ExecutePlan job → Verification → PR → Merge**.
+   You are STRICTLY FORBIDDEN from using `write_to_file`, `replace_file_content`, `multi_replace_file_content`, or creating scratch code files directly when requested to plan, fix, or improve a project.
+
+2. **Do the research first.** Explore the project's repos using read-only tools (`view_file`, `grep_search`, `list_dir`), inspect the relevant code, and produce concrete, specific proposals in chat.
+
+3. **Confirm scope when open-ended.** Briefly share what you found and what you propose, so the user can steer before committing to a plan.
+
+4. **You MUST create the plan by starting a `CreatePlan` job.** Never create a new plan by writing code or hand-authoring files yourself — do **not** run `tendril plan create` / `write-revision`, and do **not** write scratch code files. Once the scope is concrete, start the `CreatePlan` job:
    ```bash
    tendril job start CreatePlan --description="<concrete, refined description>" --project="<project>"
    ```
-   This is non-negotiable: the `CreatePlan` job applies the project's configured **Plan Template** and runs duplicate detection and research. If you hand-write the plan instead, the configured template and those steps are silently skipped and the plan comes out malformed. The job's promptware then writes the full plan. Pass the specific description you developed (the concrete tools/steps you proposed), **not** the user's original vague request. Add `--priority <n>` or `--force` if appropriate. Report the job back to the user.
+   This is non-negotiable: the `CreatePlan` job applies the project's configured **Plan Template**, runs duplicate detection and research, and creates the plan in the Tendril pipeline so the user can review and execute it via Tendril. Pass the specific description you developed (the concrete steps/architecture you proposed), **not** the user's original vague request. Report the job back to the user.
 
 ## Important Notes
 
+- **NEVER modify codebase files directly in chat** — always use `tendril job start CreatePlan` to initiate project changes through the Tendril plan-draft-review pipeline.
 - **Never read or write `plan.yaml` directly** -- always use `tendril plan` CLI commands.
 - **`tendril job start` and `tendril job status` require the Tendril server to be running.** They communicate via HTTP to the master instance (discovered via `TENDRIL_HOME/.master`). `tendril job add-log` does not need the server — it writes straight to disk.
 - Verification statuses: `Pending`, `Pass`, `Fail`, `Skipped`.
