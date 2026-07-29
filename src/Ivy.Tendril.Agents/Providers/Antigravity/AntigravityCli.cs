@@ -11,6 +11,8 @@ public sealed class AntigravityCli : IAgentCli
     public AgentCapabilities Capabilities =>
         AgentCapabilities.StdinPrompt |
         AgentCapabilities.StreamJsonOutput |
+        AgentCapabilities.ModelSelection |
+        AgentCapabilities.EffortControl |
         AgentCapabilities.DirectoryRestriction |
         AgentCapabilities.HealthCheck |
         AgentCapabilities.ExtraArgPassthrough |
@@ -22,9 +24,9 @@ public sealed class AntigravityCli : IAgentCli
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
     [
-        new(ProfileTier.Deep, "default", null),
-        new(ProfileTier.Balanced, "default", null),
-        new(ProfileTier.Quick, "default", null),
+        new(ProfileTier.Deep, "gemini-3.6-flash", "medium"),
+        new(ProfileTier.Balanced, "gemini-3.6-flash", "medium"),
+        new(ProfileTier.Quick, "gemini-3.6-flash", "medium"),
     ];
 
     public string? TranslateToolName(string canonicalTool) => null;
@@ -73,7 +75,14 @@ public sealed class AntigravityCli : IAgentCli
             args.Add(arg);
 
         args.Add("--print");
-        args.Add(config.Prompt);
+        if (!string.IsNullOrEmpty(config.PromptFilePath))
+        {
+            args.Add(config.PromptFilePath);
+        }
+        else
+        {
+            args.Add("-");
+        }
 
         var env = new Dictionary<string, string>(GetDefaultEnvironment());
         if (config.EnvironmentVariables is not null)
