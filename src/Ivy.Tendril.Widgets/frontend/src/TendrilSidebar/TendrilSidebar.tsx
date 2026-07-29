@@ -59,7 +59,7 @@ export function TendrilSidebar({
 
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setIsNarrow(entry.contentRect.width <= 100);
+        setIsNarrow(entry.contentRect.width <= 180);
       }
     });
 

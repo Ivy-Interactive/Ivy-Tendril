@@ -399,18 +399,48 @@ tendril-sidebar,
 
 /* Footer Section */
 .tendril-sidebar-footer {
-  display: flex;
-  flex-direction: column;
+  display: flex !important;
+  flex-direction: column !important;
   margin-top: auto !important;
-  width: 100%;
-  padding-bottom: 4px;
+  width: 100% !important;
+  flex-shrink: 0 !important;
 }
 
 .tendril-sidebar.collapsed .tendril-sidebar-footer {
+  display: flex !important;
+  flex-direction: column !important;
   align-items: center !important;
+  justify-content: center !important;
   padding: 0 !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
+  margin: 0 !important;
   margin-top: auto !important;
   width: 100% !important;
+}
+
+.tendril-sidebar.collapsed .tendril-sidebar-footer .tendril-sidebar-item {
+  width: 36px !important;
+  height: 36px !important;
+  min-width: 36px !important;
+  padding: 0 !important;
+  justify-content: center !important;
+  align-items: center !important;
+  border-radius: 8px !important;
+  margin: 0 auto !important;
+}
+
+.tendril-sidebar.collapsed .tendril-sidebar-footer .tendril-sidebar-item-icon {
+  margin: 0 auto !important;
+  width: 18px !important;
+  height: 18px !important;
+  display: block !important;
+}
+
+/* Strict Collapsed CSS Text Hiding Fallbacks */
+.tendril-sidebar.collapsed .tendril-sidebar-title-box,
+.tendril-sidebar.collapsed .tendril-sidebar-shortcut,
+.tendril-sidebar.collapsed .tendril-sidebar-badge,
+.tendril-sidebar.collapsed span,
+.tendril-sidebar.collapsed .tendril-sidebar-divider,
+.tendril-sidebar.collapsed svg:not(.tendril-sidebar-logo):not(.tendril-sidebar-item-icon) {
+  display: none !important;
 }
