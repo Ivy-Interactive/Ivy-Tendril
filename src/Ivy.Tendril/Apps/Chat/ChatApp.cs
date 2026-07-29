@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Ivy;
 using Ivy.Core;
@@ -32,6 +33,7 @@ public class ChatApp : ViewBase
         var streamingText = UseState("");
         var streamingStream = UseStream<string>();
         var activeSessionRef = UseRef<IAgentSession?>(null);
+        var messageQueue = UseRef(new ConcurrentQueue<ChatSendMessageDto>());
         var initialHandled = UseRef(false);
 
         // Map sessions to DTOs
@@ -99,11 +101,11 @@ public class ChatApp : ViewBase
             )).ToList()
         )).ToList();
 
-        async Task SendMessage(ChatSendMessageDto dto)
+        async Task ExecuteSendMessage(ChatSendMessageDto dto)
         {
             var userPrompt = dto.Prompt.Trim();
             var attachments = dto.Attachments ?? [];
-            if (string.IsNullOrWhiteSpace(userPrompt) && attachments.Count == 0 || isStreaming.Value) return;
+            if (string.IsNullOrWhiteSpace(userPrompt) && attachments.Count == 0) return;
 
             string targetSessionId = activeSessionId.Value ?? "";
             if (string.IsNullOrEmpty(targetSessionId))
@@ -152,6 +154,35 @@ public class ChatApp : ViewBase
                     : $"{promptWithAttachments}\n\n{attachmentLines}";
             }
 
+            // Build session discussion history before saving the user prompt
+            var existingSession = chatService.GetSession(targetSessionId);
+            var agentPromptBuilder = new StringBuilder();
+
+            if (existingSession != null && existingSession.Messages.Count > 0)
+            {
+                agentPromptBuilder.AppendLine("# Previous Conversation Discussion History");
+                agentPromptBuilder.AppendLine("The following is the preceding discussion context in this chat thread:");
+                agentPromptBuilder.AppendLine();
+
+                foreach (var prevMsg in existingSession.Messages)
+                {
+                    if (string.IsNullOrWhiteSpace(prevMsg.Content)) continue;
+                    var roleName = prevMsg.Role.Equals("user", StringComparison.OrdinalIgnoreCase) ? "User" : "Assistant";
+                    agentPromptBuilder.AppendLine($"**[{roleName}]**:");
+                    agentPromptBuilder.AppendLine(prevMsg.Content);
+                    agentPromptBuilder.AppendLine();
+                }
+
+                agentPromptBuilder.AppendLine("---");
+                agentPromptBuilder.AppendLine();
+            }
+
+            agentPromptBuilder.AppendLine("# Current User Request");
+            agentPromptBuilder.AppendLine(promptWithAttachments);
+
+            var fullAgentPrompt = agentPromptBuilder.ToString();
+
+            // Save clean user prompt into database & UI
             chatService.AddMessage(targetSessionId, "user", promptWithAttachments, selectedAgent.Value, selectedModel.Value);
             isStreaming.Set(true);
             streamingText.Set("");
@@ -165,7 +196,7 @@ public class ChatApp : ViewBase
                 var context = new AgentResolutionContext
                 {
                     AgentId = selectedAgent.Value,
-                    Prompt = promptWithAttachments,
+                    Prompt = fullAgentPrompt,
                     SystemPrompt = systemPrompt,
                     ModelOverride = selectedModel.Value,
                     WorkingDirectory = !string.IsNullOrEmpty(configService.TendrilHome) ? configService.TendrilHome : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -221,13 +252,31 @@ public class ChatApp : ViewBase
                 activeSessionRef.Value = null;
                 isStreaming.Set(false);
                 streamingText.Set("");
+
+                // Process next message in queue if any
+                if (messageQueue.Value.TryDequeue(out var nextDto))
+                {
+                    _ = ExecuteSendMessage(nextDto);
+                }
+            }
+        }
+
+        void SendMessage(ChatSendMessageDto dto)
+        {
+            if (isStreaming.Value)
+            {
+                messageQueue.Value.Enqueue(dto);
+            }
+            else
+            {
+                _ = ExecuteSendMessage(dto);
             }
         }
 
         if (!initialHandled.Value && !string.IsNullOrWhiteSpace(args?.Prompt))
         {
             initialHandled.Value = true;
-            _ = Task.Run(async () => await SendMessage(new ChatSendMessageDto(args.Prompt)));
+            SendMessage(new ChatSendMessageDto(args.Prompt));
         }
 
         return new Ivy.Tendril.Widgets.ChatWidget
@@ -273,11 +322,12 @@ public class ChatApp : ViewBase
             },
             OnSendMessage = e =>
             {
-                _ = SendMessage(e.Value);
+                SendMessage(e.Value);
                 return ValueTask.CompletedTask;
             },
             OnCancelStream = async _ =>
             {
+                while (messageQueue.Value.TryDequeue(out var _)) { }
                 try
                 {
                     if (activeSessionRef.Value != null)

@@ -330,6 +330,26 @@
   border-bottom-right-radius: 2px;
 }
 
+.chat-message-bubble.queued {
+  opacity: 0.75;
+  border-style: dashed !important;
+  border-color: #eab308 !important;
+}
+
+.chat-queued-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #eab308;
+  background-color: rgba(234, 179, 8, 0.15);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-bottom: 4px;
+}
+
 .chat-message-row.assistant .chat-message-bubble {
   background-color: #18181b;
   color: #e4e4e7;

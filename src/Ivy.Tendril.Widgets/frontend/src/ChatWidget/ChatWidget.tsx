@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Trash2, Mic, Bot, Cpu, Search, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square } from "lucide-react";
+import { Plus, Trash2, Mic, Bot, Cpu, Search, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square, Clock } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AgentViewer } from "../AgentViewer";
@@ -172,6 +172,12 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+interface QueuedItem {
+  id: string;
+  prompt: string;
+  attachments: ChatAttachmentDto[];
+}
+
 export function ChatWidget({
   id,
   activeSessionId,
@@ -195,6 +201,7 @@ export function ChatWidget({
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [sidebarEditingText, setSidebarEditingText] = useState("");
   const [attachments, setAttachments] = useState<ChatAttachmentDto[]>([]);
+  const [queuedMessages, setQueuedMessages] = useState<QueuedItem[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -204,7 +211,15 @@ export function ChatWidget({
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeSession?.messages, isStreaming, streamingText]);
+  }, [activeSession?.messages, isStreaming, streamingText, queuedMessages]);
+
+  useEffect(() => {
+    if (activeSession?.messages) {
+      setQueuedMessages((prev) =>
+        prev.filter((q) => !activeSession.messages.some((m) => m.content === q.prompt))
+      );
+    }
+  }, [activeSession?.messages]);
 
   const adjustTextareaHeight = () => {
     const el = textareaRef.current;
@@ -260,8 +275,18 @@ export function ChatWidget({
   };
 
   const handleSendMessage = () => {
-    if ((!promptText.trim() && attachments.length === 0) || isStreaming) return;
-    emit("OnSendMessage", { prompt: promptText.trim(), attachments });
+    const trimmed = promptText.trim();
+    if (!trimmed && attachments.length === 0) return;
+
+    const payload = { prompt: trimmed, attachments };
+    if (isStreaming) {
+      setQueuedMessages((prev) => [
+        ...prev,
+        { id: `q-${Date.now()}-${Math.random()}`, prompt: trimmed, attachments },
+      ]);
+    }
+
+    emit("OnSendMessage", payload);
     setPromptText("");
     setAttachments([]);
     if (textareaRef.current) {
@@ -270,6 +295,7 @@ export function ChatWidget({
   };
 
   const handleCancelStream = () => {
+    setQueuedMessages([]);
     emit("OnCancelStream");
   };
 
@@ -565,6 +591,20 @@ export function ChatWidget({
               </div>
             </div>
           )}
+
+          {/* Queued Messages */}
+          {queuedMessages.map((q) => (
+            <div key={q.id} className="chat-message-row user queued">
+              <div className="chat-message-bubble queued">
+                <div className="chat-queued-badge">
+                  <Clock size={11} />
+                  <span>Queued</span>
+                </div>
+                <div>{q.prompt}</div>
+              </div>
+            </div>
+          ))}
+
           <div ref={messagesEndRef} />
         </div>
 
@@ -638,15 +678,28 @@ export function ChatWidget({
 
               <div className="chat-input-actions-right">
                 {isStreaming ? (
-                  <button
-                    type="button"
-                    className="chat-cancel-btn"
-                    onClick={handleCancelStream}
-                    title="Stop agent"
-                  >
-                    <Square size={11} fill="#ef4444" />
-                    <span>Stop</span>
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="chat-cancel-btn"
+                      onClick={handleCancelStream}
+                      title="Stop agent"
+                    >
+                      <Square size={11} fill="#ef4444" />
+                      <span>Stop</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="chat-send-btn"
+                      disabled={!promptText.trim() && attachments.length === 0}
+                      onClick={handleSendMessage}
+                      title="Queue message"
+                    >
+                      <span>Queue</span>
+                      <span className="chat-shortcut-hint">↵</span>
+                    </button>
+                  </>
                 ) : (
                   <button
                     type="button"
