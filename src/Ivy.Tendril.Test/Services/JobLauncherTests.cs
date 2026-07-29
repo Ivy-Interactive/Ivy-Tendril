@@ -43,7 +43,7 @@ projects:
     {
         var configService = new ConfigService(new TendrilSettings());
         configService.SetTendrilHome(_tempTendrilHome);
-        return new JobLauncher(configService, null,
+        return new JobLauncher(configService, null, null, null, null,
             Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, _tempPromptsRoot);
     }
 

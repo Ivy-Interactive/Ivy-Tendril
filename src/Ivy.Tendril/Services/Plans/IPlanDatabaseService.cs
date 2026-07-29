@@ -57,6 +57,19 @@ public interface IPlanDatabaseService : IDisposable
     void UpsertPrStatus(string prUrl, string owner, string repo, string status, DateTime lastChecked);
     List<string> GetNonMergedPrUrls();
 
+    // Connections
+    void UpsertConnection(ConnectionItem connection);
+    List<ConnectionItem> GetConnections();
+    ConnectionItem? GetConnectionByName(string name);
+    void DeleteConnection(string name);
+
+    // Workflows
+    void UpsertWorkflow(WorkflowItem workflow);
+    List<WorkflowItem> GetWorkflows(string? project = null);
+    WorkflowItem? GetWorkflowById(int id);
+    WorkflowItem? GetWorkflowByName(string name, string? project = null);
+    void DeleteWorkflow(int id);
+
     // Diagnostics
     long GetDatabaseSize();
     DateTime GetLastSyncTime();

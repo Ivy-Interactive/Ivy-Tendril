@@ -18,6 +18,7 @@ public static class Constants
     public const int Agent = 80;
     public const int Trash = 90;
     public const int Help = 100;
+    public const int Library = 105;
     public const int Onboarding = 110;
 
     public const string DocsUrl = "https://tendril.ivy.app";
@@ -72,7 +73,13 @@ public static class Constants
         [JobTypes.CreateIssue] = Colors.Rose,
         [JobTypes.RetryPlan] = Colors.Orange,
         [JobTypes.SetupProject] = Colors.Slate,
-        [JobTypes.SyncRepo] = Colors.Amber
+        [JobTypes.SyncRepo] = Colors.Amber,
+        [JobTypes.UpdateMemories] = Colors.Pink,
+        [JobTypes.EditMemory] = Colors.Teal,
+        [JobTypes.CodeQuality] = Colors.Indigo,
+        [JobTypes.CodeSecurity] = Colors.Red,
+        [JobTypes.Documentation] = Colors.Violet,
+        ["WorkflowRun"] = Colors.Purple
     };
 
     /// <summary>
@@ -90,10 +97,16 @@ public static class Constants
         public const string CreateIssue = "CreateIssue";
         public const string SetupProject = "SetupProject";
         public const string SyncRepo = "SyncRepo";
+        public const string UpdateMemories = "UpdateMemories";
+        public const string EditMemory = "EditMemory";
+        public const string CodeQuality = "CodeQuality";
+        public const string CodeSecurity = "CodeSecurity";
+        public const string Documentation = "Documentation";
+        public const string WorkflowRun = "WorkflowRun";
 
         public static readonly HashSet<string> BuiltIn = new(StringComparer.OrdinalIgnoreCase)
         {
-            CreatePlan, ExecutePlan, RetryPlan, ExpandPlan, UpdatePlan, SplitPlan, CreatePr, CreateIssue, SetupProject, SyncRepo
+            CreatePlan, ExecutePlan, RetryPlan, ExpandPlan, UpdatePlan, SplitPlan, CreatePr, CreateIssue, SetupProject, SyncRepo, UpdateMemories, EditMemory, CodeQuality, CodeSecurity, Documentation, WorkflowRun
         };
     }
 }

@@ -3,6 +3,7 @@ using Ivy.Core.Exceptions;
 using Ivy.Tendril.Agents;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Connections;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -146,6 +147,12 @@ internal static class ServiceRegistration
         });
         server.Services.AddSingleton<TelemetryService>(sp =>
             (TelemetryService)sp.GetRequiredService<ITelemetryService>());
+        server.Services.AddSingleton<IConnectionProvider, SlackConnection>();
+        server.Services.AddSingleton<IConnectionProvider, DiscordConnection>();
+        server.Services.AddSingleton<IConnectionProvider, GitHubConnection>();
+        server.Services.AddSingleton<ConnectionExecutorService>();
+        server.Services.AddSingleton<IConnectionExecutorService>(sp => sp.GetRequiredService<ConnectionExecutorService>());
+
         server.Services.AddSingleton<JobService>(sp =>
         {
             var cfg = sp.GetRequiredService<IConfigService>();
@@ -157,9 +164,21 @@ internal static class ServiceRegistration
                 sp.GetRequiredService<ITelemetryService>(),
                 sp.GetRequiredService<IPlanWatcherService>(),
                 string.IsNullOrEmpty(cfg.TendrilHome) ? null : sp.GetRequiredService<IPlanDatabaseService>(),
-                sp.GetRequiredService<IAgentRunner>());
+                sp.GetRequiredService<IAgentRunner>(),
+                sp.GetRequiredService<IConnectionExecutorService>());
         });
         server.Services.AddSingleton<IJobService>(sp => sp.GetRequiredService<JobService>());
+
+        server.Services.AddSingleton<WorkflowTriggerService>(sp =>
+        {
+            var database = sp.GetRequiredService<IPlanDatabaseService>();
+            var jobService = sp.GetRequiredService<IJobService>();
+            var planReader = sp.GetRequiredService<IPlanReaderService>();
+            var planWatcher = sp.GetRequiredService<IPlanWatcherService>();
+            var logger = sp.GetRequiredService<ILogger<WorkflowTriggerService>>();
+            return new WorkflowTriggerService(database, jobService, planReader, planWatcher, logger);
+        });
+        server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<WorkflowTriggerService>());
         server.Services.AddSingleton<PlanWatcherService>(sp =>
         {
             var config = sp.GetRequiredService<IConfigService>();
