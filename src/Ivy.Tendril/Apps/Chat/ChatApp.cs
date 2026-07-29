@@ -5,9 +5,12 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Ivy;
 using Ivy.Core;
+using Ivy.Core.Hooks;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
+using Ivy.Tendril.Agents.Providers;
+using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Widgets;
@@ -32,7 +35,7 @@ public class ChatApp : ViewBase
         var isStreaming = UseState(false);
         var streamingSessionId = UseState<string?>(null);
         var streamingText = UseState("");
-        var streamingStream = UseStream<string>();
+        var liveSessionStreams = UseState(new Dictionary<string, string>());
         var activeSessionRef = UseRef<IAgentSession?>(null);
         var runningSessionIds = UseState(new HashSet<string>());
         var messageQueue = UseRef(new ConcurrentQueue<ChatSendMessageDto>());
@@ -118,9 +121,8 @@ public class ChatApp : ViewBase
             string targetSessionId = dto.SessionId ?? "";
             if (string.IsNullOrEmpty(targetSessionId)) return;
 
-            // Track generating session and streaming session ID
-            var nextRunning = new HashSet<string>(runningSessionIds.Value) { targetSessionId };
-            runningSessionIds.Set(nextRunning);
+            var runningSet = new HashSet<string>(runningSessionIds.Value) { targetSessionId };
+            runningSessionIds.Set(runningSet);
             streamingSessionId.Set(targetSessionId);
 
             // Save attachments to disk
@@ -143,40 +145,44 @@ public class ChatApp : ViewBase
                             var base64 = att.Base64Data[(att.Base64Data.IndexOf(",") + 1)..];
                             var bytes = Convert.FromBase64String(base64);
                             File.WriteAllBytes(filePath, bytes);
-                            attachedFilePaths.Add(filePath);
                         }
+                        attachedFilePaths.Add(filePath);
                     }
                     catch
                     {
-                        // Best effort file save
+                        // Ignore attachment write exceptions
                     }
                 }
             }
 
+            // Build user prompt with attachment notes if applicable
             var promptWithAttachments = userPrompt;
             if (attachedFilePaths.Count > 0)
             {
-                var attachmentLines = string.Join("\n", attachedFilePaths.Select(p => $"[Attached file: {p}]"));
-                promptWithAttachments = string.IsNullOrWhiteSpace(promptWithAttachments)
-                    ? attachmentLines
-                    : $"{promptWithAttachments}\n\n{attachmentLines}";
+                var sb = new StringBuilder(userPrompt);
+                sb.AppendLine("\n\n[Attached Files]:");
+                foreach (var path in attachedFilePaths)
+                {
+                    sb.AppendLine($"- {path}");
+                }
+                promptWithAttachments = sb.ToString();
             }
 
-            // Build session discussion history before saving the user prompt
-            var existingSession = chatService.GetSession(targetSessionId);
-            var agentPromptBuilder = new StringBuilder();
+            // Fetch previous history for conversation discussion context
+            var sess = chatService.GetSession(targetSessionId);
+            var history = sess?.Messages ?? [];
 
-            if (existingSession != null && existingSession.Messages.Count > 0)
+            var agentPromptBuilder = new StringBuilder();
+            if (history.Count > 0)
             {
                 agentPromptBuilder.AppendLine("# Previous Conversation Discussion History");
-                agentPromptBuilder.AppendLine("The following is the preceding discussion context in this chat thread:");
+                agentPromptBuilder.AppendLine("The following is the previous conversation history in this chat session:");
                 agentPromptBuilder.AppendLine();
 
-                foreach (var prevMsg in existingSession.Messages)
+                foreach (var prevMsg in history)
                 {
-                    if (string.IsNullOrWhiteSpace(prevMsg.Content)) continue;
-                    var roleName = prevMsg.Role.Equals("user", StringComparison.OrdinalIgnoreCase) ? "User" : "Assistant";
-                    agentPromptBuilder.AppendLine($"**[{roleName}]**:");
+                    var roleLabel = prevMsg.Role.Equals("user", StringComparison.OrdinalIgnoreCase) ? "User" : "Assistant";
+                    agentPromptBuilder.AppendLine($"### {roleLabel}");
                     agentPromptBuilder.AppendLine(prevMsg.Content);
                     agentPromptBuilder.AppendLine();
                 }
@@ -193,7 +199,6 @@ public class ChatApp : ViewBase
             // Save clean user prompt into database & UI
             chatService.AddMessage(targetSessionId, "user", promptWithAttachments, selectedAgent.Value, selectedModel.Value);
             isStreaming.Set(true);
-            streamingText.Set("");
 
             try
             {
@@ -225,10 +230,14 @@ public class ChatApp : ViewBase
                         var wireJson = serializer.Serialize(evt);
                         if (!string.IsNullOrEmpty(wireJson))
                         {
-                            streamingStream.Write(wireJson);
                             lock (rawLock)
                             {
                                 rawLines.Add(wireJson);
+                                var map = new Dictionary<string, string>(liveSessionStreams.Value)
+                                {
+                                    [targetSessionId] = string.Join("\n", rawLines)
+                                };
+                                liveSessionStreams.Set(map);
                             }
                         }
                     }
@@ -259,17 +268,38 @@ public class ChatApp : ViewBase
             {
                 activeSessionRef.Value = null;
                 isStreaming.Set(false);
-                streamingText.Set("");
                 streamingSessionId.Set(null);
 
                 var finishedSet = new HashSet<string>(runningSessionIds.Value);
                 finishedSet.Remove(targetSessionId);
                 runningSessionIds.Set(finishedSet);
 
-                // Process next message in queue if any
-                if (messageQueue.Value.TryDequeue(out var nextDto))
+                var map = new Dictionary<string, string>(liveSessionStreams.Value);
+                map.Remove(targetSessionId);
+                liveSessionStreams.Set(map);
+
+                // Process next message in queue if any for this session
+                var remainingItems = new List<ChatSendMessageDto>();
+                ChatSendMessageDto? nextForSession = null;
+                while (messageQueue.Value.TryDequeue(out var item))
                 {
-                    _ = ExecuteSendMessage(nextDto);
+                    if (nextForSession == null && (item.SessionId == targetSessionId || string.IsNullOrEmpty(item.SessionId)))
+                    {
+                        nextForSession = item;
+                    }
+                    else
+                    {
+                        remainingItems.Add(item);
+                    }
+                }
+                foreach (var rem in remainingItems)
+                {
+                    messageQueue.Value.Enqueue(rem);
+                }
+
+                if (nextForSession != null)
+                {
+                    _ = ExecuteSendMessage(nextForSession);
                 }
             }
         }
@@ -300,13 +330,25 @@ public class ChatApp : ViewBase
             }
         }
 
-        if (!initialHandled.Value && !string.IsNullOrWhiteSpace(args?.Prompt))
+        // Auto-run if prompt argument was passed in
+        if (!initialHandled.Value && !string.IsNullOrEmpty(args?.Prompt))
         {
             initialHandled.Value = true;
-            SendMessage(new ChatSendMessageDto(args.Prompt));
+            var targetId = activeSessionId.Value;
+            if (string.IsNullOrEmpty(targetId))
+            {
+                var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value);
+                targetId = newSess.Id;
+                activeSessionId.Set(targetId);
+            }
+            SendMessage(new ChatSendMessageDto(args.Prompt, null, targetId));
         }
 
-        return new Ivy.Tendril.Widgets.ChatWidget
+        string activeSessionLiveStream = activeSessionId.Value != null && liveSessionStreams.Value.TryGetValue(activeSessionId.Value, out var streamText)
+            ? streamText
+            : "";
+
+        return new ChatWidget
         {
             ActiveSessionId = activeSessionId.Value,
             StreamingSessionId = streamingSessionId.Value,
@@ -316,8 +358,7 @@ public class ChatApp : ViewBase
             SelectedAgent = selectedAgent.Value,
             SelectedModel = selectedModel.Value,
             IsStreaming = activeSessionId.Value != null && runningSessionIds.Value.Contains(activeSessionId.Value),
-            StreamingText = streamingText.Value,
-            StreamingStream = streamingStream,
+            StreamingText = activeSessionLiveStream,
 
             OnSelectSession = e =>
             {
@@ -370,6 +411,7 @@ public class ChatApp : ViewBase
                 isStreaming.Set(false);
                 streamingSessionId.Set(null);
                 runningSessionIds.Set(new HashSet<string>());
+                liveSessionStreams.Set(new Dictionary<string, string>());
             },
             OnAgentChanged = e =>
             {

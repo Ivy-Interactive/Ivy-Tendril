@@ -183,7 +183,7 @@ interface QueuedItem {
 export function ChatWidget({
   id,
   activeSessionId,
-  streamingSessionId,
+  streamingSessionId: _streamingSessionId,
   sessions = [],
   agents = [],
   models = [],
@@ -191,8 +191,8 @@ export function ChatWidget({
   selectedModel = "opus",
   isStreaming = false,
   streamingText = "",
-  streamingStream,
-  subscribeToStream,
+  streamingStream: _streamingStream,
+  subscribeToStream: _subscribeToStream,
   events = [],
   eventHandler,
 }: ChatWidgetProps) {
@@ -586,7 +586,7 @@ export function ChatWidget({
             </div>
           )}
 
-          {isStreaming && activeSessionId === streamingSessionId && (
+          {isStreaming && (
             <div className="chat-message-row assistant">
               <div className="chat-message-bubble" style={{ width: "85%", maxWidth: "85%" }}>
                 <div className="chat-message-header">
@@ -594,10 +594,8 @@ export function ChatWidget({
                   <span className="chat-message-author">{selectedAgent}</span>
                 </div>
                 <AgentViewer
-                  id="live-chat-agent-viewer"
+                  id={`live-chat-${activeSessionId}`}
                   jsonStream={streamingText}
-                  stream={streamingStream}
-                  subscribeToStream={subscribeToStream}
                   autoScroll={true}
                   showThinking={true}
                   showSystemEvents={false}
