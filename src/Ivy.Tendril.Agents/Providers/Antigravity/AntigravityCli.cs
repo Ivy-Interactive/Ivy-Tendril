@@ -36,7 +36,6 @@ public sealed class AntigravityCli : IAgentCli
     {
         var args = new List<string>
         {
-            "--print",
             "--dangerously-skip-permissions",
         };
 
@@ -44,6 +43,16 @@ public sealed class AntigravityCli : IAgentCli
         {
             args.Add("--model");
             args.Add(config.Model);
+
+            var effort = config.Effort switch
+            {
+                EffortLevel.Low => "low",
+                EffortLevel.High => "high",
+                EffortLevel.XHigh => "high",
+                _ => "medium"
+            };
+            args.Add("--effort");
+            args.Add(effort);
         }
 
         if (!string.IsNullOrEmpty(config.SessionId))
@@ -60,6 +69,9 @@ public sealed class AntigravityCli : IAgentCli
 
         foreach (var arg in config.ExtraArguments)
             args.Add(arg);
+
+        args.Add("--print");
+        args.Add(config.Prompt);
 
         var env = new Dictionary<string, string>(GetDefaultEnvironment());
         if (config.EnvironmentVariables is not null)
