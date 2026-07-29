@@ -15,7 +15,8 @@ import {
   Video,
   CheckSquare,
   Users,
-  Grid
+  Grid,
+  Plus
 } from "lucide-react";
 import "./workflow-builder.css";
 
@@ -91,10 +92,11 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
   eventHandler,
 }) => {
   const [steps, setSteps] = useState<WorkflowStep[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
-  const [draggedStepId, setDraggedStepId] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [selectedNode, setSelectedNode] = useState<string | null>(selectedNodeId || null);
+
+  // Dragging connection line state
+  const [connectingFromId, setConnectingFromId] = useState<string | null>(null);
+  const [mouseCanvasPos, setMouseCanvasPos] = useState<{ x: number; y: number } | null>(null);
 
   // Floating Island & Overlay state
   const [showOverlay, setShowOverlay] = useState<"connections" | "nodes" | "triggers" | null>(null);
@@ -104,6 +106,19 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
   const [currentWorkflowId, setCurrentWorkflowId] = useState(selectedWorkflowId || (workflows[0]?.id ?? 0));
 
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  // Helper for node port coordinates
+  const getNodePortCoords = (step: WorkflowStep) => {
+    const isTrigger = step.type.toLowerCase() === "trigger";
+    const width = isTrigger ? 140 : 260;
+    const heightOffset = isTrigger ? 22 : 45; // Edge center
+
+    return {
+      leftX: step.x,
+      rightX: step.x + width,
+      centerY: step.y + heightOffset,
+    };
+  };
 
   // Parse incoming definition JSON
   useEffect(() => {
@@ -214,35 +229,86 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
     }
   }, [steps]);
 
-  // Dragging steps on canvas
-  const handleMouseDownStep = (e: React.MouseEvent, step: WorkflowStep) => {
+  // Global smooth node dragging
+  const startDragNode = (e: React.MouseEvent, step: WorkflowStep) => {
     if (isReadOnly) return;
     e.stopPropagation();
     setSelectedNode(step.id);
-    setDraggedStepId(step.id);
-    setIsDragging(true);
 
-    const canvasRect = canvasRef.current?.getBoundingClientRect() ?? { left: 0, top: 0 };
-    setDragOffset({
-      x: e.clientX - canvasRect.left - step.x,
-      y: e.clientY - canvasRect.top - step.y,
-    });
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const initialX = step.x;
+    const initialY = step.y;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+      const newX = Math.max(10, initialX + dx);
+      const newY = Math.max(10, initialY + dy);
+
+      setSteps((prev) =>
+        prev.map((s) => (s.id === step.id ? { ...s, x: newX, y: newY } : s))
+      );
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
   };
 
-  const handleMouseMoveCanvas = (e: React.MouseEvent) => {
-    if (!isDragging || !draggedStepId || isReadOnly) return;
-    const canvasRect = canvasRef.current?.getBoundingClientRect() ?? { left: 0, top: 0 };
-    const newX = Math.max(20, e.clientX - canvasRect.left - dragOffset.x);
-    const newY = Math.max(20, e.clientY - canvasRect.top - dragOffset.y);
+  // Dragging out a new arrow connection from a port dot
+  const startConnecting = (e: React.MouseEvent, sourceStepId: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setConnectingFromId(sourceStepId);
 
-    setSteps((prev) =>
-      prev.map((s) => (s.id === draggedStepId ? { ...s, x: newX, y: newY } : s))
-    );
-  };
+    const updateMousePos = (clientX: number, clientY: number) => {
+      const cRect = canvasRef.current?.getBoundingClientRect() ?? { left: 0, top: 0 };
+      const sLeft = canvasRef.current?.scrollLeft ?? 0;
+      const sTop = canvasRef.current?.scrollTop ?? 0;
 
-  const handleMouseUpCanvas = () => {
-    setIsDragging(false);
-    setDraggedStepId(null);
+      setMouseCanvasPos({
+        x: clientX - cRect.left + sLeft,
+        y: clientY - cRect.top + sTop,
+      });
+    };
+
+    updateMousePos(e.clientX, e.clientY);
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      updateMousePos(moveEvent.clientX, moveEvent.clientY);
+    };
+
+    const onMouseUp = (upEvent: MouseEvent) => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+
+      const targetElement = document.elementFromPoint(upEvent.clientX, upEvent.clientY);
+      const targetNodeEl = targetElement?.closest("[data-node-id]");
+      if (targetNodeEl) {
+        const targetId = targetNodeEl.getAttribute("data-node-id");
+        if (targetId && targetId !== sourceStepId) {
+          setSteps((prev) =>
+            prev.map((s) => {
+              if (s.id === sourceStepId && !s.next.includes(targetId)) {
+                return { ...s, next: [...s.next, targetId] };
+              }
+              return s;
+            })
+          );
+        }
+      }
+
+      setConnectingFromId(null);
+      setMouseCanvasPos(null);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
   };
 
   const addNodeToCanvas = (type: string, name: string, description: string = "") => {
@@ -367,12 +433,10 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
         </div>
       </div>
 
-      {/* --- CANVAS WORKSPACE (SCROLLABLE & PANNEABLE AREA) --- */}
+      {/* --- CANVAS WORKSPACE (SCROLLABLE AREA) --- */}
       <div
         className="wfb-canvas-workspace"
         ref={canvasRef}
-        onMouseMove={handleMouseMoveCanvas}
-        onMouseUp={handleMouseUpCanvas}
       >
         <svg className="wfb-canvas-svg">
           <defs>
@@ -388,25 +452,21 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
             </marker>
           </defs>
 
-          {/* Draw SVG Edge Connections with Accurate Coordinates */}
+          {/* Draw SVG Edge Connections with Center-Edge Coordinates */}
           {steps.map((step) =>
             step.next.map((targetId) => {
               const target = steps.find((s) => s.id === targetId);
               if (!target) return null;
 
-              const isSourceTrigger = step.type.toLowerCase() === "trigger";
-              const sourceWidth = isSourceTrigger ? 140 : 260;
-              const sourceYOffset = isSourceTrigger ? 20 : 24;
+              const sourcePort = getNodePortCoords(step);
+              const targetPort = getNodePortCoords(target);
 
-              const isTargetTrigger = target.type.toLowerCase() === "trigger";
-              const targetYOffset = isTargetTrigger ? 20 : 24;
+              const sourceX = sourcePort.rightX;
+              const sourceY = sourcePort.centerY;
+              const targetX = targetPort.leftX;
+              const targetY = targetPort.centerY;
 
-              const sourceX = step.x + sourceWidth;
-              const sourceY = step.y + sourceYOffset;
-              const targetX = target.x;
-              const targetY = target.y + targetYOffset;
-
-              const dx = Math.max(40, targetX - sourceX);
+              const dx = Math.max(30, targetX - sourceX);
               const controlOffset = Math.min(160, Math.max(40, dx * 0.45));
 
               const pathData = `M ${sourceX} ${sourceY} C ${sourceX + controlOffset} ${sourceY}, ${targetX - controlOffset} ${targetY}, ${targetX} ${targetY}`;
@@ -445,6 +505,29 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
               );
             })
           )}
+
+          {/* Live Preview Connecting Line when Dragging New Arrow */}
+          {connectingFromId && mouseCanvasPos && (() => {
+            const sourceStep = steps.find((s) => s.id === connectingFromId);
+            if (!sourceStep) return null;
+            const sourcePort = getNodePortCoords(sourceStep);
+            const sourceX = sourcePort.rightX;
+            const sourceY = sourcePort.centerY;
+            const targetX = mouseCanvasPos.x;
+            const targetY = mouseCanvasPos.y;
+
+            const dx = Math.max(30, targetX - sourceX);
+            const controlOffset = Math.min(160, Math.max(40, dx * 0.45));
+            const pathData = `M ${sourceX} ${sourceY} C ${sourceX + controlOffset} ${sourceY}, ${targetX - controlOffset} ${targetY}, ${targetX} ${targetY}`;
+
+            return (
+              <path
+                d={pathData}
+                className="wfb-connection-path wfb-connecting-preview"
+                markerEnd="url(#arrowhead)"
+              />
+            );
+          })()}
         </svg>
 
         {/* Draw Canvas Nodes */}
@@ -457,12 +540,27 @@ export const WorkflowBuilder: React.FC<WorkflowBuilderProps> = ({
           return (
             <div
               key={step.id}
+              data-node-id={step.id}
               className={`wfb-canvas-node ${isSelected ? "selected" : ""} ${
                 isTrigger ? "node-trigger-pill" : ""
               }`}
               style={{ left: `${step.x}px`, top: `${step.y}px` }}
-              onMouseDown={(e) => handleMouseDownStep(e, step)}
+              onMouseDown={(e) => startDragNode(e, step)}
             >
+              {/* Left Input Port */}
+              <div className="wfb-port wfb-port-in" title="Connect to this node">
+                <div className="wfb-port-inner" />
+              </div>
+
+              {/* Right Output Port (Drag Out to Connect) */}
+              <div
+                className="wfb-port wfb-port-out"
+                title="Drag out to create new connection"
+                onMouseDown={(e) => startConnecting(e, step.id)}
+              >
+                <Plus size={8} className="text-white opacity-0 hover:opacity-100" />
+              </div>
+
               <div className="wfb-node-header">
                 <div className="wfb-node-title">
                   {isTrigger && <Zap size={14} className="text-amber-500" />}

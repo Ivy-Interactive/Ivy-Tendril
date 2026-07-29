@@ -162,6 +162,18 @@
   stroke-width: 2.5px;
 }
 
+.wfb-connecting-preview {
+  stroke: var(--ring, #3b82f6) !important;
+  stroke-dasharray: 6, 4;
+  animation: wfbDash 1s linear infinite;
+}
+
+@keyframes wfbDash {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
 .wfb-edge-badge-bg {
   fill: var(--card, #18181b);
   stroke: var(--border, rgba(255, 255, 255, 0.15));
@@ -175,7 +187,7 @@
   dominant-baseline: middle;
 }
 
-/* --- NODE CARDS (THEME RESPONSIVE) --- */
+/* --- NODE CARDS & INTERACTIVE PORTS --- */
 .wfb-canvas-node {
   position: absolute;
   width: 260px;
@@ -188,6 +200,10 @@
   flex-direction: column;
   cursor: grab;
   transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.wfb-canvas-node:active {
+  cursor: grabbing;
 }
 
 .wfb-canvas-node:hover {
@@ -207,6 +223,46 @@
   border-radius: 24px;
   background: var(--card, #161722);
   color: var(--card-foreground, #f3f4f6);
+}
+
+/* Connection Port Dots on Node Edges */
+.wfb-port {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--card, #161722);
+  border: 2px solid var(--ring, #3b82f6);
+  z-index: 20;
+  cursor: crosshair;
+  transition: transform 0.15s, background-color 0.15s, box-shadow 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wfb-port-out {
+  right: -7px;
+  top: 42px;
+}
+
+.wfb-canvas-node.node-trigger-pill .wfb-port-out {
+  top: 13px;
+}
+
+.wfb-port-in {
+  left: -7px;
+  top: 42px;
+}
+
+.wfb-canvas-node.node-trigger-pill .wfb-port-in {
+  top: 13px;
+}
+
+.wfb-port:hover {
+  transform: scale(1.4);
+  background: var(--ring, #3b82f6);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.7);
 }
 
 .wfb-node-header {
