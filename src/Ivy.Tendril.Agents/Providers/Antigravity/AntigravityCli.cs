@@ -19,7 +19,7 @@ public sealed class AntigravityCli : IAgentCli
         AgentCapabilities.SessionResume;
 
     public TransportKind SupportedTransports => TransportKind.CliSpawn;
-    public PromptTransport PromptTransport => PromptTransport.Stdin;
+    public PromptTransport PromptTransport => PromptTransport.Argument;
     public OutputFormat PreferredOutputFormat => OutputFormat.StreamJson;
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
@@ -75,14 +75,7 @@ public sealed class AntigravityCli : IAgentCli
             args.Add(arg);
 
         args.Add("--print");
-        if (!string.IsNullOrEmpty(config.PromptFilePath))
-        {
-            args.Add(config.PromptFilePath);
-        }
-        else
-        {
-            args.Add("-");
-        }
+        args.Add(config.Prompt);
 
         var env = new Dictionary<string, string>(GetDefaultEnvironment());
         if (config.EnvironmentVariables is not null)
@@ -98,7 +91,7 @@ public sealed class AntigravityCli : IAgentCli
             WorkingDirectory = config.WorkingDirectory,
             Environment = env,
             StdinContent = config.Prompt,
-            RedirectStdin = true,
+            RedirectStdin = false,
         };
     }
 
