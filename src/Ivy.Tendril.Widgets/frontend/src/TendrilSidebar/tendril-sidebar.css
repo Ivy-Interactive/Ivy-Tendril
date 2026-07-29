@@ -35,10 +35,12 @@
   --ts-new-plan-fg: var(--background, #09090b);
 }
 
-.tendril-sidebar.collapsed {
+.tendril-sidebar.tendril-sidebar.collapsed {
   width: 100%;
-  padding: 12px 0;
-  align-items: center;
+  padding: 12px 0 !important;
+  margin: 0 !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
 }
 
 /* Header */
@@ -53,9 +55,12 @@
 }
 
 .tendril-sidebar.collapsed .tendril-sidebar-header {
-  justify-content: center;
-  padding: 0;
-  margin-bottom: 12px;
+  justify-content: center !important;
+  padding: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  margin-bottom: 12px !important;
+  width: 100% !important;
 }
 
 .tendril-sidebar-brand {
@@ -65,7 +70,9 @@
 }
 
 .tendril-sidebar.collapsed .tendril-sidebar-brand {
-  justify-content: center;
+  justify-content: center !important;
+  width: 100% !important;
+  margin: 0 auto !important;
 }
 
 .tendril-sidebar-logo {
@@ -73,6 +80,12 @@
   height: 28px;
   object-fit: contain;
   flex-shrink: 0;
+}
+
+.tendril-sidebar.collapsed .tendril-sidebar-logo {
+  width: 24px !important;
+  height: 24px !important;
+  margin: 0 auto !important;
 }
 
 .tendril-sidebar-title-box {
@@ -121,7 +134,11 @@
 }
 
 .tendril-sidebar.collapsed .tendril-sidebar-actions {
-  align-items: center;
+  align-items: center !important;
+  padding: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  width: 100% !important;
 }
 
 .tendril-sidebar-new-plan-btn {
@@ -143,13 +160,14 @@
 
 .tendril-sidebar-new-plan-btn.icon-only,
 .tendril-sidebar-agent-item.icon-only {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  justify-content: center;
-  align-items: center;
-  border-radius: 8px;
-  margin: 0 auto;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  padding: 0 !important;
+  justify-content: center !important;
+  align-items: center !important;
+  border-radius: 8px !important;
+  margin: 0 auto !important;
 }
 
 .tendril-sidebar-new-plan-btn:hover {
@@ -161,6 +179,13 @@
   align-items: center;
   gap: 8px;
   justify-content: center;
+}
+
+.tendril-sidebar.collapsed .tendril-sidebar-btn-left {
+  gap: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  justify-content: center !important;
 }
 
 .tendril-sidebar-shortcut {
@@ -202,7 +227,11 @@
 }
 
 .tendril-sidebar.collapsed .tendril-sidebar-nav {
-  align-items: center;
+  align-items: center !important;
+  padding: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  width: 100% !important;
 }
 
 .tendril-sidebar-item {
@@ -221,13 +250,14 @@
 
 .tendril-sidebar.collapsed .tendril-sidebar-item,
 .tendril-sidebar.collapsed .tendril-sidebar-group-header {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  justify-content: center;
-  align-items: center;
-  border-radius: 8px;
-  margin: 0 auto;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  padding: 0 !important;
+  justify-content: center !important;
+  align-items: center !important;
+  border-radius: 8px !important;
+  margin: 0 auto !important;
 }
 
 .tendril-sidebar-item:hover {
@@ -247,9 +277,11 @@
 }
 
 .tendril-sidebar.collapsed .tendril-sidebar-item-left {
-  gap: 0;
-  justify-content: center;
-  align-items: center;
+  gap: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  justify-content: center !important;
+  align-items: center !important;
 }
 
 .tendril-sidebar-item-icon {
@@ -257,6 +289,10 @@
   height: 18px;
   color: var(--ts-fg-muted);
   flex-shrink: 0;
+}
+
+.tendril-sidebar.collapsed .tendril-sidebar-item-icon {
+  margin: 0 auto !important;
 }
 
 .tendril-sidebar-item.active .tendril-sidebar-item-icon {
@@ -287,7 +323,8 @@
 }
 
 .tendril-sidebar.collapsed .tendril-sidebar-group {
-  align-items: center;
+  align-items: center !important;
+  width: 100% !important;
 }
 
 .tendril-sidebar-group-header {
@@ -337,4 +374,20 @@
   background-color: var(--ts-active-bg);
   color: var(--ts-fg);
   font-weight: 600;
+}
+
+/* Footer Section */
+.tendril-sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;
+  width: 100%;
+}
+
+.tendril-sidebar.collapsed .tendril-sidebar-footer {
+  align-items: center !important;
+  padding: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  width: 100% !important;
 }
