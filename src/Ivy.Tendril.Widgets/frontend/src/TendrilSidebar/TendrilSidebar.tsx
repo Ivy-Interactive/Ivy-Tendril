@@ -13,6 +13,7 @@ import {
   GitPullRequest,
   Snowflake,
   HelpCircle,
+  Settings,
 } from "lucide-react";
 import type { TendrilSidebarProps } from "./types";
 import "./tendril-sidebar.css";
@@ -306,6 +307,21 @@ export function TendrilSidebar({
           {!isCollapsed && helpRequestCount !== undefined && helpRequestCount > 0 && (
             <span className="tendril-sidebar-badge">{helpRequestCount}</span>
           )}
+        </div>
+      </div>
+
+      {/* Footer / Settings */}
+      <div className="tendril-sidebar-footer">
+        {!isCollapsed && <div className="tendril-sidebar-divider" />}
+        <div
+          className={`tendril-sidebar-item ${activeItem === "settings" ? "active" : ""}`}
+          onClick={() => handleSelect("settings")}
+          title={isCollapsed ? "Settings" : undefined}
+        >
+          <div className="tendril-sidebar-item-left">
+            <Settings className="tendril-sidebar-item-icon" />
+            {!isCollapsed && <span>Settings</span>}
+          </div>
         </div>
       </div>
     </div>

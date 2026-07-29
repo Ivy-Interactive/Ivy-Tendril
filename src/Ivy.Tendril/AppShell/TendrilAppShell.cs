@@ -624,7 +624,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             .Jobs(projectSubItems)
             .OnSelect(item =>
             {
-                if (item.StartsWith("job:"))
+                if (item == "settings")
+                {
+                    navigator.Navigate<SettingsApp>();
+                }
+                else if (item.StartsWith("job:"))
                 {
                     OpenApp(new NavigateArgs("jobs"));
                 }
@@ -643,11 +647,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 body ?? null!,
                 tendrilSidebar,
                 null,
-                Layout.Vertical(
-                    new SidebarNews(newsArticles.Value),
-                    settings.Footer,
-                    footer
-                ),
+                null,
                 settings.Width
             ).Open(sidebarOpen.Value).MainAppSidebar(),
             importIssuesDialog,
