@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Plus, Trash2, Mic, Bot, Cpu, MessageSquare } from "lucide-react";
+import { Plus, Trash2, Mic, Bot, Cpu, Search, MessageSquare } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "./chat-widget.css";
@@ -66,12 +66,21 @@ export function ChatWidget({
   const [promptText, setPromptText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeSession?.messages, isStreaming, streamingText]);
+
+  const adjustTextareaHeight = () => {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = "auto";
+      el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+    }
+  };
 
   const emit = (eventName: string, ...args: unknown[]) => {
     if (eventHandler && events.includes(eventName)) {
@@ -96,6 +105,14 @@ export function ChatWidget({
     if (!promptText.trim() || isStreaming) return;
     emit("OnSendMessage", promptText.trim());
     setPromptText("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
+  };
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setPromptText(e.target.value);
+    adjustTextareaHeight();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -139,7 +156,11 @@ export function ChatWidget({
       for (let i = event.resultIndex; i < event.results.length; i++) {
         transcript += event.results[i][0].transcript;
       }
-      setPromptText((prev) => (prev ? prev + " " + transcript : transcript));
+      setPromptText((prev) => {
+        const next = prev ? prev + " " + transcript : transcript;
+        setTimeout(adjustTextareaHeight, 0);
+        return next;
+      });
     };
 
     recognition.start();
@@ -158,13 +179,14 @@ export function ChatWidget({
       <div className="chat-sidebar">
         <div className="chat-sidebar-header">
           <div className="chat-sidebar-title-row">
-            <h2 className="chat-sidebar-title">Chat History</h2>
+            <h2 className="chat-sidebar-title">History</h2>
+            <button type="button" className="chat-new-btn" onClick={handleCreateSession} title="New Chat">
+              <Plus size={13} />
+              <span>New Chat</span>
+            </button>
           </div>
-          <button type="button" className="chat-new-btn" onClick={handleCreateSession}>
-            <Plus size={16} />
-            <span>New Chat</span>
-          </button>
-          <div>
+          <div className="chat-search-wrapper">
+            <Search size={13} className="chat-search-icon" />
             <input
               type="text"
               className="chat-search-input"
@@ -204,13 +226,13 @@ export function ChatWidget({
                     title="Delete chat"
                     onClick={(e) => handleDeleteSession(sess.id, e)}
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={13} />
                   </button>
                 </div>
               );
             })
           ) : (
-            <div style={{ color: "#64748b", fontSize: "13px", textAlign: "center", padding: "16px" }}>
+            <div style={{ color: "#71717a", fontSize: "12px", textAlign: "center", padding: "16px" }}>
               No chat history found.
             </div>
           )}
@@ -238,7 +260,7 @@ export function ChatWidget({
                 <div className="chat-message-bubble">
                   {msg.role === "assistant" && (
                     <div className="chat-message-header">
-                      <Bot size={14} className="chat-message-author" />
+                      <Bot size={13} className="chat-message-author" />
                       <span className="chat-message-author">{msg.agentId || selectedAgent}</span>
                       <span className="chat-message-time">{msg.timestamp}</span>
                     </div>
@@ -253,9 +275,9 @@ export function ChatWidget({
             ))
           ) : (
             <div className="chat-empty-state">
-              <MessageSquare size={48} strokeWidth={1.5} />
-              <h3 style={{ margin: 0, fontSize: "18px", color: "#e2e8f0" }}>Start a conversation</h3>
-              <p style={{ margin: 0, fontSize: "14px" }}>
+              <MessageSquare size={44} strokeWidth={1.5} />
+              <h3 style={{ margin: 0, fontSize: "17px", color: "#fafafa" }}>Start a conversation</h3>
+              <p style={{ margin: 0, fontSize: "13px" }}>
                 Choose an agent and model below to begin chatting.
               </p>
             </div>
@@ -265,7 +287,7 @@ export function ChatWidget({
             <div className="chat-message-row assistant">
               <div className="chat-message-bubble">
                 <div className="chat-message-header">
-                  <Bot size={14} className="chat-message-author" />
+                  <Bot size={13} className="chat-message-author" />
                   <span className="chat-message-author">{selectedAgent}</span>
                 </div>
                 <div>{streamingText || "Thinking..."}</div>
@@ -275,20 +297,21 @@ export function ChatWidget({
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Footer & Input Toolbar */}
+        {/* Footer & Resizable Input Toolbar */}
         <div className="chat-footer">
           <div className="chat-input-box">
             <textarea
+              ref={textareaRef}
               className="chat-textarea"
               placeholder={`Ask ${selectedAgent}...`}
               value={promptText}
-              onChange={(e) => setPromptText(e.target.value)}
+              onChange={handleTextChange}
               onKeyDown={handleKeyDown}
             />
             <div className="chat-input-actions">
               <div className="chat-input-actions-left">
                 <div className="chat-inline-select-wrapper" title="Agentic CLI">
-                  <Bot size={14} />
+                  <Bot size={13} />
                   <select
                     className="chat-inline-select"
                     value={selectedAgent}
@@ -303,7 +326,7 @@ export function ChatWidget({
                 </div>
 
                 <div className="chat-inline-select-wrapper" title="Model">
-                  <Cpu size={14} />
+                  <Cpu size={13} />
                   <select
                     className="chat-inline-select"
                     value={selectedModel}
@@ -323,7 +346,7 @@ export function ChatWidget({
                   title="Voice input"
                   onClick={toggleVoiceRecording}
                 >
-                  <Mic size={16} />
+                  <Mic size={15} />
                 </button>
               </div>
 
