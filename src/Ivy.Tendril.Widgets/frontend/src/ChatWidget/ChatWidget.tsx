@@ -164,7 +164,7 @@ export function ChatWidget({
             <Plus size={16} />
             <span>New Chat</span>
           </button>
-          <div style={{ position: "relative" }}>
+          <div>
             <input
               type="text"
               className="chat-search-input"
@@ -275,32 +275,8 @@ export function ChatWidget({
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Footer Controls */}
+        {/* Footer & Input Toolbar */}
         <div className="chat-footer">
-          <div className="chat-selectors-row">
-            <div className="chat-select-wrapper">
-              <Bot size={14} />
-              <select value={selectedAgent} onChange={handleAgentChange}>
-                {agents.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="chat-select-wrapper">
-              <Cpu size={14} />
-              <select value={selectedModel} onChange={handleModelChange}>
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.displayName}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
           <div className="chat-input-box">
             <textarea
               className="chat-textarea"
@@ -310,23 +286,58 @@ export function ChatWidget({
               onKeyDown={handleKeyDown}
             />
             <div className="chat-input-actions">
-              <button
-                type="button"
-                className={`chat-voice-btn ${isRecording ? "recording" : ""}`}
-                title="Voice input"
-                onClick={toggleVoiceRecording}
-              >
-                <Mic size={18} />
-              </button>
-              <button
-                type="button"
-                className="chat-send-btn"
-                disabled={!promptText.trim() || isStreaming}
-                onClick={handleSendMessage}
-              >
-                <span>Send</span>
-                <span className="chat-shortcut-hint">↵</span>
-              </button>
+              <div className="chat-input-actions-left">
+                <div className="chat-inline-select-wrapper" title="Agentic CLI">
+                  <Bot size={14} />
+                  <select
+                    className="chat-inline-select"
+                    value={selectedAgent}
+                    onChange={handleAgentChange}
+                  >
+                    {agents.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="chat-inline-select-wrapper" title="Model">
+                  <Cpu size={14} />
+                  <select
+                    className="chat-inline-select"
+                    value={selectedModel}
+                    onChange={handleModelChange}
+                  >
+                    {models.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.displayName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  className={`chat-voice-btn ${isRecording ? "recording" : ""}`}
+                  title="Voice input"
+                  onClick={toggleVoiceRecording}
+                >
+                  <Mic size={16} />
+                </button>
+              </div>
+
+              <div className="chat-input-actions-right">
+                <button
+                  type="button"
+                  className="chat-send-btn"
+                  disabled={!promptText.trim() || isStreaming}
+                  onClick={handleSendMessage}
+                >
+                  <span>Send</span>
+                  <span className="chat-shortcut-hint">↵</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
