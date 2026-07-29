@@ -29,7 +29,7 @@ public class Migration_021_AddProjectToWorkflows : IMigration
             );
 
             -- 3. Copy data from old table to new table
-            INSERT INTO Workflows (Id, Name, Description, Project, Definition, IsActive, Created, Updated)
+            INSERT OR IGNORE INTO Workflows (Id, Name, Description, Project, Definition, IsActive, Created, Updated)
             SELECT Id, Name, Description, 'default', Definition, IsActive, Created, Updated FROM Workflows_old;
 
             -- 4. Drop the old table

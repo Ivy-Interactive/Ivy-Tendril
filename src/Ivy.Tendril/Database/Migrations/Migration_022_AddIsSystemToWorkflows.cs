@@ -17,7 +17,7 @@ public class Migration_022_AddIsSystemToWorkflows : IMigration
             ALTER TABLE Workflows ADD COLUMN IsSystem INTEGER NOT NULL DEFAULT 0;
 
             -- 2. Seed default Tendril Core Lifecycle workflow
-            INSERT INTO Workflows (Name, Description, Project, Definition, IsActive, IsSystem, Created, Updated)
+            INSERT OR IGNORE INTO Workflows (Name, Description, Project, Definition, IsActive, IsSystem, Created, Updated)
             VALUES (
                 'Tendril Core Lifecycle',
                 'Core software engineering lifecycle workflow: from draft creation, to logic reviews, implementation, test verification, and automated PR generation.',

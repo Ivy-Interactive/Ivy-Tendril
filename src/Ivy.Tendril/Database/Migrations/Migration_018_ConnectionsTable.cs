@@ -12,7 +12,7 @@ public class Migration_018_ConnectionsTable : IMigration
     {
         using var cmd = connection.CreateCommand();
         cmd.CommandText = """
-            CREATE TABLE Connections (
+            CREATE TABLE IF NOT EXISTS Connections (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 Name TEXT NOT NULL UNIQUE,
                 Provider TEXT NOT NULL,
@@ -22,7 +22,7 @@ public class Migration_018_ConnectionsTable : IMigration
                 Updated TEXT NOT NULL
             );
 
-            CREATE INDEX idx_connections_name ON Connections(Name);
+            CREATE INDEX IF NOT EXISTS idx_connections_name ON Connections(Name);
             """;
         cmd.ExecuteNonQuery();
 

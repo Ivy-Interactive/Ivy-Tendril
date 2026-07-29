@@ -12,7 +12,7 @@ public class Migration_019_WorkflowsTable : IMigration
     {
         using var cmd = connection.CreateCommand();
         cmd.CommandText = """
-            CREATE TABLE Workflows (
+            CREATE TABLE IF NOT EXISTS Workflows (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 Name TEXT NOT NULL UNIQUE,
                 Description TEXT,
@@ -22,7 +22,7 @@ public class Migration_019_WorkflowsTable : IMigration
                 Updated TEXT NOT NULL
             );
 
-            CREATE INDEX idx_workflows_name ON Workflows(Name);
+            CREATE INDEX IF NOT EXISTS idx_workflows_name ON Workflows(Name);
             """;
         cmd.ExecuteNonQuery();
 
