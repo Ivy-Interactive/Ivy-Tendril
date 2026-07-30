@@ -136,30 +136,30 @@ public class CreatePlanDialog(
         }
 
         var projectPicker = new BadgeSelect
-            {
-                Options = projectOptions.ToArray(),
-                Value = selectedProjects.Value,
-                Placeholder = "Select project(s)",
-                Icon = selectedProjects.Value.Contains("Auto") || selectedProjects.Value.Length == 0
+        {
+            Options = projectOptions.ToArray(),
+            Value = selectedProjects.Value,
+            Placeholder = "Select project(s)",
+            Icon = selectedProjects.Value.Contains("Auto") || selectedProjects.Value.Length == 0
                     ? "WandSparkles"
                     : "Folder",
-                Multiple = true,
-                Tooltip = "Select project(s)",
-            }
+            Multiple = true,
+            Tooltip = "Select project(s)",
+        }
             .WithOnChange(SetProjects)
-            .Width(Size.Percent(66));
+            .Width(Size.Grow());
 
         var priorityPicker = new BadgeSelect
-            {
-                Options = PriorityOptions.Select(p => new BadgeSelectOption(p, p)).ToArray(),
-                Value = [selectedPriority.Value],
-                Placeholder = "Priority",
-                Icon = "Flag",
-                Multiple = false,
-                Tooltip = "Priority",
-            }
+        {
+            Options = PriorityOptions.Select(p => new BadgeSelectOption(p, p)).ToArray(),
+            Value = [selectedPriority.Value],
+            Placeholder = "Priority",
+            Icon = "Flag",
+            Multiple = false,
+            Tooltip = "Priority",
+        }
             .WithOnChange(values => selectedPriority.Set(values.FirstOrDefault() ?? "Normal"))
-            .Width(Size.Percent(33));
+            .Width(Size.Auto());
 
         var newProjectButton = new Button()
             .Icon(Icons.Plus)
@@ -168,7 +168,7 @@ public class CreatePlanDialog(
             .OnClick(() => isAddProjectOpen.Set(true));
 
         var bodyContent =
-                Layout.Vertical().Margin(0,2,0,0)
+                Layout.Vertical().Gap(2)
                 | (Layout.Horizontal().Gap(1).AlignContent(Align.Left).Width(Size.Full())
                     | (Layout.Horizontal().Gap(1).Width(Size.Grow())
                         | projectPicker
