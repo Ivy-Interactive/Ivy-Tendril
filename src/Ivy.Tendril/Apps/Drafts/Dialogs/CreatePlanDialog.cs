@@ -147,7 +147,7 @@ public class CreatePlanDialog(
                 Tooltip = "Select project(s)",
             }
             .WithOnChange(SetProjects)
-            .Width(Size.Percent(66));
+            .Width(Size.Grow());
 
         var priorityPicker = new BadgeSelect
             {
@@ -159,7 +159,7 @@ public class CreatePlanDialog(
                 Tooltip = "Priority",
             }
             .WithOnChange(values => selectedPriority.Set(values.FirstOrDefault() ?? "Normal"))
-            .Width(Size.Percent(33));
+            .Width(Size.Auto());
 
         var newProjectButton = new Button()
             .Icon(Icons.Plus)
@@ -168,7 +168,7 @@ public class CreatePlanDialog(
             .OnClick(() => isAddProjectOpen.Set(true));
 
         var bodyContent =
-                Layout.Vertical().Margin(0,2,0,0)
+                Layout.Vertical().Gap(2)
                 | (Layout.Horizontal().Gap(1).AlignContent(Align.Left).Width(Size.Full())
                     | (Layout.Horizontal().Gap(1).Width(Size.Grow())
                         | projectPicker
