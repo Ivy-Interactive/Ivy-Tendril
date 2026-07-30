@@ -68,6 +68,7 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
 
             var psi = new ProcessStartInfo("gh", args)
             {
+                WorkingDirectory = Path.GetTempPath(),
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -273,6 +274,7 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
         {
             var psi = new ProcessStartInfo("gh", args)
             {
+                WorkingDirectory = Path.GetTempPath(),
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
