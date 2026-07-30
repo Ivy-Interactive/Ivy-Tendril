@@ -96,17 +96,10 @@ public static class AgentProcessHelper
         var fileName = psi.FileName;
         if (Path.IsPathRooted(fileName) || Path.HasExtension(fileName)) return;
 
-        var pathDirs = (psi.Environment.TryGetValue("PATH", out var p) ? p : Environment.GetEnvironmentVariable("PATH"))
-            ?.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries) ?? [];
-
-        foreach (var dir in pathDirs)
+        var resolved = Agents.Helpers.BinaryResolver.FindOnPath(fileName);
+        if (resolved != null)
         {
-            var cmdPath = Path.Combine(dir, fileName + ".cmd");
-            if (File.Exists(cmdPath))
-            {
-                psi.FileName = cmdPath;
-                return;
-            }
+            psi.FileName = resolved;
         }
     }
 
