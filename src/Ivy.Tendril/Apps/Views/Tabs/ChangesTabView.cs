@@ -98,14 +98,17 @@ public class ChangesTabView(
             });
 
         var diffsLayout = Layout.Vertical().Width(Size.Grow().Min(Size.Px(0))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)));
-
-        foreach (var fileDiff in sortedFileDiffs)
+        var isManyFiles = sortedFileDiffs.Count > 10;
+        for (var i = 0; i < sortedFileDiffs.Count; i++)
         {
+            var fileDiff = sortedFileDiffs[i];
             var path = fileDiff.FilePath;
             diffsLayout |= new PlanDiffView
             {
                 Diff = fileDiff.Diff,
                 FilePath = path,
+                Collapsible = true,
+                DefaultCollapsed = isManyFiles && i >= 5,
                 Comments = draftComments.Value.Where(c => c.FilePath == path).ToList(),
                 OnAddComment = e => {
                     var list = new List<DraftComment>(draftComments.Value);
@@ -155,14 +158,13 @@ public class ChangesTabView(
                     if (!string.IsNullOrEmpty(repoPath))
                     {
                         var absolutePath = Path.Combine(repoPath, e.Value).Replace('\\', '/');
-                        try
+                        var process = Process.Start(new ProcessStartInfo
                         {
-                            config.OpenInEditor(absolutePath);
-                        }
-                        catch (EditorNotAvailableException ex)
-                        {
-                            client.Toast($"'{ex.Command}' not found in PATH.", "Editor Not Available", variant: ToastVariant.Destructive);
-                        }
+                            FileName = "code",
+                            Arguments = $"\"{absolutePath}\"",
+                            UseShellExecute = true,
+                            CreateNoWindow = true
+                        });
                     }
                     return ValueTask.CompletedTask;
                 },
@@ -181,23 +183,7 @@ public class ChangesTabView(
                             {
                                 File.Delete(absolutePath);
                             }
-                            var gitRmResult = RunGitCommand(repoPath, $"rm \"{e.Value}\"");
-                            if (gitRmResult.ExitCode == 0)
-                            {
-                                var gitCommitResult = RunGitCommand(repoPath, $"commit -m \"Delete file: {e.Value}\"");
-                                if (gitCommitResult.ExitCode == 0)
-                                {
-                                    client.Toast($"Deleted and committed {e.Value}.", "File Deleted");
-                                }
-                                else
-                                {
-                                    client.Toast($"Deleted file and ran git rm, but commit failed: {gitCommitResult.Output}", "File Deleted (No Commit)", variant: ToastVariant.Warning);
-                                }
-                            }
-                            else
-                            {
-                                client.Toast($"Deleted file, but git rm failed: {gitRmResult.Output}", "File Deleted (No Stage)", variant: ToastVariant.Warning);
-                            }
+                            client.Toast($"Deleted file: {e.Value}", "File Deleted");
                             refreshPlans();
                         }
                         catch (Exception ex)
@@ -206,8 +192,7 @@ public class ChangesTabView(
                         }
                     }
                     await Task.CompletedTask;
-                },
-                Collapsible = true
+                }
             }.Width(Size.Full());
         }
 
