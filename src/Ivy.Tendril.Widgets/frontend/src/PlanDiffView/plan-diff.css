@@ -117,44 +117,58 @@
   font-family: var(--font-sans, sans-serif) !important;
 }
 
-/* Hover plus button in the gutter */
-.diff-line {
+/* Hover plus button strictly on active, non-empty line gutters when the gutter itself is hovered */
+td.diff-gutter-normal,
+td.diff-gutter-insert,
+td.diff-gutter-delete {
   position: relative;
 }
 
-.diff-line:hover .diff-gutter {
-  position: relative;
+td.diff-gutter-normal:hover,
+td.diff-gutter-insert:hover,
+td.diff-gutter-delete:hover {
   cursor: pointer;
 }
 
-.diff-line .diff-gutter::after {
-  content: "";
+td.diff-gutter-normal::after,
+td.diff-gutter-insert::after,
+td.diff-gutter-delete::after {
+  content: "+";
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%) scale(0.8);
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   background-color: var(--primary);
   color: var(--primary-foreground, #ffffff);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
-  font-weight: 500;
+  font-weight: 600;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.1s ease, transform 0.1s ease;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
-  content: "+";
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
   z-index: 10;
 }
 
-.diff-line .diff-gutter:hover::after {
+td.diff-gutter-normal:hover::after,
+td.diff-gutter-insert:hover::after,
+td.diff-gutter-delete:hover::after {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
+}
+
+/* Explicitly disable plus icon on empty or omit gutters */
+td.diff-gutter-omit::after,
+td.diff-gutter:empty::after,
+td.diff-gutter-empty::after {
+  display: none !important;
+  content: none !important;
 }
 
 /* Hide empty line number columns in unified view when no deletions or additions exist */
