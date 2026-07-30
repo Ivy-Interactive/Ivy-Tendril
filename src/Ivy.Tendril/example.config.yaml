@@ -5,7 +5,7 @@ codingAgent: claude
 jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10  # Timeout in seconds for git operations (default: 10)
-maxConcurrentJobs: 5  # Maximum number of jobs to run concurrently (default: 5)
+maxConcurrentJobs: 20  # Maximum number of jobs to run concurrently (default: 20)
 
 # Variable Expansion Support:
 # - %TENDRIL_HOME% - Expands to TENDRIL_HOME env var (useful in hooks, verification prompts, and allowedTools paths)

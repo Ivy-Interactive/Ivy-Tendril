@@ -81,7 +81,7 @@
   background: var(--civ-bg);
   border: none;
   border-radius: var(--radius-fields);
-  padding: 0 8px;
+  padding: 10px 12px;
   box-shadow: var(--civ-card-shadow);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -113,9 +113,8 @@
   color: var(--civ-text);
   padding: 2px 12px 2px 0;
   min-height: 80px;
-  max-height: 200px;
-  width: calc(100% + 12px);
-  margin-right: -12px;
+  max-height: 280px;
+  width: 100%;
 }
 
 .civ-textarea::placeholder {

@@ -131,6 +131,13 @@ public class ClaudeCliTests
         Assert.Contains("stream-json", spec.Arguments);
         Assert.Contains("--permission-mode", spec.Arguments);
         Assert.Contains("dontAsk", spec.Arguments);
+        Assert.Contains("--settings", spec.Arguments);
+        
+        var settingsIdx = spec.Arguments.ToList().IndexOf("--settings");
+        Assert.True(settingsIdx >= 0);
+        Assert.Contains("permissions", spec.Arguments[settingsIdx + 1]);
+        Assert.Contains("allow", spec.Arguments[settingsIdx + 1]);
+        
         Assert.Contains("-", spec.Arguments);
         Assert.Equal("Hello", spec.StdinContent);
         Assert.Equal("/tmp", spec.WorkingDirectory);
@@ -151,7 +158,7 @@ public class ClaudeCliTests
 
         var modelIdx = spec.Arguments.ToList().IndexOf("--model");
         Assert.True(modelIdx >= 0);
-        Assert.Equal("claude-sonnet-4-6", spec.Arguments[modelIdx + 1]);
+        Assert.Equal("sonnet", spec.Arguments[modelIdx + 1]);
     }
 
     [Fact]
@@ -228,7 +235,7 @@ public class ClaudeCliTests
     }
 
     [Fact]
-    public void BuildProcessSpec_WithAllowedTools_IncludesAllowedToolsFlag()
+    public void BuildProcessSpec_WithAllowedTools_IncludesToolsFlag()
     {
         var config = new AgentLaunchConfig
         {
@@ -239,9 +246,14 @@ public class ClaudeCliTests
 
         var spec = _cli.BuildProcessSpec(config);
 
-        var idx = spec.Arguments.ToList().IndexOf("--allowedTools");
+        var idx = spec.Arguments.ToList().IndexOf("--tools");
         Assert.True(idx >= 0);
-        Assert.Equal("Read Write", spec.Arguments[idx + 1]);
+        Assert.Equal("Read,Write", spec.Arguments[idx + 1]);
+
+        var settingsIdx = spec.Arguments.ToList().IndexOf("--settings");
+        Assert.True(settingsIdx >= 0);
+        Assert.Contains("Read", spec.Arguments[settingsIdx + 1]);
+        Assert.Contains("Write", spec.Arguments[settingsIdx + 1]);
     }
 
     [Fact]
@@ -404,7 +416,7 @@ public class ClaudeCliTests
 
         var spec = _cli.BuildProcessSpec(config);
 
-        Assert.DoesNotContain("--allowedTools", spec.Arguments);
+        Assert.DoesNotContain("--tools", spec.Arguments);
     }
 
     [Fact]

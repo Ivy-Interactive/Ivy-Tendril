@@ -73,7 +73,7 @@ public class JobService : IJobService
         TimeSpan jobTimeout,
         TimeSpan staleOutputTimeout,
         string? inboxPath = null,
-        int maxConcurrentJobs = 5,
+        int maxConcurrentJobs = 20,
         IPlanReaderService? planReaderService = null,
         ITelemetryService? telemetryService = null,
         IPlanDatabaseService? database = null,

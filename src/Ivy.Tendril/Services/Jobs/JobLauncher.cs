@@ -405,6 +405,7 @@ internal class JobLauncher
             ExtraArguments = resolution.ExtraArgs,
             PromptFilePath = promptFilePath,
             EnvironmentVariables = resolution.EnvironmentVariables,
+            Timeout = ctx.JobTimeout,
         };
 
         job.Model = launchConfig.Model;

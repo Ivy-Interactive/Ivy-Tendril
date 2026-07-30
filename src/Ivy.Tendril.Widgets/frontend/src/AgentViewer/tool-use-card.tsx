@@ -12,27 +12,89 @@ interface ToolUseCardProps {
   tool: ToolCall;
 }
 
-function displayInput(name: string, input: Record<string, unknown>): string {
-  if (name === "Bash" && typeof input.command === "string") return input.command;
-  if ((name === "Write" || name === "Edit") && typeof input.file_path === "string") {
-    let s = `File: ${input.file_path}`;
-    if (typeof input.content === "string") {
-      s += `\n${input.content.slice(0, 500)}${input.content.length > 500 ? "\n…" : ""}`;
+function getStringParam(input: Record<string, unknown>, keys: string[]): string | undefined {
+  if (!input) return undefined;
+  for (const k of keys) {
+    const val = input[k];
+    if (typeof val === "string" && val.trim().length > 0) {
+      return val.trim();
     }
-    return s;
   }
-  if (name === "Read" && typeof input.file_path === "string") return `File: ${input.file_path}`;
+  return undefined;
+}
+
+function displayInput(name: string, input: Record<string, unknown>): string {
+  if (!input) return "";
+  const normName = name.toLowerCase();
+
+  const command = getStringParam(input, ["command", "CommandLine"]);
+  if (command && (normName === "bash" || normName === "run_command" || normName === "command")) {
+    return command;
+  }
+
+  const filePath = getStringParam(input, ["file_path", "AbsolutePath", "TargetFile", "path"]);
+  if (filePath) {
+    if (
+      normName === "write" ||
+      normName === "edit" ||
+      normName === "write_to_file" ||
+      normName === "replace_file_content" ||
+      normName === "multi_replace_file_content"
+    ) {
+      let s = `File: ${filePath}`;
+      const content = getStringParam(input, [
+        "content",
+        "CodeContent",
+        "ReplacementContent",
+        "Instruction",
+      ]);
+      if (content) {
+        s += `\n${content.slice(0, 500)}${content.length > 500 ? "\n…" : ""}`;
+      }
+      return s;
+    }
+    if (normName === "read" || normName === "view_file") {
+      return `File: ${filePath}`;
+    }
+  }
+
+  const url = getStringParam(input, ["Url", "url"]);
+  if (url) return `URL: ${url}`;
+
+  const query = getStringParam(input, ["Query", "query"]);
+  const searchPath = getStringParam(input, ["SearchPath", "search_path"]);
+  if (query) return searchPath ? `Query: ${query} in ${searchPath}` : `Query: ${query}`;
+
   return JSON.stringify(input, null, 2);
 }
 
 function inputSummary(tool: ToolCall): string {
   if (tool.description) return tool.description;
   const { input } = tool;
-  if (typeof input.description === "string") return input.description;
-  if (typeof input.command === "string") return input.command;
-  if (typeof input.file_path === "string") return input.file_path;
-  if (typeof input.path === "string") return input.path;
-  if (typeof input.pattern === "string") return input.pattern;
+  if (!input) return "";
+
+  const desc = getStringParam(input, ["description", "Instruction", "Description"]);
+  if (desc) return desc;
+
+  const cmd = getStringParam(input, ["command", "CommandLine"]);
+  if (cmd) return cmd;
+
+  const path = getStringParam(input, [
+    "file_path",
+    "AbsolutePath",
+    "TargetFile",
+    "SearchPath",
+    "DirectoryPath",
+    "path",
+  ]);
+  if (path) return path;
+
+  const query = getStringParam(input, ["Query", "query", "pattern"]);
+  if (query) return query;
+
+  const url = getStringParam(input, ["Url", "url"]);
+  if (url) return url;
+
   return "";
 }
 
@@ -73,7 +135,7 @@ export const ToolUseCard: React.FC<ToolUseCardProps> = ({ tool }) => {
     const firstLine = tool.result.split("\n")[0].slice(0, 80);
     const hasWeirdChars = /[┌┐└┘├┤┬┴┼─│═║╔╗╚╝╠╣╦╩╬]/.test(firstLine);
     if (firstLine.trim() && (tool.isError || !hasWeirdChars)) {
-      headerPreview += ` → ${firstLine}`;
+      headerPreview = headerPreview ? `${headerPreview} → ${firstLine}` : firstLine;
     }
   }
 

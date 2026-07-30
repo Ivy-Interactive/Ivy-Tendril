@@ -143,6 +143,7 @@ public sealed class AgentRunner(ILogger<AgentRunner> logger, ConcurrencyOptions?
             MaxBudgetUsd = context.MaxBudgetUsd,
             McpServers = context.McpServers,
             PromptFilePath = context.PromptFilePath,
+            SystemPrompt = context.SystemPrompt,
         };
 
         AgentProcessSpec spec;

@@ -58,6 +58,7 @@ public static class HealthCheckRunner
         try
         {
             process.Start();
+            process.StandardInput.Close();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
         }

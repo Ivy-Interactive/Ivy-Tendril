@@ -4,6 +4,7 @@ import { DraftMarkdown } from "./DraftMarkdown";
 import { SortableVerificationList } from "./SortableVerificationList";
 import { ContentInput } from "./ContentInput/ContentInput";
 import { BadgeSelect } from "./BadgeSelect";
+import { ChatWidget } from "./ChatWidget/ChatWidget";
 
 if (typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).IvyTendrilWidgets = {
@@ -13,6 +14,7 @@ if (typeof window !== "undefined") {
     SortableVerificationList,
     ContentInput,
     BadgeSelect,
+    ChatWidget,
   };
 }
 
@@ -23,4 +25,5 @@ export {
   SortableVerificationList,
   ContentInput,
   BadgeSelect,
+  ChatWidget,
 };
