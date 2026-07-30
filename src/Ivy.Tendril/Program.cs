@@ -75,21 +75,16 @@ public class Program
 
         if (OperatingSystem.IsWindows())
         {
-            // If we are executing a CLI command (or explicitly starting in web/console mode),
-            // try to attach to the parent console so console output is visible.
-            if (invocationKind != CliInvocationKind.ServerLaunch || !useDesktop)
+            if (AttachConsole(ATTACH_PARENT_PROCESS))
             {
-                if (AttachConsole(ATTACH_PARENT_PROCESS))
+                try
                 {
-                    try
-                    {
-                        var stdout = Console.OpenStandardOutput();
-                        Console.SetOut(new StreamWriter(stdout, new UTF8Encoding(false)) { AutoFlush = true });
-                        var stderr = Console.OpenStandardError();
-                        Console.SetError(new StreamWriter(stderr, new UTF8Encoding(false)) { AutoFlush = true });
-                    }
-                    catch { }
+                    var stdout = Console.OpenStandardOutput();
+                    Console.SetOut(new StreamWriter(stdout, new UTF8Encoding(false)) { AutoFlush = true });
+                    var stderr = Console.OpenStandardError();
+                    Console.SetError(new StreamWriter(stderr, new UTF8Encoding(false)) { AutoFlush = true });
                 }
+                catch { }
             }
         }
 
@@ -332,6 +327,10 @@ public class Program
             AnsiConsole.MarkupLine("To use a different port, set the [green]PORT[/] environment variable (e.g., [green]PORT=5011 tendril[/]) or specify it directly (e.g., [green]tendril --port 5011[/]).");
             return 1;
         }
+
+        var serverPort = server.Args.Port;
+        var scheme = (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()) ? "https" : "http";
+        AnsiConsole.MarkupLine($"[bold green]Ivy Tendril running at {scheme}://localhost:{serverPort}[/]");
 
         if (useDesktop)
         {
