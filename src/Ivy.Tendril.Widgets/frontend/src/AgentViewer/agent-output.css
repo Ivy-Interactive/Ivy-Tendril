@@ -198,10 +198,25 @@
   padding: 0;
 }
 
-.aov-markdown ul,
+.aov-markdown ul {
+  list-style-type: disc !important;
+  margin: 0.5rem 0 0.5rem 1.25rem;
+  padding-left: 0.5rem;
+}
+
 .aov-markdown ol {
-  margin: 0.5rem 0;
-  padding-left: 1.5rem;
+  list-style-type: decimal !important;
+  margin: 0.5rem 0 0.5rem 1.25rem;
+  padding-left: 0.5rem;
+}
+
+.aov-markdown li {
+  margin: 0.25rem 0;
+  line-height: 1.5;
+}
+
+.aov-markdown li > p {
+  margin: 0.25rem 0;
 }
 
 .aov-markdown a {
@@ -210,20 +225,72 @@
   overflow-wrap: break-word;
 }
 
-.aov-markdown h1,
-.aov-markdown h2,
-.aov-markdown h3,
-.aov-markdown h4 {
-  margin: 0.75rem 0 0.375rem;
+.aov-markdown h1 {
+  font-size: 1.35em;
+  font-weight: 700;
+  margin: 1rem 0 0.5rem 0;
+  color: var(--aov-fg);
+  border-bottom: 1px solid var(--aov-border);
+  padding-bottom: 0.25rem;
+}
+
+.aov-markdown h2 {
+  font-size: 1.2em;
   font-weight: 600;
-  font-size: 14px;
+  margin: 0.875rem 0 0.375rem 0;
+  color: var(--aov-fg);
+}
+
+.aov-markdown h3 {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 0.75rem 0 0.25rem 0;
+  color: var(--aov-fg);
+}
+
+.aov-markdown h4 {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 0.5rem 0 0.25rem 0;
+  color: var(--aov-fg);
+}
+
+.aov-markdown strong {
+  font-weight: 600;
+  color: var(--aov-fg);
+}
+
+.aov-markdown em {
+  font-style: italic;
 }
 
 .aov-markdown blockquote {
   margin: 0.5rem 0;
-  padding-left: 0.75rem;
-  border-left: 2px solid var(--aov-border-strong);
+  padding: 4px 12px;
+  border-left: 3px solid var(--aov-border-strong);
   color: var(--aov-fg-muted);
+  background-color: rgba(39, 39, 42, 0.4);
+  border-radius: 0 4px 4px 0;
+}
+
+.aov-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 13px;
+}
+
+.aov-markdown th,
+.aov-markdown td {
+  padding: 6px 10px;
+  border: 1px solid var(--aov-border);
+  text-align: left;
+}
+
+.aov-markdown th {
+  background-color: var(--aov-bg-elev);
+  font-weight: 600;
+  color: var(--aov-fg);
 }
 
 /* ─── Tool use card (collapsed by default, no outer chrome) ─────────────── */

@@ -82,8 +82,32 @@ public static class TendrilServer
             app.UseAssets(server.Args, app.Services.GetRequiredService<ILogger<Server>>(), "Assets", "tendril/assets");
         });
 
+        var isBeta = tendrilArgs.Beta ||
+                     Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
+                     Environment.GetEnvironmentVariable("IVY_BETA") == "1";
+
         var assembly = typeof(TendrilServer).Assembly;
         server.AppRepository.AddFactory(() => AppHelpers.GetApps(assembly)
+            .Select(app => app.Type == typeof(Ivy.Tendril.Apps.Chat.ChatApp) ? new AppDescriptor
+            {
+                Id = app.Id,
+                Title = app.Title,
+                Icon = app.Icon,
+                Description = app.Description,
+                Type = app.Type,
+                Group = app.Group,
+                Order = app.Order,
+                ViewFactory = app.ViewFactory,
+                ViewFunc = app.ViewFunc,
+                IsVisible = isBeta,
+                IsIndex = app.IsIndex,
+                GroupExpanded = app.GroupExpanded,
+                Next = app.Next,
+                Previous = app.Previous,
+                DocumentSource = app.DocumentSource,
+                SearchHints = app.SearchHints,
+                AllowDuplicateTabs = app.AllowDuplicateTabs,
+            } : app)
             .ToArray());
         server.AddConnectionsFromAssembly(typeof(TendrilServer).Assembly);
 

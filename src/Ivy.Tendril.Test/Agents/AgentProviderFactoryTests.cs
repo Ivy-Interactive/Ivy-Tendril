@@ -304,7 +304,7 @@ public class AgentProviderFactoryTests
             });
 
         var resolution = AgentProviderFactory.Resolve(runner, settings, "Test");
-        Assert.Equal("", resolution.Model); // Antigravity CLI doesn't support ModelSelection
+        Assert.Equal("antigravity-2.5-pro", resolution.Model);
     }
 
     [Fact]

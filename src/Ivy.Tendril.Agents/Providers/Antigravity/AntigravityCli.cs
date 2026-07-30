@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
 using Ivy.Tendril.Agents.Abstractions;
 
 namespace Ivy.Tendril.Agents.Providers.Antigravity;
@@ -9,6 +12,9 @@ public sealed class AntigravityCli : IAgentCli
 
     public AgentCapabilities Capabilities =>
         AgentCapabilities.StdinPrompt |
+        AgentCapabilities.StreamJsonOutput |
+        AgentCapabilities.ModelSelection |
+        AgentCapabilities.EffortControl |
         AgentCapabilities.DirectoryRestriction |
         AgentCapabilities.HealthCheck |
         AgentCapabilities.ExtraArgPassthrough |
@@ -16,13 +22,13 @@ public sealed class AntigravityCli : IAgentCli
 
     public TransportKind SupportedTransports => TransportKind.CliSpawn;
     public PromptTransport PromptTransport => PromptTransport.Stdin;
-    public OutputFormat PreferredOutputFormat => OutputFormat.Text;
+    public OutputFormat PreferredOutputFormat => OutputFormat.StreamJson;
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
     [
-        new(ProfileTier.Deep, "default", null),
-        new(ProfileTier.Balanced, "default", null),
-        new(ProfileTier.Quick, "default", null),
+        new(ProfileTier.Deep, "gemini-3.6-flash", "medium"),
+        new(ProfileTier.Balanced, "gemini-3.6-flash", "medium"),
+        new(ProfileTier.Quick, "gemini-3.6-flash", "medium"),
     ];
 
     public string? TranslateToolName(string canonicalTool) => null;
@@ -35,10 +41,25 @@ public sealed class AntigravityCli : IAgentCli
     {
         var args = new List<string>
         {
-            "--print",
-            "-",
             "--dangerously-skip-permissions",
+            "--output-format", "stream-json",
         };
+
+        if (!string.IsNullOrEmpty(config.Model))
+        {
+            args.Add("--model");
+            args.Add(config.Model);
+
+            var effort = config.Effort switch
+            {
+                EffortLevel.Low => "low",
+                EffortLevel.High => "high",
+                EffortLevel.XHigh => "high",
+                _ => "medium"
+            };
+            args.Add("--effort");
+            args.Add(effort);
+        }
 
         if (!string.IsNullOrEmpty(config.SessionId))
         {
@@ -55,6 +76,24 @@ public sealed class AntigravityCli : IAgentCli
         foreach (var arg in config.ExtraArguments)
             args.Add(arg);
 
+        var finalPrompt = !string.IsNullOrEmpty(config.SystemPrompt)
+            ? config.SystemPrompt + "\n\n---\n\n" + config.Prompt
+            : config.Prompt;
+
+        args.Add("--print");
+        if (!string.IsNullOrEmpty(config.PromptFilePath) && string.IsNullOrEmpty(config.SystemPrompt))
+        {
+            var normalizedPath = config.PromptFilePath.Replace('\\', '/');
+            args.Add($"@{normalizedPath}");
+        }
+        else
+        {
+            var tempFile = Path.Combine(Path.GetTempPath(), $"tendril-agy-prompt-{Guid.NewGuid():N}.md");
+            File.WriteAllText(tempFile, finalPrompt);
+            var normalizedTemp = tempFile.Replace('\\', '/');
+            args.Add($"@{normalizedTemp}");
+        }
+
         var env = new Dictionary<string, string>(GetDefaultEnvironment());
         if (config.EnvironmentVariables is not null)
         {
@@ -68,8 +107,8 @@ public sealed class AntigravityCli : IAgentCli
             Arguments = args,
             WorkingDirectory = config.WorkingDirectory,
             Environment = env,
-            StdinContent = config.Prompt,
-            RedirectStdin = true,
+            StdinContent = null,
+            RedirectStdin = false,
         };
     }
 
