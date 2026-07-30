@@ -73,12 +73,31 @@ public sealed class AgentSession : IAgentSession
 
         _state = SessionState.Running;
 
-        _ = Task.Run(() => ReadStderrAsync(_cts.Token), _cts.Token);
+        // Use a linked CTS that can be cancelled when the process exits
+        // to prevent hanging if a child process inherits and keeps stdout/stderr open.
+        using var readCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token, ct);
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _process.WaitForExitAsync(ct);
+                // Give a short grace period for any buffered writes to be read
+                await Task.Delay(100, CancellationToken.None);
+                await readCts.CancelAsync();
+            }
+            catch
+            {
+                // ignore
+            }
+        }, CancellationToken.None);
+
+        _ = Task.Run(() => ReadStderrAsync(readCts.Token), readCts.Token);
 
         if (_idleTimeout.HasValue)
             _ = Task.Run(() => MonitorIdleAsync(_idleTimeout.Value, _cts.Token), _cts.Token);
 
-        await ReadOutputAsync(_cts.Token);
+        await ReadOutputAsync(readCts.Token);
     }
 
     private async Task ReadOutputAsync(CancellationToken ct)
@@ -114,6 +133,16 @@ public sealed class AgentSession : IAgentSession
             }
 
             await _process.WaitForExitAsync(ct);
+            Complete(_process.ExitCode);
+        }
+        catch (OperationCanceledException) when (_process.HasExited)
+        {
+            var flushed = _parser.Flush();
+            foreach (var evt in flushed)
+            {
+                _allEvents.Add(evt);
+                _events.OnNext(evt);
+            }
             Complete(_process.ExitCode);
         }
         catch (OperationCanceledException)
