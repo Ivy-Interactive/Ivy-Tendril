@@ -503,7 +503,7 @@ export function ChatWidget({
               );
             })
           ) : (
-            <div style={{ color: "#71717a", fontSize: "12px", textAlign: "center", padding: "16px" }}>
+            <div style={{ color: "var(--muted-foreground)", fontSize: "12px", textAlign: "center", padding: "16px" }}>
               No chat history found.
             </div>
           )}
@@ -579,7 +579,7 @@ export function ChatWidget({
           ) : (
             <div className="chat-empty-state">
               <MessageSquare size={44} strokeWidth={1.5} />
-              <h3 style={{ margin: 0, fontSize: "17px", color: "#fafafa" }}>Start a conversation</h3>
+              <h3 style={{ margin: 0, fontSize: "17px", color: "var(--foreground)" }}>Start a conversation</h3>
               <p style={{ margin: 0, fontSize: "13px" }}>
                 Choose an agent and model below to begin chatting.
               </p>
