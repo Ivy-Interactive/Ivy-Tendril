@@ -61,14 +61,14 @@ public record ProjectConfig
 
         try
         {
-            // Get full path and remove trailing directory separators
-            var normalized = Path.GetFullPath(path);
-            return normalized.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            // Get full path and remove trailing directory separators, standardizing to forward slashes
+            var normalized = Path.GetFullPath(path).Replace('\\', '/');
+            return normalized.TrimEnd('/');
         }
         catch
         {
             // If Path.GetFullPath fails (e.g., invalid path), return original with trimmed separators
-            return path.TrimEnd('/', '\\');
+            return path.Replace('\\', '/').TrimEnd('/');
         }
     }
 }

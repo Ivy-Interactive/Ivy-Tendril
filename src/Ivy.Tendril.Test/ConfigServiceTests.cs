@@ -464,20 +464,14 @@ levels:
     public void ExpandVariables_NormalizesMixedPathSeparators()
     {
         var result = VariableExpansion.ExpandVariables(@"D:/Repos/Mixed\Path", "");
-        if (Path.DirectorySeparatorChar == '\\')
-            Assert.Equal(@"D:\Repos\Mixed\Path", result);
-        else
-            Assert.Equal("D:/Repos/Mixed/Path", result);
+        Assert.Equal("D:/Repos/Mixed/Path", result);
     }
 
     [Fact]
     public void ExpandVariables_NormalizesForwardSlashesOnWindows()
     {
         var result = VariableExpansion.ExpandVariables("D:/Repos/ForwardSlash", "");
-        if (Path.DirectorySeparatorChar == '\\')
-            Assert.Equal(@"D:\Repos\ForwardSlash", result);
-        else
-            Assert.Equal("D:/Repos/ForwardSlash", result);
+        Assert.Equal("D:/Repos/ForwardSlash", result);
     }
 
     [Fact]
@@ -536,6 +530,20 @@ levels:
         };
 
         var result = project.GetRepoRef(@"d:\repos\foo");
+        Assert.NotNull(result);
+        Assert.Equal("yolo", result.PrRule);
+    }
+
+    [Fact]
+    public void GetRepoRef_NormalizesMixedPathSeparators()
+    {
+        var project = new ProjectConfig
+        {
+            Name = "Test",
+            Repos = [new RepoRef { Path = @"D:\Repos\Foo", PrRule = "yolo" }]
+        };
+
+        var result = project.GetRepoRef("D:/Repos/Foo");
         Assert.NotNull(result);
         Assert.Equal("yolo", result.PrRule);
     }
