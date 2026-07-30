@@ -1398,7 +1398,7 @@ maxConcurrentJobs: 0
         try
         {
             service.SetTendrilHome(tempDir);
-            Assert.Equal(5, service.Settings.MaxConcurrentJobs);
+            Assert.Equal(20, service.Settings.MaxConcurrentJobs);
         }
         finally
         {

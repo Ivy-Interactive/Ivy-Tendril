@@ -65,6 +65,39 @@ public class RerunJobDialogTests
         Assert.Same(original, result);
     }
 
+    [Fact]
+    public void BuildRerunArgs_CreatePlanWithPlanFolderAndFeedback_BecomesRetryPlan()
+    {
+        var original = new CreatePlanArgs("Create a login feature", "MyProject");
+
+        var result = RerunJobDialog.BuildRerunArgs(original, "fix authentication bug", "/plans/00042-LoginFeature");
+
+        var retry = Assert.IsType<RetryPlanArgs>(result);
+        Assert.Equal("/plans/00042-LoginFeature", retry.FolderPath);
+        Assert.Equal("fix authentication bug", retry.ChangeRequest);
+    }
+
+    [Fact]
+    public void BuildRerunArgs_CreatePlanWithPlanFolderNoFeedback_BecomesExecutePlan()
+    {
+        var original = new CreatePlanArgs("Create a login feature", "MyProject");
+
+        var result = RerunJobDialog.BuildRerunArgs(original, "", "/plans/00042-LoginFeature");
+
+        var execute = Assert.IsType<ExecutePlanArgs>(result);
+        Assert.Equal("/plans/00042-LoginFeature", execute.FolderPath);
+    }
+
+    [Fact]
+    public void BuildRerunArgs_CreatePlanWithoutPlanFolder_ReturnsOriginalCreatePlanArgs()
+    {
+        var original = new CreatePlanArgs("Create a login feature", "MyProject");
+
+        var result = RerunJobDialog.BuildRerunArgs(original, "some feedback", null);
+
+        Assert.Same(original, result);
+    }
+
     [Theory]
     [InlineData(typeof(ExecutePlanArgs), true)]
     [InlineData(typeof(RetryPlanArgs), true)]
@@ -83,5 +116,20 @@ public class RerunJobDialogTests
         };
 
         Assert.Equal(expected, RerunJobDialog.SupportsFeedback(args));
+    }
+
+    [Fact]
+    public void SupportsFeedback_JobItem_CreatePlanWithReportedId_ReturnsTrue()
+    {
+        var job = new JobItem
+        {
+            Id = "00001",
+            Type = "CreatePlan",
+            TypedArgs = new CreatePlanArgs("Test", "Project"),
+            ReportedPlanId = "00042",
+            PlanFile = "00042-TestPlan"
+        };
+
+        Assert.True(RerunJobDialog.SupportsFeedback(job, null));
     }
 }
