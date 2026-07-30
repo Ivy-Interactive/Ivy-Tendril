@@ -529,7 +529,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
           >
             {hasHeader && (
               <div
-                className="flex items-center justify-between px-3 py-1.5 text-[11px] bg-[var(--muted)]/95 backdrop-blur-xs text-[var(--muted-foreground)] border-b border-[var(--border)] sticky top-0 z-10 font-sans rounded-t-md"
+                className="flex items-center justify-between px-3 py-1.5 text-[11px] bg-[var(--muted)] text-[var(--muted-foreground)] border-b border-[var(--border)] sticky top-0 z-10 font-sans rounded-t-md"
                 style={{
                   top: showFileDropdown ? "2rem" : 0,
                 }}
