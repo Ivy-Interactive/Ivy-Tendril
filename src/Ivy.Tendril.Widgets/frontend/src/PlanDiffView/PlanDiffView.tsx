@@ -412,7 +412,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
   const style: React.CSSProperties = {
     ...getWidth(width),
     ...getHeight(height),
-    overflow: "auto",
+    ...(height ? { overflow: "auto" } : {}),
   };
 
   if (!diff || files.length === 0) {
