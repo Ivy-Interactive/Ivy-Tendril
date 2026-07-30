@@ -25,6 +25,7 @@ public record ChatSessionModel(
 
 public interface IChatHistoryService
 {
+    event EventHandler? SessionsChanged;
     IReadOnlyList<ChatSessionModel> GetSessions();
     ChatSessionModel? GetSession(string id);
     ChatSessionModel CreateSession(string agentId, string modelId, string? title = null);

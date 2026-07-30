@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Reactive.Disposables;
 using Ivy.Core;
 using Ivy.Core.Hooks;
 using Ivy.Tendril.Agents.Abstractions;
@@ -29,6 +30,7 @@ public class ChatApp : ViewBase
         var serializer = UseService<IEventSerializer>();
 
         var activeSessionId = UseState<string?>(args?.SessionId);
+        var sessionVersion = UseState(0);
         var selectedAgent = UseState(() => configService.Settings.CodingAgent ?? "claude");
         var selectedModel = UseState("claude-opus-5");
         var lastSyncedSessionId = UseRef<string?>(null);
@@ -40,6 +42,13 @@ public class ChatApp : ViewBase
         var runningSessionIds = UseState(new HashSet<string>());
         var messageQueue = UseRef(new ConcurrentQueue<ChatSendMessageDto>());
         var initialHandled = UseRef(false);
+
+        UseEffect(() =>
+        {
+            void OnSessionsChanged(object? sender, EventArgs e) => sessionVersion.Set(v => v + 1);
+            chatService.SessionsChanged += OnSessionsChanged;
+            return Disposable.Create(() => chatService.SessionsChanged -= OnSessionsChanged);
+        });
 
         // Map sessions to DTOs
         var sessions = chatService.GetSessions();
@@ -368,6 +377,7 @@ public class ChatApp : ViewBase
             OnDeleteSession = e =>
             {
                 chatService.DeleteSession(e.Value);
+                sessionVersion.Set(v => v + 1);
                 if (activeSessionId.Value == e.Value)
                 {
                     var remaining = chatService.GetSessions();
@@ -380,6 +390,7 @@ public class ChatApp : ViewBase
                 if (e.Value != null && e.Value.Length >= 2)
                 {
                     chatService.RenameSession(e.Value[0], e.Value[1]);
+                    sessionVersion.Set(v => v + 1);
                 }
                 return ValueTask.CompletedTask;
             },
