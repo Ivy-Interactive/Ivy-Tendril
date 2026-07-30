@@ -14,56 +14,50 @@ public class AntigravityEventParserTests
     }
 
     [Fact]
-    public void ParseLine_FirstLine_ReturnsSessionInitAndTextEvents()
+    public void ParseLine_TextLine_ReturnsTextEvent()
     {
         var events = _parser.ParseLine("Line 1");
 
-        Assert.Equal(2, events.Count);
-
-        var initEvent = Assert.IsType<SessionInitEvent>(events[0]);
-        Assert.Equal(AgentEventKind.SessionInit, initEvent.Kind);
-
-        var textEvent = Assert.IsType<TextEvent>(events[1]);
+        Assert.Single(events);
+        var textEvent = Assert.IsType<TextEvent>(events[0]);
         Assert.Equal(AgentEventKind.Text, textEvent.Kind);
         Assert.Equal("Line 1\n", textEvent.Text);
         Assert.False(textEvent.IsDelta);
     }
 
     [Fact]
-    public void ParseLine_SubsequentLines_ReturnsTextEventOnly()
+    public void ParseLine_InitJson_ReturnsSessionInitEvent()
     {
-        _parser.ParseLine("Line 1");
-        var events = _parser.ParseLine("Line 2");
+        var json = "{\"event\":\"init\",\"conversation_id\":\"c-123\",\"init\":{\"model\":\"gemini-3.6-flash\",\"tools\":[\"read\",\"write\"]}}";
+        var events = _parser.ParseLine(json);
 
         Assert.Single(events);
-
-        var textEvent = Assert.IsType<TextEvent>(events[0]);
-        Assert.Equal(AgentEventKind.Text, textEvent.Kind);
-        Assert.Equal("Line 2\n", textEvent.Text);
-        Assert.False(textEvent.IsDelta);
+        var initEvent = Assert.IsType<SessionInitEvent>(events[0]);
+        Assert.Equal("c-123", initEvent.SessionId);
+        Assert.Equal("gemini-3.6-flash", initEvent.Model);
+        Assert.Equal(2, initEvent.AvailableTools.Count);
     }
 
     [Fact]
-    public void Flush_AfterLines_ReturnsResultEventOnly()
+    public void ParseLine_ResultJson_ReturnsResultEvent()
     {
-        _parser.ParseLine("Line 1");
-        var events = _parser.Flush();
+        var json = "{\"event\":\"result\",\"result\":{\"conversation_id\":\"c-123\",\"status\":\"SUCCESS\",\"response\":\"Done\",\"duration_seconds\":10.5,\"usage\":{\"input_tokens\":100,\"output_tokens\":50}}}";
+        var events = _parser.ParseLine(json);
 
         Assert.Single(events);
         var resultEvent = Assert.IsType<ResultEvent>(events[0]);
-        Assert.Equal(AgentEventKind.Result, resultEvent.Kind);
         Assert.True(resultEvent.IsSuccess);
+        Assert.Equal("Done", resultEvent.Response);
+        Assert.Equal(100, resultEvent.Usage?.InputTokens);
     }
 
     [Fact]
-    public void Flush_NoLines_ReturnsSessionInitAndResultEvents()
+    public void Flush_ReturnsEmptyList()
     {
+        _parser.ParseLine("Line 1");
         var events = _parser.Flush();
 
-        Assert.Equal(2, events.Count);
-        var initEvent = Assert.IsType<SessionInitEvent>(events[0]);
-        var resultEvent = Assert.IsType<ResultEvent>(events[1]);
-        Assert.True(resultEvent.IsSuccess);
+        Assert.Empty(events);
     }
 
     [Fact]
@@ -83,7 +77,7 @@ public class AntigravityEventParserTests
 
         Assert.NotNull(updatedResult);
         Assert.Equal(1, updatedResult.ExitCode);
-        Assert.True(updatedResult.IsSuccess); // Matches existing
+        Assert.True(updatedResult.IsSuccess);
         Assert.Equal("Done", updatedResult.Response);
     }
 
