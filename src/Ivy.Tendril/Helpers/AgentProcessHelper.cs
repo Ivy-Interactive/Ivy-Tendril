@@ -56,12 +56,23 @@ public static class AgentProcessHelper
         var shimDir = Path.Combine(Path.GetTempPath(), "tendril-shim");
         FileHelper.EnsureDirectory(shimDir);
 
-        var cmdShim = Path.Combine(shimDir, "tendril.cmd");
-        File.WriteAllText(cmdShim, $"@dotnet exec \"{dllPath}\" %*\r\n");
+        try
+        {
+            var cmdShim = Path.Combine(shimDir, "tendril.cmd");
+            if (!File.Exists(cmdShim))
+                File.WriteAllText(cmdShim, $"@dotnet exec \"{dllPath}\" %*\r\n");
 
-        var bashDllPath = dllPath.Replace('\\', '/');
-        var bashShim = Path.Combine(shimDir, "tendril");
-        File.WriteAllText(bashShim, $"#!/usr/bin/env bash\ndotnet exec '{bashDllPath}' \"$@\"\n");
+            var bashShim = Path.Combine(shimDir, "tendril");
+            if (!File.Exists(bashShim))
+            {
+                var bashDllPath = dllPath.Replace('\\', '/');
+                File.WriteAllText(bashShim, $"#!/usr/bin/env bash\ndotnet exec '{bashDllPath}' \"$@\"\n");
+            }
+        }
+        catch (IOException)
+        {
+            // Another concurrent job/thread is creating/writing the shims
+        }
 
         return shimDir;
     }
