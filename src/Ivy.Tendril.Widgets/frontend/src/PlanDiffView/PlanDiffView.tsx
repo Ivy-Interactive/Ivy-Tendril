@@ -524,12 +524,12 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
           <div
             key={fileIndex}
             id={elementId}
-            className={`border border-[var(--border)] rounded-md ${isCollapsed ? "mb-1" : "mb-2"} bg-[var(--background)]`}
+            className={`border border-[var(--border)] rounded-md ${isCollapsed ? "mb-0" : "mb-1.5"} bg-[var(--background)] overflow-hidden`}
             style={{ scrollMarginTop: showFileDropdown ? "2rem" : 0 }}
           >
             {hasHeader && (
               <div
-                className="relative flex items-center justify-between px-3 py-1.5 text-[11px] bg-[var(--muted)] text-[var(--muted-foreground)] border-b border-[var(--border)] sticky top-0 z-10 font-sans rounded-t-md before:absolute before:-top-px before:inset-x-0 before:h-2 before:bg-[var(--muted)] before:rounded-t-md"
+                className="flex items-center justify-between px-3 py-1.5 text-[11px] bg-[var(--muted)] text-[var(--muted-foreground)] border-b border-[var(--border)] sticky top-0 z-10 font-sans"
                 style={{
                   top: showFileDropdown ? "2rem" : 0,
                 }}
@@ -572,17 +572,29 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
 
                   {/* Viewed / Collapsed Checkbox */}
                   <label className="flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)] cursor-pointer select-none font-medium">
-                    <input
-                      type="checkbox"
-                      checked={isCollapsed}
-                      onChange={(e) => {
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={isCollapsed}
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setCollapsedState((prev) => ({
                           ...prev,
-                          [fileIndex]: e.target.checked,
+                          [fileIndex]: !isCollapsed,
                         }));
                       }}
-                      className="size-3.5 rounded-checkbox border border-border bg-background accent-primary text-primary shadow-xs transition-colors cursor-pointer hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    />
+                      className={`size-3.5 shrink-0 rounded-sm border transition-colors flex items-center justify-center cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)] ${
+                        isCollapsed
+                          ? "bg-[var(--primary)] text-[var(--primary-foreground)] border-[var(--primary)]"
+                          : "border-[var(--border)] bg-[var(--background)] hover:bg-[var(--accent)]"
+                      }`}
+                    >
+                      {isCollapsed && (
+                        <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="2 6 5 9 10 3" />
+                        </svg>
+                      )}
+                    </button>
                     Viewed
                   </label>
 

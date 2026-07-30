@@ -97,7 +97,7 @@ public class ChangesTabView(
                 client.Redirect($"#{path}");
             });
 
-        var diffsLayout = Layout.Vertical().Width(Size.Grow().Min(Size.Px(0))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)));
+        var diffsLayout = Layout.Vertical().Gap(1).Width(Size.Grow().Min(Size.Px(0))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)));
         var isManyFiles = sortedFileDiffs.Count > 10;
         for (var i = 0; i < sortedFileDiffs.Count; i++)
         {
