@@ -164,7 +164,7 @@ public class TendrilSettings
     public int JobTimeout { get; set; } = 30;
     public int StaleOutputTimeout { get; set; } = 10;
     public int GitTimeout { get; set; } = 10;
-    public int MaxConcurrentJobs { get; set; } = 5;
+    public int MaxConcurrentJobs { get; set; } = 20;
 
     public List<ProjectConfig> Projects { get; set; } = new();
     public List<VerificationConfig> Verifications { get; set; } = new();
@@ -457,9 +457,9 @@ public class ConfigService : IConfigService, IDisposable
         // MaxConcurrentJobs: 1-100
         if (Settings.MaxConcurrentJobs < 1 || Settings.MaxConcurrentJobs > 100)
         {
-            _logger.LogWarning("MaxConcurrentJobs {Value} is out of bounds (1-100). Using default 5.",
+            _logger.LogWarning("MaxConcurrentJobs {Value} is out of bounds (1-100). Using default 20.",
                 Settings.MaxConcurrentJobs);
-            Settings.MaxConcurrentJobs = 5;
+            Settings.MaxConcurrentJobs = 20;
         }
     }
 
