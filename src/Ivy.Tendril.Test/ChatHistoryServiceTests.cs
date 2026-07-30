@@ -84,4 +84,35 @@ public class ChatHistoryServiceTests
                 Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void RenameSession_UpdatesTitleAndFiresEvent()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "sonnet", "Old Title");
+            var eventFired = false;
+            service.SessionsChanged += (sender, args) => eventFired = true;
+
+            service.RenameSession(session.Id, "New Title");
+
+            var updatedSession = service.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            Assert.Equal("New Title", updatedSession.Title);
+            Assert.True(eventFired);
+
+            // Verify persistence by reloading service from same temp directory
+            var newConfigService = new ConfigService(new TendrilSettings(), tempDir);
+            var reloadedService = new ChatHistoryService(newConfigService);
+            var reloadedSession = reloadedService.GetSession(session.Id);
+            Assert.NotNull(reloadedSession);
+            Assert.Equal("New Title", reloadedSession.Title);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
 }

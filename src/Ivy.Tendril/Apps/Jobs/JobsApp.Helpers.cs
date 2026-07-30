@@ -28,7 +28,7 @@ public partial class JobsApp
         return job.PlanFile;
     }
 
-    private static string ExtractPlanId(string planFile)
+    internal static string ExtractPlanId(string planFile)
     {
         if (string.IsNullOrEmpty(planFile)) return "";
         var match = Regex.Match(planFile, @"^(\d{5})-");

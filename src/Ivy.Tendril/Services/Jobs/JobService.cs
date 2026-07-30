@@ -73,7 +73,7 @@ public class JobService : IJobService
         TimeSpan jobTimeout,
         TimeSpan staleOutputTimeout,
         string? inboxPath = null,
-        int maxConcurrentJobs = 5,
+        int maxConcurrentJobs = 20,
         IPlanReaderService? planReaderService = null,
         ITelemetryService? telemetryService = null,
         IPlanDatabaseService? database = null,
@@ -270,6 +270,7 @@ public class JobService : IJobService
 
         JobCompletionHandler.CleanupInboxFile(job);
         _completionHandler.RevertPlanStateToPrevious(job);
+        PersistJob(job);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
             _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);

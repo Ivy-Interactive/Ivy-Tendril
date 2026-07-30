@@ -205,12 +205,29 @@ export function ChatWidget({
   const [sidebarEditingText, setSidebarEditingText] = useState("");
   const [attachments, setAttachments] = useState<ChatAttachmentDto[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<QueuedItem[]>([]);
+  const [pendingRenames, setPendingRenames] = useState<Record<string, string>>({});
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
+
+  // Clear pending renames once they appear in props
+  useEffect(() => {
+    const updatedPending = { ...pendingRenames };
+    let changed = false;
+    for (const [sessionId, expectedTitle] of Object.entries(pendingRenames)) {
+      const session = sessions.find((s) => s.id === sessionId);
+      if (session && session.title === expectedTitle) {
+        delete updatedPending[sessionId];
+        changed = true;
+      }
+    }
+    if (changed) {
+      setPendingRenames(updatedPending);
+    }
+  }, [sessions, pendingRenames]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -259,7 +276,9 @@ export function ChatWidget({
 
   const saveHeaderTitleEdit = () => {
     if (activeSession && editingTitleText.trim() && editingTitleText.trim() !== activeSession.title) {
-      emit("OnRenameSession", activeSession.id, editingTitleText.trim());
+      const newTitle = editingTitleText.trim();
+      setPendingRenames((prev) => ({ ...prev, [activeSession.id]: newTitle }));
+      emit("OnRenameSession", activeSession.id, newTitle);
     }
     setIsEditingTitle(false);
   };
@@ -272,7 +291,9 @@ export function ChatWidget({
 
   const saveSidebarTitleEdit = (sessionId: string) => {
     if (sidebarEditingText.trim()) {
-      emit("OnRenameSession", sessionId, sidebarEditingText.trim());
+      const newTitle = sidebarEditingText.trim();
+      setPendingRenames((prev) => ({ ...prev, [sessionId]: newTitle }));
+      emit("OnRenameSession", sessionId, newTitle);
     }
     setEditingSessionId(null);
   };
@@ -462,7 +483,9 @@ export function ChatWidget({
                         autoFocus
                       />
                     ) : (
-                      <span className="chat-session-title">{sess.title || "Untitled Chat"}</span>
+                      <span className="chat-session-title">
+                        {pendingRenames[sess.id] || sess.title || "Untitled Chat"}
+                      </span>
                     )}
                     <div className="chat-session-meta">
                       {status === "generating" ? (
@@ -530,7 +553,9 @@ export function ChatWidget({
               />
             ) : (
               <div className="chat-header-title-row" onClick={startHeaderTitleEdit} title="Click to rename chat">
-                <h1 className="chat-main-title">{activeSession?.title || "New Chat"}</h1>
+                <h1 className="chat-main-title">
+                  {(activeSession && pendingRenames[activeSession.id]) || activeSession?.title || "New Chat"}
+                </h1>
                 <Pencil size={13} className="chat-title-pencil" />
               </div>
             )}

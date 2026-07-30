@@ -77,7 +77,7 @@ public static class VariableExpansion
         // This handles %REPOS_HOME% and any other env vars
         value = Environment.ExpandEnvironmentVariables(value);
 
-        // Normalize path separators: convert forward slashes to backslashes on Windows,
+        // Normalize path separators: convert backslashes to forward slashes,
         // and remove any double slashes that might have been created during expansion
         if (normalizePaths)
             value = NormalizePath(value);
@@ -96,18 +96,12 @@ public static class VariableExpansion
         // (contains both path separators or environment variable markers)
         if (!value.Contains('/') && !value.Contains('\\')) return value;
 
-        // On Windows, standardize to backslashes
-        if (Path.DirectorySeparatorChar == '\\')
-            value = value.Replace('/', '\\');
-        // On Unix, standardize to forward slashes
-        else
-            value = value.Replace('\\', '/');
+        // Standardize all path separators to forward slashes on all platforms
+        value = value.Replace('\\', '/');
 
-        // Remove double separators (e.g., \\ or //) — but skip URI scheme separators (e.g., https://)
-        var sep = Path.DirectorySeparatorChar.ToString();
-        var doubleSep = sep + sep;
-        if (value.Contains(doubleSep))
-            value = Regex.Replace(value, "(?<!:)(" + Regex.Escape(doubleSep) + ")", sep);
+        // Remove double separators (e.g., //) — but skip URI scheme separators (e.g., https://)
+        if (value.Contains("//"))
+            value = Regex.Replace(value, "(?<!:)(//)", "/");
 
         return value;
     }

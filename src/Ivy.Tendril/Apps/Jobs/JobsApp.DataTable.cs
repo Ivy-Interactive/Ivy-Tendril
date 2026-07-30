@@ -207,10 +207,10 @@ public partial class JobsApp
                 var job = jobs.FirstOrDefault(j => j.Id == row.Id);
                 var actions = new List<MenuItem> { };
 
-                if (job?.Status is JobStatus.Running or JobStatus.Queued)
+                if (job?.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
                 {
                     actions.Add(new MenuItem("Stop", Icon: Icons.Pause, Tag: "stop-job")
-                        .Tooltip("Stop this running job"));
+                        .Tooltip("Stop this job"));
                 }
 
                 if (CanRerun(job))
@@ -247,7 +247,7 @@ public partial class JobsApp
 
                     if (tag == "stop-job")
                     {
-                        if (job.Status is JobStatus.Running or JobStatus.Queued)
+                        if (job.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
                         {
                             jobService.StopJob(job.Id);
                             refreshToken.Refresh();
