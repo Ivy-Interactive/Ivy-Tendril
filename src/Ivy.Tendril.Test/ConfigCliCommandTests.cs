@@ -132,7 +132,7 @@ public class ConfigCliCommandTests : IDisposable
     [InlineData("jobTimeout", "0")]
     [InlineData("gitTimeout", "31")]
     [InlineData("staleOutputTimeout", "0")]
-    [InlineData("maxConcurrentJobs", "101")]
+    [InlineData("maxConcurrentJobs", "513")]
     public void Set_OutOfRange_Throws(string key, string value)
     {
         Assert.Throws<ArgumentException>(() => ConfigSetCommand.ApplyField(CreateConfig().Settings, key, value));
