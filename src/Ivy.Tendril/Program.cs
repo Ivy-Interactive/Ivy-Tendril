@@ -458,15 +458,15 @@ public class Program
 
     private static bool IsTendrilToolInvocation()
     {
-        // If the executing assembly is in the .store / .dotnet folder, it's a global tool invocation
+        // If the executing assembly is in the .store or .dotnet/tools folder, it's a global tool invocation
         var path = System.AppContext.BaseDirectory;
+        var toolsFolder = Path.Combine(".dotnet", "tools");
         if (path.Contains(".store", StringComparison.OrdinalIgnoreCase) ||
-            path.Contains(".dotnet", StringComparison.OrdinalIgnoreCase))
+            path.Contains(toolsFolder, StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        // ProcessPath can be "dotnet" for global tools, so inspect argv[0] too.
         var processPathName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? string.Empty);
         if (processPathName.Equals("tendril", StringComparison.OrdinalIgnoreCase))
             return true;
