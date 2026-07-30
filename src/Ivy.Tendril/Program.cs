@@ -284,6 +284,15 @@ public class Program
         // Install native console control handler FIRST — this catches CTRL_CLOSE_EVENT
         // (console window closed), CTRL_C_EVENT, CTRL_BREAK_EVENT, CTRL_LOGOFF_EVENT,
         // and CTRL_SHUTDOWN_EVENT. Logging here tells us exactly WHY the process is dying.
+        try
+        {
+            Console.CancelKeyPress += (_, _) =>
+            {
+                Environment.Exit(0);
+            };
+        }
+        catch { }
+
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             _consoleCtrlHandler = ctrlType =>
@@ -299,7 +308,14 @@ public class Program
                 };
                 CrashLog.Write(
                     $"[{DateTime.UtcNow:O}] ConsoleCtrlHandler: {name} (PID {Environment.ProcessId}) | {GetMemoryStats()}");
-                return false; // Let default handling proceed
+
+                if (ctrlType is 0 or 1 or 2)
+                {
+                    Environment.Exit(0);
+                    return true;
+                }
+
+                return false;
             };
             SetConsoleCtrlHandler(_consoleCtrlHandler, true);
         }
