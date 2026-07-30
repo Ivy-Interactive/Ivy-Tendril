@@ -598,16 +598,18 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             new SidebarLayout(
                 body ?? null!,
                 sidebarMenu,
-                Layout.Vertical().Gap(2)
-                | settings.Header
-                | new NewPlanButton()
-                ,
-                Layout.Vertical(
+                sidebarHeader: Layout.Vertical().Gap(2)
+                    | settings.Header
+                    | new NewPlanButton(collapsed: false),
+                sidebarFooter: Layout.Vertical(
                     new SidebarNews(newsArticles.Value),
                     settings.Footer,
                     footer
                 ),
-                settings.Width
+                width: settings.Width,
+                sidebarHeaderCollapsed: Layout.Vertical().Gap(2)
+                    | new NewPlanButton(collapsed: true),
+                sidebarFooterCollapsed: footer
             ).Open(sidebarOpen.Value).MainAppSidebar(),
             importIssuesDialog,
             updateDialog
