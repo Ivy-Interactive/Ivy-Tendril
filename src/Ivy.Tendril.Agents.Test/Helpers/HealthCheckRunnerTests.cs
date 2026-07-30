@@ -7,8 +7,15 @@ public class HealthCheckRunnerTests
     [Fact]
     public async Task RunAsync_SuccessfulCommand_ReturnsZeroExitCode()
     {
+        var cmd = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+            System.Runtime.InteropServices.OSPlatform.Windows) ? "cmd" : "echo";
+        var args = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+            System.Runtime.InteropServices.OSPlatform.Windows)
+            ? new[] { "/c", "echo hello" }
+            : new[] { "hello" };
+
         var (exitCode, stdout, stderr) = await HealthCheckRunner.RunAsync(
-            "echo", ["hello"], TimeSpan.FromSeconds(5));
+            cmd, args, TimeSpan.FromSeconds(5));
 
         Assert.Equal(0, exitCode);
         Assert.Contains("hello", stdout);
@@ -76,10 +83,34 @@ public class HealthCheckRunnerTests
     [Fact]
     public async Task RunAsync_DefaultTimeout_IsThirtySeconds()
     {
+        var cmd = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+            System.Runtime.InteropServices.OSPlatform.Windows) ? "cmd" : "echo";
+        var args = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+            System.Runtime.InteropServices.OSPlatform.Windows)
+            ? new[] { "/c", "echo default timeout" }
+            : new[] { "default timeout" };
+
         var (exitCode, stdout, _) = await HealthCheckRunner.RunAsync(
-            "echo", ["default timeout"]);
+            cmd, args);
 
         Assert.Equal(0, exitCode);
         Assert.Contains("default timeout", stdout);
+    }
+
+    [Fact]
+    public async Task RunAsync_ClosesStandardInput_PreventsStdinHang()
+    {
+        var cmd = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+            System.Runtime.InteropServices.OSPlatform.Windows) ? "cmd" : "sh";
+        var args = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+            System.Runtime.InteropServices.OSPlatform.Windows)
+            ? new[] { "/c", "sort" }
+            : new[] { "-c", "cat" };
+
+        var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
+            cmd, args, TimeSpan.FromSeconds(5));
+
+        Assert.Equal(0, exitCode);
+        Assert.NotEqual("Timed out", stderr);
     }
 }
