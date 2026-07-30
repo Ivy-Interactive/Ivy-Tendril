@@ -351,6 +351,64 @@ export function ChatWidget({
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    const files = e.clipboardData?.files;
+
+    let hasImage = false;
+
+    if (files && files.length > 0) {
+      Array.from(files).forEach((file) => {
+        if (file.type.startsWith("image/")) {
+          hasImage = true;
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            const base64Data = evt.target?.result as string;
+            setAttachments((prev) => [
+              ...prev,
+              {
+                name: file.name || `screenshot-${Date.now()}.png`,
+                contentType: file.type || "image/png",
+                size: file.size,
+                base64Data,
+              },
+            ]);
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+
+    if (!hasImage && items && items.length > 0) {
+      Array.from(items).forEach((item) => {
+        if (item.type.startsWith("image/")) {
+          hasImage = true;
+          const file = item.getAsFile();
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              const base64Data = evt.target?.result as string;
+              setAttachments((prev) => [
+                ...prev,
+                {
+                  name: file.name || `screenshot-${Date.now()}.png`,
+                  contentType: file.type || "image/png",
+                  size: file.size,
+                  base64Data,
+                },
+              ]);
+            };
+            reader.readAsDataURL(file);
+          }
+        }
+      });
+    }
+
+    if (hasImage) {
+      e.preventDefault();
+    }
+  };
+
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setPromptText(e.target.value);
     adjustTextareaHeight();
@@ -677,6 +735,7 @@ export function ChatWidget({
               value={promptText}
               onChange={handleTextChange}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
             />
             <div className="chat-input-actions">
               <div className="chat-input-actions-left">
