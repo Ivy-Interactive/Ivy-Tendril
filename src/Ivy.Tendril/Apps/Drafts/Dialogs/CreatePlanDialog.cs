@@ -136,28 +136,28 @@ public class CreatePlanDialog(
         }
 
         var projectPicker = new BadgeSelect
-            {
-                Options = projectOptions.ToArray(),
-                Value = selectedProjects.Value,
-                Placeholder = "Select project(s)",
-                Icon = selectedProjects.Value.Contains("Auto") || selectedProjects.Value.Length == 0
+        {
+            Options = projectOptions.ToArray(),
+            Value = selectedProjects.Value,
+            Placeholder = "Select project(s)",
+            Icon = selectedProjects.Value.Contains("Auto") || selectedProjects.Value.Length == 0
                     ? "WandSparkles"
                     : "Folder",
-                Multiple = true,
-                Tooltip = "Select project(s)",
-            }
+            Multiple = true,
+            Tooltip = "Select project(s)",
+        }
             .WithOnChange(SetProjects)
             .Width(Size.Grow());
 
         var priorityPicker = new BadgeSelect
-            {
-                Options = PriorityOptions.Select(p => new BadgeSelectOption(p, p)).ToArray(),
-                Value = [selectedPriority.Value],
-                Placeholder = "Priority",
-                Icon = "Flag",
-                Multiple = false,
-                Tooltip = "Priority",
-            }
+        {
+            Options = PriorityOptions.Select(p => new BadgeSelectOption(p, p)).ToArray(),
+            Value = [selectedPriority.Value],
+            Placeholder = "Priority",
+            Icon = "Flag",
+            Multiple = false,
+            Tooltip = "Priority",
+        }
             .WithOnChange(values => selectedPriority.Set(values.FirstOrDefault() ?? "Normal"))
             .Width(Size.Auto());
 
