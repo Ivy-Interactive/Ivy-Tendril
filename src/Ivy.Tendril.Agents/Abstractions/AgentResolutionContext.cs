@@ -11,6 +11,7 @@ public sealed record AgentResolutionContext
     public string? SessionId { get; init; }
     public IReadOnlyDictionary<string, string>? ExtraEnvironment { get; init; }
     public string? PromptFilePath { get; init; }
+    public string? SystemPrompt { get; init; }
     public TransportKind? PreferredTransport { get; init; }
     public IReadOnlyDictionary<string, string>? Variables { get; init; }
     public SessionMetadata? Metadata { get; init; }
