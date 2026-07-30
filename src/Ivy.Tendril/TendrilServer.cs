@@ -136,7 +136,7 @@ public static class TendrilServer
                         Text.Block("Ivy Tendril"),
                         Text.Muted($"v{versionString}")
                     ).Gap(0)
-                ).Gap(2).Padding(1, 2).AlignContent(Align.Left).Height(Size.Px(40))
+                ).Gap(2).Padding(2).AlignContent(Align.Left)
             )
             .WallpaperApp<WallpaperApp>()
             .HideArgsInUrl()
