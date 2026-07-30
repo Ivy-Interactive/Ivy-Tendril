@@ -818,6 +818,8 @@ internal class JobCompletionHandler
 
             var target = job.PreviousPlanState ?? FallbackPreviousState(job.TypedArgs);
             if (target == null) return;
+            if (target == PlanStatus.Blocked)
+                target = PlanStatus.Draft;
 
             if (_planReaderService != null)
                 _planReaderService.TransitionState(Path.GetFileName(planFolder), target.Value);
