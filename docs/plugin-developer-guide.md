@@ -147,7 +147,7 @@ Your plugin must be published as a NuGet package on [nuget.org](https://www.nuge
 - Must contain exactly one `[assembly: IvyPlugin(typeof(...))]` attribute
 - Package must build cleanly and contain all runtime dependencies
 
-**Always set `<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>`** — even before you add third-party packages. It copies dependency DLLs next to your assembly in `bin/`, the only way a plugin loaded from source via `plugins/plugin-references.yaml` can resolve them; without it you get `Could not load file or assembly`. Installed packages resolve theirs from the `.nuspec` instead, and your published `.nupkg` is unchanged either way.
+**Set `<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>`**. If you have dependencies or add them in the future, it copies their DLLs next to your assembly in `bin/`; without it you get `Could not load file or assembly`. This is only relevant for plugins built from source; installed packages resolve theirs from the `.nuspec` instead.
 
 ### The `tendril.json` File
 
