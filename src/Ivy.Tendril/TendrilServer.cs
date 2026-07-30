@@ -133,8 +133,8 @@ public static class TendrilServer
                 Layout.Horizontal(
                     new Image("/tendril/assets/Tendril.svg").Width(Size.Px(32)).Height(Size.Px(32)),
                     Layout.Vertical(
-                        Text.Block("Ivy Tendril"),
-                        Text.Muted($"v{versionString}")
+                        Text.Block("Ivy Tendril").NoWrap(),
+                        Text.Muted($"v{versionString}").NoWrap()
                     ).Gap(0)
                 ).Gap(2).Padding(2).AlignContent(Align.Left)
             )
