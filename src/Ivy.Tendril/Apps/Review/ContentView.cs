@@ -542,7 +542,7 @@ public class ContentView(
         Action<string> showDebugJob,
         IState<List<DraftComment>> draftComments)
     {
-        var content = Layout.Vertical().Height(Size.Full());
+        var content = Layout.Vertical().Gap(0).Height(Size.Full());
 
         if (selectedPlan is null)
         {
@@ -653,7 +653,7 @@ public class ContentView(
                 .Variant(TabsVariant.Content)
                 .RemoveParentPadding();
 
-            content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
+            content |= (Layout.Vertical().Padding(0, 2, 2, 2).Height(Size.Full()) | tabs);
         }
 
         content |= new VerificationReportSheet(openVerification, selectedPlan, config);
