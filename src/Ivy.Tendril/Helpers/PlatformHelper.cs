@@ -43,8 +43,9 @@ public static class PlatformHelper
     }
 
     /// <summary>
-    /// Strips leading slashes or backslashes from relative paths inside Test-Path condition expressions
+    /// Strips leading slashes or backslashes from relative worktree/artifact paths inside Test-Path condition expressions
     /// so PowerShell evaluates them relative to the working directory instead of the drive root.
+    /// Preserves genuine absolute paths (e.g. /Users/..., /home/..., C:\...).
     /// </summary>
     public static string SanitizeConditionPath(string condition)
     {
@@ -52,7 +53,7 @@ public static class PlatformHelper
 
         return System.Text.RegularExpressions.Regex.Replace(
             condition,
-            @"(?i)(Test-Path\s+[""']?)[\\/]+(?![a-zA-Z]:)",
+            @"(?i)(Test-Path\s+[""']?)[\\/]+(?=(Worktrees|artifacts)[\\/])",
             "$1");
     }
 
