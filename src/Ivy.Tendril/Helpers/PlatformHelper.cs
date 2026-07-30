@@ -15,10 +15,11 @@ public static class PlatformHelper
     {
         try
         {
+            var sanitizedCondition = SanitizeConditionPath(condition);
             var psi = new ProcessStartInfo
             {
                 FileName = PathHelper.GetPwshPath(),
-                Arguments = $"-NoProfile -Command \"if ({condition}) {{ exit 0 }} else {{ exit 1 }}\"",
+                Arguments = $"-NoProfile -Command \"if ({sanitizedCondition}) {{ exit 0 }} else {{ exit 1 }}\"",
                 WorkingDirectory = workingDirectory,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -39,6 +40,20 @@ public static class PlatformHelper
             logger?.LogWarning(ex, "Failed to evaluate PowerShell condition");
             return false;
         }
+    }
+
+    /// <summary>
+    /// Strips leading slashes or backslashes from relative paths inside Test-Path condition expressions
+    /// so PowerShell evaluates them relative to the working directory instead of the drive root.
+    /// </summary>
+    public static string SanitizeConditionPath(string condition)
+    {
+        if (string.IsNullOrWhiteSpace(condition)) return condition;
+
+        return System.Text.RegularExpressions.Regex.Replace(
+            condition,
+            @"(?i)(Test-Path\s+[""']?)[\\/]+(?![a-zA-Z]:)",
+            "$1");
     }
 
     /// <summary>
