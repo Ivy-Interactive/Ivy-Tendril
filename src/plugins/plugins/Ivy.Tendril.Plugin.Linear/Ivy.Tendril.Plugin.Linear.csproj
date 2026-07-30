@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <PackageId>Ivy.Tendril.Plugin.Linear</PackageId>
     <Title>Linear</Title>
     <Authors>Ivy Interactive</Authors>

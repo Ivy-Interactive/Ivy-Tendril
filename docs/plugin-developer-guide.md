@@ -37,7 +37,7 @@ mv TemplatePlugin.cs MyPlugin.cs
 
 4. Update the `.csproj` metadata (`PackageId`, `Authors`, `Description`, URLs) and namespaces in your plugin class
 
-The template includes the correct target framework (`net10.0`) and a reference to `Ivy.Tendril.Plugin.Abstractions`.
+The template includes the correct target framework (`net10.0`), `CopyLocalLockFileAssemblies`, and a reference to `Ivy.Tendril.Plugin.Abstractions`.
 
 ### 2. Implement Your Plugin
 
@@ -147,6 +147,8 @@ Your plugin must be published as a NuGet package on [nuget.org](https://www.nuge
 - Must contain exactly one `[assembly: IvyPlugin(typeof(...))]` attribute
 - Package must build cleanly and contain all runtime dependencies
 
+**Always set `<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>`** — even before you add third-party packages. It copies dependency DLLs next to your assembly in `bin/`, the only way a plugin loaded from source via `plugins/plugin-references.yaml` can resolve them; without it you get `Could not load file or assembly`. Installed packages resolve theirs from the `.nuspec` instead, and your published `.nupkg` is unchanged either way.
+
 ### The `tendril.json` File
 
 In addition to standard NuGet metadata in the `.csproj`, plugins can include a `tendril.json` file at the package root to provide Tendril-specific metadata that NuGet's `.nuspec` format doesn't support.
@@ -195,6 +197,7 @@ The marketplace icon (`tendril.json`) is extracted from the `.nupkg` when a vers
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <PackageId>Ivy.Tendril.Plugin.MyPlugin</PackageId>
     <Title>My Plugin</Title>
     <Authors>Your Name</Authors>
@@ -1466,6 +1469,7 @@ Ivy.Tendril.Plugin.Linear/
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <PackageId>Ivy.Tendril.Plugin.Linear</PackageId>
     <Title>Linear</Title>
     <Authors>Ivy Interactive</Authors>
