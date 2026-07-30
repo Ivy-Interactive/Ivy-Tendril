@@ -210,6 +210,8 @@ export function ChatWidget({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const initialPromptRef = useRef<string>("");
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
 
@@ -436,14 +438,18 @@ export function ChatWidget({
     }
 
     if (isRecording) {
+      recognitionRef.current?.stop();
       setIsRecording(false);
       return;
     }
 
+    initialPromptRef.current = promptText;
+
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
-    recognition.continuous = false;
+    recognitionRef.current = recognition;
+    recognition.continuous = true;
     recognition.interimResults = true;
 
     recognition.onstart = () => setIsRecording(true);
@@ -451,15 +457,16 @@ export function ChatWidget({
     recognition.onerror = () => setIsRecording(false);
 
     recognition.onresult = (event: any) => {
-      let transcript = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript;
+      let speechTranscript = "";
+      for (let i = 0; i < event.results.length; i++) {
+        speechTranscript += event.results[i][0].transcript;
       }
-      setPromptText((prev) => {
-        const next = prev ? prev + " " + transcript : transcript;
-        setTimeout(adjustTextareaHeight, 0);
-        return next;
-      });
+      const base = initialPromptRef.current.trim();
+      const nextText = base
+        ? `${base} ${speechTranscript.trimStart()}`
+        : speechTranscript;
+      setPromptText(nextText);
+      setTimeout(adjustTextareaHeight, 0);
     };
 
     recognition.start();
