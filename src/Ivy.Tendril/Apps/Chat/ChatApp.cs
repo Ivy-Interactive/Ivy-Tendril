@@ -50,7 +50,8 @@ public class ChatApp : ViewBase
             return Disposable.Create(() => chatService.SessionsChanged -= OnSessionsChanged);
         });
 
-        // Map sessions to DTOs
+        // Map sessions to DTOs - force re-evaluation when sessionVersion changes
+        var _ = sessionVersion.Value; // Read to establish reactive dependency
         var sessions = chatService.GetSessions();
         if (activeSessionId.Value == null && sessions.Count > 0 && !initialHandled.Value && string.IsNullOrEmpty(args?.Prompt))
         {
