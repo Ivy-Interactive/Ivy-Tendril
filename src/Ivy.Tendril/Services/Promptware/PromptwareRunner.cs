@@ -145,6 +145,7 @@ public class PromptwareRunner : IPromptwareRunner
         var process = Process.Start(psi);
         if (process == null)
             throw new InvalidOperationException("Failed to start agent process");
+        ChildProcessTracker.AddProcess(process);
 
         if (resolution.UsesStdinPrompt && psi.RedirectStandardInput)
         {
