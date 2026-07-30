@@ -572,9 +572,20 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             )
             .Variant(ButtonVariant.Ghost).Width(Size.Full());
 
+        var settingsTriggerCollapsed = new Button()
+            .Icon(Icons.Settings)
+            .Tooltip("Settings")
+            .Variant(ButtonVariant.Ghost).Width(Size.Full());
+
         var settingsMenu = new DropDownMenu(
                 DropDownMenu.DefaultSelectHandler(),
                 settingsTrigger)
+            .Top()
+            .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
+
+        var settingsMenuCollapsed = new DropDownMenu(
+                DropDownMenu.DefaultSelectHandler(),
+                settingsTriggerCollapsed)
             .Top()
             .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
 
@@ -609,7 +620,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 width: settings.Width,
                 sidebarHeaderCollapsed: Layout.Vertical().Gap(2)
                     | new NewPlanButton(collapsed: true),
-                sidebarFooterCollapsed: footer
+                sidebarFooterCollapsed: settingsMenuCollapsed
             ).Open(sidebarOpen.Value).MainAppSidebar(),
             importIssuesDialog,
             updateDialog

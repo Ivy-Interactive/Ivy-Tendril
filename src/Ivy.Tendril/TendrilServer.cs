@@ -131,12 +131,12 @@ public static class TendrilServer
         var appShellSettings = new AppShellSettings()
             .Header(
                 Layout.Horizontal(
-                    new Image("/tendril/assets/Tendril.svg").Width(Size.Units(15)).Height(Size.Auto()),
+                    new Image("/tendril/assets/Tendril.svg").Width(Size.Px(36)).Height(Size.Px(36)),
                     Layout.Vertical(
                         Text.Block("Ivy Tendril"),
                         Text.Muted($"v{versionString}")
                     ).Gap(0)
-                ).Gap(2).Padding(2).AlignContent(Align.BottomLeft).Height(Size.Auto())
+                ).Gap(2).Padding(2).AlignContent(Align.BottomLeft).Height(Size.Px(44))
             )
             .WallpaperApp<WallpaperApp>()
             .HideArgsInUrl()
