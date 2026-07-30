@@ -271,6 +271,7 @@ internal class JobLauncher
 
         job.Process = process;
         job.ProcessId = process.Id;
+        ChildProcessTracker.AddProcess(process);
 
         // Start draining stdout/stderr BEFORE writing stdin. Writing a large prompt (agents receive
         // the whole compiled prompt on stdin) while nothing reads the child's output pipes is the

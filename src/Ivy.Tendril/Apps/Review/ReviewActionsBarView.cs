@@ -25,7 +25,7 @@ public class ReviewActionsBarView(
         if (reviewActions.Count == 0)
             return null;
 
-        var actionsBar = Layout.Horizontal().Gap(2).Padding(2, 2, 2, 0).Height(Size.Fit());
+        var actionsBar = Layout.Horizontal().Gap(2).Padding(2, 2, 1, 2).Height(Size.Fit());
         for (var i = 0; i < reviewActions.Count; i++)
         {
             var action = reviewActions[i];

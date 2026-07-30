@@ -454,10 +454,10 @@ public class ConfigService : IConfigService, IDisposable
             Settings.GitTimeout = 10;
         }
 
-        // MaxConcurrentJobs: 1-100
-        if (Settings.MaxConcurrentJobs < 1 || Settings.MaxConcurrentJobs > 100)
+        // MaxConcurrentJobs: 1-512
+        if (Settings.MaxConcurrentJobs < 1 || Settings.MaxConcurrentJobs > 512)
         {
-            _logger.LogWarning("MaxConcurrentJobs {Value} is out of bounds (1-100). Using default 20.",
+            _logger.LogWarning("MaxConcurrentJobs {Value} is out of bounds (1-512). Using default 20.",
                 Settings.MaxConcurrentJobs);
             Settings.MaxConcurrentJobs = 20;
         }

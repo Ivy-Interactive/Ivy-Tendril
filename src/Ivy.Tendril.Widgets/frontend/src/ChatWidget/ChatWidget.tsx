@@ -210,6 +210,8 @@ export function ChatWidget({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const initialPromptRef = useRef<string>("");
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
 
@@ -351,6 +353,64 @@ export function ChatWidget({
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    const files = e.clipboardData?.files;
+
+    let hasImage = false;
+
+    if (files && files.length > 0) {
+      Array.from(files).forEach((file) => {
+        if (file.type.startsWith("image/")) {
+          hasImage = true;
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            const base64Data = evt.target?.result as string;
+            setAttachments((prev) => [
+              ...prev,
+              {
+                name: file.name || `screenshot-${Date.now()}.png`,
+                contentType: file.type || "image/png",
+                size: file.size,
+                base64Data,
+              },
+            ]);
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+
+    if (!hasImage && items && items.length > 0) {
+      Array.from(items).forEach((item) => {
+        if (item.type.startsWith("image/")) {
+          hasImage = true;
+          const file = item.getAsFile();
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              const base64Data = evt.target?.result as string;
+              setAttachments((prev) => [
+                ...prev,
+                {
+                  name: file.name || `screenshot-${Date.now()}.png`,
+                  contentType: file.type || "image/png",
+                  size: file.size,
+                  base64Data,
+                },
+              ]);
+            };
+            reader.readAsDataURL(file);
+          }
+        }
+      });
+    }
+
+    if (hasImage) {
+      e.preventDefault();
+    }
+  };
+
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setPromptText(e.target.value);
     adjustTextareaHeight();
@@ -378,14 +438,18 @@ export function ChatWidget({
     }
 
     if (isRecording) {
+      recognitionRef.current?.stop();
       setIsRecording(false);
       return;
     }
 
+    initialPromptRef.current = promptText;
+
     const SpeechRecognition =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
-    recognition.continuous = false;
+    recognitionRef.current = recognition;
+    recognition.continuous = true;
     recognition.interimResults = true;
 
     recognition.onstart = () => setIsRecording(true);
@@ -393,15 +457,16 @@ export function ChatWidget({
     recognition.onerror = () => setIsRecording(false);
 
     recognition.onresult = (event: any) => {
-      let transcript = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript;
+      let speechTranscript = "";
+      for (let i = 0; i < event.results.length; i++) {
+        speechTranscript += event.results[i][0].transcript;
       }
-      setPromptText((prev) => {
-        const next = prev ? prev + " " + transcript : transcript;
-        setTimeout(adjustTextareaHeight, 0);
-        return next;
-      });
+      const base = initialPromptRef.current.trim();
+      const nextText = base
+        ? `${base} ${speechTranscript.trimStart()}`
+        : speechTranscript;
+      setPromptText(nextText);
+      setTimeout(adjustTextareaHeight, 0);
     };
 
     recognition.start();
@@ -677,6 +742,7 @@ export function ChatWidget({
               value={promptText}
               onChange={handleTextChange}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
             />
             <div className="chat-input-actions">
               <div className="chat-input-actions-left">

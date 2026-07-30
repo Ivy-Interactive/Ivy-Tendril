@@ -399,6 +399,7 @@ internal class JobCompletionHandler
             job.EnqueueSystemOutput($"[hook:{hook.Name}] Could not start condition process, skipping");
             return false;
         }
+        ChildProcessTracker.AddProcess(condProc);
 
         // Read both streams concurrently and start the reads BEFORE waiting: a blocking ReadToEnd()
         // would never return for a hung hook, making the timeout below dead code, and reading one
@@ -465,6 +466,7 @@ internal class JobCompletionHandler
             job.EnqueueSystemOutput($"[hook:{hook.Name}] Could not start hook process");
             return;
         }
+        ChildProcessTracker.AddProcess(actionProc);
 
         // Read both streams concurrently and start the reads BEFORE waiting: a blocking ReadToEnd()
         // would never return for a hung hook, making the timeout below dead code, and reading one

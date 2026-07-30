@@ -43,10 +43,13 @@ public sealed class AntigravityCli : IAgentCli
         {
             "--dangerously-skip-permissions",
             "--output-format", "stream-json",
-            "--print-timeout", config.Timeout is { } timeout && timeout > TimeSpan.Zero
-                ? $"{(int)timeout.TotalSeconds}s"
-                : "0s",
         };
+
+        if (config.Timeout is { } timeout && timeout > TimeSpan.Zero)
+        {
+            args.Add("--print-timeout");
+            args.Add($"{(int)timeout.TotalSeconds}s");
+        }
 
         if (!string.IsNullOrEmpty(config.Model))
         {
