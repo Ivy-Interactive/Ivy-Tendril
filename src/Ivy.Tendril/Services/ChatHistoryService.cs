@@ -13,6 +13,8 @@ public class ChatHistoryService : IChatHistoryService
     private readonly ConcurrentDictionary<string, ChatSessionModel> _sessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _lock = new();
 
+    public event EventHandler? SessionsChanged;
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -96,6 +98,7 @@ public class ChatHistoryService : IChatHistoryService
 
         _sessions[id] = session;
         PersistSessionToDisk(session);
+        SessionsChanged?.Invoke(this, EventArgs.Empty);
         return session;
     }
 
@@ -104,6 +107,7 @@ public class ChatHistoryService : IChatHistoryService
         if (session == null || string.IsNullOrEmpty(session.Id)) return;
         _sessions[session.Id] = session;
         PersistSessionToDisk(session);
+        SessionsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void DeleteSession(string id)
@@ -123,6 +127,7 @@ public class ChatHistoryService : IChatHistoryService
         {
             // Best effort file deletion
         }
+        SessionsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void RenameSession(string id, string newTitle)
@@ -139,6 +144,7 @@ public class ChatHistoryService : IChatHistoryService
             };
             _sessions[id] = updated;
             PersistSessionToDisk(updated);
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -163,7 +169,7 @@ public class ChatHistoryService : IChatHistoryService
             );
 
             var updatedMessages = new List<ChatMessageModel>(session.Messages) { msg };
-            
+
             // Auto update title from first user message if title is "New Chat"
             var title = session.Title;
             if ((title == "New Chat" || string.IsNullOrWhiteSpace(title)) && role == "user" && !string.IsNullOrWhiteSpace(content))
@@ -182,6 +188,7 @@ public class ChatHistoryService : IChatHistoryService
 
             _sessions[session.Id] = updatedSession;
             PersistSessionToDisk(updatedSession);
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
             return msg;
         }
     }
