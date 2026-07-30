@@ -30,14 +30,21 @@ public static class TendrilServer
         server.Services.AddSingleton(tendrilArgs);
         server.AddTendrilServices(configService, tendrilArgs);
 
-        var logLevel = tendrilArgs.Verbose ? "Debug"
+        var defaultLogLevel = tendrilArgs.Verbose ? "Debug"
+            : tendrilArgs.Quiet ? "Warning"
+            : "Warning";
+        var appLogLevel = tendrilArgs.Verbose ? "Debug"
             : tendrilArgs.Quiet ? "Warning"
             : "Information";
+
         server.UseWebApplicationBuilder(builder =>
         {
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Logging:LogLevel:Default"] = logLevel,
+                ["Logging:LogLevel:Default"] = defaultLogLevel,
+                ["Logging:LogLevel:Microsoft.AspNetCore"] = "Warning",
+                ["Logging:LogLevel:Microsoft.Hosting.Lifetime"] = "Information",
+                ["Logging:LogLevel:Ivy"] = appLogLevel,
                 ["Logging:LogLevel:Ivy.Core"] = "Warning",
             });
         });
