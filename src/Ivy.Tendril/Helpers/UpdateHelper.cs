@@ -99,9 +99,32 @@ public static class UpdateHelper
 
     public static void LaunchInstaller(string tempFilePath)
     {
+        var tempDir = Path.GetDirectoryName(tempFilePath) ?? Path.GetTempPath();
+
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            Process.Start(new ProcessStartInfo(tempFilePath) { UseShellExecute = true });
+            try
+            {
+                var currentPid = Environment.ProcessId;
+                foreach (var p in Process.GetProcessesByName("Ivy.Tendril"))
+                {
+                    if (p.Id != currentPid)
+                    {
+                        try { p.Kill(true); } catch { }
+                    }
+                }
+            }
+            catch
+            {
+                // Best effort cleanup
+            }
+
+            var psi = new ProcessStartInfo(tempFilePath)
+            {
+                UseShellExecute = true,
+                WorkingDirectory = tempDir
+            };
+            Process.Start(psi);
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
@@ -113,6 +136,7 @@ public static class UpdateHelper
             {
                 var chmod = new ProcessStartInfo("chmod", $"+x \"{tempFilePath}\"")
                 {
+                    WorkingDirectory = tempDir,
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
@@ -122,7 +146,12 @@ public static class UpdateHelper
             {
                 // Ignore
             }
-            Process.Start(new ProcessStartInfo(tempFilePath) { UseShellExecute = true });
+            var psi = new ProcessStartInfo(tempFilePath)
+            {
+                UseShellExecute = true,
+                WorkingDirectory = tempDir
+            };
+            Process.Start(psi);
         }
     }
 }

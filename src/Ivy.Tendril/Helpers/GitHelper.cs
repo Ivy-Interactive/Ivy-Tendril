@@ -118,13 +118,12 @@ public static class GitHelper
         {
             var psi = new ProcessStartInfo("git", args)
             {
+                WorkingDirectory = !string.IsNullOrEmpty(workingDir) ? workingDir : Path.GetTempPath(),
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
-            if (!string.IsNullOrEmpty(workingDir))
-                psi.WorkingDirectory = workingDir;
 
             using var process = Process.Start(psi);
             if (process == null) return null;
