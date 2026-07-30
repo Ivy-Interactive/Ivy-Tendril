@@ -51,7 +51,7 @@ public class ChatApp : ViewBase
         });
 
         // Map sessions to DTOs - force re-evaluation when sessionVersion changes
-        var _ = sessionVersion.Value; // Read to establish reactive dependency
+        var currentVersion = sessionVersion.Value; // Read to establish reactive dependency
         var sessions = chatService.GetSessions();
         if (activeSessionId.Value == null && sessions.Count > 0 && !initialHandled.Value && string.IsNullOrEmpty(args?.Prompt))
         {
