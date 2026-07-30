@@ -33,9 +33,8 @@ public class SubmitReviewDialog(
                 | summaryText.ToTextareaInput("Leave a summary comment/instructions...").Rows(4).AutoFocus()
                 | reviewAction.ToSelectInput(new Option<string>[]
                 {
-                    new Option<string>("Request Changes (Run Agent)", "request_changes", description: "Submit comments and trigger agent retry"),
-                    new Option<string>("Approve (Complete Plan)", "approve", description: "Mark the plan as completed"),
-                    new Option<string>("Comment Only", "comment", description: "Keep comments as reference without starting job")
+                    new Option<string>("Implement changes & update plan", "request_changes", description: "Look at comments, implement changes, and come back with a new plan"),
+                    new Option<string>("Review implementation as agent", "agent_review", description: "Look at implementation, and leave comments as an agent on the plan")
                 }).Radio()
             ),
             new DialogFooter(
@@ -68,15 +67,17 @@ public class SubmitReviewDialog(
                         var feedback = sb.ToString();
                         if (string.IsNullOrWhiteSpace(feedback))
                         {
-                            feedback = "Review submitted with no specific feedback.";
+                            feedback = "Look at comments, implement changes, and come back with a new plan.";
                         }
 
                         jobService.StartJob(new RetryPlanArgs(selectedPlan.FolderPath, feedback));
                     }
-                    else if (reviewAction.Value == "approve")
+                    else if (reviewAction.Value == "agent_review")
                     {
-                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                        WorktreeCleanupService.RemoveWorktreesInBackground(selectedPlan.FolderPath);
+                        var instructions = !string.IsNullOrWhiteSpace(summaryText.Value)
+                            ? summaryText.Value
+                            : "Look at implementation, and leave comments as an agent on the plan.";
+                        jobService.StartJob(new UpdatePlanArgs(selectedPlan.FolderPath, Instructions: instructions));
                     }
 
                     // Clear draft comments

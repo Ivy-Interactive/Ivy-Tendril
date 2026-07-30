@@ -524,12 +524,12 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
           <div
             key={fileIndex}
             id={elementId}
-            className={`border border-[var(--border)] rounded-md ${isCollapsed ? "mb-0" : "mb-4"} bg-[var(--background)]`}
+            className={`border border-[var(--border)] rounded-md ${isCollapsed ? "mb-1" : "mb-2"} bg-[var(--background)]`}
             style={{ scrollMarginTop: showFileDropdown ? "2rem" : 0 }}
           >
             {hasHeader && (
               <div
-                className="flex items-center justify-between px-3 py-2 text-[11px] bg-[var(--muted)] text-[var(--muted-foreground)] border-b border-[var(--border)] sticky z-10 font-sans rounded-t-md"
+                className="flex items-center justify-between px-3 py-1.5 text-[11px] bg-[var(--muted)]/95 backdrop-blur-xs text-[var(--muted-foreground)] border-b border-[var(--border)] sticky top-0 z-10 font-sans rounded-t-md"
                 style={{
                   top: showFileDropdown ? "2rem" : 0,
                 }}
@@ -581,7 +581,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                           [fileIndex]: e.target.checked,
                         }));
                       }}
-                      className="rounded border-[var(--border)] text-[var(--primary)] focus:ring-[var(--primary)] w-3.5 h-3.5"
+                      className="size-3.5 rounded-checkbox border border-border bg-background accent-primary text-primary shadow-xs transition-colors cursor-pointer hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     />
                     Viewed
                   </label>
