@@ -32,6 +32,7 @@ public class JobService : IJobService
     private readonly JobCompletionHandler _completionHandler;
     private readonly IAgentRunner? _agentRunner;
     private Timer? _blockedJobCheckTimer;
+    private bool _isStoppingAllJobs;
     public JobService(
         IConfigService configService,
         ILogger<JobService>? logger = null,
@@ -272,7 +273,7 @@ public class JobService : IJobService
         _completionHandler.RevertPlanStateToPrevious(job);
         PersistJob(job);
 
-        if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
+        if (!_isStoppingAllJobs && job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
             _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
 
         _completionHandler.HandleWaitForJobsDependents(job, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob);
@@ -286,32 +287,40 @@ public class JobService : IJobService
 
     public int StopAllJobs()
     {
-        var stopped = new HashSet<string>();
-
-        // Re-snapshot between passes: StopJob releases the stopped job's slot and calls
-        // ProcessJobQueue, which can promote a Queued job to Running while this sweep is
-        // in flight. Three passes is enough to drain that; the bound keeps a pathological
-        // launch/stop loop from spinning forever.
-        for (var pass = 0; pass < 3; pass++)
+        _isStoppingAllJobs = true;
+        try
         {
-            var active = _jobs.Values
-                .Where(j => j.Status is JobStatus.Running or JobStatus.Queued
-                                     or JobStatus.Pending or JobStatus.Blocked)
-                .Select(j => j.Id)
-                .Where(id => !stopped.Contains(id))
-                .ToList();
+            var stopped = new HashSet<string>();
 
-            if (active.Count == 0) break;
-
-            foreach (var id in active)
+            // Re-snapshot between passes: StopJob releases the stopped job's slot and calls
+            // ProcessJobQueue, which can promote a Queued job to Running while this sweep is
+            // in flight. Three passes is enough to drain that; the bound keeps a pathological
+            // launch/stop loop from spinning forever.
+            for (var pass = 0; pass < 3; pass++)
             {
-                StopJob(id);
-                if (_jobs.TryGetValue(id, out var job) && job.Status == JobStatus.Stopped)
-                    stopped.Add(id);
-            }
-        }
+                var active = _jobs.Values
+                    .Where(j => j.Status is JobStatus.Running or JobStatus.Queued
+                                         or JobStatus.Pending or JobStatus.Blocked)
+                    .Select(j => j.Id)
+                    .Where(id => !stopped.Contains(id))
+                    .ToList();
 
-        return stopped.Count;
+                if (active.Count == 0) break;
+
+                foreach (var id in active)
+                {
+                    StopJob(id);
+                    if (_jobs.TryGetValue(id, out var job) && job.Status == JobStatus.Stopped)
+                        stopped.Add(id);
+                }
+            }
+
+            return stopped.Count;
+        }
+        finally
+        {
+            _isStoppingAllJobs = false;
+        }
     }
 
     public void DeleteJob(string id)
