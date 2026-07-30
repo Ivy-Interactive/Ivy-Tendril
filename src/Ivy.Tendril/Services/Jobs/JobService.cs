@@ -248,7 +248,15 @@ public class JobService : IJobService
 
         try
         {
-            job.Process?.Kill(true);
+            if (job.Process != null)
+            {
+                job.Process.Kill(true);
+            }
+            else if (job.ProcessId is { } pid)
+            {
+                using var proc = System.Diagnostics.Process.GetProcessById(pid);
+                proc.Kill(true);
+            }
         }
         catch
         {
