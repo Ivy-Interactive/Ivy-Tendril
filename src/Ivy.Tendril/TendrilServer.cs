@@ -32,7 +32,7 @@ public static class TendrilServer
 
         var logLevel = tendrilArgs.Verbose ? "Debug"
             : tendrilArgs.Quiet ? "Warning"
-            : "Error";
+            : "Information";
         server.UseWebApplicationBuilder(builder =>
         {
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
