@@ -180,8 +180,10 @@ Add this to your `.csproj`:
 
 | Kind | Value | Example |
 |------|-------|---------|
-| `named` | An icon name from the built-in [Lucide](https://lucide.dev/icons) icon set or brand icons (e.g., `Linear`, `Slack`, `Gamepad2`, `Bell`) | `{"kind": "named", "value": "Linear"}` |
+| `named` | An icon name from Ivy's built-in icon set — the [Lucide](https://lucide.dev/icons) icons plus brand icons (e.g., `Linear`, `Slack`, `Gamepad2`, `Bell`) | `{"kind": "named", "value": "Linear"}` |
 | `url` | A URL to an external image | `{"kind": "url", "value": "https://example.com/icon.png"}` |
+
+To find a valid `named` value, use the searchable icon browser at [docs.ivy.app/api-reference/ivy/icons](https://docs.ivy.app/api-reference/ivy/icons). Note that it shows names in C# form (`Icons.Linear`) — in `tendril.json`, use just the bare name (`"Linear"`). Names are matched case-insensitively.
 
 The icon specified in `tendril.json` is used in the **marketplace listing** (the "Available Plugins" section in Settings). It **must** match the runtime icon declared in your `PluginManifest.Icon` — see [Metadata Consistency](#metadata-consistency) below.
 
@@ -340,7 +342,7 @@ Icons are specified via the `PluginIcon` record with three kinds:
 
 ```csharp
 // Use a built-in icon name (matches the Icons enum in Ivy-Framework)
-Icon = PluginIcon.Named("Linear")
+Icon = PluginIcon.Named("Linear")   // browse names: https://docs.ivy.app/api-reference/ivy/icons
 
 // Use an external image URL
 Icon = PluginIcon.Url("https://example.com/icon.png")
