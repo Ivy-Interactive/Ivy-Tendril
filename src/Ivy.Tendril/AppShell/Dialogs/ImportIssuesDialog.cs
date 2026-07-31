@@ -244,11 +244,13 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
 
                     if (File.Exists(filePath)) continue;
 
+                    var issueUrl = $"https://github.com/{repo.Owner}/{repo.Name}/issues/{issue.Number}";
                     var content = $"""
                                    ---
                                    project: {projectName}
+                                   sourceUrl: {issueUrl}
                                    ---
-                                   [GitHub Issue #{issue.Number}](https://github.com/{repo.Owner}/{repo.Name}/issues/{issue.Number})
+                                   [GitHub Issue #{issue.Number}]({issueUrl})
 
                                    {issue.Body}
                                    """;

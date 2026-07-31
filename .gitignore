@@ -53,6 +53,7 @@ msbuild.binlog
 ## Test results
 TestResults/
 **/TestResults/
+plugin-config.yaml
 
 ## Frontend build artifacts
 node_modules/

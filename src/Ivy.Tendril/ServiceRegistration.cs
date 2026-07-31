@@ -89,6 +89,8 @@ internal static class ServiceRegistration
 
         server.Services.AddSingleton<VersionCheckService>();
         server.Services.AddSingleton<IVersionCheckService>(sp => sp.GetRequiredService<VersionCheckService>());
+        server.Services.AddSingleton<PluginUpdateService>();
+        server.Services.AddSingleton<IPluginUpdateService>(sp => sp.GetRequiredService<PluginUpdateService>());
         server.Services.AddSingleton<IPromptwareRunner, PromptwareRunner>();
 
         server.Services.AddSingleton<OnboardingSetupService>();
@@ -158,7 +160,9 @@ internal static class ServiceRegistration
                 sp.GetRequiredService<ITelemetryService>(),
                 sp.GetRequiredService<IPlanWatcherService>(),
                 string.IsNullOrEmpty(cfg.TendrilHome) ? null : sp.GetRequiredService<IPlanDatabaseService>(),
-                sp.GetRequiredService<IAgentRunner>());
+                sp.GetRequiredService<IAgentRunner>(),
+                sp.GetService<PluginHookRegistry>(),
+                sp.GetService<SourceLinkRegistry>());
         });
         server.Services.AddSingleton<IJobService>(sp => sp.GetRequiredService<JobService>());
         server.Services.AddSingleton<PlanWatcherService>(sp =>

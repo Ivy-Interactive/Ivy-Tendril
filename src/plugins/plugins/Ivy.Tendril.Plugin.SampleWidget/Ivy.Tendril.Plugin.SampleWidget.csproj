@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <PackageId>Ivy.Tendril.Plugin.SampleWidget</PackageId>
+    <Title>Sample Widget</Title>
+    <Authors>Ivy Interactive</Authors>
+    <Company>Ivy Interactive</Company>
+    <Description>Sample plugin demonstrating custom external widgets in Ivy Tendril</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Ivy-Interactive/Ivy-Tendril</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Ivy-Interactive/Ivy-Tendril</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(CI)' != 'true'">
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="tendril.json" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../Ivy.Tendril.Plugin.Extended.Abstractions/Ivy.Tendril.Plugin.Extended.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="frontend/dist/**/*" />
+  </ItemGroup>
+
+  <Target Name="BuildFrontend" BeforeTargets="Build" Condition="Exists('frontend/package.json')">
+    <Exec Command="vp install" WorkingDirectory="frontend" EnvironmentVariables="CI=true" />
+    <Exec Command="vp run build" WorkingDirectory="frontend" EnvironmentVariables="CI=true" />
+  </Target>
+
+</Project>

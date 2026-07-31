@@ -27,7 +27,7 @@ public class PlanCreateSettings : CommandSettings
     [CommandOption("--initial-prompt")]
     public string? InitialPrompt { get; set; }
 
-    [Description("Source URL (GitHub issue or PR)")]
+    [Description("Source URL (GitHub issue, PR, or external tracker)")]
     [CommandOption("--source-url")]
     public string? SourceUrl { get; set; }
 

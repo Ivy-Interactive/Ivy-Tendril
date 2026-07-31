@@ -17,7 +17,7 @@ internal record JobLaunchContext(
     SemaphoreSlim JobSlotSemaphore,
     TimeSpan JobTimeout,
     TimeSpan StaleOutputTimeout,
-    Action<string, string, string, string, JobItem> RunHooks,
+    Func<string, string, string, string, JobItem, (bool Cancelled, string? Reason)> RunHooks,
     Action<string, int?, bool, bool> CompleteJob,
     Action RaiseStructureChanged);
 
@@ -37,13 +37,18 @@ internal class JobLauncher
     private readonly IAgentRunner? _agentRunner;
     private readonly ILogger _logger;
     private readonly string _promptsRoot;
+    private readonly PluginHookRegistry? _pluginHooks;
+    private readonly SourceLinkRegistry? _sourceLinks;
 
-    internal JobLauncher(IConfigService? configService, IAgentRunner? agentRunner, ILogger logger, string promptsRoot)
+    internal JobLauncher(IConfigService? configService, IAgentRunner? agentRunner, ILogger logger, string promptsRoot,
+        PluginHookRegistry? pluginHooks = null, SourceLinkRegistry? sourceLinks = null)
     {
         _configService = configService;
         _agentRunner = agentRunner;
         _logger = logger;
         _promptsRoot = promptsRoot;
+        _pluginHooks = pluginHooks;
+        _sourceLinks = sourceLinks;
     }
 
     internal void LaunchJob(
@@ -52,7 +57,7 @@ internal class JobLauncher
         SemaphoreSlim jobSlotSemaphore,
         TimeSpan jobTimeout,
         TimeSpan staleOutputTimeout,
-        Action<string, string, string, string, JobItem> runHooks,
+        Func<string, string, string, string, JobItem, (bool Cancelled, string? Reason)> runHooks,
         Action<string, int?, bool, bool> completeJob,
         Action raiseStructureChanged)
     {
@@ -73,7 +78,8 @@ internal class JobLauncher
             if (!ValidateProjectReposOrFail(ctx))
                 return;
 
-            PrepareJobForLaunch(ctx);
+            if (!PrepareJobForLaunch(ctx))
+                return;
 
             if (!ValidateJobPrerequisites(ctx, out var psi, out var stdinContent))
                 return;
@@ -187,7 +193,7 @@ internal class JobLauncher
         }
     }
 
-    private void PrepareJobForLaunch(JobLaunchContext ctx)
+    private bool PrepareJobForLaunch(JobLaunchContext ctx)
     {
         var job = ctx.Job;
         var type = job.Type;
@@ -197,12 +203,19 @@ internal class JobLauncher
         job.StatusMessage = null;
 
         var planFolderForHooks = job.TypedArgs is not CreatePlanArgs ? (job.TypedArgs?.PlanFolder ?? "") : "";
-        ctx.RunHooks("before", type, planFolderForHooks, job.Project, job);
+        var (cancelled, reason) = ctx.RunHooks("before", type, planFolderForHooks, job.Project, job);
+
+        if (cancelled)
+        {
+            FailJobAndReleaseSlot(ctx, reason ?? "Job cancelled by plugin hook");
+            return false;
+        }
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
             EnsurePlanFolderWritable(job.TypedArgs!.PlanFolder!);
 
         job.SessionId = Guid.NewGuid().ToString();
+        return true;
     }
 
     // Deliberately called only after StartAgentProcess succeeds (see LaunchJob) — moved out of
@@ -368,6 +381,7 @@ internal class JobLauncher
 
         var settings = _configService.Settings;
         var (values, planYaml, profileOverride) = BuildFirmwareValues(ctx, programFolder);
+        if (values is null) return (null, null); // Cancelled by plugin hook
         values["TendrilProject"] = job.Project;
 
         var jobContext = BuildJobContext(job, values, programFolder);
@@ -457,7 +471,8 @@ internal class JobLauncher
 
         if (job.TypedArgs is CreatePlanArgs)
         {
-            BuildCreatePlanFirmware(ctx, values);
+            if (!BuildCreatePlanFirmware(ctx, values))
+                return (null!, null, null);
             return (values, null, null);
         }
 
@@ -472,16 +487,42 @@ internal class JobLauncher
         return BuildNonCreatePlanFirmware(job, values);
     }
 
-    private void BuildCreatePlanFirmware(JobLaunchContext ctx, Dictionary<string, string> values)
+    /// <returns>True if the plan should proceed; false if cancelled by a plugin hook.</returns>
+    private bool BuildCreatePlanFirmware(JobLaunchContext ctx, Dictionary<string, string> values)
     {
         var job = ctx.Job;
         var cp = job.TypedArgs as CreatePlanArgs;
         var description = cp?.Description ?? "";
+
+        // Fire BeforeCreatePlan hook to allow plugins to enrich/cancel
+        if (_pluginHooks is not null)
+        {
+            var evt = new Ivy.Plugins.Hooks.BeforeCreatePlanEvent
+            {
+                Description = description,
+                Project = job.Project,
+                SourceUrl = cp?.SourceUrl,
+            };
+            _pluginHooks.FireBeforeCreatePlanAsync(evt).GetAwaiter().GetResult();
+
+            if (evt.Cancelled)
+            {
+                FailJobAndReleaseSlot(ctx, evt.CancellationReason ?? "Plan creation cancelled by plugin");
+                return false;
+            }
+
+            description = evt.Description;
+        }
+
         values["TaskDescription"] = description;
         values["TendrilPlansFolder"] = _configService!.PlanFolder;
 
         if (cp?.Force == true)
             values["Force"] = "true";
+        if (!string.IsNullOrEmpty(cp?.SourceUrl))
+            values["SourceUrl"] = cp.SourceUrl;
+
+        return true;
     }
 
     private (Dictionary<string, string> Values, PlanYaml? PlanYaml, string? ProfileOverride)
@@ -506,9 +547,17 @@ internal class JobLauncher
         if (planYaml == null)
             return (values, null, null);
 
-        // Add sourceUrl to firmware header if present
+        // Add the source URL to the firmware header, plus the short label for it when a plugin
+        // recognizes the tracker (e.g. "IVY-456" for Linear). The label is derived here rather
+        // than stored, so Tendril needs no knowledge of any tracker's URL format.
         if (!string.IsNullOrEmpty(planYaml.SourceUrl))
+        {
             values["SourceUrl"] = planYaml.SourceUrl;
+
+            var sourceLabel = _sourceLinks?.TryGetLabel(planYaml.SourceUrl);
+            if (!string.IsNullOrEmpty(sourceLabel))
+                values["SourceIdentifier"] = sourceLabel;
+        }
 
         if (job.TypedArgs is UpdatePlanArgs { Instructions: not null } updateArgs)
             values["UpdateInstructions"] = updateArgs.Instructions;

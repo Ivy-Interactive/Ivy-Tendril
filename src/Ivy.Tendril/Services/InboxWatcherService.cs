@@ -167,9 +167,9 @@ public class InboxWatcherService : IInboxWatcherService
             return;
 
         var content = await FileHelper.ReadAllTextAsync(filePath);
-        var (project, description, sourcePath) = ParseContent(content);
+        var parsed = ParseContent(content);
 
-        if (string.IsNullOrWhiteSpace(description))
+        if (string.IsNullOrWhiteSpace(parsed.Description))
         {
             _logger.LogWarning("Skipping inbox file {FilePath} — empty description.", filePath);
             return;
@@ -192,11 +192,12 @@ public class InboxWatcherService : IInboxWatcherService
             return;
         }
 
-        var args = new CreatePlanArgs(description, project, SourcePath: sourcePath);
+        var args = new CreatePlanArgs(parsed.Description, parsed.Project,
+            SourcePath: parsed.SourcePath, SourceUrl: parsed.SourceUrl);
         _jobService.StartJob(args, processingPath);
     }
 
-    internal static (string project, string description, string? sourcePath) ParseContent(string content)
+    internal static InboxParseResult ParseContent(string content)
     {
         if (content.StartsWith("---"))
         {
@@ -208,6 +209,7 @@ public class InboxWatcherService : IInboxWatcherService
 
                 string? project = null;
                 string? sourcePath = null;
+                string? sourceUrl = null;
 
                 foreach (var line in frontmatter.Split('\n'))
                 {
@@ -216,12 +218,17 @@ public class InboxWatcherService : IInboxWatcherService
                         project = trimmed.Substring("project:".Length).Trim();
                     else if (trimmed.StartsWith("sourcePath:", StringComparison.OrdinalIgnoreCase))
                         sourcePath = trimmed.Substring("sourcePath:".Length).Trim();
+                    else if (trimmed.StartsWith("sourceUrl:", StringComparison.OrdinalIgnoreCase))
+                        sourceUrl = trimmed.Substring("sourceUrl:".Length).Trim();
                 }
 
-                return (project ?? "Auto", description, sourcePath);
+                return new InboxParseResult(project ?? "Auto", description, sourcePath, sourceUrl);
             }
         }
 
-        return ("Auto", content, null);
+        return new InboxParseResult("Auto", content, null, null);
     }
+
+    internal record InboxParseResult(
+        string Project, string Description, string? SourcePath, string? SourceUrl);
 }

@@ -1,0 +1,22 @@
+{
+  "schema": "schema.graphql",
+  "documents": "**/*.graphql",
+  "extensions": {
+    "strawberryShake": {
+      "name": "LinearGraphQLClient",
+      "namespace": "Ivy.Tendril.Plugin.Linear.GraphQL",
+      "url": "https://api.linear.app/graphql",
+      "dependencyInjection": true,
+      "records": {
+        "inputs": false,
+        "entities": false
+      },
+      "transportProfiles": [
+        {
+          "default": "Http",
+          "subscription": "WebSocket"
+        }
+      ]
+    }
+  }
+}

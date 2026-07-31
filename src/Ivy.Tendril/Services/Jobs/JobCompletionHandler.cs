@@ -22,6 +22,7 @@ internal class JobCompletionHandler
     private readonly string _promptsRoot;
     private readonly PlanArtifactSyncer _artifactSyncer;
     private readonly DependencyChecker _dependencyChecker;
+    private readonly PluginHookRegistry? _pluginHooks;
 
     internal JobCompletionHandler(
         IConfigService? configService,
@@ -30,7 +31,8 @@ internal class JobCompletionHandler
         IPlanReaderService? planReaderService,
         ITelemetryService? telemetryService,
         IPlanWatcherService? planWatcherService,
-        string promptsRoot)
+        string promptsRoot,
+        PluginHookRegistry? pluginHooks = null)
     {
         _configService = configService;
         _logger = logger;
@@ -39,6 +41,7 @@ internal class JobCompletionHandler
         _telemetryService = telemetryService;
         _planWatcherService = planWatcherService;
         _promptsRoot = promptsRoot;
+        _pluginHooks = pluginHooks;
         _artifactSyncer = new PlanArtifactSyncer(configService, logger, planWatcherService);
         _dependencyChecker = new DependencyChecker(planReaderService);
     }
@@ -54,9 +57,11 @@ internal class JobCompletionHandler
         var isSuccess = job.Status == JobStatus.Completed;
 
         SurfacePermissionDenials(job);
+        HandlePlanStateTransition(job, isSuccess);
+        // Re-check status — VerifyCreatePlanResult may have marked the job Failed
+        isSuccess = job.Status == JobStatus.Completed;
         RunAfterHooks(job);
         SendCompletionNotification(job, isSuccess, raiseNotification);
-        HandlePlanStateTransition(job, isSuccess);
         TrackTelemetry(job, isSuccess);
         CleanupInboxFile(job);
         CleanupOldTrashFiles();
@@ -123,6 +128,33 @@ internal class JobCompletionHandler
     private void RunAfterHooks(JobItem job)
     {
         var planFolderForHooks = job.TypedArgs?.PlanFolder ?? "";
+
+        // Fire plugin lifecycle hooks
+        if (_pluginHooks is not null)
+        {
+            try
+            {
+                var evt = new Ivy.Plugins.Hooks.AfterJobEvent
+                {
+                    JobId = job.Id,
+                    JobType = job.Type,
+                    Status = MapJobStatus(job.Status),
+                    PlanFolder = planFolderForHooks,
+                    Project = job.Project,
+                    ExitCode = job.ExitCode,
+                    Duration = job.StartedAt.HasValue
+                        ? DateTime.UtcNow - job.StartedAt.Value
+                        : TimeSpan.Zero
+                };
+                _pluginHooks.FireAfterJobAsync(evt).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Plugin AfterJob hook failed for job {JobId}", job.Id);
+            }
+        }
+
+        // Fire shell-based hooks
         RunHooks("after", job.Type, planFolderForHooks, job.Project, job);
     }
 
@@ -643,6 +675,7 @@ internal class JobCompletionHandler
                 TryVerifyByFilesystem(job, plansDir))
             {
                 MoveAttachmentsToPlanFolder(job);
+                FireAfterCreatePlanHook(job, plansDir);
                 return;
             }
 
@@ -655,6 +688,38 @@ internal class JobCompletionHandler
             _logger.LogWarning(ex, "Failed to verify CreatePlan result for job {JobId}", job.Id);
         }
     }
+
+    private void FireAfterCreatePlanHook(JobItem job, string plansDir)
+    {
+        if (_pluginHooks is null || string.IsNullOrEmpty(job.PlanFile)) return;
+
+        try
+        {
+            var planFolder = Path.Combine(plansDir, job.PlanFile);
+            var planId = PlanYamlHelper.ExtractPlanIdFromFolder(planFolder) ?? job.AllocatedPlanId ?? "";
+
+            var evt = new Ivy.Plugins.Hooks.AfterCreatePlanEvent
+            {
+                PlanFolder = planFolder,
+                PlanId = planId,
+                Project = job.Project,
+            };
+            _pluginHooks.FireAfterCreatePlanAsync(evt).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "AfterCreatePlan hook failed for job {JobId}", job.Id);
+        }
+    }
+
+    private static Ivy.Plugins.Hooks.JobStatus MapJobStatus(Models.JobStatus status) => status switch
+    {
+        Models.JobStatus.Completed => Ivy.Plugins.Hooks.JobStatus.Completed,
+        Models.JobStatus.Failed => Ivy.Plugins.Hooks.JobStatus.Failed,
+        Models.JobStatus.Stopped => Ivy.Plugins.Hooks.JobStatus.Stopped,
+        Models.JobStatus.Timeout => Ivy.Plugins.Hooks.JobStatus.TimedOut,
+        _ => Ivy.Plugins.Hooks.JobStatus.Failed
+    };
 
     private void MoveAttachmentsToPlanFolder(JobItem job)
     {

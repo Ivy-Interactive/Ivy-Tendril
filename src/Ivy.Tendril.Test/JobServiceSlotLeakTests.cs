@@ -92,7 +92,7 @@ public class JobServiceSlotLeakTests
 
         launcher.LaunchJob(
             job, jobs, semaphore, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
-            runHooks: (_, _, _, _, _) => { },
+            runHooks: (_, _, _, _, _) => (false, null),
             completeJob: (_, _, _, _) => { },
             raiseStructureChanged: () => { });
 

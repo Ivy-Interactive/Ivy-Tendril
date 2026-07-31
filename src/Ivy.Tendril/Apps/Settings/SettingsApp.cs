@@ -18,8 +18,10 @@ public class SettingsApp : ViewBase
     private const string TagVerifications = "verifications";
     private const string TagPromptwares = "promptwares";
     internal const string TagProjects = "projects";
+    private const string TagPlugins = "plugins";
     private const string TagTunnel = "tunnel";
     private const string TagAdvanced = "advanced";
+    private const string TagOpenConfig = "open-config";
 
     public override object Build()
     {
@@ -33,27 +35,47 @@ public class SettingsApp : ViewBase
         var isDesktop = desktopWindow != null;
         var capturedHost = ConfigYamlUiHelper.CaptureHost(httpContextAccessor);
 
-        var sections = new List<(string Label, string Tag, Icons Icon)>
+        var children = new List<MenuItem>
         {
-            ("Coding Agent", TagCodingAgent, Icons.Bot),
-            ("Plans", TagPlans, Icons.Feather),
-            ("Appearance", TagAppearance, Icons.Sun),
-            ("Projects", TagProjects, Icons.Folder),
-            ("Verifications", TagVerifications, Icons.CircleCheck),
-            ("Promptwares", TagPromptwares, Icons.Wand),
-            ("Levels", TagLevels, Icons.ListOrdered),
-            ("Notifications", TagNotifications, Icons.Bell),
-            ("Security", TagSecurity, Icons.Lock),
-            ("Tunnel", TagTunnel, Icons.Globe),
-            ("Advanced", TagAdvanced, Icons.Cog),
+            MenuItem.Default("Coding Agent", TagCodingAgent).Icon(Icons.Bot),
+            MenuItem.Default("Plans", TagPlans).Icon(Icons.Feather),
+            MenuItem.Default("Appearance", TagAppearance).Icon(Icons.Sun),
+            MenuItem.Default("Projects", TagProjects).Icon(Icons.Folder),
+            MenuItem.Default("Verifications", TagVerifications).Icon(Icons.CircleCheck),
+            MenuItem.Default("Promptwares", TagPromptwares).Icon(Icons.Wand),
+            MenuItem.Default("Levels", TagLevels).Icon(Icons.ListOrdered),
+            MenuItem.Default("Notifications", TagNotifications).Icon(Icons.Bell),
+            MenuItem.Default("Security", TagSecurity).Icon(Icons.Lock),
+            MenuItem.Default("Plugins", TagPlugins).Icon(Icons.Plug),
         };
 
-        var rows = sections
-            .Select(s => SidebarListRow.Build(s.Label, s.Icon, () => selected.Set(s.Tag), selected.Value == s.Tag))
-            .Append(SidebarListRow.Build("Open config.yaml", Icons.FileText,
-                () => ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost)));
+        children.Add(MenuItem.Default("Tunnel", TagTunnel).Icon(Icons.Globe));
+        children.Add(MenuItem.Default("Advanced", TagAdvanced).Icon(Icons.Cog));
+        children.Add(MenuItem.Default("Open config.yaml", TagOpenConfig).Icon(Icons.FileText));
 
-        var sidebar = Layout.Vertical(rows).Gap(1);
+        var menuItems = new[]
+        {
+            MenuItem.Default("Configuration")
+                .Icon(Icons.Settings2)
+                .Expanded()
+                .Children(children.ToArray())
+        };
+
+        void OnSelect(Event<SidebarMenu, object> @event)
+        {
+            if (@event.Value is not string tag) return;
+            switch (tag)
+            {
+                case TagOpenConfig:
+                    ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost);
+                    break;
+                default:
+                    selected.Set(tag);
+                    break;
+            }
+        }
+
+        var sidebar = new SidebarMenu(OnSelect, menuItems);
 
         object content = selected.Value switch
         {
@@ -66,11 +88,16 @@ public class SettingsApp : ViewBase
             TagVerifications => new VerificationsSetupView(),
             TagPromptwares => new PromptwaresSetupView(),
             TagProjects => new ProjectsSetupView(),
+            TagPlugins => new PluginsSetupView(),
             TagTunnel => new TunnelSetupView(),
             TagAdvanced => new AdvancedSetupView(),
             _ => new CodingAgentSetupView()
         };
 
+        var sections = children
+            .Where(m => m.Tag is string t && t != TagOpenConfig)
+            .Select(m => (Tag: (string)m.Tag!, Label: m.Label ?? ""))
+            .ToList();
         var currentLabel = sections.FirstOrDefault(s => s.Tag == selected.Value).Label ?? "Configuration";
 
         var mobileHeader = MobileItemPicker.Build(

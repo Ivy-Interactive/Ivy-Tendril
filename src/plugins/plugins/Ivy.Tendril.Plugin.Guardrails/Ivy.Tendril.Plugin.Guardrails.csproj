@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <PackageId>Ivy.Tendril.Plugin.Guardrails</PackageId>
+    <Title>Project Guardrails</Title>
+    <Authors>Ivy Interactive</Authors>
+    <Company>Ivy Interactive</Company>
+    <Description>Enforces per-project guardrails via all six Tendril plugin hooks — lock files, description enrichment, failure tracking, audit logging, config validation, and state reset.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Ivy-Interactive/Ivy-Tendril</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Ivy-Interactive/Ivy-Tendril</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="tendril.json" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../Ivy.Tendril.Plugin.Abstractions/Ivy.Tendril.Plugin.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

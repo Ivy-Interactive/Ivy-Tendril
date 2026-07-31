@@ -1,0 +1,135 @@
+query GetTeams {
+  teams {
+    nodes {
+      id
+      name
+      key
+    }
+  }
+}
+
+query GetTeamIssues($teamId: String!, $first: Int, $after: String) {
+  team(id: $teamId) {
+    issues(first: $first, after: $after) {
+      nodes {
+        id
+        identifier
+        title
+        description
+        priority
+        priorityLabel
+        url
+        createdAt
+        updatedAt
+        state {
+          id
+          name
+          type
+        }
+        assignee {
+          id
+          name
+        }
+        labels {
+          nodes {
+            id
+            name
+            color
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+}
+
+query GetProjects {
+  projects(first: 100) {
+    nodes {
+      id
+      name
+    }
+  }
+}
+
+query GetUsers {
+  users(first: 100) {
+    nodes {
+      id
+      name
+      displayName
+      active
+      app
+    }
+  }
+}
+
+query GetIssueLabels {
+  issueLabels(first: 250) {
+    nodes {
+      id
+      name
+      team {
+        id
+      }
+    }
+  }
+}
+
+query GetWorkflowStates {
+  workflowStates(first: 100) {
+    nodes {
+      id
+      name
+      type
+      team {
+        id
+        name
+      }
+    }
+  }
+}
+
+query GetIssues($first: Int, $after: String, $filter: IssueFilter) {
+  issues(first: $first, after: $after, filter: $filter) {
+    nodes {
+      id
+      identifier
+      title
+      description
+      priority
+      priorityLabel
+      url
+      createdAt
+      updatedAt
+      state {
+        id
+        name
+        type
+      }
+      assignee {
+        id
+        name
+      }
+      labels {
+        nodes {
+          id
+          name
+          color
+        }
+      }
+      team {
+        id
+        name
+        key
+      }
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+  }
+}

@@ -57,6 +57,7 @@ public class CreatePlanDialog(
         var selectedPriority = UseState("Normal");
         var configService = UseService<IConfigService>();
         var agentRunner = UseService<IAgentRunner>();
+        var tendrilArgs = UseService<TendrilArgs>();
         var client = UseService<IClientProvider>();
         var refreshToken = UseRefreshToken();
         var isAddProjectOpen = UseState(false);
@@ -176,6 +177,7 @@ public class CreatePlanDialog(
                     | newProjectButton)
                 | new Ivy.Tendril.Widgets.ContentInput
                 {
+                    TranscriptionUrl = $"{tendrilArgs.ServicesWsUrl}/transcribe/ws",
                     UploadUrl = uploadContext.Value.UploadUrl,
                     AutoFocus = true,
                     OnSubmit = _ =>

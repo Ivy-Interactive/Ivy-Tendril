@@ -197,6 +197,7 @@ public class ConfigService : IConfigService, IDisposable
     private readonly bool _explicitHome;
     private readonly ILogger<ConfigService> _logger;
     private string[]? _levelNamesCache;
+    internal PluginHookRegistry? PluginHooks { get; set; }
     private string? _pendingCodingAgent;
     private ProjectConfig? _pendingProject;
     private string? _pendingTendrilHome;
@@ -512,6 +513,23 @@ public class ConfigService : IConfigService, IDisposable
 
     public void SaveSettings()
     {
+        if (PluginHooks is { } hooks)
+        {
+            var evt = new Ivy.Plugins.Hooks.ConfigSaveEvent
+            {
+                CurrentSettings = Settings,
+                NewSettings = Settings
+            };
+            hooks.FireBeforeConfigSave(evt);
+            if (evt.Rejected)
+            {
+                _logger.LogWarning("Config save rejected by plugin: {Reason}", evt.RejectionReason);
+                // Revert in-memory settings to what's on disk since we refused to persist
+                ReloadSettings();
+                throw new InvalidOperationException(evt.RejectionReason ?? "Config save rejected by plugin");
+            }
+        }
+
         WriteSettingsToDisk();
         ReloadSettings();
     }
@@ -559,6 +577,7 @@ public class ConfigService : IConfigService, IDisposable
 
             SyncAuthFromEnvironmentAndPersistIfNeeded();
             SettingsReloaded?.Invoke(this, EventArgs.Empty);
+            PluginHooks?.FireAfterConfigReload();
         }
         catch (Exception ex)
         {
