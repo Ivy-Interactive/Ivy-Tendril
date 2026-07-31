@@ -15,10 +15,11 @@ public static class PlatformHelper
     {
         try
         {
+            var sanitizedCondition = SanitizeConditionPath(condition);
             var psi = new ProcessStartInfo
             {
                 FileName = PathHelper.GetPwshPath(),
-                Arguments = $"-NoProfile -Command \"if ({condition}) {{ exit 0 }} else {{ exit 1 }}\"",
+                Arguments = $"-NoProfile -Command \"if ({sanitizedCondition}) {{ exit 0 }} else {{ exit 1 }}\"",
                 WorkingDirectory = workingDirectory,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -39,6 +40,21 @@ public static class PlatformHelper
             logger?.LogWarning(ex, "Failed to evaluate PowerShell condition");
             return false;
         }
+    }
+
+    /// <summary>
+    /// Strips leading slashes or backslashes from relative worktree/artifact paths inside Test-Path condition expressions
+    /// so PowerShell evaluates them relative to the working directory instead of the drive root.
+    /// Preserves genuine absolute paths (e.g. /Users/..., /home/..., C:\...).
+    /// </summary>
+    public static string SanitizeConditionPath(string condition)
+    {
+        if (string.IsNullOrWhiteSpace(condition)) return condition;
+
+        return System.Text.RegularExpressions.Regex.Replace(
+            condition,
+            @"(?i)(Test-Path\s+[""']?)[\\/]+(?=(Worktrees|artifacts)[\\/])",
+            "$1");
     }
 
     /// <summary>
@@ -73,7 +89,7 @@ public static class PlatformHelper
                 {
                     FileName = "open",
                     Arguments = $"-a Terminal \"{scriptPath}\"",
-                    UseShellExecute = true
+                    UseShellExecute = false
                 });
                 return true;
             }
@@ -104,21 +120,24 @@ public static class PlatformHelper
     {
         try
         {
-            var psi = new ProcessStartInfo { UseShellExecute = true };
+            var psi = new ProcessStartInfo();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 psi.FileName = "wt.exe";
                 psi.Arguments = $"-d \"{workingDirectory}\"";
+                psi.UseShellExecute = true;
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 psi.FileName = "open";
                 psi.Arguments = $"-a Terminal \"{workingDirectory}\"";
+                psi.UseShellExecute = false;
             }
             else
             {
                 psi.FileName = "xdg-open";
-                psi.Arguments = workingDirectory;
+                psi.Arguments = $"\"{workingDirectory}\"";
+                psi.UseShellExecute = false;
             }
 
             Process.Start(psi);
@@ -214,7 +233,7 @@ public static class PlatformHelper
                     {
                         FileName = "open",
                         Arguments = $"\"{target}\"",
-                        UseShellExecute = true
+                        UseShellExecute = false
                     });
                     return true;
                 }
@@ -228,21 +247,24 @@ public static class PlatformHelper
     {
         try
         {
-            var psi = new ProcessStartInfo { UseShellExecute = true };
+            var psi = new ProcessStartInfo();
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 psi.FileName = "explorer.exe";
-                psi.Arguments = folderPath;
+                psi.Arguments = $"\"{folderPath}\"";
+                psi.UseShellExecute = true;
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
                 psi.FileName = "open";
-                psi.Arguments = folderPath;
+                psi.Arguments = $"\"{folderPath}\"";
+                psi.UseShellExecute = false;
             }
             else
             {
                 psi.FileName = "xdg-open";
-                psi.Arguments = folderPath;
+                psi.Arguments = $"\"{folderPath}\"";
+                psi.UseShellExecute = false;
             }
 
             Process.Start(psi);

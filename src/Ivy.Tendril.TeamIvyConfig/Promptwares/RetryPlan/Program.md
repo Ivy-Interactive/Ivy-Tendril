@@ -27,8 +27,7 @@ Read the ChangeRequest carefully before starting implementation. The original pl
 
 ### 1. Read Plan
 
-- Read `plan.yaml` from the plan folder (project, repos, title)
-- Read the latest revision from `Revisions/` (highest numbered .md file)
+- Read `plan.yaml` and the latest revision from `Revisions/` (highest numbered .md file) together in a single batched read operation to reduce spin-up overhead
 - Extract the plan ID from the folder name (e.g. `00012` from `00012-AddNewsletterSignupToHelpApp`)
 - Report plan context to Jobs UI: `tendril job status TendrilJobId --message="Retrying plan..." --plan-id=<plan-id> --plan-title="<title>"`
 

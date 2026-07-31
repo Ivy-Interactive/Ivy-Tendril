@@ -240,22 +240,48 @@ These commands are for internal use by other promptwares (e.g., a verification s
 
 Valid keys: `codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate`. Example: `tendril config get planTemplate` prints the configured Plan Template.
 
+## Finding Projects & Repositories
+
+When the user mentions a project, application, or codebase (e.g. "my coal miner game", "coalmininggame"):
+
+1. **ALWAYS run `tendril project list` first** to discover all registered Tendril projects and their repository paths!
+2. Run `tendril project get <project-name>` to inspect detailed metadata, repos, and verifications for that project.
+3. **DO NOT** run arbitrary filesystem searches (such as `Get-ChildItem -Path C:\Users\...` or searching user home folders) to guess project locations. Always use `tendril project list` / `tendril project get` to find the exact registered workspace paths.
+4. **IF THE PROJECT IS NOT FOUND**: Stop and inform the user that the project is not currently registered in Tendril, and ask the user to add the project to Tendril (`tendril project add <name>` or via the Projects UI) before proceeding.
+
 ## Creating Plans Interactively
 
-When the user asks you to create a plan:
+When the user asks you to create a plan, fix code, refactor a project, or improve code quality:
 
-1. **Do the work the description implies, first.** If the description asks you to *suggest*, *research*, *investigate*, *compare*, or *decide* something, actually do that work before creating the plan. Explore the project's repos, read the relevant code, and produce concrete, specific proposals. For example, "Suggest a few dev tools we can add" means you go look at the project and come back with named tools and why — it does **not** mean creating a plan titled "Suggest dev tools to add".
-2. **Confirm scope when it's open-ended.** Briefly share what you found and what you propose, so the user can steer before you commit it to a plan.
-3. **You MUST create the plan by starting a `CreatePlan` job.** Never create a new plan by writing its content yourself — do **not** run `tendril plan create` / `write-revision`, and do **not** hand-author the plan markdown. Once the scope is concrete, start the job:
+1. **STRICTLY PROHIBITED IN CHAT: PACKAGE INSTALLS & CODE MODIFICATIONS**:
+   - **NEVER** run package installation commands (`npm install`, `pnpm install`, `yarn add`, `pip install`, etc.) or build/environment modification commands in a chat session.
+   - Tendril automatically manages dependencies, builds, and verifications inside isolated git worktrees during `ExecutePlan` jobs.
+   - **NEVER** modify source code files or create scratch code files directly in chat. All project changes MUST go through the official Tendril pipeline:
+     **Task Intake → CreatePlan job → Draft Plan → User Review → ExecutePlan job → Verification → PR → Merge**.
+
+2. **RESEARCH & PROPOSE FIRST (DO NOT AUTO-START JOBS)**:
+   - Explore the project's repos using read-only tools (`view_file`, `grep_search`, `list_dir`).
+   - Do NOT automatically trigger background jobs (`CreatePlan`, `ExecutePlan`) without user review.
+   - Present your research findings and proposed plan scope to the user in chat, and explicitly ask for the user's review and approval before starting any jobs.
+
+3. **BREAK COMPLEX WORK INTO MULTIPLE GRANULAR PLANS**:
+   - Aim to create multiple modular, self-contained plans where applicable (e.g. 1. State Management, 2. Render Engine, 3. UI System) rather than a single monolithic plan, allowing each phase to be reviewed and executed independently.
+
+4. **CREATE PLANS VIA `CreatePlan` JOBS UPON USER APPROVAL**:
+   - Once the user reviews and approves your proposed plan breakdown, start the `CreatePlan` job(s):
    ```bash
-   tendril job start CreatePlan --description="<concrete, refined description>" --project="<project>"
+   tendril job start CreatePlan --description="<concrete description>" --project="<project>"
    ```
-   This is non-negotiable: the `CreatePlan` job applies the project's configured **Plan Template** and runs duplicate detection and research. If you hand-write the plan instead, the configured template and those steps are silently skipped and the plan comes out malformed. The job's promptware then writes the full plan. Pass the specific description you developed (the concrete tools/steps you proposed), **not** the user's original vague request. Add `--priority <n>` or `--force` if appropriate. Report the job back to the user.
+   This is non-negotiable: the `CreatePlan` job applies the project's configured **Plan Template**, runs duplicate detection and research, and creates the plan in the Tendril pipeline. Report the created job(s) back to the user.
 
 ## Important Notes
 
+- **NEVER run package installation or build commands in chat** — package management is handled inside git worktrees by Tendril execution.
+- **NEVER modify codebase files directly in chat** — always propose scope, ask for user review, and use `tendril job start CreatePlan` to initiate project changes through the Tendril pipeline.
 - **Never read or write `plan.yaml` directly** -- always use `tendril plan` CLI commands.
 - **`tendril job start` and `tendril job status` require the Tendril server to be running.** They communicate via HTTP to the master instance (discovered via `TENDRIL_HOME/.master`). `tendril job add-log` does not need the server — it writes straight to disk.
 - Verification statuses: `Pending`, `Pass`, `Fail`, `Skipped`.
 - Plan states: `Draft`, `Creating`, `Updating`, `Executing`, `Review`, `Failed`, `Completed`, `Skipped`, `Blocked`, `Icebox`.
 - To create a new plan, start a CreatePlan job: `tendril job start CreatePlan --description="<description>" --project="<project>"` (see "Creating Plans Interactively"). Use the lower-level `tendril plan create` / `write-revision` commands only to edit an existing plan's content, never to create a new plan from a chat request.
+- **Do NOT start a `CreatePlan` job to retry or fix an existing plan.** `CreatePlan` is strictly for creating brand new plans for new tasks. To retry an existing plan with reviewer feedback or changes, use `tendril job start RetryPlan <plan-id> --change-request="<feedback>"`.
+

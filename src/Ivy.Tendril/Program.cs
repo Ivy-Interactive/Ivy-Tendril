@@ -37,6 +37,11 @@ public class Program
     [DllImport("libc", SetLastError = true)]
     private static extern int setsid();
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AttachConsole(int dwProcessId);
+
+    private const int ATTACH_PARENT_PROCESS = -1;
+
     // Must be a static field to prevent GC from collecting the delegate
     private static ConsoleCtrlHandlerDelegate? _consoleCtrlHandler;
 
@@ -46,6 +51,43 @@ public class Program
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
+        try
+        {
+            VelopackApp.Build().Run();
+        }
+        catch { }
+
+        var (verbose, quiet, forceDesktop, forceWeb, beta, apiServer, filteredArgs) = ParseGlobalFlags(args);
+
+        bool isTool = IsTendrilToolInvocation();
+        bool isPackagedApp = IsPackagedApp();
+        bool useDesktop = (forceDesktop || isPackagedApp || (isTool && !verbose && !quiet) || (!isTool && !isPackagedApp && !forceWeb)) && !forceWeb;
+        if (useDesktop && OperatingSystem.IsLinux())
+        {
+            // On Linux, default to web mode (foreground server) unless desktop is explicitly forced
+            if (!forceDesktop)
+            {
+                useDesktop = false;
+            }
+        }
+
+        var invocationKind = CliDispatcher.Classify(filteredArgs);
+
+        if (OperatingSystem.IsWindows())
+        {
+            if (AttachConsole(ATTACH_PARENT_PROCESS))
+            {
+                try
+                {
+                    var stdout = Console.OpenStandardOutput();
+                    Console.SetOut(new StreamWriter(stdout, new UTF8Encoding(false)) { AutoFlush = true });
+                    var stderr = Console.OpenStandardError();
+                    Console.SetError(new StreamWriter(stderr, new UTF8Encoding(false)) { AutoFlush = true });
+                }
+                catch { }
+            }
+        }
+
         var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
         if (!Console.IsInputRedirected)
@@ -97,27 +139,7 @@ public class Program
             catch { }
         }
 
-        VelopackApp.Build().Run();
-
-        var (verbose, quiet, forceDesktop, forceWeb, beta, apiServer, filteredArgs) = ParseGlobalFlags(args);
-
-        bool isTool = IsTendrilToolInvocation();
-        bool isPackagedApp = IsPackagedApp();
-        bool useDesktop = (forceDesktop || isPackagedApp || (isTool && !verbose && !quiet)) && !forceWeb;
-        if (useDesktop && OperatingSystem.IsLinux())
-        {
-            // On Linux, default to web mode (foreground server) unless desktop is explicitly forced
-            if (!forceDesktop)
-            {
-                useDesktop = false;
-            }
-        }
-
-
-
         bool isDetachedChild = args.Contains(DetachedLaunchMarker);
-
-        var invocationKind = CliDispatcher.Classify(filteredArgs);
 
         if (invocationKind == CliInvocationKind.Help)
         {
@@ -257,6 +279,15 @@ public class Program
         // Install native console control handler FIRST — this catches CTRL_CLOSE_EVENT
         // (console window closed), CTRL_C_EVENT, CTRL_BREAK_EVENT, CTRL_LOGOFF_EVENT,
         // and CTRL_SHUTDOWN_EVENT. Logging here tells us exactly WHY the process is dying.
+        try
+        {
+            Console.CancelKeyPress += (_, _) =>
+            {
+                Environment.Exit(0);
+            };
+        }
+        catch { }
+
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             _consoleCtrlHandler = ctrlType =>
@@ -272,7 +303,14 @@ public class Program
                 };
                 CrashLog.Write(
                     $"[{DateTime.UtcNow:O}] ConsoleCtrlHandler: {name} (PID {Environment.ProcessId}) | {GetMemoryStats()}");
-                return false; // Let default handling proceed
+
+                if (ctrlType is 0 or 1 or 2)
+                {
+                    Environment.Exit(0);
+                    return true;
+                }
+
+                return false;
             };
             SetConsoleCtrlHandler(_consoleCtrlHandler, true);
         }
@@ -403,7 +441,14 @@ public class Program
 
     private static bool IsPackagedApp()
     {
-        return Velopack.Locators.VelopackLocator.Current?.CurrentlyInstalledVersion != null;
+        try
+        {
+            return Velopack.Locators.VelopackLocator.Current?.CurrentlyInstalledVersion != null;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     private static bool ShouldDetachDesktopLaunch(string[] filteredArgs, bool verbose)
@@ -417,15 +462,15 @@ public class Program
 
     private static bool IsTendrilToolInvocation()
     {
-        // If the executing assembly is in the .store / .dotnet folder, it's a global tool invocation
+        // If the executing assembly is in the .store or .dotnet/tools folder, it's a global tool invocation
         var path = System.AppContext.BaseDirectory;
+        var toolsFolder = Path.Combine(".dotnet", "tools");
         if (path.Contains(".store", StringComparison.OrdinalIgnoreCase) ||
-            path.Contains(".dotnet", StringComparison.OrdinalIgnoreCase))
+            path.Contains(toolsFolder, StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        // ProcessPath can be "dotnet" for global tools, so inspect argv[0] too.
         var processPathName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? string.Empty);
         if (processPathName.Equals("tendril", StringComparison.OrdinalIgnoreCase))
             return true;

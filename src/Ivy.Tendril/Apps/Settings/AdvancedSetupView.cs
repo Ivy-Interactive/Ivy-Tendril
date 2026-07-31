@@ -30,7 +30,7 @@ public class AdvancedSetupView : ViewBase
                        .WithField().Label("Job Timeout")
                    | staleOutputTimeout.ToNumberInput().Min(1).Max(60).Suffix("min")
                        .WithField().Label("Stale Output Timeout")
-                   | maxConcurrentJobs.ToNumberInput().Min(1).Max(100)
+                   | maxConcurrentJobs.ToNumberInput().Min(1).Max(512)
                        .WithField().Label("Max Concurrent Jobs")
                    | Text.Block("Editor").Bold()
                    | editorCommand.ToTextInput("e.g. code, vim")

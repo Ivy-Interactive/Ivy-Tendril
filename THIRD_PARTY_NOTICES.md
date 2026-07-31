@@ -16,6 +16,12 @@ This application's installer bundles unmodified distributions of the third-party
 - **Copyright:** Copyright (c) .NET Foundation and Contributors. All rights reserved.
 - **Project URL:** https://github.com/dotnet/sdk
 
+### OpenCode CLI
+
+- **License:** MIT License
+- **Copyright:** Copyright (c) 2025 opencode
+- **Project URL:** https://github.com/anomalyco/opencode
+
 ---
 
 ## License Texts

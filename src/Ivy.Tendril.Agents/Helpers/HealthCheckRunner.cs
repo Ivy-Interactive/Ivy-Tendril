@@ -13,7 +13,8 @@ public static class HealthCheckRunner
         string fileName,
         IReadOnlyList<string> arguments,
         TimeSpan? timeout = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         timeout ??= TimeSpan.FromSeconds(30);
 
@@ -37,6 +38,12 @@ public static class HealthCheckRunner
         psi.Environment["CI"] = "true";
         psi.Environment["TERM"] = "dumb";
 
+        if (environment is not null)
+        {
+            foreach (var (key, value) in environment)
+                psi.Environment[key] = value;
+        }
+
         if (ct.IsCancellationRequested)
             return (-1, string.Empty, "Cancelled");
 
@@ -51,6 +58,7 @@ public static class HealthCheckRunner
         try
         {
             process.Start();
+            process.StandardInput.Close();
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
         }

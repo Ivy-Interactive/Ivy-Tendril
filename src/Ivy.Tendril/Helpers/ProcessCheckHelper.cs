@@ -13,7 +13,8 @@ public static class ProcessCheckHelper
         RedirectStandardOutput = true,
         RedirectStandardError = true,
         UseShellExecute = false,
-        CreateNoWindow = true
+        CreateNoWindow = true,
+        WorkingDirectory = Path.GetTempPath()
     };
 
     public static async Task<bool> CheckCommand(string fileName, string arguments, int timeoutMs = 10_000)

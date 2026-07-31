@@ -81,7 +81,7 @@
   background: var(--civ-bg);
   border: none;
   border-radius: var(--radius-fields);
-  padding: 0 8px;
+  padding: 10px 12px;
   box-shadow: var(--civ-card-shadow);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -113,9 +113,8 @@
   color: var(--civ-text);
   padding: 2px 12px 2px 0;
   min-height: 80px;
-  max-height: 200px;
-  width: calc(100% + 12px);
-  margin-right: -12px;
+  max-height: 280px;
+  width: 100%;
 }
 
 .civ-textarea::placeholder {
@@ -725,4 +724,74 @@
 .civ-shortcut-enter {
   display: inline-flex;
   align-items: center;
+}
+
+/* Mode Selector styling */
+.civ-mode-selector-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.civ-mode-label {
+  color: var(--civ-placeholder);
+  user-select: none;
+}
+
+.civ-mode-value-btn {
+  background: none;
+  border: none;
+  color: var(--civ-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--civ-border);
+  font-weight: 500;
+  padding: 2px 4px;
+  cursor: pointer;
+  transition: color 0.2s, text-decoration-color 0.2s;
+}
+
+.civ-mode-value-btn:hover {
+  color: var(--civ-primary);
+  text-decoration-color: var(--civ-primary);
+}
+
+.civ-mode-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 6px;
+  background: var(--civ-bg);
+  border: 1px solid var(--civ-border);
+  border-radius: var(--radius-buttons, 6px);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+  min-width: 100px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  backdrop-filter: blur(8px);
+}
+
+.civ-mode-dropdown-item {
+  background: transparent;
+  border: none;
+  color: var(--civ-text);
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.civ-mode-dropdown-item:hover {
+  background: var(--civ-pill-hover);
+}
+
+.civ-mode-dropdown-item.active {
+  font-weight: 600;
+  color: var(--civ-primary);
 }

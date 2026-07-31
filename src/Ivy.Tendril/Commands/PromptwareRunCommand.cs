@@ -221,9 +221,19 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
 
         if (resolution.UsesStdinPrompt && psi.RedirectStandardInput)
         {
-            process.StandardInput.Write(prompt);
-            process.StandardInput.Flush();
-            process.StandardInput.Close();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await process.StandardInput.WriteAsync(prompt);
+                    await process.StandardInput.FlushAsync();
+                }
+                catch { }
+                finally
+                {
+                    try { process.StandardInput.Close(); } catch { }
+                }
+            });
         }
 
         var outputTask = Task.Run(() =>

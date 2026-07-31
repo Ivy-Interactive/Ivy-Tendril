@@ -111,7 +111,7 @@ public class ConfigSetCommand(IAgentRunner runner) : Command<ConfigSetSettings>
             case "jobtimeout": s.JobTimeout = ParseBoundedInt(value, "jobTimeout", 1, 480); break;
             case "staleoutputtimeout": s.StaleOutputTimeout = ParseBoundedInt(value, "staleOutputTimeout", 1, 60); break;
             case "gittimeout": s.GitTimeout = ParseBoundedInt(value, "gitTimeout", 1, 30); break;
-            case "maxconcurrentjobs": s.MaxConcurrentJobs = ParseBoundedInt(value, "maxConcurrentJobs", 1, 100); break;
+            case "maxconcurrentjobs": s.MaxConcurrentJobs = ParseBoundedInt(value, "maxConcurrentJobs", 1, 512); break;
             case "plantemplate": s.PlanTemplate = value; break;
             default: throw new ArgumentException(ConfigGetCommand.UnknownFieldMessage(field));
         }

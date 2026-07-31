@@ -16,6 +16,7 @@ using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Git;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
+using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Review;
 
@@ -40,6 +41,7 @@ public class ContentView(
         var syncingWorktrees = UseState(new HashSet<string>());
         var selectedRecTitles = UseState(() => new HashSet<string>());
         var selectedTab = UseState(0);
+        var draftComments = UseState(() => new List<DraftComment>());
         var args = UseArgs<ReviewAppArgs>();
         var nav = UseNavigation();
 
@@ -217,6 +219,8 @@ public class ContentView(
         UseEffect(() => { selectedRecTitles.Set(new HashSet<string>()); return Disposable.Empty; },
             selectedPlanState);
 
+        UseEffect(() => { draftComments.Set(new List<DraftComment>()); return Disposable.Empty; }, selectedPlanState);
+
         if (selectedPlanState.Value is null)
         {
             if (allPlans.Count == 0)
@@ -243,7 +247,7 @@ public class ContentView(
             selectedPlanState.Value, planData, planContentQuery, selectedTab, openVerification,
             openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
             assigneesError, syncingWorktrees, selectedRecTitles, pendingRecs,
-            client, copyToClipboard, logger, nav, args, showDebugJob);
+            client, copyToClipboard, logger, nav, args, showDebugJob, draftComments);
 
         var mainLayout = new HeaderLayout(
             header,
@@ -535,9 +539,10 @@ public class ContentView(
         ILogger<ContentView> logger,
         INavigator nav,
         ReviewAppArgs? args,
-        Action<string> showDebugJob)
+        Action<string> showDebugJob,
+        IState<List<DraftComment>> draftComments)
     {
-        var content = Layout.Vertical().Height(Size.Full());
+        var content = Layout.Vertical().Gap(0).Height(Size.Full());
 
         if (selectedPlan is null)
         {
@@ -573,21 +578,6 @@ public class ContentView(
         }
         else
         {
-            var gitData = GitTabDataBuilder.BuildGitTabData(planData.CommitRows, selectedPlan!, config, gitService);
-            var gitTabView = new GitTabView(
-                gitData,
-                selectedPlan!,
-                hash => openCommit.Set(hash),
-                path =>
-                {
-                    copyToClipboard(path);
-                    client.Toast("Copied path to clipboard", "Path Copied");
-                    return null!;
-                },
-                syncingWorktrees.Value,
-                worktreePath => SynchronizeWorktreeAsync(worktreePath, syncingWorktrees, planContentQuery, client, planService, selectedPlanState, logger)
-            );
-
             var totalArtifacts = (planData.Artifacts.GetValueOrDefault("screenshots")?.Count ?? 0)
                                  + (planData.Artifacts.ContainsKey("sample") ? 1 : 0);
 
@@ -595,9 +585,20 @@ public class ContentView(
 
             var recommendationsTab = new RecommendationsTabView(pendingRecs, selectedRecTitles, config);
 
-            var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error, selectedPlan.Project);
+            var changesTabView = new ChangesTabView(
+                planData.AllChanges,
+                planContentQuery.Loading,
+                planContentQuery.Error,
+                draftComments,
+                selectedPlan!,
+                jobService,
+                refreshPlans,
+                planData.CommitRows,
+                hash => openCommit.Set(hash),
+                openFile,
+                selectedPlan.Project);
 
-            var tabNamesList = new List<string> { "summary", "plan", "details", "git" };
+            var tabNamesList = new List<string> { "summary", "plan", "details" };
             var tabList = new List<Tab>
             {
                 // Summary is rendered via DraftMarkdown with a pinned Verifications sidebar, so it is
@@ -612,7 +613,6 @@ public class ContentView(
                     jobService.GetJobsForPlan(selectedPlan.FolderName),
                     showDebugJob, planService, selectedPlanState, refreshPlans,
                     folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath))))),
-                new Tab("Git", Cap(gitTabView)).Badge((gitData.WorktreeSections.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
             };
 
             // Only surface the Changes tab once there are actual file changes — no point showing
@@ -653,7 +653,7 @@ public class ContentView(
                 .Variant(TabsVariant.Content)
                 .RemoveParentPadding();
 
-            content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
+            content |= (Layout.Vertical().Padding(0, 2, 2, 2).Height(Size.Full()) | tabs);
         }
 
         content |= new VerificationReportSheet(openVerification, selectedPlan, config);

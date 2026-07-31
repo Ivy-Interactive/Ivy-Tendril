@@ -19,12 +19,16 @@ public static class UseInboxAutoRefreshExtensions
 
         context.UseEffect(() =>
         {
+            // Coalesce the two signals below (both fed by the same file/job events, ~300ms apart)
+            // into a single refresh so a burst doesn't queue overlapping full re-renders.
+            var coalescer = new RefreshCoalescer(refreshToken, TimeSpan.FromMilliseconds(400));
+
             // Skip(1): the BehaviorSubject replays the current value on subscribe.
-            var subscription = statusService.Status.Skip(1).Subscribe(_ => refreshToken.Refresh());
+            var subscription = statusService.Status.Skip(1).Subscribe(_ => coalescer.Request());
 
             void OnChanged(string? _)
             {
-                refreshToken.Refresh();
+                coalescer.Request();
             }
 
             planWatcher.PlansChanged += OnChanged;
@@ -32,6 +36,7 @@ public static class UseInboxAutoRefreshExtensions
             {
                 subscription.Dispose();
                 planWatcher.PlansChanged -= OnChanged;
+                coalescer.Dispose();
             });
         });
     }

@@ -41,9 +41,9 @@ public static class FirmwareCompiler
         **Memory:**
         {MEMORY}
 
-        To read a memory file:
+        To read memory files (batch multiple files in one call to reduce spin-up overhead):
         ```bash
-        tendril promptware read-memory {PROMPTWARE_NAME} <filename>.md
+        tendril promptware read-memory {PROMPTWARE_NAME} <filename1>.md [filename2.md ...]
         ```
 
         A `[[name]]` cross-reference inside a memory means the file `name.md`. If a read fails, the memory was likely pruned: run `tendril promptware list-memory {PROMPTWARE_NAME}` for the current list instead of guessing filenames.
