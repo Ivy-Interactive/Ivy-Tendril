@@ -585,6 +585,10 @@ public class ConfigService : IConfigService, IDisposable
             _levelNamesCache = null;
             VariableExpansion.InitializeUserSecrets(_logger);
             ExpandSettingsVariables();
+            // Same expansion the constructor applies via FinalizeConfiguration. Callers treat
+            // repo.Path as expanded and forward-slashed, so a reload that skipped this would hand
+            // out raw backslashed paths and MutateAndSave would then persist them in that form.
+            ExpandRepoPaths();
 
             SyncAuthFromEnvironmentAndPersistIfNeeded();
             SettingsReloaded?.Invoke(this, EventArgs.Empty);

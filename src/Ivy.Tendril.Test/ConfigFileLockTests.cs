@@ -21,7 +21,10 @@ public class ConfigFileLockTests : IDisposable
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir.Path);
 
         var yaml = @"
-projects: []
+projects:
+  - name: PathProject
+    repos:
+      - path: D:\Repos\Test
 verifications:
   - name: Alpha
     prompt: SEED-ALPHA
@@ -149,6 +152,26 @@ verifications:
         var reloaded = new ConfigService();
         Assert.Equal("OUT-OF-BAND", PromptOf(reloaded.Settings, "Alpha"));
         Assert.Equal("LATER-BETA", PromptOf(reloaded.Settings, "Beta"));
+    }
+
+    /// <summary>
+    ///     MutateAndSave reloads inside the lock, and ReloadSettings used to skip the ExpandRepoPaths
+    ///     that the constructor's load path applies. The callback therefore saw raw backslashed repo
+    ///     paths and the write persisted them in that form, which broke ProjectConfig.GetRepoRef for
+    ///     `project remove-repo` and friends. Both reads must agree.
+    /// </summary>
+    [Fact]
+    public void MutateAndSave_KeepsRepoPathsNormalized()
+    {
+        var config = new ConfigService();
+        var asLoaded = config.Settings.Projects.Single().Repos.Single().Path;
+        Assert.DoesNotContain('\\', asLoaded);
+
+        string? observed = null;
+        config.MutateAndSave(s => observed = s.Projects.Single().Repos.Single().Path);
+
+        Assert.Equal(asLoaded, observed);
+        Assert.Equal(asLoaded, new ConfigService().Settings.Projects.Single().Repos.Single().Path);
     }
 
     /// <summary>The lock file must not be mistaken for config, and must not survive the lock.</summary>
