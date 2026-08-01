@@ -207,41 +207,29 @@ verifications:
     Wait for the process to complete (it may take several minutes). After the process exits, IMMEDIATELY check if `<TendrilPlanFolder>\verification\IvyFrameworkVerification.md` exists. If the file exists, read it and set status based on the Result field in its YAML frontmatter. If exit code is non-zero OR the report file does not exist, set status to Fail immediately — do not poll or wait. Do NOT write the verification report yourself — the promptware creates it.
 - name: CheckResult
   prompt: >
-    Verify the implementation matches what was requested in the plan. 1. Read the plan revision from `<TendrilPlanFolder>\revisions\` (latest numbered .md file) 2. Read all commits made by this execution from `plan.yaml` `commits` list 3. For each commit, review the diff (`git show <hash>`) in the worktree 4. Compare the plan's **Problem** and **Solution** sections against the actual changes:
-       - Are all described changes present?
-       - Are there unexpected\unrelated changes?
-       - Do the changes solve the stated problem?
-    5. If the plan has a **Tests** section, verify those tests were actually written 6. Write the verification report to `<TendrilPlanFolder>\verification\CheckResult.md` Report format: ```
-
-    ---
-
-    result: Pass
-
-    date: <CurrentTime>
-
-    attempts: 1
-
-    ---
-
-    # CheckResult
-
-    ## Requested vs Delivered | Requirement | Status | Notes | |-------------|--------|-------| | <from plan> | Done \ Missing \ Partial | <details> |
-
-    ## Unexpected Changes
-
-    <list any changes not described in the plan, or "None">
-
-    ## Output
-
-    <summary assessment>
-
-    ## Fixes Applied
-
-    None
-
-    ## Issues Found
-
-    <any gaps between plan and implementation, or "None"> ```
+    Verify the implementation matches what was requested in the plan.
+    1. Read the plan revision: `tendril plan get-revision <PlanId>`
+    2. Enumerate every deliverable the plan specifies, including ones that are not
+       file edits: CLI calls (`tendril verification set`, `tendril plan set`), config
+       changes outside the repo, and edits to other plans' folders. A plan's commit
+       can be partially delivered when only some of its parts are files.
+    3. Review all commits made by this execution.
+    4. Check each non-file deliverable by re-running the read side of its own command
+       (for example `tendril verification get <Name>` and grep for the text the plan
+       said to add or remove). A repo diff cannot see a CLI call that never happened,
+       so absence of evidence here is not evidence of delivery.
+    5. Compare the plan's Problem and Solution sections against the actual changes.
+       Report each deliverable under the plan's own heading and wording. Never
+       restate a commit's scope to match what was delivered: if a commit had three
+       parts and two landed, say so and set `result: Fail`.
+    6. If the plan's Solution documents the runtime behavior of a script, hook, command
+       or workflow, anything not reachable from the project's build and test gates,
+       exercise the documented behavior once and paste the command with its exit code
+       into the report. Neither the prose nor the diff that added it is evidence that
+       the behavior exists. If it could not be exercised (a blocked write, a missing
+       tool), the result is `Fail`, naming the unexercised claim: documenting behavior
+       the code does not have is a defect, not a partial delivery.
+    7. Write the verification report to `<TendrilPlanFolder>/verification/CheckResult.md`
 - name: CodeReview
   prompt: >-
     Perform a code review of all changes made by this plan's commits, using Claude Code's built-in `\code-review` skill. Always fix major findings; log minor concerns as plan recommendations.
