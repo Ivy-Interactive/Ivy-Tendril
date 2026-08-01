@@ -196,8 +196,14 @@ verifications:
        Report each deliverable under the plan's own heading and wording. Never
        restate a commit's scope to match what was delivered: if a commit had three
        parts and two landed, say so and set `result: Fail`.
-    6. Write the verification report to `<TendrilPlanFolder>/verification/CheckResult.md`
-
+    6. If the plan's Solution documents the runtime behavior of a script, hook, command
+       or workflow, anything not reachable from the project's build and test gates,
+       exercise the documented behavior once and paste the command with its exit code
+       into the report. Neither the prose nor the diff that added it is evidence that
+       the behavior exists. If it could not be exercised (a blocked write, a missing
+       tool), the result is `Fail`, naming the unexercised claim: documenting behavior
+       the code does not have is a defect, not a partial delivery.
+    7. Write the verification report to `<TendrilPlanFolder>/verification/CheckResult.md`
 # Stack-specific verification examples (uncomment and customize for your stack):
 
 # .NET:
