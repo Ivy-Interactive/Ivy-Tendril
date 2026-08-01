@@ -81,6 +81,9 @@ tendril plan get <plan-id> recommendations    # Format: Title=State
 ```bash
 # Set scalar fields
 tendril plan set <plan-id> state <value>
+# `state Completed` is refused while any verification is Fail. Re-run the verification, or set it to
+# Skipped with a reason. Add --allow-failed-verifications only to record a deliberate partial
+# delivery; it also sets partialDelivery: true.
 tendril plan set <plan-id> project <value>
 tendril plan set <plan-id> title <value>
 tendril plan set <plan-id> level <value>
