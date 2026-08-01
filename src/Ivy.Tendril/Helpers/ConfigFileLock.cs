@@ -57,6 +57,15 @@ public static class ConfigFileLock
                 {
                     Thread.Sleep(delayMs);
                 }
+                catch (IOException ex)
+                {
+                    // Budget exhausted. Translate rather than letting the raw sharing violation out:
+                    // "cannot access the file" does not say that we waited, and callers should see the
+                    // same exception whichever holder (this process or another) won.
+                    // PlanFileLock leaves its equivalent throw unreachable for this reason.
+                    throw new TimeoutException(
+                        $"Could not acquire config lock at {lockPath} after {budgetMs}ms", ex);
+                }
 
             throw new TimeoutException($"Could not acquire config lock at {lockPath} after {budgetMs}ms");
         }

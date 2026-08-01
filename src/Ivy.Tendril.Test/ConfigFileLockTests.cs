@@ -116,6 +116,29 @@ verifications:
         Assert.Contains(ConfigPath + ".lock", captured!.Message);
     }
 
+    /// <summary>
+    ///     Acquire_TimesOutLoudly exercises the in-process semaphore, which is not the branch a real
+    ///     race takes. Here the lock file is held by a foreign handle, so the FileStream keeps throwing
+    ///     IOException until the budget runs out. That must surface as the same TimeoutException naming
+    ///     the lock path, not as a raw "cannot access the file" sharing violation.
+    /// </summary>
+    [Fact]
+    public void Acquire_ForeignHolder_TimesOutWithLockPath()
+    {
+        var lockPath = ConfigPath + ".lock";
+        using var foreign = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite,
+            FileShare.None, bufferSize: 1, FileOptions.DeleteOnClose);
+
+        var ex = Assert.Throws<TimeoutException>(() => ConfigFileLock.Acquire(ConfigPath, 3, 10));
+
+        Assert.Contains(lockPath, ex.Message);
+        Assert.IsType<IOException>(ex.InnerException);
+
+        // The semaphore must have been released, or every later caller in this process would hang.
+        using var after = ConfigFileLock.Acquire(ConfigPath + ".other");
+        Assert.NotNull(after);
+    }
+
     [Fact]
     public void Acquire_EmptyConfigPath_ReturnsNoOp()
     {
