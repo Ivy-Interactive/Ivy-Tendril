@@ -2,6 +2,7 @@ using Ivy.Tendril.Agents;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
@@ -162,6 +163,7 @@ public static class DoctorCommand
         var results = FilterResults(allResults, showAll, stateFilter, worktreesOnly);
 
         PrintPlansTable(results);
+        PrintPartialDeliveryCandidates(FindPartialDeliveryCandidates(allResults));
         PrintPlansSummary(allResults);
 
         return allResults.Any(r => !r.IsHealthy) ? 1 : 0;
@@ -630,4 +632,57 @@ public static class DoctorCommand
     private static bool HasSignificantWork(bool hasPrs, bool hasCommits, bool hasRevisions) =>
         hasPrs || hasCommits || hasRevisions;
 
+    internal record PartialDeliveryCandidate(string Id, string Title, IReadOnlyList<string> FailedVerifications);
+
+    /// <summary>
+    ///     Plans that already sit at <see cref="PlanStatus.Completed" /> with a verification in the Fail
+    ///     state and no <c>partialDelivery</c> flag. They predate the guard added by plan 00090, so they
+    ///     read as fully delivered to CreatePlan's duplicate detection even though the deliverable may
+    ///     be missing. Reported, never mutated: these are historical records and the call is the user's.
+    /// </summary>
+    internal static List<PartialDeliveryCandidate> FindPartialDeliveryCandidates(
+        List<PlanHealthResult> allResults)
+    {
+        var candidates = new List<PartialDeliveryCandidate>();
+
+        foreach (var result in allResults)
+        {
+            if (result.FolderPath == null) continue;
+            if (!result.State.Equals(nameof(PlanStatus.Completed), StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var plan = PlanYamlHelper.ReadPlanYaml(result.FolderPath);
+            if (plan == null || plan.PartialDelivery) continue;
+
+            var failed = PlanCompletionGuard.FailedVerificationNames(plan);
+            if (failed.Count > 0)
+                candidates.Add(new PartialDeliveryCandidate(result.Id, result.Title, failed));
+        }
+
+        return candidates;
+    }
+
+    internal static void PrintPartialDeliveryCandidates(List<PartialDeliveryCandidate> candidates)
+    {
+        if (candidates.Count == 0) return;
+
+        var plural = candidates.Count == 1 ? "plan is" : "plans are";
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine(
+            $"[yellow]{candidates.Count} completed {plural} missing a partialDelivery flag despite a failed verification:[/]");
+        AnsiConsole.WriteLine();
+
+        foreach (var candidate in candidates)
+        {
+            var failed = string.Join(", ", candidate.FailedVerifications);
+            AnsiConsole.MarkupLine(
+                $"[grey]  {candidate.Id}-{candidate.Title.EscapeMarkup()}  (failed: {failed.EscapeMarkup()})[/]");
+        }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.WriteLine("Their deliverables may be missing, and duplicate detection reads them as done.");
+        AnsiConsole.WriteLine("Review each one, then flag the ones that really were partial:");
+        AnsiConsole.WriteLine();
+        AnsiConsole.WriteLine("  tendril plan set <id> state Completed --allow-failed-verifications");
+    }
 }
