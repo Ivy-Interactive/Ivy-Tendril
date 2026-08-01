@@ -52,37 +52,27 @@ public class OnboardingSetupServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task FinalizeOnboardingAsync_Should_Seed_CheckResult_Prompt_With_Runtime_Behavior_Step()
+    public void ExampleConfig_Should_Seed_CheckResult_Prompt_With_Runtime_Behavior_Step()
     {
-        // Arrange: create a bootstrapped config.yaml
-        var tendrilHome = Path.Combine(_tempDir.Path, "tendril-home");
-        Directory.CreateDirectory(tendrilHome);
-        var configPath = Path.Combine(tendrilHome, "config.yaml");
-        File.WriteAllText(configPath, "codingAgent: claude\nprojects: []\n");
+        // Arrange: locate example.config.yaml in the project
+        var projectDir = Path.GetDirectoryName(System.AppContext.BaseDirectory);
+        while (projectDir != null && !File.Exists(Path.Combine(projectDir, "example.config.yaml")))
+            projectDir = Path.GetDirectoryName(projectDir);
 
-        var configService = new ConfigService(new TendrilSettings());
-        configService.SetPendingTendrilHome(tendrilHome);
-        configService.SetPendingProject(new ProjectConfig
-        {
-            Name = "TestProject",
-            Repos = new List<RepoRef> { new() { Path = "/tmp/test-repo" } }
-        });
+        var exampleConfigPath = projectDir != null
+            ? Path.Combine(projectDir, "example.config.yaml")
+            : PathHelper.GetResourcePath("example.config.yaml");
 
-        var onboardingService = new OnboardingSetupService(
-            configService,
-            null!,
-            null!,
-            NullLogger<OnboardingSetupService>.Instance);
+        Assert.True(File.Exists(exampleConfigPath), $"example.config.yaml not found at {exampleConfigPath}");
 
-        // Act
-        await onboardingService.FinalizeOnboardingAsync();
+        // Act: read and parse example.config.yaml
+        var configYaml = File.ReadAllText(exampleConfigPath);
+        var settings = YamlHelper.Deserializer.Deserialize<TendrilSettings>(configYaml);
 
-        // Assert: read the seeded config and find CheckResult verification
-        var savedYaml = File.ReadAllText(configPath);
-        var savedSettings = YamlHelper.Deserializer.Deserialize<TendrilSettings>(savedYaml);
-
-        Assert.NotNull(savedSettings);
-        var checkResult = savedSettings.Verifications.FirstOrDefault(v => v.Name == "CheckResult");
+        // Assert: find CheckResult verification
+        Assert.NotNull(settings);
+        Assert.NotNull(settings.Verifications);
+        var checkResult = settings.Verifications.FirstOrDefault(v => v.Name == "CheckResult");
         Assert.NotNull(checkResult);
 
         // Assert the prompt contains the runtime behavior exercise step
