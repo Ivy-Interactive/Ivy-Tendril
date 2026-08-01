@@ -282,12 +282,35 @@ Report status: `tendril job status TendrilJobId --message="Applying merge option
 
 **Note:** Merge conflict resolution is handled in step 3.7 if `PrSolveMergeConflicts` was `true`. By this step, the PR should already be conflict-free (if step 3.7 ran successfully).
 
-When merging, build the command from the flags:
-- Always pass `--merge --admin`.
-- Add `--delete-branch` **only if `PrDeleteBranch` is `true`** (default `true`).
+**Wait for CI checks before merging:**
+
+Before merging, wait for checks to finish and verify they pass. This prevents merging a PR while checks are still running or have failed.
 
 ```bash
-gh pr merge <pr-number> --repo <owner/repo> --merge [--delete-branch] --admin
+# Wait for checks to finish (no-op in ~3s if the repo has no CI; --watch cannot be combined with --json)
+gh pr checks <pr-number> --repo <owner/repo> --watch --fail-fast >/dev/null 2>&1 || true
+
+# Read the outcome. Exit code cannot distinguish "failed" from "no checks", so read buckets.
+BUCKETS=$(gh pr checks <pr-number> --repo <owner/repo> --json bucket --jq '.[].bucket' 2>/dev/null)
+if [ -z "$BUCKETS" ]; then
+  echo "No checks reported; proceeding (repo has no PR CI)."
+elif echo "$BUCKETS" | grep -qE '^(fail|cancel)$'; then
+  echo "CI is red; refusing to merge."
+  tendril job status TendrilJobId --message="PR CI checks failed, refusing to merge: <pr-url>"
+  # Skip the merge step, but continue to step 5 to record the PR URL
+  # This is a legitimate non-merged outcome, not a skipped step
+fi
+```
+
+If any check fails or is cancelled, do **not** merge. Leave the PR open and continue to step 5 so the PR URL is still recorded. A red gate is a legitimate outcome.
+
+When merging, build the command from the flags:
+- Always pass `--merge`.
+- Add `--delete-branch` **only if `PrDeleteBranch` is `true`** (default `true`).
+- Do **not** pass `--admin` on the first attempt. Only if the merge fails because the branch is protected (GitHub returns a requirements error, not a conflict or transient error) may `--admin` be used as a retry. At that point, the check gate above has already passed, so `--admin` bypasses only non-CI requirements.
+
+```bash
+gh pr merge <pr-number> --repo <owner/repo> --merge [--delete-branch]
 cd <original-repo-path>
 # Only pull if the local repo is clean (no uncommitted changes, on the default branch)
 if [ -z "$(git status --porcelain)" ] && [ "$(git symbolic-ref --short HEAD)" = "<default-branch>" ]; then

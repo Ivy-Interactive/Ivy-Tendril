@@ -127,7 +127,29 @@ If no custom options or `comment` is empty, skip this step.
 **!STOP — MERGE GATE. The single deciding factor is the `PrMerge` firmware header value. Nothing else.**
 
 - **If `PrMerge` is `false`: do NOT merge.** Do **not** run `gh pr merge` under any circumstances. The PR stays open for manual review. Skip directly to step 5. (Do not look for any other rule or signal — there is none.)
-- **If `PrMerge` is `true` (or the flag is absent):** merge the PR using the flags below — always `--merge --admin`, plus `--delete-branch` only when `PrDeleteBranch` is `true` (default `true`).
+- **If `PrMerge` is `true` (or the flag is absent):** merge the PR using the flags below — always `--merge`, plus `--delete-branch` only when `PrDeleteBranch` is `true` (default `true`). Do **not** pass `--admin` on the first attempt; only retry with `--admin` if the merge fails due to branch protection (at that point, the check gate below has already passed).
+
+**Wait for CI checks before merging:**
+
+Before merging, wait for checks to finish and verify they pass. This prevents merging a PR while checks are still running or have failed.
+
+```bash
+# Wait for checks to finish (no-op in ~3s if the repo has no CI; --watch cannot be combined with --json)
+gh pr checks <pr-number> --repo <owner/repo> --watch --fail-fast >/dev/null 2>&1 || true
+
+# Read the outcome. Exit code cannot distinguish "failed" from "no checks", so read buckets.
+BUCKETS=$(gh pr checks <pr-number> --repo <owner/repo> --json bucket --jq '.[].bucket' 2>/dev/null)
+if [ -z "$BUCKETS" ]; then
+  echo "No checks reported; proceeding (repo has no PR CI)."
+elif echo "$BUCKETS" | grep -qE '^(fail|cancel)$'; then
+  echo "CI is red; refusing to merge."
+  tendril job status TendrilJobId --message="PR CI checks failed, refusing to merge: <pr-url>"
+  # Skip the merge step, but continue to step 5 to record the PR URL
+  # This is a legitimate non-merged outcome, not a skipped step
+fi
+```
+
+If any check fails or is cancelled, do **not** merge. Leave the PR open and continue to step 5 so the PR URL is still recorded. A red gate is a legitimate outcome.
 
 **Merge conflict handling (applies only when merging):**
 
@@ -191,7 +213,7 @@ When the PR status is `CONFLICTING`, resolve the conflict locally before retryin
 
 **Merge command** (build `--delete-branch` from `PrDeleteBranch`):
 ```bash
-gh pr merge <pr-number> --repo <owner/repo> --merge [--delete-branch] --admin
+gh pr merge <pr-number> --repo <owner/repo> --merge [--delete-branch]
 cd <original-repo-path>
 # Only pull if the local repo is clean (no uncommitted changes, on the default branch)
 if [ -z "$(git status --porcelain)" ] && [ "$(git symbolic-ref --short HEAD)" = "<default-branch>" ]; then

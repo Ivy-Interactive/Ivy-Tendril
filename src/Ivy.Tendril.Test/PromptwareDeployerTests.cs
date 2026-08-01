@@ -194,4 +194,41 @@ public class PromptwareDeployerTests : IDisposable
         Assert.DoesNotContain("> \"$TMPDIR/pr-body.md\"", content);
         Assert.DoesNotContain("--body-file \"$TMPDIR/pr-body.md\"", content);
     }
+
+    // Regression guard for plan 00108: CreatePr was unconditionally passing --admin and
+    // merging immediately, bypassing branch protection and racing the CI checks. The fix
+    // adds a "gh pr checks" gate that waits for and validates CI results before merging,
+    // and removes the unconditional --admin (it may only be used as a retry after the
+    // check gate has passed). Enforces this rule across both copies of Program.md.
+    [Fact]
+    public void CreatePrProgram_GatesMergeOnChecksAndDoesNotAlwaysPassAdmin()
+    {
+        var sourcePromptwarePath = Path.GetFullPath(
+            Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "..", "Ivy.Tendril", "Promptwares"));
+        var programFile1 = Path.Combine(sourcePromptwarePath, "CreatePr", "Program.md");
+
+        var sourceTeamIvyPath = Path.GetFullPath(
+            Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "..", "Ivy.Tendril.TeamIvyConfig", "Promptwares"));
+        var programFile2 = Path.Combine(sourceTeamIvyPath, "CreatePr", "Program.md");
+
+        Assert.True(File.Exists(programFile1), $"Expected to find {programFile1}");
+        Assert.True(File.Exists(programFile2), $"Expected to find {programFile2}");
+
+        var content1 = File.ReadAllText(programFile1);
+        var content2 = File.ReadAllText(programFile2);
+
+        // Verify the check gate is present and reads buckets
+        Assert.Contains("gh pr checks", content1);
+        Assert.Contains("--json bucket", content1);
+        Assert.Contains("gh pr checks", content2);
+        Assert.Contains("--json bucket", content2);
+
+        // Verify the unconditional --admin instructions are removed
+        Assert.DoesNotContain("Always pass `--merge --admin`", content1);
+        Assert.DoesNotContain("always `--merge --admin`", content2);
+
+        // Verify --required is not used (measured vacuous on unprotected repos)
+        Assert.DoesNotContain("--required", content1);
+        Assert.DoesNotContain("--required", content2);
+    }
 }
