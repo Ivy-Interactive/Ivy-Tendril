@@ -99,7 +99,14 @@ public class ActionBarView(
             new MenuItem("Mark as Completed", Icon: Icons.CircleCheck, Tag: "MarkCompleted")
                 .OnSelect(() =>
                 {
-                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                    // Blocked when a verification failed (plan 00090). Toast the gate names instead of
+                    // throwing out of this fire-and-forget handler, which would look like a no-op.
+                    var blocked = PlanCompletionAction.TryComplete(planService, selectedPlan);
+                    if (blocked != null)
+                    {
+                        PlanCompletionAction.ToastBlocked(client, selectedPlan, blocked);
+                        return;
+                    }
                     refreshPlans();
                 }),
             new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>

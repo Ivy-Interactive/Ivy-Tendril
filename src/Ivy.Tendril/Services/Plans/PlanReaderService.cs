@@ -139,11 +139,59 @@ public class PlanReaderService(
     }
 
     /// <summary>
+    ///     Names of verifications in a Fail state, read from <c>plan.yaml</c> on disk (not from the
+    ///     database) so a stale cache cannot green-light a blocked transition. Empty when the plan is
+    ///     clean, missing, or unreadable.
+    /// </summary>
+    /// <remarks>
+    ///     Pending is deliberately excluded: a user may legitimately skip gates, and
+    ///     JobCompletionHandler.EnsurePlanStateTransitioned already routes Pending to Failed. Only Fail
+    ///     is a positive statement that a gate ran and rejected the work.
+    /// </remarks>
+    /// <param name="folderName">Name of the plan folder (e.g. <c>01105-TestPlan</c>).</param>
+    public IReadOnlyList<string> GetFailedVerifications(string folderName)
+    {
+        var planYaml = PlanYamlHelper.ReadPlanYaml(Path.Combine(PlansDirectory, folderName));
+        return PlanCompletionGuard.FailedVerificationNames(planYaml);
+    }
+
+    /// <summary>
     ///     Transitions a plan to a new state by updating its <c>plan.yaml</c> file.
     /// </summary>
     /// <param name="folderName">Name of the plan folder (e.g. <c>01105-TestPlan</c>).</param>
     /// <param name="newState">The target state to transition to.</param>
+    /// <exception cref="PlanTransitionBlockedException">
+    ///     Thrown when <paramref name="newState" /> is Completed and a verification is in the Fail state.
+    ///     Every UI and CLI path to Completed funnels through here, so this one check covers them all.
+    /// </exception>
     public void TransitionState(string folderName, PlanStatus newState)
+    {
+        if (newState == PlanStatus.Completed)
+        {
+            var failed = GetFailedVerifications(folderName);
+            if (failed.Count > 0)
+                throw new PlanTransitionBlockedException(folderName, failed);
+        }
+
+        WriteStateTransition(folderName, newState, markPartialDelivery: false);
+    }
+
+    /// <summary>
+    ///     The sanctioned override for <see cref="TransitionState" />'s failed-verification block: moves
+    ///     the plan to Completed and stamps <see cref="PlanYaml.PartialDelivery" /> so duplicate detection
+    ///     can tell that the deliverable may be missing (see plan 00090).
+    /// </summary>
+    /// <remarks>
+    ///     This is for a human deliberately recording a partial delivery. It is not a way to silence the
+    ///     guard: the flag it writes is what keeps the plan visible to CreatePlan.
+    /// </remarks>
+    /// <param name="folderName">Name of the plan folder (e.g. <c>01105-TestPlan</c>).</param>
+    public void CompleteWithPartialDelivery(string folderName)
+    {
+        WriteStateTransition(folderName, PlanStatus.Completed, markPartialDelivery: true);
+    }
+
+    private void WriteStateTransition(string folderName, PlanStatus newState, bool markPartialDelivery)
     {
         var planId = ExtractPlanId(folderName);
 
@@ -180,6 +228,7 @@ public class PlanReaderService(
             var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml) ?? new PlanYaml();
             planYaml.State = newState.ToString();
             planYaml.Updated = DateTime.UtcNow;
+            if (markPartialDelivery) planYaml.PartialDelivery = true;
             FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
         }, Path.Combine(PlansDirectory, folderName));
     }

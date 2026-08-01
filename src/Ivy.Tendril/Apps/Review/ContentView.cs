@@ -106,6 +106,16 @@ public class ContentView(
                 resetToDraftLogger);
         });
 
+        // The override for a failed-verification block (plan 00090). Offered here rather than as a
+        // bare toast, because recording a partial delivery is a deliberate choice, not a retry.
+        var (partialDeliveryDialog, showPartialDeliveryDialog) =
+            UseTrigger<IReadOnlyList<string>>((isOpen, failed) =>
+            {
+                if (!isOpen.Value) return null;
+                return new PartialDeliveryDialog(isOpen, selectedPlanState.Value!, failed, planService,
+                    refreshPlans);
+            });
+
         var (debugSheet, showDebugJob) = UseTrigger<string>((isOpen, jobId) =>
         {
             if (!isOpen.Value) return null;
@@ -238,11 +248,12 @@ public class ContentView(
             selectedPlanState.Value!, selectedRecTitles, client,
             planContentQuery.Mutator.Revalidate);
 
-        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCreatePrDialog, nav,
-            args, selectedRecTitles, ImplementRecommendations);
+        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCreatePrDialog,
+            showPartialDeliveryDialog, nav, args, selectedRecTitles, ImplementRecommendations);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
-            showCreatePrDialog, copyToClipboard, client, logger, nav, args, agentRunner);
+            showCreatePrDialog, showPartialDeliveryDialog, copyToClipboard, client, logger, nav, args,
+            agentRunner);
         var content = BuildContent(
             selectedPlanState.Value, planData, planContentQuery, selectedTab, openVerification,
             openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
@@ -257,7 +268,8 @@ public class ContentView(
             ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlanState.Value.Id);
 
-        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, createPrDialog, resetToDraftDialog, debugSheet);
+        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, createPrDialog, resetToDraftDialog,
+            partialDeliveryDialog, debugSheet);
     }
 
     private object BuildHeader(
@@ -266,6 +278,7 @@ public class ContentView(
         int currentIndex,
         IClientProvider client,
         Action showCreatePrDialog,
+        Action<IReadOnlyList<string>> showPartialDeliveryDialog,
         INavigator nav,
         ReviewAppArgs? args,
         IState<HashSet<string>> selectedRecTitles,
@@ -376,8 +389,17 @@ public class ContentView(
             {
                 var completePlanBtn = new Button("Complete Plan").Icon(Icons.CircleCheck).OnClick(() =>
                 {
+                    // A failed verification blocks the transition (plan 00090). On a block nothing
+                    // changed, so skip the optimistic refresh and the worktree cleanup too, and offer
+                    // the partial-delivery override instead of failing silently.
+                    var blocked = PlanCompletionAction.TryComplete(planService, selectedPlan);
+                    if (blocked != null)
+                    {
+                        showPartialDeliveryDialog(blocked);
+                        return;
+                    }
+
                     // Optimistic UI - update state and refresh immediately
-                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
                     refreshPlans();
 
                     // Fire and forget - clean up worktrees in the background
@@ -409,6 +431,7 @@ public class ContentView(
         Action showSuggestChangesDialog,
         Action showDiscardDialog,
         Action showCreatePrDialog,
+        Action<IReadOnlyList<string>> showPartialDeliveryDialog,
         Action<string> copyToClipboard,
         IClientProvider client,
         ILogger<ContentView> logger,
@@ -427,7 +450,12 @@ public class ContentView(
             new MenuItem("Create PR", Icon: Icons.GitPullRequest, Tag: "CreatePR").OnSelect(showCreatePrDialog),
             new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
             {
-                planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                var blocked = PlanCompletionAction.TryComplete(planService, selectedPlan);
+                if (blocked != null)
+                {
+                    showPartialDeliveryDialog(blocked);
+                    return;
+                }
                 refreshPlans();
             }),
             new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")

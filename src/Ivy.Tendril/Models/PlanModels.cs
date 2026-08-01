@@ -178,6 +178,15 @@ public class PlanYaml
     public List<string> DependsOn { get; set; } = new();
     [YamlMember(DefaultValuesHandling = DefaultValuesHandling.OmitDefaults)]
     public int Priority { get; set; }
+
+    /// <summary>
+    ///     Set when a plan was moved to Completed while a verification was in Fail state. Signals to
+    ///     CreatePlan's duplicate detection that the plan's deliverable may be missing (see plan 00090).
+    ///     Additive and absent-means-false, so it needs no <see cref="CurrentSchemaVersion" /> bump.
+    /// </summary>
+    [YamlMember(DefaultValuesHandling = DefaultValuesHandling.OmitDefaults)]
+    public bool PartialDelivery { get; set; }
+
     public string? ExecutionProfile { get; set; }
     public string? InitialPrompt { get; set; }
     public string? SourceUrl { get; set; }
