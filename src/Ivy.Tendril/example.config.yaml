@@ -204,7 +204,6 @@ verifications:
        tool), the result is `Fail`, naming the unexercised claim: documenting behavior
        the code does not have is a defect, not a partial delivery.
     7. Write the verification report to `<TendrilPlanFolder>/verification/CheckResult.md`
-
 # Stack-specific verification examples (uncomment and customize for your stack):
 
 # .NET:

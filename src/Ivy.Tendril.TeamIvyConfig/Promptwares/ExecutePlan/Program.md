@@ -227,7 +227,7 @@ This ensures ExecutePlan fails immediately if worktree creation is incomplete, r
 
 Worktrees start with a clean checkout and may be missing build artifacts (e.g. `dist/`, `node_modules/`, generated files) that exist in the original repo. Determine whether the plan modifies these areas:
 
-#### Default Path (No Changes to Build-Dependent Code)
+#### Default Path (No Changes to Build-Dependent Code): Reuse Artifacts, Still Install
 
 If the plan does **NOT** modify code in directories with build artifacts:
 
@@ -243,15 +243,25 @@ for artifact_dir in $(find "<original-repo-path>" -name "dist" -type d -not -pat
 done
 ```
 
-2. **Skip dependency installation** — the copied artifacts are sufficient for build and tests.
+2. **Still install dependencies for any verification you will run.** A copied artifact directory is a build *output*, not a dependency tree - it never removes the need for an install. A fresh worktree has no `node_modules` at all, so the package manager must run before any lint, typecheck, build or test step, whether or not the plan touched that code. Never treat a populated dependency directory as evidence of a current one: install unconditionally, using the lockfile-respecting form (`pnpm install --frozen-lockfile`, `npm ci`, `yarn install --immutable`). It costs seconds when the tree is already correct, and a skipped install means exercising whatever version happens to be on disk. If the lockfile-respecting form fails because the plan edited a manifest without regenerating the lockfile, that is a real finding: re-run the plain install and commit the updated lockfile.
 
-#### Exception Path (Build-Dependent Code Changes)
+#### Exception Path (Build-Dependent Code Changes): Install and Rebuild
 
 If the plan **modifies** build-dependent code, you MUST rebuild:
 
 1. **Install dependencies** using the project's package manager
 2. **Run the build** to regenerate artifacts
 3. If dependency installation fails after 2 attempts, document the failure and fail the plan
+
+#### Which dependency trees to install
+
+Install the trees the plan's **verifications** will actually enter, not every lockfile in the repo. Some repos carry a dozen independent lockfiles (one per widget package), and a blanket sweep is slow and mostly useless; others keep theirs deeper than a shallow search would look.
+
+1. List the run-set: `tendril plan verification list <plan-id> --json` (the same set step 7 runs).
+2. For each `Pending` entry, read its prompt (`tendril verification get <Name>`) and note the directory it starts with (`cd <dir>`) and the package manager it names.
+3. Install once per distinct directory, before step 4. If two verifications share a directory, install once. If no `Pending` verification enters a package directory, install nothing.
+
+Each verification prompt is still the authority on its own directory and flags. This step exists so the install has already happened by the time step 7 runs, not to override the prompt.
 
 ### 3. Handle Cross-Repo References
 
@@ -370,7 +380,7 @@ The `result` field in the frontmatter MUST be one of: `Pass`, `Fail`, or `Skippe
 
 ### 7.5. Generate Summary
 
-After all verifications pass, create `<TendrilPlanFolder>/Artifacts/summary.md` summarizing what was done. Because this runs after verification, the summary reflects the final state of the code — including any fix commits made during Step 7.
+After all verifications pass, create `<TendrilPlanFolder>/Artifacts/summary.md` summarizing what was done. Because this runs after verification, the summary reflects the final state of the plan's deliverables, in and outside the repo, including any fix commits made during Step 7.
 
 The summary should follow this structure:
 
@@ -388,6 +398,13 @@ The summary should follow this structure:
 ## Files Modified
 
 <Bulleted list of key files changed, grouped by category. Don't list every file — focus on the important ones.>
+
+## Deliverables Outside the Repo
+
+<CLI calls the plan specified and you ran: `tendril verification set <Name>`,
+`tendril plan set <id> <field>`, edits to other plans' folders. Show the read-back
+that proves each landed. Write "None." if the plan specified none. If the plan
+specified one and you did not run it, say so here and in CheckResult.>
 ~~~
 
 Focus on **what changed** (past tense), not what the plan said to do. Emphasize API surface changes — new classes, renamed methods, added properties, changed signatures — since these affect consumers.
