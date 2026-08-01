@@ -20,6 +20,10 @@ public interface IConfigService : IDisposable
     Colors? GetLevelColor(string level);
     Colors? GetProjectColor(string projectName);
     void SaveSettings();
+
+    /// <summary>Reloads, mutates and saves config.yaml under a cross-process lock. Use from CLI/MCP instead of <see cref="SaveSettings"/>.</summary>
+    void MutateAndSave(Action<TendrilSettings> mutate);
+
     void ReloadSettings();
     event EventHandler? SettingsReloaded;
     void SetPendingTendrilHome(string path);

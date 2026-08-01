@@ -275,6 +275,11 @@ public class BackgroundServiceActivatorTests : IAsyncLifetime
         {
         }
 
+        public void MutateAndSave(Action<TendrilSettings> mutate)
+        {
+            mutate(Settings);
+        }
+
         public void ReloadSettings()
         {
         }
