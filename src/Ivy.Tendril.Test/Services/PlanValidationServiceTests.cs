@@ -102,6 +102,21 @@ public class PlanValidationServiceTests : IDisposable
     }
 
     [Fact]
+    public void PlanValidate_CompletedWithNoCommitsOrPrs_StaysValid()
+    {
+        // Config-only plans (00048, 00050, 00053) legitimately reach Completed with no commits and no
+        // PRs: they edit verification prompts in config.yaml and touch no repo files. Validate runs on
+        // every plan.yaml write, so a rule rejecting this shape would make those plans unwritable.
+        // Plan 00103 therefore guards the two state-decision points instead. See PreExecutionFailureStateTests.
+        var plan = CreateValidPlan();
+        plan.State = nameof(PlanStatus.Completed);
+
+        var exception = Record.Exception(() => PlanValidationService.Validate(plan));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
     public void Validate_AcceptsAllValidStates()
     {
         var validStates = new[] { "Draft", "Creating", "Updating", "Executing", "Review", "Failed", "Completed", "Skipped", "Blocked", "Icebox" };

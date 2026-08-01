@@ -495,7 +495,7 @@ internal class JobCompletionHandler
         return Convert.ToBase64String(bytes);
     }
 
-    private void EnsurePlanStateTransitioned(JobItem job)
+    internal void EnsurePlanStateTransitioned(JobItem job)
     {
         try
         {
