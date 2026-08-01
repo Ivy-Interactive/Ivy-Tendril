@@ -143,8 +143,16 @@ public class PlanReaderService(
     /// </summary>
     /// <param name="folderName">Name of the plan folder (e.g. <c>01105-TestPlan</c>).</param>
     /// <param name="newState">The target state to transition to.</param>
+    /// <exception cref="PlanTransitionBlockedException">
+    ///     The transition would record work that never happened (see
+    ///     <see cref="GetCompletionBlockReason" />).
+    /// </exception>
     public void TransitionState(string folderName, PlanStatus newState)
     {
+        if (newState == PlanStatus.Completed &&
+            GetCompletionBlockReason(Path.Combine(PlansDirectory, folderName)) is { } blockReason)
+            throw new PlanTransitionBlockedException(folderName, newState, blockReason);
+
         var planId = ExtractPlanId(folderName);
 
         // Track state transition in telemetry before making the change.
@@ -182,6 +190,28 @@ public class PlanReaderService(
             planYaml.Updated = DateTime.UtcNow;
             FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
         }, Path.Combine(PlansDirectory, folderName));
+    }
+
+    /// <summary>
+    ///     Returns the reason a plan must not be marked Completed, or null when the transition is fine.
+    ///     Blocks a plan whose <c>Verification/PreExecution.md</c> reads <c>result: Fail</c> and which has
+    ///     no commits and no PRs: pre-execution rejected the plan's premise and nothing was delivered, so
+    ///     Completed would record a phantom owner for work that never happened. The no-commits-and-no-PRs
+    ///     conjunct keeps config-only plans (which legitimately have neither, and pass pre-execution) and
+    ///     any plan that did real work out of the block. See plan 00103.
+    /// </summary>
+    internal static string? GetCompletionBlockReason(string planFolder)
+    {
+        if (PlanYamlHelper.ReadPreExecutionResult(planFolder) != VerificationStatus.Fail) return null;
+
+        var planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
+        if (planYaml == null) return null;
+        if (planYaml.Commits?.Count > 0 || planYaml.Prs?.Count > 0) return null;
+
+        var reportPath = Path.Combine(planFolder, "Verification", "PreExecution.md");
+        return "Pre-execution validation failed and this plan has no commits and no PRs, so there is "
+               + $"nothing to complete. See {reportPath} for the diagnosis. To retire it, set the state "
+               + "to Skipped instead; to complete it anyway, record its commits or PRs first.";
     }
 
     /// <summary>
