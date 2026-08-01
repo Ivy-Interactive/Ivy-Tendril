@@ -122,24 +122,10 @@ public class PlanSetCommand : Command<PlanSetSettings>
     /// </exception>
     private static void ApplyState(PlanYaml plan, PlanSetSettings settings)
     {
-        var isCompleting = settings.Value.Equals(nameof(PlanStatus.Completed), StringComparison.OrdinalIgnoreCase);
-        if (isCompleting)
-        {
-            var failed = PlanCompletionGuard.FailedVerificationNames(plan);
-            if (failed.Count > 0)
-            {
-                if (!settings.AllowFailedVerifications)
-                    throw new PlanTransitionBlockedException(settings.PlanId, failed);
+        var warning = PlanCompletionGuard.ApplyState(
+            plan, settings.Value, settings.AllowFailedVerifications, settings.PlanId);
 
-                // Deliberate partial delivery: record it so CreatePlan's duplicate detection can see
-                // that the deliverable may be missing, instead of the plan simply reading as done.
-                plan.PartialDelivery = true;
-                Console.WriteLine(
-                    $"Warning: completing over failed verification(s) {string.Join(", ", failed)}. " +
-                    "Marked partialDelivery: true.");
-            }
-        }
-
-        plan.State = settings.Value;
+        if (warning != null)
+            Console.WriteLine(warning);
     }
 }

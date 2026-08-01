@@ -291,9 +291,16 @@ public class ContentView(
 
             var hasSourceUrl = !string.IsNullOrEmpty(selectedPlan.SourceUrl);
 
+            // The title is what readers trust, so a plan completed over a failed gate says so right
+            // next to it rather than only in plan.yaml (plan 00090).
+            object PartialDeliveryBadge() => new Badge("Partial Delivery").Variant(BadgeVariant.Warning);
+
             var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full().Min(Size.Px(0)))
                 | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
                     .Width(Size.Shrink().Min(Size.Px(0)));
+
+            if (selectedPlan.PartialDelivery)
+                desktopTitleLayout |= PartialDeliveryBadge();
 
             if (hasSourceUrl)
                 desktopTitleLayout |= SourceButton();
@@ -310,6 +317,9 @@ public class ContentView(
                         p => p.FolderName == selectedPlan.FolderName,
                         p => selectedPlanState.Set(p))
                     .Width(Size.Grow().Min(Size.Px(0)));
+
+            if (selectedPlan.PartialDelivery)
+                mobileTitleLayout |= PartialDeliveryBadge();
 
             if (hasSourceUrl)
                 mobileTitleLayout |= SourceButton();

@@ -34,7 +34,8 @@ public record PlanMetadata(
     DateTime Created,
     DateTime Updated,
     string? InitialPrompt,
-    string? SourceUrl);
+    string? SourceUrl,
+    bool PartialDelivery = false);
 
 public record PlanFile(
     PlanMetadata Metadata,
@@ -59,6 +60,12 @@ public record PlanFile(
     public DateTime Updated => Metadata.Updated;
     public string? InitialPrompt => Metadata.InitialPrompt;
     public string? SourceUrl => Metadata.SourceUrl;
+
+    /// <summary>
+    ///     True when the plan reached Completed over a failed verification. See
+    ///     <see cref="PlanYaml.PartialDelivery" />.
+    /// </summary>
+    public bool PartialDelivery => Metadata.PartialDelivery;
 
     /// <summary>True when the plan's source is a GitHub pull request (vs. an issue or none).</summary>
     public bool IsPullRequestSource => SourceUrl?.Contains("/pull/") == true;

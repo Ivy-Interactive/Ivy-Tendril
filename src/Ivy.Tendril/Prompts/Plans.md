@@ -65,6 +65,8 @@ tendril plan get <plan-id> updated
 tendril plan get <plan-id> executionProfile
 tendril plan get <plan-id> initialPrompt
 tendril plan get <plan-id> sourceUrl
+tendril plan get <plan-id> partialDelivery    # true: Completed over a failed verification, so the
+                                              # deliverable may be missing
 
 # List fields (one item per line)
 tendril plan get <plan-id> repos
