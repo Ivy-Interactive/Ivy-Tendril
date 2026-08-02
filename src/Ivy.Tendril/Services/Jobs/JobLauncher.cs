@@ -15,8 +15,8 @@ internal record JobLaunchContext(
     JobItem Job,
     ConcurrentDictionary<string, JobItem> Jobs,
     SemaphoreSlim JobSlotSemaphore,
-    TimeSpan JobTimeout,
-    TimeSpan StaleOutputTimeout,
+    Func<TimeSpan> JobTimeout,
+    Func<TimeSpan> StaleOutputTimeout,
     Action<string, string, string, string, JobItem> RunHooks,
     Action<string, int?, bool, bool> CompleteJob,
     Action RaiseStructureChanged);
@@ -50,8 +50,8 @@ internal class JobLauncher
         JobItem job,
         ConcurrentDictionary<string, JobItem> jobs,
         SemaphoreSlim jobSlotSemaphore,
-        TimeSpan jobTimeout,
-        TimeSpan staleOutputTimeout,
+        Func<TimeSpan> jobTimeout,
+        Func<TimeSpan> staleOutputTimeout,
         Action<string, string, string, string, JobItem> runHooks,
         Action<string, int?, bool, bool> completeJob,
         Action raiseStructureChanged)
@@ -406,7 +406,7 @@ internal class JobLauncher
             ExtraArguments = resolution.ExtraArgs,
             PromptFilePath = promptFilePath,
             EnvironmentVariables = resolution.EnvironmentVariables,
-            Timeout = ctx.JobTimeout,
+            Timeout = ctx.JobTimeout(),
         };
 
         job.Model = launchConfig.Model;

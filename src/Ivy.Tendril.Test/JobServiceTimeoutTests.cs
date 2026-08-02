@@ -443,6 +443,117 @@ codingAgent: claude
         Assert.NotNull(job);
         Assert.Equal(JobStatus.Completed, job.Status);
     }
+
+    [Fact]
+    public async Task RunJobTimeoutWatchdog_TimeoutRaisedMidRun_DoesNotCancelAtOldDeadline()
+    {
+        var service = CreateService(TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(10));
+        var id = service.CreateTestJob(new ExecutePlanArgs(_tempDir.Path));
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+
+        var cts = new CancellationTokenSource();
+        job.TimeoutCts = cts;
+
+        var startedAt = DateTime.UtcNow;
+        var watchdogTask = service.RunJobTimeoutWatchdog(id, cts, startedAt, TimeSpan.FromMilliseconds(100));
+
+        // Raise timeout before first deadline passes
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        service.JobTimeout = TimeSpan.FromMinutes(5);
+
+        // Wait past the original 2s deadline
+        await Task.Delay(TimeSpan.FromSeconds(2));
+
+        // CTS should NOT be cancelled yet
+        Assert.False(cts.IsCancellationRequested);
+
+        // Clean up
+        service.CompleteJob(id, 0);
+        cts.Dispose();
+    }
+
+    [Fact]
+    public async Task RunJobTimeoutWatchdog_TimeoutLoweredBelowElapsed_CancelsPromptly()
+    {
+        var service = CreateService(TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(10));
+        var id = service.CreateTestJob(new ExecutePlanArgs(_tempDir.Path));
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+
+        var cts = new CancellationTokenSource();
+        job.TimeoutCts = cts;
+
+        // Simulate job started in the past
+        var startedAt = DateTime.UtcNow - TimeSpan.FromSeconds(5);
+        var watchdogTask = service.RunJobTimeoutWatchdog(id, cts, startedAt, TimeSpan.FromMilliseconds(100));
+
+        // Lower timeout below elapsed time
+        service.JobTimeout = TimeSpan.FromSeconds(2);
+
+        // Wait a couple ticks
+        await Task.Delay(TimeSpan.FromMilliseconds(500));
+
+        // CTS should be cancelled
+        Assert.True(cts.IsCancellationRequested);
+
+        // Clean up
+        service.CompleteJob(id, 0);
+        cts.Dispose();
+    }
+
+    [Fact]
+    public async Task RunJobTimeoutWatchdog_WithinLimit_DoesNotCancel()
+    {
+        var service = CreateService(TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(10));
+        var id = service.CreateTestJob(new ExecutePlanArgs(_tempDir.Path));
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+
+        var cts = new CancellationTokenSource();
+        job.TimeoutCts = cts;
+
+        var startedAt = DateTime.UtcNow;
+        var watchdogTask = service.RunJobTimeoutWatchdog(id, cts, startedAt, TimeSpan.FromMilliseconds(100));
+
+        // Wait a bit but stay well within the 5 minute limit
+        await Task.Delay(TimeSpan.FromSeconds(1));
+
+        // CTS should NOT be cancelled
+        Assert.False(cts.IsCancellationRequested);
+
+        // Clean up
+        service.CompleteJob(id, 0);
+        cts.Dispose();
+    }
+
+    [Fact]
+    public async Task RunStaleOutputWatchdog_TimeoutRaisedMidRun_DoesNotTrip()
+    {
+        var service = CreateService(TimeSpan.FromMinutes(30), TimeSpan.FromSeconds(2));
+        var id = service.CreateTestJob(new ExecutePlanArgs(_tempDir.Path));
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+
+        var cts = new CancellationTokenSource();
+        job.TimeoutCts = cts;
+
+        var watchdogTask = service.RunStaleOutputWatchdog(id, cts);
+
+        // Raise stale output timeout before first deadline passes
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        service.StaleOutputTimeout = TimeSpan.FromMinutes(5);
+
+        // Wait past the original 2s deadline
+        await Task.Delay(TimeSpan.FromSeconds(2));
+
+        // CTS should NOT be cancelled yet
+        Assert.False(cts.IsCancellationRequested);
+
+        // Clean up
+        service.CompleteJob(id, 0);
+        cts.Dispose();
+    }
 }
 
 internal sealed class CapturingLogger<T>(List<(LogLevel Level, string Message)> entries) : ILogger<T>

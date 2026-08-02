@@ -36,7 +36,7 @@ public class JobServiceSlotLeakTests
         // RunHooks ("before"-hook) is a genuinely unhandled throw site per the plan — it is not one
         // of the three existing guarded failure paths in JobLauncher.
         launcher.LaunchJob(
-            job, jobs, semaphore, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            job, jobs, semaphore, () => TimeSpan.FromMinutes(30), () => TimeSpan.FromMinutes(10),
             runHooks: (_, _, _, _, _) => throw new InvalidOperationException("boom from before-hook"),
             completeJob: (_, _, _, _) => { },
             raiseStructureChanged: () => structureChangedCount++);
@@ -63,7 +63,7 @@ public class JobServiceSlotLeakTests
             jobs[job.Id] = job;
 
             launcher.LaunchJob(
-                job, jobs, semaphore, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+                job, jobs, semaphore, () => TimeSpan.FromMinutes(30), () => TimeSpan.FromMinutes(10),
                 runHooks: (_, _, _, _, _) => throw new InvalidOperationException("boom"),
                 completeJob: (_, _, _, _) => { },
                 raiseStructureChanged: () => { });
@@ -91,7 +91,7 @@ public class JobServiceSlotLeakTests
         jobs[job.Id] = job;
 
         launcher.LaunchJob(
-            job, jobs, semaphore, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            job, jobs, semaphore, () => TimeSpan.FromMinutes(30), () => TimeSpan.FromMinutes(10),
             runHooks: (_, _, _, _, _) => { },
             completeJob: (_, _, _, _) => { },
             raiseStructureChanged: () => { });

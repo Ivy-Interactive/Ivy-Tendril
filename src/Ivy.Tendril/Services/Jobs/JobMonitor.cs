@@ -14,7 +14,7 @@ internal class JobMonitor
     private readonly Process _process;
     private readonly ILogger _logger;
     private readonly CancellationTokenSource _timeoutCts;
-    private readonly TimeSpan _hardTimeout;
+    private readonly DateTime _startedAt;
 
     internal JobMonitor(string id, JobLaunchContext ctx, Process process, ILogger logger)
     {
@@ -22,8 +22,8 @@ internal class JobMonitor
         _ctx = ctx;
         _process = process;
         _logger = logger;
-        _timeoutCts = new CancellationTokenSource(ctx.JobTimeout);
-        _hardTimeout = ctx.JobTimeout + TimeSpan.FromMinutes(5);
+        _timeoutCts = new CancellationTokenSource();
+        _startedAt = DateTime.UtcNow;
     }
 
     internal void Start()
@@ -33,9 +33,8 @@ internal class JobMonitor
             job.TimeoutCts = _timeoutCts;
 
         Task.Run(MonitorProcessAsync);
-
-        if (_ctx.StaleOutputTimeout > TimeSpan.Zero)
-            _ = RunStaleOutputWatchdog(_id, _timeoutCts, _ctx.Jobs, _ctx.StaleOutputTimeout);
+        _ = RunJobTimeoutWatchdog();
+        _ = RunStaleOutputWatchdog(_id, _timeoutCts, _ctx.Jobs, _ctx.StaleOutputTimeout);
 
         // Status updates now arrive via HTTP (PUT /api/jobs/{id}/status)
         // — no file polling needed.
@@ -43,13 +42,12 @@ internal class JobMonitor
 
     private async Task MonitorProcessAsync()
     {
-        var hardTimeoutCts = new CancellationTokenSource(_hardTimeout);
         _logger.LogDebug("Job {JobId}: Monitor task started", _id);
 
         try
         {
             var waitTask = _process.WaitForExitOrKillAsync(_timeoutCts.Token);
-            var completedTask = await Task.WhenAny(waitTask, Task.Delay(_hardTimeout, hardTimeoutCts.Token));
+            var completedTask = await Task.WhenAny(waitTask, PollHardTimeoutAsync());
 
             if (completedTask == waitTask)
                 HandleNormalExit(await waitTask);
@@ -86,10 +84,6 @@ internal class JobMonitor
             CrashLog.Write($"[{DateTime.UtcNow:O}] JobService process monitor exception for job {_id}: {ex}");
             _ctx.CompleteJob(_id, null, false, false);
         }
-        finally
-        {
-            hardTimeoutCts.Dispose();
-        }
     }
 
     private void HandleNormalExit(bool normalExit)
@@ -116,9 +110,10 @@ internal class JobMonitor
 
     private void HandleHardTimeout()
     {
+        var hardTimeout = _ctx.JobTimeout() + TimeSpan.FromMinutes(5);
         _logger.LogError("Job {JobId}: HARD TIMEOUT after {Minutes} minutes - process may still be running",
-            _id, _hardTimeout.TotalMinutes);
-        CrashLog.Write($"[{DateTime.UtcNow:O}] Job {_id} hit hard timeout after {_hardTimeout.TotalMinutes} minutes - WaitForExitOrKillAsync did not complete");
+            _id, hardTimeout.TotalMinutes);
+        CrashLog.Write($"[{DateTime.UtcNow:O}] Job {_id} hit hard timeout after {hardTimeout.TotalMinutes} minutes - WaitForExitOrKillAsync did not complete");
 
         try
         {
@@ -140,7 +135,7 @@ internal class JobMonitor
         string id,
         CancellationTokenSource timeoutCts,
         ConcurrentDictionary<string, JobItem> jobs,
-        TimeSpan staleOutputTimeout)
+        Func<TimeSpan> staleOutputTimeout)
     {
         // Baseline for staleness before any output arrives. Captured when monitoring begins — i.e.
         // after the pre-launch "before" hooks and process start — so slow hook setup does not count
@@ -154,8 +149,13 @@ internal class JobMonitor
                 await Task.Delay(TimeSpan.FromSeconds(1), timeoutCts.Token);
                 if (!jobs.TryGetValue(id, out var job) || job.Status != JobStatus.Running)
                     return;
+
+                var currentTimeout = staleOutputTimeout();
+                if (currentTimeout <= TimeSpan.Zero)
+                    continue;
+
                 var anchor = job.LastOutputAt ?? monitoringStartedAt;
-                if (DateTime.UtcNow - anchor < staleOutputTimeout)
+                if (DateTime.UtcNow - anchor < currentTimeout)
                     continue;
 
                 job.StaleOutputDetected = true;
@@ -167,6 +167,52 @@ internal class JobMonitor
         catch (ObjectDisposedException) { }
     }
 
+
+    private Task RunJobTimeoutWatchdog()
+        => RunJobTimeoutWatchdog(_id, _timeoutCts, _ctx.Jobs, _ctx.JobTimeout, _startedAt);
+
+    internal static async Task RunJobTimeoutWatchdog(
+        string id,
+        CancellationTokenSource timeoutCts,
+        ConcurrentDictionary<string, JobItem> jobs,
+        Func<TimeSpan> jobTimeout,
+        DateTime startedAt,
+        TimeSpan? tickInterval = null)
+    {
+        var interval = tickInterval ?? TimeSpan.FromSeconds(5);
+        try
+        {
+            while (!timeoutCts.Token.IsCancellationRequested)
+            {
+                await Task.Delay(interval, timeoutCts.Token);
+                if (!jobs.TryGetValue(id, out var job) || job.Status != JobStatus.Running)
+                    return;
+
+                if (DateTime.UtcNow - startedAt >= jobTimeout())
+                {
+                    try { timeoutCts.Cancel(); } catch (ObjectDisposedException) { }
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    private async Task PollHardTimeoutAsync()
+    {
+        try
+        {
+            while (true)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5));
+                var hardTimeout = _ctx.JobTimeout() + TimeSpan.FromMinutes(5);
+                if (DateTime.UtcNow - _startedAt >= hardTimeout)
+                    return;
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
 
     private static bool IsValidPlanId(string? planId)
     {
