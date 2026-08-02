@@ -92,4 +92,34 @@ public class VariableExpansionTests
             Environment.SetEnvironmentVariable(envVarName, null);
         }
     }
+
+    [Fact]
+    public void ExpandVariables_WithNormalizePathsFalse_PreservesBackslashesAndDoubleSlashes()
+    {
+        var input = @"grep '#\[test\]' and C:\Users\x and // comment and a//b";
+        var result = VariableExpansion.ExpandVariables(input, null, normalizePaths: false);
+
+        Assert.Contains(@"#\[test\]", result);
+        Assert.Contains(@"C:\Users\x", result);
+        Assert.Contains("// comment", result);
+        Assert.Contains("a//b", result);
+    }
+
+    [Fact]
+    public void ExpandVariables_WithNormalizePathsTrue_StillNormalizes()
+    {
+        var inputWithBackslashes = @"C:\Users\x";
+        var resultBackslashes = VariableExpansion.ExpandVariables(inputWithBackslashes, null, normalizePaths: true);
+        Assert.DoesNotContain(@"\", resultBackslashes);
+        Assert.Contains("C:/Users/x", resultBackslashes);
+
+        var inputWithDoubleSlash = "a//b";
+        var resultDoubleSlash = VariableExpansion.ExpandVariables(inputWithDoubleSlash, null, normalizePaths: true);
+        Assert.DoesNotContain("//", resultDoubleSlash);
+        Assert.Contains("a/b", resultDoubleSlash);
+
+        var inputWithScheme = "http://localhost";
+        var resultScheme = VariableExpansion.ExpandVariables(inputWithScheme, null, normalizePaths: true);
+        Assert.Contains("http://localhost", resultScheme);
+    }
 }

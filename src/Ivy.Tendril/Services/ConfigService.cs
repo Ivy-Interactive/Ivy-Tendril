@@ -1018,6 +1018,14 @@ public class ConfigService : IConfigService, IDisposable
     private string ExpandVar(string value) =>
         VariableExpansion.ExpandVariables(value, TendrilHome);
 
+    /// <summary>
+    ///     Expands variables in a prose value (prompts, context, shell commands) WITHOUT path
+    ///     normalization. NormalizePath would strip every backslash and collapse every non-scheme
+    ///     "//", corrupting globs, regexes and shell comments. See VariableExpansion.ExpandVariables.
+    /// </summary>
+    private string ExpandProse(string value) =>
+        VariableExpansion.ExpandVariables(value, TendrilHome, normalizePaths: false);
+
     private void ExpandLlmConfig()
     {
         if (Settings.Llm == null) return;
@@ -1050,7 +1058,7 @@ public class ConfigService : IConfigService, IDisposable
         if (Settings.Projects == null) return;
         foreach (var project in Settings.Projects)
         {
-            project.Context = ExpandVar(project.Context);
+            project.Context = ExpandProse(project.Context);
             ExpandReviewActions(project.ReviewActions);
             ExpandHooks(project.Hooks);
         }
@@ -1061,8 +1069,8 @@ public class ConfigService : IConfigService, IDisposable
         if (actions == null) return;
         foreach (var action in actions)
         {
-            action.Condition = ExpandVar(action.Condition);
-            action.Command = ExpandVar(action.Command);
+            action.Condition = ExpandProse(action.Condition);
+            action.Command = ExpandProse(action.Command);
         }
     }
 
@@ -1071,8 +1079,8 @@ public class ConfigService : IConfigService, IDisposable
         if (hooks == null) return;
         foreach (var hook in hooks)
         {
-            hook.Condition = ExpandVar(hook.Condition);
-            hook.Action = ExpandVar(hook.Action);
+            hook.Condition = ExpandProse(hook.Condition);
+            hook.Action = ExpandProse(hook.Action);
         }
     }
 
@@ -1080,7 +1088,7 @@ public class ConfigService : IConfigService, IDisposable
     {
         if (Settings.Verifications == null) return;
         foreach (var verification in Settings.Verifications)
-            verification.Prompt = ExpandVar(verification.Prompt);
+            verification.Prompt = ExpandProse(verification.Prompt);
     }
 }
 
