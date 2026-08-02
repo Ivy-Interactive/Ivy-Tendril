@@ -143,9 +143,9 @@ public static class PlanContentHelpers
             // Only count additions/deletions inside hunks
             if (insideHunk)
             {
-                if (line.StartsWith("+") && !line.StartsWith("+++"))
+                if (line.StartsWith("+"))
                     additions++;
-                else if (line.StartsWith("-") && !line.StartsWith("---"))
+                else if (line.StartsWith("-"))
                     deletions++;
             }
         }
