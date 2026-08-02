@@ -58,6 +58,19 @@ public static class DoctorCommand
         }
 
         // Summary
+        if (CliOutput.IsPlain)
+        {
+            Console.Out.WriteLine();
+            if (hasErrors)
+            {
+                Console.Out.WriteLine("Issues found. Fix the errors above and re-run `tendril doctor`.");
+                return 1;
+            }
+
+            Console.Out.WriteLine("All checks passed.");
+            return 0;
+        }
+
         AnsiConsole.WriteLine();
         if (hasErrors)
         {
@@ -79,24 +92,42 @@ public static class DoctorCommand
         }
     }
 
-
     private static void PrintHeader(string title)
     {
+        if (CliOutput.IsPlain)
+        {
+            Console.Out.WriteLine();
+            Console.Out.WriteLine($"-- {title} --");
+            return;
+        }
         AnsiConsole.WriteLine();
-        var rule = CliOutput.IsPlain ? "--" : "──";
+        var rule = "──";
         AnsiConsole.MarkupLine($"[cyan]{rule} {title} {rule}[/]");
     }
 
     internal static void PrintStatus(string label, string value, DoctorChecks.StatusKind kind)
     {
-        var (symbol, color) = kind switch
+        if (CliOutput.IsPlain)
+        {
+            var symbol = kind switch
+            {
+                DoctorChecks.StatusKind.Ok => "OK",
+                DoctorChecks.StatusKind.Warn => "!",
+                DoctorChecks.StatusKind.Error => "FAIL",
+                _ => " "
+            };
+            Console.Out.WriteLine($"{symbol} {label.PadRight(40)}{value}");
+            return;
+        }
+
+        var (symbolMarkup, color) = kind switch
         {
             DoctorChecks.StatusKind.Ok => (CliOutput.Glyph(true), "green"),
             DoctorChecks.StatusKind.Warn => ("!", "yellow"),
             DoctorChecks.StatusKind.Error => (CliOutput.Glyph(false), "red"),
             _ => (" ", "grey")
         };
-        AnsiConsole.MarkupLine($"[{color}]{symbol} {label.EscapeMarkup().PadRight(40)}{value.EscapeMarkup()}[/]");
+        AnsiConsole.MarkupLine($"[{color}]{symbolMarkup} {label.EscapeMarkup().PadRight(40)}{value.EscapeMarkup()}[/]");
     }
 
     // --- doctor plans subcommand ---
