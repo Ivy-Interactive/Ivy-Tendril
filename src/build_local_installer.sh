@@ -70,6 +70,8 @@ cat << 'EOF' > "$APP_DIR/Contents/Info.plist"
     <string>10.15</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Ivy Tendril uses the microphone to transcribe voice input into plan descriptions.</string>
 </dict>
 </plist>
 EOF

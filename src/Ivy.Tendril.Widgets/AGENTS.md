@@ -71,7 +71,7 @@ npm run build    # tsc + vite → dist/ivy-tendril-widgets.{js,css}
 npm test         # vitest unit tests
 ```
 
-The built bundle is committed to the repo (it's served as an embedded resource from the DLL).
+The bundle is built by MSBuild (via the WidgetsBuildFrontend target) and embedded from `dist/`, which is gitignored.
 
 ## Widget ↔ Framework Contract
 
