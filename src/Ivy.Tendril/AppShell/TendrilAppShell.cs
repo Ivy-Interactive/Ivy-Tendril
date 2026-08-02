@@ -95,6 +95,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     private static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status,
         IConfigService config, IAgentRunner runner)
     {
+        var nonChatAgentCount = Math.Max(0, runner.ActiveSessions.Count - status.GeneratingChatSessionsCount);
         var badges = new Dictionary<string, int>
         {
             ["drafts"] = status.DraftCount,
@@ -104,8 +105,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             ["recommendations"] = status.RecommendationsCount,
             ["trash"] = status.TrashCount,
             ["chat"] = status.GeneratingChatSessionsCount,
-            ["chat-app"] = status.GeneratingChatSessionsCount,
-            ["agent"] = runner.ActiveSessions.Count
+            ["agent"] = nonChatAgentCount
         };
         var agentId = config.Settings.CodingAgent;
         return repo.GetMenuItems()
