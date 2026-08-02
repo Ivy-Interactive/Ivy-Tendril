@@ -546,7 +546,8 @@ public class Program
             var psi = new ProcessStartInfo
             {
                 FileName = installedCli,
-                UseShellExecute = false
+                UseShellExecute = false,
+                CreateNoWindow = true
             };
             foreach (var arg in args)
                 psi.ArgumentList.Add(arg);
