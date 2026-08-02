@@ -387,6 +387,38 @@
   }
 }
 
+/* ─── Tool use group (collapsed by default) ────────────────────────────────── */
+.aov-tool-group {
+  position: relative;
+  font-family: var(--aov-mono);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.aov-tool-group:hover {
+  background: color-mix(in srgb, var(--muted-foreground) 4%, var(--aov-bg-elev));
+}
+
+.aov-tool-group.open {
+  background: color-mix(in srgb, var(--muted-foreground) 4%, var(--aov-bg-elev));
+}
+
+.aov-tool-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  cursor: pointer;
+  user-select: none;
+  font-size: 14px;
+  outline: none;
+}
+
+.aov-tool-group-body {
+  padding: 4px 0 4px 37px;
+  animation: aov-tool-expand 0.2s ease-out both;
+}
+
 .aov-tool-section {
   display: flex;
   gap: 0;

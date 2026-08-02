@@ -68,7 +68,7 @@ function displayInput(name: string, input: Record<string, unknown>): string {
   return JSON.stringify(input, null, 2);
 }
 
-function inputSummary(tool: ToolCall): string {
+export function inputSummary(tool: ToolCall): string {
   if (tool.description) return tool.description;
   const { input } = tool;
   if (!input) return "";

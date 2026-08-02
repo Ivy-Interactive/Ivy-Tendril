@@ -41,6 +41,10 @@ public class PlanListSettings : CommandSettings
     [Description("Maximum number of results")]
     public int? Limit { get; init; }
 
+    [CommandOption("--plans-dir")]
+    [Description("Override plans directory path")]
+    public string? PlansDir { get; init; }
+
     public override Spectre.Console.ValidationResult Validate()
     {
         return CliValidation.Combine(
@@ -56,19 +60,32 @@ public class PlanListSettings : CommandSettings
 
 public class PlanListCommand : Command<PlanListSettings>
 {
+    private readonly ConfigService _configService;
+
+    public PlanListCommand(ConfigService configService)
+    {
+        _configService = configService;
+    }
+
     protected override int Execute(CommandContext context, PlanListSettings settings, CancellationToken cancellationToken)
     {
-        var plansDirectory = Environment.GetEnvironmentVariable("TENDRIL_PLANS")?.Trim();
-        if (string.IsNullOrEmpty(plansDirectory))
+        if (!string.IsNullOrEmpty(settings.Project))
         {
-            var home = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
-            if (string.IsNullOrEmpty(home))
-                throw new InvalidOperationException("TENDRIL_HOME environment variable is not set");
-            plansDirectory = Path.Combine(home, "Plans");
+            var availableProjects = _configService.Projects.Select(p => p.Name).ToList();
+            CliValidation.ValidateConfiguredProject(settings.Project, availableProjects);
         }
 
-        if (!Directory.Exists(plansDirectory))
-            throw new InvalidOperationException($"Plans directory not found: {plansDirectory}");
+        string plansDirectory;
+        if (!string.IsNullOrEmpty(settings.PlansDir))
+        {
+            plansDirectory = settings.PlansDir;
+            if (!Directory.Exists(plansDirectory))
+                throw new DirectoryNotFoundException($"Plans directory not found: {plansDirectory}");
+        }
+        else
+        {
+            plansDirectory = PlanCommandHelpers.GetPlansDirectory();
+        }
 
         var results = ScanPlans(plansDirectory, settings);
 

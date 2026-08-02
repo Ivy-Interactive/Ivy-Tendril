@@ -29,6 +29,9 @@ public record AgentViewer : WidgetBase<AgentViewer>
     /// <summary>Override the auto-derived status label text. Null = derive from latest event.</summary>
     [Prop] public string? StatusLabelOverride { get; init; }
 
+    /// <summary>Group consecutive tool calls into collapsible groups.</summary>
+    [Prop] public bool GroupToolCalls { get; init; } = false;
+
     [Event] public Func<Event<AgentViewer, string>, ValueTask>? OnComplete { get; init; }
 }
 
@@ -54,6 +57,9 @@ public static class AgentViewerExtensions
 
     public static AgentViewer StatusLabel(this AgentViewer w, string? statusLabel) =>
         w with { StatusLabelOverride = statusLabel };
+
+    public static AgentViewer GroupToolCalls(this AgentViewer w, bool groupToolCalls = true) =>
+        w with { GroupToolCalls = groupToolCalls };
 
     public static AgentViewer OnComplete(
         this AgentViewer w,

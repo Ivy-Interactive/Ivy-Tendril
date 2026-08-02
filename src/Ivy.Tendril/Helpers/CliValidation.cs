@@ -33,6 +33,13 @@ public static class CliValidation
 
     public static readonly string[] ValidFormats = ["table", "ids", "folders", "json"];
 
+    public static readonly string[] ValidJobStatuses =
+    [
+        nameof(JobStatus.Pending), nameof(JobStatus.Queued), nameof(JobStatus.Running),
+        nameof(JobStatus.Completed), nameof(JobStatus.Failed), nameof(JobStatus.Timeout),
+        nameof(JobStatus.Stopped), nameof(JobStatus.Blocked)
+    ];
+
     public static readonly string[] ValidExecutionProfiles = ["deep", "balanced"];
 
     public static readonly string[] ValidImpactLevels = ["Small", "Medium", "High"];
@@ -125,4 +132,12 @@ public static class CliValidation
         sourceCount > 1
             ? SpectreValidation.Error($"Provide the value in exactly one way: {inlineSources}.")
             : SpectreValidation.Success();
+
+    public static void ValidateConfiguredProject(string projectName, IEnumerable<string> availableProjects)
+    {
+        if (!availableProjects.Contains(projectName, StringComparer.OrdinalIgnoreCase))
+        {
+            ThrowProjectNotFound(projectName, availableProjects);
+        }
+    }
 }

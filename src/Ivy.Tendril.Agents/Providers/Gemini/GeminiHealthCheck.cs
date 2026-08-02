@@ -32,43 +32,59 @@ public sealed class GeminiHealthCheck : IAgentHealthCheck
         }
 
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var credPath = Path.Combine(home, ".gemini", "oauth_creds.json");
-        var accountsPath = Path.Combine(home, ".gemini", "google_accounts.json");
-        var settingsPath = Path.Combine(home, ".gemini", "settings.json");
+        var candidates = GetCredentialCandidates(home);
 
-        if (File.Exists(credPath))
+        foreach (var path in candidates)
         {
-            var info = new FileInfo(credPath);
-            if (info.Length > 0)
+            if (!File.Exists(path))
+                continue;
+
+            var info = new FileInfo(path);
+            if (info.Length == 0)
+                continue;
+
+            var fileName = Path.GetFileName(path);
+            if (fileName == "oauth_creds.json")
+            {
                 return new AgentAuthResult
                 {
                     Status = AuthStatus.Authenticated,
                     AuthMethod = "oauth",
                 };
-        }
+            }
 
-        if (IsActiveAccountAuthenticated(accountsPath))
-        {
-            return new AgentAuthResult
+            if (fileName == "google_accounts.json" && IsActiveAccountAuthenticated(path))
             {
-                Status = AuthStatus.Authenticated,
-                AuthMethod = "oauth",
-            };
-        }
+                return new AgentAuthResult
+                {
+                    Status = AuthStatus.Authenticated,
+                    AuthMethod = "oauth",
+                };
+            }
 
-        var isTestRunner = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IVY_TEST_RUNNER"));
-        if (!isTestRunner && IsApiKeyConfiguredInSettings(settingsPath))
-        {
-            return new AgentAuthResult
+            var isTestRunner = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("IVY_TEST_RUNNER"));
+            if (!isTestRunner && fileName == "settings.json" && IsApiKeyConfiguredInSettings(path))
             {
-                Status = AuthStatus.Authenticated,
-                AuthMethod = "api-key",
-            };
+                return new AgentAuthResult
+                {
+                    Status = AuthStatus.Authenticated,
+                    AuthMethod = "api-key",
+                };
+            }
+
+            if (fileName == "config.json" && IsConfigFileValid(path))
+            {
+                return new AgentAuthResult
+                {
+                    Status = AuthStatus.Authenticated,
+                    AuthMethod = "oauth",
+                };
+            }
         }
 
-        // Run a fast process check as final fallback
-        var (exitCode, _, _) = await HealthCheckRunner.RunAsync(
-            "gemini", ["-p", "ping"], TimeSpan.FromSeconds(5), ct);
+        // Run a process check as final fallback with proper timeout
+        var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
+            "gemini", ["-p", "ping"], TimeSpan.FromSeconds(30), ct);
 
         if (exitCode == 0)
         {
@@ -79,12 +95,51 @@ public sealed class GeminiHealthCheck : IAgentHealthCheck
             };
         }
 
+        if (exitCode == -1 && stderr.Contains("Timed out", StringComparison.OrdinalIgnoreCase))
+        {
+            return new AgentAuthResult
+            {
+                Status = AuthStatus.Unknown,
+                Error = "Gemini auth check timed out",
+            };
+        }
+
         return new AgentAuthResult
         {
             Status = AuthStatus.NotAuthenticated,
             Error = "OAuth credentials not found and no API key set",
             SignInHint = "Run 'gemini auth' or set GEMINI_API_KEY",
         };
+    }
+
+    internal static List<string> GetCredentialCandidates(string home)
+    {
+        var candidates = new List<string>();
+
+        var files = new[] { "oauth_creds.json", "google_accounts.json", "settings.json" };
+        foreach (var file in files)
+        {
+            candidates.Add(Path.Combine(home, ".gemini", file));
+            candidates.Add(Path.Combine(home, ".gemini", "config", file));
+        }
+
+        candidates.Add(Path.Combine(home, ".gemini", "config", "config.json"));
+
+        return candidates;
+    }
+
+    private static bool IsConfigFileValid(string filePath)
+    {
+        try
+        {
+            if (!File.Exists(filePath)) return false;
+            var content = File.ReadAllText(filePath);
+            return content.Length > 2 && content.Contains("{", StringComparison.Ordinal);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static bool IsApiKeyConfiguredInSettings(string filePath)
