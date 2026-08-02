@@ -282,9 +282,10 @@ public static class PlanContentHelpers
 
                 // Add line count totals
                 var totals = CountDiffLines(data.Diff);
-                commitSheetContent |= Layout.Horizontal().Gap(1).Height(Size.Auto())
-                    | Text.Block($"+{totals.Additions}").Color(Colors.Success).Small()
-                    | Text.Block($"-{totals.Deletions}").Color(Colors.Destructive).Small();
+                var totalsText = Text.Rich().NoWrap().Small()
+                    .Run($"+{totals.Additions}", color: Colors.Success)
+                    .Run($" -{totals.Deletions}", color: Colors.Destructive);
+                commitSheetContent |= totalsText;
 
                 foreach (var fileDiff in fileDiffs)
                 {

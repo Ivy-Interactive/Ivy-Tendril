@@ -226,18 +226,17 @@ public class ChangesTabView(
             ? rawCommitsBtn.WithDropDown(commitItems)
             : rawCommitsBtn;
 
-        var toolbar = Layout.Horizontal().AlignContent(Align.Left).Height(Size.Auto())
+        var leftSide = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
             | hideFormatting.ToSwitchInput(label: "Hide formatting changes")
             | commitsBtn;
 
-        var totals = PlanContentHelpers.CountDiffLines(fileDiffs);
-        toolbar = toolbar
-            | Layout.Horizontal().Gap(1).Height(Size.Auto())
-                | Text.Block($"+{totals.Additions}").Color(Colors.Success).Small()
-                | Text.Block($"-{totals.Deletions}").Color(Colors.Destructive).Small();
-
         if (hideFormatting.Value && hiddenCount > 0)
-            toolbar |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
+            leftSide |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
+
+        var totals = PlanContentHelpers.CountDiffLines(fileDiffs);
+        var totalsText = Text.Rich().NoWrap().Small()
+            .Run($"+{totals.Additions}", color: Colors.Success)
+            .Run($" -{totals.Deletions}", color: Colors.Destructive);
 
         var draftCount = draftComments.Value.Count;
         var submitBtn = new Button(draftCount > 0 ? $"Agent Review ({draftCount})" : "Agent Review")
@@ -246,7 +245,13 @@ public class ChangesTabView(
 
         submitBtn = draftCount > 0 ? submitBtn.Primary() : submitBtn.Outline();
 
-        toolbar |= submitBtn;
+        var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right).Padding(0, 0, 2, 0)
+            | totalsText
+            | submitBtn;
+
+        var toolbar = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween).Height(Size.Auto())
+            | leftSide
+            | rightSide;
 
         var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0)))
             | treePanel
