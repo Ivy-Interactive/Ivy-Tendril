@@ -469,6 +469,13 @@ internal class JobLauncher
             return (values, null, null);
         }
 
+        if (job.TypedArgs is AddProjectArgs addProjArgs)
+        {
+            values["ProjectName"] = addProjArgs.ProjectName;
+            values["ReposJson"] = System.Text.Json.JsonSerializer.Serialize(addProjArgs.Repos);
+            return (values, null, null);
+        }
+
         return BuildNonCreatePlanFirmware(job, values);
     }
 

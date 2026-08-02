@@ -997,6 +997,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                 args[0],
                 GetLegacyArg(args, "-Repo") ?? ""),
             Constants.JobTypes.SetupProject => new SetupProjectArgs(args[0]),
+            Constants.JobTypes.AddProject => new AddProjectArgs(args[0], new List<RepoRef>()),
             _ => null
         };
 

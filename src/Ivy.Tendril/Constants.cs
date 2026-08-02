@@ -73,7 +73,8 @@ public static class Constants
         [JobTypes.CreateIssue] = Colors.Rose,
         [JobTypes.RetryPlan] = Colors.Orange,
         [JobTypes.SetupProject] = Colors.Slate,
-        [JobTypes.SyncRepo] = Colors.Amber
+        [JobTypes.SyncRepo] = Colors.Amber,
+        [JobTypes.AddProject] = Colors.Purple
     };
 
     /// <summary>
@@ -91,10 +92,11 @@ public static class Constants
         public const string CreateIssue = "CreateIssue";
         public const string SetupProject = "SetupProject";
         public const string SyncRepo = "SyncRepo";
+        public const string AddProject = "AddProject";
 
         public static readonly HashSet<string> BuiltIn = new(StringComparer.OrdinalIgnoreCase)
         {
-            CreatePlan, ExecutePlan, RetryPlan, ExpandPlan, UpdatePlan, SplitPlan, CreatePr, CreateIssue, SetupProject, SyncRepo
+            CreatePlan, ExecutePlan, RetryPlan, ExpandPlan, UpdatePlan, SplitPlan, CreatePr, CreateIssue, SetupProject, SyncRepo, AddProject
         };
     }
 }

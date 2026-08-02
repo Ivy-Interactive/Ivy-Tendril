@@ -2,6 +2,8 @@ using Ivy.Core.Hooks;
 using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Jobs;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Apps.Views;
 
 namespace Ivy.Tendril.Apps.Settings.Dialogs;
@@ -14,6 +16,7 @@ public class AddProjectDialog(
 {
     public override object? Build()
     {
+        var jobService = UseService<IJobService>();
         var step = UseState(0);
         var editName = UseState("");
         var editRepos = UseState(new List<RepoRef>());
@@ -112,8 +115,6 @@ public class AddProjectDialog(
             refreshToken.Refresh();
         }
 
-
-
         object activeView = step.Value switch
         {
             0 => new ProjectInputStepView(
@@ -129,6 +130,24 @@ public class AddProjectDialog(
                 {
                     skipAgent.Set(true);
                     setupTriggered.Set(true);
+                },
+                onBgJob: () =>
+                {
+                    if (string.IsNullOrWhiteSpace(editName.Value) || editRepos.Value.Count == 0) return;
+
+                    var newProj = new ProjectConfig
+                    {
+                        Name = editName.Value.Trim(),
+                        Repos = new List<RepoRef>(editRepos.Value)
+                    };
+                    config.Settings.Projects.Add(newProj);
+                    try { config.SaveSettings(); } catch { }
+
+                    jobService.StartJob(new AddProjectArgs(newProj.Name, newProj.Repos));
+
+                    client.Toast($"Created background job for project '{newProj.Name}'", "Job Started");
+                    isOpen.Set(false);
+                    refreshToken.Refresh();
                 },
                 skipButtonText: "Manual Setup",
                 nextButtonText: "Create Project",

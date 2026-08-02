@@ -11,6 +11,7 @@ public class ProjectInputStepView(
     Action onNext,
     Action? onBack = null,
     Action? onSkip = null,
+    Action? onBgJob = null,
     string skipButtonText = "Skip",
     string nextButtonText = "Create Project",
     string title = "Setup your first project",
@@ -20,6 +21,8 @@ public class ProjectInputStepView(
     public override object Build()
     {
         var config = UseService<IConfigService>();
+        var tendrilArgs = UseService<TendrilArgs>();
+        var isBeta = tendrilArgs?.Beta == true;
 
         UseEffect(() =>
         {
@@ -46,10 +49,13 @@ public class ProjectInputStepView(
                           && !string.IsNullOrWhiteSpace(projectName.Value)
                           && !nameExists;
 
-        var buttonArea = Layout.Horizontal().Width(Size.Full())
+        var buttonArea = Layout.Horizontal().Width(Size.Full()).Gap(2)
             | (onSkip != null ? (object)new Button(skipButtonText).Ghost().Large().Disabled(disableSkipWhenCannotContinue && !canContinue).OnClick(() => onSkip()) : new Spacer())
             | new Spacer()
             | (onBack != null ? (object)new Button("Back").Outline().Large().Icon(Icons.ArrowLeft).OnClick(onBack) : null!)
+            | (isBeta && onBgJob != null
+                ? (object)new Button("Bg job").Outline().Large().Disabled(!canContinue).OnClick(onBgJob)
+                : null!)
             | new Button(nextButtonText).Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
                 .Disabled(!canContinue)
                 .OnClick(onNext);
