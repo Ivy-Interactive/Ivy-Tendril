@@ -28,8 +28,6 @@ public class InboxWatcherService : IInboxWatcherService
         // Recover crashed CreatePlan jobs: rename .processing files back to .md
         RecoverProcessingFiles();
 
-        ProcessExistingFiles();
-
         _watcher = new FileSystemWatcher(_inboxPath, "*.md")
         {
             InternalBufferSize = 65536,
@@ -42,6 +40,8 @@ public class InboxWatcherService : IInboxWatcherService
             CrashLog.Write($"[{DateTime.UtcNow:O}] InboxWatcher FSW error: {e.GetException()}");
 
         _pollTimer = new Timer(OnPollTimer, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+
+        _ = Task.Run(ProcessExistingFilesAsync);
     }
 
     public void Dispose()
@@ -66,7 +66,7 @@ public class InboxWatcherService : IInboxWatcherService
     {
         try
         {
-            ProcessExistingFiles();
+            _ = ProcessExistingFilesAsync();
         }
         catch (Exception ex)
         {
@@ -95,14 +95,23 @@ public class InboxWatcherService : IInboxWatcherService
             }
     }
 
-    internal void ProcessExistingFiles()
+    internal async Task ProcessExistingFilesAsync()
     {
         if (!Directory.Exists(_inboxPath))
             return;
 
-        var files = Directory.GetFiles(_inboxPath, "*.md")
-            .OrderBy(f => File.GetCreationTimeUtc(f))
-            .ToList();
+        List<string> files;
+        try
+        {
+            files = Directory.GetFiles(_inboxPath, "*.md")
+                .OrderBy(f => File.GetCreationTimeUtc(f))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to list inbox files for processing");
+            return;
+        }
 
         for (int i = 0; i < files.Count; i++)
         {
@@ -110,7 +119,7 @@ public class InboxWatcherService : IInboxWatcherService
 
             // Stagger startup to avoid thundering herd
             if (i < files.Count - 1)
-                Thread.Sleep(2000);
+                await Task.Delay(2000);
         }
     }
 

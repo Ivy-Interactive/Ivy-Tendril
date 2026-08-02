@@ -65,7 +65,7 @@ public static class TendrilServer
                     PromptwareDeployer.Deploy(promptwaresDir);
                 }
 
-                BackgroundServiceActivator.Start(app.Services);
+                _ = BackgroundServiceActivator.StartAsync(app.Services, app.Services.GetRequiredService<ILogger<Server>>());
             }
 
             var telemetryService = app.Services.GetRequiredService<TelemetryService>();
