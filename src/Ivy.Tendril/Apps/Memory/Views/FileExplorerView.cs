@@ -74,17 +74,15 @@ public class FileExplorerView : ViewBase
         var sourceOptions = GetAllSourceOptions(_projects, _workingDir, _configuredPromptwares);
         var selectOptions = sourceOptions.Select(o => new Option<string>(o.Id, o.Label)).ToArray<IAnyOption>();
 
-        // Ensure default option selected
+        // Ensure default option selected if empty or invalid
         if (string.IsNullOrEmpty(_selectedSourceKey.Value) && sourceOptions.Count > 0)
         {
-            var firstOpt = sourceOptions.First();
-            _selectedSourceKey.Set(firstOpt.Id);
-            _selectedFolderPath.Set(firstOpt.Path);
-            _selectedFolderName.Set(firstOpt.Name);
+            _selectedSourceKey.Set(sourceOptions.First().Id);
         }
 
-        // Current active source option
+        // Find active option matching simple string ID
         var currentMatch = sourceOptions.FirstOrDefault(o => o.Id == _selectedSourceKey.Value) ?? sourceOptions.FirstOrDefault();
+
         if (currentMatch != null && currentMatch.Path != _selectedFolderPath.Value)
         {
             _selectedFolderPath.Set(currentMatch.Path);
@@ -96,7 +94,7 @@ public class FileExplorerView : ViewBase
             ? currentMatch.Path
             : _workingDir;
 
-        // Scan files directly for current targetDir to guarantee instant update on selection
+        // Scan files directly for targetDir to guarantee instant updates on project/promptware selection
         var scannedFiles = new List<string>();
         try
         {
@@ -194,6 +192,8 @@ public class FileExplorerView : ViewBase
         Dictionary<string, PromptwareConfig>? configuredPromptwares)
     {
         var options = new List<ProjectOrPromptwareOption>();
+        var normWorkingDir = workingDir.Replace('\\', '/').TrimEnd('/');
+        int index = 0;
 
         // 1. Projects
         if (projects.Count > 0)
@@ -204,30 +204,28 @@ public class FileExplorerView : ViewBase
                 {
                     foreach (var repo in proj.Repos)
                     {
-                        var fullPath = Path.IsPathRooted(repo.Path)
+                        var rawPath = Path.IsPathRooted(repo.Path)
                             ? repo.Path
-                            : Path.GetFullPath(Path.Combine(workingDir, repo.Path));
-                        var name = Path.GetFileName(fullPath.TrimEnd('/', '\\'));
+                            : Path.Combine(workingDir, repo.Path);
+                        var fullPath = Path.GetFullPath(rawPath).Replace('\\', '/').TrimEnd('/');
+                        var name = Path.GetFileName(fullPath);
                         if (string.IsNullOrEmpty(name)) name = proj.Name;
                         var label = $"📁 Project: {name}";
-                        var id = $"proj:{fullPath}";
-                        options.Add(new ProjectOrPromptwareOption(id, label, fullPath, name, false));
+                        options.Add(new ProjectOrPromptwareOption((index++).ToString(), label, fullPath, name, false));
                     }
                 }
                 else
                 {
                     var label = $"📁 Project: {proj.Name}";
-                    var id = $"proj:{workingDir}";
-                    options.Add(new ProjectOrPromptwareOption(id, label, workingDir, proj.Name, false));
+                    options.Add(new ProjectOrPromptwareOption((index++).ToString(), label, normWorkingDir, proj.Name, false));
                 }
             }
         }
         else
         {
-            var name = Path.GetFileName(workingDir.TrimEnd('/', '\\'));
+            var name = Path.GetFileName(normWorkingDir);
             var label = $"📁 Project: {name}";
-            var id = $"proj:{workingDir}";
-            options.Add(new ProjectOrPromptwareOption(id, label, workingDir, name, false));
+            options.Add(new ProjectOrPromptwareOption((index++).ToString(), label, normWorkingDir, name, false));
         }
 
         // 2. Promptwares
@@ -251,9 +249,9 @@ public class FileExplorerView : ViewBase
                 if (pwName.Equals("memories", StringComparison.OrdinalIgnoreCase)) continue;
                 if (seenPw.Add(pwName))
                 {
+                    var normPwDir = Path.GetFullPath(pwDir).Replace('\\', '/').TrimEnd('/');
                     var label = $"✨ Promptware: {pwName}";
-                    var id = $"pw:{pwDir}";
-                    options.Add(new ProjectOrPromptwareOption(id, label, pwDir, pwName, true));
+                    options.Add(new ProjectOrPromptwareOption((index++).ToString(), label, normPwDir, pwName, true));
                 }
             }
         }
@@ -265,9 +263,9 @@ public class FileExplorerView : ViewBase
                 if (seenPw.Add(name))
                 {
                     var folder = PromptwareHelper.ResolvePromptwareFolder(name, tendrilHome);
+                    var normFolder = Path.GetFullPath(folder).Replace('\\', '/').TrimEnd('/');
                     var label = $"✨ Promptware: {name}";
-                    var id = $"pw:{folder}";
-                    options.Add(new ProjectOrPromptwareOption(id, label, folder, name, true));
+                    options.Add(new ProjectOrPromptwareOption((index++).ToString(), label, normFolder, name, true));
                 }
             }
         }
