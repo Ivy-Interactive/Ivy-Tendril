@@ -149,6 +149,7 @@ public class MemoryApp : ViewBase
             ?? sourceOptions.FirstOrDefault();
 
         var selectedSourceName = currentSourceMatch?.Name;
+        var selectedSourcePath = currentSourceMatch?.Path;
 
         var availableMemories = new List<MemoryNote>();
         try
@@ -157,14 +158,27 @@ public class MemoryApp : ViewBase
         }
         catch { }
 
-        var filteredMemories = string.IsNullOrEmpty(selectedSourceName)
-            ? availableMemories
-            : availableMemories.Where(m =>
+        List<MemoryNote> filteredMemories;
+        if (currentSourceMatch != null && currentSourceMatch.IsPromptware)
+        {
+            filteredMemories = availableMemories.Where(m =>
+                string.Equals(m.ProjectName, selectedSourceName, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrEmpty(selectedSourcePath) && m.Targets.Keys.Any(t => t.Contains(selectedSourceName ?? "", StringComparison.OrdinalIgnoreCase)))
+            ).ToList();
+        }
+        else if (currentSourceMatch != null && !string.IsNullOrEmpty(selectedSourceName))
+        {
+            filteredMemories = availableMemories.Where(m =>
                 string.Equals(m.ProjectName, selectedSourceName, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(m.ProjectName, "global", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(m.ProjectName, "workspace", StringComparison.OrdinalIgnoreCase) ||
                 string.IsNullOrEmpty(m.ProjectName)
             ).ToList();
+        }
+        else
+        {
+            filteredMemories = availableMemories;
+        }
 
         var allMemories = filteredMemories.Count > 0 ? filteredMemories : availableMemories;
 

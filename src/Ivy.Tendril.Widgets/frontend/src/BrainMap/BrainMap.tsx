@@ -97,7 +97,8 @@ export const BrainMap: React.FC<BrainMapProps> = ({
     const chart = chartRef.current;
     if (!chart) return;
 
-    const currentFingerprint = `${nodes.length}_${edges.length}_${selectedNodeId}_${theme}`;
+    const nodeIdsKey = nodes.map(n => n?.id).filter(Boolean).join(",");
+    const currentFingerprint = `${nodeIdsKey}_${edges.length}_${selectedNodeId}_${theme}`;
     lastFingerprintRef.current = currentFingerprint;
 
     const isDark = theme === "dark";
