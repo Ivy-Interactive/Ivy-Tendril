@@ -73,27 +73,13 @@ public class FileMemoryMapView : ViewBase
             var cleanLinks = _status?.BrokenLinks ?? 0;
             var orphanCount = _status?.OrphanMemories ?? 0;
 
-            var statsGrid = Layout.Horizontal().Wrap(true).Gap(3)
-                | new Card(
-                      Layout.Vertical().AlignContent(Align.Center).Padding(3)
-                      | Text.H2(totalMem.ToString()).Bold()
-                      | Text.Muted("Total Memories").Small()
-                  ).Width(Size.Units(35))
-                | new Card(
-                      Layout.Vertical().AlignContent(Align.Center).Padding(3)
-                      | Text.H2(outdatedCount.ToString()).Bold()
-                      | (outdatedCount > 0 ? Text.Danger("Outdated References").Bold() : Text.Success("Up to Date")).Small()
-                  ).Width(Size.Units(35))
-                | new Card(
-                      Layout.Vertical().AlignContent(Align.Center).Padding(3)
-                      | Text.H2(cleanLinks.ToString()).Bold()
-                      | (cleanLinks > 0 ? Text.Danger("Broken Links").Bold() : Text.Success("Clean Links")).Small()
-                  ).Width(Size.Units(35))
-                | new Card(
-                      Layout.Vertical().AlignContent(Align.Center).Padding(3)
-                      | Text.H2(orphanCount.ToString()).Bold()
-                      | Text.Muted("Orphans").Small()
-                  ).Width(Size.Units(35));
+            var upToDateCount = Math.Max(0, totalMem - outdatedCount);
+
+            var statsGrid = Layout.Grid().Columns(4).Gap(3)
+                | new MetricView("Total Memories", Icons.Brain, ctx => ctx.UseQuery("totalMem", () => System.Threading.Tasks.Task.FromResult(new MetricRecord(totalMem.ToString()))))
+                | new MetricView("Up to Date", Icons.Check, ctx => ctx.UseQuery("upToDate", () => System.Threading.Tasks.Task.FromResult(new MetricRecord(upToDateCount.ToString()))))
+                | new MetricView("Clean Links", Icons.Link, ctx => ctx.UseQuery("cleanLinks", () => System.Threading.Tasks.Task.FromResult(new MetricRecord(cleanLinks.ToString()))))
+                | new MetricView("Orphans", Icons.FileText, ctx => ctx.UseQuery("orphans", () => System.Threading.Tasks.Task.FromResult(new MetricRecord(orphanCount.ToString()))));
 
             var recentNotesCards = _allMemories.Take(12).Select(note =>
             {

@@ -265,9 +265,6 @@ public class MemoryApp : ViewBase
         var floatingControlIsland = Layout.Horizontal()
             .AlignContent(Align.Center)
             .Gap(2)
-            .Padding(2, 4)
-            .Background(Colors.Slate)
-            .Border(Colors.Slate)
             | new Button("New Note").Primary().Small().Icon(Icons.Plus).OnClick(() => isNewNoteOpen.Set(true))
             | new Button("Update Job").Outline().Small().Icon(Icons.Zap).OnClick(() =>
               {
@@ -291,7 +288,7 @@ public class MemoryApp : ViewBase
         var mainLayoutArea = Layout.Vertical().Size(Size.Full())
             | (outdatedBanner != null ? outdatedBanner : null)
             | mainContentTabs
-            | (Layout.Horizontal().AlignContent(Align.Center).Width(Size.Full()).Padding(2)
+            | (Layout.Horizontal().AlignContent(Align.Center).Width(Size.Full()).Height(Size.Shrink()).Padding(1)
                | floatingControlIsland);
 
         var rootLayout = new SidebarLayout(
