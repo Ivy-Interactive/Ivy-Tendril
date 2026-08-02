@@ -32,13 +32,13 @@ public class GeminiHealthCheckTests
 
         var candidates = GeminiHealthCheck.GetCredentialCandidates(home);
 
-        Assert.Contains("/home/testuser/.gemini/oauth_creds.json", candidates);
-        Assert.Contains("/home/testuser/.gemini/config/oauth_creds.json", candidates);
-        Assert.Contains("/home/testuser/.gemini/google_accounts.json", candidates);
-        Assert.Contains("/home/testuser/.gemini/config/google_accounts.json", candidates);
-        Assert.Contains("/home/testuser/.gemini/settings.json", candidates);
-        Assert.Contains("/home/testuser/.gemini/config/settings.json", candidates);
-        Assert.Contains("/home/testuser/.gemini/config/config.json", candidates);
+        Assert.Contains(Path.Combine(home, ".gemini", "oauth_creds.json"), candidates);
+        Assert.Contains(Path.Combine(home, ".gemini", "config", "oauth_creds.json"), candidates);
+        Assert.Contains(Path.Combine(home, ".gemini", "google_accounts.json"), candidates);
+        Assert.Contains(Path.Combine(home, ".gemini", "config", "google_accounts.json"), candidates);
+        Assert.Contains(Path.Combine(home, ".gemini", "settings.json"), candidates);
+        Assert.Contains(Path.Combine(home, ".gemini", "config", "settings.json"), candidates);
+        Assert.Contains(Path.Combine(home, ".gemini", "config", "config.json"), candidates);
     }
 
     [Fact]
