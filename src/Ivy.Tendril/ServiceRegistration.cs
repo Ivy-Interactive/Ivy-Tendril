@@ -175,7 +175,8 @@ internal static class ServiceRegistration
             var planWatcher = sp.GetRequiredService<IPlanWatcherService>();
             var config = sp.GetRequiredService<IConfigService>();
             var logger = sp.GetRequiredService<ILogger<TendrilProcessStatusService>>();
-            return new TendrilProcessStatusService(planReader, jobService, planWatcher, config, logger);
+            var chatHistory = sp.GetService<IChatHistoryService>();
+            return new TendrilProcessStatusService(planReader, jobService, planWatcher, config, logger, chatHistory);
         });
         server.Services.AddSingleton<ITendrilProcessStatusService>(sp => sp.GetRequiredService<TendrilProcessStatusService>());
         server.Services.AddSingleton<InboxWatcherService>(sp =>

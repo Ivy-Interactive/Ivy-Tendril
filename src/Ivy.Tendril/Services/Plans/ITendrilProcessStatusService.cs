@@ -13,6 +13,7 @@ public record TendrilProcessStatus
     public int RetryingPlansCount { get; init; }
     public int CreatingPrCount { get; init; }
     public int RecommendationsCount { get; init; }
+    public int GeneratingChatSessionsCount { get; init; }
 
     public static TendrilProcessStatus Empty => new();
 }
