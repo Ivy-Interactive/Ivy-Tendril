@@ -17,7 +17,34 @@ public class RerunJobDialogTests
         public PlanFile? GetPlanByFolder(string folderPath) => null;
         public List<PlanFile> GetIceboxPlans() => [];
         public void TransitionState(string folderName, PlanStatus newState) { }
-        public HashSet<string> GetFailedVerificationNames(string folderName) => [];
+        public IReadOnlyList<string> GetFailedVerifications(string folderName) => [];
+        public void CompleteWithPartialDelivery(string folderName) { }
+        public void ResetToDraft(string folderName) { }
+        public void ResetVerificationsForRetry(string folderName) { }
+        public void SetVerificationStatus(string folderName, string name, VerificationStatus status) { }
+        public void SaveRevision(string folderName, string content) { }
+        public void RevertRevision(string folderName) { }
+        public string ReadLatestRevision(string folderName) => "";
+        public List<(int Number, string Content, DateTime Modified)> GetRevisions(string folderName) => [];
+        public void DeletePlan(string folderName) { }
+        public string ReadRawPlan(string folderName) => "";
+        public void SavePlan(string folderName, string fullContent) { }
+        public void UpdateLatestRevision(string folderName, string content) { }
+        public DashboardModels GetDashboardData(string? projectFilter) => new(0, 0, 0, 0, 0, 0, 0m, [], []);
+        public decimal GetPlanTotalCost(string folderPath) => 0;
+        public int GetPlanTotalTokens(string folderPath) => 0;
+        public List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null) => [];
+        public List<Recommendation> GetRecommendations() => [];
+        public int GetPendingRecommendationsCount() => 0;
+        public PlanReaderService.PlanCountSnapshot ComputePlanCounts() => new(0, 0, 0, 0, 0, 0);
+        public void UpdateRecommendationState(string planFolderName, string recommendationTitle, string newState, string? declineReason = null) { }
+        public List<RecommendationYaml> GetRecommendationsForPlan(string folderName) => [];
+        public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle) { }
+        public void AcceptRecommendationsAndRetry(string folderName, IReadOnlyCollection<string> titles) { }
+        public void SyncPlanArtifacts(string planFolder) { }
+        public void InvalidateCaches() { }
+        public Task FlushPendingWritesAsync() => Task.CompletedTask;
+        public event Action? CountsInvalidated { add { } remove { } }
     }
 
     [Theory]
