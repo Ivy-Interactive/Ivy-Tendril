@@ -1,21 +1,23 @@
-using System.Collections.Frozen;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Providers.Ivy;
 using Ivy.Tendril.Agents.Providers.OpenCode;
 
-namespace Ivy.Tendril.Agents.Providers.Ivy;
+namespace Ivy.Tendril.Agents.Providers.OpenAiProxy;
 
-public sealed class IvyCli : IAgentCli
+public sealed class OpenAiProxyCli : IAgentCli
 {
-    private readonly Func<string?> _apiKeyProvider;
     private readonly OpenCodeCli _inner = new();
+    private readonly Func<string?> _apiKeyProvider;
+    private readonly Func<string?> _baseUrlProvider;
 
-    public IvyCli(Func<string?>? apiKeyProvider = null)
+    public OpenAiProxyCli(Func<string?>? apiKeyProvider = null, Func<string?>? baseUrlProvider = null)
     {
         _apiKeyProvider = apiKeyProvider ?? (() => null);
+        _baseUrlProvider = baseUrlProvider ?? (() => null);
     }
 
-    public string Id => Abstractions.AgentId.Ivy;
-    public string DisplayName => "Ivy Agent";
+    public string Id => Abstractions.AgentId.OpenAiProxy;
+    public string DisplayName => "OpenAI Proxy";
 
     public AgentCapabilities Capabilities => _inner.Capabilities;
     public TransportKind SupportedTransports => _inner.SupportedTransports;
@@ -32,7 +34,12 @@ public sealed class IvyCli : IAgentCli
         var spec = _inner.BuildProcessSpec(config);
 
         var env = new Dictionary<string, string>(spec.Environment);
-        env["ANTHROPIC_BASE_URL"] = "https://llmproxy.ivy.app";
+
+        var baseUrl = _baseUrlProvider();
+        if (!string.IsNullOrEmpty(baseUrl))
+        {
+            env["ANTHROPIC_BASE_URL"] = baseUrl;
+        }
 
         var apiKey = _apiKeyProvider();
         if (!string.IsNullOrEmpty(apiKey))
@@ -58,7 +65,11 @@ public sealed class IvyCli : IAgentCli
     public IReadOnlyDictionary<string, string> GetDefaultEnvironment()
     {
         var env = new Dictionary<string, string>(_inner.GetDefaultEnvironment());
-        env["ANTHROPIC_BASE_URL"] = "https://llmproxy.ivy.app";
+        var baseUrl = _baseUrlProvider();
+        if (!string.IsNullOrEmpty(baseUrl))
+        {
+            env["ANTHROPIC_BASE_URL"] = baseUrl;
+        }
         return env;
     }
 }

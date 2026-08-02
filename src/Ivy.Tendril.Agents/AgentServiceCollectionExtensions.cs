@@ -22,6 +22,9 @@ public sealed class AgentInfrastructureOptions
     public Func<IServiceProvider, Func<string?>>? IvyApiKeyProviderFactory { get; set; }
     public Func<IServiceProvider, Func<string?>>? IvyTokenProviderFactory { get; set; }
     public Func<IServiceProvider, Func<CancellationToken, Task<string?>>>? IvyEmailProviderFactory { get; set; }
+
+    public Func<IServiceProvider, Func<string?>>? OpenAiProxyApiKeyProviderFactory { get; set; }
+    public Func<IServiceProvider, Func<string?>>? OpenAiProxyBaseUrlProviderFactory { get; set; }
 }
 
 public static class AgentServiceCollectionExtensions
@@ -110,6 +113,18 @@ public static class AgentServiceCollectionExtensions
                     new Providers.Ivy.IvySessionCostParser(),
                     new Providers.Ivy.IvyPty(apiKeyProvider),
                     new Providers.Ivy.IvyModelCatalog());
+
+                Func<string?> openAiProxyApiKeyProvider = options.OpenAiProxyApiKeyProviderFactory?.Invoke(sp) ?? (() => null);
+                Func<string?> openAiProxyBaseUrlProvider = options.OpenAiProxyBaseUrlProviderFactory?.Invoke(sp) ?? (() => null);
+
+                runner.Register(
+                    new Providers.OpenAiProxy.OpenAiProxyCli(openAiProxyApiKeyProvider, openAiProxyBaseUrlProvider),
+                    new Providers.OpenAiProxy.OpenAiProxyEventParser(),
+                    new Providers.OpenAiProxy.OpenAiProxyHealthCheck(openAiProxyApiKeyProvider, openAiProxyBaseUrlProvider),
+                    new Providers.OpenAiProxy.OpenAiProxyFailureAnalyzer(),
+                    new Providers.OpenAiProxy.OpenAiProxySessionCostParser(),
+                    new Providers.OpenAiProxy.OpenAiProxyPty(openAiProxyApiKeyProvider, openAiProxyBaseUrlProvider),
+                    new Providers.OpenAiProxy.OpenAiProxyModelCatalog());
             }
 
             return runner;

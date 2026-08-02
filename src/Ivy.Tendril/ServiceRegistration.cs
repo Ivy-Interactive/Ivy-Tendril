@@ -72,6 +72,42 @@ internal static class ServiceRegistration
                     return userInfo?.Email;
                 };
             };
+
+            opts.OpenAiProxyApiKeyProviderFactory = sp =>
+            {
+                var config = sp.GetService<IConfigService>();
+                return () =>
+                {
+                    if (config?.Settings != null)
+                    {
+                        var openAiProxyAgent = config.Settings.CodingAgents.FirstOrDefault(a =>
+                            a.Name.Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
+                        if (openAiProxyAgent != null && openAiProxyAgent.EnvironmentVariables.TryGetValue("ANTHROPIC_API_KEY", out var key) && !string.IsNullOrEmpty(key))
+                        {
+                            return key;
+                        }
+                    }
+                    return null;
+                };
+            };
+
+            opts.OpenAiProxyBaseUrlProviderFactory = sp =>
+            {
+                var config = sp.GetService<IConfigService>();
+                return () =>
+                {
+                    if (config?.Settings != null)
+                    {
+                        var openAiProxyAgent = config.Settings.CodingAgents.FirstOrDefault(a =>
+                            a.Name.Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
+                        if (openAiProxyAgent != null && openAiProxyAgent.EnvironmentVariables.TryGetValue("ANTHROPIC_BASE_URL", out var url) && !string.IsNullOrEmpty(url))
+                        {
+                            return url;
+                        }
+                    }
+                    return null;
+                };
+            };
         });
 
         server.Services.AddSingleton<ModelPricingService>();
