@@ -402,6 +402,7 @@ public class DoctorCommandPlansTests : IDisposable
         Assert.Contains("title: My Plan", repaired);
     }
 
+
     // Plan 00090: the backfill report for plans that reached Completed over a failed verification
     // before the guard existed. 00042 is the shape it exists to surface.
     private static string CompletedWithVerifications(string checkResult, bool partialDelivery = false) =>
@@ -469,5 +470,40 @@ public class DoctorCommandPlansTests : IDisposable
         DoctorCommand.FindPartialDeliveryCandidates(DoctorCommand.ScanPlans(_plansDir));
 
         Assert.Equal(before, File.ReadAllText(yamlPath));
+    }
+
+    [Fact]
+    public void Doctor_ListsCompletedPlansWithFailedPreExecution()
+    {
+        // Plans laundered into Completed before the guards from plan 00103 landed are still on disk,
+        // so doctor sweeps for them.
+        var laundered = CreatePlan("00050-Phantom", ValidYaml);
+        WritePreExecutionReport(laundered, "Fail");
+
+        // Config-only plan: Completed with no commits, but pre-execution passed. Not laundered.
+        var configOnly = CreatePlan("00051-ConfigOnly", ValidYaml);
+        WritePreExecutionReport(configOnly, "Pass");
+
+        // Failed pre-execution, but already retired by hand: not Completed, so not listed.
+        var retired = CreatePlan("00052-Retired", ValidYaml.Replace("state: Completed", "state: Skipped"));
+        WritePreExecutionReport(retired, "Fail");
+
+        // Completed with no report at all: the common case, must stay quiet.
+        CreatePlan("00053-NoReport", ValidYaml);
+
+        var allResults = DoctorCommand.ScanPlans(_plansDir);
+        var found = DoctorCommand.FindLaunderedCompletedPlans(allResults);
+
+        Assert.Single(found);
+        Assert.Equal("00050", found[0].Result.Id);
+        Assert.Equal(Path.Combine(laundered, "Verification", "PreExecution.md"), found[0].ReportPath);
+    }
+
+    private static void WritePreExecutionReport(string planDir, string result)
+    {
+        var verificationDir = Path.Combine(planDir, "Verification");
+        Directory.CreateDirectory(verificationDir);
+        File.WriteAllText(Path.Combine(verificationDir, "PreExecution.md"),
+            $"---\nresult: {result}\ndate: 2026-08-01T20:13:49Z\n---\n# PreExecution\n");
     }
 }

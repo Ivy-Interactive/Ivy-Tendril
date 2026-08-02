@@ -55,6 +55,10 @@ public class PlanCreateSettings : CommandSettings
     [CommandOption("--plans-dir")]
     public string? PlansDir { get; set; }
 
+    [Description("Suppress the DuplicateCandidates block (for scripted and test use)")]
+    [CommandOption("--no-duplicate-check")]
+    public bool NoDuplicateCheck { get; set; }
+
     public override Spectre.Console.ValidationResult Validate()
     {
         return CliValidation.Combine(
@@ -94,6 +98,11 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
         }
 
         var plansDir = PlanCommandHelpers.GetPlansDirectory(settings.PlansDir);
+
+        // Computed before the new plan folder exists, so it cannot match itself.
+        var duplicateCandidates = settings.NoDuplicateCheck
+            ? []
+            : DuplicateCandidateFinder.Find(plansDir, settings.Title, resolvedProject.Name);
 
         var planId = PlanYamlHelper.AllocatePlanId(plansDir);
         var safeTitle = PlanYamlHelper.ToSafeTitle(settings.Title);
@@ -159,6 +168,14 @@ public class PlanCreateCommand : Command<PlanCreateSettings>
         Console.WriteLine("Verifications:");
         foreach (var v in plan.Verifications)
             Console.WriteLine($"{v.Name}:{v.Status}");
+
+        // Last, so the three blocks above stay byte-identical for every agent that parses them.
+        // The header is emitted only when there is something to report: the CreatePlan firmware
+        // branches on its presence.
+        var block = DuplicateCandidateFinder.FormatBlock(duplicateCandidates);
+        if (block.Length > 0)
+            Console.WriteLine(block);
+
         return 0;
     }
 }
