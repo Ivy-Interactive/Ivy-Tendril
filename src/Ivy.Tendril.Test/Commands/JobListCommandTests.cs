@@ -44,12 +44,13 @@ public class JobListCommandTests : IDisposable
         conn.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = @"
-            INSERT INTO Jobs (Id, Type, Project, Status, ReportedPlanId, StartedAt, CompletedAt, DurationSeconds, Cost, Cleared)
-            VALUES (@id, @type, @project, @status, @planId, @startedAt, @completedAt, @durationSeconds, 0.0, @cleared)";
+            INSERT INTO Jobs (Id, Type, Project, Status, PlanFile, ReportedPlanId, StartedAt, CompletedAt, DurationSeconds, Cost, Cleared)
+            VALUES (@id, @type, @project, @status, @planFile, @planId, @startedAt, @completedAt, @durationSeconds, 0.0, @cleared)";
         cmd.Parameters.AddWithValue("@id", id);
         cmd.Parameters.AddWithValue("@type", type);
         cmd.Parameters.AddWithValue("@project", project);
         cmd.Parameters.AddWithValue("@status", status);
+        cmd.Parameters.AddWithValue("@planFile", "");
         cmd.Parameters.AddWithValue("@planId", (object?)planId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@startedAt", (object?)startedAt?.ToString("o") ?? DBNull.Value);
         cmd.Parameters.AddWithValue("@completedAt", (object?)completedAt?.ToString("o") ?? DBNull.Value);
