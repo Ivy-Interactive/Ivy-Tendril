@@ -34,7 +34,7 @@ internal class AgentModelsCheck(ConfigService? configService = null, IAgentRunne
     }
 
     private async Task<(List<CheckStatus> Statuses, bool HasErrors)> ProbeAgentModelsAsync(
-        string agentId, string codingAgent, List<Models.CodingAgent> configuredAgents, CancellationToken ct)
+        string agentId, string codingAgent, List<Services.AgentConfig> configuredAgents, CancellationToken ct)
     {
         var statuses = new List<CheckStatus>();
         var hasErrors = false;
