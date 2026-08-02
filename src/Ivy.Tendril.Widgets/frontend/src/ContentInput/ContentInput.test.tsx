@@ -72,6 +72,13 @@ describe("ContentInput", () => {
       value: undefined,
     });
 
+    // Stub AudioContext for jsdom
+    vi.stubGlobal("AudioContext", class {
+      state = "running";
+      close() { return Promise.resolve(); }
+      resume() { return Promise.resolve(); }
+    });
+
     const onIvyEvent = vi.fn();
     render(<ContentInput id="civ-1" value="" onIvyEvent={onIvyEvent} transcriptionUrl="ws://test" />);
 
@@ -89,6 +96,13 @@ describe("ContentInput", () => {
     Object.defineProperty(global.navigator, "mediaDevices", {
       configurable: true,
       value: undefined,
+    });
+
+    // Stub AudioContext for jsdom
+    vi.stubGlobal("AudioContext", class {
+      state = "running";
+      close() { return Promise.resolve(); }
+      resume() { return Promise.resolve(); }
     });
 
     const mockWebSocket = vi.fn();
@@ -110,6 +124,13 @@ describe("ContentInput", () => {
       value: undefined,
     });
 
+    // Stub AudioContext for jsdom
+    vi.stubGlobal("AudioContext", class {
+      state = "running";
+      close() { return Promise.resolve(); }
+      resume() { return Promise.resolve(); }
+    });
+
     render(<ContentInput id="civ-1" value="" transcriptionUrl="ws://test" />);
 
     const micButton = screen.getByTitle("Voice input transcription");
@@ -127,6 +148,13 @@ describe("ContentInput", () => {
       value: {
         getUserMedia: vi.fn().mockRejectedValue(new DOMException("denied", "NotAllowedError")),
       },
+    });
+
+    // Stub AudioContext for jsdom
+    vi.stubGlobal("AudioContext", class {
+      state = "running";
+      close() { return Promise.resolve(); }
+      resume() { return Promise.resolve(); }
     });
 
     render(<ContentInput id="civ-1" value="" transcriptionUrl="ws://test" />);
