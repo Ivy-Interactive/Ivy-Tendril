@@ -142,6 +142,14 @@ public class MemoryApp : ViewBase
             return Disposable.Empty;
         }, selectedNote);
 
+        var sourceOptions = FileExplorerView.GetAllSourceOptions(projects, workingDir, configuredPromptwares);
+        var currentSourceMatch = sourceOptions.FirstOrDefault(o =>
+            string.Equals(o.Id, selectedSourceKey.Value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(o.Label, selectedSourceKey.Value, StringComparison.OrdinalIgnoreCase))
+            ?? sourceOptions.FirstOrDefault();
+
+        var selectedSourceName = currentSourceMatch?.Name;
+
         var availableMemories = new List<MemoryNote>();
         try
         {
@@ -149,10 +157,10 @@ public class MemoryApp : ViewBase
         }
         catch { }
 
-        var allMemories = string.IsNullOrEmpty(projectFilter.Value)
+        var allMemories = string.IsNullOrEmpty(selectedSourceName)
             ? availableMemories
             : availableMemories.Where(m =>
-                string.Equals(m.ProjectName, projectFilter.Value, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(m.ProjectName, selectedSourceName, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(m.ProjectName, "workspace", StringComparison.OrdinalIgnoreCase) ||
                 string.IsNullOrEmpty(m.ProjectName)
             ).ToList();
@@ -163,47 +171,47 @@ public class MemoryApp : ViewBase
             selectedSourceKey,
             allMemories,
             selectedFile,
-            projectFilter,
             workingDir
         );
 
-        var fileMapView = new FileMemoryMapView(
-            selectedFile,
-            selectedNote,
-            allMemories,
-            vaultStatus.Value,
-            isEditing,
-            editContent,
-            LoadStatus,
-            SyncAllHashes,
-            client,
-            isDeleteOpen,
-            isAiEditOpen,
-            isLinkFileOpen,
-            workingDir,
-            memoryService
-        );
-        var nodeBasedView = new NodeBasedGraphView(
-            allMemories,
-            vaultStatus.Value,
-            selectedNote,
-            selectedFile,
-            isEditing,
-            editContent,
-            LoadStatus,
-            SyncAllHashes,
-            client,
-            isDeleteOpen,
-            isAiEditOpen,
-            workingDir,
-            memoryService
-        );
+        object activeView = viewMode.Value == MemoryViewMode.FileBased
+            ? new FileMemoryMapView(
+                selectedFile,
+                selectedNote,
+                allMemories,
+                vaultStatus.Value,
+                isEditing,
+                editContent,
+                LoadStatus,
+                SyncAllHashes,
+                client,
+                isDeleteOpen,
+                isAiEditOpen,
+                isLinkFileOpen,
+                workingDir,
+                memoryService
+              )
+            : new NodeBasedGraphView(
+                allMemories,
+                vaultStatus.Value,
+                selectedNote,
+                selectedFile,
+                isEditing,
+                editContent,
+                LoadStatus,
+                SyncAllHashes,
+                client,
+                isDeleteOpen,
+                isAiEditOpen,
+                workingDir,
+                memoryService
+              );
 
         var selectedIndex = viewMode.Value == MemoryViewMode.FileBased ? 0 : 1;
 
         var mainContentTabs = Layout.Tabs(
-            new Tab("File-Based", fileMapView),
-            new Tab("Node-Based", nodeBasedView)
+            new Tab("File-Based"),
+            new Tab("Node-Based")
         )
         .SelectedIndex(selectedIndex)
         .OnSelect(index => viewMode.Set(index == 0 ? MemoryViewMode.FileBased : MemoryViewMode.NodeBased))
@@ -211,8 +219,12 @@ public class MemoryApp : ViewBase
         .RemoveParentPadding()
         .Padding(0);
 
+        var mainContentLayout = Layout.Vertical().Size(Size.Full())
+            | mainContentTabs
+            | (Layout.Vertical().Size(Size.Full()).RemoveParentPadding() | activeView);
+
         var rootLayout = new SidebarLayout(
-            mainContentTabs,
+            mainContentLayout,
             explorerView
         ).SidebarContentScroll(Scroll.None);
 
