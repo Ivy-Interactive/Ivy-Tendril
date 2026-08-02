@@ -65,7 +65,7 @@ public static class TendrilServer
                     PromptwareDeployer.Deploy(promptwaresDir);
                 }
 
-                BackgroundServiceActivator.Start(app.Services);
+                _ = BackgroundServiceActivator.StartAsync(app.Services, app.Services.GetRequiredService<ILogger<Server>>());
             }
 
             var telemetryService = app.Services.GetRequiredService<TelemetryService>();
@@ -95,7 +95,7 @@ public static class TendrilServer
 
         var assembly = typeof(TendrilServer).Assembly;
         server.AppRepository.AddFactory(() => AppHelpers.GetApps(assembly)
-            .Select(app => app.Type == typeof(Ivy.Tendril.Apps.Chat.ChatApp) ? new AppDescriptor
+            .Select(app => (app.Type == typeof(Ivy.Tendril.Apps.Chat.ChatApp) || app.Type == typeof(Ivy.Tendril.Apps.Memory.MemoryApp)) ? new AppDescriptor
             {
                 Id = app.Id,
                 Title = app.Title,

@@ -317,12 +317,13 @@ If cleanup fails, log a warning but do not fail the overall CreatePr execution.
 
 **!STOP — YOU ARE NOT DONE until this step is complete.** Creating the PR is not the finish line.
 Whether or not earlier steps were messy, retried, or partially failed, you MUST finish by:
-(1) recording every created/updated PR URL, and (2) setting the plan state to `Completed`. A run
+(1) recording every created/updated PR URL, and (2) recording the plan's final state. A run
 that stops before this leaves the PR invisible in Tendril and the plan stuck in Drafts.
 
 Use the CLI to update the plan — **never edit plan.yaml directly**.
 
-Add each PR URL:
+Add each PR URL. **This is unconditional:** recording the PR is always correct, whatever the plan's
+verifications say.
 
 ```bash
 tendril plan add-pr <plan-id> <pr-url>
@@ -332,19 +333,39 @@ tendril plan add-pr <plan-id> <pr-url>
 > equal `SourceUrl`). Read `plan.yaml` first and only run `add-pr` if the URL is not already present —
 > do not add a duplicate.
 
-**Set state to Completed:** Once a PR exists (created **or** updated) for the plan, set the state to
-`Completed` — **regardless of `PrMerge`**. A plan that has a PR is done; merge status is tracked
-separately as PR status and does not affect plan state.
+**Then check the verifications before setting the state:**
+
+```bash
+tendril plan get <plan-id> verifications   # output is Name=Status
+```
+
+**If no verification is `Fail`, set state to Completed.** Once a PR exists (created **or** updated)
+for the plan, set the state to `Completed` — **regardless of `PrMerge`**. A plan that has a PR is
+done; merge status is tracked separately as PR status and does not affect plan state.
 
 ```bash
 tendril plan set <plan-id> state Completed
 ```
 
+**If any verification is `Fail`, do NOT set `Completed`.** Leave the plan in `Failed`: the PR exists
+but a gate rejected the work, so the plan is not done. The CLI will refuse the transition anyway.
+Report it and stop:
+
+```bash
+tendril job status <job-id> --message "PR recorded, plan left in Failed: <VerificationName> failed"
+```
+
+This is a **legitimate closeout**, not a skipped step. A failed gate usually means the plan's
+deliverable is missing, and marking it `Completed` hides that from every later plan. Only use
+`tendril plan set <plan-id> state Completed --allow-failed-verifications` if a human explicitly asked
+for a partial delivery to be recorded; it flags the plan as `partialDelivery: true`.
+
 ### Edge Case: Direct-to-Main (No PR Needed)
 
 Some plans create new repos and push directly to main (e.g., repo scaffolding). These have `repos: []`, no worktrees, and commits already on `origin/main`. When detected:
 1. Verify the commit(s) exist on the remote default branch
-2. Mark state as Completed: `tendril plan set <plan-id> state Completed`
+2. Mark state as Completed: `tendril plan set <plan-id> state Completed` (same verification rule as
+   above: if any verification is `Fail`, leave the plan in `Failed` and report it instead)
 3. Log outcome as "No PR Required — Direct-to-Main"
 4. Skip steps 2–5 entirely
 
@@ -352,10 +373,12 @@ Some plans create new repos and push directly to main (e.g., repo scaffolding). 
 
 - **ALL 7 steps are mandatory** (including 2.5) — do not stop after creating the PR. In
   particular, **step 6 is a required closeout**: record every PR URL via `tendril plan add-pr` and
-  set the plan state to `Completed`. A run that creates a PR but skips step 6 is a **failed** run.
+  record the plan's final state. A run that creates a PR but skips step 6 is a **failed** run.
+  Leaving the plan in `Failed` because a verification failed is a *completed* step 6, not a skipped
+  one; skipping the state check entirely is not.
 - **Final summary must be verifiable:** end by echoing each recorded PR URL and the final plan
   state (e.g. `Recorded PR: <url> — plan 00015 state: Completed`) so an incomplete closeout is
-  self-evident.
+  self-evident. When a gate failed, name it (e.g. `plan 00015 state: Failed (CheckResult failed)`).
 - One PR per repo worktree that has commits
 - Skip worktrees with no commits ahead of the base branch
 - Use `gh` CLI for all GitHub operations

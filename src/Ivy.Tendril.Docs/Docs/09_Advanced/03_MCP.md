@@ -38,7 +38,7 @@ All tools are prefixed with `tendril_` and provide the same capabilities as the 
 
 | Tool | Parameters | Description |
 |------|------------|-------------|
-| `tendril_get_plan` | `planId`, `field` (optional) | Get plan details. Returns full plan summary or single field value when `field` is specified. Supported fields: `state`, `project`, `level`, `title`, `created`, `updated`, `executionProfile`, `initialPrompt`, `sourceUrl`, `priority`, `repos`, `prs`, `commits`, `verifications`, `dependsOn`, `relatedPlans`, `recommendations` |
+| `tendril_get_plan` | `planId`, `field` (optional) | Get plan details. Returns full plan summary or single field value when `field` is specified. Supported fields: `state`, `project`, `level`, `title`, `created`, `updated`, `executionProfile`, `initialPrompt`, `sourceUrl`, `priority`, `partialDelivery`, `repos`, `prs`, `commits`, `verifications`, `dependsOn`, `relatedPlans`, `recommendations` |
 | `tendril_list_plans` | `state` (optional), `project` (optional), `since` (optional ISO date) | List plans with optional filters. Returns up to 50 plans. |
 | `tendril_inbox` | `title`, `project` (optional), `level` (optional), `prompt` (optional) | Submit a new plan to the inbox. Creates a markdown file in `TENDRIL_HOME/Inbox` for the InboxWatcher to process. |
 
@@ -46,7 +46,7 @@ All tools are prefixed with `tendril_` and provide the same capabilities as the 
 
 | Tool | Parameters | Description |
 |------|------------|-------------|
-| `tendril_plan_set` | `planId`, `field`, `value` | Update a scalar field. Supported fields: `state`, `project`, `level`, `title`, `executionProfile`, `initialPrompt`, `sourceUrl`, `priority` |
+| `tendril_plan_set` | `planId`, `field`, `value`, `allowFailedVerifications` (optional) | Update a scalar field. Supported fields: `state`, `project`, `level`, `title`, `executionProfile`, `initialPrompt`, `sourceUrl`, `priority`. Setting `state` to `Completed` is refused while any verification is `Fail`; `allowFailedVerifications: true` records it anyway and flags the plan `partialDelivery: true` |
 | `tendril_plan_add_repo` | `planId`, `repoPath` | Add a repository path to a plan |
 | `tendril_plan_remove_repo` | `planId`, `repoPath` | Remove a repository from a plan |
 | `tendril_plan_add_pr` | `planId`, `prUrl` | Add a PR URL to a plan |

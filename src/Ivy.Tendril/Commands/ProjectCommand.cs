@@ -377,17 +377,19 @@ public class ProjectAddCommand : Command<ProjectAddSettings>
     {
         var config = new ConfigService();
 
-        if (config.Settings.Projects.Any(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
-            throw new InvalidOperationException($"Project already exists: {settings.Name}");
-
-        config.Settings.Projects.Add(new ProjectConfig
+        config.MutateAndSave(s =>
         {
-            Name = settings.Name,
-            Color = settings.Color ?? "",
-            Context = settings.Context ?? ""
+            if (s.Projects.Any(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException($"Project already exists: {settings.Name}");
+
+            s.Projects.Add(new ProjectConfig
+            {
+                Name = settings.Name,
+                Color = settings.Color ?? "",
+                Context = settings.Context ?? ""
+            });
         });
 
-        config.SaveSettings();
         Console.WriteLine($"Added project: {settings.Name}");
         return 0;
     }
@@ -398,14 +400,18 @@ public class ProjectRemoveCommand : Command<ProjectRemoveSettings>
     protected override int Execute(CommandContext context, ProjectRemoveSettings settings, CancellationToken cancellationToken)
     {
         var config = new ConfigService();
-        var match = config.Settings.Projects
-            .FirstOrDefault(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
-        if (match == null)
-            CliValidation.ThrowProjectNotFound(settings.Name, config.Settings.Projects.Select(p => p.Name));
+        config.MutateAndSave(s =>
+        {
+            var match = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
-        config.Settings.Projects.Remove(match);
-        config.SaveSettings();
+            if (match == null)
+                CliValidation.ThrowProjectNotFound(settings.Name, s.Projects.Select(p => p.Name));
+
+            s.Projects.Remove(match);
+        });
+
         Console.WriteLine($"Removed project: {settings.Name}");
         return 0;
     }
@@ -416,34 +422,37 @@ public class ProjectSetCommand : Command<ProjectSetSettings>
     protected override int Execute(CommandContext context, ProjectSetSettings settings, CancellationToken cancellationToken)
     {
         var config = new ConfigService();
-        var match = config.Settings.Projects
-            .FirstOrDefault(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
-        if (match == null)
-            CliValidation.ThrowProjectNotFound(settings.Name, config.Settings.Projects.Select(p => p.Name));
-
-        switch (settings.Field.ToLower())
+        config.MutateAndSave(s =>
         {
-            case "name":
-                var nameError = InputSanitizer.DescribeProjectNameError(settings.Value);
-                if (nameError != null)
-                    throw new InvalidOperationException(nameError);
-                match.Name = settings.Value;
-                break;
-            case "color":
-                match.Color = settings.Value;
-                break;
-            case "context":
-                match.Context = settings.Value;
-                break;
-            case "stackhash":
-                match.StackHash = settings.Value;
-                break;
-            default:
-                throw new ArgumentException($"Unknown field: {settings.Field}. Valid fields: name, color, context, stackHash");
-        }
+            var match = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
-        config.SaveSettings();
+            if (match == null)
+                CliValidation.ThrowProjectNotFound(settings.Name, s.Projects.Select(p => p.Name));
+
+            switch (settings.Field.ToLower())
+            {
+                case "name":
+                    var nameError = InputSanitizer.DescribeProjectNameError(settings.Value);
+                    if (nameError != null)
+                        throw new InvalidOperationException(nameError);
+                    match.Name = settings.Value;
+                    break;
+                case "color":
+                    match.Color = settings.Value;
+                    break;
+                case "context":
+                    match.Context = settings.Value;
+                    break;
+                case "stackhash":
+                    match.StackHash = settings.Value;
+                    break;
+                default:
+                    throw new ArgumentException($"Unknown field: {settings.Field}. Valid fields: name, color, context, stackHash");
+            }
+        });
+
         Console.WriteLine($"Updated project {settings.Field} to '{settings.Value}'");
         return 0;
     }
@@ -454,37 +463,64 @@ public class ProjectAddRepoCommand : Command<ProjectAddRepoSettings>
     protected override int Execute(CommandContext context, ProjectAddRepoSettings settings, CancellationToken cancellationToken)
     {
         var config = new ConfigService();
-        var project = config.Settings.Projects
-            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-        if (project == null)
+        // Fail fast on an unknown project before shelling out to git below. The authoritative
+        // lookup happens inside MutateAndSave, against the settings graph that gets written.
+        if (!config.Settings.Projects.Any(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase)))
             CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
 
-        if (project.GetRepoRef(settings.RepoPath) != null)
-            throw new InvalidOperationException($"Repository already exists in project: {settings.RepoPath}");
+        var repoPath = settings.RepoPath;
+        var kind = RepoPathValidator.Classify(repoPath);
+        if (kind != RepoPathKind.LocalPath)
+        {
+            var tendrilHome = config.TendrilHome;
+            var reposDir = Path.Combine(tendrilHome, "Repos");
+            Directory.CreateDirectory(reposDir);
+            var repoName = RepoPathValidator.ExtractRepoName(repoPath) ?? Guid.NewGuid().ToString();
+            var destPath = Path.Combine(reposDir, repoName);
+            if (!Directory.Exists(destPath))
+            {
+                var success = ProcessCheckHelper.CloneRepositoryAsync(repoPath, destPath).GetAwaiter().GetResult();
+                if (!success)
+                    throw new InvalidOperationException($"Failed to clone repository from URL: {repoPath}");
+            }
+            repoPath = destPath;
+        }
 
+        // Resolve the branch before taking the config lock: these spawn git and can be slow.
         string? baseBranch = settings.BaseBranch;
         if (!string.IsNullOrWhiteSpace(baseBranch))
         {
-            var isValid = Ivy.Tendril.Helpers.GitHelper.IsValidBranchAsync(settings.RepoPath, baseBranch, config.TendrilHome).GetAwaiter().GetResult();
+            var isValid = Ivy.Tendril.Helpers.GitHelper.IsValidBranchAsync(repoPath, baseBranch, config.TendrilHome).GetAwaiter().GetResult();
             if (!isValid)
-                throw new InvalidOperationException($"Branch '{baseBranch}' does not exist in repository: {settings.RepoPath}");
+                throw new InvalidOperationException($"Branch '{baseBranch}' does not exist in repository: {repoPath}");
         }
         else
         {
-            // No branch supplied — detect and persist the repo's real default branch.
-            baseBranch = Ivy.Tendril.Helpers.GitHelper.ResolveDefaultBranch(settings.RepoPath, config.TendrilHome);
+            // No branch supplied, so detect and persist the repo's real default branch.
+            baseBranch = Ivy.Tendril.Helpers.GitHelper.ResolveDefaultBranch(repoPath, config.TendrilHome);
         }
 
-        project.Repos.Add(new RepoRef
+        config.MutateAndSave(s =>
         {
-            Path = settings.RepoPath,
-            PrRule = settings.PrRule ?? "default",
-            BaseBranch = baseBranch
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
+
+            if (project.GetRepoRef(repoPath) != null)
+                throw new InvalidOperationException($"Repository already exists in project: {repoPath}");
+
+            project.Repos.Add(new RepoRef
+            {
+                Path = repoPath,
+                PrRule = settings.PrRule ?? "default",
+                BaseBranch = baseBranch
+            });
         });
 
-        config.SaveSettings();
-        Console.WriteLine($"Added repository: {settings.RepoPath}");
+        Console.WriteLine($"Added repository: {repoPath}");
         return 0;
     }
 }
@@ -494,18 +530,22 @@ public class ProjectRemoveRepoCommand : Command<ProjectRemoveRepoSettings>
     protected override int Execute(CommandContext context, ProjectRemoveRepoSettings settings, CancellationToken cancellationToken)
     {
         var config = new ConfigService();
-        var project = config.Settings.Projects
-            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-        if (project == null)
-            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
+        config.MutateAndSave(s =>
+        {
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-        var match = project.GetRepoRef(settings.RepoPath);
-        if (match == null)
-            CliValidation.ThrowRepoNotFound(settings.RepoPath, project.Repos.Select(r => r.Path));
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
 
-        project.Repos.Remove(match);
-        config.SaveSettings();
+            var match = project.GetRepoRef(settings.RepoPath);
+            if (match == null)
+                CliValidation.ThrowRepoNotFound(settings.RepoPath, project.Repos.Select(r => r.Path));
+
+            project.Repos.Remove(match);
+        });
+
         Console.WriteLine($"Removed repository: {settings.RepoPath}");
         return 0;
     }
@@ -516,35 +556,38 @@ public class ProjectAddVerificationCommand : Command<ProjectAddVerificationSetti
     protected override int Execute(CommandContext context, ProjectAddVerificationSettings settings, CancellationToken cancellationToken)
     {
         var config = new ConfigService();
-        var project = config.Settings.Projects
-            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-        if (project == null)
-            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
-
-        if (project.Verifications.Any(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase)))
-            throw new InvalidOperationException($"Verification already exists in project: {settings.VerificationName}");
-
-        var newRef = new ProjectVerificationRef
+        config.MutateAndSave(s =>
         {
-            Name = settings.VerificationName,
-            Required = settings.Required
-        };
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-        if (!string.IsNullOrEmpty(settings.After))
-        {
-            var afterIndex = project.Verifications
-                .FindIndex(v => v.Name.Equals(settings.After, StringComparison.OrdinalIgnoreCase));
-            if (afterIndex < 0)
-                CliValidation.ThrowVerificationNotFound(settings.After, project.Verifications.Select(v => v.Name));
-            project.Verifications.Insert(afterIndex + 1, newRef);
-        }
-        else
-        {
-            project.Verifications.Add(newRef);
-        }
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
 
-        config.SaveSettings();
+            if (project.Verifications.Any(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException($"Verification already exists in project: {settings.VerificationName}");
+
+            var newRef = new ProjectVerificationRef
+            {
+                Name = settings.VerificationName,
+                Required = settings.Required
+            };
+
+            if (!string.IsNullOrEmpty(settings.After))
+            {
+                var afterIndex = project.Verifications
+                    .FindIndex(v => v.Name.Equals(settings.After, StringComparison.OrdinalIgnoreCase));
+                if (afterIndex < 0)
+                    CliValidation.ThrowVerificationNotFound(settings.After, project.Verifications.Select(v => v.Name));
+                project.Verifications.Insert(afterIndex + 1, newRef);
+            }
+            else
+            {
+                project.Verifications.Add(newRef);
+            }
+        });
+
         Console.WriteLine($"Added verification: {settings.VerificationName}");
         return 0;
     }
@@ -555,20 +598,24 @@ public class ProjectRemoveVerificationCommand : Command<ProjectRemoveVerificatio
     protected override int Execute(CommandContext context, ProjectRemoveVerificationSettings settings, CancellationToken cancellationToken)
     {
         var config = new ConfigService();
-        var project = config.Settings.Projects
-            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-        if (project == null)
-            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
+        config.MutateAndSave(s =>
+        {
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-        var match = project.Verifications
-            .FirstOrDefault(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase));
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
 
-        if (match == null)
-            CliValidation.ThrowVerificationNotFound(settings.VerificationName, project.Verifications.Select(v => v.Name));
+            var match = project.Verifications
+                .FirstOrDefault(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase));
 
-        project.Verifications.Remove(match);
-        config.SaveSettings();
+            if (match == null)
+                CliValidation.ThrowVerificationNotFound(settings.VerificationName, project.Verifications.Select(v => v.Name));
+
+            project.Verifications.Remove(match);
+        });
+
         Console.WriteLine($"Removed verification: {settings.VerificationName}");
         return 0;
     }
@@ -583,50 +630,54 @@ public class ProjectMoveVerificationCommand : Command<ProjectMoveVerificationSet
             throw new ArgumentException("Specify exactly one of --before, --after, or --position");
 
         var config = new ConfigService();
-        var project = config.Settings.Projects
-            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+        var insertIndex = 0;
 
-        if (project == null)
-            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
-
-        var item = project.Verifications
-            .FirstOrDefault(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase));
-
-        if (item == null)
-            CliValidation.ThrowVerificationNotFound(settings.VerificationName, project.Verifications.Select(v => v.Name));
-
-        project.Verifications.Remove(item);
-
-        int insertIndex;
-        if (settings.Before != null)
+        config.MutateAndSave(s =>
         {
-            var targetIndex = project.Verifications
-                .FindIndex(v => v.Name.Equals(settings.Before, StringComparison.OrdinalIgnoreCase));
-            if (targetIndex < 0)
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
+
+            var item = project.Verifications
+                .FirstOrDefault(v => v.Name.Equals(settings.VerificationName, StringComparison.OrdinalIgnoreCase));
+
+            if (item == null)
+                CliValidation.ThrowVerificationNotFound(settings.VerificationName, project.Verifications.Select(v => v.Name));
+
+            project.Verifications.Remove(item);
+
+            if (settings.Before != null)
             {
-                project.Verifications.Add(item);
-                CliValidation.ThrowVerificationTargetNotFound("before", settings.Before, project.Verifications.Select(v => v.Name));
+                var targetIndex = project.Verifications
+                    .FindIndex(v => v.Name.Equals(settings.Before, StringComparison.OrdinalIgnoreCase));
+                if (targetIndex < 0)
+                {
+                    project.Verifications.Add(item);
+                    CliValidation.ThrowVerificationTargetNotFound("before", settings.Before, project.Verifications.Select(v => v.Name));
+                }
+                insertIndex = targetIndex;
             }
-            insertIndex = targetIndex;
-        }
-        else if (settings.After != null)
-        {
-            var targetIndex = project.Verifications
-                .FindIndex(v => v.Name.Equals(settings.After, StringComparison.OrdinalIgnoreCase));
-            if (targetIndex < 0)
+            else if (settings.After != null)
             {
-                project.Verifications.Add(item);
-                CliValidation.ThrowVerificationTargetNotFound("after", settings.After, project.Verifications.Select(v => v.Name));
+                var targetIndex = project.Verifications
+                    .FindIndex(v => v.Name.Equals(settings.After, StringComparison.OrdinalIgnoreCase));
+                if (targetIndex < 0)
+                {
+                    project.Verifications.Add(item);
+                    CliValidation.ThrowVerificationTargetNotFound("after", settings.After, project.Verifications.Select(v => v.Name));
+                }
+                insertIndex = targetIndex + 1;
             }
-            insertIndex = targetIndex + 1;
-        }
-        else
-        {
-            insertIndex = Math.Clamp(settings.Position!.Value, 0, project.Verifications.Count);
-        }
+            else
+            {
+                insertIndex = Math.Clamp(settings.Position!.Value, 0, project.Verifications.Count);
+            }
 
-        project.Verifications.Insert(insertIndex, item);
-        config.SaveSettings();
+            project.Verifications.Insert(insertIndex, item);
+        });
+
         Console.WriteLine($"Moved verification '{settings.VerificationName}' to position {insertIndex}");
         return 0;
     }
@@ -637,17 +688,21 @@ public class ProjectAddBuildDepCommand : Command<ProjectAddBuildDepSettings>
     protected override int Execute(CommandContext context, ProjectAddBuildDepSettings settings, CancellationToken cancellationToken)
     {
         var config = new ConfigService();
-        var project = config.Settings.Projects
-            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-        if (project == null)
-            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
+        config.MutateAndSave(s =>
+        {
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-        if (project.BuildDependencies.Contains(settings.Dependency, StringComparer.OrdinalIgnoreCase))
-            throw new InvalidOperationException($"Build dependency already exists: {settings.Dependency}");
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
 
-        project.BuildDependencies.Add(settings.Dependency);
-        config.SaveSettings();
+            if (project.BuildDependencies.Contains(settings.Dependency, StringComparer.OrdinalIgnoreCase))
+                throw new InvalidOperationException($"Build dependency already exists: {settings.Dependency}");
+
+            project.BuildDependencies.Add(settings.Dependency);
+        });
+
         Console.WriteLine($"Added build dependency: {settings.Dependency}");
         return 0;
     }
@@ -658,17 +713,20 @@ public class ProjectRemoveBuildDepCommand : Command<ProjectRemoveBuildDepSetting
     protected override int Execute(CommandContext context, ProjectRemoveBuildDepSettings settings, CancellationToken cancellationToken)
     {
         var config = new ConfigService();
-        var project = config.Settings.Projects
-            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-        if (project == null)
-            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
+        config.MutateAndSave(s =>
+        {
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-        var removed = project.BuildDependencies.RemoveAll(d => d.Equals(settings.Dependency, StringComparison.OrdinalIgnoreCase));
-        if (removed == 0)
-            CliValidation.ThrowBuildDependencyNotFound(settings.Dependency, project.BuildDependencies);
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
 
-        config.SaveSettings();
+            var removed = project.BuildDependencies.RemoveAll(d => d.Equals(settings.Dependency, StringComparison.OrdinalIgnoreCase));
+            if (removed == 0)
+                CliValidation.ThrowBuildDependencyNotFound(settings.Dependency, project.BuildDependencies);
+        });
+
         Console.WriteLine($"Removed build dependency: {settings.Dependency}");
         return 0;
     }
@@ -679,23 +737,26 @@ public class ProjectAddReviewActionCommand : Command<ProjectAddReviewActionSetti
     protected override int Execute(CommandContext context, ProjectAddReviewActionSettings settings, CancellationToken cancellationToken)
     {
         var config = new ConfigService();
-        var project = config.Settings.Projects
-            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-        if (project == null)
-            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
-
-        if (project.ReviewActions.Any(r => r.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
-            throw new InvalidOperationException($"Review action already exists: {settings.Name}");
-
-        project.ReviewActions.Add(new ReviewActionConfig
+        config.MutateAndSave(s =>
         {
-            Name = settings.Name,
-            Command = settings.Command ?? "",
-            Condition = settings.Condition ?? ""
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
+
+            if (project.ReviewActions.Any(r => r.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException($"Review action already exists: {settings.Name}");
+
+            project.ReviewActions.Add(new ReviewActionConfig
+            {
+                Name = settings.Name,
+                Command = settings.Command ?? "",
+                Condition = settings.Condition ?? ""
+            });
         });
 
-        config.SaveSettings();
         Console.WriteLine($"Added review action: {settings.Name}");
         return 0;
     }
@@ -706,20 +767,24 @@ public class ProjectRemoveReviewActionCommand : Command<ProjectRemoveReviewActio
     protected override int Execute(CommandContext context, ProjectRemoveReviewActionSettings settings, CancellationToken cancellationToken)
     {
         var config = new ConfigService();
-        var project = config.Settings.Projects
-            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-        if (project == null)
-            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
+        config.MutateAndSave(s =>
+        {
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
 
-        var match = project.ReviewActions
-            .FirstOrDefault(r => r.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
 
-        if (match == null)
-            CliValidation.ThrowReviewActionNotFound(settings.Name, project.ReviewActions.Select(r => r.Name));
+            var match = project.ReviewActions
+                .FirstOrDefault(r => r.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
-        project.ReviewActions.Remove(match);
-        config.SaveSettings();
+            if (match == null)
+                CliValidation.ThrowReviewActionNotFound(settings.Name, project.ReviewActions.Select(r => r.Name));
+
+            project.ReviewActions.Remove(match);
+        });
+
         Console.WriteLine($"Removed review action: {settings.Name}");
         return 0;
     }

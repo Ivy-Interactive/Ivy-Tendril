@@ -15,8 +15,8 @@ internal record JobLaunchContext(
     JobItem Job,
     ConcurrentDictionary<string, JobItem> Jobs,
     SemaphoreSlim JobSlotSemaphore,
-    TimeSpan JobTimeout,
-    TimeSpan StaleOutputTimeout,
+    Func<TimeSpan> JobTimeout,
+    Func<TimeSpan> StaleOutputTimeout,
     Action<string, string, string, string, JobItem> RunHooks,
     Action<string, int?, bool, bool> CompleteJob,
     Action RaiseStructureChanged);
@@ -50,8 +50,8 @@ internal class JobLauncher
         JobItem job,
         ConcurrentDictionary<string, JobItem> jobs,
         SemaphoreSlim jobSlotSemaphore,
-        TimeSpan jobTimeout,
-        TimeSpan staleOutputTimeout,
+        Func<TimeSpan> jobTimeout,
+        Func<TimeSpan> staleOutputTimeout,
         Action<string, string, string, string, JobItem> runHooks,
         Action<string, int?, bool, bool> completeJob,
         Action raiseStructureChanged)
@@ -406,7 +406,7 @@ internal class JobLauncher
             ExtraArguments = resolution.ExtraArgs,
             PromptFilePath = promptFilePath,
             EnvironmentVariables = resolution.EnvironmentVariables,
-            Timeout = ctx.JobTimeout,
+            Timeout = ctx.JobTimeout(),
         };
 
         job.Model = launchConfig.Model;
@@ -466,6 +466,14 @@ internal class JobLauncher
             values["RepoPath"] = syncArgs.RepoPath;
             values["BaseBranch"] = syncArgs.BaseBranch;
             values["UntrackedChangesPolicy"] = syncArgs.UntrackedChangesPolicy.ToString();
+            return (values, null, null);
+        }
+
+        if (job.TypedArgs is AddProjectArgs addProjArgs)
+        {
+            values["ProjectName"] = addProjArgs.ProjectName;
+            values["ReposJson"] = System.Text.Json.JsonSerializer.Serialize(addProjArgs.Repos);
+            values["Instructions"] = "Setup verifications and review actions for this project.";
             return (values, null, null);
         }
 
@@ -616,6 +624,12 @@ internal class JobLauncher
 
     private void EnsurePlanFolderWritable(string planFolder)
     {
+        if (!Directory.Exists(planFolder))
+        {
+            _logger.LogWarning("Plan folder does not exist, skipping write check: {PlanFolder}", planFolder);
+            return;
+        }
+
         var testFile = Path.Combine(planFolder, $".write-test-{Guid.NewGuid():N}");
         try
         {
@@ -626,6 +640,10 @@ internal class JobLauncher
         {
             _logger.LogWarning("Plan folder is not writable, attempting repair: {PlanFolder}", planFolder);
             TryRepairFolderAccess(planFolder);
+        }
+        catch (DirectoryNotFoundException)
+        {
+            _logger.LogWarning("Plan folder directory not found: {PlanFolder}", planFolder);
         }
         finally
         {

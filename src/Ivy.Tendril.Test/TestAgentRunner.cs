@@ -4,6 +4,8 @@ using Ivy.Tendril.Agents.Providers.Codex;
 using Ivy.Tendril.Agents.Providers.Copilot;
 using Ivy.Tendril.Agents.Providers.Antigravity;
 using Ivy.Tendril.Agents.Providers.OpenCode;
+using Ivy.Tendril.Agents.Providers.Ivy;
+using Ivy.Tendril.Agents.Providers.OpenAiProxy;
 using Ivy.Tendril.Agents.Runtime;
 
 namespace Ivy.Tendril.Test;
@@ -28,6 +30,12 @@ internal static class TestAgentRunner
         runner.Register(
             new OpenCodeCli(), new OpenCodeEventParser(), new OpenCodeHealthCheck(),
             new OpenCodeFailureAnalyzer(), new OpenCodeSessionCostParser(), new OpenCodePty());
+        runner.Register(
+            new IvyCli(), new IvyEventParser(), new IvyHealthCheck(),
+            new IvyFailureAnalyzer(), new IvySessionCostParser(), new IvyPty());
+        runner.Register(
+            new OpenAiProxyCli(), new OpenAiProxyEventParser(), new OpenAiProxyHealthCheck(),
+            new OpenAiProxyFailureAnalyzer(), new OpenAiProxySessionCostParser(), new OpenAiProxyPty());
         return runner;
     }
 }

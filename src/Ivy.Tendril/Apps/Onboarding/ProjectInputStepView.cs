@@ -1,5 +1,7 @@
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Jobs;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Apps.Views;
 
 namespace Ivy.Tendril.Apps.Onboarding;
@@ -11,6 +13,7 @@ public class ProjectInputStepView(
     Action onNext,
     Action? onBack = null,
     Action? onSkip = null,
+    Action? onBgJob = null,
     string skipButtonText = "Skip",
     string nextButtonText = "Create Project",
     string title = "Setup your first project",
@@ -20,6 +23,14 @@ public class ProjectInputStepView(
     public override object Build()
     {
         var config = UseService<IConfigService>();
+        var tendrilArgs = UseService<TendrilArgs>();
+        var jobService = UseService<IJobService>();
+        var client = UseService<IClientProvider>();
+
+        var isBeta = (tendrilArgs?.Beta ?? false) ||
+                     (config?.Settings?.Beta ?? false) ||
+                     Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
+                     Environment.GetEnvironmentVariable("IVY_BETA") == "1";
 
         UseEffect(() =>
         {
@@ -46,10 +57,30 @@ public class ProjectInputStepView(
                           && !string.IsNullOrWhiteSpace(projectName.Value)
                           && !nameExists;
 
-        var buttonArea = Layout.Horizontal().Width(Size.Full())
+        Action handleBgJob = onBgJob ?? (() =>
+        {
+            if (!canContinue) return;
+            var newProj = new ProjectConfig
+            {
+                Name = projectName.Value.Trim(),
+                Repos = new List<RepoRef>(selectedRepos.Value)
+            };
+            config.Settings.Projects.Add(newProj);
+            try { config.SaveSettings(); } catch { }
+
+            jobService?.StartJob(new AddProjectArgs(newProj.Name, newProj.Repos));
+            if (client != null)
+                client.Toast($"Created background job for project '{newProj.Name}'", "Job Started");
+            onNext();
+        });
+
+        var buttonArea = Layout.Horizontal().Width(Size.Full()).Gap(2)
             | (onSkip != null ? (object)new Button(skipButtonText).Ghost().Large().Disabled(disableSkipWhenCannotContinue && !canContinue).OnClick(() => onSkip()) : new Spacer())
             | new Spacer()
             | (onBack != null ? (object)new Button("Back").Outline().Large().Icon(Icons.ArrowLeft).OnClick(onBack) : null!)
+            | (isBeta
+                ? (object)new Button("Bg job").Outline().Large().Disabled(!canContinue).OnClick(handleBgJob)
+                : null!)
             | new Button(nextButtonText).Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
                 .Disabled(!canContinue)
                 .OnClick(onNext);

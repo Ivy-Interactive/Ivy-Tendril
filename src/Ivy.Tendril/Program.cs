@@ -5,6 +5,7 @@ using Ivy.Desktop;
 using Ivy.Helpers;
 using Ivy.Tendril.Agents;
 using Ivy.Tendril.Commands;
+using Ivy.Tendril.Commands.Memory;
 using Ivy.Tendril.Database;
 using Ivy.Tendril.Infrastructure;
 using Ivy.Tendril.Services;
@@ -40,7 +41,29 @@ public class Program
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool AttachConsole(int dwProcessId);
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr GetStdHandle(int nStdHandle);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetStdHandle(int nStdHandle, IntPtr hHandle);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint GetFileType(IntPtr hFile);
+
     private const int ATTACH_PARENT_PROCESS = -1;
+    private const int STD_INPUT_HANDLE = -10;
+    private const int STD_OUTPUT_HANDLE = -11;
+    private const int STD_ERROR_HANDLE = -12;
+    private const uint FILE_TYPE_DISK = 0x0001;
+    private const uint FILE_TYPE_PIPE = 0x0003;
+
+    // A console handle is FILE_TYPE_CHAR; a shell redirect (`> file`, `| other`) yields
+    // FILE_TYPE_DISK or FILE_TYPE_PIPE. FILE_TYPE_UNKNOWN (invalid handle) is not redirected.
+    internal static bool IsHandleRedirected(IntPtr handle)
+    {
+        var type = GetFileType(handle);
+        return type == FILE_TYPE_DISK || type == FILE_TYPE_PIPE;
+    }
 
     // Must be a static field to prevent GC from collecting the delegate
     private static ConsoleCtrlHandlerDelegate? _consoleCtrlHandler;
@@ -75,8 +98,24 @@ public class Program
 
         if (OperatingSystem.IsWindows())
         {
+            // Snapshot the inherited std handles BEFORE attaching. AttachConsole overwrites all three
+            // with console handles, which silently discards `tendril ... > file`, `tendril ... | other`
+            // and `tendril ... --stdin < file` for GUI-subsystem builds (issue #1849).
+            var inheritedIn = GetStdHandle(STD_INPUT_HANDLE);
+            var inheritedOut = GetStdHandle(STD_OUTPUT_HANDLE);
+            var inheritedErr = GetStdHandle(STD_ERROR_HANDLE);
+            var inRedirected = IsHandleRedirected(inheritedIn);
+            var outRedirected = IsHandleRedirected(inheritedOut);
+            var errRedirected = IsHandleRedirected(inheritedErr);
+
             if (AttachConsole(ATTACH_PARENT_PROCESS))
             {
+                // Put the redirected targets back; leave the newly attached console handles in place
+                // for the streams the parent did NOT redirect.
+                if (inRedirected) SetStdHandle(STD_INPUT_HANDLE, inheritedIn);
+                if (outRedirected) SetStdHandle(STD_OUTPUT_HANDLE, inheritedOut);
+                if (errRedirected) SetStdHandle(STD_ERROR_HANDLE, inheritedErr);
+
                 try
                 {
                     var stdout = Console.OpenStandardOutput();
@@ -412,6 +451,7 @@ public class Program
         bool forceDesktop = args.Contains("--desktop");
         bool forceWeb = args.Contains("--web");
         bool beta = args.Contains("--beta");
+        bool notMaster = args.Contains("--not-master") || args.Contains("--slave");
 
         if (verbose)
             Environment.SetEnvironmentVariable("TENDRIL_VERBOSE", "1");
@@ -419,12 +459,15 @@ public class Program
             Environment.SetEnvironmentVariable("TENDRIL_QUIET", "1");
         if (beta)
             Environment.SetEnvironmentVariable("TENDRIL_BETA", "1");
+        if (notMaster)
+            Environment.SetEnvironmentVariable("TENDRIL_NOT_MASTER", "1");
 
         var filtered = args.Where(a =>
             a != "--desktop" && a != "--web" &&
             a != "--verbose" && a != "-v" &&
             a != "--quiet" && a != "-q" &&
             a != "--beta" &&
+            a != "--not-master" && a != "--slave" &&
             a != DetachedLaunchMarker).ToArray();
 
         return (verbose, quiet, forceDesktop, forceWeb, beta, filtered);
@@ -504,7 +547,8 @@ public class Program
             var psi = new ProcessStartInfo
             {
                 FileName = installedCli,
-                UseShellExecute = false
+                UseShellExecute = false,
+                CreateNoWindow = true
             };
             foreach (var arg in args)
                 psi.ArgumentList.Add(arg);
@@ -646,10 +690,14 @@ public class Program
             // Job management commands
             config.AddBranch("job", job =>
             {
+                job.AddCommand<JobListCommand>("list")
+                    .WithDescription("List jobs with optional filters");
                 job.AddCommand<JobStatusCommand>("status")
                     .WithDescription("Report job status (message, planId, planTitle)");
                 job.AddCommand<JobFailCommand>("fail")
                     .WithDescription("Report a job failure with a descriptive message");
+                job.AddCommand<JobCancelCommand>("cancel")
+                    .WithDescription("Cancel a running or queued job, terminate its process, and revert plan state");
                 job.AddCommand<JobStartCommand>("start")
                     .WithDescription("Start a job via the running Tendril server");
                 job.AddCommand<JobAddLogCommand>("add-log")
@@ -793,6 +841,31 @@ public class Program
                     .WithDescription("Get a top-level config value");
                 cfg.AddCommand<ConfigSetCommand>("set")
                     .WithDescription("Set a top-level config value");
+            });
+
+            config.AddBranch("memory", memory =>
+            {
+                memory.SetDescription("Manage Tendril codebase memories, file reference hashes, and relations");
+                memory.AddCommand<MemoryStatusCommand>("status")
+                    .WithDescription("Scan memory notes, file reference hashes, and relation graph status");
+                memory.AddCommand<MemoryAddCommand>("add")
+                    .WithDescription("Add a new memory note");
+                memory.AddCommand<MemoryReadCommand>("read")
+                    .WithDescription("Read a memory note content");
+                memory.AddCommand<MemoryWriteCommand>("write")
+                    .WithDescription("Write or update a memory note content");
+                memory.AddCommand<MemoryLinkCommand>("link")
+                    .WithDescription("Link a code file reference to a memory note");
+                memory.AddCommand<MemoryUpdateCommand>("update")
+                    .WithDescription("Synchronize reference hashes for a memory note");
+                memory.AddCommand<MemoryRelateCommand>("relate")
+                    .WithDescription("Relate two memory notes together");
+                memory.AddCommand<MemoryDeleteCommand>("delete")
+                    .WithDescription("Delete a memory note");
+                memory.AddCommand<MemoryQueryCommand>("query")
+                    .WithDescription("Search memory notes by keyword");
+                memory.AddCommand<MemoryRulesCommand>("rules")
+                    .WithDescription("Get compiled memory rules for agent system prompt");
             });
         });
         return app;

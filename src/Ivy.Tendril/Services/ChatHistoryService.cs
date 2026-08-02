@@ -11,9 +11,36 @@ public class ChatHistoryService : IChatHistoryService
 {
     private readonly IConfigService _configService;
     private readonly ConcurrentDictionary<string, ChatSessionModel> _sessions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, byte> _generatingSessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _lock = new();
 
     public event EventHandler? SessionsChanged;
+    public event EventHandler? GeneratingSessionsChanged;
+
+    public void SetSessionGenerating(string sessionId, bool isGenerating)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return;
+
+        bool changed;
+        if (isGenerating)
+        {
+            changed = _generatingSessions.TryAdd(sessionId, 0);
+        }
+        else
+        {
+            changed = _generatingSessions.TryRemove(sessionId, out _);
+        }
+
+        if (changed)
+        {
+            GeneratingSessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public IReadOnlySet<string> GetGeneratingSessionIds()
+    {
+        return _generatingSessions.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

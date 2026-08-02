@@ -159,6 +159,10 @@ internal class JobCompletionHandler
                 SetPlanState(job, nameof(PlanStatus.Completed));
                 break;
             case UpdatePlanArgs or ExpandPlanArgs:
+                if (job.TypedArgs is UpdatePlanArgs)
+                {
+                    MoveAttachmentsToPlanFolder(job);
+                }
                 SetPlanState(job, nameof(PlanStatus.Draft));
                 break;
             case SplitPlanArgs:
@@ -495,7 +499,7 @@ internal class JobCompletionHandler
         return Convert.ToBase64String(bytes);
     }
 
-    private void EnsurePlanStateTransitioned(JobItem job)
+    internal void EnsurePlanStateTransitioned(JobItem job)
     {
         try
         {
@@ -503,9 +507,18 @@ internal class JobCompletionHandler
             var planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
             if (planYaml == null) return;
 
+            // A failed pre-execution means the plan's premise was checked and rejected, so nothing
+            // was implemented. That is decisive regardless of the verification rows: the agent may
+            // have left them Pending (which hasIncomplete already catches) or set them all Skipped
+            // for a plan it never executed, which would otherwise route to Review and from there be
+            // one click from Completed with zero commits. Absent or unparseable report, Pass and
+            // Skipped all fall through to the verification-only decision. See plan 00103.
+            var preExecution = PlanYamlHelper.ReadPreExecutionResult(planFolder);
             var hasIncomplete = planYaml.Verifications?
                 .Any(v => v.Status is VerificationStatus.Pending or VerificationStatus.Fail) ?? false;
-            var targetState = hasIncomplete ? PlanStatus.Failed : PlanStatus.Review;
+            var targetState = preExecution == VerificationStatus.Fail || hasIncomplete
+                ? PlanStatus.Failed
+                : PlanStatus.Review;
 
             var folderName = Path.GetFileName(planFolder);
             if (_planReaderService != null)
@@ -656,18 +669,40 @@ internal class JobCompletionHandler
         }
     }
 
+    internal static string? ResolveUploadSessionId(JobArgsBase? args)
+    {
+        return args switch
+        {
+            CreatePlanArgs cp => cp.UploadSessionId,
+            UpdatePlanArgs up => up.UploadSessionId,
+            _ => null
+        };
+    }
+
+    internal static string? ResolveAttachmentPlanFolder(JobItem job, string plansDirectory)
+    {
+        var folder = job.TypedArgs switch
+        {
+            UpdatePlanArgs u => u.FolderPath,
+            _ => !string.IsNullOrEmpty(job.PlanFile) ? Path.Combine(plansDirectory, job.PlanFile) : null
+        };
+
+        return folder != null && Directory.Exists(folder) ? folder : null;
+    }
+
     private void MoveAttachmentsToPlanFolder(JobItem job)
     {
-        if (job.TypedArgs is not CreatePlanArgs cp || string.IsNullOrEmpty(cp.UploadSessionId) || _configService == null || _planReaderService == null)
+        var sessionId = ResolveUploadSessionId(job.TypedArgs);
+        if (string.IsNullOrEmpty(sessionId) || _configService == null || _planReaderService == null)
             return;
 
         try
         {
-            var tempDir = Path.Combine(_configService.TendrilHome, "Attachments", cp.UploadSessionId);
+            var tempDir = Path.Combine(_configService.TendrilHome, "Attachments", sessionId);
             if (!Directory.Exists(tempDir)) return;
 
-            var planFolder = Path.Combine(_planReaderService.PlansDirectory, job.PlanFile);
-            if (!Directory.Exists(planFolder)) return;
+            var planFolder = ResolveAttachmentPlanFolder(job, _planReaderService.PlansDirectory);
+            if (planFolder == null) return;
 
             var attachmentsDir = Path.Combine(planFolder, "Attachments");
             Directory.CreateDirectory(attachmentsDir);

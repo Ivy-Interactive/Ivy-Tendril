@@ -1845,4 +1845,52 @@ public class PlanCliCommandTests : IDisposable
 
         Assert.Equal("Draft", ReadPlan("20312").State);
     }
+
+    // ==================== GetPlansDirectory Fallback ====================
+
+    [Fact]
+    public void GetPlansDirectory_FallsBackToDefaultHome_WhenEnvUnset()
+    {
+        var testHome = Path.Combine(_tempDir.Path, "fallback-home");
+        var plansInFallback = Path.Combine(testHome, "Plans");
+        Directory.CreateDirectory(plansInFallback);
+
+        var originalOverride = PathHelper.DefaultTendrilHomeOverride;
+        try
+        {
+            PathHelper.DefaultTendrilHomeOverride = testHome;
+            Environment.SetEnvironmentVariable("TENDRIL_HOME", null);
+            Environment.SetEnvironmentVariable("TENDRIL_PLANS", null);
+
+            var resolved = PlanCommandHelpers.GetPlansDirectory();
+            Assert.Equal(plansInFallback, resolved);
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = originalOverride;
+            Environment.SetEnvironmentVariable("TENDRIL_HOME", _originalTendrilHome);
+        }
+    }
+
+    [Fact]
+    public void GetPlansDirectory_Throws_WhenResolvedPlansDirMissing()
+    {
+        var testHome = Path.Combine(_tempDir.Path, "missing-plans-home");
+        Directory.CreateDirectory(testHome);
+
+        var originalOverride = PathHelper.DefaultTendrilHomeOverride;
+        try
+        {
+            PathHelper.DefaultTendrilHomeOverride = testHome;
+            Environment.SetEnvironmentVariable("TENDRIL_HOME", null);
+            Environment.SetEnvironmentVariable("TENDRIL_PLANS", null);
+
+            Assert.Throws<DirectoryNotFoundException>(() => PlanCommandHelpers.GetPlansDirectory());
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = originalOverride;
+            Environment.SetEnvironmentVariable("TENDRIL_HOME", _originalTendrilHome);
+        }
+    }
 }

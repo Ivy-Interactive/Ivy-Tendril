@@ -149,14 +149,7 @@ internal class PlanArtifactSyncer
 
     private static string? RunGitLog(string repoRoot, string baseBranch, string branchName)
     {
-        var psi = new ProcessStartInfo("git", $"log --format=%H \"{baseBranch}..{branchName}\"")
-        {
-            WorkingDirectory = repoRoot,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
+        var psi = GitHelper.MakeGitStartInfo($"log --format=%H \"{baseBranch}..{branchName}\"", repoRoot);
 
         using var process = Process.Start(psi);
         if (process == null) return null;

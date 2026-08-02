@@ -49,10 +49,33 @@ public class JobController(IJobService jobService, IConfigService configService)
     [HttpPut("{jobId}/fail")]
     public IActionResult ReportJobFailure(string jobId, [FromBody] ReportJobFailureRequest request)
     {
-        if (!jobService.ReportJobFailure(NormalizeJobId(jobId), request.Message))
+        var id = NormalizeJobId(jobId);
+        if (!jobService.ReportJobFailure(id, request.Message))
             return NotFound(new { error = "Job not found" });
 
+        if (request.Stop)
+        {
+            jobService.StopJob(id);
+        }
+
         return Ok(new { status = "Failure reported" });
+    }
+
+    [HttpPost("{jobId}/cancel")]
+    public IActionResult CancelJob(string jobId, [FromBody] CancelJobRequest? request)
+    {
+        var id = NormalizeJobId(jobId);
+        var job = jobService.GetJob(id);
+        if (job == null)
+            return NotFound(new { error = "Job not found" });
+
+        if (!string.IsNullOrWhiteSpace(request?.Message))
+        {
+            jobService.ReportJobFailure(id, request.Message);
+        }
+
+        jobService.StopJob(id);
+        return Ok(new { status = "Cancelled" });
     }
 
     /// <summary>Appends an <c>## Agent Log</c> section to the job's log in <c>&lt;TendrilHome&gt;/Jobs/</c>.</summary>
@@ -81,6 +104,8 @@ public class JobController(IJobService jobService, IConfigService configService)
 
 public record UpdateJobStatusRequest(string Message, string? PlanId = null, string? PlanTitle = null);
 
-public record ReportJobFailureRequest(string Message);
+public record ReportJobFailureRequest(string Message, bool Stop = false);
+
+public record CancelJobRequest(string? Message = null);
 
 public record AddLogRequest(string Action, string? Summary = null);

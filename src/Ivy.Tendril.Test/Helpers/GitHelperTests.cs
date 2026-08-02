@@ -207,6 +207,88 @@ public class GitHelperTests : IDisposable
         Assert.Equal(expectedBranch, GitHelper.ResolveDefaultBranch(url));
     }
 
+    [Fact]
+    public void RunGit_WithFsmonitorEnabled_DoesNotLeaveDaemonRunning()
+    {
+        if (!OperatingSystem.IsWindows())
+            return; // Skip on non-Windows platforms
+
+        var repoPath = Path.Combine(_tempDir, "fsmonitor-test");
+        Directory.CreateDirectory(repoPath);
+        InitGitRepo(repoPath, "main");
+
+        // Enable fsmonitor
+        RunGit("config core.fsmonitor true", repoPath);
+
+        try
+        {
+            // Count fsmonitor daemons before
+            int countBefore = CountFsmonitorDaemons();
+
+            // Run a git command through GitHelper
+            var (exitCode, stdOut, stdErr) = GitHelper.RunGit("status --porcelain", repoPath);
+
+            // Verify command succeeded
+            Assert.Equal(0, exitCode);
+
+            // Count fsmonitor daemons after
+            int countAfter = CountFsmonitorDaemons();
+
+            // The count should not increase
+            Assert.Equal(countBefore, countAfter);
+        }
+        finally
+        {
+            // Clean up any daemon that might have been started
+            try
+            {
+                RunGit("fsmonitor--daemon stop", repoPath);
+            }
+            catch { /* best effort */ }
+        }
+    }
+
+    private static int CountFsmonitorDaemons()
+    {
+        try
+        {
+            var processes = System.Diagnostics.Process.GetProcessesByName("git");
+            return processes.Count(p =>
+            {
+                try
+                {
+                    var cmdLine = GetCommandLine(p.Id);
+                    return cmdLine?.Contains("fsmonitor--daemon") == true;
+                }
+                catch
+                {
+                    return false;
+                }
+            });
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static string? GetCommandLine(int processId)
+    {
+        try
+        {
+            using var searcher = new System.Management.ManagementObjectSearcher(
+                $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {processId}");
+            using var results = searcher.Get();
+            var result = results.Cast<System.Management.ManagementObject>().FirstOrDefault();
+            return result?["CommandLine"]?.ToString();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     /// Builds a bare remote whose default branch is <paramref name="defaultBranch"/> and clones it.
     /// Returns the clone path, or null if the git operations did not produce a usable clone.

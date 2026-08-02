@@ -32,6 +32,7 @@ public static class AgentBranding
             AgentId.Antigravity => Icons.Antigravity,
             AgentId.OpenCode => Icons.OpenCode,
             AgentId.Ivy => Icons.IvyCorner,
+            AgentId.OpenAiProxy => Icons.OpenAI,
             _ => DefaultIcon,
         };
     }

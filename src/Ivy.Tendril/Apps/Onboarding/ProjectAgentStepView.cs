@@ -177,7 +177,7 @@ public class ProjectAgentStepView(
                         }
                     }
 
-                    if (agentKey != "opencode" && agentKey != "ivy")
+                    if (agentKey != "ivy")
                     {
                         progressMessage.Set($"Verifying {info.DisplayName} authentication...");
                         var authStatus = await healthCheck.CheckAuthAsync();

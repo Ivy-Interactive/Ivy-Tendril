@@ -22,7 +22,7 @@ internal static class CliDispatcher
         "db-version", "db-migrate", "db-reset", "reset",
         "update-promptwares", "promptware", "version", "update", "report-bug",
         "job", "plan", "verification", "models", "agent-instructions",
-        "trash", "project", "config"
+        "trash", "project", "config", "memory"
     ];
 
     // Legacy handlers not yet migrated to Spectre.Console.Cli (HashPasswordCommand, McpCommand).

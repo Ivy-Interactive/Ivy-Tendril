@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Services;
 
@@ -6,6 +7,8 @@ namespace Ivy.Tendril.Helpers;
 
 public static class AgentProcessHelper
 {
+    private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
     public static ProcessStartInfo ToPsi(AgentProcessSpec spec)
     {
         var psi = new ProcessStartInfo
@@ -24,6 +27,17 @@ public static class AgentProcessHelper
 
         foreach (var (key, value) in spec.Environment)
             psi.Environment[key] = value;
+
+        // Without these, .NET falls back to GetConsoleOutputCP()/GetConsoleCP(). Tendril runs
+        // console-less (CreateNoWindow, WinExe), so those return 0 and the streams get the ANSI
+        // codepage (Windows-1252 here). Agent output is UTF-8, so an em dash arrives as three
+        // characters, and on stdin every character outside CP1252 is replaced with "?" (#1798).
+        if (spec.RedirectStdin)
+            psi.StandardInputEncoding = Utf8NoBom;
+        if (spec.RedirectStdout)
+            psi.StandardOutputEncoding = Utf8NoBom;
+        if (spec.RedirectStderr)
+            psi.StandardErrorEncoding = Utf8NoBom;
 
         return psi;
     }

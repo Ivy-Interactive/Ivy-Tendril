@@ -35,7 +35,7 @@ public class AntigravityEventParserTests
         var initEvent = Assert.IsType<SessionInitEvent>(events[0]);
         Assert.Equal("c-123", initEvent.SessionId);
         Assert.Equal("gemini-3.6-flash", initEvent.Model);
-        Assert.Equal(2, initEvent.AvailableTools.Count);
+        Assert.Equal(2, initEvent.AvailableTools?.Count ?? 0);
     }
 
     [Fact]

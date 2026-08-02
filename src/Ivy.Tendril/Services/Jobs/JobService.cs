@@ -672,6 +672,9 @@ public class JobService : IJobService
     /// </summary>
     private void ReconcileRestoredJob(JobItem job)
     {
+        if (Environment.GetEnvironmentVariable("TENDRIL_NOT_MASTER") == "1" || IsOtherMasterRunning())
+            return;
+
         if (job.Status is not (JobStatus.Pending or JobStatus.Queued or JobStatus.Running))
             return;
 
@@ -687,11 +690,58 @@ public class JobService : IJobService
             return;
         }
 
-        job.Status = JobStatus.Failed;
-        job.StatusMessage = "Interrupted by Tendril master restart";
-        job.CompletedAt = DateTime.UtcNow;
-        PersistJob(job);
-        _logger.LogWarning("Job {JobId}: Marked Failed — interrupted by a Tendril master restart", job.Id);
+        // Only mark RUNNING jobs as failed when their process is dead.
+        // Pending and Queued jobs do not have a process yet and must not be marked failed.
+        if (job.Status == JobStatus.Running)
+        {
+            job.Status = JobStatus.Failed;
+            job.StatusMessage = "Interrupted by Tendril master restart";
+            job.CompletedAt = DateTime.UtcNow;
+            PersistJob(job);
+            _logger.LogWarning("Job {JobId}: Marked Failed — interrupted by a Tendril master restart", job.Id);
+        }
+    }
+
+    private bool IsOtherMasterRunning()
+    {
+        if (_configService == null || string.IsNullOrEmpty(_configService.TendrilHome))
+            return false;
+
+        var masterFilePath = Path.Combine(_configService.TendrilHome, ".master");
+        if (!File.Exists(masterFilePath)) return false;
+
+        try
+        {
+            var json = File.ReadAllText(masterFilePath);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("pid", out var pidElem) && pidElem.TryGetInt32(out var pid))
+            {
+                if (pid == Environment.ProcessId) return false;
+                try
+                {
+                    using var proc = System.Diagnostics.Process.GetProcessById(pid);
+                    if (!proc.HasExited)
+                    {
+                        if (root.TryGetProperty("heartbeat", out var hbElem) && hbElem.TryGetDateTime(out var hb))
+                        {
+                            if (DateTime.UtcNow - hb.ToUniversalTime() <= TimeSpan.FromSeconds(90))
+                                return true;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Process not found or access denied
+                }
+            }
+        }
+        catch
+        {
+            // Ignore errors reading master file
+        }
+
+        return false;
     }
 
     // Grace on the PID-reuse guard: the agent process starts shortly after the job does, so its
@@ -959,6 +1009,11 @@ public class JobService : IJobService
             return (planFile, cp.Project, cp.Priority);
         }
 
+        if (args is AddProjectArgs ap)
+        {
+            return (ap.ProjectName, ap.ProjectName, 0);
+        }
+
         var folder = args.PlanFolder ?? "";
         var file = Path.GetFileName(folder);
         if (!Directory.Exists(folder))
@@ -1186,7 +1241,7 @@ public class JobService : IJobService
     private void LaunchJob(JobItem job)
     {
         _jobLauncher.LaunchJob(
-            job, _jobs, _jobSlotSemaphore, _jobTimeout, _staleOutputTimeout,
+            job, _jobs, _jobSlotSemaphore, () => _jobTimeout, () => _staleOutputTimeout,
             (when, type, folder, project, j) => RunHooks(when, type, folder, project, j),
             (id, exitCode, timedOut, staleOutput) => CompleteJob(id, exitCode, timedOut, staleOutput),
             RaiseJobsStructureChanged);
@@ -1200,7 +1255,22 @@ public class JobService : IJobService
         => _completionHandler.RunHooks(when, jobType, planFolder, project, job);
 
     internal Task RunStaleOutputWatchdog(string id, CancellationTokenSource timeoutCts)
-        => JobMonitor.RunStaleOutputWatchdog(id, timeoutCts, _jobs, _staleOutputTimeout);
+        => JobMonitor.RunStaleOutputWatchdog(id, timeoutCts, _jobs, () => _staleOutputTimeout);
+
+    internal Task RunJobTimeoutWatchdog(string id, CancellationTokenSource timeoutCts, DateTime startedAt, TimeSpan? tickInterval = null)
+        => JobMonitor.RunJobTimeoutWatchdog(id, timeoutCts, _jobs, () => _jobTimeout, startedAt, tickInterval);
+
+    internal TimeSpan JobTimeout
+    {
+        get => _jobTimeout;
+        set => _jobTimeout = value;
+    }
+
+    internal TimeSpan StaleOutputTimeout
+    {
+        get => _staleOutputTimeout;
+        set => _staleOutputTimeout = value;
+    }
 
 
     private void ProcessJobQueue()

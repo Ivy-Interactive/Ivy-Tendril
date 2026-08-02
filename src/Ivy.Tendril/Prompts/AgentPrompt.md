@@ -178,8 +178,10 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 
 | Command | Description |
 |---------|-------------|
+| `tendril job list [--status <Status>] [--json]` | List active/running background jobs and their current activity |
 | `tendril job start <Type> <plan-id> [options]` | Start a job on the running Tendril server |
 | `tendril job status <job-id> -m <message>` | Report job status to the server |
+| `tendril job cancel <job-id> [-m <message>]` | Cancel a running or queued job, terminate its process, and revert plan state |
 | `tendril job add-log <job-id> <action> [--summary=<text>]` | Append a narrative log entry to this job's log |
 
 **Job types and options for `tendril job start`:**
@@ -194,12 +196,15 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `CreatePr` | `<plan-id>` | `--no-merge`, `--no-delete-branch`, `--no-artifacts`, `--assignee`, `--comment`, `--draft` |
 | `RetryPlan` | `<plan-id>`, `--change-request` | — |
 | `CreatePlan` | `--description`, `--project` | `--priority`, `--force`, `--source-path` |
+| `SetupProject` | `<project-name>` | — |
+| `AddProject` | `<project-name>` | — |
 
 Examples:
 ```bash
 tendril job start ExecutePlan 00042
 tendril job start RetryPlan 00042 --change-request="Fix the failing tests"
 tendril job start CreatePlan --description="Add dark mode" --project=MyProject
+tendril job start AddProject "MyProject"
 ```
 
 ### Promptware Commands
@@ -239,6 +244,17 @@ These commands are for internal use by other promptwares (e.g., a verification s
 | `tendril config set <key> <value>` | Set a top-level config value (use `--file`/`--stdin` for multiline values) |
 
 Valid keys: `codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate`. Example: `tendril config get planTemplate` prints the configured Plan Template.
+
+## Adding & Configuring Projects
+
+When the user asks you to add or configure a project (e.g. "add https://github.com/... as a project"):
+
+1. **DO NOT MANUALLY CONFIGURE**: Do NOT manually add verifications, review actions, or stack hashes using low-level CLI commands.
+2. **USE PROMPTWARE JOBS**: Always trigger the `AddProject` or `SetupProject` promptware job so that the automated setup engine runs:
+   ```bash
+   tendril job start AddProject "<ProjectName>"
+   ```
+3. **CLONE REMOTE REPOS TO DISK**: Always ensure remote Git repository URLs are cloned/pulled into `{TENDRIL_HOME}/Repos/<RepoName>` so local repository files exist on disk before inspecting or running project setup.
 
 ## Finding Projects & Repositories
 
