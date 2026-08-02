@@ -469,4 +469,177 @@ public class PlanContentHelpersTests
 
         Assert.False(result);
     }
+
+    [Fact]
+    public void CountDiffLines_SingleFile_CountsAdditionsAndDeletions()
+    {
+        var diff = @"diff --git a/test.cs b/test.cs
+--- a/test.cs
++++ b/test.cs
+@@ -1,5 +1,6 @@
+ public class Test
+ {
+-    public void OldMethod()
++    public void NewMethod()
+     {
++        var x = 1;
+     }
+";
+        var result = PlanContentHelpers.CountDiffLines(diff);
+
+        Assert.Equal(2, result.Additions);
+        Assert.Equal(1, result.Deletions);
+    }
+
+    [Fact]
+    public void CountDiffLines_SkipsFileHeaders()
+    {
+        var diff = @"diff --git a/test.cs b/test.cs
+index 1234567..abcdefg 100644
+--- a/test.cs
++++ b/test.cs
+@@ -1,3 +1,3 @@
+-var x = 1;
++var x = 2;
+";
+        var result = PlanContentHelpers.CountDiffLines(diff);
+
+        Assert.Equal(1, result.Additions);
+        Assert.Equal(1, result.Deletions);
+    }
+
+    [Fact]
+    public void CountDiffLines_DeletedCommentLineStartingWithDashes_IsCounted()
+    {
+        var diff = @"diff --git a/test.sql b/test.sql
+--- a/test.sql
++++ b/test.sql
+@@ -1,3 +1,2 @@
+ SELECT * FROM users
+--- old note
+ WHERE active = 1;
+";
+        var result = PlanContentHelpers.CountDiffLines(diff);
+
+        Assert.Equal(0, result.Additions);
+        Assert.Equal(1, result.Deletions);
+    }
+
+    [Fact]
+    public void CountDiffLines_AddedLineStartingWithPluses_IsCounted()
+    {
+        var diff = @"diff --git a/test.cpp b/test.cpp
+--- a/test.cpp
++++ b/test.cpp
+@@ -1,2 +1,3 @@
+ int x = 5;
++// +++ increment operator
+ x++;
+";
+        var result = PlanContentHelpers.CountDiffLines(diff);
+
+        Assert.Equal(1, result.Additions);
+        Assert.Equal(0, result.Deletions);
+    }
+
+    [Fact]
+    public void CountDiffLines_MultipleFiles_SumsAcrossFiles()
+    {
+        var diff = @"diff --git a/file1.cs b/file1.cs
+--- a/file1.cs
++++ b/file1.cs
+@@ -1,2 +1,3 @@
+ var a = 1;
++var b = 2;
+diff --git a/file2.cs b/file2.cs
+--- a/file2.cs
++++ b/file2.cs
+@@ -1,3 +1,2 @@
+ var x = 10;
+-var y = 20;
+";
+        var result = PlanContentHelpers.CountDiffLines(diff);
+
+        Assert.Equal(1, result.Additions);
+        Assert.Equal(1, result.Deletions);
+    }
+
+    [Fact]
+    public void CountDiffLines_FileDiffList_SumsEachEntry()
+    {
+        var fileDiffs = new List<PlanContentHelpers.FileDiff>
+        {
+            new("file1.cs", "M", @"diff --git a/file1.cs b/file1.cs
+@@ -1,1 +1,2 @@
+ var a = 1;
++var b = 2;
+"),
+            new("file2.cs", "M", @"diff --git a/file2.cs b/file2.cs
+@@ -1,2 +1,1 @@
+-var x = 10;
+ var y = 20;
+")
+        };
+
+        var result = PlanContentHelpers.CountDiffLines(fileDiffs);
+
+        Assert.Equal(1, result.Additions);
+        Assert.Equal(1, result.Deletions);
+    }
+
+    [Fact]
+    public void CountDiffLines_NullOrEmptyDiff_ReturnsEmpty()
+    {
+        var resultNull = PlanContentHelpers.CountDiffLines((string?)null);
+        var resultEmpty = PlanContentHelpers.CountDiffLines("");
+        var resultWhitespace = PlanContentHelpers.CountDiffLines("   ");
+
+        Assert.Equal(PlanContentHelpers.DiffLineCounts.Empty, resultNull);
+        Assert.Equal(PlanContentHelpers.DiffLineCounts.Empty, resultEmpty);
+        Assert.Equal(PlanContentHelpers.DiffLineCounts.Empty, resultWhitespace);
+    }
+
+    [Fact]
+    public void CountDiffLines_BinaryFileDiff_ReturnsEmpty()
+    {
+        var diff = @"diff --git a/image.png b/image.png
+Binary files a/image.png and b/image.png differ
+";
+        var result = PlanContentHelpers.CountDiffLines(diff);
+
+        Assert.Equal(0, result.Additions);
+        Assert.Equal(0, result.Deletions);
+    }
+
+    [Fact]
+    public void CountDiffLines_CrlfLineEndings_CountsSameAsLf()
+    {
+        var diffLf = "diff --git a/test.cs b/test.cs\n@@ -1,2 +1,3 @@\n var a = 1;\n+var b = 2;\n-var c = 3;\n";
+        var diffCrlf = "diff --git a/test.cs b/test.cs\r\n@@ -1,2 +1,3 @@\r\n var a = 1;\r\n+var b = 2;\r\n-var c = 3;\r\n";
+
+        var resultLf = PlanContentHelpers.CountDiffLines(diffLf);
+        var resultCrlf = PlanContentHelpers.CountDiffLines(diffCrlf);
+
+        Assert.Equal(resultLf.Additions, resultCrlf.Additions);
+        Assert.Equal(resultLf.Deletions, resultCrlf.Deletions);
+        Assert.Equal(1, resultLf.Additions);
+        Assert.Equal(1, resultLf.Deletions);
+    }
+
+    [Fact]
+    public void CountDiffLines_NoNewlineMarker_IsNotCounted()
+    {
+        var diff = @"diff --git a/test.cs b/test.cs
+--- a/test.cs
++++ b/test.cs
+@@ -1,2 +1,2 @@
+-var x = 1;
++var x = 2;
+\ No newline at end of file
+";
+        var result = PlanContentHelpers.CountDiffLines(diff);
+
+        Assert.Equal(1, result.Additions);
+        Assert.Equal(1, result.Deletions);
+    }
 }
