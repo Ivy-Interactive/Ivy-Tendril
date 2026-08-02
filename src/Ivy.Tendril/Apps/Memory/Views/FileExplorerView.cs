@@ -16,13 +16,19 @@ public class FileExplorerTreeNode
     public List<(string Path, string Name, List<MemoryNote> Memories)> Files { get; } = new();
 }
 
-public record RepoOrPromptwareItem(string Name, string Path, bool IsPromptware);
+public record ProjectOrPromptwareOption(
+    string Id,
+    string Label,
+    string Path,
+    string Name,
+    bool IsPromptware
+);
 
 public class FileExplorerView : ViewBase
 {
     private readonly List<ProjectConfig> _projects;
     private readonly Dictionary<string, PromptwareConfig> _configuredPromptwares;
-    private readonly IState<string?> _selectedProject;
+    private readonly IState<string?> _selectedSourceKey;
     private readonly IState<string?> _selectedFolderPath;
     private readonly IState<string?> _selectedFolderName;
     private readonly List<string> _allFiles;
@@ -36,7 +42,7 @@ public class FileExplorerView : ViewBase
     public FileExplorerView(
         List<ProjectConfig> projects,
         Dictionary<string, PromptwareConfig> configuredPromptwares,
-        IState<string?> selectedProject,
+        IState<string?> selectedSourceKey,
         IState<string?> selectedFolderPath,
         IState<string?> selectedFolderName,
         List<string> allFiles,
@@ -49,7 +55,7 @@ public class FileExplorerView : ViewBase
     {
         _projects = projects;
         _configuredPromptwares = configuredPromptwares;
-        _selectedProject = selectedProject;
+        _selectedSourceKey = selectedSourceKey;
         _selectedFolderPath = selectedFolderPath;
         _selectedFolderName = selectedFolderName;
         _allFiles = allFiles;
@@ -65,24 +71,25 @@ public class FileExplorerView : ViewBase
     {
         var query = _searchQuery.Value.Trim();
 
-        // Ensure a project is selected
-        if (string.IsNullOrEmpty(_selectedProject.Value) && _projects.Count > 0)
+        var sourceOptions = GetAllSourceOptions(_projects, _workingDir, _configuredPromptwares);
+        var selectOptions = sourceOptions.Select(o => new Option<string>(o.Id, o.Label)).ToArray<IAnyOption>();
+
+        // Ensure default option selected
+        if (string.IsNullOrEmpty(_selectedSourceKey.Value) && sourceOptions.Count > 0)
         {
-            _selectedProject.Set(_projects.First().Name);
+            var firstOpt = sourceOptions.First();
+            _selectedSourceKey.Set(firstOpt.Id);
+            _selectedFolderPath.Set(firstOpt.Path);
+            _selectedFolderName.Set(firstOpt.Name);
         }
 
-        var projectOptions = _projects.Select(p => new Option<string>(p.Name, p.Name)).ToArray<IAnyOption>();
-        var selectedProj = _projects.FirstOrDefault(p => p.Name.Equals(_selectedProject.Value, StringComparison.OrdinalIgnoreCase))
-            ?? _projects.FirstOrDefault();
-
-        var repoOrPromptwareItems = GetItemsForProject(selectedProj, _workingDir, _configuredPromptwares);
-
-        // Ensure default selected folder if not set
-        if (string.IsNullOrEmpty(_selectedFolderPath.Value) && repoOrPromptwareItems.Count > 0)
+        // Sync state if selectedSourceKey changes
+        var currentMatch = sourceOptions.FirstOrDefault(o => o.Id == _selectedSourceKey.Value) ?? sourceOptions.FirstOrDefault();
+        if (currentMatch != null && currentMatch.Path != _selectedFolderPath.Value)
         {
-            var firstItem = repoOrPromptwareItems.First();
-            _selectedFolderPath.Set(firstItem.Path);
-            _selectedFolderName.Set(firstItem.Name);
+            _selectedFolderPath.Set(currentMatch.Path);
+            _selectedFolderName.Set(currentMatch.Name);
+            _projectFilter.Set(currentMatch.Name);
         }
 
         // Build file -> memories mapping
@@ -134,60 +141,12 @@ public class FileExplorerView : ViewBase
                 }
             });
 
-        // Project selector
-        var projectSelectInput = _selectedProject.ToSelectInput(projectOptions)
-            .Placeholder("Select Project...")
+        // Single Select Input for Projects & Promptwares at top of sidebar
+        var sourceSelectInput = _selectedSourceKey.ToSelectInput(selectOptions)
+            .Placeholder("Select Project or Promptware...")
             .WithField()
-            .Label("Project")
+            .Label("Project / Promptware")
             .Width(Size.Full());
-
-        // Repositories & Promptwares list
-        var repoItems = repoOrPromptwareItems.Where(i => !i.IsPromptware).ToList();
-        var promptwareItems = repoOrPromptwareItems.Where(i => i.IsPromptware).ToList();
-
-        var reposListLayout = Layout.Vertical().Gap(1).Width(Size.Full());
-        if (repoItems.Count > 0)
-        {
-            reposListLayout |= Text.Block("Repositories").Small().Bold().Muted();
-            foreach (var item in repoItems)
-            {
-                var isSelected = string.Equals(_selectedFolderPath.Value, item.Path, StringComparison.OrdinalIgnoreCase);
-                var btn = new Button(item.Name)
-                    .Icon(Icons.FolderGit2)
-                    .Variant(isSelected ? ButtonVariant.Primary : ButtonVariant.Ghost)
-                    .Small()
-                    .Width(Size.Full())
-                    .OnClick(() =>
-                    {
-                        _selectedFolderPath.Set(item.Path);
-                        _selectedFolderName.Set(item.Name);
-                        _projectFilter.Set(item.Name);
-                    });
-                reposListLayout |= btn;
-            }
-        }
-
-        var promptwaresListLayout = Layout.Vertical().Gap(1).Width(Size.Full());
-        if (promptwareItems.Count > 0)
-        {
-            promptwaresListLayout |= Text.Block("Promptwares").Small().Bold().Muted();
-            foreach (var item in promptwareItems)
-            {
-                var isSelected = string.Equals(_selectedFolderPath.Value, item.Path, StringComparison.OrdinalIgnoreCase);
-                var btn = new Button(item.Name)
-                    .Icon(Icons.Sparkles)
-                    .Variant(isSelected ? ButtonVariant.Primary : ButtonVariant.Ghost)
-                    .Small()
-                    .Width(Size.Full())
-                    .OnClick(() =>
-                    {
-                        _selectedFolderPath.Set(item.Path);
-                        _selectedFolderName.Set(item.Name);
-                        _projectFilter.Set(item.Name);
-                    });
-                promptwaresListLayout |= btn;
-            }
-        }
 
         var searchInput = _searchQuery.ToTextInput(placeholder: "Search files...")
             .Prefix(Icons.Search)
@@ -199,14 +158,8 @@ public class FileExplorerView : ViewBase
             | new Button("Linked Only").Variant(_onlyLinkedFilter.Value ? ButtonVariant.Primary : ButtonVariant.Outline).Small()
                 .OnClick(() => _onlyLinkedFilter.Set(true));
 
-        var folderHeader = Text.Block($"Files in {_selectedFolderName.Value ?? "Folder"}").Bold().Small();
-
         var topHeaderControls = Layout.Vertical().Gap(2).Width(Size.Full())
-            | projectSelectInput
-            | reposListLayout
-            | promptwaresListLayout
-            | new Spacer().Height(Size.Units(1))
-            | folderHeader
+            | sourceSelectInput
             | searchInput
             | filterToggle;
 
@@ -219,32 +172,49 @@ public class FileExplorerView : ViewBase
             | treeContent;
     }
 
-    public static List<RepoOrPromptwareItem> GetItemsForProject(ProjectConfig? project, string workingDir, Dictionary<string, PromptwareConfig>? configuredPromptwares)
+    public static List<ProjectOrPromptwareOption> GetAllSourceOptions(
+        List<ProjectConfig> projects,
+        string workingDir,
+        Dictionary<string, PromptwareConfig>? configuredPromptwares)
     {
-        var items = new List<RepoOrPromptwareItem>();
-        if (project == null)
+        var options = new List<ProjectOrPromptwareOption>();
+
+        // 1. Projects
+        if (projects.Count > 0)
         {
-            items.Add(new RepoOrPromptwareItem("Workspace", workingDir, false));
-            return items;
+            foreach (var proj in projects)
+            {
+                if (proj.Repos.Count > 0)
+                {
+                    foreach (var repo in proj.Repos)
+                    {
+                        var fullPath = Path.IsPathRooted(repo.Path)
+                            ? repo.Path
+                            : Path.GetFullPath(Path.Combine(workingDir, repo.Path));
+                        var name = Path.GetFileName(fullPath.TrimEnd('/', '\\'));
+                        if (string.IsNullOrEmpty(name)) name = proj.Name;
+                        var label = $"📁 Project: {name}";
+                        var id = $"proj:{fullPath}";
+                        options.Add(new ProjectOrPromptwareOption(id, label, fullPath, name, false));
+                    }
+                }
+                else
+                {
+                    var label = $"📁 Project: {proj.Name}";
+                    var id = $"proj:{workingDir}";
+                    options.Add(new ProjectOrPromptwareOption(id, label, workingDir, proj.Name, false));
+                }
+            }
+        }
+        else
+        {
+            var name = Path.GetFileName(workingDir.TrimEnd('/', '\\'));
+            var label = $"📁 Project: {name}";
+            var id = $"proj:{workingDir}";
+            options.Add(new ProjectOrPromptwareOption(id, label, workingDir, name, false));
         }
 
-        // Add repositories
-        foreach (var repo in project.Repos)
-        {
-            var fullPath = Path.IsPathRooted(repo.Path)
-                ? repo.Path
-                : Path.GetFullPath(Path.Combine(workingDir, repo.Path));
-            var name = Path.GetFileName(fullPath.TrimEnd('/', '\\'));
-            if (string.IsNullOrEmpty(name)) name = fullPath;
-            items.Add(new RepoOrPromptwareItem(name, fullPath, false));
-        }
-
-        if (items.Count == 0)
-        {
-            items.Add(new RepoOrPromptwareItem(project.Name, workingDir, false));
-        }
-
-        // Add promptwares
+        // 2. Promptwares
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
         var promptwareRoots = new[]
@@ -265,7 +235,9 @@ public class FileExplorerView : ViewBase
                 if (pwName.Equals("memories", StringComparison.OrdinalIgnoreCase)) continue;
                 if (seenPw.Add(pwName))
                 {
-                    items.Add(new RepoOrPromptwareItem(pwName, pwDir, true));
+                    var label = $"✨ Promptware: {pwName}";
+                    var id = $"pw:{pwDir}";
+                    options.Add(new ProjectOrPromptwareOption(id, label, pwDir, pwName, true));
                 }
             }
         }
@@ -277,12 +249,14 @@ public class FileExplorerView : ViewBase
                 if (seenPw.Add(name))
                 {
                     var folder = PromptwareHelper.ResolvePromptwareFolder(name, tendrilHome);
-                    items.Add(new RepoOrPromptwareItem(name, folder, true));
+                    var label = $"✨ Promptware: {name}";
+                    var id = $"pw:{folder}";
+                    options.Add(new ProjectOrPromptwareOption(id, label, folder, name, true));
                 }
             }
         }
 
-        return items;
+        return options;
     }
 
     private static FileExplorerTreeNode BuildFileTree(IEnumerable<string> filePaths, Dictionary<string, List<MemoryNote>> fileMemoryMap)

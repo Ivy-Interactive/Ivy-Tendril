@@ -27,13 +27,10 @@ public class MemoryApp : ViewBase
         var memoryService = UseService<IMemoryService>();
         var client = UseService<IClientProvider>();
 
-        var projects = config.Settings.Projects;
-        var configuredPromptwares = config.Settings.Promptwares;
-
         var viewMode = UseState(MemoryViewMode.FileBased);
-        var selectedProject = UseState<string?>(() => projects.FirstOrDefault()?.Name);
-        var selectedFolderPath = UseState<string?>(() => null);
-        var selectedFolderName = UseState<string?>(() => "Workspace");
+        var selectedSourceKey = UseState<string?>(null);
+        var selectedFolderPath = UseState<string?>(null);
+        var selectedFolderName = UseState<string?>("Workspace");
 
         var selectedFile = UseState<string?>(null);
         var selectedNote = UseState<string?>(null);
@@ -56,6 +53,8 @@ public class MemoryApp : ViewBase
         var projectFiles = UseState(new List<string>());
         var isFilesLoading = UseState(false);
 
+        var projects = config.Settings.Projects;
+        var configuredPromptwares = config.Settings.Promptwares;
         var workingDir = Directory.GetCurrentDirectory();
 
         void LoadStatus()
@@ -157,7 +156,7 @@ public class MemoryApp : ViewBase
         var explorerView = new FileExplorerView(
             projects,
             configuredPromptwares,
-            selectedProject,
+            selectedSourceKey,
             selectedFolderPath,
             selectedFolderName,
             projectFiles.Value,
