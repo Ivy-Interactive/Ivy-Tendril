@@ -46,6 +46,7 @@ Common issues and how to fix them. If you're still stuck, run <code>tendril doct
 | Verifications keep failing | Run the verification commands manually in the worktree to isolate the issue |
 | Stale worktree after a failed run | Run `tendril plan cleanup <id> --force` to remove it |
 | Nested worktree detected | Run `tendril plan doctor --fix` to remove nested artifacts |
+| Voice input says it is unavailable | On macOS, allow microphone access under System Settings > Privacy and Security > Microphone, then restart Ivy Tendril. On Linux desktop mode the webview does not support microphone capture; run `tendril --web` and use voice input in your browser. |
 
 ## Database
 

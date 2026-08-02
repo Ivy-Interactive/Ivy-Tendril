@@ -60,9 +60,83 @@ describe("ContentInput", () => {
   it("overwrites the input text with incoming value prop when not focused", () => {
     const { rerender } = render(<ContentInput id="civ-1" value="initial" autoFocus={false} />);
     const textarea = screen.getByPlaceholderText("How can I help you today?") as HTMLTextAreaElement;
-    
+
     // Simulate backend sending updated value
     rerender(<ContentInput id="civ-1" value="updated" autoFocus={false} />);
     expect(textarea.value).toBe("updated");
+  });
+
+  it("shows an actionable error instead of a TypeError when navigator.mediaDevices is undefined", async () => {
+    Object.defineProperty(global.navigator, "mediaDevices", {
+      configurable: true,
+      value: undefined,
+    });
+
+    const onIvyEvent = vi.fn();
+    render(<ContentInput id="civ-1" value="" onIvyEvent={onIvyEvent} transcriptionEndpoint="ws://test" />);
+
+    const micButton = screen.getByTitle("Voice input transcription");
+    fireEvent.click(micButton);
+
+    await vi.waitFor(() => {
+      const errorBanner = document.querySelector(".civ-error-banner");
+      expect(errorBanner?.textContent).toContain("not available in this window");
+      expect(errorBanner?.textContent).not.toContain("TypeError");
+    });
+  });
+
+  it("does not open a WebSocket when the mediaDevices API is missing", async () => {
+    Object.defineProperty(global.navigator, "mediaDevices", {
+      configurable: true,
+      value: undefined,
+    });
+
+    const mockWebSocket = vi.fn();
+    vi.stubGlobal("WebSocket", mockWebSocket);
+
+    render(<ContentInput id="civ-1" value="" transcriptionEndpoint="ws://test" />);
+
+    const micButton = screen.getByTitle("Voice input transcription");
+    fireEvent.click(micButton);
+
+    await vi.waitFor(() => {
+      expect(mockWebSocket).not.toHaveBeenCalled();
+    });
+  });
+
+  it("returns to idle status when the mediaDevices API is missing", async () => {
+    Object.defineProperty(global.navigator, "mediaDevices", {
+      configurable: true,
+      value: undefined,
+    });
+
+    render(<ContentInput id="civ-1" value="" transcriptionEndpoint="ws://test" />);
+
+    const micButton = screen.getByTitle("Voice input transcription");
+    fireEvent.click(micButton);
+
+    await vi.waitFor(() => {
+      expect(micButton).toHaveClass("civ-status-idle");
+      expect(micButton).not.toHaveClass("civ-status-connecting");
+    });
+  });
+
+  it("reports a permission denial distinctly from an unsupported environment", async () => {
+    Object.defineProperty(global.navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn().mockRejectedValue(new DOMException("denied", "NotAllowedError")),
+      },
+    });
+
+    render(<ContentInput id="civ-1" value="" transcriptionEndpoint="ws://test" />);
+
+    const micButton = screen.getByTitle("Voice input transcription");
+    fireEvent.click(micButton);
+
+    await vi.waitFor(() => {
+      const errorBanner = document.querySelector(".civ-error-banner");
+      expect(errorBanner?.textContent).toContain("System Settings");
+    });
   });
 });
