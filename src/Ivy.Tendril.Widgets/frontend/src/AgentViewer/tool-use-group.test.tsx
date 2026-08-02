@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { ToolUseGroup } from "./tool-use-group";
 import type { ToolUsePresentation } from "./types";
@@ -24,8 +23,7 @@ describe("ToolUseGroup", () => {
     expect(header).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("clicking the header reveals individual tool cards", async () => {
-    const user = userEvent.setup();
+  it("clicking the header reveals individual tool cards", () => {
     const tools: ToolUsePresentation[] = [
       { toolUseId: "1", name: "Read", input: { file_path: "test.ts" }, result: "OK" },
       { toolUseId: "2", name: "Write", input: { file_path: "out.ts" }, result: "OK" },
@@ -35,7 +33,7 @@ describe("ToolUseGroup", () => {
     render(<ToolUseGroup tools={tools} />);
 
     const header = screen.getByRole("button");
-    await user.click(header);
+    fireEvent.click(header);
 
     expect(header).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Read")).toBeInTheDocument();
