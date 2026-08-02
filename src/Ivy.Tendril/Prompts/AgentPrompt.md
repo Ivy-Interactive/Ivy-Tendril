@@ -178,6 +178,7 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 
 | Command | Description |
 |---------|-------------|
+| `tendril job list [--status <Status>] [--json]` | List active/running background jobs and their current activity |
 | `tendril job start <Type> <plan-id> [options]` | Start a job on the running Tendril server |
 | `tendril job status <job-id> -m <message>` | Report job status to the server |
 | `tendril job cancel <job-id> [-m <message>]` | Cancel a running or queued job, terminate its process, and revert plan state |
