@@ -90,7 +90,7 @@ public class JobListCommand : Command<JobListSettings>
                 {
                     var j = jobs[i];
                     var comma = i < jobs.Count - 1 ? "," : "";
-                    Console.WriteLine($"  {{\"id\":\"{Escape(j.Id)}\",\"type\":\"{Escape(j.Type)}\",\"project\":\"{Escape(j.Project)}\",\"status\":\"{Escape(j.Status)}\",\"plan\":\"{Escape(j.Plan)}\",\"started\":\"{Escape(j.Started)}\",\"duration\":\"{Escape(j.Duration)}\"}}{comma}");
+                    Console.WriteLine($"  {{\"id\":\"{Escape(j.Id)}\",\"type\":\"{Escape(j.Type)}\",\"project\":\"{Escape(j.Project)}\",\"status\":\"{Escape(j.Status)}\",\"message\":\"{Escape(j.Message)}\",\"plan\":\"{Escape(j.Plan)}\",\"started\":\"{Escape(j.Started)}\",\"duration\":\"{Escape(j.Duration)}\"}}{comma}");
                 }
                 Console.WriteLine("]");
                 break;
@@ -106,11 +106,12 @@ public class JobListCommand : Command<JobListSettings>
                     Truncate(j.Type, 20),
                     Truncate(j.Project, 20),
                     j.Status,
+                    Truncate(j.Message, 30),
                     Truncate(j.Plan, 10),
                     j.Started,
                     j.Duration
                 });
-                CliOutput.WriteTable(["Id", "Type", "Project", "Status", "Plan", "Started", "Duration"], rows);
+                CliOutput.WriteTable(["Id", "Type", "Project", "Status", "Message", "Plan", "Started", "Duration"], rows);
                 break;
         }
 
@@ -125,7 +126,7 @@ public class JobListCommand : Command<JobListSettings>
         using var conn = new SqliteConnection($"Data Source={dbPath};Mode=ReadOnly");
         conn.Open();
 
-        var sql = "SELECT Id, Type, Project, Status, ReportedPlanId, StartedAt, CompletedAt, DurationSeconds, Cost FROM Jobs WHERE Cleared = 0";
+        var sql = "SELECT Id, Type, Project, Status, ReportedPlanId, StartedAt, CompletedAt, DurationSeconds, Cost, StatusMessage FROM Jobs WHERE Cleared = 0";
         var parameters = new List<SqliteParameter>();
 
         if (!string.IsNullOrEmpty(settings.Project))
@@ -169,11 +170,12 @@ public class JobListCommand : Command<JobListSettings>
             var startedAt = reader.IsDBNull(5) ? (DateTime?)null : DateTime.Parse(reader.GetString(5));
             var completedAt = reader.IsDBNull(6) ? (DateTime?)null : DateTime.Parse(reader.GetString(6));
             var durationSeconds = reader.IsDBNull(7) ? (int?)null : reader.GetInt32(7);
+            var statusMsg = reader.IsDBNull(9) ? "" : reader.GetString(9);
 
             var started = startedAt?.ToString("yyyy-MM-dd HH:mm") ?? "";
             var duration = durationSeconds.HasValue ? FormatDuration(durationSeconds.Value) : "";
 
-            jobs.Add(new JobListEntry(id, type, project, status, planId, started, duration));
+            jobs.Add(new JobListEntry(id, type, project, status, statusMsg, planId, started, duration));
         }
 
         return jobs;
@@ -192,5 +194,5 @@ public class JobListCommand : Command<JobListSettings>
     private static string Escape(string s) =>
         s.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
-    internal record JobListEntry(string Id, string Type, string Project, string Status, string Plan, string Started, string Duration);
+    internal record JobListEntry(string Id, string Type, string Project, string Status, string Message, string Plan, string Started, string Duration);
 }
