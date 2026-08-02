@@ -55,7 +55,7 @@ public class FileExplorerView : ViewBase
         var onlyLinkedFilter = UseState<bool>(false);
 
         var sourceOptions = GetAllSourceOptions(_projects, _workingDir, _configuredPromptwares);
-        var selectOptions = sourceOptions.Select(o => new Option<string>(o.Id, o.Label)).ToArray<IAnyOption>();
+        var selectOptions = sourceOptions.Select(o => new Option<string>(o.Id, o.Label)).ToArray();
 
         // Find active option matching selectedSourceKey or default to first
         var currentMatch = sourceOptions.FirstOrDefault(o => string.Equals(o.Id, _selectedSourceKey.Value, StringComparison.OrdinalIgnoreCase))
@@ -79,6 +79,8 @@ public class FileExplorerView : ViewBase
             }
         }
         catch { }
+
+        Console.WriteLine($"[FileExplorerView] selectedSourceKey='{_selectedSourceKey.Value}', currentMatch='{currentMatch?.Label}', targetDir='{targetDir}', files={scannedFiles.Count}");
 
         // Build file -> memories mapping
         var fileMemoryMap = new Dictionary<string, List<MemoryNote>>(StringComparer.OrdinalIgnoreCase);
