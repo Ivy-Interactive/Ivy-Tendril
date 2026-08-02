@@ -1,4 +1,4 @@
-using System.Data.SQLite;
+using Microsoft.Data.Sqlite;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Database;
 using Ivy.Tendril.Helpers;
@@ -31,7 +31,8 @@ public class JobListCommandTests : IDisposable
 
     private void InitializeDatabase()
     {
-        using var conn = SqliteConnectionFactory.OpenConfigured(_dbPath, readWriteCreate: true);
+        using var conn = new SqliteConnection($"Data Source={_dbPath};Mode=ReadWriteCreate");
+        conn.Open();
         var migrator = new DatabaseMigrator(conn);
         migrator.ApplyMigrations();
     }
@@ -39,8 +40,9 @@ public class JobListCommandTests : IDisposable
     private void InsertJob(string id, string type, string project, string status, string? planId = null,
         DateTime? startedAt = null, DateTime? completedAt = null, int? durationSeconds = null, bool cleared = false)
     {
-        using var conn = SqliteConnectionFactory.OpenConfigured(_dbPath, readWriteCreate: false);
-        using var cmd = new SQLiteCommand(conn);
+        using var conn = new SqliteConnection($"Data Source={_dbPath};Mode=ReadWrite");
+        conn.Open();
+        using var cmd = new SqliteCommand(conn);
         cmd.CommandText = @"
             INSERT INTO Jobs (Id, Type, Project, Status, ReportedPlanId, StartedAt, CompletedAt, DurationSeconds, Cost, Cleared)
             VALUES (@id, @type, @project, @status, @planId, @startedAt, @completedAt, @durationSeconds, 0.0, @cleared)";
@@ -170,7 +172,7 @@ public class JobListCommandTests : IDisposable
         var missingDbPath = Path.Combine(_tempDir.Path, "nonexistent.db");
 
         var settings = new JobListSettings();
-        Assert.Throws<System.Data.SQLite.SQLiteException>(() => JobListCommand.QueryJobs(missingDbPath, settings));
+        Assert.Throws<System.Data.SQLite.SqliteException>(() => JobListCommand.QueryJobs(missingDbPath, settings));
     }
 
     [Fact]

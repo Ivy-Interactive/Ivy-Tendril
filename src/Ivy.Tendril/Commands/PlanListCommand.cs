@@ -71,8 +71,7 @@ public class PlanListCommand : Command<PlanListSettings>
     {
         if (!string.IsNullOrEmpty(settings.Project))
         {
-            var config = _configService.GetConfiguration();
-            var availableProjects = config.Projects.Keys.ToList();
+            var availableProjects = _configService.Projects.Select(p => p.Name).ToList();
             CliValidation.ValidateConfiguredProject(settings.Project, availableProjects);
         }
 

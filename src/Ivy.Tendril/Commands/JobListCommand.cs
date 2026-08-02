@@ -1,5 +1,5 @@
 using System.ComponentModel;
-using System.Data.SQLite;
+using Microsoft.Data.Sqlite;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
@@ -68,8 +68,7 @@ public class JobListCommand : Command<JobListSettings>
 
         if (!string.IsNullOrEmpty(settings.Project))
         {
-            var config = _configService.GetConfiguration();
-            var availableProjects = config.Projects.Keys.ToList();
+            var availableProjects = _configService.Projects.Select(p => p.Name).ToList();
             if (!availableProjects.Contains(settings.Project, StringComparer.OrdinalIgnoreCase))
             {
                 CliValidation.ThrowProjectNotFound(settings.Project, availableProjects);
@@ -123,39 +122,40 @@ public class JobListCommand : Command<JobListSettings>
         var jobs = new List<JobListEntry>();
         var limit = settings.Limit ?? 50;
 
-        using var conn = SqliteConnectionFactory.OpenConfigured(dbPath, readWriteCreate: false);
+        using var conn = new SqliteConnection($"Data Source={dbPath};Mode=ReadOnly");
+        conn.Open();
 
         var sql = "SELECT Id, Type, Project, Status, ReportedPlanId, StartedAt, CompletedAt, DurationSeconds, Cost FROM Jobs WHERE Cleared = 0";
-        var parameters = new List<SQLiteParameter>();
+        var parameters = new List<SqliteParameter>();
 
         if (!string.IsNullOrEmpty(settings.Project))
         {
             sql += " AND Project = @project";
-            parameters.Add(new SQLiteParameter("@project", settings.Project));
+            parameters.Add(new SqliteParameter("@project", settings.Project));
         }
 
         if (!string.IsNullOrEmpty(settings.Status))
         {
             sql += " AND Status = @status";
-            parameters.Add(new SQLiteParameter("@status", settings.Status));
+            parameters.Add(new SqliteParameter("@status", settings.Status));
         }
 
         if (!string.IsNullOrEmpty(settings.Type))
         {
             sql += " AND Type = @type";
-            parameters.Add(new SQLiteParameter("@type", settings.Type));
+            parameters.Add(new SqliteParameter("@type", settings.Type));
         }
 
         if (!string.IsNullOrEmpty(settings.Plan))
         {
             sql += " AND ReportedPlanId = @plan";
-            parameters.Add(new SQLiteParameter("@plan", settings.Plan));
+            parameters.Add(new SqliteParameter("@plan", settings.Plan));
         }
 
         sql += " ORDER BY CASE WHEN CompletedAt IS NULL THEN 0 ELSE 1 END, StartedAt DESC LIMIT @limit";
-        parameters.Add(new SQLiteParameter("@limit", limit));
+        parameters.Add(new SqliteParameter("@limit", limit));
 
-        using var cmd = new SQLiteCommand(sql, conn);
+        using var cmd = new SqliteCommand(sql, conn);
         cmd.Parameters.AddRange(parameters.ToArray());
 
         using var reader = cmd.ExecuteReader();
