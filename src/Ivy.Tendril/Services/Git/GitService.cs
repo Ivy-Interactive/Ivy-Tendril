@@ -332,16 +332,8 @@ public class GitService : IGitService
                 return GitResult<T>.Failure(GitError.InvalidRepoPath, $"Repository path does not exist: {repoPath}");
             }
 
-            var psi = new ProcessStartInfo("git", args)
-            {
-                WorkingDirectory = repoPath,
-                RedirectStandardOutput = true,
-                RedirectStandardInput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8
-            };
+            var psi = GitHelper.MakeGitStartInfo(args, repoPath);
+            psi.RedirectStandardInput = true;
             using var process = Process.Start(psi);
             if (process == null)
             {
@@ -385,15 +377,7 @@ public class GitService : IGitService
 
     private (int ExitCode, string Output) RunGitCommand(string repoPath, string args)
     {
-        var psi = new ProcessStartInfo("git", args)
-        {
-            WorkingDirectory = repoPath,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8
-        };
+        var psi = GitHelper.MakeGitStartInfo(args, repoPath);
         using var process = Process.Start(psi);
         if (process == null)
             return (-1, "");

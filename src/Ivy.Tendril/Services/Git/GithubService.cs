@@ -159,16 +159,7 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
                 return null;
             }
 
-            var psi = new ProcessStartInfo("git", "remote get-url origin")
-            {
-                WorkingDirectory = repoPath,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding = Encoding.UTF8
-            };
+            var psi = GitHelper.MakeGitStartInfo("remote get-url origin", repoPath);
 
             using var process = Process.Start(psi);
             if (process is null)

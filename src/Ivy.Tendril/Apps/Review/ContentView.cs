@@ -880,14 +880,7 @@ public class ContentView(
         {
             var (exitCode, error) = await Task.Run(() =>
             {
-                var psi = new ProcessStartInfo("git", "fetch origin")
-                {
-                    WorkingDirectory = worktreePath,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
+                var psi = GitHelper.MakeGitStartInfo("fetch origin", worktreePath);
                 using var process = Process.Start(psi);
                 if (process == null)
                     return (1, "Failed to start git process");
