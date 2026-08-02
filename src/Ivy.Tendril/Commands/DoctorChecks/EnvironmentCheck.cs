@@ -7,7 +7,7 @@ internal class EnvironmentCheck : IDoctorCheck
 {
     public string Name => "Environment";
 
-    public async Task<CheckResult> RunAsync()
+    public async Task<CheckResult> RunAsync(CancellationToken ct = default)
     {
         var statuses = new List<CheckStatus>();
         var hasErrors = false;

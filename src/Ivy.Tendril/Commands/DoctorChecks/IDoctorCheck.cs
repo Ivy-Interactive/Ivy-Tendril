@@ -3,7 +3,7 @@ namespace Ivy.Tendril.Commands.DoctorChecks;
 internal interface IDoctorCheck
 {
     string Name { get; }
-    Task<CheckResult> RunAsync();
+    Task<CheckResult> RunAsync(CancellationToken ct = default);
 }
 
 internal record CheckResult(bool HasErrors, List<CheckStatus> Statuses);

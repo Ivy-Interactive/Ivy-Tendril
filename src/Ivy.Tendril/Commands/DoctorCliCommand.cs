@@ -40,7 +40,7 @@ public class DoctorCliCommand : AsyncCommand<DoctorSettings>
 {
     protected override async Task<int> ExecuteAsync(CommandContext context, DoctorSettings settings, CancellationToken cancellationToken)
     {
-        return await DoctorCommand.RunAsync();
+        return await DoctorCommand.RunAsync(cancellationToken);
     }
 }
 

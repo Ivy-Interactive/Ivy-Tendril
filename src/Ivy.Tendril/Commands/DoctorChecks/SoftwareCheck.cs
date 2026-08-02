@@ -20,20 +20,36 @@ internal class SoftwareCheck : IDoctorCheck
 
     public string Name => "Software";
 
-    public async Task<CheckResult> RunAsync()
+    public async Task<CheckResult> RunAsync(CancellationToken ct = default)
     {
         var statuses = new List<CheckStatus>();
 
-        var reqErrors = await CheckRequiredSoftware(statuses);
-        var agentErrors = await CheckAgentClis(statuses);
-        var pwshErrors = await CheckPowerShell(statuses);
-        var dotnetErrors = await CheckDotNet(statuses);
+        // Run all check groups concurrently, each building its own status list
+        var reqTask = CheckRequiredSoftware(ct);
+        var agentTask = CheckAgentClis(ct);
+        var pwshTask = CheckPowerShell(ct);
+        var dotnetTask = CheckDotNet(ct);
 
-        return new CheckResult(reqErrors || agentErrors || pwshErrors || dotnetErrors, statuses);
+        await Task.WhenAll(reqTask, agentTask, pwshTask, dotnetTask);
+
+        // Concatenate results in the existing order: required software, agents, powershell, dotnet
+        var reqResult = await reqTask;
+        var agentResult = await agentTask;
+        var pwshResult = await pwshTask;
+        var dotnetResult = await dotnetTask;
+
+        statuses.AddRange(reqResult.Statuses);
+        statuses.AddRange(agentResult.Statuses);
+        statuses.AddRange(pwshResult.Statuses);
+        statuses.AddRange(dotnetResult.Statuses);
+
+        var hasErrors = reqResult.HasErrors || agentResult.HasErrors || pwshResult.HasErrors || dotnetResult.HasErrors;
+        return new CheckResult(hasErrors, statuses);
     }
 
-    private static async Task<bool> CheckRequiredSoftware(List<CheckStatus> statuses)
+    private static async Task<CheckResult> CheckRequiredSoftware(CancellationToken ct)
     {
+        var statuses = new List<CheckStatus>();
         var hasErrors = false;
         foreach (var sw in RequiredSoftware)
         {
@@ -61,46 +77,64 @@ internal class SoftwareCheck : IDoctorCheck
                 statuses.Add(new CheckStatus(sw, "OK", StatusKind.Ok));
             }
         }
-        return hasErrors;
+        return new CheckResult(hasErrors, statuses);
     }
 
-    private async Task<bool> CheckAgentClis(List<CheckStatus> statuses)
+    private async Task<CheckResult> CheckAgentClis(CancellationToken ct)
     {
-        if (_agentRunner == null) return false;
+        if (_agentRunner == null) return new CheckResult(false, []);
 
-        var hasErrors = false;
         var codingAgent = _configService?.Settings.CodingAgent ?? "claude";
         var agentIds = GetAgentIds();
 
-        foreach (var agentId in agentIds)
+        // Probe all agents concurrently
+        var tasks = agentIds.Select(agentId => ProbeAgentAsync(agentId, codingAgent, ct)).ToArray();
+        var results = await Task.WhenAll(tasks);
+
+        // Concatenate statuses in registration order
+        var statuses = new List<CheckStatus>();
+        var hasErrors = false;
+        foreach (var (status, hasError) in results)
         {
-            var isActive = agentId.Equals(codingAgent, StringComparison.OrdinalIgnoreCase);
-            var healthCheck = _agentRunner.GetHealthCheck(agentId);
-            var descriptor = _agentRunner.GetDescriptor(agentId);
-
-            var installStatus = await healthCheck.CheckInstallAsync();
-            if (!installStatus.IsInstalled)
-            {
-                statuses.Add(new CheckStatus(descriptor.DisplayName, "Not found", isActive ? StatusKind.Error : StatusKind.Warn));
-                if (isActive) hasErrors = true;
-                continue;
-            }
-
-            var authResult = await healthCheck.CheckAuthAsync();
-            var (message, kind) = authResult.Status switch
-            {
-                AuthStatus.Authenticated => ($"Ready ({installStatus.Version ?? "installed"})", StatusKind.Ok),
-                AuthStatus.NotAuthenticated => ("Installed but not authenticated", isActive ? StatusKind.Error : StatusKind.Warn),
-                _ => ("Installed (health check failed)", isActive ? StatusKind.Error : StatusKind.Warn),
-            };
-            statuses.Add(new CheckStatus(descriptor.DisplayName, message, kind));
-            if (authResult.Status != AuthStatus.Authenticated && isActive) hasErrors = true;
+            statuses.AddRange(status);
+            if (hasError) hasErrors = true;
         }
-        return hasErrors;
+
+        return new CheckResult(hasErrors, statuses);
     }
 
-    private static async Task<bool> CheckPowerShell(List<CheckStatus> statuses)
+    private async Task<(List<CheckStatus> Statuses, bool HasErrors)> ProbeAgentAsync(string agentId, string codingAgent, CancellationToken ct)
     {
+        var statuses = new List<CheckStatus>();
+        var hasErrors = false;
+        var isActive = agentId.Equals(codingAgent, StringComparison.OrdinalIgnoreCase);
+        var healthCheck = _agentRunner!.GetHealthCheck(agentId);
+        var descriptor = _agentRunner.GetDescriptor(agentId);
+
+        var installStatus = await healthCheck.CheckInstallAsync(ct);
+        if (!installStatus.IsInstalled)
+        {
+            statuses.Add(new CheckStatus(descriptor.DisplayName, "Not found", isActive ? StatusKind.Error : StatusKind.Warn));
+            if (isActive) hasErrors = true;
+            return (statuses, hasErrors);
+        }
+
+        var authResult = await healthCheck.CheckAuthAsync(ct);
+        var (message, kind) = authResult.Status switch
+        {
+            AuthStatus.Authenticated => ($"Ready ({installStatus.Version ?? "installed"})", StatusKind.Ok),
+            AuthStatus.NotAuthenticated => ("Installed but not authenticated", isActive ? StatusKind.Error : StatusKind.Warn),
+            _ => ("Installed (health check failed)", isActive ? StatusKind.Error : StatusKind.Warn),
+        };
+        statuses.Add(new CheckStatus(descriptor.DisplayName, message, kind));
+        if (authResult.Status != AuthStatus.Authenticated && isActive) hasErrors = true;
+
+        return (statuses, hasErrors);
+    }
+
+    private static async Task<CheckResult> CheckPowerShell(CancellationToken ct)
+    {
+        var statuses = new List<CheckStatus>();
         var bundledPath = PathHelper.GetPwshPath();
         var (success, error) = await ProcessCheckHelper.CheckPowerShellWithDetails();
         if (success)
@@ -108,16 +142,17 @@ internal class SoftwareCheck : IDoctorCheck
             // Determine if the working PowerShell is the bundled one
             var isBundled = bundledPath != "pwsh" && await ProcessCheckHelper.CheckCommand(bundledPath, "-Version");
             statuses.Add(new CheckStatus("powershell", isBundled ? "OK (bundled pwsh)" : "OK (pwsh)", StatusKind.Ok));
-            return false;
+            return new CheckResult(false, statuses);
         }
 
         var errorMessage = $"Not found or failed to execute. Details: {error}";
         statuses.Add(new CheckStatus("powershell", errorMessage, StatusKind.Error));
-        return true;
+        return new CheckResult(true, statuses);
     }
 
-    private static async Task<bool> CheckDotNet(List<CheckStatus> statuses)
+    private static async Task<CheckResult> CheckDotNet(CancellationToken ct)
     {
+        var statuses = new List<CheckStatus>();
         var bundledPath = PathHelper.GetBundledDotnetPath();
 
         // Try bundled first if it exists
@@ -127,7 +162,7 @@ internal class SoftwareCheck : IDoctorCheck
             if (success)
             {
                 statuses.Add(new CheckStatus("dotnet", "OK (bundled dotnet)", StatusKind.Ok));
-                return false;
+                return new CheckResult(false, statuses);
             }
         }
 
@@ -136,12 +171,12 @@ internal class SoftwareCheck : IDoctorCheck
         if (sysSuccess)
         {
             statuses.Add(new CheckStatus("dotnet", "OK (dotnet)", StatusKind.Ok));
-            return false;
+            return new CheckResult(false, statuses);
         }
 
         var details = bundledPath != null ? $"bundled: {bundledPath} failed, system: {sysErr}" : sysErr;
         statuses.Add(new CheckStatus("dotnet", $"Not found or failed to execute. Details: {details}", StatusKind.Error));
-        return true;
+        return new CheckResult(true, statuses);
     }
 
     private string[] GetAgentIds()

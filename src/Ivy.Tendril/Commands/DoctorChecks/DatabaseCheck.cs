@@ -7,7 +7,7 @@ internal class DatabaseCheck : IDoctorCheck
 {
     public string Name => "Database";
 
-    public async Task<CheckResult> RunAsync()
+    public async Task<CheckResult> RunAsync(CancellationToken ct = default)
     {
         var statuses = new List<CheckStatus>();
         var hasErrors = false;

@@ -19,10 +19,10 @@ public static class DoctorCommand
         if (args.Length > 1 && args[1] == "plans")
             return DoctorPlansInternal(args.Skip(2).ToArray());
 
-        return RunAsync().GetAwaiter().GetResult();
+        return RunAsync(CancellationToken.None).GetAwaiter().GetResult();
     }
 
-    public static async Task<int> RunAsync()
+    public static async Task<int> RunAsync(CancellationToken ct = default, TimeSpan? overallTimeout = null)
     {
         PathHelper.AugmentPath(forceShellPath: true);
         ConfigService? configService = null;
@@ -49,16 +49,72 @@ public static class DoctorCommand
             new AgentModelsCheck(configService, agentRunner)
         };
 
+        // Create linked token with overall timeout budget
+        var timeoutBudget = overallTimeout ?? TimeSpan.FromSeconds(60);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(timeoutBudget);
+
+        var completedChecks = new List<(string Name, CheckResult Result)>();
         var hasErrors = false;
-        foreach (var check in checks)
+        var timedOut = false;
+
+        try
         {
-            var result = await check.RunAsync();
-            PrintCheckResult(check.Name, result);
-            if (result.HasErrors) hasErrors = true;
+            foreach (var check in checks)
+            {
+                // Print header before starting the check so output appears immediately
+                PrintHeader(check.Name);
+
+                // Print a notice before the two slow checks
+                if (check.Name == "Software")
+                {
+                    AnsiConsole.MarkupLine("[grey]Probing agent CLIs...[/]");
+                }
+                else if (check.Name == "Agent Models")
+                {
+                    AnsiConsole.MarkupLine("[grey]Validating agent model configurations...[/]");
+                }
+
+                var result = await check.RunAsync(timeoutCts.Token);
+                completedChecks.Add((check.Name, result));
+
+                // Print statuses immediately after the check completes
+                foreach (var status in result.Statuses)
+                {
+                    PrintStatus(status.Label, status.Value, status.Kind);
+                }
+
+                if (result.HasErrors) hasErrors = true;
+            }
+        }
+        catch (OperationCanceledException) when (timeoutCts.Token.IsCancellationRequested && !ct.IsCancellationRequested)
+        {
+            // Overall timeout expired (not user cancellation)
+            timedOut = true;
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[yellow]Timeout: some checks did not complete within the time budget.[/]");
+            var unfinishedChecks = checks.Skip(completedChecks.Count).Select(c => c.Name).ToList();
+            if (unfinishedChecks.Count > 0)
+            {
+                var names = string.Join(", ", unfinishedChecks);
+                AnsiConsole.MarkupLine($"[yellow]Unfinished checks: {names.EscapeMarkup()}[/]");
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // User cancellation
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine("[yellow]Cancelled.[/]");
+            return 130;
         }
 
         // Summary
         AnsiConsole.WriteLine();
+        if (timedOut && !hasErrors)
+        {
+            AnsiConsole.MarkupLine("[yellow]Partial result (timed out): no errors found in completed checks.[/]");
+            return 0;
+        }
         if (hasErrors)
         {
             AnsiConsole.MarkupLine("[red]Issues found. Fix the errors above and re-run `tendril doctor`.[/]");
@@ -68,17 +124,6 @@ public static class DoctorCommand
         AnsiConsole.MarkupLine("[green]All checks passed.[/]");
         return 0;
     }
-
-    private static void PrintCheckResult(string checkName, CheckResult result)
-    {
-        PrintHeader(checkName);
-
-        foreach (var status in result.Statuses)
-        {
-            PrintStatus(status.Label, status.Value, status.Kind);
-        }
-    }
-
 
     private static void PrintHeader(string title)
     {
