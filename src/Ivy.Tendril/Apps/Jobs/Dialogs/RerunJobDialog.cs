@@ -109,7 +109,7 @@ public class RerunJobDialog(
         if (!string.IsNullOrEmpty(planId) && plansDir != null && Directory.Exists(plansDir))
         {
             var folder = PlanYamlHelper.FindPlanFolderById(plansDir, planId);
-            if (folder != null) return folder;
+            if (folder != null) return Path.Combine(plansDir, folder);
         }
 
         if (!string.IsNullOrEmpty(job.PlanFile))
@@ -124,7 +124,11 @@ public class RerunJobDialog(
             }
 
             if (!string.IsNullOrEmpty(planId))
+            {
+                if (plansDir != null)
+                    return Path.Combine(plansDir, job.PlanFile);
                 return job.PlanFile;
+            }
         }
 
         return null;

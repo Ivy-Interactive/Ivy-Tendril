@@ -1,11 +1,52 @@
 using Ivy.Tendril.Apps.Jobs.Dialogs;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services.Plans;
 using Xunit;
 
 namespace Ivy.Tendril.Test;
 
 public class RerunJobDialogTests
 {
+    private sealed class MockPlanReaderService(string plansDirectory) : IPlanReaderService
+    {
+        public string PlansDirectory => plansDirectory;
+        public bool IsDatabaseReady => false;
+        public void MigratePlans() { }
+        public void RecoverStuckPlans() { }
+        public List<PlanFile> GetPlans(PlanStatus? statusFilter = null) => [];
+        public PlanFile? GetPlanByFolder(string folderPath) => null;
+        public List<PlanFile> GetIceboxPlans() => [];
+        public void TransitionState(string folderName, PlanStatus newState) { }
+        public IReadOnlyList<string> GetFailedVerifications(string folderName) => [];
+        public void CompleteWithPartialDelivery(string folderName) { }
+        public void ResetToDraft(string folderName) { }
+        public void ResetVerificationsForRetry(string folderName) { }
+        public void SetVerificationStatus(string folderName, string name, VerificationStatus status) { }
+        public void SaveRevision(string folderName, string content) { }
+        public void RevertRevision(string folderName) { }
+        public string ReadLatestRevision(string folderName) => "";
+        public List<(int Number, string Content, DateTime Modified)> GetRevisions(string folderName) => [];
+        public void DeletePlan(string folderName) { }
+        public string ReadRawPlan(string folderName) => "";
+        public void SavePlan(string folderName, string fullContent) { }
+        public void UpdateLatestRevision(string folderName, string content) { }
+        public DashboardModels GetDashboardData(string? projectFilter) => new(0, 0, 0, 0, 0, 0, 0m, [], []);
+        public decimal GetPlanTotalCost(string folderPath) => 0;
+        public int GetPlanTotalTokens(string folderPath) => 0;
+        public List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null) => [];
+        public List<Recommendation> GetRecommendations() => [];
+        public int GetPendingRecommendationsCount() => 0;
+        public PlanReaderService.PlanCountSnapshot ComputePlanCounts() => new(0, 0, 0, 0, 0, 0);
+        public void UpdateRecommendationState(string planFolderName, string recommendationTitle, string newState, string? declineReason = null) { }
+        public List<RecommendationYaml> GetRecommendationsForPlan(string folderName) => [];
+        public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle) { }
+        public void AcceptRecommendationsAndRetry(string folderName, IReadOnlyCollection<string> titles) { }
+        public void SyncPlanArtifacts(string planFolder) { }
+        public void InvalidateCaches() { }
+        public Task FlushPendingWritesAsync() => Task.CompletedTask;
+        public event Action? CountsInvalidated { add { } remove { } }
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -131,6 +172,66 @@ public class RerunJobDialogTests
         };
 
         Assert.True(RerunJobDialog.SupportsFeedback(job, null));
+    }
+
+    [Fact]
+    public void ResolvePlanFolder_PlanIdMatchesFolder_ReturnsAbsolutePath()
+    {
+        using var tempDir = new TempDirectoryFixture("rerun-job-dialog-test");
+        var planFolder = Path.Combine(tempDir.Path, "00038-FixRustyDocsGeneratorOutputAndAddWidgetSampleAppsWithAligned");
+        Directory.CreateDirectory(planFolder);
+
+        var job = new JobItem
+        {
+            Id = "00001",
+            Type = "ExecutePlan",
+            ReportedPlanId = "00038",
+            PlanFile = "00038-FixRustyDocsGeneratorOutputAndAddWidgetSampleAppsWithAligned"
+        };
+        var planService = new MockPlanReaderService(tempDir.Path);
+
+        var result = RerunJobDialog.ResolvePlanFolder(job, planService);
+
+        Assert.NotNull(result);
+        Assert.True(Path.IsPathRooted(result), $"Expected rooted path but got: {result}");
+        Assert.Equal(planFolder, result);
+    }
+
+    [Fact]
+    public void ResolvePlanFolder_PlanFileWithoutExistingDirectory_ReturnsAbsolutePath()
+    {
+        using var tempDir = new TempDirectoryFixture("rerun-job-dialog-test");
+
+        var job = new JobItem
+        {
+            Id = "00001",
+            Type = "ExecutePlan",
+            ReportedPlanId = "00099",
+            PlanFile = "00099-Missing"
+        };
+        var planService = new MockPlanReaderService(tempDir.Path);
+
+        var result = RerunJobDialog.ResolvePlanFolder(job, planService);
+
+        Assert.NotNull(result);
+        Assert.True(Path.IsPathRooted(result), $"Expected rooted path but got: {result}");
+        Assert.StartsWith(tempDir.Path, result);
+    }
+
+    [Fact]
+    public void BuildRerunArgs_CreatePlanWithAbsolutePlanFolder_PassesPathThrough()
+    {
+        using var tempDir = new TempDirectoryFixture("rerun-job-dialog-test");
+        var planFolder = Path.Combine(tempDir.Path, "00042-LoginFeature");
+        Directory.CreateDirectory(planFolder);
+
+        var original = new CreatePlanArgs("Create a login feature", "MyProject");
+
+        var result = RerunJobDialog.BuildRerunArgs(original, "", planFolder);
+
+        var execute = Assert.IsType<ExecutePlanArgs>(result);
+        Assert.True(Path.IsPathRooted(execute.FolderPath), $"Expected rooted path but got: {execute.FolderPath}");
+        Assert.Equal(planFolder, execute.FolderPath);
     }
 
     [Fact]
