@@ -149,7 +149,7 @@ public class NodeBasedGraphView : ViewBase
             {
                 var isOutdated = _status?.OutdatedNoteNames.Contains(currentNoteName) ?? false;
 
-                var toolbar = Layout.Horizontal().Gap(2)
+                var toolbar = Layout.Horizontal().Gap(1)
                     | new Button("Close").Outline().Icon(Icons.X).Small().OnClick(() => _selectedNote.Set(null))
                     | new Button("Edit").Outline().Icon(Icons.Pencil).Small().OnClick(() =>
                       {
@@ -169,10 +169,10 @@ public class NodeBasedGraphView : ViewBase
 
                 var drawerContent = _isEditing.Value
                     ? (object)(Layout.Vertical().Gap(2)
-                       | _editContent.ToTextInput().Multiline().Height(Size.Px(250))
+                       | _editContent.ToTextInput().Multiline().Height(Size.Px(120))
                        | (Layout.Horizontal().Gap(2).Right()
-                          | new Button("Cancel").Outline().OnClick(() => _isEditing.Set(false))
-                          | new Button("Save Note").Primary().Icon(Icons.Save).OnClick(() =>
+                          | new Button("Cancel").Outline().Small().OnClick(() => _isEditing.Set(false))
+                          | new Button("Save Note").Primary().Icon(Icons.Save).Small().OnClick(() =>
                             {
                                 _memoryService.WriteMemory(currentNoteName, _editContent.Value, _workingDir);
                                 _isEditing.Set(false);
@@ -182,10 +182,10 @@ public class NodeBasedGraphView : ViewBase
                     : new DraftMarkdown(note.Content);
 
                 detailDrawer = new Card(
-                    Layout.Vertical().Gap(2).Padding(3)
+                    Layout.Vertical().Gap(2).Padding(2).Height(Size.Px(200)).Scroll(Scroll.Auto)
                     | (Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween)
                        | (Layout.Horizontal().AlignContent(Align.Center).Gap(2)
-                          | Text.H3(note.Title).Bold()
+                          | Text.Block(note.Title).Bold()
                           | new Badge(note.ProjectName).Variant(BadgeVariant.Outline).Small()
                           | (isOutdated
                              ? new Badge("Outdated Reference").Variant(BadgeVariant.Destructive).Small()
@@ -204,19 +204,24 @@ public class NodeBasedGraphView : ViewBase
             var linked = _allMemories.Where(n => n.Targets.Keys.Any(t => string.Equals(t.Replace('\\', '/'), targetFile.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))).ToList();
 
             detailDrawer = new Card(
-                Layout.Vertical().Gap(2).Padding(3)
+                Layout.Vertical().Gap(2).Padding(2).Height(Size.Px(140)).Scroll(Scroll.Auto)
                 | (Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween)
                    | (Layout.Horizontal().AlignContent(Align.Center).Gap(2)
                       | Icons.FileCode.ToIcon().Color(Colors.Purple)
-                      | Text.H3(Path.GetFileName(targetFile)).Bold()
+                      | Text.Block(Path.GetFileName(targetFile)).Bold()
                       | Text.Muted(targetFile).Small())
                    | new Button("Close").Outline().Icon(Icons.X).Small().OnClick(() => _selectedFile.Set(null)))
                 | Text.Muted($"Linked Memories ({linked.Count}): {string.Join(", ", linked.Select(l => l.Name))}")
             );
         }
 
-        return Layout.Vertical().Size(Size.Full()).Gap(2).RemoveParentPadding()
-            | (Layout.Vertical().Size(Size.Full()).RemoveParentPadding() | brainMapWidget)
-            | (detailDrawer != null ? detailDrawer : new Fragment());
+        if (detailDrawer != null)
+        {
+            return Layout.Vertical().Size(Size.Full()).Gap(2).RemoveParentPadding()
+                | (Layout.Vertical().Size(Size.Grow(1)).RemoveParentPadding() | brainMapWidget)
+                | detailDrawer;
+        }
+
+        return Layout.Vertical().Size(Size.Full()).RemoveParentPadding() | brainMapWidget;
     }
 }

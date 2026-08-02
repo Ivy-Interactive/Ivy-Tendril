@@ -119,13 +119,23 @@ export const BrainMap: React.FC<BrainMapProps> = ({
         const isSelected = n.id === selectedNodeId;
         const isMemory = n.type === "memory";
 
-        let color = "#3b82f6";
+        let categoryIndex = 0;
+        let color = "#a855f7";
+
         if (isMemory) {
-          if (n.status === "outdated") color = "#f59e0b";
-          else if (n.status === "broken") color = "#ef4444";
-          else color = "#a855f7";
+          if (n.status === "outdated") {
+            color = "#f59e0b";
+            categoryIndex = 1;
+          } else if (n.status === "broken") {
+            color = "#ef4444";
+            categoryIndex = 2;
+          } else {
+            color = "#a855f7";
+            categoryIndex = 0;
+          }
         } else {
           color = "#10b981";
+          categoryIndex = 3;
         }
 
         const size = isSelected ? 24 : isMemory ? 14 : 10;
@@ -136,7 +146,7 @@ export const BrainMap: React.FC<BrainMapProps> = ({
           labelContent: n.label || n.id,
           value: n.linkCount || 1,
           symbolSize: size,
-          category: isMemory ? 0 : 1,
+          category: categoryIndex,
           itemStyle: {
             color: color,
             borderColor: isSelected ? "#ffffff" : color,
@@ -184,8 +194,10 @@ export const BrainMap: React.FC<BrainMapProps> = ({
       type: "graph",
       layout: "force",
       categories: [
-        { name: "Memory Notes" },
-        { name: "Code Files" },
+        { name: "Clean Memory", itemStyle: { color: "#a855f7" } },
+        { name: "Outdated Memory", itemStyle: { color: "#f59e0b" } },
+        { name: "Broken Reference", itemStyle: { color: "#ef4444" } },
+        { name: "Code File", itemStyle: { color: "#10b981" } },
       ],
       data: chartNodes,
       links: chartLinks,
@@ -209,7 +221,7 @@ export const BrainMap: React.FC<BrainMapProps> = ({
         repulsion: isLargeGraph ? 450 : 350,
         edgeLength: isLargeGraph ? 130 : 100,
         gravity: 0.03,
-        layoutAnimation: true, // Always animate layout so edges stay attached to nodes
+        layoutAnimation: true,
       },
       emphasis: {
         focus: "adjacency",
@@ -248,13 +260,11 @@ export const BrainMap: React.FC<BrainMapProps> = ({
         padding: 0,
         formatter: (params: any) => {
           if (params.dataType === "node") {
-            const isMemory = params.data.category === 0;
+            const catName = params.data.category === 3 ? "Code File" : "Memory Note";
             return `<div style="padding: 8px 12px; font-size: 12px; font-family: sans-serif; background: ${tooltipBg}; border: 1px solid ${tooltipBorder}; color: ${tooltipText}; border-radius: 6px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / ${
               isDark ? "0.4" : "0.1"
             }), 0 2px 4px -2px rgb(0 0 0 / ${isDark ? "0.4" : "0.1"});">
-              <strong style="display: block; margin-bottom: 2px;">${
-                isMemory ? "Memory Note" : "Code File"
-              }</strong>
+              <strong style="display: block; margin-bottom: 2px;">${catName}</strong>
               <span style="font-family: monospace; color: #a855f7; font-size: 11px; word-break: break-all;">${
                 params.data.id
               }</span>
@@ -265,12 +275,21 @@ export const BrainMap: React.FC<BrainMapProps> = ({
       },
       legend: [
         {
-          data: ["Memory Notes", "Code Files"],
+          data: [
+            "Clean Memory",
+            "Outdated Memory",
+            "Broken Reference",
+            "Code File",
+          ],
           textStyle: {
             color: legendColor,
             fontSize: 11,
           },
-          bottom: 10,
+          left: 12,
+          bottom: 12,
+          itemGap: 14,
+          itemWidth: 10,
+          itemHeight: 10,
         },
       ],
       series: [graphSeries],

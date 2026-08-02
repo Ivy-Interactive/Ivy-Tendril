@@ -184,12 +184,6 @@ public class MemoryApp : ViewBase
             workingDir,
             memoryService
         );
-
-        var fileBasedView = new SidebarLayout(
-            fileMapView,
-            explorerView
-        ).SidebarContentScroll(Scroll.None);
-
         var nodeBasedView = new NodeBasedGraphView(
             allMemories,
             vaultStatus.Value,
@@ -208,8 +202,8 @@ public class MemoryApp : ViewBase
 
         var selectedIndex = viewMode.Value == MemoryViewMode.FileBased ? 0 : 1;
 
-        var mainView = Layout.Tabs(
-            new Tab("File-Based", fileBasedView),
+        var mainContentTabs = Layout.Tabs(
+            new Tab("File-Based", fileMapView),
             new Tab("Node-Based", nodeBasedView)
         )
         .SelectedIndex(selectedIndex)
@@ -218,7 +212,10 @@ public class MemoryApp : ViewBase
         .RemoveParentPadding()
         .Padding(0);
 
-        var rootLayout = Layout.Vertical().Size(Size.Full()).RemoveParentPadding() | mainView;
+        var rootLayout = new SidebarLayout(
+            mainContentTabs,
+            explorerView
+        ).SidebarContentScroll(Scroll.None);
 
         if (isNewNoteOpen.Value)
         {
