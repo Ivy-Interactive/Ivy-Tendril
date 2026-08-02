@@ -151,7 +151,11 @@ public class MemoryApp : ViewBase
 
         var allMemories = string.IsNullOrEmpty(projectFilter.Value)
             ? availableMemories
-            : availableMemories.Where(m => string.Equals(m.ProjectName, projectFilter.Value, StringComparison.OrdinalIgnoreCase)).ToList();
+            : availableMemories.Where(m =>
+                string.Equals(m.ProjectName, projectFilter.Value, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(m.ProjectName, "workspace", StringComparison.OrdinalIgnoreCase) ||
+                string.IsNullOrEmpty(m.ProjectName)
+            ).ToList();
 
         var explorerView = new FileExplorerView(
             projects,
