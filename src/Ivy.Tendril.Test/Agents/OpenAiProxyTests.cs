@@ -59,4 +59,16 @@ public class OpenAiProxyTests
         Assert.Equal("https://llmproxy.ivy.app", spec.Environment["ANTHROPIC_BASE_URL"]);
         Assert.Equal("ivy-key", spec.Environment["ANTHROPIC_API_KEY"]);
     }
+
+    [Fact]
+    public void IvyModelCatalog_GetStaticModels_ReturnsIvyModelsOnly()
+    {
+        var catalog = new IvyModelCatalog();
+        var models = catalog.GetStaticModels();
+
+        Assert.Contains(models, m => m.Id == "ivy-stem" && m.DisplayName == "Ivy Stem");
+        Assert.Contains(models, m => m.Id == "ivy-branch" && m.DisplayName == "Ivy Branch");
+        Assert.Contains(models, m => m.Id == "ivy-leaf" && m.DisplayName == "Ivy Leaf");
+        Assert.All(models, m => Assert.True(m.Id.StartsWith("ivy") || m.Id == "default"));
+    }
 }
