@@ -412,6 +412,7 @@ public class Program
         bool forceDesktop = args.Contains("--desktop");
         bool forceWeb = args.Contains("--web");
         bool beta = args.Contains("--beta");
+        bool notMaster = args.Contains("--not-master") || args.Contains("--slave");
 
         if (verbose)
             Environment.SetEnvironmentVariable("TENDRIL_VERBOSE", "1");
@@ -419,12 +420,15 @@ public class Program
             Environment.SetEnvironmentVariable("TENDRIL_QUIET", "1");
         if (beta)
             Environment.SetEnvironmentVariable("TENDRIL_BETA", "1");
+        if (notMaster)
+            Environment.SetEnvironmentVariable("TENDRIL_NOT_MASTER", "1");
 
         var filtered = args.Where(a =>
             a != "--desktop" && a != "--web" &&
             a != "--verbose" && a != "-v" &&
             a != "--quiet" && a != "-q" &&
             a != "--beta" &&
+            a != "--not-master" && a != "--slave" &&
             a != DetachedLaunchMarker).ToArray();
 
         return (verbose, quiet, forceDesktop, forceWeb, beta, filtered);
