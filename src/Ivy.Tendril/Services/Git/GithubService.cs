@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Ivy.Helpers;
+using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Git;
