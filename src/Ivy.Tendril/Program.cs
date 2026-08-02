@@ -866,6 +866,10 @@ public class Program
                     .WithDescription("Search memory notes by keyword");
                 memory.AddCommand<MemoryRulesCommand>("rules")
                     .WithDescription("Get compiled memory rules for agent system prompt");
+                memory.AddCommand<MemoryPurgeCommand>("purge")
+                    .WithDescription("Purge memory notes for a project or workspace");
+                memory.AddCommand<MemoryCompactCommand>("compact")
+                    .WithDescription("Compact large log-heavy memory notes");
             });
         });
         return app;

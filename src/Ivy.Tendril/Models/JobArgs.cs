@@ -14,6 +14,9 @@ namespace Ivy.Tendril.Models;
 [JsonDerivedType(typeof(SetupProjectArgs), "SetupProject")]
 [JsonDerivedType(typeof(SyncRepoArgs), "SyncRepo")]
 [JsonDerivedType(typeof(AddProjectArgs), "AddProject")]
+[JsonDerivedType(typeof(UpdateMemoriesArgs), "UpdateMemories")]
+[JsonDerivedType(typeof(PurgeMemoriesArgs), "PurgeMemories")]
+[JsonDerivedType(typeof(CompactMemoriesArgs), "CompactMemories")]
 public abstract record JobArgsBase
 {
     [JsonIgnore]
@@ -120,6 +123,25 @@ public record AddProjectArgs(
     List<RepoRef> Repos) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.AddProject;
+}
+
+public record UpdateMemoriesArgs(
+    string TendrilProject,
+    string FilesToUpdate) : JobArgsBase
+{
+    public override string Type => "UpdateMemories";
+}
+
+public record PurgeMemoriesArgs(
+    string TendrilProject) : JobArgsBase
+{
+    public override string Type => "PurgeMemories";
+}
+
+public record CompactMemoriesArgs(
+    string TendrilProject) : JobArgsBase
+{
+    public override string Type => "CompactMemories";
 }
 
 // How SyncRepo should treat uncommitted changes and/or untracked files when syncing a repo.

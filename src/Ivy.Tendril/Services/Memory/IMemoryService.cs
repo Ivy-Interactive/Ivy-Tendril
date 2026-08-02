@@ -15,6 +15,8 @@ public interface IMemoryService
     void UpdateMemory(string noteName, string? workspaceDir = null, string? projectName = null);
     void RelateMemories(string sourceNote, string targetNote, string? workspaceDir = null, string? projectName = null);
     void DeleteMemory(string noteName, string? workspaceDir = null, string? projectName = null);
+    int PurgeMemories(string? workspaceDir = null, string? projectName = null);
+    int CompactMemories(string? workspaceDir = null, string? projectName = null);
     IEnumerable<MemoryNote> QueryMemories(string keyword, string? workspaceDir = null, string? projectName = null);
     string GetRulesMarkdown(string? workspaceDir = null, string? projectName = null);
 }

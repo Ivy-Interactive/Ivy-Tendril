@@ -324,6 +324,52 @@ public class MemoryService : IMemoryService
         }
     }
 
+    public int PurgeMemories(string? workspaceDir = null, string? projectName = null)
+    {
+        workspaceDir ??= Directory.GetCurrentDirectory();
+        var memories = ListMemories(workspaceDir, projectName).ToList();
+        int count = 0;
+        foreach (var note in memories)
+        {
+            if (File.Exists(note.Path))
+            {
+                try
+                {
+                    File.Delete(note.Path);
+                    count++;
+                }
+                catch { }
+            }
+        }
+        return count;
+    }
+
+    public int CompactMemories(string? workspaceDir = null, string? projectName = null)
+    {
+        workspaceDir ??= Directory.GetCurrentDirectory();
+        var memories = ListMemories(workspaceDir, projectName).ToList();
+        int count = 0;
+
+        foreach (var note in memories)
+        {
+            if (string.IsNullOrEmpty(note.Content)) continue;
+
+            var lines = note.Content.Split('\n');
+            if (lines.Length > 200 || note.Content.Length > 25000)
+            {
+                var head = lines.Take(50);
+                var tail = lines.TakeLast(50);
+                var newContent = string.Join("\n", head) + "\n\n... [Log sections compacted] ...\n\n" + string.Join("\n", tail);
+
+                note.Frontmatter.Updated = DateTime.UtcNow.ToString("o");
+                SaveNoteToFile(note.Path, note.Frontmatter, newContent);
+                count++;
+            }
+        }
+
+        return count;
+    }
+
     public IEnumerable<MemoryNote> QueryMemories(string keyword, string? workspaceDir = null, string? projectName = null)
     {
         var memories = ListMemories(workspaceDir, projectName);

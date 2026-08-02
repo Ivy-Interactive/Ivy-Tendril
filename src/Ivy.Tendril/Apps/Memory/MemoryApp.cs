@@ -25,6 +25,7 @@ public class MemoryApp : ViewBase
     {
         var config = UseService<IConfigService>();
         var memoryService = UseService<IMemoryService>();
+        var jobService = UseService<IJobService>();
         var client = UseService<IClientProvider>();
 
         var viewMode = UseState(MemoryViewMode.FileBased);
@@ -39,35 +40,31 @@ public class MemoryApp : ViewBase
         var isEditing = UseState(false);
         var editContent = UseState("");
         var isOperationRunning = UseState(false);
-        var operationLogs = UseState("");
-        var searchQuery = UseState("");
-        var projectFilter = UseState<string?>(null);
-        var onlyLinkedFilter = UseState(false);
+        var projectFiles = UseState<List<string>>(new List<string>());
+        var isFilesLoading = UseState(false);
 
         var isNewNoteOpen = UseState(false);
         var isDeleteOpen = UseState(false);
         var isUpdateMemoriesOpen = UseState(false);
         var isAiEditOpen = UseState(false);
         var isLinkFileOpen = UseState(false);
+        var isPurgeOpen = UseState(false);
+        var isCompactOpen = UseState(false);
 
-        var projectFiles = UseState(new List<string>());
-        var isFilesLoading = UseState(false);
-
-        var projects = config.Settings.Projects;
-        var configuredPromptwares = config.Settings.Promptwares;
         var workingDir = Directory.GetCurrentDirectory();
+        var projects = config.Settings.Projects ?? new List<ProjectConfig>();
+        var configuredPromptwares = config.Settings.Promptwares;
 
         void LoadStatus()
         {
-            isLoading.Set(true);
             try
             {
-                var status = memoryService.GetStatus(workingDir, projectFilter.Value);
+                var status = memoryService.GetStatus(workingDir);
                 vaultStatus.Set(status);
             }
             catch (Exception ex)
             {
-                operationLogs.Set($"Error scanning vault status: {ex.Message}");
+                client.Toast($"Failed to load vault status: {ex.Message}", "Error");
             }
             finally
             {
@@ -77,15 +74,17 @@ public class MemoryApp : ViewBase
 
         void SyncAllHashes()
         {
-            if (vaultStatus.Value == null || vaultStatus.Value.OutdatedNoteNames.Count == 0) return;
             isOperationRunning.Set(true);
             try
             {
-                foreach (var noteName in vaultStatus.Value.OutdatedNoteNames)
+                if (vaultStatus.Value != null)
                 {
-                    memoryService.UpdateMemory(noteName, workingDir, projectFilter.Value);
+                    foreach (var noteName in vaultStatus.Value.OutdatedNoteNames)
+                    {
+                        memoryService.UpdateMemory(noteName, workingDir);
+                    }
                 }
-                client.Toast($"Synchronized reference hashes for {vaultStatus.Value.OutdatedNoteNames.Count} note(s)", "Vault Synchronized");
+                client.Toast("Synchronized memory reference hashes", "Vault Synchronized");
                 LoadStatus();
             }
             catch (Exception ex)
@@ -132,7 +131,7 @@ public class MemoryApp : ViewBase
         {
             if (selectedNote.Value != null)
             {
-                var note = memoryService.ReadMemory(selectedNote.Value, workingDir, projectFilter.Value);
+                var note = memoryService.ReadMemory(selectedNote.Value, workingDir);
                 if (note != null)
                 {
                     editContent.Set(note.Content);
@@ -233,8 +232,70 @@ public class MemoryApp : ViewBase
         .RemoveParentPadding()
         .Padding(0);
 
+        // Outdated memories warning banner
+        object? outdatedBanner = null;
+        if (vaultStatus.Value != null && vaultStatus.Value.OutdatedMemories > 0)
+        {
+            outdatedBanner = Layout.Horizontal()
+                .AlignContent(Align.SpaceBetween)
+                .Padding(2, 4)
+                .Background(Colors.Amber)
+                .Border(Colors.Amber)
+                | (Layout.Horizontal().AlignContent(Align.Center).Gap(2)
+                   | Icons.TriangleAlert.ToIcon().Color(Colors.Amber)
+                   | Text.Block($"Found {vaultStatus.Value.OutdatedMemories} outdated memory note(s) needing reference sync or documentation update."))
+                | (Layout.Horizontal().Gap(2)
+                   | new Button("Sync Hashes").Outline().Small().OnClick(() => SyncAllHashes())
+                   | new Button("Update Job").Primary().Small().Icon(Icons.Zap).OnClick(() =>
+                     {
+                         try
+                         {
+                             var filesToUpdate = string.Join(",", vaultStatus.Value.OutdatedNoteNames);
+                             jobService.StartJob(new UpdateMemoriesArgs(selectedSourceName ?? "Workspace", filesToUpdate));
+                             client.Toast("Launched UpdateMemories job", "Job Started");
+                         }
+                         catch (Exception ex)
+                         {
+                             client.Toast($"Failed to launch job: {ex.Message}", "Error");
+                         }
+                     }));
+        }
+
+        // Floating Control Island centered at bottom
+        var floatingControlIsland = Layout.Horizontal()
+            .AlignContent(Align.Center)
+            .Gap(2)
+            .Padding(2, 4)
+            .Background(Colors.Slate)
+            .Border(Colors.Slate)
+            | new Button("New Note").Primary().Small().Icon(Icons.Plus).OnClick(() => isNewNoteOpen.Set(true))
+            | new Button("Update Job").Outline().Small().Icon(Icons.Zap).OnClick(() =>
+              {
+                  try
+                  {
+                      var filesToUpdate = vaultStatus.Value?.OutdatedNoteNames != null
+                          ? string.Join(",", vaultStatus.Value.OutdatedNoteNames)
+                          : "";
+                      jobService.StartJob(new UpdateMemoriesArgs(selectedSourceName ?? "Workspace", filesToUpdate));
+                      client.Toast("Launched UpdateMemories job", "Job Started");
+                  }
+                  catch (Exception ex)
+                  {
+                      client.Toast($"Failed to launch job: {ex.Message}", "Error");
+                  }
+              })
+            | new Button("Sync Hashes").Outline().Small().Icon(Icons.RefreshCw).OnClick(() => SyncAllHashes())
+            | new Button("Compact").Outline().Small().Icon(Icons.Minimize2).OnClick(() => isCompactOpen.Set(true))
+            | new Button("Purge All").Destructive().Small().Icon(Icons.Trash2).OnClick(() => isPurgeOpen.Set(true));
+
+        var mainLayoutArea = Layout.Vertical().Size(Size.Full())
+            | (outdatedBanner != null ? outdatedBanner : null)
+            | mainContentTabs
+            | (Layout.Horizontal().AlignContent(Align.Center).Width(Size.Full()).Padding(2)
+               | floatingControlIsland);
+
         var rootLayout = new SidebarLayout(
-            mainContentTabs,
+            mainLayoutArea,
             explorerView
         ).SidebarContentScroll(Scroll.None);
 
@@ -246,6 +307,26 @@ public class MemoryApp : ViewBase
         if (isDeleteOpen.Value)
         {
             rootLayout |= new DeleteMemoryNoteDialog(isDeleteOpen, selectedNote, LoadStatus, client, memoryService);
+        }
+
+        if (isPurgeOpen.Value)
+        {
+            rootLayout |= new PurgeMemoriesDialog(isPurgeOpen, () =>
+            {
+                int count = memoryService.PurgeMemories(workingDir, selectedSourceName);
+                client.Toast($"Purged {count} memory note(s)", "Purge Complete");
+                LoadStatus();
+            });
+        }
+
+        if (isCompactOpen.Value)
+        {
+            rootLayout |= new CompactMemoriesDialog(isCompactOpen, () =>
+            {
+                int count = memoryService.CompactMemories(workingDir, selectedSourceName);
+                client.Toast($"Compacted {count} memory note(s)", "Compaction Complete");
+                LoadStatus();
+            });
         }
 
         if (isUpdateMemoriesOpen.Value)

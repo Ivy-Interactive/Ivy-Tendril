@@ -306,3 +306,37 @@ public class MemoryRulesCommand : Command<BaseMemorySettings>
         return 0;
     }
 }
+
+public class MemoryPurgeCommand : Command<BaseMemorySettings>
+{
+    private readonly IMemoryService _memoryService;
+
+    public MemoryPurgeCommand(IMemoryService memoryService)
+    {
+        _memoryService = memoryService;
+    }
+
+    protected override int Execute(CommandContext context, BaseMemorySettings settings, CancellationToken cancellationToken)
+    {
+        int count = _memoryService.PurgeMemories(projectName: settings.Project);
+        AnsiConsole.MarkupLine($"[green]Purged [bold]{count}[/] memory note(s).[/]");
+        return 0;
+    }
+}
+
+public class MemoryCompactCommand : Command<BaseMemorySettings>
+{
+    private readonly IMemoryService _memoryService;
+
+    public MemoryCompactCommand(IMemoryService memoryService)
+    {
+        _memoryService = memoryService;
+    }
+
+    protected override int Execute(CommandContext context, BaseMemorySettings settings, CancellationToken cancellationToken)
+    {
+        int count = _memoryService.CompactMemories(projectName: settings.Project);
+        AnsiConsole.MarkupLine($"[green]Compacted [bold]{count}[/] memory note(s).[/]");
+        return 0;
+    }
+}
