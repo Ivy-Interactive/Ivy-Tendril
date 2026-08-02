@@ -230,22 +230,27 @@ public static class PathHelper
         // 2. Add existing PATH directories
         pathList.AddRange(dirs);
 
-        // 3. For macOS/Linux, append common system search paths and login shell environment variables
+        // 3. Append common user tool directories and search paths
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var commonDirs = new List<string>
+        {
+            Path.Combine(home, ".ivy-agent", "bin"),
+            Path.Combine(home, ".local", "bin")
+        };
+
         if (!OperatingSystem.IsWindows())
         {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var commonDirs = new List<string>
+            commonDirs.AddRange(new[]
             {
                 "/opt/homebrew/bin",
                 "/opt/homebrew/sbin",
                 "/usr/local/bin",
                 "/usr/local/sbin",
                 Path.Combine(home, ".npm-global", "bin"),
-                Path.Combine(home, ".local", "bin"),
                 // Legacy `dotnet tool install -g` shim directory. Kept last so the installer's
                 // CLI symlink locations above always win over a stale .NET tool copy of tendril.
                 Path.Combine(home, ".dotnet", "tools")
-            };
+            });
 
             if (forceShellPath)
             {
@@ -280,13 +285,13 @@ public static class PathHelper
                     }
                 }
             }
+        }
 
-            foreach (var dir in commonDirs)
+        foreach (var dir in commonDirs)
+        {
+            if (Directory.Exists(dir) && !dirs.Contains(dir) && !pathList.Contains(dir))
             {
-                if (Directory.Exists(dir) && !dirs.Contains(dir) && !pathList.Contains(dir))
-                {
-                    pathList.Add(dir);
-                }
+                pathList.Add(dir);
             }
         }
 
@@ -301,6 +306,8 @@ public static class PathHelper
 
     public static void EnsureCliSymlink()
     {
+        EnsureIvyAgentCliSetup();
+
         if (OperatingSystem.IsWindows())
         {
             EnsureWindowsCliSetup();
@@ -370,6 +377,75 @@ public static class PathHelper
         catch (Exception ex)
         {
             Ivy.Helpers.CrashLog.Write($"[PathHelper] EnsureCliSymlink failed: {ex}");
+        }
+    }
+
+    public static void EnsureIvyAgentCliSetup()
+    {
+        try
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var ivyAgentDir = Path.Combine(home, ".ivy-agent", "bin");
+            var binaryName = OperatingSystem.IsWindows() ? "ivy-agent.exe" : "ivy-agent";
+            var ivyAgentExe = Path.Combine(ivyAgentDir, binaryName);
+
+            if (!File.Exists(ivyAgentExe)) return;
+
+            var localBinDir = Path.Combine(home, ".local", "bin");
+            if (!Directory.Exists(localBinDir))
+            {
+                Directory.CreateDirectory(localBinDir);
+            }
+
+            if (OperatingSystem.IsWindows())
+            {
+                var localBinCmd = Path.Combine(localBinDir, "ivy-agent.cmd");
+                var localBinCmdContent = $"@echo off\r\n\"{ivyAgentExe}\" %*\r\n";
+                if (!File.Exists(localBinCmd) || File.ReadAllText(localBinCmd) != localBinCmdContent)
+                {
+                    File.WriteAllText(localBinCmd, localBinCmdContent, Encoding.ASCII);
+                    Ivy.Helpers.CrashLog.Write($"[PathHelper] Created ivy-agent.cmd at {localBinCmd}");
+                }
+
+                // Ensure ~/.ivy-agent/bin and ~/.local/bin are present in User PATH
+                var userPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User) ?? "";
+                var pathDirs = userPath.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var dirsToAdd = new[] { ivyAgentDir, localBinDir }
+                    .Where(d => !pathDirs.Any(p => string.Equals(p, d, StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+
+                if (dirsToAdd.Count > 0)
+                {
+                    var newPath = string.IsNullOrEmpty(userPath)
+                        ? string.Join(Path.PathSeparator, dirsToAdd)
+                        : $"{userPath}{Path.PathSeparator}{string.Join(Path.PathSeparator, dirsToAdd)}";
+                    Environment.SetEnvironmentVariable("PATH", newPath, EnvironmentVariableTarget.User);
+                    Ivy.Helpers.CrashLog.Write($"[PathHelper] Added {string.Join(", ", dirsToAdd)} to Windows User PATH.");
+                }
+            }
+            else
+            {
+                var symlinkPath = Path.Combine(localBinDir, "ivy-agent");
+                if (File.Exists(symlinkPath))
+                {
+                    try
+                    {
+                        var target = File.ResolveLinkTarget(symlinkPath, true);
+                        if (target != null && string.Equals(target.FullName, ivyAgentExe, StringComparison.Ordinal))
+                        {
+                            return;
+                        }
+                    }
+                    catch { }
+                    File.Delete(symlinkPath);
+                }
+                File.CreateSymbolicLink(symlinkPath, ivyAgentExe);
+                Ivy.Helpers.CrashLog.Write($"[PathHelper] Created CLI symlink at {symlinkPath} -> {ivyAgentExe}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Ivy.Helpers.CrashLog.Write($"[PathHelper] EnsureIvyAgentCliSetup failed: {ex}");
         }
     }
 
