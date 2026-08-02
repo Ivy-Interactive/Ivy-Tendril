@@ -157,13 +157,16 @@ public class MemoryApp : ViewBase
         }
         catch { }
 
-        var allMemories = string.IsNullOrEmpty(selectedSourceName)
+        var filteredMemories = string.IsNullOrEmpty(selectedSourceName)
             ? availableMemories
             : availableMemories.Where(m =>
                 string.Equals(m.ProjectName, selectedSourceName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(m.ProjectName, "global", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(m.ProjectName, "workspace", StringComparison.OrdinalIgnoreCase) ||
                 string.IsNullOrEmpty(m.ProjectName)
             ).ToList();
+
+        var allMemories = filteredMemories.Count > 0 ? filteredMemories : availableMemories;
 
         var explorerView = new FileExplorerView(
             projects,

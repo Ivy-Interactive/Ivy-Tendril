@@ -324,6 +324,8 @@ export const BrainMap: React.FC<BrainMapProps> = ({
     ...getHeight(height),
     position: "relative",
     overflow: "hidden",
+    minWidth: 0,
+    minHeight: 0,
   };
 
   const memoryCount = nodes.filter((n) => n.type === "memory").length;
@@ -354,7 +356,7 @@ export const BrainMap: React.FC<BrainMapProps> = ({
 
   return (
     <div style={style} className="brain-map-container remove-parent-padding">
-      <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+      <div ref={containerRef} style={{ width: "100%", height: "100%", minWidth: 0, minHeight: 0 }} />
 
       {/* Control Buttons (Zoom In/Out/Reset/Labels) */}
       <div
