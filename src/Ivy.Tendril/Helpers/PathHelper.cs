@@ -32,7 +32,9 @@ public static class PathHelper
         {
             if (envHome.StartsWith("\"") && envHome.EndsWith("\""))
                 envHome = envHome[1..^1];
-            return envHome;
+
+            if (File.Exists(Path.Combine(envHome, "config.yaml")))
+                return envHome;
         }
 
         if (OperatingSystem.IsWindows())
@@ -68,6 +70,9 @@ public static class PathHelper
             }
         }
         catch { }
+
+        if (!string.IsNullOrEmpty(envHome))
+            return envHome;
 
         return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
     }
