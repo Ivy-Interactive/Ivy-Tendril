@@ -156,6 +156,7 @@ public class MemoryApp : ViewBase
         var explorerView = new FileExplorerView(
             projects,
             configuredPromptwares,
+            selectedSourceKey,
             allMemories,
             selectedFile,
             workingDir

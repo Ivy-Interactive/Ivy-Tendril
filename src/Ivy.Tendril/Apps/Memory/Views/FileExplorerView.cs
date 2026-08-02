@@ -28,6 +28,7 @@ public class FileExplorerView : ViewBase
 {
     private readonly List<ProjectConfig> _projects;
     private readonly Dictionary<string, PromptwareConfig> _configuredPromptwares;
+    private readonly IState<string?> _selectedSourceKey;
     private readonly List<MemoryNote> _memories;
     private readonly IState<string?> _selectedFile;
     private readonly string _workingDir;
@@ -35,12 +36,14 @@ public class FileExplorerView : ViewBase
     public FileExplorerView(
         List<ProjectConfig> projects,
         Dictionary<string, PromptwareConfig> configuredPromptwares,
+        IState<string?> selectedSourceKey,
         List<MemoryNote> memories,
         IState<string?> selectedFile,
         string workingDir)
     {
         _projects = projects;
         _configuredPromptwares = configuredPromptwares;
+        _selectedSourceKey = selectedSourceKey;
         _memories = memories;
         _selectedFile = selectedFile;
         _workingDir = workingDir;
@@ -48,25 +51,25 @@ public class FileExplorerView : ViewBase
 
     public override object Build()
     {
-        var selectedSourceKey = UseState<string?>(null);
         var searchQuery = UseState<string>("");
         var onlyLinkedFilter = UseState<bool>(false);
 
         var sourceOptions = GetAllSourceOptions(_projects, _workingDir, _configuredPromptwares);
         var selectOptions = sourceOptions.Select(o => new Option<string>(o.Id, o.Label)).ToArray<IAnyOption>();
 
-        // Find active option matching selectedSourceKey or default to first
-        var currentMatch = sourceOptions.FirstOrDefault(o => string.Equals(o.Id, selectedSourceKey.Value, StringComparison.OrdinalIgnoreCase));
-        if (currentMatch == null && sourceOptions.Count > 0)
-        {
-            currentMatch = sourceOptions.First();
-        }
+        // Active key from selectedSourceKey or default to first option
+        var activeKey = !string.IsNullOrEmpty(_selectedSourceKey.Value)
+            ? _selectedSourceKey.Value
+            : sourceOptions.FirstOrDefault()?.Id;
+
+        var currentMatch = sourceOptions.FirstOrDefault(o => string.Equals(o.Id, activeKey, StringComparison.OrdinalIgnoreCase))
+            ?? sourceOptions.FirstOrDefault();
 
         var targetDir = (currentMatch != null && !string.IsNullOrEmpty(currentMatch.Path) && Directory.Exists(currentMatch.Path))
             ? currentMatch.Path
             : _workingDir;
 
-        // Scan files directly from targetDir
+        // Directly scan files of selected targetDir
         var scannedFiles = new List<string>();
         try
         {
@@ -129,7 +132,7 @@ public class FileExplorerView : ViewBase
             });
 
         // Single Select Input for Projects & Promptwares at top of sidebar
-        var sourceSelectInput = selectedSourceKey.ToSelectInput(selectOptions)
+        var sourceSelectInput = _selectedSourceKey.ToSelectInput(selectOptions)
             .Placeholder("Select Project or Promptware...")
             .Width(Size.Full())
             .WithField()
