@@ -118,6 +118,12 @@ public class NodeBasedGraphView : ViewBase
             }
         }
 
+        if (graphNodes.Count == 0)
+        {
+            return Layout.Vertical().AlignContent(Align.Center).Padding(8).Size(Size.Full())
+                | Text.Muted("No memory notes or links found for this selection.");
+        }
+
         var activeNodeId = _selectedNote.Value ?? (_selectedFile.Value != null ? "file:" + _selectedFile.Value : null);
 
         var brainMapWidget = new BrainMap()

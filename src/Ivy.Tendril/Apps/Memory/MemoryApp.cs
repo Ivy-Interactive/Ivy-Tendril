@@ -158,29 +158,26 @@ public class MemoryApp : ViewBase
         }
         catch { }
 
-        List<MemoryNote> filteredMemories;
-        if (currentSourceMatch != null && currentSourceMatch.IsPromptware)
+        List<MemoryNote> allMemories;
+        if (currentSourceMatch != null)
         {
-            filteredMemories = availableMemories.Where(m =>
-                string.Equals(m.ProjectName, selectedSourceName, StringComparison.OrdinalIgnoreCase) ||
-                (!string.IsNullOrEmpty(selectedSourcePath) && m.Targets.Keys.Any(t => t.Contains(selectedSourceName ?? "", StringComparison.OrdinalIgnoreCase)))
-            ).ToList();
-        }
-        else if (currentSourceMatch != null && !string.IsNullOrEmpty(selectedSourceName))
-        {
-            filteredMemories = availableMemories.Where(m =>
-                string.Equals(m.ProjectName, selectedSourceName, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(m.ProjectName, "global", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(m.ProjectName, "workspace", StringComparison.OrdinalIgnoreCase) ||
-                string.IsNullOrEmpty(m.ProjectName)
+            var sourceName = currentSourceMatch.Name;
+            var sourcePath = currentSourceMatch.Path?.Replace('\\', '/').TrimEnd('/');
+
+            allMemories = availableMemories.Where(m =>
+                string.Equals(m.ProjectName, sourceName, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrEmpty(sourcePath) && m.Targets.Keys.Any(t =>
+                {
+                    var normTarget = t.Replace('\\', '/');
+                    return normTarget.StartsWith(sourcePath, StringComparison.OrdinalIgnoreCase) ||
+                           sourcePath.StartsWith(normTarget, StringComparison.OrdinalIgnoreCase);
+                }))
             ).ToList();
         }
         else
         {
-            filteredMemories = availableMemories;
+            allMemories = availableMemories;
         }
-
-        var allMemories = filteredMemories.Count > 0 ? filteredMemories : availableMemories;
 
         var explorerView = new FileExplorerView(
             projects,
