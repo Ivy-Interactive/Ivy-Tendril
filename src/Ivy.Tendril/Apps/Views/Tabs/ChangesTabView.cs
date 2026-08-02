@@ -328,15 +328,7 @@ public class ChangesTabView(
 
     private static (int ExitCode, string Output) RunGitCommand(string repoPath, string args)
     {
-        var psi = new ProcessStartInfo("git", args)
-        {
-            WorkingDirectory = repoPath,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8
-        };
+        var psi = GitHelper.MakeGitStartInfo(args, repoPath);
         using var process = Process.Start(psi);
         if (process == null)
             return (-1, "");
