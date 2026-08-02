@@ -52,6 +52,36 @@ Read and write files in a promptware's `Memory/` and `Tools/` directories. Used 
 
 ## job
 
+#### job list
+
+```terminal
+>tendril job list
+>tendril job list --project Ivy-Tendril --status Running
+>tendril job list --type ExecutePlan --limit 20
+>tendril job list --format json
+```
+
+Lists jobs from the Tendril database. Works without a running server by directly reading `tendril.db`. Filters by project, status, type, or plan ID. Results are ordered with in-flight jobs (NULL `CompletedAt`) first, then by most recent start time.
+
+| Option | Effect |
+|--------|--------|
+| `--project <name>` | Filter by project name (validated against configured projects) |
+| `--status <status>` | Filter by status (`Pending`, `Queued`, `Running`, `Completed`, `Failed`, `Timeout`, `Stopped`, `Blocked`) |
+| `--type <type>` | Filter by job type (e.g., `CreatePlan`, `ExecutePlan`, `CreatePr`) |
+| `--plan <id>` | Filter by plan ID |
+| `--limit <n>` | Maximum results (default: 50) |
+| `--format <fmt>` | Output format: `table` (default), `ids`, `json` |
+
+```terminal
+>tendril job list --project Ivy-Tendril --status Failed
+>tendril job list --plan 00152 --format ids
+```
+
+<Callout type="Tip">
+Unlike `plan list`, `job list` reads directly from the database and does not require the Tendril server to be running. It only reads `tendril.db` from `TENDRIL_HOME`, falling back to `~/.tendril` when the environment variable is unset.
+
+</Callout>
+
 #### job start
 
 ```terminal

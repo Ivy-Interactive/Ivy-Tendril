@@ -654,6 +654,7 @@ export function ChatWidget({
                       showThinking={true}
                       showSystemEvents={false}
                       showStatusLabel={false}
+                      groupToolCalls={true}
                       eventHandler={noopEventHandler}
                     />
                   ) : (
@@ -690,6 +691,7 @@ export function ChatWidget({
                   showThinking={true}
                   showSystemEvents={false}
                   showStatusLabel={true}
+                  groupToolCalls={true}
                   eventHandler={noopEventHandler}
                 />
               </div>

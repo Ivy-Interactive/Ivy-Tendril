@@ -30,6 +30,10 @@ maxConcurrentJobs: 5
         {
             var jobService = new JobService(config);
 
+            // Verify initial values
+            Assert.Equal(TimeSpan.FromMinutes(30), jobService.JobTimeout);
+            Assert.Equal(TimeSpan.FromMinutes(10), jobService.StaleOutputTimeout);
+
             File.WriteAllText(Path.Combine(tempDir, "config.yaml"), @"
 jobTimeout: 60
 staleOutputTimeout: 20
@@ -40,6 +44,10 @@ maxConcurrentJobs: 8
             Assert.Equal(60, config.Settings.JobTimeout);
             Assert.Equal(20, config.Settings.StaleOutputTimeout);
             Assert.Equal(8, config.Settings.MaxConcurrentJobs);
+
+            // Verify JobService's internal values are updated
+            Assert.Equal(TimeSpan.FromMinutes(60), jobService.JobTimeout);
+            Assert.Equal(TimeSpan.FromMinutes(20), jobService.StaleOutputTimeout);
 
             jobService.Dispose();
         }
