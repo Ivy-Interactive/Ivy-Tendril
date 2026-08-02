@@ -376,7 +376,7 @@
 }
 
 .aov-tool-body {
-  padding: 4px 0 4px 37px;
+  padding: 4px 0 4px 18px;
   animation: aov-tool-expand 0.2s ease-out both;
 }
 
@@ -421,7 +421,7 @@
 }
 
 .aov-tool-group-body {
-  padding: 4px 0 4px 37px;
+  padding: 4px 0 4px 18px;
   animation: aov-tool-expand 0.2s ease-out both;
 }
 
