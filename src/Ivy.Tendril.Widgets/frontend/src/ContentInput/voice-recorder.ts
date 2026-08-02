@@ -35,6 +35,17 @@ export class VoiceRecorder {
         console.log("[VoiceRecorder] AudioContext resumed, state:", this.audioContext.state);
       }
 
+      // Feature-detect before touching the mic
+      if (typeof navigator === "undefined" || !navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+        this.options.onError("Voice input is not available in this window. On macOS, quit and reopen Ivy Tendril after updating, then allow microphone access when prompted. You can also run 'tendril --web' and use voice input in your browser.");
+        this.options.onStatusChange("idle");
+        if (this.audioContext) {
+          this.audioContext.close().catch(() => {});
+          this.audioContext = null;
+        }
+        return;
+      }
+
       this.stream = await navigator.mediaDevices.getUserMedia({
         audio: { sampleRate: 24000, channelCount: 1, echoCancellation: true },
       });
@@ -102,7 +113,15 @@ export class VoiceRecorder {
       };
     } catch (err) {
       console.error("[VoiceRecorder] start() failed:", err);
-      this.options.onError(`Microphone access denied or connection failed: ${err}`);
+      let errorMessage = `Microphone access denied or connection failed: ${err}`;
+      if (err instanceof DOMException) {
+        if (err.name === "NotAllowedError") {
+          errorMessage = "Microphone access was denied. Allow microphone access for Ivy Tendril in System Settings > Privacy and Security > Microphone, then try again.";
+        } else if (err.name === "NotFoundError") {
+          errorMessage = "No microphone was found. Connect an input device and try again.";
+        }
+      }
+      this.options.onError(errorMessage);
       this.options.onStatusChange("idle");
       if (this.audioContext) {
         this.audioContext.close().catch(() => {});
