@@ -17,9 +17,7 @@ public class TendrilHomeStepView(
         var error = UseState<string?>(null);
         var isBootstrapping = UseState(false);
 
-        var defaultHome = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".tendril");
+        var defaultHome = PathHelper.GetDefaultTendrilHome();
 
         return Layout.Vertical().Margin(0, 0, 0, 2)
                | Text.H3("Where should we store your data?")
