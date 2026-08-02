@@ -210,8 +210,8 @@ public class MemoryApp : ViewBase
         var selectedIndex = viewMode.Value == MemoryViewMode.FileBased ? 0 : 1;
 
         var mainContentTabs = Layout.Tabs(
-            new Tab("File-Based"),
-            new Tab("Node-Based")
+            new Tab("File-Based", viewMode.Value == MemoryViewMode.FileBased ? activeView : null),
+            new Tab("Node-Based", viewMode.Value == MemoryViewMode.NodeBased ? activeView : null)
         )
         .SelectedIndex(selectedIndex)
         .OnSelect(index => viewMode.Set(index == 0 ? MemoryViewMode.FileBased : MemoryViewMode.NodeBased))
@@ -219,12 +219,8 @@ public class MemoryApp : ViewBase
         .RemoveParentPadding()
         .Padding(0);
 
-        var mainContentLayout = Layout.Vertical().Size(Size.Full())
-            | mainContentTabs
-            | (Layout.Vertical().Size(Size.Full()).RemoveParentPadding() | activeView);
-
         var rootLayout = new SidebarLayout(
-            mainContentLayout,
+            mainContentTabs,
             explorerView
         ).SidebarContentScroll(Scroll.None);
 
