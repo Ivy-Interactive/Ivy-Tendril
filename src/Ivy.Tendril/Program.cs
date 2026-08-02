@@ -650,6 +650,8 @@ public class Program
             // Job management commands
             config.AddBranch("job", job =>
             {
+                job.AddCommand<JobListCommand>("list")
+                    .WithDescription("List jobs with optional filters");
                 job.AddCommand<JobStatusCommand>("status")
                     .WithDescription("Report job status (message, planId, planTitle)");
                 job.AddCommand<JobFailCommand>("fail")
