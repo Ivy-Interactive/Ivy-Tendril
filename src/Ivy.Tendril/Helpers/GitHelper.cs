@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -8,6 +9,7 @@ namespace Ivy.Tendril.Helpers;
 
 public static class GitHelper
 {
+    private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
     private static readonly ConcurrentDictionary<string, string> _defaultBranchCache = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
@@ -95,7 +97,9 @@ public static class GitHelper
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
-            CreateNoWindow = true
+            CreateNoWindow = true,
+            StandardOutputEncoding = Utf8NoBom,
+            StandardErrorEncoding = Utf8NoBom
         };
         using var process = Process.Start(psi)!;
         var outTask = process.StandardOutput.ReadToEndAsync();
@@ -122,7 +126,9 @@ public static class GitHelper
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                StandardOutputEncoding = Utf8NoBom,
+                StandardErrorEncoding = Utf8NoBom
             };
 
             using var process = Process.Start(psi);
