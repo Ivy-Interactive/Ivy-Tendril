@@ -469,18 +469,36 @@ public class ProjectAddRepoCommand : Command<ProjectAddRepoSettings>
         if (!config.Settings.Projects.Any(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase)))
             CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
 
+        var repoPath = settings.RepoPath;
+        var kind = RepoPathValidator.Classify(repoPath);
+        if (kind != RepoPathKind.LocalPath)
+        {
+            var tendrilHome = config.TendrilHome;
+            var reposDir = Path.Combine(tendrilHome, "Repos");
+            Directory.CreateDirectory(reposDir);
+            var repoName = RepoPathValidator.ExtractRepoName(repoPath) ?? Guid.NewGuid().ToString();
+            var destPath = Path.Combine(reposDir, repoName);
+            if (!Directory.Exists(destPath))
+            {
+                var success = ProcessCheckHelper.CloneRepositoryAsync(repoPath, destPath).GetAwaiter().GetResult();
+                if (!success)
+                    throw new InvalidOperationException($"Failed to clone repository from URL: {repoPath}");
+            }
+            repoPath = destPath;
+        }
+
         // Resolve the branch before taking the config lock: these spawn git and can be slow.
         string? baseBranch = settings.BaseBranch;
         if (!string.IsNullOrWhiteSpace(baseBranch))
         {
-            var isValid = Ivy.Tendril.Helpers.GitHelper.IsValidBranchAsync(settings.RepoPath, baseBranch, config.TendrilHome).GetAwaiter().GetResult();
+            var isValid = Ivy.Tendril.Helpers.GitHelper.IsValidBranchAsync(repoPath, baseBranch, config.TendrilHome).GetAwaiter().GetResult();
             if (!isValid)
-                throw new InvalidOperationException($"Branch '{baseBranch}' does not exist in repository: {settings.RepoPath}");
+                throw new InvalidOperationException($"Branch '{baseBranch}' does not exist in repository: {repoPath}");
         }
         else
         {
             // No branch supplied, so detect and persist the repo's real default branch.
-            baseBranch = Ivy.Tendril.Helpers.GitHelper.ResolveDefaultBranch(settings.RepoPath, config.TendrilHome);
+            baseBranch = Ivy.Tendril.Helpers.GitHelper.ResolveDefaultBranch(repoPath, config.TendrilHome);
         }
 
         config.MutateAndSave(s =>
@@ -491,18 +509,18 @@ public class ProjectAddRepoCommand : Command<ProjectAddRepoSettings>
             if (project == null)
                 CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
 
-            if (project.GetRepoRef(settings.RepoPath) != null)
-                throw new InvalidOperationException($"Repository already exists in project: {settings.RepoPath}");
+            if (project.GetRepoRef(repoPath) != null)
+                throw new InvalidOperationException($"Repository already exists in project: {repoPath}");
 
             project.Repos.Add(new RepoRef
             {
-                Path = settings.RepoPath,
+                Path = repoPath,
                 PrRule = settings.PrRule ?? "default",
                 BaseBranch = baseBranch
             });
         });
 
-        Console.WriteLine($"Added repository: {settings.RepoPath}");
+        Console.WriteLine($"Added repository: {repoPath}");
         return 0;
     }
 }
