@@ -171,19 +171,14 @@ td.diff-gutter-empty::after {
   content: none !important;
 }
 
-/* Hide empty line number columns in unified view when no deletions or additions exist */
-.diff-unified-view.diff-no-deletions colgroup col:nth-child(1) {
-  display: none;
-}
-.diff-unified-view.diff-no-deletions .diff-row td:nth-child(1) {
-  display: none;
-}
-
+/* Collapse the unused line-number column in unified view.
+   `display` and `visibility` do not work on <col>; `width` does, and with
+   `table-layout: fixed` a zero-width col removes the column entirely.
+   Do NOT also hide the <td>: with a fixed layout that collapses the code
+   column too (measured: code column drops to 47px). */
+.diff-unified-view.diff-no-deletions colgroup col:first-child,
 .diff-unified-view.diff-no-additions colgroup col:nth-child(2) {
-  display: none;
-}
-.diff-unified-view.diff-no-additions .diff-row td:nth-child(2) {
-  display: none;
+  width: 0;
 }
 
 /* Outer layout and widget padding adjustments */

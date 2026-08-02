@@ -668,7 +668,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
             {!isCollapsed && (
               <div className="overflow-x-auto">
                 <Diff
-                  className={`${effectiveViewType === "unified" ? "diff-unified-view" : "diff-split-view"} ${deletions === 0 ? "diff-no-deletions" : ""} ${additions === 0 ? "diff-no-additions" : ""}`}
+                  className={`${effectiveViewType === "unified" ? "diff-unified-view" : "diff-split-view"} ${deletions === 0 && additions > 0 ? "diff-no-deletions" : ""} ${additions === 0 && deletions > 0 ? "diff-no-additions" : ""}`}
                   viewType={effectiveViewType}
                   diffType={file.type}
                   hunks={file.hunks}

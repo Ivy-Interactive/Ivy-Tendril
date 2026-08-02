@@ -171,3 +171,79 @@ describe("PlanDiffView", () => {
     expect(listItems.length).toBe(2);
   });
 });
+
+describe("PlanDiffView unified column collapse", () => {
+  const insertOnlyDiff = `diff --git a/file.txt b/file.txt
+index abc1234..def5678 100644
+--- a/file.txt
++++ b/file.txt
+@@ -1,0 +1,2 @@
++line 1
++line 2`;
+
+  const deleteOnlyDiff = `diff --git a/file.txt b/file.txt
+index abc1234..def5678 100644
+--- a/file.txt
++++ b/file.txt
+@@ -1,2 +1,0 @@
+-line 1
+-line 2`;
+
+  const mixedDiff = `diff --git a/file.txt b/file.txt
+index abc1234..def5678 100644
+--- a/file.txt
++++ b/file.txt
+@@ -1,3 +1,3 @@
+ context
+-old line
++new line`;
+
+  const emptyDiff = `diff --git a/file.txt b/file.txt
+old mode 100644
+new mode 100755`;
+
+  it("renders insert-only diff with diff-no-deletions class", () => {
+    const { container } = render(<PlanDiffView id="test-1" diff={insertOnlyDiff} viewType="Unified" />);
+    const table = container.querySelector(".diff");
+    expect(table).toHaveClass("diff-unified-view");
+    expect(table).toHaveClass("diff-no-deletions");
+    expect(table).not.toHaveClass("diff-no-additions");
+  });
+
+  it("renders delete-only diff with diff-no-additions class", () => {
+    const { container } = render(<PlanDiffView id="test-2" diff={deleteOnlyDiff} viewType="Unified" />);
+    const table = container.querySelector(".diff");
+    expect(table).toHaveClass("diff-unified-view");
+    expect(table).toHaveClass("diff-no-additions");
+    expect(table).not.toHaveClass("diff-no-deletions");
+  });
+
+  it("renders mixed diff with neither marker class", () => {
+    const { container } = render(<PlanDiffView id="test-3" diff={mixedDiff} viewType="Unified" />);
+    const table = container.querySelector(".diff");
+    expect(table).toHaveClass("diff-unified-view");
+    expect(table).not.toHaveClass("diff-no-deletions");
+    expect(table).not.toHaveClass("diff-no-additions");
+  });
+
+  it("renders zero-change diff with neither marker class", () => {
+    const { container } = render(<PlanDiffView id="test-4" diff={emptyDiff} viewType="Unified" />);
+    const table = container.querySelector(".diff");
+    expect(table).toHaveClass("diff-unified-view");
+    expect(table).not.toHaveClass("diff-no-deletions");
+    expect(table).not.toHaveClass("diff-no-additions");
+  });
+
+  it("emits a three-col colgroup and diff-line rows with three td children", () => {
+    const { container } = render(<PlanDiffView id="test-5" diff={insertOnlyDiff} viewType="Unified" />);
+    const colgroup = container.querySelector(".diff colgroup");
+    expect(colgroup).toBeTruthy();
+    const cols = colgroup?.querySelectorAll("col");
+    expect(cols?.length).toBe(3);
+
+    const diffLine = container.querySelector(".diff-line");
+    expect(diffLine).toBeTruthy();
+    const cells = diffLine?.querySelectorAll("td");
+    expect(cells?.length).toBe(3);
+  });
+});
