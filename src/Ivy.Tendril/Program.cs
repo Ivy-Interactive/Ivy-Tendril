@@ -694,6 +694,8 @@ public class Program
                     .WithDescription("Report job status (message, planId, planTitle)");
                 job.AddCommand<JobFailCommand>("fail")
                     .WithDescription("Report a job failure with a descriptive message");
+                job.AddCommand<JobCancelCommand>("cancel")
+                    .WithDescription("Cancel a running or queued job, terminate its process, and revert plan state");
                 job.AddCommand<JobStartCommand>("start")
                     .WithDescription("Start a job via the running Tendril server");
                 job.AddCommand<JobAddLogCommand>("add-log")
