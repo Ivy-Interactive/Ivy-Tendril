@@ -109,10 +109,6 @@ public class ActionBarView(
                         return;
                     }
 
-                        return;
-                    }
-
->>>>>>> origin/development
                     refreshPlans();
                 }),
             new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
