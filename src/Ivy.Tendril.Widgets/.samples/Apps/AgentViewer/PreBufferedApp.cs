@@ -11,6 +11,7 @@ class PreBufferedApp : ViewBase
         bool ShowThinking = false,
         bool ShowSystemEvents = false,
         bool ShowStatusLabel = true,
+        bool GroupToolCalls = false,
         string? StatusLabelOverride = null);
 
     public override object Build()
@@ -23,6 +24,7 @@ class PreBufferedApp : ViewBase
             .ShowThinking(props.Value.ShowThinking)
             .ShowSystemEvents(props.Value.ShowSystemEvents)
             .ShowStatusLabel(props.Value.ShowStatusLabel)
+            .GroupToolCalls(props.Value.GroupToolCalls)
             .Height(Size.Full());
 
         if (!string.IsNullOrWhiteSpace(props.Value.StatusLabelOverride))

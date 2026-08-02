@@ -26,6 +26,8 @@ Read the `UpdateInstructions` value from the firmware header. Instructions are e
 - **Questions** (contain `?` or start with question words) — research and answer them
 - **Instructions** — changes to incorporate into the plan
 
+**File attachments:** If `UpdateInstructions` contains `[file: <absolute-path>]` markers, these are user-uploaded attachments (screenshots, code samples, documents). Read and inspect them for context. When writing the updated revision, format images or screenshots as markdown images using `file:///` URLs with forward slashes (e.g., `![Description](file:///C:/path/to/image.png)`).
+
 ### 3. Research and Answer Questions
 
 For each question in the instructions:

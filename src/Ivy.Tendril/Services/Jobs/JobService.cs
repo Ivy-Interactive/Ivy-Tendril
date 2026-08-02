@@ -1236,7 +1236,7 @@ public class JobService : IJobService
     private void LaunchJob(JobItem job)
     {
         _jobLauncher.LaunchJob(
-            job, _jobs, _jobSlotSemaphore, _jobTimeout, _staleOutputTimeout,
+            job, _jobs, _jobSlotSemaphore, () => _jobTimeout, () => _staleOutputTimeout,
             (when, type, folder, project, j) => RunHooks(when, type, folder, project, j),
             (id, exitCode, timedOut, staleOutput) => CompleteJob(id, exitCode, timedOut, staleOutput),
             RaiseJobsStructureChanged);
@@ -1250,7 +1250,22 @@ public class JobService : IJobService
         => _completionHandler.RunHooks(when, jobType, planFolder, project, job);
 
     internal Task RunStaleOutputWatchdog(string id, CancellationTokenSource timeoutCts)
-        => JobMonitor.RunStaleOutputWatchdog(id, timeoutCts, _jobs, _staleOutputTimeout);
+        => JobMonitor.RunStaleOutputWatchdog(id, timeoutCts, _jobs, () => _staleOutputTimeout);
+
+    internal Task RunJobTimeoutWatchdog(string id, CancellationTokenSource timeoutCts, DateTime startedAt, TimeSpan? tickInterval = null)
+        => JobMonitor.RunJobTimeoutWatchdog(id, timeoutCts, _jobs, () => _jobTimeout, startedAt, tickInterval);
+
+    internal TimeSpan JobTimeout
+    {
+        get => _jobTimeout;
+        set => _jobTimeout = value;
+    }
+
+    internal TimeSpan StaleOutputTimeout
+    {
+        get => _staleOutputTimeout;
+        set => _staleOutputTimeout = value;
+    }
 
 
     private void ProcessJobQueue()

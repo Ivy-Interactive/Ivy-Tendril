@@ -243,7 +243,7 @@ title: Test Plan
         var structureChangedRaised = false;
 
         launcher.LaunchJob(
-            job, jobs, semaphore, TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            job, jobs, semaphore, () => TimeSpan.FromMinutes(30), () => TimeSpan.FromMinutes(10),
             runHooks: (_, _, _, _, _) => throw new InvalidOperationException("boom"),
             completeJob: (_, _, _, _) => { },
             raiseStructureChanged: () => structureChangedRaised = true);
@@ -286,7 +286,7 @@ title: Test Plan
             job.Id,
             cts,
             jobs,
-            TimeSpan.FromMinutes(10));
+            () => TimeSpan.FromMinutes(10));
 
         await Task.Delay(TimeSpan.FromSeconds(2));
         cts.Cancel();

@@ -66,6 +66,7 @@ public static class PlanCommandHelpers
 
     /// <summary>
     ///     Resolves the plans directory from an explicit override, TENDRIL_PLANS, or TENDRIL_HOME/Plans.
+    ///     Falls back to ~/.tendril/Plans when environment variables are unset.
     /// </summary>
     public static string GetPlansDirectory(string? explicitPlansDir = null)
     {
@@ -84,10 +85,7 @@ public static class PlanCommandHelpers
             return plans;
         }
 
-        var home = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
-        if (string.IsNullOrWhiteSpace(home))
-            throw new InvalidOperationException("TENDRIL_HOME environment variable is not set");
-
+        var home = PathHelper.GetDefaultTendrilHome();
         var plansDirectory = Path.Combine(home, "Plans");
         if (!Directory.Exists(plansDirectory))
             throw new DirectoryNotFoundException($"Plans directory not found: {plansDirectory}");

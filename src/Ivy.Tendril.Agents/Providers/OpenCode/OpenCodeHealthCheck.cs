@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
 
@@ -18,7 +19,7 @@ public sealed class OpenCodeHealthCheck : IAgentHealthCheck
         return new AgentInstallStatus { IsInstalled = true, Version = version, BinaryPath = path };
     }
 
-    public Task<AgentAuthResult> CheckAuthAsync(CancellationToken ct = default)
+    public async Task<AgentAuthResult> CheckAuthAsync(CancellationToken ct = default)
     {
         var authPath = GetAuthFilePath();
 
@@ -27,16 +28,74 @@ public sealed class OpenCodeHealthCheck : IAgentHealthCheck
             var info = new FileInfo(authPath);
             if (info.Length >= 2)
             {
-                return Task.FromResult(new AgentAuthResult { Status = AuthStatus.Authenticated });
+                return new AgentAuthResult
+                {
+                    Status = AuthStatus.Authenticated,
+                    AuthMethod = "auth-file",
+                };
             }
         }
 
-        return Task.FromResult(new AgentAuthResult
+        // Auth file not found or empty - check environment variables via CLI
+        var binaryPath = OpenCodeBinaryResolver.Resolve();
+        var (exitCode, stdout, stderr) = await HealthCheckRunner.RunAsync(
+            binaryPath, ["auth", "list"], TimeSpan.FromSeconds(15), ct);
+
+        if (exitCode != 0)
+        {
+            return new AgentAuthResult
+            {
+                Status = AuthStatus.Unknown,
+                Error = $"Failed to check OpenCode credentials: {stderr}",
+                SignInHint = "Run 'opencode providers login' to authenticate",
+            };
+        }
+
+        var authResult = ParseAuthList(stdout);
+        if (authResult.Status == AuthStatus.NotAuthenticated)
+        {
+            authResult = authResult with
+            {
+                Error = "No OpenCode credentials configured (auth.json empty and no provider environment variables)",
+                SignInHint = "Run 'opencode providers login' to authenticate",
+            };
+        }
+
+        return authResult;
+    }
+
+    internal static AgentAuthResult ParseAuthList(string stdout)
+    {
+        var cleaned = Regex.Replace(stdout, @"\x1b\[[0-9;]*m", "");
+
+        var fileCredsMatch = Regex.Match(cleaned, @"(\d+)\s+credentials?", RegexOptions.IgnoreCase);
+        var envCredsMatch = Regex.Match(cleaned, @"(\d+)\s+environment\s+variables?", RegexOptions.IgnoreCase);
+
+        var fileCount = fileCredsMatch.Success ? int.Parse(fileCredsMatch.Groups[1].Value) : 0;
+        var envCount = envCredsMatch.Success ? int.Parse(envCredsMatch.Groups[1].Value) : 0;
+
+        if (envCount > 0)
+        {
+            return new AgentAuthResult
+            {
+                Status = AuthStatus.Authenticated,
+                AuthMethod = "environment",
+            };
+        }
+
+        if (fileCount > 0)
+        {
+            return new AgentAuthResult
+            {
+                Status = AuthStatus.Authenticated,
+                AuthMethod = "auth-file",
+            };
+        }
+
+        return new AgentAuthResult
         {
             Status = AuthStatus.NotAuthenticated,
-            Error = $"Auth file not found or empty at {authPath}",
-            SignInHint = "Run 'opencode providers login' to authenticate",
-        });
+        };
     }
 
     public async Task<string?> GetVersionAsync(CancellationToken ct = default)
