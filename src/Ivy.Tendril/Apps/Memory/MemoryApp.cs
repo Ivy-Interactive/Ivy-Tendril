@@ -156,15 +156,8 @@ public class MemoryApp : ViewBase
         var explorerView = new FileExplorerView(
             projects,
             configuredPromptwares,
-            selectedSourceKey,
-            selectedFolderPath,
-            selectedFolderName,
-            projectFiles.Value,
             allMemories,
             selectedFile,
-            searchQuery,
-            onlyLinkedFilter,
-            projectFilter,
             workingDir
         );
 

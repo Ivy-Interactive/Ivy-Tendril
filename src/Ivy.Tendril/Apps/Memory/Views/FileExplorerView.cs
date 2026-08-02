@@ -28,62 +28,45 @@ public class FileExplorerView : ViewBase
 {
     private readonly List<ProjectConfig> _projects;
     private readonly Dictionary<string, PromptwareConfig> _configuredPromptwares;
-    private readonly IState<string?> _selectedSourceKey;
-    private readonly IState<string?> _selectedFolderPath;
-    private readonly IState<string?> _selectedFolderName;
-    private readonly List<string> _allFiles;
     private readonly List<MemoryNote> _memories;
     private readonly IState<string?> _selectedFile;
-    private readonly IState<string> _searchQuery;
-    private readonly IState<bool> _onlyLinkedFilter;
-    private readonly IState<string?> _projectFilter;
     private readonly string _workingDir;
 
     public FileExplorerView(
         List<ProjectConfig> projects,
         Dictionary<string, PromptwareConfig> configuredPromptwares,
-        IState<string?> selectedSourceKey,
-        IState<string?> selectedFolderPath,
-        IState<string?> selectedFolderName,
-        List<string> allFiles,
         List<MemoryNote> memories,
         IState<string?> selectedFile,
-        IState<string> searchQuery,
-        IState<bool> onlyLinkedFilter,
-        IState<string?> projectFilter,
         string workingDir)
     {
         _projects = projects;
         _configuredPromptwares = configuredPromptwares;
-        _selectedSourceKey = selectedSourceKey;
-        _selectedFolderPath = selectedFolderPath;
-        _selectedFolderName = selectedFolderName;
-        _allFiles = allFiles;
         _memories = memories;
         _selectedFile = selectedFile;
-        _searchQuery = searchQuery;
-        _onlyLinkedFilter = onlyLinkedFilter;
-        _projectFilter = projectFilter;
         _workingDir = workingDir;
     }
 
     public override object Build()
     {
-        var query = _searchQuery.Value.Trim();
+        var selectedSourceKey = UseState<string?>(null);
+        var searchQuery = UseState<string>("");
+        var onlyLinkedFilter = UseState<bool>(false);
 
         var sourceOptions = GetAllSourceOptions(_projects, _workingDir, _configuredPromptwares);
         var selectOptions = sourceOptions.Select(o => new Option<string>(o.Id, o.Label)).ToArray<IAnyOption>();
 
-        // Derive active option safely without side-effects inside Build()
-        var activeKey = _selectedSourceKey.Value;
-        var currentMatch = sourceOptions.FirstOrDefault(o => string.Equals(o.Id, activeKey, StringComparison.OrdinalIgnoreCase))
-            ?? sourceOptions.FirstOrDefault();
+        // Find active option matching selectedSourceKey or default to first
+        var currentMatch = sourceOptions.FirstOrDefault(o => string.Equals(o.Id, selectedSourceKey.Value, StringComparison.OrdinalIgnoreCase));
+        if (currentMatch == null && sourceOptions.Count > 0)
+        {
+            currentMatch = sourceOptions.First();
+        }
 
         var targetDir = (currentMatch != null && !string.IsNullOrEmpty(currentMatch.Path) && Directory.Exists(currentMatch.Path))
             ? currentMatch.Path
             : _workingDir;
 
-        // Directly scan files of targetDir to guarantee instant update on dropdown selection
+        // Scan files directly from targetDir
         var scannedFiles = new List<string>();
         try
         {
@@ -114,16 +97,14 @@ public class FileExplorerView : ViewBase
             }
         }
 
-        // Combine files in selected folder
-        var combinedFiles = new HashSet<string>(scannedFiles.Select(f => f.Replace('\\', '/')), StringComparer.OrdinalIgnoreCase);
+        var fileList = scannedFiles.AsEnumerable();
 
-        var fileList = combinedFiles.AsEnumerable();
-
-        if (_onlyLinkedFilter.Value)
+        if (onlyLinkedFilter.Value)
         {
             fileList = fileList.Where(f => fileMemoryMap.ContainsKey(f));
         }
 
+        var query = searchQuery.Value.Trim();
         if (!string.IsNullOrEmpty(query))
         {
             fileList = fileList.Where(f => f.Contains(query, StringComparison.OrdinalIgnoreCase));
@@ -148,21 +129,21 @@ public class FileExplorerView : ViewBase
             });
 
         // Single Select Input for Projects & Promptwares at top of sidebar
-        var sourceSelectInput = _selectedSourceKey.ToSelectInput(selectOptions)
+        var sourceSelectInput = selectedSourceKey.ToSelectInput(selectOptions)
             .Placeholder("Select Project or Promptware...")
             .Width(Size.Full())
             .WithField()
             .Label("Project / Promptware");
 
-        var searchInput = _searchQuery.ToTextInput(placeholder: "Search files...")
+        var searchInput = searchQuery.ToTextInput(placeholder: "Search files...")
             .Prefix(Icons.Search)
             .Width(Size.Full());
 
         var filterToggle = Layout.Horizontal().AlignContent(Align.Left).Gap(1).Width(Size.Full())
-            | new Button("All Files").Variant(_onlyLinkedFilter.Value ? ButtonVariant.Outline : ButtonVariant.Primary).Small()
-                .OnClick(() => _onlyLinkedFilter.Set(false))
-            | new Button("Linked Only").Variant(_onlyLinkedFilter.Value ? ButtonVariant.Primary : ButtonVariant.Outline).Small()
-                .OnClick(() => _onlyLinkedFilter.Set(true));
+            | new Button("All Files").Variant(onlyLinkedFilter.Value ? ButtonVariant.Outline : ButtonVariant.Primary).Small()
+                .OnClick(() => onlyLinkedFilter.Set(false))
+            | new Button("Linked Only").Variant(onlyLinkedFilter.Value ? ButtonVariant.Primary : ButtonVariant.Outline).Small()
+                .OnClick(() => onlyLinkedFilter.Set(true));
 
         var topHeaderControls = Layout.Vertical().Gap(2).Width(Size.Full())
             | sourceSelectInput
