@@ -53,16 +53,26 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
 
 ### 3. Research
 
-- **Check for duplicate plans** first — **unless `Force: true` is set in the firmware header**, in which case skip duplicate detection entirely. However, if you discover related existing plans during research (e.g., from grep results or memory), still link them via `--related-plan` on `tendril plan create`. `Force` means "create the plan regardless" — not "ignore prior work." Check the `DuplicateCandidates` firmware value. If present, it contains pre-computed matches (format: `folderName|title|state` per line). For each match, perform **state-aware duplicate detection** on those specific plans only. If `DuplicateCandidates` is absent, no potential duplicates were found — skip duplicate detection. When matches are found, decide as follows:
+- **Check for duplicate plans** first, **unless `Force: true` is set in the firmware header**, in which case skip duplicate detection entirely. However, if you discover related existing plans during research (e.g., from grep results or memory), still link them via `--related-plan` on `tendril plan create`. `Force` means "create the plan regardless", not "ignore prior work." Check the `DuplicateCandidates` firmware value. If present, it contains pre-computed matches (format: `folderName|title|state` per line). For each match, perform **state-aware duplicate detection** on those specific plans only.
+
+  An **absent** `DuplicateCandidates` header means no pre-computed match was supplied, **not** that none exists. Plans are created in concurrent batches (26 CreatePlan jobs were in flight in the batch that produced four plans for one deliverable), so a sibling covering your task may land while you research. **Always search yourself before writing the revision**, for two or three key terms from the task:
+
+  ```bash
+  tendril plan list --search "<key term>" --project="<project>"
+  ```
+
+  `tendril plan create` and `tendril plan write-revision` also print a `DuplicateCandidates:` block of their own when they find candidates (see Step 4.2). Treat every entry from any of these three sources the same way. When matches are found, decide as follows:
 
   #### Step 1: Read existing plan state
   
-  Read the matching plan's `plan.yaml` and check its `state`, `commits`, and `prs` fields.
+  Read the matching plan's `plan.yaml` and check its `state`, `commits`, `prs`, `verifications` and
+  `partialDelivery` fields.
 
   #### Step 2: Decide based on state
 
   | Existing plan state | Action |
   |---|---|
+  | `Completed` with `partialDelivery: true` or any verification `Fail` | **Do NOT trash.** The deliverable may be missing. Verify the specific thing the incoming request asks for is present in the code, and create the plan if it is not. |
   | `Completed` (with merged PR) | Check for regression (Step 4), otherwise trash |
   | `Completed` (no PR, but commits exist) | Check for regression (Step 4), trash with note "no PR found" |
   | `Draft` / `Creating` / `Executing` | Trash, but note "plan in progress (state: X)" |
@@ -70,7 +80,21 @@ Do NOT read or modify `.counter` directly. Plan IDs are allocated by the `tendri
   | `Failed` | **Do NOT trash** — create the plan (the previous attempt failed) |
   | `Icebox` / `Skipped` | Trash with note "existing plan state: X" (issue is already covered) |
 
+  A `Completed` plan is not proof of delivery: a plan can be completed while a gate rejected the
+  work, in which case its title asserts a feature that was never written. The first row catches that,
+  and it takes precedence over the rows below it.
+
   #### Step 3: Stricter checks for critical issues
+
+  Run these two checks on **every** `Completed` candidate, before anything else:
+
+  ```bash
+  tendril plan get <id> verifications | grep -i "=Fail"   # any Fail: treat as possibly undelivered
+  tendril plan get <id> partialDelivery                    # true: completed over a failed gate
+  ```
+
+  Either signal means the plan's deliverable may be missing, so do NOT trash on state alone: verify
+  in the code that the specific thing this request asks for is present.
 
   When the incoming request describes a critical/blocking issue (errors, failures, crashes), apply **additional checks** before trashing:
 
@@ -192,6 +216,13 @@ Verifications:
 
 Parse `PlanId` and `Directory` from the output — use these for all subsequent operations.
 
+If plans in the same project have overlapping titles, a fourth block follows the three above:
+```
+DuplicateCandidates:
+<folderName>|<title>|<state>
+```
+This is advisory and never changes the exit code. Apply the Step 3 state table to each entry before you finalize the plan (see Section 4.2 for what to do once the plan folder exists).
+
 Include optional flags as needed (always use the `--option=value` form):
 - `--source-url="<url>"` — if a source URL was extracted in Step 1
 - `--related-plan="<folder-name>"` — for each plan referenced via `[number]` syntax in the task description
@@ -215,6 +246,22 @@ EOF
 ```
 
 This reads from STDIN and auto-creates `Revisions/001.md` (or the next sequential number) in the plan folder. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`.
+
+**Duplicate candidates at finalization.** `write-revision` prints this to **stderr** when it finds overlapping plans, while still writing the revision and exiting 0:
+
+```
+warning: 3 possible duplicate plan(s) found. Review before this plan is executed:
+DuplicateCandidates:
+<folderName>|<title>|<state>
+```
+
+This is the last check that runs after your research, so it is the one that catches a sibling created while you were working. **Do not ignore it.** For each entry, apply the Step 3 state table. Your plan already exists at this point, so trashing is unavailable: the correct outcomes are
+
+- a `## Concurrent plans` section in the revision naming which plan owns which scope (rewrite the revision with a second `write-revision` call if you already wrote it),
+- `tendril plan add-related-plan <PlanId> "<folder-name>"`, and
+- retitling onto the surviving unowned scope (`tendril plan set <PlanId> title "<new title>"`) when a sibling already owns what you planned, or `tendril plan set <PlanId> state Skipped` when nothing is left unowned.
+
+Under `Force: true`, still print and read the block: `Force` skips the *decision* to create the plan, not the linking. Record every candidate via `--related-plan`.
 
 After creating the plan, report the plan ID and title to the Jobs UI so it can display progress:
 

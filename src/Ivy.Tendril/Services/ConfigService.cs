@@ -61,14 +61,14 @@ public record ProjectConfig
 
         try
         {
-            // Get full path and remove trailing directory separators
-            var normalized = Path.GetFullPath(path);
-            return normalized.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            // Get full path and remove trailing directory separators, standardizing to forward slashes
+            var normalized = Path.GetFullPath(path).Replace('\\', '/');
+            return normalized.TrimEnd('/');
         }
         catch
         {
             // If Path.GetFullPath fails (e.g., invalid path), return original with trimmed separators
-            return path.TrimEnd('/', '\\');
+            return path.Replace('\\', '/').TrimEnd('/');
         }
     }
 }
@@ -164,7 +164,7 @@ public class TendrilSettings
     public int JobTimeout { get; set; } = 30;
     public int StaleOutputTimeout { get; set; } = 10;
     public int GitTimeout { get; set; } = 10;
-    public int MaxConcurrentJobs { get; set; } = 5;
+    public int MaxConcurrentJobs { get; set; } = 20;
 
     public List<ProjectConfig> Projects { get; set; } = new();
     public List<VerificationConfig> Verifications { get; set; } = new();
@@ -454,12 +454,12 @@ public class ConfigService : IConfigService, IDisposable
             Settings.GitTimeout = 10;
         }
 
-        // MaxConcurrentJobs: 1-100
-        if (Settings.MaxConcurrentJobs < 1 || Settings.MaxConcurrentJobs > 100)
+        // MaxConcurrentJobs: 1-512
+        if (Settings.MaxConcurrentJobs < 1 || Settings.MaxConcurrentJobs > 512)
         {
-            _logger.LogWarning("MaxConcurrentJobs {Value} is out of bounds (1-100). Using default 5.",
+            _logger.LogWarning("MaxConcurrentJobs {Value} is out of bounds (1-512). Using default 20.",
                 Settings.MaxConcurrentJobs);
-            Settings.MaxConcurrentJobs = 5;
+            Settings.MaxConcurrentJobs = 20;
         }
     }
 
@@ -510,13 +510,42 @@ public class ConfigService : IConfigService, IDisposable
 
     public event EventHandler? SettingsReloaded;
 
+    /// <summary>
+    ///     Writes the current in-memory <see cref="Settings"/> over config.yaml, then reloads.
+    ///     Deliberately unlocked: the in-process TUI and the onboarding path build
+    ///     <see cref="Settings"/> from pending values that a reload would clobber. Out-of-process
+    ///     mutators (CLI, MCP) must use <see cref="MutateAndSave"/> instead, or a concurrent writer's
+    ///     change is silently lost, since this serializes the whole settings graph, not one field.
+    /// </summary>
     public void SaveSettings()
     {
         WriteSettingsToDisk();
         ReloadSettings();
     }
 
-    /// <summary>Serializes current <see cref="Settings"/> and writes <see cref="ConfigPath"/> (with backup). Does not reload.</summary>
+    /// <summary>
+    ///     Re-reads config.yaml under the cross-process lock, applies <paramref name="mutate"/> to the
+    ///     fresh settings, and writes them back before releasing. Use this for every out-of-process
+    ///     mutation so a concurrent writer cannot lose the change.
+    ///     The callback must do its own lookups against the <see cref="TendrilSettings"/> argument:
+    ///     anything resolved from <see cref="Settings"/> beforehand refers to a graph the reload has
+    ///     already replaced. Do not read stdin inside the callback, which would hold the lock for the
+    ///     duration of a blocking pipe read.
+    /// </summary>
+    public void MutateAndSave(Action<TendrilSettings> mutate)
+    {
+        using var _ = ConfigFileLock.Acquire(ConfigPath);
+        // Pick up whatever a competing writer committed between this service's construction and now.
+        ReloadSettings();
+        mutate(Settings);
+        WriteSettingsToDisk();
+    }
+
+    /// <summary>
+    ///     Serializes current <see cref="Settings"/> and writes <see cref="ConfigPath"/> (with backup). Does not reload.
+    ///     Never acquires <see cref="ConfigFileLock"/>: <see cref="MutateAndSave"/> already holds it, and
+    ///     <see cref="SyncAuthFromEnvironmentAndPersistIfNeeded"/> reaches here from inside that lock.
+    /// </summary>
     private void WriteSettingsToDisk()
     {
         _levelNamesCache = null;
@@ -556,6 +585,10 @@ public class ConfigService : IConfigService, IDisposable
             _levelNamesCache = null;
             VariableExpansion.InitializeUserSecrets(_logger);
             ExpandSettingsVariables();
+            // Same expansion the constructor applies via FinalizeConfiguration. Callers treat
+            // repo.Path as expanded and forward-slashed, so a reload that skipped this would hand
+            // out raw backslashed paths and MutateAndSave would then persist them in that form.
+            ExpandRepoPaths();
 
             SyncAuthFromEnvironmentAndPersistIfNeeded();
             SettingsReloaded?.Invoke(this, EventArgs.Empty);

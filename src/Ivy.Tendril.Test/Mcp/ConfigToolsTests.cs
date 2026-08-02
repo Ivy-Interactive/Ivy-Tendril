@@ -111,7 +111,7 @@ public class ConfigToolsTests : IDisposable
     [Theory]
     [InlineData("jobTimeout", "999")]
     [InlineData("gitTimeout", "0")]
-    [InlineData("maxConcurrentJobs", "101")]
+    [InlineData("maxConcurrentJobs", "513")]
     public void SetConfig_OutOfRange_ReturnsErrorAndKeepsPriorValue(string key, string value)
     {
         // Establish a known-good value first.

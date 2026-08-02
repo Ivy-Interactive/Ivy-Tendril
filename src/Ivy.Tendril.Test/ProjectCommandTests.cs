@@ -163,7 +163,7 @@ verifications: []
 
         var reloaded = CreateConfig();
         Assert.Single(reloaded.Settings.Projects[0].Repos);
-        Assert.Equal(repoPath, reloaded.Settings.Projects[0].Repos[0].Path);
+        Assert.Equal(repoPath.Replace('\\', '/'), reloaded.Settings.Projects[0].Repos[0].Path);
     }
 
     [Fact]
@@ -190,7 +190,7 @@ verifications: []
 
         var reloaded = CreateConfig();
         Assert.Single(reloaded.Settings.Projects[0].Repos);
-        Assert.Equal(keepPath, reloaded.Settings.Projects[0].Repos[0].Path);
+        Assert.Equal(keepPath.Replace('\\', '/'), reloaded.Settings.Projects[0].Repos[0].Path);
     }
 
     // --- Add/Remove Verification ---
@@ -486,7 +486,7 @@ verifications: []
         var ex = Assert.Throws<InvalidOperationException>(
             () => app.Run(["project", "remove-repo", "Test", Path.Combine(_tempDir.Path, "OtherRepo")]));
 
-        Assert.Contains($"Available: {seededPath}", ex.Message);
+        Assert.Contains($"Available: {seededPath.Replace('\\', '/')}", ex.Message);
     }
 
     [Fact]

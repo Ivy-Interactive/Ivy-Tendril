@@ -399,6 +399,9 @@ public class JobServiceCompletionGuardTests : IDisposable
             Transitions.Add((folderName, newState));
         }
 
+        public IReadOnlyList<string> GetFailedVerifications(string folderName) => [];
+        public void CompleteWithPartialDelivery(string folderName) { }
+
         public void ResetToDraft(string folderName)
         {
             ResetToDraftCalls.Add(folderName);

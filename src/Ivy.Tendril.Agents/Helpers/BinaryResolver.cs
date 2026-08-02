@@ -7,7 +7,7 @@ namespace Ivy.Tendril.Agents.Helpers;
 /// </summary>
 public static class BinaryResolver
 {
-    private static readonly string[] WindowsExtensions = [".cmd", ".exe", ".bat"];
+    private static readonly string[] WindowsExtensions = [".exe", ".cmd", ".bat"];
 
     public static string? FindOnPath(string commandName)
     {

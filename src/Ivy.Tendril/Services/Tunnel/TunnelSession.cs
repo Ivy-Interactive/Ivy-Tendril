@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Tunnel;

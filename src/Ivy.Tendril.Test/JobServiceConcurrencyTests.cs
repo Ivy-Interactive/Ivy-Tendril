@@ -6,10 +6,10 @@ namespace Ivy.Tendril.Test;
 public class JobServiceConcurrencyTests
 {
     [Fact]
-    public void MaxConcurrentJobs_DefaultsToFive()
+    public void MaxConcurrentJobs_DefaultsToTwenty()
     {
         var settings = new TendrilSettings();
-        Assert.Equal(5, settings.MaxConcurrentJobs);
+        Assert.Equal(20, settings.MaxConcurrentJobs);
     }
 
     [Fact]
@@ -200,7 +200,7 @@ public class JobServiceConcurrencyTests
 
     private class TestConfigService : IConfigService
     {
-        public int MaxConcurrentJobs { get; set; } = 5;
+        public int MaxConcurrentJobs { get; set; } = 20;
 
         public TendrilSettings Settings => new()
         {
@@ -234,6 +234,7 @@ public class JobServiceConcurrencyTests
         public Colors? GetLevelColor(string level) => null;
         public Colors? GetProjectColor(string projectName) => null;
         public void SaveSettings() { }
+        public void MutateAndSave(Action<TendrilSettings> mutate) => mutate(Settings);
         public void ReloadSettings() { }
         public void SetPendingTendrilHome(string path) { }
         public string? GetPendingTendrilHome() => null;

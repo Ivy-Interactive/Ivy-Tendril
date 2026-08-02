@@ -67,6 +67,8 @@ Content-Type: application/json
 
 Supported fields: `state`, `project`, `level`, `title`, `executionProfile`, `initialPrompt`, `sourceUrl`, `priority`.
 
+Setting `state` to `Completed` returns `400` while any of the plan's verifications is in the `Fail` state. Add `"allowFailedVerifications": true` to record it anyway; the plan is then flagged with `partialDelivery: true`, which marks its deliverable as possibly missing.
+
 ### Add Repository
 
 ```

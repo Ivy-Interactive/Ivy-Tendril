@@ -92,6 +92,16 @@ Every command supports `--help` for detailed usage. For example: `tendril plan c
 
 Validates your Tendril installation — checks `TENDRIL_HOME`, `config.yaml`, required tools (`gh`, `git`), `pwsh`, database schema, and agent model availability. Always a good first step when something isn't working.
 
+#### plan doctor
+
+```terminal
+>tendril plan doctor
+>tendril plan doctor --all
+>tendril plan doctor --fix
+```
+
+Scans every plan folder and reports health: missing or malformed `plan.yaml`, stale worktrees, and plans left `Completed` over a failed verification. See [Plan](01_Plan.md) for the full option and health-code reference.
+
 #### run
 
 ```terminal

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Apps.Jobs;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Database;
 using Microsoft.Data.Sqlite;
@@ -1169,8 +1170,13 @@ public class PlanDatabaseService : IPlanDatabaseService
         var created = DateTime.Parse(createdStr, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal);
         var updated = DateTime.Parse(updatedStr, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal);
 
+        // partialDelivery comes from the mirrored YAML rather than a dedicated column: it is an
+        // additive flag on a rare path, so it does not warrant a schema migration.
+        var partialDelivery = PlanYamlHelper.ParsePlanYaml(yamlRaw)?.PartialDelivery ?? false;
+
         var metadata = new PlanMetadata(planId, project, level, title, status,
-            repos, commits, prs, verifications, relatedPlans, dependsOn, created, updated, initialPrompt, sourceUrl);
+            repos, commits, prs, verifications, relatedPlans, dependsOn, created, updated, initialPrompt, sourceUrl,
+            partialDelivery);
 
         return new PlanFile(metadata, latestContent, folderPath, yamlRaw, revisionCount);
     }

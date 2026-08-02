@@ -97,6 +97,9 @@ public class JobsAppPromptDisplayTests
         {
         }
 
+        public IReadOnlyList<string> GetFailedVerifications(string folderName) => [];
+        public void CompleteWithPartialDelivery(string folderName) { }
+
         public void ResetToDraft(string folderName)
         {
         }

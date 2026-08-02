@@ -66,6 +66,9 @@ public class JobServiceSplitPlanCompletionTests
             Transitions.Add((folderName, newState));
         }
 
+        public IReadOnlyList<string> GetFailedVerifications(string folderName) => [];
+        public void CompleteWithPartialDelivery(string folderName) { }
+
         public void ResetToDraft(string folderName) { }
         public void ResetVerificationsForRetry(string folderName) { }
         public void SetVerificationStatus(string folderName, string name, VerificationStatus status) { }

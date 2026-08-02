@@ -62,7 +62,7 @@ public class VariableExpansionTests
     public void ExpandVariables_ExpandsTendrilHome()
     {
         // Arrange
-        var testPath = Path.Combine("test", "path");
+        var testPath = Path.Combine("test", "path").Replace('\\', '/');
 
         // Act
         var result = VariableExpansion.ExpandVariables("%TENDRIL_HOME%", testPath);

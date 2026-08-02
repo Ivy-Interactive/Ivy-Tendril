@@ -399,6 +399,7 @@ internal class JobCompletionHandler
             job.EnqueueSystemOutput($"[hook:{hook.Name}] Could not start condition process, skipping");
             return false;
         }
+        ChildProcessTracker.AddProcess(condProc);
 
         // Read both streams concurrently and start the reads BEFORE waiting: a blocking ReadToEnd()
         // would never return for a hung hook, making the timeout below dead code, and reading one
@@ -465,6 +466,7 @@ internal class JobCompletionHandler
             job.EnqueueSystemOutput($"[hook:{hook.Name}] Could not start hook process");
             return;
         }
+        ChildProcessTracker.AddProcess(actionProc);
 
         // Read both streams concurrently and start the reads BEFORE waiting: a blocking ReadToEnd()
         // would never return for a hung hook, making the timeout below dead code, and reading one
@@ -493,7 +495,7 @@ internal class JobCompletionHandler
         return Convert.ToBase64String(bytes);
     }
 
-    private void EnsurePlanStateTransitioned(JobItem job)
+    internal void EnsurePlanStateTransitioned(JobItem job)
     {
         try
         {
@@ -501,9 +503,18 @@ internal class JobCompletionHandler
             var planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
             if (planYaml == null) return;
 
+            // A failed pre-execution means the plan's premise was checked and rejected, so nothing
+            // was implemented. That is decisive regardless of the verification rows: the agent may
+            // have left them Pending (which hasIncomplete already catches) or set them all Skipped
+            // for a plan it never executed, which would otherwise route to Review and from there be
+            // one click from Completed with zero commits. Absent or unparseable report, Pass and
+            // Skipped all fall through to the verification-only decision. See plan 00103.
+            var preExecution = PlanYamlHelper.ReadPreExecutionResult(planFolder);
             var hasIncomplete = planYaml.Verifications?
                 .Any(v => v.Status is VerificationStatus.Pending or VerificationStatus.Fail) ?? false;
-            var targetState = hasIncomplete ? PlanStatus.Failed : PlanStatus.Review;
+            var targetState = preExecution == VerificationStatus.Fail || hasIncomplete
+                ? PlanStatus.Failed
+                : PlanStatus.Review;
 
             var folderName = Path.GetFileName(planFolder);
             if (_planReaderService != null)
@@ -818,6 +829,8 @@ internal class JobCompletionHandler
 
             var target = job.PreviousPlanState ?? FallbackPreviousState(job.TypedArgs);
             if (target == null) return;
+            if (target == PlanStatus.Blocked)
+                target = PlanStatus.Draft;
 
             if (_planReaderService != null)
                 _planReaderService.TransitionState(Path.GetFileName(planFolder), target.Value);

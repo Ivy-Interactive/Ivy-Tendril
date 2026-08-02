@@ -81,7 +81,7 @@ Lists plans with optional filters.
 
 Prints the full YAML, or a single field value when `[field]` is provided.
 
-**Scalar fields:** `state`, `project`, `level`, `title`, `created`, `updated`, `executionProfile`, `initialPrompt`, `sourceUrl`, `priority`
+**Scalar fields:** `state`, `project`, `level`, `title`, `created`, `updated`, `executionProfile`, `initialPrompt`, `sourceUrl`, `priority`, `partialDelivery`
 
 **List fields:** `repos`, `prs`, `commits`, `verifications`, `dependsOn`, `relatedPlans`, `recommendations` (each item on its own line)
 
@@ -89,9 +89,12 @@ Prints the full YAML, or a single field value when `[field]` is provided.
 
 ```terminal
 >tendril plan set <plan-id> <field> <value>
+>tendril plan set <plan-id> state Completed --allow-failed-verifications
 ```
 
 Updates a single field and bumps the `updated` timestamp automatically.
+
+Setting `state` to `Completed` is refused while any verification is in the `Fail` state: a plan that reads as done while a gate rejected the work hides a missing deliverable from duplicate detection. Re-run the verification, or set it to `Skipped` with an explicit reason. `--allow-failed-verifications` records the transition anyway and sets `partialDelivery: true`, which marks the plan's deliverable as possibly missing.
 
 #### plan update
 
@@ -244,4 +247,14 @@ With `--fix`: creates scaffold YAML for missing files, fills in missing fields, 
 >tendril plan doctor
 >tendril plan doctor --fix
 >tendril plan doctor --prune
+```
+
+### Partial delivery backfill
+
+The report also lists plans sitting at `Completed` with a verification in the `Fail` state and no `partialDelivery` flag. These predate the completion guard, so duplicate detection reads them as fully delivered even though the deliverable may be missing.
+
+Nothing is mutated: these are historical records, and whether a given plan really was a partial delivery is the user's call. Review each one, then flag the genuinely partial ones:
+
+```terminal
+>tendril plan set <id> state Completed --allow-failed-verifications
 ```

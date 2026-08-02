@@ -72,6 +72,10 @@ public class SidebarView(
                     .WithProjectColor(config, plan.Project)
                 | (!verificationsPassed
                     ? new Badge("Unverified").Variant(BadgeVariant.Warning).Small()
+                    : null)
+                // Completed over a failed gate: the deliverable may be missing (plan 00090).
+                | (plan.PartialDelivery
+                    ? new Badge("Partial").Variant(BadgeVariant.Warning).Small()
                     : null);
 
             return SidebarListRow.Build($"#{plan.Id} {plan.Title}", badges, () => selectedPlanState.Set(clickablePlan),

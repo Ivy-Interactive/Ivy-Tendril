@@ -16,6 +16,7 @@ using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Git;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
+using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Review;
 
@@ -40,6 +41,7 @@ public class ContentView(
         var syncingWorktrees = UseState(new HashSet<string>());
         var selectedRecTitles = UseState(() => new HashSet<string>());
         var selectedTab = UseState(0);
+        var draftComments = UseState(() => new List<DraftComment>());
         var args = UseArgs<ReviewAppArgs>();
         var nav = UseNavigation();
 
@@ -103,6 +105,16 @@ public class ContentView(
             return new ResetToDraftDialog(isOpen, selectedPlanState.Value!, planService, refreshPlans,
                 resetToDraftLogger);
         });
+
+        // The override for a failed-verification block (plan 00090). Offered here rather than as a
+        // bare toast, because recording a partial delivery is a deliberate choice, not a retry.
+        var (partialDeliveryDialog, showPartialDeliveryDialog) =
+            UseTrigger<IReadOnlyList<string>>((isOpen, failed) =>
+            {
+                if (!isOpen.Value) return null;
+                return new PartialDeliveryDialog(isOpen, selectedPlanState.Value!, failed, planService,
+                    refreshPlans);
+            });
 
         var (debugSheet, showDebugJob) = UseTrigger<string>((isOpen, jobId) =>
         {
@@ -217,6 +229,8 @@ public class ContentView(
         UseEffect(() => { selectedRecTitles.Set(new HashSet<string>()); return Disposable.Empty; },
             selectedPlanState);
 
+        UseEffect(() => { draftComments.Set(new List<DraftComment>()); return Disposable.Empty; }, selectedPlanState);
+
         if (selectedPlanState.Value is null)
         {
             if (allPlans.Count == 0)
@@ -234,16 +248,17 @@ public class ContentView(
             selectedPlanState.Value!, selectedRecTitles, client,
             planContentQuery.Mutator.Revalidate);
 
-        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCreatePrDialog, nav,
-            args, selectedRecTitles, ImplementRecommendations);
+        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCreatePrDialog,
+            showPartialDeliveryDialog, nav, args, selectedRecTitles, ImplementRecommendations);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
-            showCreatePrDialog, copyToClipboard, client, logger, nav, args, agentRunner);
+            showCreatePrDialog, showPartialDeliveryDialog, copyToClipboard, client, logger, nav, args,
+            agentRunner);
         var content = BuildContent(
             selectedPlanState.Value, planData, planContentQuery, selectedTab, openVerification,
             openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
             assigneesError, syncingWorktrees, selectedRecTitles, pendingRecs,
-            client, copyToClipboard, logger, nav, args, showDebugJob);
+            client, copyToClipboard, logger, nav, args, showDebugJob, draftComments);
 
         var mainLayout = new HeaderLayout(
             header,
@@ -253,7 +268,8 @@ public class ContentView(
             ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlanState.Value.Id);
 
-        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, createPrDialog, resetToDraftDialog, debugSheet);
+        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, createPrDialog, resetToDraftDialog,
+            partialDeliveryDialog, debugSheet);
     }
 
     private object BuildHeader(
@@ -262,6 +278,7 @@ public class ContentView(
         int currentIndex,
         IClientProvider client,
         Action showCreatePrDialog,
+        Action<IReadOnlyList<string>> showPartialDeliveryDialog,
         INavigator nav,
         ReviewAppArgs? args,
         IState<HashSet<string>> selectedRecTitles,
@@ -274,9 +291,16 @@ public class ContentView(
 
             var hasSourceUrl = !string.IsNullOrEmpty(selectedPlan.SourceUrl);
 
+            // The title is what readers trust, so a plan completed over a failed gate says so right
+            // next to it rather than only in plan.yaml (plan 00090).
+            object PartialDeliveryBadge() => new Badge("Partial Delivery").Variant(BadgeVariant.Warning);
+
             var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full().Min(Size.Px(0)))
                 | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
                     .Width(Size.Shrink().Min(Size.Px(0)));
+
+            if (selectedPlan.PartialDelivery)
+                desktopTitleLayout |= PartialDeliveryBadge();
 
             if (hasSourceUrl)
                 desktopTitleLayout |= SourceButton();
@@ -293,6 +317,9 @@ public class ContentView(
                         p => p.FolderName == selectedPlan.FolderName,
                         p => selectedPlanState.Set(p))
                     .Width(Size.Grow().Min(Size.Px(0)));
+
+            if (selectedPlan.PartialDelivery)
+                mobileTitleLayout |= PartialDeliveryBadge();
 
             if (hasSourceUrl)
                 mobileTitleLayout |= SourceButton();
@@ -372,8 +399,38 @@ public class ContentView(
             {
                 var completePlanBtn = new Button("Complete Plan").Icon(Icons.CircleCheck).OnClick(() =>
                 {
+                var completePlanBtn = new Button("Complete Plan").Icon(Icons.CircleCheck).OnClick(() =>
+                {
+                    try
+                    {
+                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                    }
+                    catch (PlanTransitionBlockedException ex)
+                    {
+                        // If the block is for failed verifications, offer the override dialog.
+                        // Otherwise (pre-execution failure, etc.), just toast the reason.
+                        if (ex.FailedVerifications.Count > 0)
+                        {
+                            showPartialDeliveryDialog(ex.FailedVerifications);
+                            return;
+                        }
+
+                        client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
+                        return;
+                    }
+
                     // Optimistic UI - update state and refresh immediately
-                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                    }
+                    catch (PlanTransitionBlockedException ex)
+                    {
+                        // This handler is fire-and-forget, so an uncaught throw would look like a
+                        // silent no-op. Surface the reason and leave the plan where it is.
+                        client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
+                        return;
+                    }
+
+>>>>>>> origin/development
                     refreshPlans();
 
                     // Fire and forget - clean up worktrees in the background
@@ -405,6 +462,7 @@ public class ContentView(
         Action showSuggestChangesDialog,
         Action showDiscardDialog,
         Action showCreatePrDialog,
+        Action<IReadOnlyList<string>> showPartialDeliveryDialog,
         Action<string> copyToClipboard,
         IClientProvider client,
         ILogger<ContentView> logger,
@@ -423,7 +481,37 @@ public class ContentView(
             new MenuItem("Create PR", Icon: Icons.GitPullRequest, Tag: "CreatePR").OnSelect(showCreatePrDialog),
             new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
             {
-                planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+            new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
+            {
+                try
+                {
+                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                }
+                catch (PlanTransitionBlockedException ex)
+                {
+                    // If the block is for failed verifications, offer the override dialog.
+                    // Otherwise (pre-execution failure, etc.), just toast the reason.
+                    if (ex.FailedVerifications.Count > 0)
+                    {
+                        showPartialDeliveryDialog(ex.FailedVerifications);
+                        return;
+                    }
+
+                    client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
+                    return;
+                }
+
+                try
+                {
+                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                }
+                catch (PlanTransitionBlockedException ex)
+                {
+                    client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
+                    return;
+                }
+
+>>>>>>> origin/development
                 refreshPlans();
             }),
             new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
@@ -535,9 +623,10 @@ public class ContentView(
         ILogger<ContentView> logger,
         INavigator nav,
         ReviewAppArgs? args,
-        Action<string> showDebugJob)
+        Action<string> showDebugJob,
+        IState<List<DraftComment>> draftComments)
     {
-        var content = Layout.Vertical().Height(Size.Full());
+        var content = Layout.Vertical().Gap(0).Height(Size.Full());
 
         if (selectedPlan is null)
         {
@@ -573,21 +662,6 @@ public class ContentView(
         }
         else
         {
-            var gitData = GitTabDataBuilder.BuildGitTabData(planData.CommitRows, selectedPlan!, config, gitService);
-            var gitTabView = new GitTabView(
-                gitData,
-                selectedPlan!,
-                hash => openCommit.Set(hash),
-                path =>
-                {
-                    copyToClipboard(path);
-                    client.Toast("Copied path to clipboard", "Path Copied");
-                    return null!;
-                },
-                syncingWorktrees.Value,
-                worktreePath => SynchronizeWorktreeAsync(worktreePath, syncingWorktrees, planContentQuery, client, planService, selectedPlanState, logger)
-            );
-
             var totalArtifacts = (planData.Artifacts.GetValueOrDefault("screenshots")?.Count ?? 0)
                                  + (planData.Artifacts.ContainsKey("sample") ? 1 : 0);
 
@@ -595,9 +669,20 @@ public class ContentView(
 
             var recommendationsTab = new RecommendationsTabView(pendingRecs, selectedRecTitles, config);
 
-            var changesTabView = new ChangesTabView(planData.AllChanges, planContentQuery.Loading, planContentQuery.Error, selectedPlan.Project);
+            var changesTabView = new ChangesTabView(
+                planData.AllChanges,
+                planContentQuery.Loading,
+                planContentQuery.Error,
+                draftComments,
+                selectedPlan!,
+                jobService,
+                refreshPlans,
+                planData.CommitRows,
+                hash => openCommit.Set(hash),
+                openFile,
+                selectedPlan.Project);
 
-            var tabNamesList = new List<string> { "summary", "plan", "details", "git" };
+            var tabNamesList = new List<string> { "summary", "plan", "details" };
             var tabList = new List<Tab>
             {
                 // Summary is rendered via DraftMarkdown with a pinned Verifications sidebar, so it is
@@ -612,7 +697,6 @@ public class ContentView(
                     jobService.GetJobsForPlan(selectedPlan.FolderName),
                     showDebugJob, planService, selectedPlanState, refreshPlans,
                     folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath))))),
-                new Tab("Git", Cap(gitTabView)).Badge((gitData.WorktreeSections.Count + selectedPlan.Commits.Count + selectedPlan.Prs.Count).ToString()),
             };
 
             // Only surface the Changes tab once there are actual file changes — no point showing
@@ -653,7 +737,7 @@ public class ContentView(
                 .Variant(TabsVariant.Content)
                 .RemoveParentPadding();
 
-            content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
+            content |= (Layout.Vertical().Padding(0, 2, 2, 2).Height(Size.Full()) | tabs);
         }
 
         content |= new VerificationReportSheet(openVerification, selectedPlan, config);

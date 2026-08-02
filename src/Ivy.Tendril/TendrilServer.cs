@@ -30,14 +30,21 @@ public static class TendrilServer
         server.Services.AddSingleton(tendrilArgs);
         server.AddTendrilServices(configService, tendrilArgs);
 
-        var logLevel = tendrilArgs.Verbose ? "Debug"
+        var defaultLogLevel = tendrilArgs.Verbose ? "Debug"
             : tendrilArgs.Quiet ? "Warning"
-            : "Error";
+            : "Warning";
+        var appLogLevel = tendrilArgs.Verbose ? "Debug"
+            : tendrilArgs.Quiet ? "Warning"
+            : "Information";
+
         server.UseWebApplicationBuilder(builder =>
         {
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Logging:LogLevel:Default"] = logLevel,
+                ["Logging:LogLevel:Default"] = defaultLogLevel,
+                ["Logging:LogLevel:Microsoft.AspNetCore"] = "Warning",
+                ["Logging:LogLevel:Microsoft.Hosting.Lifetime"] = "Information",
+                ["Logging:LogLevel:Ivy"] = appLogLevel,
                 ["Logging:LogLevel:Ivy.Core"] = "Warning",
             });
         });
@@ -82,8 +89,32 @@ public static class TendrilServer
             app.UseAssets(server.Args, app.Services.GetRequiredService<ILogger<Server>>(), "Assets", "tendril/assets");
         });
 
+        var isBeta = tendrilArgs.Beta ||
+                     Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
+                     Environment.GetEnvironmentVariable("IVY_BETA") == "1";
+
         var assembly = typeof(TendrilServer).Assembly;
         server.AppRepository.AddFactory(() => AppHelpers.GetApps(assembly)
+            .Select(app => app.Type == typeof(Ivy.Tendril.Apps.Chat.ChatApp) ? new AppDescriptor
+            {
+                Id = app.Id,
+                Title = app.Title,
+                Icon = app.Icon,
+                Description = app.Description,
+                Type = app.Type,
+                Group = app.Group,
+                Order = app.Order,
+                ViewFactory = app.ViewFactory,
+                ViewFunc = app.ViewFunc,
+                IsVisible = isBeta,
+                IsIndex = app.IsIndex,
+                GroupExpanded = app.GroupExpanded,
+                Next = app.Next,
+                Previous = app.Previous,
+                DocumentSource = app.DocumentSource,
+                SearchHints = app.SearchHints,
+                AllowDuplicateTabs = app.AllowDuplicateTabs,
+            } : app)
             .ToArray());
         server.AddConnectionsFromAssembly(typeof(TendrilServer).Assembly);
 
@@ -107,12 +138,12 @@ public static class TendrilServer
         var appShellSettings = new AppShellSettings()
             .Header(
                 Layout.Horizontal(
-                    new Image("/tendril/assets/Tendril.svg").Width(Size.Units(15)).Height(Size.Auto()),
+                    new Image("/tendril/assets/Tendril.svg").Width(Size.Px(32)).Height(Size.Px(32)),
                     Layout.Vertical(
-                        Text.Block("Ivy Tendril"),
-                        Text.Muted($"v{versionString}")
+                        Text.Block("Ivy Tendril").NoWrap(),
+                        Text.Muted($"v{versionString}").NoWrap()
                     ).Gap(0)
-                ).Gap(2).Padding(2).AlignContent(Align.BottomLeft).Height(Size.Auto())
+                ).Gap(2).Padding(2).AlignContent(Align.Left)
             )
             .WallpaperApp<WallpaperApp>()
             .HideArgsInUrl()

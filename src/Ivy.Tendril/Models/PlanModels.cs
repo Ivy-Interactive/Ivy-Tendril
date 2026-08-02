@@ -34,7 +34,8 @@ public record PlanMetadata(
     DateTime Created,
     DateTime Updated,
     string? InitialPrompt,
-    string? SourceUrl);
+    string? SourceUrl,
+    bool PartialDelivery = false);
 
 public record PlanFile(
     PlanMetadata Metadata,
@@ -59,6 +60,12 @@ public record PlanFile(
     public DateTime Updated => Metadata.Updated;
     public string? InitialPrompt => Metadata.InitialPrompt;
     public string? SourceUrl => Metadata.SourceUrl;
+
+    /// <summary>
+    ///     True when the plan reached Completed over a failed verification. See
+    ///     <see cref="PlanYaml.PartialDelivery" />.
+    /// </summary>
+    public bool PartialDelivery => Metadata.PartialDelivery;
 
     /// <summary>True when the plan's source is a GitHub pull request (vs. an issue or none).</summary>
     public bool IsPullRequestSource => SourceUrl?.Contains("/pull/") == true;
@@ -178,6 +185,15 @@ public class PlanYaml
     public List<string> DependsOn { get; set; } = new();
     [YamlMember(DefaultValuesHandling = DefaultValuesHandling.OmitDefaults)]
     public int Priority { get; set; }
+
+    /// <summary>
+    ///     Set when a plan was moved to Completed while a verification was in Fail state. Signals to
+    ///     CreatePlan's duplicate detection that the plan's deliverable may be missing (see plan 00090).
+    ///     Additive and absent-means-false, so it needs no <see cref="CurrentSchemaVersion" /> bump.
+    /// </summary>
+    [YamlMember(DefaultValuesHandling = DefaultValuesHandling.OmitDefaults)]
+    public bool PartialDelivery { get; set; }
+
     public string? ExecutionProfile { get; set; }
     public string? InitialPrompt { get; set; }
     public string? SourceUrl { get; set; }

@@ -65,6 +65,8 @@ tendril plan get <plan-id> updated
 tendril plan get <plan-id> executionProfile
 tendril plan get <plan-id> initialPrompt
 tendril plan get <plan-id> sourceUrl
+tendril plan get <plan-id> partialDelivery    # true: Completed over a failed verification, so the
+                                              # deliverable may be missing
 
 # List fields (one item per line)
 tendril plan get <plan-id> repos
@@ -81,6 +83,9 @@ tendril plan get <plan-id> recommendations    # Format: Title=State
 ```bash
 # Set scalar fields
 tendril plan set <plan-id> state <value>
+# `state Completed` is refused while any verification is Fail. Re-run the verification, or set it to
+# Skipped with a reason. Add --allow-failed-verifications only to record a deliberate partial
+# delivery; it also sets partialDelivery: true.
 tendril plan set <plan-id> project <value>
 tendril plan set <plan-id> title <value>
 tendril plan set <plan-id> level <value>

@@ -73,7 +73,7 @@ public class JobService : IJobService
         TimeSpan jobTimeout,
         TimeSpan staleOutputTimeout,
         string? inboxPath = null,
-        int maxConcurrentJobs = 5,
+        int maxConcurrentJobs = 20,
         IPlanReaderService? planReaderService = null,
         ITelemetryService? telemetryService = null,
         IPlanDatabaseService? database = null,
@@ -248,7 +248,15 @@ public class JobService : IJobService
 
         try
         {
-            job.Process?.Kill(true);
+            if (job.Process != null)
+            {
+                job.Process.Kill(true);
+            }
+            else if (job.ProcessId is { } pid)
+            {
+                using var proc = System.Diagnostics.Process.GetProcessById(pid);
+                proc.Kill(true);
+            }
         }
         catch
         {
@@ -270,6 +278,7 @@ public class JobService : IJobService
 
         JobCompletionHandler.CleanupInboxFile(job);
         _completionHandler.RevertPlanStateToPrevious(job);
+        PersistJob(job);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
             _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
@@ -699,27 +708,40 @@ public class JobService : IJobService
             using var process = System.Diagnostics.Process.GetProcessById(pid);
             if (process.HasExited) return false;
 
-            // Best-effort PID-reuse guard; StartTime is not readable for every process.
+            // StartTime must be readable. If access is denied (e.g. system/elevated OS processes), it is NOT our agent process.
+            DateTime startTime;
             try
             {
-                if (job.StartedAt.HasValue
-                    && process.StartTime.ToUniversalTime() > job.StartedAt.Value + PidReuseGrace)
-                    return false;
+                startTime = process.StartTime.ToUniversalTime();
             }
             catch
             {
-                /* StartTime unavailable — fall back to "alive" */
+                return false;
+            }
+
+            // Verify process start time is within valid window of job start time
+            if (job.StartedAt.HasValue)
+            {
+                var jobStart = job.StartedAt.Value;
+                if (startTime < jobStart - TimeSpan.FromMinutes(1) || startTime > jobStart + PidReuseGrace)
+                    return false;
+            }
+
+            // Verify the process name is not a known system/service process
+            var name = process.ProcessName.ToLowerInvariant();
+            if (name.Contains("svchost") || name.Contains("explorer") || name.Contains("chrome") ||
+                name.Contains("msedge") || name.Contains("system") || name.Contains("csrss") ||
+                name.Contains("lsass") || name.Contains("services") || name.Contains("smss") ||
+                name.Contains("spoolsv") || name.Contains("taskhostw") || name.Contains("search"))
+            {
+                return false;
             }
 
             return true;
         }
-        catch (ArgumentException)
+        catch
         {
-            return false; // No process with that id
-        }
-        catch (InvalidOperationException)
-        {
-            return false; // Process has exited and its handle is gone
+            return false;
         }
     }
 

@@ -2,16 +2,16 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
-namespace Ivy.Tendril.Services.Tunnel;
+namespace Ivy.Tendril.Helpers;
 
 /// <summary>
 ///     Assigns child processes to a Windows Job Object configured to kill every assigned
 ///     process when this (parent) process exits — including on crash, console close, or a
-///     forced kill where no graceful shutdown runs. This guarantees spawned cloudflared
-///     processes never outlive Tendril and accumulate as orphans across sessions.
+///     forced kill where no graceful shutdown runs. This guarantees spawned agent, tool,
+///     and helper processes never outlive Tendril and accumulate as orphans across sessions.
 ///     No-op on non-Windows platforms.
 /// </summary>
-internal static class ChildProcessTracker
+public static class ChildProcessTracker
 {
     private const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000;
 
@@ -24,7 +24,7 @@ internal static class ChildProcessTracker
         if (!OperatingSystem.IsWindows())
             return;
 
-        s_jobHandle = CreateJobObject(IntPtr.Zero, $"Tendril.Cloudflared.{Environment.ProcessId}");
+        s_jobHandle = CreateJobObject(IntPtr.Zero, $"Tendril.ChildProcesses.{Environment.ProcessId}");
         if (s_jobHandle == IntPtr.Zero)
             return;
 

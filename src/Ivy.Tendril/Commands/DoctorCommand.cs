@@ -2,6 +2,7 @@ using Ivy.Tendril.Agents;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Spectre.Console;
@@ -162,6 +163,8 @@ public static class DoctorCommand
         var results = FilterResults(allResults, showAll, stateFilter, worktreesOnly);
 
         PrintPlansTable(results);
+        PrintPartialDeliveryCandidates(FindPartialDeliveryCandidates(allResults));
+        PrintLaunderedCompletedPlans(allResults);
         PrintPlansSummary(allResults);
 
         return allResults.Any(r => !r.IsHealthy) ? 1 : 0;
@@ -574,6 +577,56 @@ public static class DoctorCommand
     private static bool NeedsYamlEscaping(string value) =>
         value.Contains(':') || value.Contains('#') || value.Contains('\'');
 
+    /// <summary>
+    ///     Finds plans that read as delivered but never executed: <c>state: Completed</c> with a
+    ///     <c>Verification/PreExecution.md</c> reporting <c>result: Fail</c>. Pre-execution rejected the
+    ///     plan's premise, so there is nothing to have completed. Report only, never auto-mutate: these
+    ///     are historical records and retiring one is the user's call. See plan 00103.
+    /// </summary>
+    /// <remarks>
+    ///     Deliberately does not key on empty commits and PRs alone. Config-only plans (which edit
+    ///     verification prompts in config.yaml and touch no repo files) are correctly commit-free and
+    ///     PR-free, and flagging them would train readers to ignore the warning. The pre-execution
+    ///     result is what separates the two groups.
+    /// </remarks>
+    internal static List<(string Dir, PlanHealthResult Result, string ReportPath)> FindLaunderedCompletedPlans(
+        List<PlanHealthResult> allResults)
+    {
+        var laundered = new List<(string Dir, PlanHealthResult Result, string ReportPath)>();
+
+        foreach (var result in allResults)
+        {
+            if (result.FolderPath == null) continue;
+            if (!result.State.Equals(nameof(PlanStatus.Completed), StringComparison.OrdinalIgnoreCase)) continue;
+            if (PlanYamlHelper.ReadPreExecutionResult(result.FolderPath) != VerificationStatus.Fail) continue;
+
+            laundered.Add((result.FolderPath, result,
+                Path.Combine(result.FolderPath, "Verification", "PreExecution.md")));
+        }
+
+        return laundered;
+    }
+
+    private static void PrintLaunderedCompletedPlans(List<PlanHealthResult> allResults)
+    {
+        var laundered = FindLaunderedCompletedPlans(allResults);
+        if (laundered.Count == 0) return;
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine(
+            $"[yellow]{laundered.Count} {(laundered.Count == 1 ? "plan is" : "plans are")} Completed but failed pre-execution (nothing was implemented):[/]");
+        AnsiConsole.WriteLine();
+
+        foreach (var (_, result, reportPath) in laundered)
+        {
+            AnsiConsole.MarkupLine($"[grey]  {result.Id}-{result.Title.EscapeMarkup()}[/]");
+            AnsiConsole.MarkupLine($"[grey]    report: {reportPath.EscapeMarkup()}[/]");
+            AnsiConsole.MarkupLine($"[grey]    retire: tendril plan set {result.Id} state Skipped[/]");
+        }
+
+        AnsiConsole.WriteLine();
+    }
+
     internal static List<(string Dir, PlanHealthResult Result, string Reason)> FindPruneCandidates(
         string plansDir, List<PlanHealthResult> allResults)
     {
@@ -630,4 +683,57 @@ public static class DoctorCommand
     private static bool HasSignificantWork(bool hasPrs, bool hasCommits, bool hasRevisions) =>
         hasPrs || hasCommits || hasRevisions;
 
+    internal record PartialDeliveryCandidate(string Id, string Title, IReadOnlyList<string> FailedVerifications);
+
+    /// <summary>
+    ///     Plans that already sit at <see cref="PlanStatus.Completed" /> with a verification in the Fail
+    ///     state and no <c>partialDelivery</c> flag. They predate the guard added by plan 00090, so they
+    ///     read as fully delivered to CreatePlan's duplicate detection even though the deliverable may
+    ///     be missing. Reported, never mutated: these are historical records and the call is the user's.
+    /// </summary>
+    internal static List<PartialDeliveryCandidate> FindPartialDeliveryCandidates(
+        List<PlanHealthResult> allResults)
+    {
+        var candidates = new List<PartialDeliveryCandidate>();
+
+        foreach (var result in allResults)
+        {
+            if (result.FolderPath == null) continue;
+            if (!result.State.Equals(nameof(PlanStatus.Completed), StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var plan = PlanYamlHelper.ReadPlanYaml(result.FolderPath);
+            if (plan == null || plan.PartialDelivery) continue;
+
+            var failed = PlanCompletionGuard.FailedVerificationNames(plan);
+            if (failed.Count > 0)
+                candidates.Add(new PartialDeliveryCandidate(result.Id, result.Title, failed));
+        }
+
+        return candidates;
+    }
+
+    internal static void PrintPartialDeliveryCandidates(List<PartialDeliveryCandidate> candidates)
+    {
+        if (candidates.Count == 0) return;
+
+        var plural = candidates.Count == 1 ? "plan is" : "plans are";
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine(
+            $"[yellow]{candidates.Count} completed {plural} missing a partialDelivery flag despite a failed verification:[/]");
+        AnsiConsole.WriteLine();
+
+        foreach (var candidate in candidates)
+        {
+            var failed = string.Join(", ", candidate.FailedVerifications);
+            AnsiConsole.MarkupLine(
+                $"[grey]  {candidate.Id}-{candidate.Title.EscapeMarkup()}  (failed: {failed.EscapeMarkup()})[/]");
+        }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.WriteLine("Their deliverables may be missing, and duplicate detection reads them as done.");
+        AnsiConsole.WriteLine("Review each one, then flag the ones that really were partial:");
+        AnsiConsole.WriteLine();
+        AnsiConsole.WriteLine("  tendril plan set <id> state Completed --allow-failed-verifications");
+    }
 }

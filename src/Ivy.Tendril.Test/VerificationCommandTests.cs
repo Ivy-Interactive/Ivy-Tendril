@@ -304,4 +304,42 @@ verifications: []
         var reloaded = CreateConfig();
         Assert.Empty(reloaded.Settings.Verifications);
     }
+
+    // --- Concurrent writers (config.yaml is a whole-file read-modify-write) ---
+
+    private static CommandApp BuildVerificationSetApp()
+    {
+        var app = new CommandApp();
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("verification", verification => verification.AddCommand<VerificationSetCommand>("set"));
+        });
+        return app;
+    }
+
+    /// <summary>
+    ///     Covers the command-level wiring, not just ConfigFileLock: `verification set` must not revert a
+    ///     sibling definition that a separate ConfigService added after the command's own service loaded
+    ///     the file. See ConfigFileLockTests for the helper-level coverage.
+    /// </summary>
+    [Fact]
+    public void VerificationSet_PreservesSiblingAddedByAnotherWriter()
+    {
+        var seed = CreateConfig();
+        seed.Settings.Verifications.Add(new VerificationConfig { Name = "Target", Prompt = "SEED-TARGET" });
+        seed.SaveSettings();
+
+        // Lands after the command's ConfigService would have loaded, before its write.
+        var other = CreateConfig();
+        other.MutateAndSave(s => s.Verifications.Add(new VerificationConfig { Name = "Sibling", Prompt = "SIBLING" }));
+
+        var exit = BuildVerificationSetApp().Run(["verification", "set", "Target", "prompt", "UPDATED-TARGET"]);
+        Assert.Equal(0, exit);
+
+        var reloaded = CreateConfig();
+        Assert.Equal(2, reloaded.Settings.Verifications.Count);
+        Assert.Equal("UPDATED-TARGET", reloaded.Settings.Verifications.Single(v => v.Name == "Target").Prompt);
+        Assert.Equal("SIBLING", reloaded.Settings.Verifications.Single(v => v.Name == "Sibling").Prompt);
+    }
 }

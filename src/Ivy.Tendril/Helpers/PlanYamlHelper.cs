@@ -241,6 +241,30 @@ internal static class PlanYamlHelper
             : null;
     }
 
+    /// <summary>
+    ///     Reads <c>Verification/PreExecution.md</c> for a plan folder. Returns null when the report is
+    ///     absent (plans that predate the check, or that never reached ExecutePlan step 1.7) or when it
+    ///     is unparseable. PreExecution is not a configured verification, so it has no plan.yaml row
+    ///     (<see cref="Services.Plans.PlanArtifactSyncer" /> deliberately skips it): it is read straight
+    ///     from disk instead. See plan 00103.
+    /// </summary>
+    internal static VerificationStatus? ReadPreExecutionResult(string planFolder)
+    {
+        if (string.IsNullOrEmpty(planFolder)) return null;
+
+        var reportPath = Path.Combine(planFolder, "Verification", "PreExecution.md");
+        if (!File.Exists(reportPath)) return null;
+
+        try
+        {
+            return ParseVerificationResultFromReport(FileHelper.ReadAllText(reportPath));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     internal static string? ExtractPlanIdFromFolder(string planFolder)
     {
         var folderName = PathHelper.GetFileNameCrossPlatform(planFolder);
