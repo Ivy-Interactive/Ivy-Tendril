@@ -92,9 +92,7 @@ public class AgentTestDialog(
                 results[1] = results[1] with { Status = TestStatus.Running };
                 testResults.Set([.. results]);
 
-                var authResult = agentId == "opencode"
-                    ? new AgentAuthResult { Status = AuthStatus.Authenticated }
-                    : await healthCheck.CheckAuthAsync(ct);
+                var authResult = await healthCheck.CheckAuthAsync(ct);
                 var providerLabel = authResult.Provider != null ? $" ({authResult.Provider})" : "";
                 results[1] = authResult.Status switch
                 {
