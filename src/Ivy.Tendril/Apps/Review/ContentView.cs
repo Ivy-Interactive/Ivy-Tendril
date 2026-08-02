@@ -430,7 +430,6 @@ public class ContentView(
                         return;
                     }
 
->>>>>>> origin/development
                     refreshPlans();
 
                     // Fire and forget - clean up worktrees in the background
@@ -511,7 +510,6 @@ public class ContentView(
                     return;
                 }
 
->>>>>>> origin/development
                 refreshPlans();
             }),
             new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
