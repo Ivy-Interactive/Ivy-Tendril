@@ -105,7 +105,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             ["trash"] = status.TrashCount,
             ["chat"] = status.GeneratingChatSessionsCount,
             ["chat-app"] = status.GeneratingChatSessionsCount,
-            ["agent"] = status.GeneratingChatSessionsCount
+            ["agent"] = runner.ActiveSessions.Count
         };
         var agentId = config.Settings.CodingAgent;
         return repo.GetMenuItems()
