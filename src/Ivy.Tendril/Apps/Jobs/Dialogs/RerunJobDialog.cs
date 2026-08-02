@@ -123,8 +123,12 @@ public class RerunJobDialog(
                 if (Directory.Exists(fullPath)) return fullPath;
             }
 
-            if (!string.IsNullOrEmpty(planId) && plansDir != null)
-                return Path.Combine(plansDir, job.PlanFile);
+            if (!string.IsNullOrEmpty(planId))
+            {
+                if (plansDir != null)
+                    return Path.Combine(plansDir, job.PlanFile);
+                return job.PlanFile;
+            }
         }
 
         return null;
