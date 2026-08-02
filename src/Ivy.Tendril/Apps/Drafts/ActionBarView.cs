@@ -106,13 +106,6 @@ public class ActionBarView(
                     catch (PlanTransitionBlockedException ex)
                     {
                         client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
-                        return;
-                    }
-
-                        return;
-                    }
-
->>>>>>> origin/development
                     refreshPlans();
                 }),
             new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>

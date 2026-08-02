@@ -399,8 +399,6 @@ public class ContentView(
             {
                 var completePlanBtn = new Button("Complete Plan").Icon(Icons.CircleCheck).OnClick(() =>
                 {
-                var completePlanBtn = new Button("Complete Plan").Icon(Icons.CircleCheck).OnClick(() =>
-                {
                     try
                     {
                         planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
@@ -418,19 +416,6 @@ public class ContentView(
                         client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
                         return;
                     }
-
-                    // Optimistic UI - update state and refresh immediately
-                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                    }
-                    catch (PlanTransitionBlockedException ex)
-                    {
-                        // This handler is fire-and-forget, so an uncaught throw would look like a
-                        // silent no-op. Surface the reason and leave the plan where it is.
-                        client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
-                        return;
-                    }
-
->>>>>>> origin/development
                     refreshPlans();
 
                     // Fire and forget - clean up worktrees in the background
@@ -481,8 +466,6 @@ public class ContentView(
             new MenuItem("Create PR", Icon: Icons.GitPullRequest, Tag: "CreatePR").OnSelect(showCreatePrDialog),
             new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
             {
-            new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
-            {
                 try
                 {
                     planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
@@ -500,18 +483,6 @@ public class ContentView(
                     client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
                     return;
                 }
-
-                try
-                {
-                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                }
-                catch (PlanTransitionBlockedException ex)
-                {
-                    client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
-                    return;
-                }
-
->>>>>>> origin/development
                 refreshPlans();
             }),
             new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
