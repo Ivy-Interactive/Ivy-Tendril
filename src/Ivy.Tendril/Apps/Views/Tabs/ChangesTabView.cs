@@ -222,6 +222,12 @@ public class ChangesTabView(
             | hideFormatting.ToSwitchInput(label: "Hide formatting changes")
             | commitsBtn;
 
+        var totals = PlanContentHelpers.CountDiffLines(fileDiffs);
+        toolbar = toolbar
+            | Layout.Horizontal().Gap(1).Height(Size.Auto())
+                | Text.Block($"+{totals.Additions}").Color(Colors.Success).Small()
+                | Text.Block($"-{totals.Deletions}").Color(Colors.Danger).Small();
+
         if (hideFormatting.Value && hiddenCount > 0)
             toolbar |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
 
