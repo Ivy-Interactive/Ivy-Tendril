@@ -99,7 +99,16 @@ public class ActionBarView(
             new MenuItem("Mark as Completed", Icon: Icons.CircleCheck, Tag: "MarkCompleted")
                 .OnSelect(() =>
                 {
-                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                    try
+                    {
+                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                    }
+                    catch (PlanTransitionBlockedException ex)
+                    {
+                        client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
+                        return;
+                    }
+
                     refreshPlans();
                 }),
             new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>

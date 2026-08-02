@@ -162,6 +162,7 @@ public static class DoctorCommand
         var results = FilterResults(allResults, showAll, stateFilter, worktreesOnly);
 
         PrintPlansTable(results);
+        PrintLaunderedCompletedPlans(allResults);
         PrintPlansSummary(allResults);
 
         return allResults.Any(r => !r.IsHealthy) ? 1 : 0;
@@ -573,6 +574,56 @@ public static class DoctorCommand
 
     private static bool NeedsYamlEscaping(string value) =>
         value.Contains(':') || value.Contains('#') || value.Contains('\'');
+
+    /// <summary>
+    ///     Finds plans that read as delivered but never executed: <c>state: Completed</c> with a
+    ///     <c>Verification/PreExecution.md</c> reporting <c>result: Fail</c>. Pre-execution rejected the
+    ///     plan's premise, so there is nothing to have completed. Report only, never auto-mutate: these
+    ///     are historical records and retiring one is the user's call. See plan 00103.
+    /// </summary>
+    /// <remarks>
+    ///     Deliberately does not key on empty commits and PRs alone. Config-only plans (which edit
+    ///     verification prompts in config.yaml and touch no repo files) are correctly commit-free and
+    ///     PR-free, and flagging them would train readers to ignore the warning. The pre-execution
+    ///     result is what separates the two groups.
+    /// </remarks>
+    internal static List<(string Dir, PlanHealthResult Result, string ReportPath)> FindLaunderedCompletedPlans(
+        List<PlanHealthResult> allResults)
+    {
+        var laundered = new List<(string Dir, PlanHealthResult Result, string ReportPath)>();
+
+        foreach (var result in allResults)
+        {
+            if (result.FolderPath == null) continue;
+            if (!result.State.Equals(nameof(PlanStatus.Completed), StringComparison.OrdinalIgnoreCase)) continue;
+            if (PlanYamlHelper.ReadPreExecutionResult(result.FolderPath) != VerificationStatus.Fail) continue;
+
+            laundered.Add((result.FolderPath, result,
+                Path.Combine(result.FolderPath, "Verification", "PreExecution.md")));
+        }
+
+        return laundered;
+    }
+
+    private static void PrintLaunderedCompletedPlans(List<PlanHealthResult> allResults)
+    {
+        var laundered = FindLaunderedCompletedPlans(allResults);
+        if (laundered.Count == 0) return;
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine(
+            $"[yellow]{laundered.Count} {(laundered.Count == 1 ? "plan is" : "plans are")} Completed but failed pre-execution (nothing was implemented):[/]");
+        AnsiConsole.WriteLine();
+
+        foreach (var (_, result, reportPath) in laundered)
+        {
+            AnsiConsole.MarkupLine($"[grey]  {result.Id}-{result.Title.EscapeMarkup()}[/]");
+            AnsiConsole.MarkupLine($"[grey]    report: {reportPath.EscapeMarkup()}[/]");
+            AnsiConsole.MarkupLine($"[grey]    retire: tendril plan set {result.Id} state Skipped[/]");
+        }
+
+        AnsiConsole.WriteLine();
+    }
 
     internal static List<(string Dir, PlanHealthResult Result, string Reason)> FindPruneCandidates(
         string plansDir, List<PlanHealthResult> allResults)

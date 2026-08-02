@@ -376,8 +376,19 @@ public class ContentView(
             {
                 var completePlanBtn = new Button("Complete Plan").Icon(Icons.CircleCheck).OnClick(() =>
                 {
-                    // Optimistic UI - update state and refresh immediately
-                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                    try
+                    {
+                        // Optimistic UI - update state and refresh immediately
+                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                    }
+                    catch (PlanTransitionBlockedException ex)
+                    {
+                        // This handler is fire-and-forget, so an uncaught throw would look like a
+                        // silent no-op. Surface the reason and leave the plan where it is.
+                        client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
+                        return;
+                    }
+
                     refreshPlans();
 
                     // Fire and forget - clean up worktrees in the background
@@ -427,7 +438,16 @@ public class ContentView(
             new MenuItem("Create PR", Icon: Icons.GitPullRequest, Tag: "CreatePR").OnSelect(showCreatePrDialog),
             new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
             {
-                planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                try
+                {
+                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                }
+                catch (PlanTransitionBlockedException ex)
+                {
+                    client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
+                    return;
+                }
+
                 refreshPlans();
             }),
             new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")

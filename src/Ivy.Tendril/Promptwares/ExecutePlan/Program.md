@@ -111,7 +111,16 @@ After reading the plan revision, scan it for code validation markers to detect s
 3. **Decision logic:**
    - **If no validation blocks found** → Skip validation, proceed to worktree creation (backward compatible)
    - **If all validation blocks pass** → Proceed to worktree creation
-   - **If any validation fails** → Fail the plan immediately with a detailed report
+   - **If any validation fails** → Stop here and fail the job. "Fail the plan" is a concrete
+     three-step contract, not a state change:
+     1. Write `<TendrilPlanFolder>/Verification/PreExecution.md` with `result: Fail` and the detailed
+        per-block report below.
+     2. Call `tendril job fail TendrilJobId --message="PreExecution failed: <reason>"`.
+     3. `exit 1`.
+
+     The server reads that report and routes the plan to `Failed` on its own, so do **not** set the
+     state yourself (see step 9). Do not proceed to worktree creation, do not run verifications, and
+     do not commit anything: there is nothing to verify on an unmodified base branch.
 
 4. **Write validation report** — Create `<TendrilPlanFolder>/Verification/PreExecution.md`:
 
@@ -144,7 +153,17 @@ date: <CurrentTime>
    - A `<details><summary>Still relevant?</summary>` block whose body starts with `No.`
    - Phrases like *"Already applied"*, *"This plan is redundant"*, *"This plan is superseded"*, or *"previously attempted … was merged to main via PR #NNNN"* in the `## Problem` or `## Solution` sections.
 
-   If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, write `Verification/PreExecution.md` with `Result: Fail`, write `Artifacts/summary.md` documenting the no-op, set every verification to `Skipped` via `tendril plan set-verification <plan-id> <name> Skipped`, and fail the plan **without creating a worktree** — running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process.
+   If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, fail **without creating a worktree** (running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process):
+
+   1. Write `Verification/PreExecution.md` with `result: Fail` and the evidence for each of the three checks.
+   2. Write `Artifacts/summary.md` documenting the no-op.
+   3. Call `tendril job fail TendrilJobId --message="PreExecution failed: <reason>"` and `exit 1`.
+
+   **Do not set the verifications to `Skipped`.** An earlier revision of this document told you to, and
+   that is exactly how a never-executed plan reached `Review`: the server's state decision keys on
+   verification rows, so blanket `Skipped` makes every row look complete and routes the plan to
+   `Review`, where one click marks it `Completed` with zero commits. Leave the rows `Pending` and let
+   the `PreExecution: Fail` report and the non-zero exit do the work.
 
 ### 2. Create Worktrees
 
@@ -523,6 +542,8 @@ Cleanup is handled elsewhere — by CreatePr after PRs are created/merged, and b
 ### 9. Plan State
 
 **🚫 FORBIDDEN:** Do NOT call `tendril plan set <plan-id> state <anything>`. The Tendril server handles all state transitions automatically based on your exit code and verification statuses. Setting state manually causes the plan to appear in Review prematurely while your job is still running.
+
+A failed pre-execution (step 1.7) is signalled by `Verification/PreExecution.md` with `result: Fail`, plus `tendril job fail` and a non-zero exit, never by writing `state`. The server reads that report and routes the plan to `Failed`.
 
 ### Ambiguity Handling
 
