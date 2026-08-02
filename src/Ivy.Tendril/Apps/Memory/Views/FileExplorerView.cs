@@ -31,6 +31,7 @@ public class FileExplorerView : ViewBase
     private readonly IState<string?> _selectedSourceKey;
     private readonly List<MemoryNote> _memories;
     private readonly IState<string?> _selectedFile;
+    private readonly IState<string?> _projectFilter;
     private readonly string _workingDir;
 
     public FileExplorerView(
@@ -39,6 +40,7 @@ public class FileExplorerView : ViewBase
         IState<string?> selectedSourceKey,
         List<MemoryNote> memories,
         IState<string?> selectedFile,
+        IState<string?> projectFilter,
         string workingDir)
     {
         _projects = projects;
@@ -46,6 +48,7 @@ public class FileExplorerView : ViewBase
         _selectedSourceKey = selectedSourceKey;
         _memories = memories;
         _selectedFile = selectedFile;
+        _projectFilter = projectFilter;
         _workingDir = workingDir;
     }
 
@@ -62,6 +65,11 @@ public class FileExplorerView : ViewBase
             string.Equals(o.Id, _selectedSourceKey.Value, StringComparison.OrdinalIgnoreCase) ||
             string.Equals(o.Label, _selectedSourceKey.Value, StringComparison.OrdinalIgnoreCase))
             ?? sourceOptions.FirstOrDefault();
+
+        if (currentMatch != null && _projectFilter != null && _projectFilter.Value != currentMatch.Name)
+        {
+            _projectFilter.Set(currentMatch.Name);
+        }
 
         var targetDir = (currentMatch != null && !string.IsNullOrEmpty(currentMatch.Path) && Directory.Exists(currentMatch.Path))
             ? currentMatch.Path
@@ -81,8 +89,6 @@ public class FileExplorerView : ViewBase
             }
         }
         catch { }
-
-        Console.WriteLine($"[FileExplorerView] selectedSourceKey='{_selectedSourceKey.Value}', currentMatch='{currentMatch?.Label}', targetDir='{targetDir}', files={scannedFiles.Count}");
 
         // Build file -> memories mapping
         var fileMemoryMap = new Dictionary<string, List<MemoryNote>>(StringComparer.OrdinalIgnoreCase);

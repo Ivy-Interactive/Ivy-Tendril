@@ -159,6 +159,7 @@ public class MemoryApp : ViewBase
             selectedSourceKey,
             allMemories,
             selectedFile,
+            projectFilter,
             workingDir
         );
 
