@@ -8,7 +8,7 @@ public static class ConsoleHelper
 
     internal static string ReadStream(Stream stream)
     {
-        using var reader = new StreamReader(stream, new UTF8Encoding(false), detectEncodingFromByteOrderMarks: true);
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
         return reader.ReadToEnd();
     }
 

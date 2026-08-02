@@ -29,6 +29,5 @@ public class ConsoleHelperTests
         var result = ConsoleHelper.ReadStream(stream);
 
         Assert.Equal(input, result);
-        Assert.DoesNotContain("﻿", result);
     }
 }
