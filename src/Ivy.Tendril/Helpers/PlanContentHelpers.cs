@@ -284,7 +284,7 @@ public static class PlanContentHelpers
                 var totals = CountDiffLines(data.Diff);
                 commitSheetContent |= Layout.Horizontal().Gap(1).Height(Size.Auto())
                     | Text.Block($"+{totals.Additions}").Color(Colors.Success).Small()
-                    | Text.Block($"-{totals.Deletions}").Color(Colors.Danger).Small();
+                    | Text.Block($"-{totals.Deletions}").Color(Colors.Destructive).Small();
 
                 foreach (var fileDiff in fileDiffs)
                 {

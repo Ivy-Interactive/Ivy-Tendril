@@ -234,7 +234,7 @@ public class ChangesTabView(
         toolbar = toolbar
             | Layout.Horizontal().Gap(1).Height(Size.Auto())
                 | Text.Block($"+{totals.Additions}").Color(Colors.Success).Small()
-                | Text.Block($"-{totals.Deletions}").Color(Colors.Danger).Small();
+                | Text.Block($"-{totals.Deletions}").Color(Colors.Destructive).Small();
 
         if (hideFormatting.Value && hiddenCount > 0)
             toolbar |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
