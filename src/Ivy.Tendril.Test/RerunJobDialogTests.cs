@@ -132,4 +132,17 @@ public class RerunJobDialogTests
 
         Assert.True(RerunJobDialog.SupportsFeedback(job, null));
     }
+
+    [Fact]
+    public void BuildRerunArgs_UpdatePlanWithUploadSessionId_PreservesSessionId()
+    {
+        var original = new UpdatePlanArgs("/plans/00001-Test", "old instructions", UploadSessionId: "session-abc");
+
+        var result = RerunJobDialog.BuildRerunArgs(original, "new instructions");
+
+        var update = Assert.IsType<UpdatePlanArgs>(result);
+        Assert.Equal("/plans/00001-Test", update.FolderPath);
+        Assert.Equal("new instructions", update.Instructions);
+        Assert.Equal("session-abc", update.UploadSessionId);
+    }
 }

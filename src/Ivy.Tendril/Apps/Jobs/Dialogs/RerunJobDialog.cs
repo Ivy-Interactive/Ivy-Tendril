@@ -96,7 +96,7 @@ public class RerunJobDialog(
         {
             ExecutePlanArgs e => new RetryPlanArgs(e.FolderPath, feedback),
             RetryPlanArgs r => new RetryPlanArgs(r.FolderPath, feedback),
-            UpdatePlanArgs u => new UpdatePlanArgs(u.FolderPath, feedback),
+            UpdatePlanArgs u => u with { Instructions = feedback },
             _ => original
         };
     }
