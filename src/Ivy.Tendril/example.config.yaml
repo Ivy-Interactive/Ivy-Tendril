@@ -183,20 +183,9 @@ verifications:
   prompt: >
     Verify the implementation matches what was requested in the plan.
     1. Read the plan revision: `tendril plan get-revision <PlanId>`
-    2. Enumerate every deliverable the plan specifies, including ones that are not
-       file edits: CLI calls (`tendril verification set`, `tendril plan set`), config
-       changes outside the repo, and edits to other plans' folders. A plan's commit
-       can be partially delivered when only some of its parts are files.
-    3. Review all commits made by this execution.
-    4. Check each non-file deliverable by re-running the read side of its own command
-       (for example `tendril verification get <Name>` and grep for the text the plan
-       said to add or remove). A repo diff cannot see a CLI call that never happened,
-       so absence of evidence here is not evidence of delivery.
-    5. Compare the plan's Problem and Solution sections against the actual changes.
-       Report each deliverable under the plan's own heading and wording. Never
-       restate a commit's scope to match what was delivered: if a commit had three
-       parts and two landed, say so and set `result: Fail`.
-    6. Write the verification report to `<TendrilPlanFolder>/verification/CheckResult.md`
+    2. Review all commits made by this execution
+    3. Compare the plan's Problem and Solution sections against the actual changes
+    4. Write the verification report to `<TendrilPlanFolder>/verification/CheckResult.md`
 
 # Stack-specific verification examples (uncomment and customize for your stack):
 

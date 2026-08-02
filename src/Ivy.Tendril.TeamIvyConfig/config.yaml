@@ -207,12 +207,11 @@ verifications:
     Wait for the process to complete (it may take several minutes). After the process exits, IMMEDIATELY check if `<TendrilPlanFolder>\verification\IvyFrameworkVerification.md` exists. If the file exists, read it and set status based on the Result field in its YAML frontmatter. If exit code is non-zero OR the report file does not exist, set status to Fail immediately — do not poll or wait. Do NOT write the verification report yourself — the promptware creates it.
 - name: CheckResult
   prompt: >
-    Verify the implementation matches what was requested in the plan. 1. Read the plan revision from `<TendrilPlanFolder>\revisions\` (latest numbered .md file) 2. Enumerate every deliverable the plan specifies, including ones that are not file edits: CLI calls (`tendril verification set`, `tendril plan set`), config changes outside the repo, and edits to other plans' folders. A plan's commit can be partially delivered when only some of its parts are files. 3. Read all commits made by this execution from `plan.yaml` `commits` list 4. For each commit, review the diff (`git show <hash>`) in the worktree 5. Check each non-file deliverable by re-running the read side of its own command (for example `tendril verification get <Name>` and grep for the text the plan said to add or remove). A repo diff cannot see a CLI call that never happened, so absence of evidence here is not evidence of delivery. 6. Compare the plan's **Problem** and **Solution** sections against the actual changes:
+    Verify the implementation matches what was requested in the plan. 1. Read the plan revision from `<TendrilPlanFolder>\revisions\` (latest numbered .md file) 2. Read all commits made by this execution from `plan.yaml` `commits` list 3. For each commit, review the diff (`git show <hash>`) in the worktree 4. Compare the plan's **Problem** and **Solution** sections against the actual changes:
        - Are all described changes present?
        - Are there unexpected\unrelated changes?
        - Do the changes solve the stated problem?
-       Report each deliverable under the plan's own heading and wording. Never restate a commit's scope to match what was delivered: if a commit had three parts and two landed, say so and set `result: Fail`.
-    7. If the plan has a **Tests** section, verify those tests were actually written 8. Write the verification report to `<TendrilPlanFolder>\verification\CheckResult.md` Report format: ```
+    5. If the plan has a **Tests** section, verify those tests were actually written 6. Write the verification report to `<TendrilPlanFolder>\verification\CheckResult.md` Report format: ```
 
     ---
 

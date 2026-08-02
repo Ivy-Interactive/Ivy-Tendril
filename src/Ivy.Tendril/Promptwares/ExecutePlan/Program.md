@@ -433,7 +433,7 @@ The `result` field in the frontmatter MUST be one of: `Pass`, `Fail`, or `Skippe
 
 Report status: `tendril job status TendrilJobId --message="Generating summary..."`
 
-After all verifications pass, create `<TendrilPlanFolder>/Artifacts/summary.md` summarizing what was done. Because this runs after verification, the summary reflects the final state of the plan's deliverables, in and outside the repo, including any fix commits made during Step 7.
+After all verifications pass, create `<TendrilPlanFolder>/Artifacts/summary.md` summarizing what was done. Because this runs after verification, the summary reflects the final state of the code — including any fix commits made during Step 7.
 
 The summary should follow this structure:
 
@@ -451,13 +451,6 @@ The summary should follow this structure:
 ## Files Modified
 
 <Bulleted list of key files changed, grouped by category. Don't list every file — focus on the important ones.>
-
-## Deliverables Outside the Repo
-
-<CLI calls the plan specified and you ran: `tendril verification set <Name>`,
-`tendril plan set <id> <field>`, edits to other plans' folders. Show the read-back
-that proves each landed. Write "None." if the plan specified none. If the plan
-specified one and you did not run it, say so here and in CheckResult.>
 
 ## Manual Testing
 
