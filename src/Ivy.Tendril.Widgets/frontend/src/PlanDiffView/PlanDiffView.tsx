@@ -279,6 +279,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
   const [activeFormKeys, setActiveFormKeys] = useState<Record<string, boolean>>({});
   const [editingCommentKeys, setEditingCommentKeys] = useState<Record<string, string>>({});
   const [activeDropdownIndex, setActiveDropdownIndex] = useState<number | null>(null);
+  const [commentsHidden, setCommentsHidden] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     if (activeDropdownIndex === null) return;
@@ -335,7 +336,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
     }
   };
 
-  const getWidgets = (hunks: HunkData[]) => {
+  const getWidgets = (hunks: HunkData[], hideComments = false) => {
     const allChanges = hunks.reduce<ChangeData[]>((result, hunk) => [...result, ...hunk.changes], []);
     const widgets: Record<string, React.ReactNode> = {};
 
@@ -350,11 +351,12 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
         ? rawLine.slice(1)
         : rawLine;
 
-      if (lineComments.length > 0 || showForm || isEditing) {
+      const visibleComments = hideComments ? [] : lineComments;
+      if (visibleComments.length > 0 || showForm || isEditing) {
         widgets[changeKey] = (
           <CommentWidgetContainer
             changeKey={changeKey}
-            comments={lineComments}
+            comments={visibleComments}
             isEditing={isEditing}
             editingText={editingCommentKeys[changeKey]}
             originalLineText={originalLineText}
@@ -608,8 +610,37 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                     Viewed
                   </label>
 
-                  {/* Message bubble icon */}
-                  <MessageSquare className="w-3.5 h-3.5 text-[var(--muted-foreground)]" />
+                  {/* Comment count / visibility toggle */}
+                  {(() => {
+                    const fileCommentCount = comments.length;
+                    const hidden = commentsHidden[fileIndex] ?? false;
+                    return (
+                      <button
+                        type="button"
+                        aria-label={hidden ? "Show comments" : "Hide comments"}
+                        aria-pressed={!hidden}
+                        disabled={fileCommentCount === 0}
+                        title={
+                          fileCommentCount === 0
+                            ? "No comments on this file"
+                            : hidden
+                              ? `Show ${fileCommentCount} comment(s)`
+                              : `Hide ${fileCommentCount} comment(s)`
+                        }
+                        className="flex items-center gap-1 p-1 rounded hover:bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--muted-foreground)]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (fileCommentCount === 0) return;
+                          setCommentsHidden((prev) => ({ ...prev, [fileIndex]: !hidden }));
+                        }}
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        {fileCommentCount > 0 && (
+                          <span className="font-mono text-[10px]">{fileCommentCount}</span>
+                        )}
+                      </button>
+                    );
+                  })()}
 
                   {/* More actions button & dropdown */}
                   <div className="diff-more-actions-container relative">
@@ -672,7 +703,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                   viewType={effectiveViewType}
                   diffType={file.type}
                   hunks={file.hunks}
-                  widgets={getWidgets(file.hunks)}
+                  widgets={getWidgets(file.hunks, commentsHidden[fileIndex] ?? false)}
                   gutterEvents={{
                     onClick: ({ change }) => {
                       if (change) {
