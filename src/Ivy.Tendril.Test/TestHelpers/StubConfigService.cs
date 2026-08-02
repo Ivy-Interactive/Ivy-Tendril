@@ -34,6 +34,11 @@ public class StubConfigService : IConfigService
     {
     }
 
+    public void MutateAndSave(Action<TendrilSettings> mutate)
+    {
+        mutate(Settings);
+    }
+
     public void ReloadSettings()
     {
     }

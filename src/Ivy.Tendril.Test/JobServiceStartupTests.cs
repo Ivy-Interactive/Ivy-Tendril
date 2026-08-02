@@ -377,6 +377,7 @@ public class JobServiceStartupTests
         public Colors? GetLevelColor(string level) => null;
         public Colors? GetProjectColor(string projectName) => null;
         public void SaveSettings() { }
+        public void MutateAndSave(Action<TendrilSettings> mutate) => mutate(Settings);
         public void ReloadSettings() { }
         public bool TryAutoHeal() => false;
         public void ResetToDefaults() { }
