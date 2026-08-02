@@ -272,6 +272,7 @@ public class GitHelperTests : IDisposable
         }
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private static string? GetCommandLine(int processId)
     {
         try
