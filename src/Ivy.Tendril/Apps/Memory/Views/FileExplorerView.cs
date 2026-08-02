@@ -83,7 +83,7 @@ public class FileExplorerView : ViewBase
             _selectedFolderName.Set(firstOpt.Name);
         }
 
-        // Sync state if selectedSourceKey changes
+        // Current active source option
         var currentMatch = sourceOptions.FirstOrDefault(o => o.Id == _selectedSourceKey.Value) ?? sourceOptions.FirstOrDefault();
         if (currentMatch != null && currentMatch.Path != _selectedFolderPath.Value)
         {
@@ -91,6 +91,22 @@ public class FileExplorerView : ViewBase
             _selectedFolderName.Set(currentMatch.Name);
             _projectFilter.Set(currentMatch.Name);
         }
+
+        var targetDir = (currentMatch != null && !string.IsNullOrEmpty(currentMatch.Path) && Directory.Exists(currentMatch.Path))
+            ? currentMatch.Path
+            : _workingDir;
+
+        // Scan files directly for current targetDir to guarantee instant update on selection
+        var scannedFiles = new List<string>();
+        try
+        {
+            scannedFiles = Directory.GetFiles(targetDir, "*.*", SearchOption.AllDirectories)
+                .Select(p => Path.GetRelativePath(targetDir, p).Replace('\\', '/'))
+                .Where(p => !p.StartsWith('.') && !p.Contains("/.") && !p.Contains("bin/") && !p.Contains("obj/") && !p.Contains("node_modules/"))
+                .Take(1000)
+                .ToList();
+        }
+        catch { }
 
         // Build file -> memories mapping
         var fileMemoryMap = new Dictionary<string, List<MemoryNote>>(StringComparer.OrdinalIgnoreCase);
@@ -109,7 +125,7 @@ public class FileExplorerView : ViewBase
         }
 
         // Combine files in selected folder
-        var combinedFiles = new HashSet<string>(_allFiles.Select(f => f.Replace('\\', '/')), StringComparer.OrdinalIgnoreCase);
+        var combinedFiles = new HashSet<string>(scannedFiles.Select(f => f.Replace('\\', '/')), StringComparer.OrdinalIgnoreCase);
 
         var fileList = combinedFiles.AsEnumerable();
 
@@ -144,9 +160,9 @@ public class FileExplorerView : ViewBase
         // Single Select Input for Projects & Promptwares at top of sidebar
         var sourceSelectInput = _selectedSourceKey.ToSelectInput(selectOptions)
             .Placeholder("Select Project or Promptware...")
+            .Width(Size.Full())
             .WithField()
-            .Label("Project / Promptware")
-            .Width(Size.Full());
+            .Label("Project / Promptware");
 
         var searchInput = _searchQuery.ToTextInput(placeholder: "Search files...")
             .Prefix(Icons.Search)
