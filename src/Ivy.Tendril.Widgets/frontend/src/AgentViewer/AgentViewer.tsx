@@ -11,6 +11,8 @@ import { deriveStatus } from "./status";
 import { AnimatedStatus } from "./animated-status";
 import { ToolUseCard } from "./tool-use-card";
 import { ResultSummary } from "./result-summary";
+import { groupToolUseEvents } from "./group-events";
+import { ToolUseGroup } from "./tool-use-group";
 
 function buildSuppressIndices(events: PresentationEvent[]): Set<number> {
   const indices = new Set<number>();
@@ -44,6 +46,7 @@ interface AgentViewerProps {
   showSystemEvents?: boolean;
   showStatusLabel?: boolean;
   statusLabelOverride?: string;
+  groupToolCalls?: boolean;
 }
 
 export const AgentViewer: React.FC<AgentViewerProps> = ({
@@ -60,6 +63,7 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
   showSystemEvents = false,
   showStatusLabel = true,
   statusLabelOverride,
+  groupToolCalls = false,
 }) => {
   const [streamedLines, setStreamedLines] = useState<string[]>([]);
 
@@ -130,6 +134,14 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
     [parsedEvents],
   );
 
+  const renderNodes = useMemo(
+    () =>
+      groupToolCalls
+        ? groupToolUseEvents(parsedEvents)
+        : parsedEvents.map((event, index) => ({ kind: "single" as const, index, event })),
+    [groupToolCalls, parsedEvents],
+  );
+
   return (
     <div style={shellStyle} className="aov-shell">
       <div
@@ -138,7 +150,12 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
         onWheel={autoScroll ? disableAutoScroll : undefined}
         onTouchMove={autoScroll ? disableAutoScroll : undefined}
       >
-        {parsedEvents.map((event, idx) => {
+        {renderNodes.map((node) => {
+          if (node.kind === "tool-group") {
+            return <ToolUseGroup key={node.index} tools={node.tools} />;
+          }
+
+          const { index: idx, event } = node;
           if (suppressIndices.has(idx)) return null;
           switch (event.kind) {
             case "tool-use":
