@@ -14,6 +14,9 @@ public class AgentProcessHelperTests
         var spec = new AgentProcessSpec
         {
             FileName = "test",
+            Arguments = [],
+            WorkingDirectory = ".",
+            Environment = new Dictionary<string, string>(),
             RedirectStdin = true,
             RedirectStdout = true,
             RedirectStderr = true
@@ -35,6 +38,9 @@ public class AgentProcessHelperTests
         var spec = new AgentProcessSpec
         {
             FileName = "test",
+            Arguments = [],
+            WorkingDirectory = ".",
+            Environment = new Dictionary<string, string>(),
             RedirectStdin = true,
             RedirectStdout = true,
             RedirectStderr = true
@@ -56,6 +62,9 @@ public class AgentProcessHelperTests
         var spec = new AgentProcessSpec
         {
             FileName = "test",
+            Arguments = [],
+            WorkingDirectory = ".",
+            Environment = new Dictionary<string, string>(),
             RedirectStdin = false,
             RedirectStdout = false,
             RedirectStderr = false
@@ -75,6 +84,8 @@ public class AgentProcessHelperTests
         {
             FileName = OperatingSystem.IsWindows() ? "cmd" : "echo",
             Arguments = OperatingSystem.IsWindows() ? ["/c", "echo", "test"] : ["test"],
+            WorkingDirectory = ".",
+            Environment = new Dictionary<string, string>(),
             RedirectStdin = true,
             RedirectStdout = true,
             RedirectStderr = true,
@@ -98,6 +109,8 @@ public class AgentProcessHelperTests
         {
             FileName = OperatingSystem.IsWindows() ? "cmd" : "cat",
             Arguments = OperatingSystem.IsWindows() ? ["/c", "findstr", ".*"] : [],
+            WorkingDirectory = ".",
+            Environment = new Dictionary<string, string>(),
             RedirectStdin = true,
             RedirectStdout = true,
             RedirectStderr = true,
