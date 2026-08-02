@@ -110,33 +110,39 @@ public class ChangesTabView(
                 Collapsible = true,
                 DefaultCollapsed = isManyFiles && i >= 5,
                 Comments = draftComments.Value.Where(c => c.FilePath == path).ToList(),
-                OnAddComment = e => {
+                OnAddComment = e =>
+                {
                     var list = new List<DraftComment>(draftComments.Value);
                     list.Add(e.Value);
                     draftComments.Set(list);
                     return ValueTask.CompletedTask;
                 },
-                OnUpdateComment = e => {
+                OnUpdateComment = e =>
+                {
                     var c = e.Value;
                     var list = new List<DraftComment>(draftComments.Value);
                     var idx = list.FindIndex(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
-                    if (idx >= 0) {
+                    if (idx >= 0)
+                    {
                         list[idx] = c;
                         draftComments.Set(list);
                     }
                     return ValueTask.CompletedTask;
                 },
-                OnDeleteComment = e => {
+                OnDeleteComment = e =>
+                {
                     var c = e.Value;
                     var list = new List<DraftComment>(draftComments.Value);
                     list.RemoveAll(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
                     draftComments.Set(list);
                     return ValueTask.CompletedTask;
                 },
-                OnDirectEdit = async e => {
+                OnDirectEdit = async e =>
+                {
                     await HandleDirectEdit(e.Value);
                 },
-                OnViewFile = e => {
+                OnViewFile = e =>
+                {
                     var repoPath = changesData?.SourceRepoPath;
                     if (string.IsNullOrEmpty(repoPath))
                     {
@@ -149,7 +155,8 @@ public class ChangesTabView(
                     }
                     return ValueTask.CompletedTask;
                 },
-                OnEditFile = e => {
+                OnEditFile = e =>
+                {
                     var repoPath = changesData?.SourceRepoPath;
                     if (string.IsNullOrEmpty(repoPath))
                     {
@@ -168,7 +175,8 @@ public class ChangesTabView(
                     }
                     return ValueTask.CompletedTask;
                 },
-                OnDeleteFile = async e => {
+                OnDeleteFile = async e =>
+                {
                     var repoPath = changesData?.SourceRepoPath;
                     if (string.IsNullOrEmpty(repoPath))
                     {

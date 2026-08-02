@@ -399,27 +399,27 @@ public class ContentView(
             {
                 var completePlanBtn = new Button("Complete Plan").Icon(Icons.CircleCheck).OnClick(() =>
                 {
-                var completePlanBtn = new Button("Complete Plan").Icon(Icons.CircleCheck).OnClick(() =>
-                {
-                    try
+                    var completePlanBtn = new Button("Complete Plan").Icon(Icons.CircleCheck).OnClick(() =>
                     {
-                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                    }
-                    catch (PlanTransitionBlockedException ex)
-                    {
-                        // If the block is for failed verifications, offer the override dialog.
-                        // Otherwise (pre-execution failure, etc.), just toast the reason.
-                        if (ex.FailedVerifications.Count > 0)
+                        try
                         {
-                            showPartialDeliveryDialog(ex.FailedVerifications);
+                            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                        }
+                        catch (PlanTransitionBlockedException ex)
+                        {
+                            // If the block is for failed verifications, offer the override dialog.
+                            // Otherwise (pre-execution failure, etc.), just toast the reason.
+                            if (ex.FailedVerifications.Count > 0)
+                            {
+                                showPartialDeliveryDialog(ex.FailedVerifications);
+                                return;
+                            }
+
+                            client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
                             return;
                         }
 
-                        client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
-                        return;
-                    }
-
-                    // Optimistic UI - update state and refresh immediately
+                        // Optimistic UI - update state and refresh immediately
                         planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
                     }
                     catch (PlanTransitionBlockedException ex)
@@ -430,7 +430,7 @@ public class ContentView(
                         return;
                     }
 
->>>>>>> origin/development
+>>>>>>> origin / development
                     refreshPlans();
 
                     // Fire and forget - clean up worktrees in the background
