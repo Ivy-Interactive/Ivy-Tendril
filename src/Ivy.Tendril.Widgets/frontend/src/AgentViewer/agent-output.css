@@ -318,6 +318,8 @@
   user-select: none;
   font-size: 14px;
   outline: none;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .aov-tool-chevron {
@@ -360,6 +362,8 @@
 .aov-tool-name {
   color: var(--aov-accent);
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .aov-tool-preview {
@@ -412,6 +416,8 @@
   user-select: none;
   font-size: 14px;
   outline: none;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .aov-tool-group-body {
