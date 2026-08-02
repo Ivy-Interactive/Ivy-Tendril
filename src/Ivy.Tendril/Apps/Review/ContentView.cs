@@ -399,37 +399,17 @@ public class ContentView(
             {
                 var completePlanBtn = new Button("Complete Plan").Icon(Icons.CircleCheck).OnClick(() =>
                 {
-                var completePlanBtn = new Button("Complete Plan").Icon(Icons.CircleCheck).OnClick(() =>
-                {
-                    try
+                    // A failed verification blocks the transition (plan 00090). On a block nothing
+                    // changed, so skip the optimistic refresh and the worktree cleanup too, and offer
+                    // the partial-delivery override instead of failing silently.
+                    var blocked = PlanCompletionAction.TryComplete(planService, selectedPlan);
+                    if (blocked != null)
                     {
-                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                    }
-                    catch (PlanTransitionBlockedException ex)
-                    {
-                        // If the block is for failed verifications, offer the override dialog.
-                        // Otherwise (pre-execution failure, etc.), just toast the reason.
-                        if (ex.FailedVerifications.Count > 0)
-                        {
-                            showPartialDeliveryDialog(ex.FailedVerifications);
-                            return;
-                        }
-
-                        client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
+                        showPartialDeliveryDialog(blocked);
                         return;
                     }
 
                     // Optimistic UI - update state and refresh immediately
-                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                    }
-                    catch (PlanTransitionBlockedException ex)
-                    {
-                        // This handler is fire-and-forget, so an uncaught throw would look like a
-                        // silent no-op. Surface the reason and leave the plan where it is.
-                        client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
-                        return;
-                    }
-
                     refreshPlans();
 
                     // Fire and forget - clean up worktrees in the background
@@ -480,36 +460,12 @@ public class ContentView(
             new MenuItem("Create PR", Icon: Icons.GitPullRequest, Tag: "CreatePR").OnSelect(showCreatePrDialog),
             new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
             {
-            new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
-            {
-                try
+                var blocked = PlanCompletionAction.TryComplete(planService, selectedPlan);
+                if (blocked != null)
                 {
-                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                }
-                catch (PlanTransitionBlockedException ex)
-                {
-                    // If the block is for failed verifications, offer the override dialog.
-                    // Otherwise (pre-execution failure, etc.), just toast the reason.
-                    if (ex.FailedVerifications.Count > 0)
-                    {
-                        showPartialDeliveryDialog(ex.FailedVerifications);
-                        return;
-                    }
-
-                    client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
+                    showPartialDeliveryDialog(blocked);
                     return;
                 }
-
-                try
-                {
-                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                }
-                catch (PlanTransitionBlockedException ex)
-                {
-                    client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
-                    return;
-                }
-
                 refreshPlans();
             }),
             new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
