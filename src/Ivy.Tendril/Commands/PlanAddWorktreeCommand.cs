@@ -52,12 +52,46 @@ public class PlanAddWorktreeCommand : Command<PlanAddWorktreeSettings>
 
         if (Directory.Exists(worktreePath))
         {
-            var (removeExitCode, _, removeStdErr) = GitHelper.RunGit($"worktree remove --force \"{worktreePath}\"", settings.Repo);
-            if (removeExitCode != 0)
+            // `git worktree remove --force` exits 0 even when it leaves the directory skeleton
+            // behind: measured on git 2.54 against a real pnpm tree, 1,132 directories survived a
+            // successful removal because the tree contains symlinks and NTFS junctions. Git's own
+            // metadata does go, so `worktree list` and `worktree prune` both consider the worktree
+            // gone, and only the leftover directory remains to make `worktree add` fail later with
+            // a misleading `fatal: ... already exists`. So the exit code is not the answer here:
+            // whether the directory is gone is. A 650 MB tree took 41 s to remove, close enough to
+            // RunGit's 60 s default to warrant an explicit longer timeout.
+            var (_, _, removeStdErr) = GitHelper.RunGit($"worktree remove --force \"{worktreePath}\"", settings.Repo, 180000);
+
+            if (Directory.Exists(worktreePath))
             {
-                AnsiConsole.MarkupLine($"[red]Failed to remove existing worktree at {worktreePath.EscapeMarkup()}:[/]");
-                AnsiConsole.MarkupLine(removeStdErr.EscapeMarkup());
-                return 1;
+                var forceDeleteError = "";
+                try
+                {
+                    WorktreeCleanupService.ForceDeleteDirectory(worktreePath, _logger);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    forceDeleteError = ex.Message;
+                }
+
+                if (Directory.Exists(worktreePath))
+                {
+                    AnsiConsole.MarkupLine($"[red]Failed to remove existing worktree at {worktreePath.EscapeMarkup()}:[/]");
+                    AnsiConsole.MarkupLine(string.IsNullOrWhiteSpace(removeStdErr)
+                        ? "git worktree remove produced no stderr."
+                        : $"git worktree remove reported: {removeStdErr.Trim().EscapeMarkup()}");
+                    AnsiConsole.MarkupLine(string.IsNullOrWhiteSpace(forceDeleteError)
+                        ? "The force delete completed without error but the directory is still present."
+                        : $"Force delete failed: {forceDeleteError.EscapeMarkup()}");
+                    return 1;
+                }
+
+                // Deleting the directory ourselves bypasses git, so if the removal above did not
+                // finish (a timeout kills it mid-delete, which is the other reason its exit code is
+                // ignored) the worktree stays registered under .git/worktrees and `add` then fails
+                // with `is a missing but already registered worktree`. Prune clears that; it is a
+                // no-op when the removal did complete.
+                GitHelper.RunGit("worktree prune", settings.Repo, 30000);
             }
 
             // Re-executing a plan is a normal occurrence (ExecutePlan re-runs after review

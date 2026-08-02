@@ -1660,6 +1660,125 @@ public class PlanCliCommandTests : IDisposable
         Assert.Contains("git worktree add failed", output);
     }
 
+    /// <summary>
+    /// Creates the residue that makes `git worktree remove --force` exit 0 while leaving the
+    /// directory behind: a junction (Windows) or symlink (elsewhere) under a pnpm-shaped
+    /// node_modules tree, which is what a real `pnpm install` builds. Returns false if the link
+    /// could not be created, in which case the caller should skip.
+    /// </summary>
+    private static bool CreateJunctionResidue(string worktreePath)
+    {
+        var target = Path.Combine(worktreePath, "node_modules", ".pnpm", "real", "node_modules", "pkg");
+        Directory.CreateDirectory(target);
+        File.WriteAllText(Path.Combine(target, "index.js"), "module.exports = {};");
+
+        var linkParent = Path.Combine(worktreePath, "node_modules", ".pnpm", "node_modules");
+        Directory.CreateDirectory(linkParent);
+        var link = Path.Combine(linkParent, "j1");
+
+        if (OperatingSystem.IsWindows())
+        {
+            // A junction, not a symlink: symlink creation needs elevation or developer mode,
+            // while `mklink /J` works unprivileged, and pnpm uses junctions on Windows anyway.
+            using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe")
+            {
+                ArgumentList = { "/c", "mklink", "/J", link, target },
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false
+            });
+            p?.WaitForExit(15000);
+        }
+        else
+        {
+            try
+            {
+                Directory.CreateSymbolicLink(link, target);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return false;
+            }
+        }
+
+        return Directory.Exists(link);
+    }
+
+    [Fact]
+    public void PlanAddWorktreeCommand_SucceedsWhenGitLeavesJunctionResidue()
+    {
+        var repo = SetUpRemoteAndWorkRepo();
+        if (repo == null) return; // git unavailable, skip
+
+        CreatePlanFolder("21006", "AddWorktreeJunctionResidue");
+        var app = BuildPlanAddWorktreeApp();
+
+        Assert.Equal(0, app.Run(["plan", "add-worktree", "21006", repo]));
+
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder("21006");
+        var worktreePath = Path.Combine(planFolder, "Worktrees", Path.GetFileName(repo));
+        if (!CreateJunctionResidue(worktreePath)) return; // links unavailable, skip
+
+        // `git worktree remove --force` exits 0 here but leaves the directory skeleton, so the
+        // second add must clear it itself rather than trusting git's exit code.
+        var secondExit = app.Run(["plan", "add-worktree", "21006", repo]);
+
+        Assert.Equal(0, secondExit);
+        Assert.True(Directory.Exists(worktreePath));
+        Assert.True(File.Exists(Path.Combine(worktreePath, ".git")));
+    }
+
+    [Fact]
+    public void PlanAddWorktreeCommand_FailsWhenResidueCannotBeDeleted()
+    {
+        if (!OperatingSystem.IsWindows()) return; // Only Windows blocks deletion of an open file
+
+        var repo = SetUpRemoteAndWorkRepo();
+        if (repo == null) return; // git unavailable, skip
+
+        CreatePlanFolder("21007", "AddWorktreeResidueLocked");
+        var app = BuildPlanAddWorktreeApp();
+
+        Assert.Equal(0, app.Run(["plan", "add-worktree", "21007", repo]));
+
+        var planFolder = PlanCommandHelpers.ResolvePlanFolder("21007");
+        var worktreePath = Path.Combine(planFolder, "Worktrees", Path.GetFileName(repo));
+        if (!CreateJunctionResidue(worktreePath)) return; // links unavailable, skip
+
+        var lockedFile = Path.Combine(
+            worktreePath, "node_modules", ".pnpm", "real", "node_modules", "pkg", "index.js");
+        var stream = new FileStream(lockedFile, FileMode.Open, FileAccess.Read, FileShare.None);
+        string output;
+        try
+        {
+            output = CaptureAnsiConsoleOutput(() =>
+            {
+                var exit = app.Run(["plan", "add-worktree", "21007", repo]);
+                Assert.NotEqual(0, exit);
+            });
+        }
+        finally
+        {
+            stream.Dispose();
+        }
+
+        // The failure must be reported at the removal step, naming the directory, not deferred to
+        // a confusing `fatal: ... already exists` from `git worktree add`. AnsiConsole hard-wraps
+        // long paths, so compare with whitespace stripped.
+        Assert.Contains("Failed to remove existing worktree", output);
+        Assert.Contains(
+            string.Concat(worktreePath.Where(c => !char.IsWhiteSpace(c))),
+            string.Concat(output.Where(c => !char.IsWhiteSpace(c))));
+        Assert.DoesNotContain("git worktree add failed", output);
+
+        // Both attempts must be accounted for: a locked file makes git's own removal exit non-zero,
+        // so reporting only that (as the pre-fix code did) hides whether the force-delete fallback
+        // ran at all. The message names git's stderr and the force-delete outcome separately.
+        Assert.Contains("git worktree remove reported:", output);
+        Assert.Contains("Force delete failed:", output);
+    }
+
     // ==================== PlanWriteRevision (--file / --stdin) ====================
 
     private static CommandApp BuildPlanWriteRevisionApp()
