@@ -264,6 +264,8 @@ done
 
 2. **Still install dependencies for any verification you will run.** A copied artifact directory is a build *output*, not a dependency tree - it never removes the need for an install. A fresh worktree has no `node_modules` at all, so the package manager must run before any lint, typecheck, build or test step, whether or not the plan touched that code. Never treat a populated dependency directory as evidence of a current one: install unconditionally, using the lockfile-respecting form (`pnpm install --frozen-lockfile`, `npm ci`, `yarn install --immutable`). It costs seconds when the tree is already correct, and a skipped install means exercising whatever version happens to be on disk. If the lockfile-respecting form fails because the plan edited a manifest without regenerating the lockfile, that is a real finding: re-run the plain install and commit the updated lockfile.
 
+A fresh worktree has no dependency tree, so this first install is a full one: measured at about 50 seconds for a mid-size pnpm frontend, not the 1 to 2 seconds a no-op install takes. Budget for it, and report status before starting so the run does not look stalled. Note also that the install may execute the project's `prepare` script (husky), which in a worktree sets that worktree's `core.hooksPath`. That is expected and does not need undoing.
+
 #### Exception Path (Build-Dependent Code Changes): Install and Rebuild
 
 If the plan **modifies** build-dependent code, you MUST rebuild:
