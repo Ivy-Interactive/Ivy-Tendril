@@ -429,8 +429,6 @@ public class ContentView(
                         client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
                         return;
                     }
-
->>>>>>> origin / development
                     refreshPlans();
 
                     // Fire and forget - clean up worktrees in the background
@@ -510,8 +508,6 @@ public class ContentView(
                     client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
                     return;
                 }
-
->>>>>>> origin/development
                 refreshPlans();
             }),
             new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
