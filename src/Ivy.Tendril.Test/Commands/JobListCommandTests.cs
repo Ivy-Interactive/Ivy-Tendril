@@ -42,7 +42,7 @@ public class JobListCommandTests : IDisposable
     {
         using var conn = new SqliteConnection($"Data Source={_dbPath};Mode=ReadWrite");
         conn.Open();
-        using var cmd = new SqliteCommand(conn);
+        using var cmd = conn.CreateCommand();
         cmd.CommandText = @"
             INSERT INTO Jobs (Id, Type, Project, Status, ReportedPlanId, StartedAt, CompletedAt, DurationSeconds, Cost, Cleared)
             VALUES (@id, @type, @project, @status, @planId, @startedAt, @completedAt, @durationSeconds, 0.0, @cleared)";
@@ -172,7 +172,7 @@ public class JobListCommandTests : IDisposable
         var missingDbPath = Path.Combine(_tempDir.Path, "nonexistent.db");
 
         var settings = new JobListSettings();
-        Assert.Throws<System.Data.SQLite.SqliteException>(() => JobListCommand.QueryJobs(missingDbPath, settings));
+        Assert.Throws<Microsoft.Data.Sqlite.SqliteException>(() => JobListCommand.QueryJobs(missingDbPath, settings));
     }
 
     [Fact]
