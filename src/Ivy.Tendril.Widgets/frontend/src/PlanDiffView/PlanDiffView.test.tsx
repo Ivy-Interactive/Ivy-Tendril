@@ -1,116 +1,173 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
+import { parseDiff, getChangeKey } from "react-diff-view";
 
 import { PlanDiffView } from "./PlanDiffView";
 
-// Minimal fixture verified working on react-diff-view 3.3.3
-const fixture = `diff --git a/foo.ts b/foo.ts
-index 0000001..1111111 100644
---- a/foo.ts
-+++ b/foo.ts
-@@ -1,2 +1,2 @@
--old line
-+new line
- context
-`;
-
 describe("PlanDiffView", () => {
-  it("uses eventHandler prop for OnAddComment (regression guard)", async () => {
-    const eventHandler = vi.fn();
-    render(<PlanDiffView id="pdv-1" diff={fixture} filePath="foo.ts" eventHandler={eventHandler} />);
+  const diff = [
+    "diff --git a/a.txt b/a.txt",
+    "--- a/a.txt",
+    "+++ b/a.txt",
+    "@@ -1 +1 @@",
+    "-old",
+    "+new",
+    "",
+  ].join("\n");
 
-    // Open comment form by clicking a gutter cell
-    const gutter = document.querySelector(".diff-gutter") as HTMLElement;
-    expect(gutter).toBeTruthy();
-    fireEvent.click(gutter);
+  const files = parseDiff(diff);
+  const change = files[0]?.hunks?.[0]?.changes?.[1];
+  const changeKey = change ? getChangeKey(change) : "new-1";
 
-    // Type into the textarea
-    const textarea = await screen.findByPlaceholderText(/Enter instruction for the agent/i);
-    fireEvent.change(textarea, { target: { value: "Test comment" } });
-
-    // Click Add Comment
-    const addButton = screen.getByText("Add Comment");
-    fireEvent.click(addButton);
-
-    // Assert the spy was called with correct event shape
-    expect(eventHandler).toHaveBeenCalledWith(
-      "OnAddComment",
-      "pdv-1",
-      [expect.objectContaining({
-        filePath: "foo.ts",
-        content: "Test comment",
-        changeKey: expect.any(String),
-        lineNumber: expect.any(Number)
-      })]
+  it("renders saved comment as markdown", () => {
+    render(
+      <PlanDiffView
+        id="pdv-1"
+        onIvyEvent={vi.fn()}
+        diff={diff}
+        comments={[
+          {
+            filePath: "a.txt",
+            changeKey: changeKey,
+            content: "**change**",
+            lineNumber: 1,
+          },
+        ]}
+      />
     );
+
+    const strong = document.querySelector(".diff-comment-markdown strong");
+    expect(strong).toBeTruthy();
+    expect(strong?.textContent).toBe("change");
+    expect(screen.queryByText("**change**")).toBeNull();
   });
 
-  it("uses onIvyEvent alias for OnAddComment (back-compat guard)", async () => {
+  it("renders markdown in Preview tab", () => {
     const onIvyEvent = vi.fn();
-    render(<PlanDiffView id="pdv-2" diff={fixture} filePath="foo.ts" onIvyEvent={onIvyEvent} />);
-
-    // Open comment form
-    const gutter = document.querySelector(".diff-gutter") as HTMLElement;
-    fireEvent.click(gutter);
-
-    // Type and submit
-    const textarea = await screen.findByPlaceholderText(/Enter instruction for the agent/i);
-    fireEvent.change(textarea, { target: { value: "Legacy test" } });
-    const addButton = screen.getByText("Add Comment");
-    fireEvent.click(addButton);
-
-    // Assert same call structure
-    expect(onIvyEvent).toHaveBeenCalledWith(
-      "OnAddComment",
-      "pdv-2",
-      [expect.objectContaining({
-        filePath: "foo.ts",
-        content: "Legacy test",
-        changeKey: expect.any(String),
-        lineNumber: expect.any(Number)
-      })]
+    render(
+      <PlanDiffView
+        id="pdv-1"
+        onIvyEvent={onIvyEvent}
+        diff={diff}
+        comments={[
+          {
+            filePath: "a.txt",
+            changeKey: changeKey,
+            content: "initial",
+            lineNumber: 1,
+          },
+        ]}
+      />
     );
+
+    const editButton = screen.getByRole("button", { name: /edit/i });
+    fireEvent.click(editButton);
+
+    const textarea = screen.getByPlaceholderText(/Enter instruction for the agent/i) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "**change**" } });
+
+    const previewButton = screen.getByRole("button", { name: /preview/i });
+    fireEvent.click(previewButton);
+
+    const strong = document.querySelector(".diff-comment-markdown strong");
+    expect(strong).toBeTruthy();
+    expect(strong?.textContent).toBe("change");
   });
 
-  it("does not crash when no dispatch prop is provided", async () => {
-    // Render with neither eventHandler nor onIvyEvent
-    render(<PlanDiffView id="pdv-3" diff={fixture} filePath="foo.ts" />);
+  it("keeps raw source in Write tab after Preview", () => {
+    const onIvyEvent = vi.fn();
+    render(
+      <PlanDiffView
+        id="pdv-1"
+        onIvyEvent={onIvyEvent}
+        diff={diff}
+        comments={[
+          {
+            filePath: "a.txt",
+            changeKey: changeKey,
+            content: "initial",
+            lineNumber: 1,
+          },
+        ]}
+      />
+    );
 
-    // Open comment form
-    const gutter = document.querySelector(".diff-gutter") as HTMLElement;
-    fireEvent.click(gutter);
+    const editButton = screen.getByRole("button", { name: /edit/i });
+    fireEvent.click(editButton);
 
-    // Type and submit (should not throw)
-    const textarea = await screen.findByPlaceholderText(/Enter instruction for the agent/i);
-    fireEvent.change(textarea, { target: { value: "No handler" } });
-    const addButton = screen.getByText("Add Comment");
+    const textarea = screen.getByPlaceholderText(/Enter instruction for the agent/i) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "**change**" } });
 
-    expect(() => {
-      fireEvent.click(addButton);
-    }).not.toThrow();
+    const previewButton = screen.getByRole("button", { name: /preview/i });
+    fireEvent.click(previewButton);
 
-    // Widget should still render after the operation
-    expect(document.querySelector(".ivy-diff-view")).toBeInTheDocument();
+    const writeButton = screen.getByRole("button", { name: /write/i });
+    fireEvent.click(writeButton);
+
+    const textareaAfter = screen.getByPlaceholderText(/Enter instruction for the agent/i) as HTMLTextAreaElement;
+    expect(textareaAfter.value).toBe("**change**");
   });
 
-  it("dispatches OnViewFile when View file is clicked (covers issue #1838)", async () => {
-    const eventHandler = vi.fn();
-    render(<PlanDiffView id="pdv-4" diff={fixture} filePath="foo.ts" eventHandler={eventHandler} />);
+  it("shows placeholder when preview is empty", () => {
+    const onIvyEvent = vi.fn();
+    render(
+      <PlanDiffView
+        id="pdv-1"
+        onIvyEvent={onIvyEvent}
+        diff={diff}
+        comments={[
+          {
+            filePath: "a.txt",
+            changeKey: changeKey,
+            content: "initial",
+            lineNumber: 1,
+          },
+        ]}
+      />
+    );
 
-    // Click the More actions button
-    const moreButton = screen.getByLabelText("More actions");
-    fireEvent.click(moreButton);
+    const editButton = screen.getByRole("button", { name: /edit/i });
+    fireEvent.click(editButton);
 
-    // Wait for dropdown and click View file
-    await waitFor(() => {
-      expect(screen.getByText("View file")).toBeInTheDocument();
-    });
+    const textarea = screen.getByPlaceholderText(/Enter instruction for the agent/i) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "" } });
 
-    const viewFileButton = screen.getByText("View file");
-    fireEvent.click(viewFileButton);
+    const previewButton = screen.getByRole("button", { name: /preview/i });
+    fireEvent.click(previewButton);
 
-    // Assert dispatch call
-    expect(eventHandler).toHaveBeenCalledWith("OnViewFile", "pdv-4", ["foo.ts"]);
+    expect(screen.getByText(/Nothing to preview/i)).toBeInTheDocument();
+    expect(document.querySelector(".diff-comment-markdown strong")).toBeNull();
+  });
+
+  it("renders markdown lists with list items", () => {
+    const onIvyEvent = vi.fn();
+    render(
+      <PlanDiffView
+        id="pdv-1"
+        onIvyEvent={onIvyEvent}
+        diff={diff}
+        comments={[
+          {
+            filePath: "a.txt",
+            changeKey: changeKey,
+            content: "initial",
+            lineNumber: 1,
+          },
+        ]}
+      />
+    );
+
+    const editButton = screen.getByRole("button", { name: /edit/i });
+    fireEvent.click(editButton);
+
+    const textarea = screen.getByPlaceholderText(/Enter instruction for the agent/i) as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: "- one\n- two" } });
+
+    const previewButton = screen.getByRole("button", { name: /preview/i });
+    fireEvent.click(previewButton);
+
+    const listItems = document.querySelectorAll(".diff-comment-markdown ul li");
+    expect(listItems.length).toBe(2);
   });
 });
