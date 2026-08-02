@@ -73,7 +73,7 @@ describe("ContentInput", () => {
     });
 
     const onIvyEvent = vi.fn();
-    render(<ContentInput id="civ-1" value="" onIvyEvent={onIvyEvent} transcriptionEndpoint="ws://test" />);
+    render(<ContentInput id="civ-1" value="" onIvyEvent={onIvyEvent} transcriptionUrl="ws://test" />);
 
     const micButton = screen.getByTitle("Voice input transcription");
     fireEvent.click(micButton);
@@ -94,7 +94,7 @@ describe("ContentInput", () => {
     const mockWebSocket = vi.fn();
     vi.stubGlobal("WebSocket", mockWebSocket);
 
-    render(<ContentInput id="civ-1" value="" transcriptionEndpoint="ws://test" />);
+    render(<ContentInput id="civ-1" value="" transcriptionUrl="ws://test" />);
 
     const micButton = screen.getByTitle("Voice input transcription");
     fireEvent.click(micButton);
@@ -110,7 +110,7 @@ describe("ContentInput", () => {
       value: undefined,
     });
 
-    render(<ContentInput id="civ-1" value="" transcriptionEndpoint="ws://test" />);
+    render(<ContentInput id="civ-1" value="" transcriptionUrl="ws://test" />);
 
     const micButton = screen.getByTitle("Voice input transcription");
     fireEvent.click(micButton);
@@ -129,7 +129,7 @@ describe("ContentInput", () => {
       },
     });
 
-    render(<ContentInput id="civ-1" value="" transcriptionEndpoint="ws://test" />);
+    render(<ContentInput id="civ-1" value="" transcriptionUrl="ws://test" />);
 
     const micButton = screen.getByTitle("Voice input transcription");
     fireEvent.click(micButton);
