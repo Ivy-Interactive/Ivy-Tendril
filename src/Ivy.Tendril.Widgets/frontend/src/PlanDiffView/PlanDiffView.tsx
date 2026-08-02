@@ -2,6 +2,8 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from "react"
 import { parseDiff, Diff, Hunk, getChangeKey, type ChangeData, type HunkData } from "react-diff-view";
 import "react-diff-view/style/index.css";
 import "./plan-diff.css";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 type IvyEventHandler = (eventName: string, widgetId: string, args: any[]) => void;
 import { getWidth, getHeight } from "../styles";
 import { Eye, Pencil, Trash2, MoreHorizontal, MessageSquare } from "lucide-react";
@@ -145,8 +147,8 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
                   </button>
                 </div>
               </div>
-              <div className="whitespace-pre-wrap leading-relaxed text-[11px] text-[var(--foreground)] mt-1">
-                {comment.content}
+              <div className="diff-comment-markdown leading-relaxed text-[11px] text-[var(--foreground)] mt-1">
+                <Markdown remarkPlugins={[remarkGfm]}>{comment.content}</Markdown>
               </div>
             </div>
           ))}
@@ -199,8 +201,12 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
                 autoFocus
               />
             ) : (
-              <div className="w-full min-h-[80px] p-2 text-[11px] bg-[var(--muted)] border border-[var(--border)] rounded overflow-auto whitespace-pre-wrap">
-                {(isEditing ? editingText : inputText) || <span className="text-[var(--muted-foreground)] italic">Nothing to preview</span>}
+              <div className="diff-comment-markdown w-full min-h-[80px] p-2 text-[11px] bg-[var(--muted)] border border-[var(--border)] rounded overflow-auto">
+                {(isEditing ? editingText : inputText)?.trim() ? (
+                  <Markdown remarkPlugins={[remarkGfm]}>{isEditing ? editingText : inputText}</Markdown>
+                ) : (
+                  <span className="text-[var(--muted-foreground)] italic">Nothing to preview</span>
+                )}
               </div>
             )}
 
