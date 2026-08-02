@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { parseDiff, getChangeKey } from "react-diff-view";
 
-import PlanDiffView from "./PlanDiffView";
+import { PlanDiffView } from "./PlanDiffView";
 
 describe("PlanDiffView", () => {
   const diff = [
