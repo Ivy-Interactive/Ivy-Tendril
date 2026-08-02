@@ -39,15 +39,26 @@ public class ChatApp : ViewBase
         var streamingText = UseState("");
         var liveSessionStreams = UseState(new Dictionary<string, string>());
         var activeSessionRef = UseRef<IAgentSession?>(null);
-        var runningSessionIds = UseState(new HashSet<string>());
+        var runningSessionIds = UseState(() => new HashSet<string>(chatService.GetGeneratingSessionIds()));
         var messageQueue = UseRef(new ConcurrentQueue<ChatSendMessageDto>());
         var initialHandled = UseRef(false);
 
         UseEffect(() =>
         {
             void OnSessionsChanged(object? sender, EventArgs e) => sessionVersion.Set(v => v + 1);
+            void OnGeneratingSessionsChanged(object? sender, EventArgs e)
+            {
+                sessionVersion.Set(v => v + 1);
+                runningSessionIds.Set(new HashSet<string>(chatService.GetGeneratingSessionIds()));
+            }
+
             chatService.SessionsChanged += OnSessionsChanged;
-            return Disposable.Create(() => chatService.SessionsChanged -= OnSessionsChanged);
+            chatService.GeneratingSessionsChanged += OnGeneratingSessionsChanged;
+            return Disposable.Create(() =>
+            {
+                chatService.SessionsChanged -= OnSessionsChanged;
+                chatService.GeneratingSessionsChanged -= OnGeneratingSessionsChanged;
+            });
         });
 
         // Map sessions to DTOs - force re-evaluation when sessionVersion changes
@@ -134,6 +145,7 @@ public class ChatApp : ViewBase
             var runningSet = new HashSet<string>(runningSessionIds.Value) { targetSessionId };
             runningSessionIds.Set(runningSet);
             streamingSessionId.Set(targetSessionId);
+            chatService.SetSessionGenerating(targetSessionId, true);
 
             // Save attachments to disk
             var attachedFilePaths = new List<string>();
@@ -283,6 +295,7 @@ public class ChatApp : ViewBase
                 var finishedSet = new HashSet<string>(runningSessionIds.Value);
                 finishedSet.Remove(targetSessionId);
                 runningSessionIds.Set(finishedSet);
+                chatService.SetSessionGenerating(targetSessionId, false);
 
                 var map = new Dictionary<string, string>(liveSessionStreams.Value);
                 map.Remove(targetSessionId);

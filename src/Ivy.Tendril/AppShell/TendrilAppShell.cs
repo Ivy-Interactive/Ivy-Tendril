@@ -102,7 +102,10 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             ["jobs"] = status.JobCount,
             ["icebox"] = status.IceboxCount,
             ["recommendations"] = status.RecommendationsCount,
-            ["trash"] = status.TrashCount
+            ["trash"] = status.TrashCount,
+            ["chat"] = status.GeneratingChatSessionsCount,
+            ["chat-app"] = status.GeneratingChatSessionsCount,
+            ["agent"] = status.GeneratingChatSessionsCount
         };
         var agentId = config.Settings.CodingAgent;
         return repo.GetMenuItems()

@@ -26,6 +26,7 @@ public record ChatSessionModel(
 public interface IChatHistoryService
 {
     event EventHandler? SessionsChanged;
+    event EventHandler? GeneratingSessionsChanged;
     IReadOnlyList<ChatSessionModel> GetSessions();
     ChatSessionModel? GetSession(string id);
     ChatSessionModel CreateSession(string agentId, string modelId, string? title = null);
@@ -33,4 +34,6 @@ public interface IChatHistoryService
     void DeleteSession(string id);
     void RenameSession(string id, string newTitle);
     ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null);
+    void SetSessionGenerating(string sessionId, bool isGenerating);
+    IReadOnlySet<string> GetGeneratingSessionIds();
 }
