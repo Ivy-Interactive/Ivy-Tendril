@@ -22,7 +22,9 @@ interface PlanDiffViewProps {
   id: string;
   width?: string;
   height?: string;
-  onIvyEvent: IvyEventHandler;
+  eventHandler?: IvyEventHandler;
+  /** Legacy/test alias for eventHandler. */
+  onIvyEvent?: IvyEventHandler;
   events?: string[];
   diff?: string;
   viewType?: "Unified" | "Split";
@@ -251,6 +253,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
   id,
   width,
   height,
+  eventHandler,
   onIvyEvent,
   diff,
   viewType = "Unified",
@@ -262,6 +265,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
   comments = [],
   filePath = "",
 }) => {
+  const dispatchEvent = eventHandler ?? onIvyEvent;
   const files = useMemo(() => {
     if (!diff) return [];
     try {
@@ -307,7 +311,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
   }, [comments]);
 
   const handleAddComment = (changeKey: string, content: string, lineNumber: number) => {
-    onIvyEvent("OnAddComment", id, [{
+    dispatchEvent?.("OnAddComment", id, [{
       filePath,
       changeKey,
       content,
@@ -316,7 +320,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
   };
 
   const handleUpdateComment = (changeKey: string, content: string, lineNumber: number) => {
-    onIvyEvent("OnUpdateComment", id, [{
+    dispatchEvent?.("OnUpdateComment", id, [{
       filePath,
       changeKey,
       content,
@@ -327,7 +331,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
   const handleDeleteComment = (changeKey: string) => {
     const existing = commentsByChangeKey[changeKey]?.[0];
     if (existing) {
-      onIvyEvent("OnDeleteComment", id, [existing]);
+      dispatchEvent?.("OnDeleteComment", id, [existing]);
     }
   };
 
@@ -627,7 +631,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                           className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--muted)] text-[var(--foreground)] text-left cursor-pointer"
                           onClick={() => {
                             setActiveDropdownIndex(null);
-                            onIvyEvent("OnViewFile", id, [filePath]);
+                            dispatchEvent?.("OnViewFile", id, [filePath]);
                           }}
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -638,7 +642,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                           className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--muted)] text-[var(--foreground)] text-left cursor-pointer"
                           onClick={() => {
                             setActiveDropdownIndex(null);
-                            onIvyEvent("OnEditFile", id, [filePath]);
+                            dispatchEvent?.("OnEditFile", id, [filePath]);
                           }}
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -649,7 +653,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                           className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-destructive/10 text-[var(--destructive)] text-left border-t border-[var(--border)] cursor-pointer"
                           onClick={() => {
                             setActiveDropdownIndex(null);
-                            onIvyEvent("OnDeleteFile", id, [filePath]);
+                            dispatchEvent?.("OnDeleteFile", id, [filePath]);
                           }}
                         >
                           <Trash2 className="w-3.5 h-3.5 text-[var(--destructive)]" />
