@@ -7,6 +7,7 @@ using Ivy;
 using Ivy.Tendril.Apps.Memory.Dialogs;
 using Ivy.Tendril.Apps.Memory.Views;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Memory;
 
 namespace Ivy.Tendril.Apps.Memory;
@@ -22,10 +23,17 @@ public class MemoryApp : ViewBase
 {
     public override object Build()
     {
+        var config = UseService<IConfigService>();
         var memoryService = UseService<IMemoryService>();
         var client = UseService<IClientProvider>();
 
+        var projects = config.Settings.Projects;
+        var configuredPromptwares = config.Settings.Promptwares;
+
         var viewMode = UseState(MemoryViewMode.FileBased);
+        var selectedProject = UseState<string?>(() => projects.FirstOrDefault()?.Name);
+        var selectedFolderPath = UseState<string?>(() => null);
+        var selectedFolderName = UseState<string?>(() => "Workspace");
 
         var selectedFile = UseState<string?>(null);
         var selectedNote = UseState<string?>(null);
@@ -93,13 +101,17 @@ public class MemoryApp : ViewBase
 
         void LoadProjectFiles()
         {
+            var targetDir = !string.IsNullOrEmpty(selectedFolderPath.Value) && Directory.Exists(selectedFolderPath.Value)
+                ? selectedFolderPath.Value
+                : workingDir;
+
             isFilesLoading.Set(true);
             try
             {
-                var filesList = Directory.GetFiles(workingDir, "*.*", SearchOption.AllDirectories)
-                    .Select(p => Path.GetRelativePath(workingDir, p).Replace('\\', '/'))
+                var filesList = Directory.GetFiles(targetDir, "*.*", SearchOption.AllDirectories)
+                    .Select(p => Path.GetRelativePath(targetDir, p).Replace('\\', '/'))
                     .Where(p => !p.StartsWith('.') && !p.Contains("/.") && !p.Contains("bin/") && !p.Contains("obj/") && !p.Contains("node_modules/"))
-                    .Take(500)
+                    .Take(1000)
                     .ToList();
                 projectFiles.Set(filesList);
             }
@@ -115,7 +127,7 @@ public class MemoryApp : ViewBase
             LoadStatus();
             LoadProjectFiles();
             return Disposable.Empty;
-        });
+        }, selectedFolderPath);
 
         UseEffect(() =>
         {
@@ -138,27 +150,23 @@ public class MemoryApp : ViewBase
         }
         catch { }
 
-        var projectNames = availableMemories
-            .Select(m => m.ProjectName)
-            .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(p => p)
-            .ToList();
-
-        var projectOptions = projectNames.ToOptions();
-
         var allMemories = string.IsNullOrEmpty(projectFilter.Value)
             ? availableMemories
             : availableMemories.Where(m => string.Equals(m.ProjectName, projectFilter.Value, StringComparison.OrdinalIgnoreCase)).ToList();
 
         var explorerView = new FileExplorerView(
+            projects,
+            configuredPromptwares,
+            selectedProject,
+            selectedFolderPath,
+            selectedFolderName,
             projectFiles.Value,
             allMemories,
             selectedFile,
             searchQuery,
             onlyLinkedFilter,
             projectFilter,
-            projectOptions
+            workingDir
         );
 
         var fileMapView = new FileMemoryMapView(
