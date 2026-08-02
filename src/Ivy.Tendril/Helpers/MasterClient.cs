@@ -145,6 +145,39 @@ public static class MasterClient
         }
     }
 
+    public static (bool Ok, string? Error) TryPostJson(string relativePath, object payload,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var discovery = Discover();
+            using var client = CreateHttpClient(discovery);
+
+            var json = JsonSerializer.Serialize(payload, JsonOptions);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = client
+                .PostAsync($"{discovery.BaseUrl}/{relativePath.TrimStart('/')}", content, cancellationToken)
+                .GetAwaiter().GetResult();
+
+            return response.IsSuccessStatusCode
+                ? (true, null)
+                : (false, $"server returned {(int)response.StatusCode} {response.ReasonPhrase}");
+        }
+        catch (TaskCanceledException)
+        {
+            return (false, $"server did not respond in time ({DefaultTimeout.TotalSeconds:0}s timeout)");
+        }
+        catch (HttpRequestException ex)
+        {
+            return (false, $"failed to connect to the Tendril server: {ex.Message}");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
     public static DiscoveryResult Discover(string? tendrilHome = null)
     {
         tendrilHome ??= Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
