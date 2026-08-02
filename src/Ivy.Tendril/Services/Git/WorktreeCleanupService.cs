@@ -466,28 +466,25 @@ public class WorktreeCleanupService : IStartable, IDisposable
 
             try
             {
-                var psi = new ProcessStartInfo("git", $"worktree remove --force \"{wtDir}\"")
+                try
                 {
-                    WorkingDirectory = repoRoot,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
+                    var stopDaemonPsi = GitHelper.MakeGitStartInfo("fsmonitor--daemon stop", wtDir);
+                    using var stopDaemonProc = Process.Start(stopDaemonPsi);
+                    stopDaemonProc?.WaitForExitOrKill(5000);
+                }
+                catch
+                {
+                    // Best-effort: daemon may not be running, or fsmonitor may be unavailable.
+                }
+
+                var psi = GitHelper.MakeGitStartInfo($"worktree remove --force \"{wtDir}\"", repoRoot);
                 using var process = Process.Start(psi);
                 process.WaitForExitOrKill(10000);
                 lifecycleLogger?.LogCleanupSuccess(planId, wtDir);
 
                 try
                 {
-                    var branchPsi = new ProcessStartInfo("git", $"branch -D \"{branchName}\"")
-                    {
-                        WorkingDirectory = repoRoot,
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
+                    var branchPsi = GitHelper.MakeGitStartInfo($"branch -D \"{branchName}\"", repoRoot);
                     using var branchProcess = Process.Start(branchPsi);
                     branchProcess.WaitForExitOrKill(10000);
                     logger?.LogInformation("Deleted branch {BranchName} for worktree {WorktreeDir}", branchName, Path.GetFileName(wtDir));

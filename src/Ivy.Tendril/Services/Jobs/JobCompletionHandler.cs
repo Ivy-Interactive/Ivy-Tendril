@@ -159,6 +159,10 @@ internal class JobCompletionHandler
                 SetPlanState(job, nameof(PlanStatus.Completed));
                 break;
             case UpdatePlanArgs or ExpandPlanArgs:
+                if (job.TypedArgs is UpdatePlanArgs)
+                {
+                    MoveAttachmentsToPlanFolder(job);
+                }
                 SetPlanState(job, nameof(PlanStatus.Draft));
                 break;
             case SplitPlanArgs:
@@ -665,18 +669,40 @@ internal class JobCompletionHandler
         }
     }
 
+    internal static string? ResolveUploadSessionId(JobArgsBase? args)
+    {
+        return args switch
+        {
+            CreatePlanArgs cp => cp.UploadSessionId,
+            UpdatePlanArgs up => up.UploadSessionId,
+            _ => null
+        };
+    }
+
+    internal static string? ResolveAttachmentPlanFolder(JobItem job, string plansDirectory)
+    {
+        var folder = job.TypedArgs switch
+        {
+            UpdatePlanArgs u => u.FolderPath,
+            _ => !string.IsNullOrEmpty(job.PlanFile) ? Path.Combine(plansDirectory, job.PlanFile) : null
+        };
+
+        return folder != null && Directory.Exists(folder) ? folder : null;
+    }
+
     private void MoveAttachmentsToPlanFolder(JobItem job)
     {
-        if (job.TypedArgs is not CreatePlanArgs cp || string.IsNullOrEmpty(cp.UploadSessionId) || _configService == null || _planReaderService == null)
+        var sessionId = ResolveUploadSessionId(job.TypedArgs);
+        if (string.IsNullOrEmpty(sessionId) || _configService == null || _planReaderService == null)
             return;
 
         try
         {
-            var tempDir = Path.Combine(_configService.TendrilHome, "Attachments", cp.UploadSessionId);
+            var tempDir = Path.Combine(_configService.TendrilHome, "Attachments", sessionId);
             if (!Directory.Exists(tempDir)) return;
 
-            var planFolder = Path.Combine(_planReaderService.PlansDirectory, job.PlanFile);
-            if (!Directory.Exists(planFolder)) return;
+            var planFolder = ResolveAttachmentPlanFolder(job, _planReaderService.PlansDirectory);
+            if (planFolder == null) return;
 
             var attachmentsDir = Path.Combine(planFolder, "Attachments");
             Directory.CreateDirectory(attachmentsDir);

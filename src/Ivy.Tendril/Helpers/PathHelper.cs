@@ -32,8 +32,47 @@ public static class PathHelper
         {
             if (envHome.StartsWith("\"") && envHome.EndsWith("\""))
                 envHome = envHome[1..^1];
-            return envHome;
+
+            if (File.Exists(Path.Combine(envHome, "config.yaml")))
+                return envHome;
         }
+
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                var userEnvHome = Environment.GetEnvironmentVariable("TENDRIL_HOME", EnvironmentVariableTarget.User)?.Trim();
+                if (!string.IsNullOrEmpty(userEnvHome))
+                {
+                    if (userEnvHome.StartsWith("\"") && userEnvHome.EndsWith("\""))
+                        userEnvHome = userEnvHome[1..^1];
+                    if (File.Exists(Path.Combine(userEnvHome, "config.yaml")))
+                    {
+                        Environment.SetEnvironmentVariable("TENDRIL_HOME", userEnvHome);
+                        return userEnvHome;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        try
+        {
+            var pointerFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril_location");
+            if (File.Exists(pointerFile))
+            {
+                var location = File.ReadAllText(pointerFile).Trim();
+                if (!string.IsNullOrEmpty(location) && File.Exists(Path.Combine(location, "config.yaml")))
+                {
+                    Environment.SetEnvironmentVariable("TENDRIL_HOME", location);
+                    return location;
+                }
+            }
+        }
+        catch { }
+
+        if (!string.IsNullOrEmpty(envHome))
+            return envHome;
 
         return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
     }

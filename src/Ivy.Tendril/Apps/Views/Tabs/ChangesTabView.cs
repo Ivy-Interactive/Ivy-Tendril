@@ -110,33 +110,39 @@ public class ChangesTabView(
                 Collapsible = true,
                 DefaultCollapsed = isManyFiles && i >= 5,
                 Comments = draftComments.Value.Where(c => c.FilePath == path).ToList(),
-                OnAddComment = e => {
+                OnAddComment = e =>
+                {
                     var list = new List<DraftComment>(draftComments.Value);
                     list.Add(e.Value);
                     draftComments.Set(list);
                     return ValueTask.CompletedTask;
                 },
-                OnUpdateComment = e => {
+                OnUpdateComment = e =>
+                {
                     var c = e.Value;
                     var list = new List<DraftComment>(draftComments.Value);
                     var idx = list.FindIndex(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
-                    if (idx >= 0) {
+                    if (idx >= 0)
+                    {
                         list[idx] = c;
                         draftComments.Set(list);
                     }
                     return ValueTask.CompletedTask;
                 },
-                OnDeleteComment = e => {
+                OnDeleteComment = e =>
+                {
                     var c = e.Value;
                     var list = new List<DraftComment>(draftComments.Value);
                     list.RemoveAll(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
                     draftComments.Set(list);
                     return ValueTask.CompletedTask;
                 },
-                OnDirectEdit = async e => {
+                OnDirectEdit = async e =>
+                {
                     await HandleDirectEdit(e.Value);
                 },
-                OnViewFile = e => {
+                OnViewFile = e =>
+                {
                     var repoPath = changesData?.SourceRepoPath;
                     if (string.IsNullOrEmpty(repoPath))
                     {
@@ -149,7 +155,8 @@ public class ChangesTabView(
                     }
                     return ValueTask.CompletedTask;
                 },
-                OnEditFile = e => {
+                OnEditFile = e =>
+                {
                     var repoPath = changesData?.SourceRepoPath;
                     if (string.IsNullOrEmpty(repoPath))
                     {
@@ -168,7 +175,8 @@ public class ChangesTabView(
                     }
                     return ValueTask.CompletedTask;
                 },
-                OnDeleteFile = async e => {
+                OnDeleteFile = async e =>
+                {
                     var repoPath = changesData?.SourceRepoPath;
                     if (string.IsNullOrEmpty(repoPath))
                     {
@@ -221,6 +229,12 @@ public class ChangesTabView(
         var toolbar = Layout.Horizontal().AlignContent(Align.Left).Height(Size.Auto())
             | hideFormatting.ToSwitchInput(label: "Hide formatting changes")
             | commitsBtn;
+
+        var totals = PlanContentHelpers.CountDiffLines(fileDiffs);
+        toolbar = toolbar
+            | Layout.Horizontal().Gap(1).Height(Size.Auto())
+                | Text.Block($"+{totals.Additions}").Color(Colors.Success).Small()
+                | Text.Block($"-{totals.Deletions}").Color(Colors.Destructive).Small();
 
         if (hideFormatting.Value && hiddenCount > 0)
             toolbar |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
@@ -314,15 +328,7 @@ public class ChangesTabView(
 
     private static (int ExitCode, string Output) RunGitCommand(string repoPath, string args)
     {
-        var psi = new ProcessStartInfo("git", args)
-        {
-            WorkingDirectory = repoPath,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8
-        };
+        var psi = GitHelper.MakeGitStartInfo(args, repoPath);
         using var process = Process.Start(psi);
         if (process == null)
             return (-1, "");

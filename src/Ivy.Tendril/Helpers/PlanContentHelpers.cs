@@ -91,6 +91,78 @@ public static class PlanContentHelpers
         }
     }
 
+    public record DiffLineCounts(int Additions, int Deletions)
+    {
+        public static readonly DiffLineCounts Empty = new(0, 0);
+        public DiffLineCounts Add(DiffLineCounts other) =>
+            new(Additions + other.Additions, Deletions + other.Deletions);
+    }
+
+    public static DiffLineCounts CountDiffLines(string? diff)
+    {
+        if (string.IsNullOrWhiteSpace(diff))
+            return DiffLineCounts.Empty;
+
+        var lines = diff.Split('\n');
+        var additions = 0;
+        var deletions = 0;
+        var insideHunk = false;
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.TrimEnd('\r');
+
+            // Check for hunk start
+            if (line.StartsWith("@@"))
+            {
+                insideHunk = true;
+                continue;
+            }
+
+            // Check for file headers that close/stay outside hunks
+            if (line.StartsWith("diff --git ") ||
+                line.StartsWith("index ") ||
+                line.StartsWith("similarity index") ||
+                line.StartsWith("rename ") ||
+                line.StartsWith("new file mode") ||
+                line.StartsWith("deleted file mode") ||
+                line.StartsWith("old mode") ||
+                line.StartsWith("new mode") ||
+                line.StartsWith("Binary files "))
+            {
+                insideHunk = false;
+                continue;
+            }
+
+            // --- and +++ lines outside hunks are file headers
+            if (!insideHunk && (line.StartsWith("--- ") || line.StartsWith("+++ ")))
+            {
+                continue;
+            }
+
+            // Only count additions/deletions inside hunks
+            if (insideHunk)
+            {
+                if (line.StartsWith("+"))
+                    additions++;
+                else if (line.StartsWith("-"))
+                    deletions++;
+            }
+        }
+
+        return new DiffLineCounts(additions, deletions);
+    }
+
+    public static DiffLineCounts CountDiffLines(IEnumerable<FileDiff> fileDiffs)
+    {
+        var total = DiffLineCounts.Empty;
+        foreach (var fileDiff in fileDiffs)
+        {
+            total = total.Add(CountDiffLines(fileDiff.Diff));
+        }
+        return total;
+    }
+
     public record CommitDetailData(
         string Title,
         string? Diff,
@@ -207,6 +279,12 @@ public static class PlanContentHelpers
                 // Build AllChangesData to reuse SplitDiffByFile
                 var changesData = new AllChangesData(data.Diff, data.Files, 0, 0, 0);
                 var fileDiffs = SplitDiffByFile(changesData);
+
+                // Add line count totals
+                var totals = CountDiffLines(data.Diff);
+                commitSheetContent |= Layout.Horizontal().Gap(1).Height(Size.Auto())
+                    | Text.Block($"+{totals.Additions}").Color(Colors.Success).Small()
+                    | Text.Block($"-{totals.Deletions}").Color(Colors.Destructive).Small();
 
                 foreach (var fileDiff in fileDiffs)
                 {

@@ -105,7 +105,7 @@ internal static class ServiceRegistration
         {
             var config = sp.GetRequiredService<IConfigService>();
             var home = string.IsNullOrEmpty(config.TendrilHome)
-                ? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), ".tendril")
+                ? Helpers.PathHelper.GetDefaultTendrilHome()
                 : config.TendrilHome;
             return new WorktreeLifecycleLogger(home);
         });
@@ -177,7 +177,8 @@ internal static class ServiceRegistration
             var planWatcher = sp.GetRequiredService<IPlanWatcherService>();
             var config = sp.GetRequiredService<IConfigService>();
             var logger = sp.GetRequiredService<ILogger<TendrilProcessStatusService>>();
-            return new TendrilProcessStatusService(planReader, jobService, planWatcher, config, logger);
+            var chatHistory = sp.GetService<IChatHistoryService>();
+            return new TendrilProcessStatusService(planReader, jobService, planWatcher, config, logger, chatHistory);
         });
         server.Services.AddSingleton<ITendrilProcessStatusService>(sp => sp.GetRequiredService<TendrilProcessStatusService>());
         server.Services.AddSingleton<InboxWatcherService>(sp =>

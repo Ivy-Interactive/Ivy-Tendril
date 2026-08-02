@@ -171,19 +171,14 @@ td.diff-gutter-empty::after {
   content: none !important;
 }
 
-/* Hide empty line number columns in unified view when no deletions or additions exist */
-.diff-unified-view.diff-no-deletions colgroup col:nth-child(1) {
-  display: none;
-}
-.diff-unified-view.diff-no-deletions .diff-row td:nth-child(1) {
-  display: none;
-}
-
+/* Collapse the unused line-number column in unified view.
+   `display` and `visibility` do not work on <col>; `width` does, and with
+   `table-layout: fixed` a zero-width col removes the column entirely.
+   Do NOT also hide the <td>: with a fixed layout that collapses the code
+   column too (measured: code column drops to 47px). */
+.diff-unified-view.diff-no-deletions colgroup col:first-child,
 .diff-unified-view.diff-no-additions colgroup col:nth-child(2) {
-  display: none;
-}
-.diff-unified-view.diff-no-additions .diff-row td:nth-child(2) {
-  display: none;
+  width: 0;
 }
 
 /* Outer layout and widget padding adjustments */
@@ -193,5 +188,155 @@ td.diff-gutter-empty::after {
 
 .ivy-tree {
   padding-bottom: 2.5rem;
+}
+
+/* Markdown rendering in diff comments */
+.diff-comment-markdown p {
+  margin: 0.35rem 0;
+}
+
+.diff-comment-markdown p:first-child {
+  margin-top: 0;
+}
+
+.diff-comment-markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.diff-comment-markdown strong {
+  font-weight: 600;
+}
+
+.diff-comment-markdown em {
+  font-style: italic;
+}
+
+.diff-comment-markdown ul,
+.diff-comment-markdown ol {
+  list-style-type: disc !important;
+  margin: 0.35rem 0 0.35rem 1.1rem;
+}
+
+.diff-comment-markdown ol {
+  list-style-type: decimal !important;
+}
+
+.diff-comment-markdown li {
+  margin: 0.15rem 0;
+}
+
+.diff-comment-markdown h1,
+.diff-comment-markdown h2,
+.diff-comment-markdown h3,
+.diff-comment-markdown h4 {
+  font-weight: 600;
+  margin: 0.5rem 0 0.3rem;
+}
+
+.diff-comment-markdown h1:first-child,
+.diff-comment-markdown h2:first-child,
+.diff-comment-markdown h3:first-child,
+.diff-comment-markdown h4:first-child {
+  margin-top: 0;
+}
+
+.diff-comment-markdown h1 {
+  font-size: 1.25em;
+}
+
+.diff-comment-markdown h2 {
+  font-size: 1.15em;
+}
+
+.diff-comment-markdown h3 {
+  font-size: 1.05em;
+}
+
+.diff-comment-markdown h4 {
+  font-size: 1em;
+}
+
+.diff-comment-markdown code {
+  font-family: var(--font-mono);
+  background: color-mix(in srgb, var(--muted) 60%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 3px;
+  font-size: 0.9em;
+}
+
+.diff-comment-markdown pre {
+  background: color-mix(in srgb, var(--muted) 60%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.5rem;
+  overflow-x: auto;
+  margin: 0.35rem 0;
+}
+
+.diff-comment-markdown pre:first-child {
+  margin-top: 0;
+}
+
+.diff-comment-markdown pre:last-child {
+  margin-bottom: 0;
+}
+
+.diff-comment-markdown pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.diff-comment-markdown a {
+  color: var(--primary);
+  text-decoration: underline;
+  overflow-wrap: break-word;
+}
+
+.diff-comment-markdown blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: 0.5rem;
+  color: var(--muted-foreground);
+  margin: 0.35rem 0;
+}
+
+.diff-comment-markdown blockquote:first-child {
+  margin-top: 0;
+}
+
+.diff-comment-markdown blockquote:last-child {
+  margin-bottom: 0;
+}
+
+.diff-comment-markdown table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.35rem 0;
+}
+
+.diff-comment-markdown table:first-child {
+  margin-top: 0;
+}
+
+.diff-comment-markdown table:last-child {
+  margin-bottom: 0;
+}
+
+.diff-comment-markdown th,
+.diff-comment-markdown td {
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+}
+
+.diff-comment-markdown th {
+  font-weight: 600;
+  background: color-mix(in srgb, var(--muted) 40%, transparent);
+}
+
+.diff-comment-markdown img {
+  max-width: 100%;
+  height: auto;
 }
 

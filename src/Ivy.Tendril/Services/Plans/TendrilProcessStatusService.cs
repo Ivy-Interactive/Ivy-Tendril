@@ -12,6 +12,7 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
     private readonly IPlanWatcherService _planWatcher;
     private readonly IConfigService _config;
     private readonly ILogger<TendrilProcessStatusService> _logger;
+    private readonly IChatHistoryService? _chatHistoryService;
     private readonly FileSystemWatcher? _trashWatcher;
     private readonly System.Timers.Timer _debounceTimer;
 
@@ -20,13 +21,15 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
         IJobService jobService,
         IPlanWatcherService planWatcher,
         IConfigService config,
-        ILogger<TendrilProcessStatusService> logger)
+        ILogger<TendrilProcessStatusService> logger,
+        IChatHistoryService? chatHistoryService = null)
     {
         _planReaderService = planReaderService;
         _jobService = jobService;
         _planWatcher = planWatcher;
         _config = config;
         _logger = logger;
+        _chatHistoryService = chatHistoryService;
 
         _subject = new BehaviorSubject<TendrilProcessStatus>(Compute());
 
@@ -36,6 +39,12 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
         _planWatcher.PlansChanged += OnPlansChanged;
         _jobService.JobsStructureChanged += OnSourceChanged;
         _planReaderService.CountsInvalidated += OnCountsInvalidated;
+
+        if (_chatHistoryService != null)
+        {
+            _chatHistoryService.GeneratingSessionsChanged += OnChatHistoryChanged;
+            _chatHistoryService.SessionsChanged += OnChatHistoryChanged;
+        }
 
         if (!string.IsNullOrEmpty(config.TendrilHome))
         {
@@ -64,6 +73,8 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
     }
 
     private void OnPlansChanged(string? _) => OnSourceChanged();
+
+    private void OnChatHistoryChanged(object? sender, EventArgs e) => OnSourceChanged();
 
     private void OnCountsInvalidated() => ScheduleRefresh();
 
@@ -147,6 +158,8 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
                 trashCount = Directory.GetFiles(trashDir, "*.md").Length;
         }
 
+        var generatingChatCount = _chatHistoryService?.GetGeneratingSessionIds().Count ?? 0;
+
         return new TendrilProcessStatus
         {
             DraftCount = Math.Max(0, snapshot.Drafts - prematureDrafts),
@@ -159,7 +172,8 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
             ExecutingPlansCount = executingCount,
             RetryingPlansCount = retryingCount,
             CreatingPrCount = creatingPrCount,
-            RecommendationsCount = snapshot.PendingRecommendations
+            RecommendationsCount = snapshot.PendingRecommendations,
+            GeneratingChatSessionsCount = generatingChatCount
         };
     }
 
@@ -168,6 +182,11 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
         _planWatcher.PlansChanged -= OnPlansChanged;
         _jobService.JobsStructureChanged -= OnSourceChanged;
         _planReaderService.CountsInvalidated -= OnCountsInvalidated;
+        if (_chatHistoryService != null)
+        {
+            _chatHistoryService.GeneratingSessionsChanged -= OnChatHistoryChanged;
+            _chatHistoryService.SessionsChanged -= OnChatHistoryChanged;
+        }
         _trashWatcher?.Dispose();
         _debounceTimer.Dispose();
         _subject.Dispose();

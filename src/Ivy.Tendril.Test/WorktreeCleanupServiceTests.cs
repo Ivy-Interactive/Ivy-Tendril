@@ -643,6 +643,25 @@ public class WorktreeCleanupServiceTests : IDisposable
         Assert.Null(WorktreeCleanupService.ResolveGrace("Blocked", terminal, stale));
     }
 
+    [Fact]
+    public void RemoveWorktrees_StopsFsmonitorDaemonBeforeDeletingDirectory()
+    {
+        var dir = CreatePlan("20000-FsmonitorStop", "Failed", DateTime.UtcNow.AddHours(-2));
+        var worktreeDir = Path.Combine(dir, "Worktrees", "TestRepo");
+        Directory.CreateDirectory(worktreeDir);
+        File.WriteAllText(Path.Combine(worktreeDir, "file.txt"), "test");
+
+        var logEntries = new List<string>();
+        var logger = new CapturingLogger(logEntries);
+
+        // RemoveWorktrees should attempt to stop the daemon before deleting
+        // Since there's no actual daemon running, the stop command will fail gracefully
+        // The important part is that the worktree is still cleaned up successfully
+        WorktreeCleanupService.RemoveWorktrees(dir, logger);
+
+        Assert.False(Directory.Exists(worktreeDir), "Worktree should be cleaned up even if daemon stop fails");
+    }
+
     private class LoggerAdapter(ILogger inner) : ILogger<WorktreeCleanupService>
     {
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull

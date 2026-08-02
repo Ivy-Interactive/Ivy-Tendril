@@ -318,6 +318,8 @@
   user-select: none;
   font-size: 14px;
   outline: none;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .aov-tool-chevron {
@@ -360,6 +362,8 @@
 .aov-tool-name {
   color: var(--aov-accent);
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .aov-tool-preview {
@@ -372,7 +376,7 @@
 }
 
 .aov-tool-body {
-  padding: 4px 0 4px 37px;
+  padding: 4px 0 4px 18px;
   animation: aov-tool-expand 0.2s ease-out both;
 }
 
@@ -385,6 +389,40 @@
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* ─── Tool use group (collapsed by default) ────────────────────────────────── */
+.aov-tool-group {
+  position: relative;
+  font-family: var(--aov-mono);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.aov-tool-group:hover {
+  background: color-mix(in srgb, var(--muted-foreground) 4%, var(--aov-bg-elev));
+}
+
+.aov-tool-group.open {
+  background: color-mix(in srgb, var(--muted-foreground) 4%, var(--aov-bg-elev));
+}
+
+.aov-tool-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+  cursor: pointer;
+  user-select: none;
+  font-size: 14px;
+  outline: none;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.aov-tool-group-body {
+  padding: 4px 0 4px 18px;
+  animation: aov-tool-expand 0.2s ease-out both;
 }
 
 .aov-tool-section {
