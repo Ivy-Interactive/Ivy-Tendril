@@ -35,6 +35,40 @@ public static class PathHelper
             return envHome;
         }
 
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                var userEnvHome = Environment.GetEnvironmentVariable("TENDRIL_HOME", EnvironmentVariableTarget.User)?.Trim();
+                if (!string.IsNullOrEmpty(userEnvHome))
+                {
+                    if (userEnvHome.StartsWith("\"") && userEnvHome.EndsWith("\""))
+                        userEnvHome = userEnvHome[1..^1];
+                    if (File.Exists(Path.Combine(userEnvHome, "config.yaml")))
+                    {
+                        Environment.SetEnvironmentVariable("TENDRIL_HOME", userEnvHome);
+                        return userEnvHome;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        try
+        {
+            var pointerFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril_location");
+            if (File.Exists(pointerFile))
+            {
+                var location = File.ReadAllText(pointerFile).Trim();
+                if (!string.IsNullOrEmpty(location) && File.Exists(Path.Combine(location, "config.yaml")))
+                {
+                    Environment.SetEnvironmentVariable("TENDRIL_HOME", location);
+                    return location;
+                }
+            }
+        }
+        catch { }
+
         return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
     }
 

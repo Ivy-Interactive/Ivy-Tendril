@@ -66,6 +66,16 @@ public class OnboardingSetupService(IConfigService config, IAgentRunner agentRun
 
         try
         {
+            var pointerFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril_location");
+            await FileHelper.WriteAllTextAsync(pointerFile, tendrilHome);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to write .tendril_location pointer file");
+        }
+
+        try
+        {
             if (OperatingSystem.IsWindows())
             {
                 Environment.SetEnvironmentVariable("TENDRIL_HOME", tendrilHome, EnvironmentVariableTarget.User);
