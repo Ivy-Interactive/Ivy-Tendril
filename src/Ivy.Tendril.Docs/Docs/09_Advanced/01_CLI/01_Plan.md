@@ -24,7 +24,7 @@ searchHints:
 # plan
 
 <Ingress>
-Create, read, update, and validate plans from the terminal. All subcommands resolve the plan folder from `TENDRIL_PLANS` (or `TENDRIL_HOME/Plans`).
+Create, read, update, and validate plans from the terminal. All subcommands resolve the plan folder from `TENDRIL_PLANS`, `TENDRIL_HOME/Plans`, or `~/.tendril/Plans` when environment variables are unset.
 </Ingress>
 
 ## CRUD
@@ -59,12 +59,13 @@ Lists plans with optional filters.
 | Option | Effect |
 |--------|--------|
 | `--state <state>` | Filter by state (e.g. `Draft`, `Executing`, `Failed`) |
-| `--project <name>` | Filter by project name |
+| `--project <name>` | Filter by project name (validated against configured projects) |
 | `--level <level>` | Filter by level (e.g. `Bug`, `Feature`, `Epic`) |
 | `--has-pr` | Only plans that have associated PRs |
 | `--has-worktree` | Only plans that have worktrees |
 | `--limit <n>` | Maximum number of results |
 | `--format <fmt>` | Output format: `table` (default), `ids`, `folders`, `json` |
+| `--plans-dir <path>` | Override plans directory path |
 
 ```terminal
 >tendril plan list --state Draft
@@ -72,6 +73,11 @@ Lists plans with optional filters.
 >tendril plan list --state Failed --format ids
 >tendril plan list --format json --limit 10
 ```
+
+<Callout type="Info">
+`plan list` shows plans (from `plan.yaml` files), not jobs. For job history and execution status, use `job list` instead (see [Other Commands](05_Other.md#job-list)).
+
+</Callout>
 
 #### plan get
 
