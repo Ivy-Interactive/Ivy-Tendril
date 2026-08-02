@@ -399,25 +399,75 @@ public class MemoryService : IMemoryService
     private static List<MemoryNote> LoadAllNotes(string memoriesDir, string workspaceDir, string? projectName)
     {
         var list = new List<MemoryNote>();
-        if (!Directory.Exists(memoriesDir)) return list;
+        var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        var files = Directory.GetFiles(memoriesDir, "*.md", SearchOption.AllDirectories);
-        foreach (var file in files)
+        void ScanDirectory(string dir, string defaultProject)
         {
-            var name = Path.GetFileNameWithoutExtension(file);
-            if (name.StartsWith(".")) continue;
-
-            var raw = File.ReadAllText(file);
-            var (frontmatter, body) = SplitFrontmatterAndBody(raw);
-
-            list.Add(new MemoryNote
+            if (!Directory.Exists(dir)) return;
+            try
             {
-                Name = name,
-                Path = file,
-                ProjectName = projectName ?? "global",
-                Frontmatter = frontmatter ?? new MemoryFrontmatter { Title = name },
-                Content = body
-            });
+                var files = Directory.GetFiles(dir, "*.md", SearchOption.AllDirectories);
+                foreach (var file in files)
+                {
+                    if (!seenPaths.Add(file)) continue;
+                    var name = Path.GetFileNameWithoutExtension(file);
+                    if (name.StartsWith(".")) continue;
+
+                    var raw = File.ReadAllText(file);
+                    var (frontmatter, body) = SplitFrontmatterAndBody(raw);
+
+                    list.Add(new MemoryNote
+                    {
+                        Name = name,
+                        Path = file,
+                        ProjectName = defaultProject,
+                        Frontmatter = frontmatter ?? new MemoryFrontmatter { Title = name },
+                        Content = body
+                    });
+                }
+            }
+            catch
+            {
+                // Ignore directory scan errors
+            }
+        }
+
+        // 1. Primary workspace vault directory (.brainwares)
+        ScanDirectory(memoriesDir, projectName ?? "workspace");
+
+        // 2. Promptware memories in TENDRIL_HOME/Promptwares/*/Memory
+        var tendrilHome = ResolveTendrilHome();
+        var promptwaresDir = Path.Combine(tendrilHome, "Promptwares");
+        if (Directory.Exists(promptwaresDir))
+        {
+            foreach (var pwDir in Directory.GetDirectories(promptwaresDir))
+            {
+                var pwName = Path.GetFileName(pwDir);
+                var memFolder = Path.Combine(pwDir, "Memory");
+                ScanDirectory(memFolder, pwName);
+            }
+            ScanDirectory(Path.Combine(promptwaresDir, "memories"), "global");
+        }
+
+        // 3. Built-in Promptwares directory
+        var baseAppDir = AppDomain.CurrentDomain.BaseDirectory;
+        var builtinPwDirs = new[]
+        {
+            Path.Combine(baseAppDir, "Promptwares"),
+            Path.Combine(workspaceDir, "src", "Ivy.Tendril", "Promptwares"),
+            Path.Combine(workspaceDir, "Promptwares")
+        };
+
+        foreach (var builtinDir in builtinPwDirs)
+        {
+            if (!Directory.Exists(builtinDir)) continue;
+            foreach (var pwDir in Directory.GetDirectories(builtinDir))
+            {
+                var pwName = Path.GetFileName(pwDir);
+                if (pwName.Equals("memories", StringComparison.OrdinalIgnoreCase)) continue;
+                var memFolder = Path.Combine(pwDir, "Memory");
+                ScanDirectory(memFolder, pwName);
+            }
         }
 
         return list.OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase).ToList();

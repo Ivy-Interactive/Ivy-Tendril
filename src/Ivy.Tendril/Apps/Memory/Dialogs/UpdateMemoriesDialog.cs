@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Ivy;
 
-namespace Ivy.Tendril.Apps.Library.Dialogs;
+namespace Ivy.Tendril.Apps.Memory.Dialogs;
 
 public class UpdateMemoriesDialog(
     IState<bool> isOpen,

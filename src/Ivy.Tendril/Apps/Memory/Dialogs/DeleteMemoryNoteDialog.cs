@@ -1,7 +1,8 @@
+using System;
 using Ivy;
 using Ivy.Tendril.Services.Memory;
 
-namespace Ivy.Tendril.Apps.Library.Dialogs;
+namespace Ivy.Tendril.Apps.Memory.Dialogs;
 
 public class DeleteMemoryNoteDialog(
     IState<bool> isOpen,

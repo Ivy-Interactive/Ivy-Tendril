@@ -1,7 +1,7 @@
 using System;
 using Ivy;
 
-namespace Ivy.Tendril.Apps.Library.Dialogs;
+namespace Ivy.Tendril.Apps.Memory.Dialogs;
 
 public class AiEditMemoryDialog(
     IState<bool> isOpen,

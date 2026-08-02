@@ -4,25 +4,30 @@ using System.IO;
 using System.Linq;
 using System.Reactive.Disposables;
 using Ivy;
-using Ivy.Tendril.Apps.Library.Dialogs;
-using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Apps.Memory.Dialogs;
+using Ivy.Tendril.Apps.Memory.Views;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Memory;
 
-namespace Ivy.Tendril.Apps.Library;
+namespace Ivy.Tendril.Apps.Memory;
 
-[App(title: "Library", icon: Icons.BookOpen, group: ["Memory"], order: Constants.Library)]
-public class LibraryApp : ViewBase
+public enum MemoryViewMode
 {
-    public LibraryApp()
-    {
-    }
+    FileBased,
+    NodeBased
+}
 
+[App(title: "Memory", icon: Icons.Brain, group: ["Apps"], order: Constants.Memory)]
+public class MemoryApp : ViewBase
+{
     public override object Build()
     {
         var memoryService = UseService<IMemoryService>();
         var client = UseService<IClientProvider>();
 
+        var viewMode = UseState(MemoryViewMode.FileBased);
+
+        var selectedFile = UseState<string?>(null);
         var selectedNote = UseState<string?>(null);
         var vaultStatus = UseState<VaultStatusInfo?>(null);
         var isLoading = UseState(true);
@@ -32,19 +37,18 @@ public class LibraryApp : ViewBase
         var operationLogs = UseState("");
         var searchQuery = UseState("");
         var projectFilter = UseState<string?>(null);
+        var onlyLinkedFilter = UseState(false);
 
         var isNewNoteOpen = UseState(false);
         var isDeleteOpen = UseState(false);
         var isUpdateMemoriesOpen = UseState(false);
         var isAiEditOpen = UseState(false);
-        var isGraphView = UseState(false);
+        var isLinkFileOpen = UseState(false);
 
         var projectFiles = UseState(new List<string>());
         var isFilesLoading = UseState(false);
 
         var workingDir = Directory.GetCurrentDirectory();
-        var vaultPath = memoryService.ResolveVaultPath(workingDir);
-        var memoriesDir = Path.Combine(vaultPath, "memories");
 
         void LoadStatus()
         {
@@ -94,8 +98,8 @@ public class LibraryApp : ViewBase
             {
                 var filesList = Directory.GetFiles(workingDir, "*.*", SearchOption.AllDirectories)
                     .Select(p => Path.GetRelativePath(workingDir, p).Replace('\\', '/'))
-                    .Where(p => !p.StartsWith('.') && !p.Contains("/.") && !p.Contains("bin/") && !p.Contains("obj/"))
-                    .Take(200)
+                    .Where(p => !p.StartsWith('.') && !p.Contains("/.") && !p.Contains("bin/") && !p.Contains("obj/") && !p.Contains("node_modules/"))
+                    .Take(500)
                     .ToList();
                 projectFiles.Set(filesList);
             }
@@ -109,6 +113,7 @@ public class LibraryApp : ViewBase
         UseEffect(() =>
         {
             LoadStatus();
+            LoadProjectFiles();
             return Disposable.Empty;
         });
 
@@ -126,89 +131,116 @@ public class LibraryApp : ViewBase
             return Disposable.Empty;
         }, selectedNote);
 
-        var header = Layout.Vertical().Gap(1)
-            | Text.H1("Library").Bold()
-            | Text.Muted("Obsidian-style codebase memory index and verification stats");
-
-        var files = new List<string>();
+        var availableMemories = new List<MemoryNote>();
         try
         {
-            var memories = memoryService.ListMemories(workingDir, projectFilter.Value);
-            files = memories.Select(m => m.Name).ToList();
+            availableMemories = memoryService.ListMemories(workingDir).ToList();
         }
         catch { }
 
-        var mainContentView = new ContentView(
+        var projectNames = availableMemories
+            .Select(m => m.ProjectName)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(p => p)
+            .ToList();
+
+        var projectOptions = projectNames.ToOptions();
+
+        var allMemories = string.IsNullOrEmpty(projectFilter.Value)
+            ? availableMemories
+            : availableMemories.Where(m => string.Equals(m.ProjectName, projectFilter.Value, StringComparison.OrdinalIgnoreCase)).ToList();
+
+        var explorerView = new FileExplorerView(
+            projectFiles.Value,
+            allMemories,
+            selectedFile,
+            searchQuery,
+            onlyLinkedFilter,
+            projectFilter,
+            projectOptions
+        );
+
+        var fileMapView = new FileMemoryMapView(
+            selectedFile,
             selectedNote,
+            allMemories,
             vaultStatus.Value,
-            isLoading,
             isEditing,
             editContent,
-            isOperationRunning,
-            operationLogs,
-            vaultPath,
-            memoriesDir,
-            "Promptwares",
-            null,
             LoadStatus,
-            (cmd, title) => { },
             SyncAllHashes,
             client,
             isDeleteOpen,
-            header,
+            isAiEditOpen,
+            isLinkFileOpen,
             workingDir,
-            isUpdateMemoriesOpen,
-            LoadProjectFiles,
-            isGraphView,
-            files,
-            () => isAiEditOpen.Set(true),
             memoryService
         );
 
-        var sidebarView = new SidebarView(
-            files,
-            selectedNote,
-            searchQuery,
-            projectFilter,
-            isNewNoteOpen,
-            vaultStatus.Value
-        );
-
-        var body = new SidebarLayout(
-            mainContentView,
-            sidebarView
+        var fileBasedView = new SidebarLayout(
+            fileMapView,
+            explorerView
         ).SidebarContentScroll(Scroll.None);
 
-        var elements = new List<object> { body };
+        var nodeBasedView = new NodeBasedGraphView(
+            allMemories,
+            vaultStatus.Value,
+            selectedNote,
+            selectedFile,
+            isEditing,
+            editContent,
+            LoadStatus,
+            SyncAllHashes,
+            client,
+            isDeleteOpen,
+            isAiEditOpen,
+            workingDir,
+            memoryService
+        );
+
+        var selectedIndex = viewMode.Value == MemoryViewMode.FileBased ? 0 : 1;
+
+        var mainView = Layout.Tabs(
+            new Tab("File-Based", fileBasedView),
+            new Tab("Node-Based", nodeBasedView)
+        )
+        .SelectedIndex(selectedIndex)
+        .OnSelect(index => viewMode.Set(index == 0 ? MemoryViewMode.FileBased : MemoryViewMode.NodeBased))
+        .Variant(TabsVariant.Content)
+        .RemoveParentPadding()
+        .Padding(0);
+
+        var rootLayout = Layout.Vertical().Size(Size.Full()).RemoveParentPadding() | mainView;
 
         if (isNewNoteOpen.Value)
         {
-            elements.Add(new CreateMemoryNoteDialog(isNewNoteOpen, selectedNote, client, memoryService));
+            rootLayout |= new CreateMemoryNoteDialog(isNewNoteOpen, selectedNote, client, memoryService);
         }
 
         if (isDeleteOpen.Value)
         {
-            elements.Add(new DeleteMemoryNoteDialog(isDeleteOpen, selectedNote, LoadStatus, client, memoryService));
+            rootLayout |= new DeleteMemoryNoteDialog(isDeleteOpen, selectedNote, LoadStatus, client, memoryService);
         }
 
         if (isUpdateMemoriesOpen.Value)
         {
-            elements.Add(new UpdateMemoriesDialog(
+            rootLayout |= new UpdateMemoriesDialog(
                 isUpdateMemoriesOpen,
                 projectFiles.Value,
                 isFilesLoading,
                 LoadProjectFiles,
                 filesToUpdate =>
                 {
-                    client.Toast($"Updating memories for {filesToUpdate.Count} files", "Memories Update");
+                    client.Toast($"Updating memories for {filesToUpdate.Count} file(s)", "Update Started");
                 },
                 client
-            ));
+            );
         }
 
         if (isAiEditOpen.Value && selectedNote.Value != null)
         {
-            elements.Add(new AiEditMemoryDialog(
+            rootLayout |= new AiEditMemoryDialog(
                 isAiEditOpen,
                 selectedNote.Value,
                 (noteName, prompt) =>
@@ -216,9 +248,21 @@ public class LibraryApp : ViewBase
                     client.Toast($"Editing memory {noteName} via AI", "AI Edit");
                 },
                 client
-            ));
+            );
         }
 
-        return new Fragment(elements.ToArray());
+        if (isLinkFileOpen.Value && selectedFile.Value != null)
+        {
+            rootLayout |= new LinkFileToMemoryDialog(
+                isLinkFileOpen,
+                selectedFile.Value,
+                allMemories,
+                LoadStatus,
+                client,
+                memoryService
+            );
+        }
+
+        return rootLayout;
     }
 }

@@ -1,7 +1,7 @@
 using Ivy;
 using Ivy.Tendril.Services.Memory;
 
-namespace Ivy.Tendril.Apps.Library.Dialogs;
+namespace Ivy.Tendril.Apps.Memory.Dialogs;
 
 public class CreateMemoryNoteDialog(
     IState<bool> isOpen,

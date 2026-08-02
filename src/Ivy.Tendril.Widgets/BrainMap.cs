@@ -1,11 +1,21 @@
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using System;
 using Ivy;
 using Ivy.Core;
-using Ivy.Core.ExternalWidgets;
 
 namespace Ivy.Tendril.Widgets;
+
+public record BrainNode(
+    string Id,
+    string Label,
+    string Type = "memory", // memory | file
+    string Status = "clean", // clean | outdated | broken
+    int LinkCount = 0
+);
+
+public record BrainEdge(
+    string Source,
+    string Target
+);
 
 [ExternalWidget(
     "frontend/dist/ivy-tendril-widgets.js",
@@ -15,41 +25,37 @@ namespace Ivy.Tendril.Widgets;
 )]
 public record BrainMap : WidgetBase<BrainMap>
 {
-    public BrainMap() : base()
+    [Prop] public BrainNode[] Nodes { get; set; } = Array.Empty<BrainNode>();
+
+    [Prop] public BrainEdge[] Edges { get; set; } = Array.Empty<BrainEdge>();
+
+    [Prop] public string? SelectedNodeId { get; set; }
+
+    [Event] public EventHandler<Event<BrainMap, string>>? OnNodeClick { get; set; }
+
+    public static BrainMap operator |(BrainMap widget, object child)
     {
+        throw new NotSupportedException("BrainMap does not support children.");
     }
-
-    [Prop] public List<BrainNode> Nodes { get; init; } = [];
-    [Prop] public List<BrainEdge> Edges { get; init; } = [];
-    [Prop] public string? SelectedNodeId { get; init; }
-
-    [Event] public EventHandler<Event<BrainMap, string>>? OnNodeClick { get; init; }
 }
-
-public record BrainNode(string Id, string Label, string Type, string Status);
-public record BrainEdge(string Source, string Target);
 
 public static class BrainMapExtensions
 {
-    public static BrainMap Nodes(this BrainMap w, IEnumerable<BrainNode> nodes) =>
-        w with { Nodes = nodes.ToList() };
+    public static BrainMap Nodes(this BrainMap map, params BrainNode[] nodes)
+        => map with { Nodes = nodes };
 
-    public static BrainMap Edges(this BrainMap w, IEnumerable<BrainEdge> edges) =>
-        w with { Edges = edges.ToList() };
+    public static BrainMap Nodes(this BrainMap map, System.Collections.Generic.IEnumerable<BrainNode> nodes)
+        => map with { Nodes = System.Linq.Enumerable.ToArray(nodes) };
 
-    public static BrainMap SelectedNodeId(this BrainMap w, string? selectedNodeId) =>
-        w with { SelectedNodeId = selectedNodeId };
+    public static BrainMap Edges(this BrainMap map, params BrainEdge[] edges)
+        => map with { Edges = edges };
 
-    public static BrainMap OnNodeClick(this BrainMap w, Func<Event<BrainMap, string>, ValueTask> handler) =>
-        w with { OnNodeClick = new(handler) };
+    public static BrainMap Edges(this BrainMap map, System.Collections.Generic.IEnumerable<BrainEdge> edges)
+        => map with { Edges = System.Linq.Enumerable.ToArray(edges) };
 
-    public static BrainMap OnNodeClick(this BrainMap w, Action<string> handler) =>
-        w with
-        {
-            OnNodeClick = new(e =>
-            {
-                handler(e.Value);
-                return ValueTask.CompletedTask;
-            })
-        };
+    public static BrainMap SelectedNodeId(this BrainMap map, string? selectedNodeId)
+        => map with { SelectedNodeId = selectedNodeId };
+
+    public static BrainMap OnNodeClick(this BrainMap map, Action<string> onNodeClick)
+        => map with { OnNodeClick = new(evt => { onNodeClick(evt.Value); return System.Threading.Tasks.ValueTask.CompletedTask; }) };
 }
