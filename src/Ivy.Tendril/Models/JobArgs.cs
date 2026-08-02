@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Models;
 
@@ -12,6 +13,7 @@ namespace Ivy.Tendril.Models;
 [JsonDerivedType(typeof(CreateIssueArgs), "CreateIssue")]
 [JsonDerivedType(typeof(SetupProjectArgs), "SetupProject")]
 [JsonDerivedType(typeof(SyncRepoArgs), "SyncRepo")]
+[JsonDerivedType(typeof(AddProjectArgs), "AddProject")]
 public abstract record JobArgsBase
 {
     [JsonIgnore]
@@ -111,6 +113,13 @@ public record SyncRepoArgs(
 {
     public override string Type => Constants.JobTypes.SyncRepo;
     public override string? PlanFolder => PlanFolderPath;
+}
+
+public record AddProjectArgs(
+    string ProjectName,
+    List<RepoRef> Repos) : JobArgsBase
+{
+    public override string Type => Constants.JobTypes.AddProject;
 }
 
 // How SyncRepo should treat uncommitted changes and/or untracked files when syncing a repo.

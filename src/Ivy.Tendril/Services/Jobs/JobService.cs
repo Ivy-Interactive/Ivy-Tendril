@@ -1009,6 +1009,11 @@ public class JobService : IJobService
             return (planFile, cp.Project, cp.Priority);
         }
 
+        if (args is AddProjectArgs ap)
+        {
+            return (ap.ProjectName, ap.ProjectName, 0);
+        }
+
         var folder = args.PlanFolder ?? "";
         var file = Path.GetFileName(folder);
         if (!Directory.Exists(folder))

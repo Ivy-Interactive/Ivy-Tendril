@@ -25,6 +25,7 @@ $shippedTools = @{
     'UpdatePlan'  = @()
     'CreateIssue' = @()
     'SetupProject' = @()
+    'AddProject'   = @()
 }
 
 foreach ($pw in $shippedTools.Keys) {
