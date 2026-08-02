@@ -402,6 +402,76 @@ public class DoctorCommandPlansTests : IDisposable
         Assert.Contains("title: My Plan", repaired);
     }
 
+
+    // Plan 00090: the backfill report for plans that reached Completed over a failed verification
+    // before the guard existed. 00042 is the shape it exists to surface.
+    private static string CompletedWithVerifications(string checkResult, bool partialDelivery = false) =>
+        $"""
+         state: Completed
+         project: Rusty
+         title: Test Plan
+         repos:
+         - /dummy/repo
+         commits: []
+         prs:
+           - https://github.com/org/repo/pull/31
+         verifications:
+           - name: RustFmt
+             status: Skipped
+           - name: RustyFrontendTest
+             status: Pass
+           - name: CheckResult
+             status: {checkResult}
+         {(partialDelivery ? "partialDelivery: true" : "")}
+         """;
+
+    [Fact]
+    public void FindPartialDeliveryCandidates_CompletedWithFailedVerification_IsReported()
+    {
+        CreatePlan("00042-RemoveDeadGlob", CompletedWithVerifications("Fail"));
+
+        var candidates = DoctorCommand.FindPartialDeliveryCandidates(DoctorCommand.ScanPlans(_plansDir));
+
+        var candidate = Assert.Single(candidates);
+        Assert.Equal("00042", candidate.Id);
+        Assert.Equal(["CheckResult"], candidate.FailedVerifications);
+    }
+
+    [Fact]
+    public void FindPartialDeliveryCandidates_AlreadyFlagged_IsNotReported()
+    {
+        CreatePlan("00043-AlreadyFlagged", CompletedWithVerifications("Fail", partialDelivery: true));
+
+        var candidates = DoctorCommand.FindPartialDeliveryCandidates(DoctorCommand.ScanPlans(_plansDir));
+
+        Assert.Empty(candidates);
+    }
+
+    [Fact]
+    public void FindPartialDeliveryCandidates_PassingOrUncompletedPlans_AreNotReported()
+    {
+        CreatePlan("00044-AllPassed", CompletedWithVerifications("Pass"));
+        CreatePlan("00045-SkippedGate", CompletedWithVerifications("Skipped"));
+        CreatePlan("00046-StillInReview", CompletedWithVerifications("Fail").Replace(
+            "state: Completed", "state: Review"));
+
+        var candidates = DoctorCommand.FindPartialDeliveryCandidates(DoctorCommand.ScanPlans(_plansDir));
+
+        Assert.Empty(candidates);
+    }
+
+    [Fact]
+    public void FindPartialDeliveryCandidates_DoesNotMutatePlanYaml()
+    {
+        var planDir = CreatePlan("00047-HistoricalRecord", CompletedWithVerifications("Fail"));
+        var yamlPath = Path.Combine(planDir, "plan.yaml");
+        var before = File.ReadAllText(yamlPath);
+
+        DoctorCommand.FindPartialDeliveryCandidates(DoctorCommand.ScanPlans(_plansDir));
+
+        Assert.Equal(before, File.ReadAllText(yamlPath));
+    }
+
     [Fact]
     public void Doctor_ListsCompletedPlansWithFailedPreExecution()
     {

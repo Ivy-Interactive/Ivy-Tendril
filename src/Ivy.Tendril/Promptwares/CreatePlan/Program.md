@@ -102,12 +102,14 @@ Report status: `tendril job status TendrilJobId --message="Researching codebase.
 
   #### Step 1: Read existing plan state
   
-  Read the matching plan's `plan.yaml` and check its `state`, `commits`, and `prs` fields.
+  Read the matching plan's `plan.yaml` and check its `state`, `commits`, `prs`, `verifications` and
+  `partialDelivery` fields.
 
   #### Step 2: Decide based on state
 
   | Existing plan state | Action |
   |---|---|
+  | `Completed` with `partialDelivery: true` or any verification `Fail` | **Do NOT trash.** The deliverable may be missing. Verify the specific thing the incoming request asks for is present in the code, and create the plan if it is not. |
   | `Completed` (with merged PR) | Check for regression (Step 4), otherwise trash |
   | `Completed` (no PR, but commits exist) | Check for regression (Step 4), trash with note "no PR found" |
   | `Draft` / `Creating` / `Executing` | Trash, but note "plan in progress (state: X)" |
@@ -115,7 +117,21 @@ Report status: `tendril job status TendrilJobId --message="Researching codebase.
   | `Failed` | **Do NOT trash** — create the plan (the previous attempt failed) |
   | `Icebox` / `Skipped` | Trash with note "existing plan state: X" (issue is already covered) |
 
+  A `Completed` plan is not proof of delivery: a plan can be completed while a gate rejected the
+  work, in which case its title asserts a feature that was never written. The first row catches that,
+  and it takes precedence over the rows below it.
+
   #### Step 3: Stricter checks for critical issues
+
+  Run these two checks on **every** `Completed` candidate, before anything else:
+
+  ```bash
+  tendril plan get <id> verifications | grep -i "=Fail"   # any Fail: treat as possibly undelivered
+  tendril plan get <id> partialDelivery                    # true: completed over a failed gate
+  ```
+
+  Either signal means the plan's deliverable may be missing, so do NOT trash on state alone: verify
+  in the code that the specific thing this request asks for is present.
 
   When the incoming request describes a critical/blocking issue (errors, failures, crashes), apply **additional checks** before trashing:
 

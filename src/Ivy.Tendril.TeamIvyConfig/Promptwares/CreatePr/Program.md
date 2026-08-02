@@ -219,13 +219,21 @@ If cleanup fails, log a warning but do not fail the overall CreatePr execution.
 
 Use the CLI to update the plan — **never edit plan.yaml directly**.
 
-Add each PR URL:
+Add each PR URL. **This is unconditional:** recording the PR is always correct, whatever the plan's
+verifications say.
 
 ```bash
 tendril plan add-pr <plan-id> <pr-url>
 ```
 
-**Update state to Completed:** If `PrMerge` is `true` and ALL PRs were successfully merged, update the state:
+**Then check the verifications before setting the state:**
+
+```bash
+tendril plan get <plan-id> verifications   # output is Name=Status
+```
+
+**Update state to Completed:** If `PrMerge` is `true`, ALL PRs were successfully merged, and no
+verification is `Fail`, update the state:
 
 ```bash
 tendril plan set <plan-id> state Completed
@@ -233,11 +241,21 @@ tendril plan set <plan-id> state Completed
 
 If `PrMerge` is `false`, do NOT update the state — the plan remains open for manual review and potential revisions.
 
+**If any verification is `Fail`, do NOT set `Completed`** even on a successful merge. Leave the plan
+in `Failed`: the PR exists but a gate rejected the work, so the plan is not done. The CLI will refuse
+the transition anyway. Report it with `tendril job status <job-id> --message "PR recorded, plan left
+in Failed: <VerificationName> failed"`. This is a legitimate closeout, not a skipped step: a failed
+gate usually means the deliverable is missing, and marking the plan `Completed` hides that from every
+later plan. Only use `tendril plan set <plan-id> state Completed --allow-failed-verifications` if a
+human explicitly asked for a partial delivery to be recorded; it flags the plan as
+`partialDelivery: true`.
+
 ### Edge Case: Direct-to-Main (No PR Needed)
 
 Some plans create new repos and push directly to main (e.g., repo scaffolding). These have `repos: []`, no worktrees, and commits already on `origin/main`. When detected:
 1. Verify the commit(s) exist on the remote default branch
-2. Mark state as Completed: `tendril plan set <plan-id> state Completed`
+2. Mark state as Completed: `tendril plan set <plan-id> state Completed` (same verification rule as
+   above: if any verification is `Fail`, leave the plan in `Failed` and report it instead)
 3. Log outcome as "No PR Required — Direct-to-Main"
 4. Skip steps 2–5 entirely
 

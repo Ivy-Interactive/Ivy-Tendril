@@ -1,6 +1,7 @@
 using Ivy.Tendril.Models;
 using System.ComponentModel;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Helpers;
 using Spectre.Console.Cli;
 
@@ -22,6 +23,10 @@ public class PlanSetSettings : CommandSettings
     [Description("Field value")]
     [CommandArgument(2, "<value>")]
     public string Value { get; set; } = "";
+
+    [Description("Record Completed despite a failed verification (partial delivery)")]
+    [CommandOption("--allow-failed-verifications")]
+    public bool AllowFailedVerifications { get; init; }
 
     public override Spectre.Console.ValidationResult Validate()
     {
@@ -60,7 +65,7 @@ public class PlanSetCommand : Command<PlanSetSettings>
         switch (settings.Field.ToLower())
         {
             case "state":
-                plan.State = settings.Value;
+                ApplyState(plan, settings);
                 break;
             case "project":
                 plan.Project = settings.Value;
@@ -102,5 +107,25 @@ public class PlanSetCommand : Command<PlanSetSettings>
 
         Console.WriteLine($"Set {settings.Field} = {settings.Value}");
         return 0;
+    }
+
+    /// <summary>
+    ///     Applies a state change, enforcing the same rule as
+    ///     <see cref="Services.Plans.PlanReaderService.TransitionState" />: Completed is refused while a
+    ///     verification is in the Fail state (see plan 00090). This command writes plan.yaml directly
+    ///     rather than going through the service, so the shared
+    ///     <see cref="Services.Plans.PlanCompletionGuard" /> is applied here explicitly.
+    /// </summary>
+    /// <exception cref="PlanTransitionBlockedException">
+    ///     Thrown for a blocked Completed without <c>--allow-failed-verifications</c>. Surfaces as a
+    ///     non-zero exit with the exception's message, which names the escape hatch.
+    /// </exception>
+    private static void ApplyState(PlanYaml plan, PlanSetSettings settings)
+    {
+        var warning = PlanCompletionGuard.ApplyState(
+            plan, settings.Value, settings.AllowFailedVerifications, settings.PlanId);
+
+        if (warning != null)
+            Console.WriteLine(warning);
     }
 }
