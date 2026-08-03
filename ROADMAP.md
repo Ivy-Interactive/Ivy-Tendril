@@ -99,9 +99,9 @@ This document outlines the core feature roadmap for **Ivy Tendril**, the AI codi
   - Added connection can be used as input/output/trigger in the workflows app
 - **So far done**: Figma design, 1% MVP 
 - **Risks**:
-  - Low: 
-  - Medium: 
-  - High: 
+  - Low: None
+  - Medium: None
+  - High: None
 - **Timelines**: 60-120 hours for MVP, 200 hours for production ready v1
 
 ---
@@ -114,7 +114,7 @@ This document outlines the core feature roadmap for **Ivy Tendril**, the AI codi
   - Build a custom endpoint configuration UI within Tendril settings.
 - **So far done**: 90% MVP with ivy-agent using 3 provided models + custom agentic TUI that works with any endpoint
 - **Risks**:
-  - Low: 
-  - Medium: 
-  - High: 
+  - Low: None
+  - Medium: None
+  - High: None
 - **Timelines**: 60-120 hours for MVP, 200 hours for production ready v1
