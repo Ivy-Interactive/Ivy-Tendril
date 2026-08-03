@@ -42,19 +42,13 @@ public class DetailsTabView(
             .Builder(x => x.PlanId, f => f.CopyToClipboard())
             .Builder(x => x.Folder, f => f.CopyToClipboard())
             .Multiline(x => x.InitialPrompt)
-            .Builder(x => x.Revision, f => f.Func((int count) =>
-                Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-                | Text.Block(count.ToString())
-                | new Button().Icon(Icons.Undo).Outline().Small()
-                    .Tooltip("Revert to previous revision")
-                    .Disabled(count <= 1)
-                    .OnClick(() =>
-                    {
-                        planService.RevertRevision(plan.FolderName);
-                        var updated = planService.GetPlanByFolder(plan.FolderPath);
-                        if (updated != null) selectedPlanState.Set(updated);
-                        refreshPlans();
-                    })))
+            .Builder(x => x.Revision, f => f.Func((int count) => BuildRevisionCell(count, () =>
+                {
+                    planService.RevertRevision(plan.FolderName);
+                    var updated = planService.GetPlanByFolder(plan.FolderPath);
+                    if (updated != null) selectedPlanState.Set(updated);
+                    refreshPlans();
+                })))
             .Builder(x => x.RelatedPlans, f => f.Func((List<Link> links) =>
                 new LinkListView(links, href =>
                 {
@@ -77,6 +71,25 @@ public class DetailsTabView(
                       | Text.H4("Jobs")
                       | new PlanJobsDataTableView(jobs, showDebug))
                    : null);
+    }
+
+    /// <summary>
+    /// Renders the Revision row: the revision number, plus a revert button only when there is an
+    /// earlier revision to go back to. At revision 1 the button is omitted entirely rather than
+    /// rendered disabled, since there is nothing to revert to.
+    /// </summary>
+    internal static LayoutView BuildRevisionCell(int count, Action onRevert)
+    {
+        var layout = Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                     | Text.Block(count.ToString());
+
+        if (count <= 1)
+            return layout;
+
+        return layout
+               | new Button().Icon(Icons.Undo).Outline().Small()
+                   .Tooltip("Revert to previous revision")
+                   .OnClick(onRevert);
     }
 
     // Execution profiles are stored lowercase (e.g. "balanced"); present them title-cased.
