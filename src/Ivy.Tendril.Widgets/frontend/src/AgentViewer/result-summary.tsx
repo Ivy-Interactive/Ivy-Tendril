@@ -1,8 +1,8 @@
 import React from "react";
 import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import type { ResultWire } from "./types";
 import { CodeBlock } from "../CodeBlock";
+import { getMarkdownPlugins } from "../math";
 
 interface ResultSummaryProps {
   wire: ResultWire;
@@ -38,6 +38,8 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({ wire }) => {
 
   const hasResponse = Boolean(wire.response && wire.response.trim().length > 0);
 
+  const plugins = getMarkdownPlugins(wire.response ?? "");
+
   // Return null if there is nothing to render, preventing empty container boxes
   if (!isError && !hasResponse && statsList.length === 0) {
     return null;
@@ -52,7 +54,11 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({ wire }) => {
       )}
       {hasResponse && (
         <div className="aov-markdown aov-result-body">
-          <Markdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
+          <Markdown
+            remarkPlugins={plugins.remarkPlugins}
+            rehypePlugins={plugins.rehypePlugins}
+            components={{ code: CodeBlock }}
+          >
             {wire.response}
           </Markdown>
         </div>

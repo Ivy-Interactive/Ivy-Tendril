@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Markdown, { defaultUrlTransform } from "react-markdown";
-import remarkGfm from "remark-gfm";
 import "./draft-markdown.css";
 import { getHeight, getWidth } from "../styles";
 import { CodeBlock } from "../CodeBlock";
@@ -10,6 +9,7 @@ import { AddAnnotationPopover, EditAnnotationPopover, SelectionToolbar } from ".
 import { AlertBlockquote } from "./AlertBlockquote";
 import { ImageRenderer } from "./ImageRenderer";
 import { isLocalFileUrl, transformLocalFileUrl } from "./localFiles";
+import { getMarkdownPlugins } from "../math";
 
 type IvyEventHandler = (eventName: string, widgetId: string, args: unknown[]) => void;
 
@@ -258,6 +258,10 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
     [dangerouslyAllowLocalFiles],
   );
 
+  // Math plugins are added only when the content actually contains math
+  // delimiters, so plain plan markdown skips the extra KaTeX pass entirely.
+  const plugins = useMemo(() => getMarkdownPlugins(content), [content]);
+
   const fixed = slots?.StickyContent;
   const hasFixed = !!fixed && React.Children.count(fixed) > 0;
 
@@ -271,7 +275,8 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
       <div className="pmv-body">
         <div ref={contentRef} className={article ? "pmv-markdown pmv-article" : "pmv-markdown"}>
           <Markdown
-            remarkPlugins={[remarkGfm]}
+            remarkPlugins={plugins.remarkPlugins}
+            rehypePlugins={plugins.rehypePlugins}
             urlTransform={urlTransform}
             components={{ a: anchor, code: CodeBlock, blockquote: AlertBlockquote, img: ImageRenderer }}
           >

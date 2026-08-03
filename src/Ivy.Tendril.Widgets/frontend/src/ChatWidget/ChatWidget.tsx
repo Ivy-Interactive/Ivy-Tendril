@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { Plus, Trash2, Mic, Bot, Cpu, Search, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square, Clock, Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { AgentViewer } from "../AgentViewer";
+import { getMarkdownPlugins } from "../math";
 import "./chat-widget.css";
 
 export interface ChatMessageDto {
@@ -660,7 +660,7 @@ export function ChatWidget({
                   ) : (
                     msg.content && (
                       <div className="chat-markdown-body">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                        <ReactMarkdown {...getMarkdownPlugins(msg.content)}>{msg.content}</ReactMarkdown>
                       </div>
                     )
                   )}
