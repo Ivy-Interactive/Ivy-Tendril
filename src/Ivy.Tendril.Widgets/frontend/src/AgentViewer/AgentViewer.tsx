@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import "./agent-output.css";
 import type { EventHandler, PresentationEvent } from "./types";
 import { getHeight, getWidth } from "../styles";
@@ -13,6 +12,7 @@ import { ToolUseCard } from "./tool-use-card";
 import { ResultSummary } from "./result-summary";
 import { groupToolUseEvents } from "./group-events";
 import { ToolUseGroup } from "./tool-use-group";
+import { getMarkdownPlugins } from "../math";
 
 function buildSuppressIndices(events: PresentationEvent[]): Set<number> {
   const indices = new Set<number>();
@@ -188,7 +188,7 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
             case "assistant-text":
               return (
                 <div key={idx} className="aov-markdown aov-assistant">
-                  <Markdown remarkPlugins={[remarkGfm]} components={{ code: CodeBlock }}>
+                  <Markdown {...getMarkdownPlugins(event.text)} components={{ code: CodeBlock }}>
                     {event.text}
                   </Markdown>
                 </div>
