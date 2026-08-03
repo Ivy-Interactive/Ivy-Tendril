@@ -251,3 +251,5 @@ When the user asks you to create a plan:
 - Verification statuses: `Pending`, `Pass`, `Fail`, `Skipped`.
 - Plan states: `Draft`, `Creating`, `Updating`, `Executing`, `Review`, `Failed`, `Completed`, `Skipped`, `Blocked`, `Icebox`.
 - To create a new plan, start a CreatePlan job: `tendril job start CreatePlan --description="<description>" --project="<project>"` (see "Creating Plans Interactively"). Use the lower-level `tendril plan create` / `write-revision` commands only to edit an existing plan's content, never to create a new plan from a chat request.
+- **Do NOT start a `CreatePlan` job to retry or fix an existing plan.** `CreatePlan` is strictly for creating brand new plans for new tasks. To retry an existing plan with reviewer feedback or changes, use `tendril job start RetryPlan <plan-id> --change-request="<feedback>"`.
+

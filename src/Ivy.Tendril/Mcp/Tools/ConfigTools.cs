@@ -34,8 +34,7 @@ public sealed class ConfigTools : AuthenticatedToolBase
         return ExecuteAuthenticated(() =>
         {
             // ApplyField throws on unknown key / bad int / out-of-range / unknown coding agent, before any write.
-            ConfigSetCommand.ApplyField(_configService.Settings, key, value, _runner.RegisteredAgents);
-            _configService.SaveSettings();
+            _configService.MutateAndSave(s => ConfigSetCommand.ApplyField(s, key, value, _runner.RegisteredAgents));
 
             // Report the value actually stored (e.g. the canonical coding-agent id), not the raw input.
             var stored = ConfigGetCommand.ReadField(_configService.Settings, key);

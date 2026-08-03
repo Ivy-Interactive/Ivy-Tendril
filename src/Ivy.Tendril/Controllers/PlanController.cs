@@ -21,12 +21,13 @@ internal static class PlanFieldAccessors
         ["executionprofile"] = p => p.ExecutionProfile,
         ["initialprompt"] = p => p.InitialPrompt,
         ["sourceurl"] = p => p.SourceUrl,
-        ["priority"] = p => p.Priority.ToString()
+        ["priority"] = p => p.Priority.ToString(),
+        ["partialdelivery"] = p => p.PartialDelivery.ToString().ToLowerInvariant()
     };
 
     private static readonly Dictionary<string, Action<PlanYaml, string>> Setters = new()
     {
-        ["state"] = (p, v) => p.State = v,
+        // "state" is handled by TrySetField itself, which routes through PlanCompletionGuard.
         ["project"] = (p, v) => p.Project = v,
         ["level"] = (p, v) => p.Level = v,
         ["title"] = (p, v) => p.Title = v,
@@ -41,8 +42,34 @@ internal static class PlanFieldAccessors
             ? getter(plan)
             : null;
 
-    public static bool TrySetField(PlanYaml plan, string field, string value, out string? error)
+    /// <param name="allowFailedVerifications">
+    ///     Records Completed despite a failed verification, flagging the plan as a partial delivery.
+    ///     Only meaningful for the <c>state</c> field (see plan 00090).
+    /// </param>
+    public static bool TrySetField(
+        PlanYaml plan,
+        string field,
+        string value,
+        out string? error,
+        bool allowFailedVerifications = false)
     {
+        // State goes through the shared guard: this endpoint writes plan.yaml directly rather than
+        // through PlanReaderService.TransitionState, so it would otherwise bypass the Completed check.
+        if (field.Equals("state", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                PlanCompletionGuard.ApplyState(plan, value, allowFailedVerifications, plan.Title);
+                error = null;
+                return true;
+            }
+            catch (PlanTransitionBlockedException ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
         if (!Setters.TryGetValue(field.ToLower(), out var setter))
         {
             error = $"Unknown field: {field}";
@@ -185,7 +212,8 @@ public class PlanController : ControllerBase
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
             var plan = PlanCommandHelpers.ReadPlan(planFolder);
 
-            if (!PlanFieldAccessors.TrySetField(plan, request.Field, request.Value, out var error))
+            if (!PlanFieldAccessors.TrySetField(plan, request.Field, request.Value, out var error,
+                    request.AllowFailedVerifications))
                 return BadRequest(new { error });
 
             if (request.Field.ToLower() != "updated")
@@ -655,7 +683,7 @@ public class PlanController : ControllerBase
 }
 
 // Request DTOs
-public record SetFieldRequest(string Field, string Value);
+public record SetFieldRequest(string Field, string Value, bool AllowFailedVerifications = false);
 public record AddRepoRequest(string RepoPath);
 public record RemoveRepoRequest(string RepoPath);
 public record AddPrRequest(string PrUrl);

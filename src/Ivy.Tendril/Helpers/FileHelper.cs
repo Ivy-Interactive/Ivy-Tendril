@@ -263,15 +263,18 @@ internal static class FileHelper
     {
         Directory.CreateDirectory(path);
         if (!OperatingSystem.IsWindows()) return;
+        var testFile = Path.Combine(path, $".tendril-write-test-{Guid.NewGuid():N}");
         try
         {
-            var testFile = Path.Combine(path, ".tendril-write-test");
-            using (File.Create(testFile)) { }
-            File.Delete(testFile);
+            using (File.Create(testFile, 1, FileOptions.DeleteOnClose)) { }
         }
         catch (UnauthorizedAccessException)
         {
             TryGrantCurrentUserAccess(path);
+        }
+        catch (IOException)
+        {
+            // Ignore transient IO exceptions during concurrent directory checks
         }
     }
 

@@ -13,6 +13,19 @@ public interface IPlanReaderService
     PlanFile? GetPlanByFolder(string folderPath);
     List<PlanFile> GetIceboxPlans();
     void TransitionState(string folderName, PlanStatus newState);
+
+    /// <summary>
+    ///     Names of verifications in a Fail state, read from plan.yaml. Empty when the plan is clean.
+    ///     A plan must not reach Completed while this is non-empty (see plan 00090).
+    /// </summary>
+    IReadOnlyList<string> GetFailedVerifications(string folderName);
+
+    /// <summary>
+    ///     Overrides the failed-verification block: completes the plan and records
+    ///     <see cref="PlanYaml.PartialDelivery" /> so the missing deliverable stays visible downstream.
+    /// </summary>
+    void CompleteWithPartialDelivery(string folderName);
+
     void ResetToDraft(string folderName);
     void ResetVerificationsForRetry(string folderName);
     void SetVerificationStatus(string folderName, string name, VerificationStatus status);

@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Ivy.Tendril.Helpers;
@@ -30,8 +32,47 @@ public static class PathHelper
         {
             if (envHome.StartsWith("\"") && envHome.EndsWith("\""))
                 envHome = envHome[1..^1];
-            return envHome;
+
+            if (File.Exists(Path.Combine(envHome, "config.yaml")))
+                return envHome;
         }
+
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                var userEnvHome = Environment.GetEnvironmentVariable("TENDRIL_HOME", EnvironmentVariableTarget.User)?.Trim();
+                if (!string.IsNullOrEmpty(userEnvHome))
+                {
+                    if (userEnvHome.StartsWith("\"") && userEnvHome.EndsWith("\""))
+                        userEnvHome = userEnvHome[1..^1];
+                    if (File.Exists(Path.Combine(userEnvHome, "config.yaml")))
+                    {
+                        Environment.SetEnvironmentVariable("TENDRIL_HOME", userEnvHome);
+                        return userEnvHome;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        try
+        {
+            var pointerFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril_location");
+            if (File.Exists(pointerFile))
+            {
+                var location = File.ReadAllText(pointerFile).Trim();
+                if (!string.IsNullOrEmpty(location) && File.Exists(Path.Combine(location, "config.yaml")))
+                {
+                    Environment.SetEnvironmentVariable("TENDRIL_HOME", location);
+                    return location;
+                }
+            }
+        }
+        catch { }
+
+        if (!string.IsNullOrEmpty(envHome))
+            return envHome;
 
         return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
     }
@@ -189,22 +230,27 @@ public static class PathHelper
         // 2. Add existing PATH directories
         pathList.AddRange(dirs);
 
-        // 3. For macOS/Linux, append common system search paths and login shell environment variables
+        // 3. Append common user tool directories and search paths
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var commonDirs = new List<string>
+        {
+            Path.Combine(home, ".ivy-agent", "bin"),
+            Path.Combine(home, ".local", "bin")
+        };
+
         if (!OperatingSystem.IsWindows())
         {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var commonDirs = new List<string>
+            commonDirs.AddRange(new[]
             {
                 "/opt/homebrew/bin",
                 "/opt/homebrew/sbin",
                 "/usr/local/bin",
                 "/usr/local/sbin",
                 Path.Combine(home, ".npm-global", "bin"),
-                Path.Combine(home, ".local", "bin"),
                 // Legacy `dotnet tool install -g` shim directory. Kept last so the installer's
                 // CLI symlink locations above always win over a stale .NET tool copy of tendril.
                 Path.Combine(home, ".dotnet", "tools")
-            };
+            });
 
             if (forceShellPath)
             {
@@ -239,13 +285,13 @@ public static class PathHelper
                     }
                 }
             }
+        }
 
-            foreach (var dir in commonDirs)
+        foreach (var dir in commonDirs)
+        {
+            if (Directory.Exists(dir) && !dirs.Contains(dir) && !pathList.Contains(dir))
             {
-                if (Directory.Exists(dir) && !dirs.Contains(dir) && !pathList.Contains(dir))
-                {
-                    pathList.Add(dir);
-                }
+                pathList.Add(dir);
             }
         }
 
@@ -260,7 +306,13 @@ public static class PathHelper
 
     public static void EnsureCliSymlink()
     {
-        if (OperatingSystem.IsWindows()) return;
+        EnsureIvyAgentCliSetup();
+
+        if (OperatingSystem.IsWindows())
+        {
+            EnsureWindowsCliSetup();
+            return;
+        }
 
         try
         {
@@ -325,6 +377,157 @@ public static class PathHelper
         catch (Exception ex)
         {
             Ivy.Helpers.CrashLog.Write($"[PathHelper] EnsureCliSymlink failed: {ex}");
+        }
+    }
+
+    public static void EnsureIvyAgentCliSetup()
+    {
+        try
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var ivyAgentDir = Path.Combine(home, ".ivy-agent", "bin");
+            var binaryName = OperatingSystem.IsWindows() ? "ivy-agent.exe" : "ivy-agent";
+            var ivyAgentExe = Path.Combine(ivyAgentDir, binaryName);
+
+            if (!File.Exists(ivyAgentExe)) return;
+
+            var localBinDir = Path.Combine(home, ".local", "bin");
+            if (!Directory.Exists(localBinDir))
+            {
+                Directory.CreateDirectory(localBinDir);
+            }
+
+            if (OperatingSystem.IsWindows())
+            {
+                var localBinCmd = Path.Combine(localBinDir, "ivy-agent.cmd");
+                var localBinCmdContent = $"@echo off\r\n\"{ivyAgentExe}\" %*\r\n";
+                if (!File.Exists(localBinCmd) || File.ReadAllText(localBinCmd) != localBinCmdContent)
+                {
+                    File.WriteAllText(localBinCmd, localBinCmdContent, Encoding.ASCII);
+                    Ivy.Helpers.CrashLog.Write($"[PathHelper] Created ivy-agent.cmd at {localBinCmd}");
+                }
+
+                // Ensure ~/.ivy-agent/bin and ~/.local/bin are present in User PATH
+                var userPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User) ?? "";
+                var pathDirs = userPath.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var dirsToAdd = new[] { ivyAgentDir, localBinDir }
+                    .Where(d => !pathDirs.Any(p => string.Equals(p, d, StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+
+                if (dirsToAdd.Count > 0)
+                {
+                    var newPath = string.IsNullOrEmpty(userPath)
+                        ? string.Join(Path.PathSeparator, dirsToAdd)
+                        : $"{userPath}{Path.PathSeparator}{string.Join(Path.PathSeparator, dirsToAdd)}";
+                    Environment.SetEnvironmentVariable("PATH", newPath, EnvironmentVariableTarget.User);
+                    Ivy.Helpers.CrashLog.Write($"[PathHelper] Added {string.Join(", ", dirsToAdd)} to Windows User PATH.");
+                }
+            }
+            else
+            {
+                var symlinkPath = Path.Combine(localBinDir, "ivy-agent");
+                if (File.Exists(symlinkPath))
+                {
+                    try
+                    {
+                        var target = File.ResolveLinkTarget(symlinkPath, true);
+                        if (target != null && string.Equals(target.FullName, ivyAgentExe, StringComparison.Ordinal))
+                        {
+                            return;
+                        }
+                    }
+                    catch { }
+                    File.Delete(symlinkPath);
+                }
+                File.CreateSymbolicLink(symlinkPath, ivyAgentExe);
+                Ivy.Helpers.CrashLog.Write($"[PathHelper] Created CLI symlink at {symlinkPath} -> {ivyAgentExe}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Ivy.Helpers.CrashLog.Write($"[PathHelper] EnsureIvyAgentCliSetup failed: {ex}");
+        }
+    }
+
+    public static void EnsureWindowsCliSetup()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        try
+        {
+            var exePath = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(exePath) || !File.Exists(exePath)) return;
+
+            var exeName = Path.GetFileName(exePath);
+            if (!string.Equals(exeName, "Ivy.Tendril.exe", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(exeName, "Ivy.Tendril", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(exeName, "tendril.exe", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var appDir = Path.GetDirectoryName(exePath);
+            if (string.IsNullOrEmpty(appDir) || !Directory.Exists(appDir)) return;
+
+            // 1. Create tendril.cmd in the app directory alongside Ivy.Tendril.exe
+            var cmdInAppDir = Path.Combine(appDir, "tendril.cmd");
+            var cmdContent = $"@echo off\r\n\"%~dp0{exeName}\" %*\r\n";
+            try
+            {
+                if (!File.Exists(cmdInAppDir) || File.ReadAllText(cmdInAppDir) != cmdContent)
+                {
+                    File.WriteAllText(cmdInAppDir, cmdContent, Encoding.ASCII);
+                    Ivy.Helpers.CrashLog.Write($"[PathHelper] Created tendril.cmd at {cmdInAppDir}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Ivy.Helpers.CrashLog.Write($"[PathHelper] Failed to create tendril.cmd in {appDir}: {ex.Message}");
+            }
+
+            // 2. Create tendril.cmd in %USERPROFILE%\.local\bin for global command access
+            try
+            {
+                var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                var localBinDir = Path.Combine(userProfile, ".local", "bin");
+                if (!Directory.Exists(localBinDir))
+                {
+                    Directory.CreateDirectory(localBinDir);
+                }
+
+                var localBinCmd = Path.Combine(localBinDir, "tendril.cmd");
+                var localBinCmdContent = $"@echo off\r\n\"{exePath}\" %*\r\n";
+                if (!File.Exists(localBinCmd) || File.ReadAllText(localBinCmd) != localBinCmdContent)
+                {
+                    File.WriteAllText(localBinCmd, localBinCmdContent, Encoding.ASCII);
+                    Ivy.Helpers.CrashLog.Write($"[PathHelper] Created tendril.cmd at {localBinCmd}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Ivy.Helpers.CrashLog.Write($"[PathHelper] Failed to create tendril.cmd in .local/bin: {ex.Message}");
+            }
+
+            // 3. Ensure appDir is present in User PATH environment variable
+            try
+            {
+                var userPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User) ?? "";
+                var pathDirs = userPath.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (!pathDirs.Any(d => string.Equals(d, appDir, StringComparison.OrdinalIgnoreCase)))
+                {
+                    var newPath = string.IsNullOrEmpty(userPath) ? appDir : $"{userPath}{Path.PathSeparator}{appDir}";
+                    Environment.SetEnvironmentVariable("PATH", newPath, EnvironmentVariableTarget.User);
+                    Ivy.Helpers.CrashLog.Write($"[PathHelper] Added {appDir} to Windows User PATH.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Ivy.Helpers.CrashLog.Write($"[PathHelper] Failed to update User PATH: {ex.Message}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Ivy.Helpers.CrashLog.Write($"[PathHelper] EnsureWindowsCliSetup failed: {ex}");
         }
     }
 

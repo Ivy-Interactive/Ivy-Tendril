@@ -73,7 +73,7 @@ public class JobService : IJobService
         TimeSpan jobTimeout,
         TimeSpan staleOutputTimeout,
         string? inboxPath = null,
-        int maxConcurrentJobs = 5,
+        int maxConcurrentJobs = 20,
         IPlanReaderService? planReaderService = null,
         ITelemetryService? telemetryService = null,
         IPlanDatabaseService? database = null,
@@ -248,7 +248,15 @@ public class JobService : IJobService
 
         try
         {
-            job.Process?.Kill(true);
+            if (job.Process != null)
+            {
+                job.Process.Kill(true);
+            }
+            else if (job.ProcessId is { } pid)
+            {
+                using var proc = System.Diagnostics.Process.GetProcessById(pid);
+                proc.Kill(true);
+            }
         }
         catch
         {
@@ -270,6 +278,7 @@ public class JobService : IJobService
 
         JobCompletionHandler.CleanupInboxFile(job);
         _completionHandler.RevertPlanStateToPrevious(job);
+        PersistJob(job);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
             _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
@@ -663,6 +672,9 @@ public class JobService : IJobService
     /// </summary>
     private void ReconcileRestoredJob(JobItem job)
     {
+        if (Environment.GetEnvironmentVariable("TENDRIL_NOT_MASTER") == "1" || IsOtherMasterRunning())
+            return;
+
         if (job.Status is not (JobStatus.Pending or JobStatus.Queued or JobStatus.Running))
             return;
 
@@ -678,11 +690,58 @@ public class JobService : IJobService
             return;
         }
 
-        job.Status = JobStatus.Failed;
-        job.StatusMessage = "Interrupted by Tendril master restart";
-        job.CompletedAt = DateTime.UtcNow;
-        PersistJob(job);
-        _logger.LogWarning("Job {JobId}: Marked Failed — interrupted by a Tendril master restart", job.Id);
+        // Only mark RUNNING jobs as failed when their process is dead.
+        // Pending and Queued jobs do not have a process yet and must not be marked failed.
+        if (job.Status == JobStatus.Running)
+        {
+            job.Status = JobStatus.Failed;
+            job.StatusMessage = "Interrupted by Tendril master restart";
+            job.CompletedAt = DateTime.UtcNow;
+            PersistJob(job);
+            _logger.LogWarning("Job {JobId}: Marked Failed — interrupted by a Tendril master restart", job.Id);
+        }
+    }
+
+    private bool IsOtherMasterRunning()
+    {
+        if (_configService == null || string.IsNullOrEmpty(_configService.TendrilHome))
+            return false;
+
+        var masterFilePath = Path.Combine(_configService.TendrilHome, ".master");
+        if (!File.Exists(masterFilePath)) return false;
+
+        try
+        {
+            var json = File.ReadAllText(masterFilePath);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("pid", out var pidElem) && pidElem.TryGetInt32(out var pid))
+            {
+                if (pid == Environment.ProcessId) return false;
+                try
+                {
+                    using var proc = System.Diagnostics.Process.GetProcessById(pid);
+                    if (!proc.HasExited)
+                    {
+                        if (root.TryGetProperty("heartbeat", out var hbElem) && hbElem.TryGetDateTime(out var hb))
+                        {
+                            if (DateTime.UtcNow - hb.ToUniversalTime() <= TimeSpan.FromSeconds(90))
+                                return true;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Process not found or access denied
+                }
+            }
+        }
+        catch
+        {
+            // Ignore errors reading master file
+        }
+
+        return false;
     }
 
     // Grace on the PID-reuse guard: the agent process starts shortly after the job does, so its
@@ -699,27 +758,40 @@ public class JobService : IJobService
             using var process = System.Diagnostics.Process.GetProcessById(pid);
             if (process.HasExited) return false;
 
-            // Best-effort PID-reuse guard; StartTime is not readable for every process.
+            // StartTime must be readable. If access is denied (e.g. system/elevated OS processes), it is NOT our agent process.
+            DateTime startTime;
             try
             {
-                if (job.StartedAt.HasValue
-                    && process.StartTime.ToUniversalTime() > job.StartedAt.Value + PidReuseGrace)
-                    return false;
+                startTime = process.StartTime.ToUniversalTime();
             }
             catch
             {
-                /* StartTime unavailable — fall back to "alive" */
+                return false;
+            }
+
+            // Verify process start time is within valid window of job start time
+            if (job.StartedAt.HasValue)
+            {
+                var jobStart = job.StartedAt.Value;
+                if (startTime < jobStart - TimeSpan.FromMinutes(1) || startTime > jobStart + PidReuseGrace)
+                    return false;
+            }
+
+            // Verify the process name is not a known system/service process
+            var name = process.ProcessName.ToLowerInvariant();
+            if (name.Contains("svchost") || name.Contains("explorer") || name.Contains("chrome") ||
+                name.Contains("msedge") || name.Contains("system") || name.Contains("csrss") ||
+                name.Contains("lsass") || name.Contains("services") || name.Contains("smss") ||
+                name.Contains("spoolsv") || name.Contains("taskhostw") || name.Contains("search"))
+            {
+                return false;
             }
 
             return true;
         }
-        catch (ArgumentException)
+        catch
         {
-            return false; // No process with that id
-        }
-        catch (InvalidOperationException)
-        {
-            return false; // Process has exited and its handle is gone
+            return false;
         }
     }
 
@@ -935,6 +1007,11 @@ public class JobService : IJobService
         {
             var planFile = cp.Description.Length > 50 ? cp.Description[..50] + "..." : cp.Description;
             return (planFile, cp.Project, cp.Priority);
+        }
+
+        if (args is AddProjectArgs ap)
+        {
+            return (ap.ProjectName, ap.ProjectName, 0);
         }
 
         var folder = args.PlanFolder ?? "";
@@ -1164,7 +1241,7 @@ public class JobService : IJobService
     private void LaunchJob(JobItem job)
     {
         _jobLauncher.LaunchJob(
-            job, _jobs, _jobSlotSemaphore, _jobTimeout, _staleOutputTimeout,
+            job, _jobs, _jobSlotSemaphore, () => _jobTimeout, () => _staleOutputTimeout,
             (when, type, folder, project, j) => RunHooks(when, type, folder, project, j),
             (id, exitCode, timedOut, staleOutput) => CompleteJob(id, exitCode, timedOut, staleOutput),
             RaiseJobsStructureChanged);
@@ -1178,7 +1255,22 @@ public class JobService : IJobService
         => _completionHandler.RunHooks(when, jobType, planFolder, project, job);
 
     internal Task RunStaleOutputWatchdog(string id, CancellationTokenSource timeoutCts)
-        => JobMonitor.RunStaleOutputWatchdog(id, timeoutCts, _jobs, _staleOutputTimeout);
+        => JobMonitor.RunStaleOutputWatchdog(id, timeoutCts, _jobs, () => _staleOutputTimeout);
+
+    internal Task RunJobTimeoutWatchdog(string id, CancellationTokenSource timeoutCts, DateTime startedAt, TimeSpan? tickInterval = null)
+        => JobMonitor.RunJobTimeoutWatchdog(id, timeoutCts, _jobs, () => _jobTimeout, startedAt, tickInterval);
+
+    internal TimeSpan JobTimeout
+    {
+        get => _jobTimeout;
+        set => _jobTimeout = value;
+    }
+
+    internal TimeSpan StaleOutputTimeout
+    {
+        get => _staleOutputTimeout;
+        set => _staleOutputTimeout = value;
+    }
 
 
     private void ProcessJobQueue()

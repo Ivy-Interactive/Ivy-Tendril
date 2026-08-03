@@ -13,7 +13,8 @@ public static class ProcessCheckHelper
         RedirectStandardOutput = true,
         RedirectStandardError = true,
         UseShellExecute = false,
-        CreateNoWindow = true
+        CreateNoWindow = true,
+        WorkingDirectory = Path.GetTempPath()
     };
 
     public static async Task<bool> CheckCommand(string fileName, string arguments, int timeoutMs = 10_000)
@@ -152,9 +153,10 @@ public static class ProcessCheckHelper
             if (url.Contains('\'') || url.Contains('"')) return false;
 
             var isPull = Directory.Exists(destinationPath);
-            var psi = MakeStartInfo("git", isPull 
-                ? $"-C \"{destinationPath}\" pull" 
-                : $"clone \"{url}\" \"{destinationPath}\"");
+            var gitCommand = isPull
+                ? $"-c core.fsmonitor=false --no-optional-locks -C \"{destinationPath}\" pull"
+                : $"-c core.fsmonitor=false --no-optional-locks clone \"{url}\" \"{destinationPath}\"";
+            var psi = MakeStartInfo("git", gitCommand);
 
             using var process = Process.Start(psi);
             if (process is null) return false;

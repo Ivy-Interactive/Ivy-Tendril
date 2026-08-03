@@ -1,4 +1,5 @@
 using Ivy.Tendril.Apps.Onboarding.Models;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Onboarding;
@@ -74,9 +75,7 @@ public class OnboardingApp : ViewBase
         var commonChecksPassed = UseState(false);
         var homeBootstrapped = UseState(false);
         var completedAgentKey = UseState<string?>();
-        var tendrilHomePath = UseState(() =>
-            Environment.GetEnvironmentVariable("TENDRIL_HOME")
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril"));
+        var tendrilHomePath = UseState(() => PathHelper.GetDefaultTendrilHome());
         var selectedRepos = UseState(() => new List<RepoRef>());
         var projectName = UseState("");
         var isStepLoading = UseState(false);

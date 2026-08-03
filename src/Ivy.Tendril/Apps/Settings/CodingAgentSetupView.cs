@@ -22,7 +22,8 @@ public class CodingAgentSetupView : ViewBase
         new("gemini", "Gemini", AgentBranding.IconFor("gemini")),
         new("antigravity", "Antigravity", AgentBranding.IconFor("antigravity")),
         new("opencode", "OpenCode", AgentBranding.IconFor("opencode")),
-        new("ivy", "Ivy Agent", AgentBranding.IconFor("ivy"))
+        new("ivy", "Ivy Agent", AgentBranding.IconFor("ivy")),
+        new("openaiproxy", "OpenAI Proxy", AgentBranding.IconFor("openaiproxy"))
     ];
 
     public override object Build()
@@ -42,7 +43,9 @@ public class CodingAgentSetupView : ViewBase
         var lastAgent = UseState(selectedAgent.Value);
         var showTestDialog = UseState(false);
         var ivyApiKey = UseState(GetIvyApiKeyFromConfig(config));
-        var ivyBaseUrl = UseState(GetIvyBaseUrlFromConfig(config));
+        var openAiProxyApiKey = UseState(GetOpenAiProxyApiKeyFromConfig(config));
+        var openAiProxyBaseUrl = UseState(GetOpenAiProxyBaseUrlFromConfig(config));
+        var ollamaUrl = UseState(GetOllamaUrlFromConfig(config, selectedAgent.Value));
 
         var modelsQuery = UseQuery<ModelInfo[], string>(
             selectedAgent.Value,
@@ -62,7 +65,7 @@ public class CodingAgentSetupView : ViewBase
 
         var checkIvyInstall = async () =>
         {
-            var hc = runner.GetHealthCheck("ivy");
+            var hc = runner.GetHealthCheck("ivy") ?? runner.GetHealthCheck("openaiproxy");
             if (hc != null)
             {
                 var status = await hc.CheckInstallAsync();
@@ -84,6 +87,7 @@ public class CodingAgentSetupView : ViewBase
             deepModel.Set(GetProfileModel(config, selectedAgent.Value, "deep"));
             balancedModel.Set(GetProfileModel(config, selectedAgent.Value, "balanced"));
             quickModel.Set(GetProfileModel(config, selectedAgent.Value, "quick"));
+            ollamaUrl.Set(GetOllamaUrlFromConfig(config, selectedAgent.Value));
             lastAgent.Set(selectedAgent.Value);
         }
 
@@ -100,9 +104,11 @@ public class CodingAgentSetupView : ViewBase
             quickModel.Value != GetProfileModel(config, selectedAgent.Value, "quick");
         
         var hasApiKeyChanges = selectedAgent.Value == "ivy" && ivyApiKey.Value != GetIvyApiKeyFromConfig(config);
-        var hasBaseUrlChanges = selectedAgent.Value == "ivy" && ivyBaseUrl.Value != GetIvyBaseUrlFromConfig(config);
+        var hasOpenAiProxyApiKeyChanges = selectedAgent.Value == "openaiproxy" && openAiProxyApiKey.Value != GetOpenAiProxyApiKeyFromConfig(config);
+        var hasOpenAiProxyBaseUrlChanges = selectedAgent.Value == "openaiproxy" && openAiProxyBaseUrl.Value != GetOpenAiProxyBaseUrlFromConfig(config);
+        var hasOllamaUrlChanges = selectedAgent.Value == "opencode" && ollamaUrl.Value != GetOllamaUrlFromConfig(config, selectedAgent.Value);
 
-        var hasChanges = selectedAgent.Value != config.Settings.CodingAgent || hasProfileChanges || hasApiKeyChanges || hasBaseUrlChanges;
+        var hasChanges = selectedAgent.Value != config.Settings.CodingAgent || hasProfileChanges || hasApiKeyChanges || hasOpenAiProxyApiKeyChanges || hasOpenAiProxyBaseUrlChanges || hasOllamaUrlChanges;
 
         var registeredAgents = runner.RegisteredAgents;
         var visibleAgents = Agents.Where(a => registeredAgents.Contains(a.Key)).ToArray();
@@ -122,6 +128,52 @@ public class CodingAgentSetupView : ViewBase
                 selectedAgent.Set(a.Key);
             }));
 
+        object BuildIvyInstallBox()
+        {
+            return new Box()
+                .BorderColor(Colors.Warning)
+                .Padding(4)
+                .BorderRadius(BorderRadius.Rounded)
+                .Content(
+                    Layout.Vertical().Gap(2)
+                    | Text.Block("Ivy Agent Tooling").Bold().Color(Colors.Warning)
+                    | Text.Rich()
+                        .Run("Ivy Agent / OpenAI Proxy requires the local ivy-agent CLI tooling. Download and installation is available from the ")
+                        .Link("GitHub repository", "https://github.com/Ivy-Interactive/ivy-agent-cli")
+                        .Run(".")
+                        .OnLinkClick(url => client.OpenUrl(url))
+                    | new Spacer().Height(Size.Units(1))
+                    | (isIvyInstalled.Value
+                        ? Text.Block("✓ Tooling is installed locally.").Color(Colors.Success).Small()
+                        : (object)(Layout.Vertical().Gap(1)
+                            | new Button(isInstalling.Value ? "Downloading & Installing..." : "One-Click Download & Install")
+                                .Primary()
+                                .Disabled(isInstalling.Value)
+                                .OnClick(async () =>
+                                {
+                                    isInstalling.Set(true);
+                                    installError.Set(null);
+                                    try
+                                    {
+                                        await InstallIvyAgentAsync(client);
+                                        await checkIvyInstall();
+                                        client.Toast("Tooling downloaded and installed successfully!", "Success");
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        installError.Set(ex.Message);
+                                    }
+                                    finally
+                                    {
+                                        isInstalling.Set(false);
+                                    }
+                                })
+                            | (installError.Value != null ? Text.Block(installError.Value).Color(Colors.Destructive).Small() : null!)
+                          )
+                      )
+                );
+        }
+
         return Layout.Vertical().Padding(4)
                | Text.Block("Coding Agent").Bold()
                | (Layout.Vertical().Padding(0)
@@ -135,58 +187,34 @@ public class CodingAgentSetupView : ViewBase
                    | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick"))
                | (selectedAgent.Value == "ivy"
                    ? (object)(Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
-                       | new Box()
-                           .BorderColor(Colors.Warning)
-                           .Padding(4)
-                           .BorderRadius(BorderRadius.Rounded)
-                           .Content(
-                               Layout.Vertical().Gap(2)
-                               | Text.Block("Ivy Agent Invite-Only Beta").Bold().Color(Colors.Warning)
-                               | Text.Rich()
-                                   .Run("Ivy Agent is currently in early beta with invite-only access. You can find the installation guide and download the tooling from the ")
-                                   .Link("private GitHub repository", "https://github.com/Ivy-Interactive/ivy-agent-cli")
-                                   .Run(".")
-                                   .OnLinkClick(url => client.OpenUrl(url))
-                               | new Spacer().Height(Size.Units(1))
-                               | (isIvyInstalled.Value
-                                   ? Text.Block("✓ Ivy Agent is installed locally.").Color(Colors.Success).Small()
-                                   : (object)(Layout.Vertical().Gap(1)
-                                       | new Button(isInstalling.Value ? "Downloading & Installing..." : "One-Click Download & Install")
-                                           .Primary()
-                                           .Disabled(isInstalling.Value)
-                                           .OnClick(async () =>
-                                           {
-                                               isInstalling.Set(true);
-                                               installError.Set(null);
-                                               try
-                                               {
-                                                   await InstallIvyAgentAsync(client);
-                                                   await checkIvyInstall();
-                                                   client.Toast("Ivy Agent downloaded and installed successfully!", "Success");
-                                               }
-                                               catch (Exception ex)
-                                               {
-                                                   installError.Set(ex.Message);
-                                               }
-                                               finally
-                                               {
-                                                   isInstalling.Set(false);
-                                               }
-                                           })
-                                       | (installError.Value != null ? Text.Block(installError.Value).Color(Colors.Destructive).Small() : null!)
-                                     )
-                                 )
-                           )
+                       | BuildIvyInstallBox()
                        | new Spacer().Height(Size.Units(2))
                        | ivyApiKey.ToPasswordInput("sk-...")
                            .WithField()
                            .Label("Ivy Proxy API Key (Optional)")
-                           .Description("Optional. If not set, Tendril will use the token from your @ivy.app account login.")
+                           .Description("Optional. Hardcoded to https://llmproxy.ivy.app. If not set, Tendril will use the token from your @ivy.app account login."))
+                   : null!)
+               | (selectedAgent.Value == "openaiproxy"
+                   ? (object)(Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                       | BuildIvyInstallBox()
                        | new Spacer().Height(Size.Units(2))
-                       | ivyBaseUrl.ToTextInput("https://llmproxy.ivy.app")
+                       | openAiProxyBaseUrl.ToTextInput("https://api.openai.com")
                            .WithField()
-                           .Label("Ivy Proxy Base URL (Optional)")
-                           .Description("Optional. Overrides the default base URL for the Ivy API proxy."))
+                           .Label("API Base URL (Required)")
+                           .Description("Required. Endpoint URL for your OpenAI-compatible API proxy (sets ANTHROPIC_BASE_URL for ivy-agent).")
+                       | new Spacer().Height(Size.Units(2))
+                       | openAiProxyApiKey.ToPasswordInput("sk-...")
+                           .WithField()
+                           .Label("API Key (Required)")
+                           .Description("Required. API Key for authenticating with your OpenAI-compatible endpoint (sets ANTHROPIC_API_KEY for ivy-agent)."))
+                   : null!)
+               | (selectedAgent.Value == "opencode"
+                   ? (object)(Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                       | new Spacer().Height(Size.Units(2))
+                       | ollamaUrl.ToTextInput("http://localhost:11434")
+                           .WithField()
+                           .Label("Ollama Host / Base URL (Optional)")
+                           .Description("Optional. Overrides the default Ollama server URL (sets OLLAMA_HOST and OLLAMA_BASE_URL environment variables)."))
                    : null!)
                | new Spacer().Height(Size.Units(4))
                | (Layout.Horizontal().Gap(2)
@@ -200,7 +228,9 @@ public class CodingAgentSetupView : ViewBase
                            config.Settings.CodingAgent = selectedAgent.Value;
                            SaveProfiles(config, selectedAgent.Value, deepModel.Value, balancedModel.Value, quickModel.Value);
                            SaveIvyApiKey(config, ivyApiKey.Value);
-                           SaveIvyBaseUrl(config, ivyBaseUrl.Value);
+                           SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
+                           SaveOpenAiProxyBaseUrl(config, openAiProxyBaseUrl.Value);
+                           SaveOllamaUrl(config, selectedAgent.Value, ollamaUrl.Value);
                            config.SaveSettings();
                            client.Toast("Coding agent settings saved", "Saved");
                        }))
@@ -334,6 +364,45 @@ public class CodingAgentSetupView : ViewBase
         }
     }
 
+    private static string GetOllamaUrlFromConfig(IConfigService config, string agentId)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
+        if (ac != null)
+        {
+            if (ac.EnvironmentVariables.TryGetValue("OLLAMA_HOST", out var host) && !string.IsNullOrEmpty(host))
+                return host;
+            if (ac.EnvironmentVariables.TryGetValue("OLLAMA_BASE_URL", out var baseUrl) && !string.IsNullOrEmpty(baseUrl))
+                return baseUrl;
+        }
+        return "";
+    }
+
+    private static void SaveOllamaUrl(IConfigService config, string agentId, string url)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
+
+        if (ac == null)
+        {
+            if (string.IsNullOrEmpty(url)) return;
+            ac = new AgentConfig { Name = agentId };
+            config.Settings.CodingAgents.Add(ac);
+        }
+
+        if (string.IsNullOrEmpty(url))
+        {
+            ac.EnvironmentVariables.Remove("OLLAMA_HOST");
+            ac.EnvironmentVariables.Remove("OLLAMA_BASE_URL");
+        }
+        else
+        {
+            ac.EnvironmentVariables["OLLAMA_HOST"] = url;
+            ac.EnvironmentVariables["OLLAMA_BASE_URL"] = url;
+        }
+    }
+
+
     private static async Task<bool> InstallIvyAgentAsync(IClientProvider client)
     {
         string os = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "windows" :
@@ -446,7 +515,8 @@ public class CodingAgentSetupView : ViewBase
                 using var codesignProc = Process.Start(codesignInfo);
                 if (codesignProc != null) await codesignProc.WaitForExitAsync();
             }
-            
+
+            PathHelper.EnsureIvyAgentCliSetup();
             return true;
         }
         finally
@@ -459,4 +529,63 @@ public class CodingAgentSetupView : ViewBase
         }
     }
 
+    private static string GetOpenAiProxyApiKeyFromConfig(IConfigService config)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
+        if (ac != null && ac.EnvironmentVariables.TryGetValue("ANTHROPIC_API_KEY", out var key))
+            return key;
+        return "";
+    }
+
+    private static void SaveOpenAiProxyApiKey(IConfigService config, string apiKey)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
+
+        if (ac == null)
+        {
+            ac = new AgentConfig { Name = "openaiproxy" };
+            config.Settings.CodingAgents.Add(ac);
+        }
+
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            ac.EnvironmentVariables.Remove("ANTHROPIC_API_KEY");
+        }
+        else
+        {
+            ac.EnvironmentVariables["ANTHROPIC_API_KEY"] = apiKey;
+        }
+    }
+
+    private static string GetOpenAiProxyBaseUrlFromConfig(IConfigService config)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
+        if (ac != null && ac.EnvironmentVariables.TryGetValue("ANTHROPIC_BASE_URL", out var url))
+            return url;
+        return "";
+    }
+
+    private static void SaveOpenAiProxyBaseUrl(IConfigService config, string url)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
+
+        if (ac == null)
+        {
+            ac = new AgentConfig { Name = "openaiproxy" };
+            config.Settings.CodingAgents.Add(ac);
+        }
+
+        if (string.IsNullOrEmpty(url))
+        {
+            ac.EnvironmentVariables.Remove("ANTHROPIC_BASE_URL");
+        }
+        else
+        {
+            ac.EnvironmentVariables["ANTHROPIC_BASE_URL"] = url;
+        }
+    }
 }

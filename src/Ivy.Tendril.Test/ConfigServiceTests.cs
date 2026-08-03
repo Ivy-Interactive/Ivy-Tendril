@@ -464,20 +464,14 @@ levels:
     public void ExpandVariables_NormalizesMixedPathSeparators()
     {
         var result = VariableExpansion.ExpandVariables(@"D:/Repos/Mixed\Path", "");
-        if (Path.DirectorySeparatorChar == '\\')
-            Assert.Equal(@"D:\Repos\Mixed\Path", result);
-        else
-            Assert.Equal("D:/Repos/Mixed/Path", result);
+        Assert.Equal("D:/Repos/Mixed/Path", result);
     }
 
     [Fact]
     public void ExpandVariables_NormalizesForwardSlashesOnWindows()
     {
         var result = VariableExpansion.ExpandVariables("D:/Repos/ForwardSlash", "");
-        if (Path.DirectorySeparatorChar == '\\')
-            Assert.Equal(@"D:\Repos\ForwardSlash", result);
-        else
-            Assert.Equal("D:/Repos/ForwardSlash", result);
+        Assert.Equal("D:/Repos/ForwardSlash", result);
     }
 
     [Fact]
@@ -536,6 +530,20 @@ levels:
         };
 
         var result = project.GetRepoRef(@"d:\repos\foo");
+        Assert.NotNull(result);
+        Assert.Equal("yolo", result.PrRule);
+    }
+
+    [Fact]
+    public void GetRepoRef_NormalizesMixedPathSeparators()
+    {
+        var project = new ProjectConfig
+        {
+            Name = "Test",
+            Repos = [new RepoRef { Path = @"D:\Repos\Foo", PrRule = "yolo" }]
+        };
+
+        var result = project.GetRepoRef("D:/Repos/Foo");
         Assert.NotNull(result);
         Assert.Equal("yolo", result.PrRule);
     }
@@ -1390,7 +1398,7 @@ maxConcurrentJobs: 0
         try
         {
             service.SetTendrilHome(tempDir);
-            Assert.Equal(5, service.Settings.MaxConcurrentJobs);
+            Assert.Equal(20, service.Settings.MaxConcurrentJobs);
         }
         finally
         {
@@ -1784,5 +1792,127 @@ verifications:
             await Task.Delay(50);
         }
         return condition();
+    }
+
+    [Fact]
+    public void VerificationPrompt_WithBackslashes_SurvivesSaveAndReload()
+    {
+        var yaml = @"
+verifications:
+  - name: CheckResult
+    prompt: |
+      grep '#\[test\]' src/lib.rs
+      Check C:\Users\x
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        PathHelper.DefaultTendrilHomeOverride = tempDir;
+        try
+        {
+            using var service = new ConfigService();
+            service.SaveSettings();
+            service.SaveSettings();
+
+            var yamlOnDisk = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
+            Assert.Contains(@"grep '#\[test\]' src/lib.rs", yamlOnDisk);
+            Assert.Contains(@"C:\Users\x", yamlOnDisk);
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+        }
+    }
+
+    [Fact]
+    public void VerificationPrompt_WithDoubleSlash_IsNotCollapsed()
+    {
+        var yaml = @"
+verifications:
+  - name: CheckResult
+    prompt: |
+      check // comment and a//b
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        PathHelper.DefaultTendrilHomeOverride = tempDir;
+        try
+        {
+            using var service = new ConfigService();
+            service.SaveSettings();
+            service.SaveSettings();
+
+            var yamlOnDisk = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
+            Assert.Contains("// comment", yamlOnDisk);
+            Assert.Contains("a//b", yamlOnDisk);
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+        }
+    }
+
+    [Fact]
+    public void VerificationPrompt_ExpandsTendrilHomeWithoutNormalizing()
+    {
+        var yaml = @"
+verifications:
+  - name: CheckResult
+    prompt: run %TENDRIL_HOME%\bin\x.exe
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        PathHelper.DefaultTendrilHomeOverride = tempDir;
+        try
+        {
+            using var service = new ConfigService();
+            service.SaveSettings();
+            service.SaveSettings();
+
+            var yamlOnDisk = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
+            Assert.Contains(@"\bin\x.exe", yamlOnDisk);
+            Assert.DoesNotContain("%TENDRIL_HOME%", yamlOnDisk);
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+        }
+    }
+
+    [Fact]
+    public void ReviewActionCommand_And_ProjectContext_SurviveSaveWithBackslashes()
+    {
+        var yaml = @"
+projects:
+  - name: TestProject
+    repos:
+      - path: D:\Repos\Test
+    context: |
+      Use grep -rho '#\[test\]' and check // comments
+    reviewActions:
+      - label: Build
+        condition: Test-Path C:\x
+        command: dotnet build C:\y // comment
+    hooks:
+      - event: OnComplete
+        condition: Test-Path D:\z
+        action: echo done // log
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        PathHelper.DefaultTendrilHomeOverride = tempDir;
+        try
+        {
+            using var service = new ConfigService();
+            service.SaveSettings();
+            service.SaveSettings();
+
+            var yamlOnDisk = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
+            Assert.Contains(@"grep -rho '#\[test\]'", yamlOnDisk);
+            Assert.Contains(@"check // comments", yamlOnDisk);
+            Assert.Contains(@"Test-Path C:\x", yamlOnDisk);
+            Assert.Contains(@"dotnet build C:\y // comment", yamlOnDisk);
+            Assert.Contains(@"Test-Path D:\z", yamlOnDisk);
+            Assert.Contains(@"echo done // log", yamlOnDisk);
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+        }
     }
 }

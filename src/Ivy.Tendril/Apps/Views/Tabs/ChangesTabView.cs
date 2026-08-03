@@ -1,6 +1,14 @@
+using System.IO;
+using System.Diagnostics;
+using System.Text;
+using System.Threading.Tasks;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Apps.Views;
-using Ivy.Widgets.DiffView;
+using Ivy.Tendril.Widgets;
+using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Plans;
+using Ivy.Tendril.Apps.Review.Dialogs;
 
 namespace Ivy.Tendril.Apps.Views.Tabs;
 
@@ -8,6 +16,13 @@ public class ChangesTabView(
     PlanContentHelpers.AllChangesData? changesData,
     bool loading,
     Exception? error,
+    IState<List<DraftComment>> draftComments,
+    PlanFile selectedPlan,
+    IJobService jobService,
+    Action refreshPlans,
+    List<PlanContentHelpers.CommitRow> commitRows,
+    Action<string> setOpenCommit,
+    IState<string?> openFile,
     string? projectName = null) : ViewBase
 {
     public int FileCount => changesData?.Files.Count ?? 0;
@@ -15,7 +30,24 @@ public class ChangesTabView(
     public override object Build()
     {
         var client = UseService<IClientProvider>();
+        var planService = UseService<IPlanReaderService>();
+        var gitService = UseService<IGitService>();
+        var config = UseService<IConfigService>();
         var hideFormatting = UseState(true);
+
+        var (submitReviewDialog, showSubmitReviewDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new SubmitReviewDialog(
+                isOpen,
+                selectedPlan,
+                draftComments.Value,
+                draftComments,
+                jobService,
+                planService,
+                refreshPlans
+            );
+        });
 
         if (loading && changesData is null)
             return Text.Muted("Loading...");
@@ -28,8 +60,6 @@ public class ChangesTabView(
             return Text.Muted(errorMsg);
         }
 
-        // The diff was read from a worktree whose repo isn't part of the plan's project (#1340).
-        // Warn so the reviewer doesn't merge blind.
         object? mismatchBanner = null;
         if (changesData.FromUnlistedWorktree)
         {
@@ -67,31 +97,117 @@ public class ChangesTabView(
                 client.Redirect($"#{path}");
             });
 
-        // var statsText =
-        //     $"{changesData.Files.Count} files changed ({changesData.AddedCount} added, {changesData.ModifiedCount} modified, {changesData.DeletedCount} deleted)";
-
-        var diffsLayout = Layout.Vertical().Gap(2).Width(Size.Grow().Min(Size.Px(0))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)));
-        //diffsLayout |= Text.Block(statsText).Bold();
-
-        foreach (var fileDiff in sortedFileDiffs)
+        var diffsLayout = Layout.Vertical().Gap(1).Width(Size.Grow().Min(Size.Px(0))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)));
+        var isManyFiles = sortedFileDiffs.Count > 10;
+        for (var i = 0; i < sortedFileDiffs.Count; i++)
         {
+            var fileDiff = sortedFileDiffs[i];
             var path = fileDiff.FilePath;
-            diffsLayout |= Text.Block("").Anchor(path);
-            diffsLayout |= new DiffView()
-                .Diff(fileDiff.Diff)
-                .Collapsible()
-                .Width(Size.Full());
+            diffsLayout |= new PlanDiffView
+            {
+                Diff = fileDiff.Diff,
+                FilePath = path,
+                Collapsible = true,
+                DefaultCollapsed = isManyFiles && i >= 5,
+                Comments = draftComments.Value.Where(c => c.FilePath == path).ToList(),
+                OnAddComment = e =>
+                {
+                    var list = new List<DraftComment>(draftComments.Value);
+                    list.Add(e.Value);
+                    draftComments.Set(list);
+                    return ValueTask.CompletedTask;
+                },
+                OnUpdateComment = e =>
+                {
+                    var c = e.Value;
+                    var list = new List<DraftComment>(draftComments.Value);
+                    var idx = list.FindIndex(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
+                    if (idx >= 0)
+                    {
+                        list[idx] = c;
+                        draftComments.Set(list);
+                    }
+                    return ValueTask.CompletedTask;
+                },
+                OnDeleteComment = e =>
+                {
+                    var c = e.Value;
+                    var list = new List<DraftComment>(draftComments.Value);
+                    list.RemoveAll(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
+                    draftComments.Set(list);
+                    return ValueTask.CompletedTask;
+                },
+                OnDirectEdit = async e =>
+                {
+                    await HandleDirectEdit(e.Value);
+                },
+                OnViewFile = e =>
+                {
+                    var repoPath = changesData?.SourceRepoPath;
+                    if (string.IsNullOrEmpty(repoPath))
+                    {
+                        repoPath = selectedPlan.GetEffectiveRepoPaths(config).FirstOrDefault();
+                    }
+                    if (!string.IsNullOrEmpty(repoPath))
+                    {
+                        var absolutePath = Path.Combine(repoPath, e.Value).Replace('\\', '/');
+                        openFile.Set(absolutePath);
+                    }
+                    return ValueTask.CompletedTask;
+                },
+                OnEditFile = e =>
+                {
+                    var repoPath = changesData?.SourceRepoPath;
+                    if (string.IsNullOrEmpty(repoPath))
+                    {
+                        repoPath = selectedPlan.GetEffectiveRepoPaths(config).FirstOrDefault();
+                    }
+                    if (!string.IsNullOrEmpty(repoPath))
+                    {
+                        var absolutePath = Path.Combine(repoPath, e.Value).Replace('\\', '/');
+                        var process = Process.Start(new ProcessStartInfo
+                        {
+                            FileName = "code",
+                            Arguments = $"\"{absolutePath}\"",
+                            UseShellExecute = true,
+                            CreateNoWindow = true
+                        });
+                    }
+                    return ValueTask.CompletedTask;
+                },
+                OnDeleteFile = async e =>
+                {
+                    var repoPath = changesData?.SourceRepoPath;
+                    if (string.IsNullOrEmpty(repoPath))
+                    {
+                        repoPath = selectedPlan.GetEffectiveRepoPaths(config).FirstOrDefault();
+                    }
+                    if (!string.IsNullOrEmpty(repoPath))
+                    {
+                        var absolutePath = Path.Combine(repoPath, e.Value).Replace('\\', '/');
+                        try
+                        {
+                            if (File.Exists(absolutePath))
+                            {
+                                File.Delete(absolutePath);
+                            }
+                            client.Toast($"Deleted file: {e.Value}", "File Deleted");
+                            refreshPlans();
+                        }
+                        catch (Exception ex)
+                        {
+                            client.Toast($"Failed to delete file: {ex.Message}", "Delete Failed", variant: ToastVariant.Destructive);
+                        }
+                    }
+                    await Task.CompletedTask;
+                }
+            }.Width(Size.Full());
         }
 
-        // Desktop/laptop: the file tree sits in a fixed-width sidebar beside the diffs.
-        var treePanel = new Box(Layout.Vertical().Gap(2).Padding(1)
-                .Width(Size.Rem(14).Min(Size.Rem(14))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)))
-                | tree)
-            .BorderThickness(0).Padding(0).Width(Size.Auto()).Height(Size.Full().Min(Size.Px(0)))
+        var treePanel = new Box(Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0))) | tree)
+            .Width(Size.Auto()).Height(Size.Full().Min(Size.Px(0)))
             .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-        // Mobile/tablet: the tree has no room, so collapse it into a dropdown list of
-        // files that jumps to the corresponding diff (same anchor as the tree select).
         var mobileFilePicker = MobileItemPicker.Build(
                 $"Jump to file ({sortedFileDiffs.Count})",
                 sortedFileDiffs,
@@ -100,13 +216,44 @@ public class ChangesTabView(
                 fd => client.Redirect($"#{fd.FilePath}"))
             .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-        var toolbar = Layout.Horizontal().Gap(2).Padding(1).AlignContent(Align.Left).Height(Size.Auto())
-            | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
+        var commitItems = commitRows.Select(c =>
+            new MenuItem($"{c.ShortHash} - {c.Title}", Icon: Icons.GitCommitHorizontal)
+                .OnSelect(() => setOpenCommit(c.Hash))
+        ).ToArray();
+
+        var rawCommitsBtn = new Button($"{commitRows.Count} Commits").Icon(Icons.GitCommitHorizontal).Outline();
+        object commitsBtn = commitItems.Length > 0
+            ? rawCommitsBtn.WithDropDown(commitItems)
+            : rawCommitsBtn;
+
+        var leftSide = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
+            | hideFormatting.ToSwitchInput(label: "Hide formatting changes")
+            | commitsBtn;
 
         if (hideFormatting.Value && hiddenCount > 0)
-            toolbar |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
+            leftSide |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
 
-        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(0, 0, 2, 2)
+        var totals = PlanContentHelpers.CountDiffLines(fileDiffs);
+        var totalsText = Text.Rich().NoWrap().Small()
+            .Run($"+{totals.Additions}", color: Colors.Success)
+            .Run($" -{totals.Deletions}", color: Colors.Destructive);
+
+        var draftCount = draftComments.Value.Count;
+        var submitBtn = new Button(draftCount > 0 ? $"Agent Review ({draftCount})" : "Agent Review")
+            .Icon(Icons.GitPullRequest)
+            .OnClick(() => showSubmitReviewDialog());
+
+        submitBtn = draftCount > 0 ? submitBtn.Primary() : submitBtn.Outline();
+
+        var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right).Padding(0, 0, 2, 0)
+            | totalsText
+            | submitBtn;
+
+        var toolbar = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween).Height(Size.Auto())
+            | leftSide
+            | rightSide;
+
+        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0)))
             | treePanel
             | diffsLayout;
 
@@ -116,7 +263,84 @@ public class ChangesTabView(
         outer |= toolbar;
         outer |= mobileFilePicker;
         outer |= mainLayout;
+        outer |= submitReviewDialog;
         return outer;
+
+        async Task HandleDirectEdit(DirectEditArgs args)
+        {
+            var repoPath = changesData?.SourceRepoPath;
+            if (string.IsNullOrEmpty(repoPath))
+            {
+                var repos = selectedPlan.GetEffectiveRepoPaths(config);
+                repoPath = repos.FirstOrDefault();
+            }
+
+            if (string.IsNullOrEmpty(repoPath))
+            {
+                client.Toast("Could not find repository path for direct edit.", "Edit Failed", variant: ToastVariant.Destructive);
+                return;
+            }
+
+            var absoluteFilePath = Path.Combine(repoPath, args.FilePath);
+            if (!File.Exists(absoluteFilePath))
+            {
+                client.Toast($"File not found at {absoluteFilePath}", "Edit Failed", variant: ToastVariant.Destructive);
+                return;
+            }
+
+            try
+            {
+                var lines = await File.ReadAllLinesAsync(absoluteFilePath);
+                if (args.LineNumber <= 0 || args.LineNumber > lines.Length)
+                {
+                    client.Toast($"Invalid line number: {args.LineNumber}. File has {lines.Length} lines.", "Edit Failed", variant: ToastVariant.Destructive);
+                    return;
+                }
+
+                lines[args.LineNumber - 1] = args.NewContent;
+                await File.WriteAllLinesAsync(absoluteFilePath, lines);
+
+                var gitAddResult = RunGitCommand(repoPath, $"add \"{args.FilePath}\"");
+                if (gitAddResult.ExitCode == 0)
+                {
+                    var commitMsg = string.IsNullOrWhiteSpace(args.CommitMessage)
+                        ? $"Direct edit: update {Path.GetFileName(args.FilePath)} at line {args.LineNumber}"
+                        : args.CommitMessage;
+                    var escapedMsg = commitMsg.Replace("\"", "\\\"");
+                    var gitCommitResult = RunGitCommand(repoPath, $"commit -m \"{escapedMsg}\"");
+                    if (gitCommitResult.ExitCode == 0)
+                    {
+                        client.Toast($"Successfully edited and committed line {args.LineNumber}.", "Edit Saved");
+                    }
+                    else
+                    {
+                        client.Toast($"Edited file on disk, but git commit failed: {gitCommitResult.Output}", "Edit Saved (No Commit)", variant: ToastVariant.Warning);
+                    }
+                }
+                else
+                {
+                    client.Toast($"Edited file on disk, but git add failed: {gitAddResult.Output}", "Edit Saved (No Commit)", variant: ToastVariant.Warning);
+                }
+
+                refreshPlans();
+            }
+            catch (Exception ex)
+            {
+                client.Toast($"Failed to write changes: {ex.Message}", "Edit Failed", variant: ToastVariant.Destructive);
+            }
+        }
+    }
+
+    private static (int ExitCode, string Output) RunGitCommand(string repoPath, string args)
+    {
+        var psi = GitHelper.MakeGitStartInfo(args, repoPath);
+        using var process = Process.Start(psi);
+        if (process == null)
+            return (-1, "");
+
+        var output = process.StandardOutput.ReadToEnd();
+        process.WaitForExit(10000); // 10s timeout
+        return (process.ExitCode, output);
     }
 
     private static TreeNode BuildFileTree(IReadOnlyList<PlanContentHelpers.FileDiff> fileDiffs)
@@ -186,8 +410,6 @@ public class ChangesTabView(
             .ToList();
     }
 
-    // Collapse single-child folder chains (e.g. "src/components" if src has only the components folder)
-    // for a more compact GitHub-style tree.
     private static MenuItem FolderItem(TreeNode node)
     {
         var label = node.Name;

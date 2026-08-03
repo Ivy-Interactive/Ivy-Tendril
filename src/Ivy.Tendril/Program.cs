@@ -5,6 +5,7 @@ using Ivy.Desktop;
 using Ivy.Helpers;
 using Ivy.Tendril.Agents;
 using Ivy.Tendril.Commands;
+using Ivy.Tendril.Commands.Memory;
 using Ivy.Tendril.Database;
 using Ivy.Tendril.Infrastructure;
 using Ivy.Tendril.Services;
@@ -37,6 +38,33 @@ public class Program
     [DllImport("libc", SetLastError = true)]
     private static extern int setsid();
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AttachConsole(int dwProcessId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr GetStdHandle(int nStdHandle);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetStdHandle(int nStdHandle, IntPtr hHandle);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint GetFileType(IntPtr hFile);
+
+    private const int ATTACH_PARENT_PROCESS = -1;
+    private const int STD_INPUT_HANDLE = -10;
+    private const int STD_OUTPUT_HANDLE = -11;
+    private const int STD_ERROR_HANDLE = -12;
+    private const uint FILE_TYPE_DISK = 0x0001;
+    private const uint FILE_TYPE_PIPE = 0x0003;
+
+    // A console handle is FILE_TYPE_CHAR; a shell redirect (`> file`, `| other`) yields
+    // FILE_TYPE_DISK or FILE_TYPE_PIPE. FILE_TYPE_UNKNOWN (invalid handle) is not redirected.
+    internal static bool IsHandleRedirected(IntPtr handle)
+    {
+        var type = GetFileType(handle);
+        return type == FILE_TYPE_DISK || type == FILE_TYPE_PIPE;
+    }
+
     // Must be a static field to prevent GC from collecting the delegate
     private static ConsoleCtrlHandlerDelegate? _consoleCtrlHandler;
 
@@ -46,6 +74,59 @@ public class Program
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
+        try
+        {
+            VelopackApp.Build().Run();
+        }
+        catch { }
+
+        var (verbose, quiet, forceDesktop, forceWeb, beta, filteredArgs) = ParseGlobalFlags(args);
+
+        bool isTool = IsTendrilToolInvocation();
+        bool isPackagedApp = IsPackagedApp();
+        bool useDesktop = (forceDesktop || isPackagedApp || (isTool && !verbose && !quiet) || (!isTool && !isPackagedApp && !forceWeb)) && !forceWeb;
+        if (useDesktop && OperatingSystem.IsLinux())
+        {
+            // On Linux, default to web mode (foreground server) unless desktop is explicitly forced
+            if (!forceDesktop)
+            {
+                useDesktop = false;
+            }
+        }
+
+        var invocationKind = CliDispatcher.Classify(filteredArgs);
+
+        if (OperatingSystem.IsWindows())
+        {
+            // Snapshot the inherited std handles BEFORE attaching. AttachConsole overwrites all three
+            // with console handles, which silently discards `tendril ... > file`, `tendril ... | other`
+            // and `tendril ... --stdin < file` for GUI-subsystem builds (issue #1849).
+            var inheritedIn = GetStdHandle(STD_INPUT_HANDLE);
+            var inheritedOut = GetStdHandle(STD_OUTPUT_HANDLE);
+            var inheritedErr = GetStdHandle(STD_ERROR_HANDLE);
+            var inRedirected = IsHandleRedirected(inheritedIn);
+            var outRedirected = IsHandleRedirected(inheritedOut);
+            var errRedirected = IsHandleRedirected(inheritedErr);
+
+            if (AttachConsole(ATTACH_PARENT_PROCESS))
+            {
+                // Put the redirected targets back; leave the newly attached console handles in place
+                // for the streams the parent did NOT redirect.
+                if (inRedirected) SetStdHandle(STD_INPUT_HANDLE, inheritedIn);
+                if (outRedirected) SetStdHandle(STD_OUTPUT_HANDLE, inheritedOut);
+                if (errRedirected) SetStdHandle(STD_ERROR_HANDLE, inheritedErr);
+
+                try
+                {
+                    var stdout = Console.OpenStandardOutput();
+                    Console.SetOut(new StreamWriter(stdout, new UTF8Encoding(false)) { AutoFlush = true });
+                    var stderr = Console.OpenStandardError();
+                    Console.SetError(new StreamWriter(stderr, new UTF8Encoding(false)) { AutoFlush = true });
+                }
+                catch { }
+            }
+        }
+
         var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
         if (!Console.IsInputRedirected)
@@ -97,30 +178,47 @@ public class Program
             catch { }
         }
 
-        VelopackApp.Build().Run();
+        bool isDetachedChild = args.Contains(DetachedLaunchMarker);
 
-        var (verbose, quiet, forceDesktop, forceWeb, beta, filteredArgs) = ParseGlobalFlags(args);
-
-        bool isTool = IsTendrilToolInvocation();
-        bool isPackagedApp = IsPackagedApp();
-        bool useDesktop = (forceDesktop || isPackagedApp || (isTool && !verbose && !quiet)) && !forceWeb;
-        if (useDesktop && OperatingSystem.IsLinux())
+        if (invocationKind == CliInvocationKind.Help)
         {
-            // On Linux, default to web mode (foreground server) unless desktop is explicitly forced
-            if (!forceDesktop)
+            var helpApp = ConfigureCliCommands(new ServiceCollection());
+            try
             {
-                useDesktop = false;
+                return helpApp.Run(filteredArgs.Length == 0 ? new[] { "--help" } : filteredArgs);
+            }
+            catch (CommandParseException)
+            {
+                // First token wasn't a registered command (e.g. "add project --help") but a
+                // help token is present somewhere in the args — fall back to top-level help
+                // rather than letting Spectre's parse failure escape as an "unknown command" error.
+                return helpApp.Run(new[] { "--help" });
             }
         }
 
+        if (invocationKind == CliInvocationKind.Unknown)
+        {
+            AnsiConsole.MarkupLine($"[red]Unknown command '{filteredArgs[0].EscapeMarkup()}'.[/] Run [green]tendril --help[/] to see available commands.");
+            ConfigureCliCommands(new ServiceCollection()).Run(new[] { "--help" });
+            return 1;
+        }
 
+        if (invocationKind == CliInvocationKind.LegacyCliCommand)
+        {
+            var hashExitCode = HashPasswordCommand.Handle(filteredArgs);
+            if (hashExitCode >= 0)
+                return hashExitCode;
 
-        bool isDetachedChild = args.Contains(DetachedLaunchMarker);
+            var mcpExitCode = McpCommand.Handle(filteredArgs);
+            if (mcpExitCode >= 0)
+                return mcpExitCode;
+        }
 
         // Check if we are launching the web server/desktop UI (not executing a CLI subcommand)
-        bool isServerLaunch = filteredArgs.Length == 0 || !ShouldHandleAsCliCommand(filteredArgs[0]);
+        bool isServerLaunch = invocationKind == CliInvocationKind.ServerLaunch;
         if (isServerLaunch && !isDetachedChild)
         {
+            CrashLog.Write($"[{DateTime.UtcNow:O}] Server launch (kind={invocationKind}) | raw args: {string.Join(" ", Environment.GetCommandLineArgs())}");
             var checkArgs = new Services.TendrilArgs { Beta = beta, Verbose = verbose, Quiet = quiet };
             var checkServer = TendrilServer.Create(filteredArgs, checkArgs);
             if (useDesktop)
@@ -156,7 +254,7 @@ public class Program
         }
 
         // Handle CLI commands using Spectre.Console.Cli
-        if (filteredArgs.Length > 0)
+        if (invocationKind == CliInvocationKind.CliCommand || invocationKind == CliInvocationKind.Version)
         {
             var cliServices = new ServiceCollection();
             var cliLogLevel = verbose ? LogLevel.Debug : quiet ? LogLevel.Warning : LogLevel.Information;
@@ -177,62 +275,58 @@ public class Program
             cliServices.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
 
             var app = ConfigureCliCommands(cliServices);
-            var firstArg = filteredArgs[0];
 
             // Handle --version flag by converting it to "version" command
-            if (firstArg == "--version")
+            if (invocationKind == CliInvocationKind.Version)
                 filteredArgs = new[] { "version" };
 
-            if (ShouldHandleAsCliCommand(firstArg))
+            try
             {
-                try
+                var cliLog = Environment.GetEnvironmentVariable("TENDRIL_CLI_LOG");
+                if (!string.IsNullOrEmpty(cliLog))
                 {
-                    var cliLog = Environment.GetEnvironmentVariable("TENDRIL_CLI_LOG");
-                    if (!string.IsNullOrEmpty(cliLog))
-                    {
-                        var commandLine = string.Join(" ", filteredArgs);
-                        var sw = Stopwatch.StartNew();
-                        var exitCode = app.Run(filteredArgs);
-                        sw.Stop();
-                        CliInvocationLog.Append(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
-                        return exitCode;
-                    }
-                    return app.Run(filteredArgs);
+                    var commandLine = string.Join(" ", filteredArgs);
+                    var sw = Stopwatch.StartNew();
+                    var exitCode = app.Run(filteredArgs);
+                    sw.Stop();
+                    CliInvocationLog.Append(cliLog, commandLine, exitCode, sw.Elapsed.TotalMilliseconds);
+                    return exitCode;
                 }
-                catch (CommandParseException ex)
-                {
-                    AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
-                    return 1;
-                }
-                catch (CommandRuntimeException ex)
-                {
-                    AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
-                    return 1;
-                }
-                catch (Exception ex)
-                {
-                    Console.Error.WriteLine($"Error: {ex.Message}");
-                    if (verbose)
-                        Console.Error.WriteLine(ex.ToString());
-                    return 1;
-                }
+                return app.Run(filteredArgs);
+            }
+            catch (CommandParseException ex)
+            {
+                AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
+                return 1;
+            }
+            catch (CommandRuntimeException ex)
+            {
+                AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message.EscapeMarkup()}");
+                return 1;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error: {ex.Message}");
+                if (verbose)
+                    Console.Error.WriteLine(ex.ToString());
+                return 1;
             }
         }
-
-        // Legacy handlers for commands not yet migrated to Spectre.Console.Cli
-        var hashExitCode = HashPasswordCommand.Handle(filteredArgs);
-        if (hashExitCode >= 0)
-            return hashExitCode;
-
-        var mcpExitCode = McpCommand.Handle(filteredArgs);
-        if (mcpExitCode >= 0)
-            return mcpExitCode;
 
         CrashLog.Write($"[{DateTime.UtcNow:O}] Tendril starting (PID {Environment.ProcessId}) | {GetMemoryStats()}");
 
         // Install native console control handler FIRST — this catches CTRL_CLOSE_EVENT
         // (console window closed), CTRL_C_EVENT, CTRL_BREAK_EVENT, CTRL_LOGOFF_EVENT,
         // and CTRL_SHUTDOWN_EVENT. Logging here tells us exactly WHY the process is dying.
+        try
+        {
+            Console.CancelKeyPress += (_, _) =>
+            {
+                Environment.Exit(0);
+            };
+        }
+        catch { }
+
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             _consoleCtrlHandler = ctrlType =>
@@ -248,7 +342,14 @@ public class Program
                 };
                 CrashLog.Write(
                     $"[{DateTime.UtcNow:O}] ConsoleCtrlHandler: {name} (PID {Environment.ProcessId}) | {GetMemoryStats()}");
-                return false; // Let default handling proceed
+
+                if (ctrlType is 0 or 1 or 2)
+                {
+                    Environment.Exit(0);
+                    return true;
+                }
+
+                return false;
             };
             SetConsoleCtrlHandler(_consoleCtrlHandler, true);
         }
@@ -350,6 +451,7 @@ public class Program
         bool forceDesktop = args.Contains("--desktop");
         bool forceWeb = args.Contains("--web");
         bool beta = args.Contains("--beta");
+        bool notMaster = args.Contains("--not-master") || args.Contains("--slave");
 
         if (verbose)
             Environment.SetEnvironmentVariable("TENDRIL_VERBOSE", "1");
@@ -357,33 +459,30 @@ public class Program
             Environment.SetEnvironmentVariable("TENDRIL_QUIET", "1");
         if (beta)
             Environment.SetEnvironmentVariable("TENDRIL_BETA", "1");
+        if (notMaster)
+            Environment.SetEnvironmentVariable("TENDRIL_NOT_MASTER", "1");
 
         var filtered = args.Where(a =>
             a != "--desktop" && a != "--web" &&
             a != "--verbose" && a != "-v" &&
             a != "--quiet" && a != "-q" &&
             a != "--beta" &&
+            a != "--not-master" && a != "--slave" &&
             a != DetachedLaunchMarker).ToArray();
 
         return (verbose, quiet, forceDesktop, forceWeb, beta, filtered);
     }
 
-    private static bool ShouldHandleAsCliCommand(string firstArg)
-    {
-        string[] cliCommands = new[]
-        {
-            "doctor", "db-version", "db-migrate", "db-reset",
-            "update-promptwares", "job", "plan", "promptware",
-            "trash", "verification", "project", "project-analyzer", "models", "config",
-            "version", "--version", "report-bug", "reset", "update",
-            "--help", "-h", "run", "generate-certs"
-        };
-        return cliCommands.Contains(firstArg);
-    }
-
     private static bool IsPackagedApp()
     {
-        return Velopack.Locators.VelopackLocator.Current?.CurrentlyInstalledVersion != null;
+        try
+        {
+            return Velopack.Locators.VelopackLocator.Current?.CurrentlyInstalledVersion != null;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     private static bool ShouldDetachDesktopLaunch(string[] filteredArgs, bool verbose)
@@ -397,15 +496,15 @@ public class Program
 
     private static bool IsTendrilToolInvocation()
     {
-        // If the executing assembly is in the .store / .dotnet folder, it's a global tool invocation
+        // If the executing assembly is in the .store or .dotnet/tools folder, it's a global tool invocation
         var path = System.AppContext.BaseDirectory;
+        var toolsFolder = Path.Combine(".dotnet", "tools");
         if (path.Contains(".store", StringComparison.OrdinalIgnoreCase) ||
-            path.Contains(".dotnet", StringComparison.OrdinalIgnoreCase))
+            path.Contains(toolsFolder, StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        // ProcessPath can be "dotnet" for global tools, so inspect argv[0] too.
         var processPathName = Path.GetFileNameWithoutExtension(Environment.ProcessPath ?? string.Empty);
         if (processPathName.Equals("tendril", StringComparison.OrdinalIgnoreCase))
             return true;
@@ -448,7 +547,8 @@ public class Program
             var psi = new ProcessStartInfo
             {
                 FileName = installedCli,
-                UseShellExecute = false
+                UseShellExecute = false,
+                CreateNoWindow = true
             };
             foreach (var arg in args)
                 psi.ArgumentList.Add(arg);
@@ -524,13 +624,15 @@ public class Program
         }
     }
 
-    private static CommandApp ConfigureCliCommands(ServiceCollection cliServices)
+    internal static CommandApp ConfigureCliCommands(ServiceCollection cliServices, IAnsiConsole? console = null)
     {
         var registrar = new TypeRegistrar(cliServices);
         var app = new CommandApp(registrar);
         app.Configure(config =>
         {
             config.PropagateExceptions();
+            if (console != null)
+                config.Settings.Console = console;
 
             // Doctor command
             config.AddCommand<DoctorCliCommand>("doctor")
@@ -588,10 +690,14 @@ public class Program
             // Job management commands
             config.AddBranch("job", job =>
             {
+                job.AddCommand<JobListCommand>("list")
+                    .WithDescription("List jobs with optional filters");
                 job.AddCommand<JobStatusCommand>("status")
                     .WithDescription("Report job status (message, planId, planTitle)");
                 job.AddCommand<JobFailCommand>("fail")
                     .WithDescription("Report a job failure with a descriptive message");
+                job.AddCommand<JobCancelCommand>("cancel")
+                    .WithDescription("Cancel a running or queued job, terminate its process, and revert plan state");
                 job.AddCommand<JobStartCommand>("start")
                     .WithDescription("Start a job via the running Tendril server");
                 job.AddCommand<JobAddLogCommand>("add-log")
@@ -736,6 +842,31 @@ public class Program
                 cfg.AddCommand<ConfigSetCommand>("set")
                     .WithDescription("Set a top-level config value");
             });
+
+            config.AddBranch("memory", memory =>
+            {
+                memory.SetDescription("Manage Tendril codebase memories, file reference hashes, and relations");
+                memory.AddCommand<MemoryStatusCommand>("status")
+                    .WithDescription("Scan memory notes, file reference hashes, and relation graph status");
+                memory.AddCommand<MemoryAddCommand>("add")
+                    .WithDescription("Add a new memory note");
+                memory.AddCommand<MemoryReadCommand>("read")
+                    .WithDescription("Read a memory note content");
+                memory.AddCommand<MemoryWriteCommand>("write")
+                    .WithDescription("Write or update a memory note content");
+                memory.AddCommand<MemoryLinkCommand>("link")
+                    .WithDescription("Link a code file reference to a memory note");
+                memory.AddCommand<MemoryUpdateCommand>("update")
+                    .WithDescription("Synchronize reference hashes for a memory note");
+                memory.AddCommand<MemoryRelateCommand>("relate")
+                    .WithDescription("Relate two memory notes together");
+                memory.AddCommand<MemoryDeleteCommand>("delete")
+                    .WithDescription("Delete a memory note");
+                memory.AddCommand<MemoryQueryCommand>("query")
+                    .WithDescription("Search memory notes by keyword");
+                memory.AddCommand<MemoryRulesCommand>("rules")
+                    .WithDescription("Get compiled memory rules for agent system prompt");
+            });
         });
         return app;
     }
@@ -839,11 +970,19 @@ public class Program
             window.ClearBadge();
     }
 
-    private static bool IsPortInUse(int port)
+    internal static bool IsPortInUse(int port)
+    {
+        // Kestrel can bind the IPv6 loopback only, leaving the IPv4 probe below to report
+        // "free" even though the port is taken — so a bind failure on either family counts.
+        return IsPortBoundOn(System.Net.IPAddress.Loopback, port)
+            || IsPortBoundOn(System.Net.IPAddress.IPv6Loopback, port);
+    }
+
+    private static bool IsPortBoundOn(System.Net.IPAddress address, int port)
     {
         try
         {
-            var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, port);
+            var listener = new System.Net.Sockets.TcpListener(address, port);
             listener.Start();
             listener.Stop();
             return false;

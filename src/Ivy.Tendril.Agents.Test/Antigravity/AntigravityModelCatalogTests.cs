@@ -40,4 +40,22 @@ public class AntigravityModelCatalogTests
         var ids = _catalog.GetStaticModels().Select(m => m.Id).ToList();
         Assert.Equal(ids.Count, ids.Distinct().Count());
     }
+
+    [Theory]
+    [InlineData("gemini-3.6-flash")]
+    [InlineData("gemini-3.5-flash")]
+    [InlineData("gemini-3.1-pro")]
+    [InlineData("claude-sonnet-4-6")]
+    public void GetStaticModels_ContainsModels(string expectedId)
+    {
+        var models = _catalog.GetStaticModels();
+        Assert.Contains(models, m => m.Id == expectedId);
+    }
+
+    [Fact]
+    public void GetStaticModels_DefaultIsGemini36Flash()
+    {
+        var defaultModel = _catalog.GetStaticModels().Single(m => m.IsDefault);
+        Assert.Equal("gemini-3.6-flash", defaultModel.Id);
+    }
 }

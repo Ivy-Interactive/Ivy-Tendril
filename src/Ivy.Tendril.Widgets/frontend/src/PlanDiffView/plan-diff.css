@@ -1,0 +1,342 @@
+/* Force equal row heights in split mode */
+.diff[data-view-type="split"] tbody tr {
+  display: table-row;
+  height: auto;
+}
+
+.diff[data-view-type="split"] td {
+  vertical-align: top;
+  line-height: 1.5;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* Ensure gutter and code cells have consistent height */
+.diff-gutter,
+.diff-code {
+  line-height: 1.5;
+  min-height: 1.5em;
+}
+
+/* Word wrap support */
+.diff-wrap .diff-code {
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: break-word;
+}
+
+.diff-wrap .diff-code-text {
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: break-word;
+}
+
+/* Core colors */
+.diff {
+  background-color: var(--background);
+  color: var(--foreground);
+  border: none;
+  border-radius: 0;
+  font-family: var(--font-mono);
+}
+
+.diff-gutter {
+  background-color: var(--muted);
+  color: var(--muted-foreground);
+  border-right: 1px solid var(--border);
+  user-select: none;
+}
+
+.diff-code {
+  background-color: transparent;
+  color: inherit;
+}
+
+/* Hunk header */
+.diff-hunk-header {
+  background-color: var(--muted);
+  color: var(--muted-foreground);
+}
+
+.diff-hunk-header-gutter {
+  background-color: var(--muted);
+  border-right: 1px solid var(--border);
+}
+
+.diff-hunk-header-content {
+  padding: 4px 8px;
+  font-weight: 600;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Insertions */
+.diff-code-insert {
+  background-color: color-mix(in srgb, var(--success), transparent 85%) !important;
+}
+
+.diff-gutter-insert {
+  background-color: color-mix(in srgb, var(--success), transparent 75%) !important;
+  color: var(--success) !important;
+}
+
+/* Deletions */
+.diff-code-delete {
+  background-color: color-mix(in srgb, var(--destructive), transparent 85%) !important;
+}
+
+.diff-gutter-delete {
+  background-color: color-mix(in srgb, var(--destructive), transparent 75%) !important;
+  color: var(--destructive) !important;
+}
+
+/* Highlights within lines */
+.diff-code-edit-mark {
+  background-color: color-mix(in srgb, currentColor, transparent 70%);
+}
+
+/* Selection */
+.diff-code::selection,
+.diff-code *::selection,
+.diff-gutter::selection,
+.diff-gutter *::selection {
+  background-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+
+/* Style for diff widgets containing comments */
+.diff-widget {
+  background-color: var(--muted) !important;
+}
+
+.diff-widget-content {
+  padding: 0 !important;
+  background-color: var(--muted) !important;
+}
+
+.diff-comment-widget {
+  font-family: var(--font-sans, sans-serif) !important;
+}
+
+/* Hover plus button strictly on active, non-empty line gutters when the gutter itself is hovered */
+td.diff-gutter-normal,
+td.diff-gutter-insert,
+td.diff-gutter-delete {
+  position: relative;
+}
+
+td.diff-gutter-normal:hover,
+td.diff-gutter-insert:hover,
+td.diff-gutter-delete:hover {
+  cursor: pointer;
+}
+
+td.diff-gutter-normal::after,
+td.diff-gutter-insert::after,
+td.diff-gutter-delete::after {
+  content: "+";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) scale(0.8);
+  width: 18px;
+  height: 18px;
+  background-color: var(--primary);
+  color: var(--primary-foreground, #ffffff);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s ease, transform 0.1s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  z-index: 10;
+}
+
+td.diff-gutter-normal:hover::after,
+td.diff-gutter-insert:hover::after,
+td.diff-gutter-delete:hover::after {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* Explicitly disable plus icon on empty or omit gutters */
+td.diff-gutter-omit::after,
+td.diff-gutter:empty::after,
+td.diff-gutter-empty::after {
+  display: none !important;
+  content: none !important;
+}
+
+/* Collapse the unused line-number column in unified view.
+   `display` and `visibility` do not work on <col>; `width` does, and with
+   `table-layout: fixed` a zero-width col removes the column entirely.
+   Do NOT also hide the <td>: with a fixed layout that collapses the code
+   column too (measured: code column drops to 47px). */
+.diff-unified-view.diff-no-deletions colgroup col:first-child,
+.diff-unified-view.diff-no-additions colgroup col:nth-child(2) {
+  width: 0;
+}
+
+/* Outer layout and widget padding adjustments */
+.ivy-diff-view {
+  padding-right: 1.25rem;
+}
+
+.ivy-tree {
+  padding-bottom: 2.5rem;
+}
+
+/* Markdown rendering in diff comments */
+.diff-comment-markdown p {
+  margin: 0.35rem 0;
+}
+
+.diff-comment-markdown p:first-child {
+  margin-top: 0;
+}
+
+.diff-comment-markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.diff-comment-markdown strong {
+  font-weight: 600;
+}
+
+.diff-comment-markdown em {
+  font-style: italic;
+}
+
+.diff-comment-markdown ul,
+.diff-comment-markdown ol {
+  list-style-type: disc !important;
+  margin: 0.35rem 0 0.35rem 1.1rem;
+}
+
+.diff-comment-markdown ol {
+  list-style-type: decimal !important;
+}
+
+.diff-comment-markdown li {
+  margin: 0.15rem 0;
+}
+
+.diff-comment-markdown h1,
+.diff-comment-markdown h2,
+.diff-comment-markdown h3,
+.diff-comment-markdown h4 {
+  font-weight: 600;
+  margin: 0.5rem 0 0.3rem;
+}
+
+.diff-comment-markdown h1:first-child,
+.diff-comment-markdown h2:first-child,
+.diff-comment-markdown h3:first-child,
+.diff-comment-markdown h4:first-child {
+  margin-top: 0;
+}
+
+.diff-comment-markdown h1 {
+  font-size: 1.25em;
+}
+
+.diff-comment-markdown h2 {
+  font-size: 1.15em;
+}
+
+.diff-comment-markdown h3 {
+  font-size: 1.05em;
+}
+
+.diff-comment-markdown h4 {
+  font-size: 1em;
+}
+
+.diff-comment-markdown code {
+  font-family: var(--font-mono);
+  background: color-mix(in srgb, var(--muted) 60%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0 3px;
+  font-size: 0.9em;
+}
+
+.diff-comment-markdown pre {
+  background: color-mix(in srgb, var(--muted) 60%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.5rem;
+  overflow-x: auto;
+  margin: 0.35rem 0;
+}
+
+.diff-comment-markdown pre:first-child {
+  margin-top: 0;
+}
+
+.diff-comment-markdown pre:last-child {
+  margin-bottom: 0;
+}
+
+.diff-comment-markdown pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.diff-comment-markdown a {
+  color: var(--primary);
+  text-decoration: underline;
+  overflow-wrap: break-word;
+}
+
+.diff-comment-markdown blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: 0.5rem;
+  color: var(--muted-foreground);
+  margin: 0.35rem 0;
+}
+
+.diff-comment-markdown blockquote:first-child {
+  margin-top: 0;
+}
+
+.diff-comment-markdown blockquote:last-child {
+  margin-bottom: 0;
+}
+
+.diff-comment-markdown table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.35rem 0;
+}
+
+.diff-comment-markdown table:first-child {
+  margin-top: 0;
+}
+
+.diff-comment-markdown table:last-child {
+  margin-bottom: 0;
+}
+
+.diff-comment-markdown th,
+.diff-comment-markdown td {
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+}
+
+.diff-comment-markdown th {
+  font-weight: 600;
+  background: color-mix(in srgb, var(--muted) 40%, transparent);
+}
+
+.diff-comment-markdown img {
+  max-width: 100%;
+  height: auto;
+}
+

@@ -85,12 +85,12 @@ public class ConfigSetCommand(IAgentRunner runner) : Command<ConfigSetSettings>
 {
     protected override int Execute(CommandContext context, ConfigSetSettings settings, CancellationToken cancellationToken)
     {
+        // Read stdin before taking the config lock: ResolveInput can block on a pipe for its timeout.
         var value = ConsoleHelper.ResolveInput(settings.Stdin, settings.FilePath, settings.Value);
 
         var config = new ConfigService();
         // throws on bad int / out-of-range / unknown coding agent, before any write
-        ApplyField(config.Settings, settings.Key, value, runner.RegisteredAgents);
-        config.SaveSettings();
+        config.MutateAndSave(s => ApplyField(s, settings.Key, value, runner.RegisteredAgents));
 
         // Report the value actually stored (e.g. the canonical coding-agent id), not the raw input.
         var stored = ConfigGetCommand.ReadField(config.Settings, settings.Key);
@@ -111,7 +111,7 @@ public class ConfigSetCommand(IAgentRunner runner) : Command<ConfigSetSettings>
             case "jobtimeout": s.JobTimeout = ParseBoundedInt(value, "jobTimeout", 1, 480); break;
             case "staleoutputtimeout": s.StaleOutputTimeout = ParseBoundedInt(value, "staleOutputTimeout", 1, 60); break;
             case "gittimeout": s.GitTimeout = ParseBoundedInt(value, "gitTimeout", 1, 30); break;
-            case "maxconcurrentjobs": s.MaxConcurrentJobs = ParseBoundedInt(value, "maxConcurrentJobs", 1, 100); break;
+            case "maxconcurrentjobs": s.MaxConcurrentJobs = ParseBoundedInt(value, "maxConcurrentJobs", 1, 512); break;
             case "plantemplate": s.PlanTemplate = value; break;
             default: throw new ArgumentException(ConfigGetCommand.UnknownFieldMessage(field));
         }

@@ -145,12 +145,23 @@ public class PromptwareRunner : IPromptwareRunner
         var process = Process.Start(psi);
         if (process == null)
             throw new InvalidOperationException("Failed to start agent process");
+        ChildProcessTracker.AddProcess(process);
 
         if (resolution.UsesStdinPrompt && psi.RedirectStandardInput)
         {
-            process.StandardInput.Write(prompt);
-            process.StandardInput.Flush();
-            process.StandardInput.Close();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await process.StandardInput.WriteAsync(prompt);
+                    await process.StandardInput.FlushAsync();
+                }
+                catch { }
+                finally
+                {
+                    try { process.StandardInput.Close(); } catch { }
+                }
+            });
         }
 
         var cts = new CancellationTokenSource();

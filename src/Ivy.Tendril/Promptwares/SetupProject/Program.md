@@ -156,7 +156,7 @@ Inspect each repo to determine how to run the application. For website projects,
 
 For each review action:
 - **name**: Short descriptive name (e.g. "App", "Docs", "Frontend", "API")
-- **condition**: A `Test-Path` expression that checks if the worktree path exists (e.g. `Test-Path "Worktrees/<RepoName>/src/<Project>"`)
+- **condition**: A `Test-Path` expression that checks if the worktree path exists (e.g. `Test-Path "Worktrees/<RepoName>/src/<Project>"`). **Do NOT use a leading slash or backslash** (e.g. use `Test-Path "Worktrees/..."`, NOT `Test-Path "\Worktrees/..."`), as leading slashes cause PowerShell to resolve relative to the drive root instead of the plan working directory.
 - **command**: The command to launch the application
 
 ```bash
@@ -221,8 +221,21 @@ Self-check before persisting: segments in Rule-1 order; absent layers omitted; o
 tendril project set <project-name> stackHash <hash>
 ```
 
-### 5. Summary
+### 5. Document the Tech Stack in the Memory Vault
+
+If the memory vault is available (run `tendril memory status` to check):
+1. Check if a memory note named `project-stack` exists. If not, run `tendril memory add project-stack --title "Project Tech Stack" --tags "stack, framework, setup"` to create it.
+2. Write a comprehensive description of the detected tech stack to the created memory note. The note should contain:
+   - A summary of the primary language(s) and framework(s) for the frontend, backend, or library.
+   - Database engine(s) used.
+   - Tools used for building, formatting/linting, and testing.
+   - Any external service dependencies.
+   - The generated Stack Descriptor Hash (SDH).
+3. Run `tendril memory update project-stack` to update and synchronize the tracked code references.
+
+### 6. Summary
 
 Print a summary of what was configured:
 - Verifications added
 - Review actions added
+- Stack documented in memory vault

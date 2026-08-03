@@ -5,49 +5,97 @@ namespace Ivy.Tendril.Agents.Providers.Ivy;
 
 public sealed class IvyModelCatalog : IModelCatalogProvider
 {
+    private static readonly ModelCapabilities DefaultCaps =
+        ModelCapabilities.CodeGeneration | ModelCapabilities.ToolUse | ModelCapabilities.Streaming;
+
     private readonly OpenCodeModelCatalog _inner = new();
 
     public string AgentId => Abstractions.AgentId.Ivy;
 
-    public IReadOnlyList<ModelInfo> GetStaticModels()
-    {
-        return _inner.GetStaticModels().Select(m => new ModelInfo
+    public IReadOnlyList<ModelInfo> GetStaticModels() =>
+    [
+        new()
         {
-            Id = m.Id,
-            DisplayName = m.DisplayName.Replace("OpenCode", "Ivy Agent"),
-            Capabilities = m.Capabilities,
-            Provider = "ivy",
-            IsDefault = m.IsDefault,
-            ContextWindow = m.ContextWindow,
-            InputPerMillion = m.InputPerMillion,
-            OutputPerMillion = m.OutputPerMillion,
-            CacheReadPerMillion = m.CacheReadPerMillion,
-            CacheWritePerMillion = m.CacheWritePerMillion,
-        }).ToList();
-    }
+            Id = "ivy-stem", DisplayName = "Ivy Stem",
+            Capabilities = DefaultCaps, Provider = "ivy", IsDefault = true,
+        },
+        new()
+        {
+            Id = "ivy-branch", DisplayName = "Ivy Branch",
+            Capabilities = DefaultCaps, Provider = "ivy",
+        },
+        new()
+        {
+            Id = "ivy-leaf", DisplayName = "Ivy Leaf",
+            Capabilities = DefaultCaps, Provider = "ivy",
+        },
+        new()
+        {
+            Id = "default", DisplayName = "Ivy Default",
+            Capabilities = DefaultCaps, Provider = "ivy",
+        },
+    ];
 
     public async Task<ModelCatalogResult> GetModelsAsync(CancellationToken ct = default)
     {
-        var result = await _inner.GetModelsAsync(ct);
+        var staticModels = GetStaticModels();
+        try
+        {
+            var result = await _inner.GetModelsAsync(ct);
+            var ivyModels = result.Models
+                .Where(m => m.Id.StartsWith("ivy", StringComparison.OrdinalIgnoreCase) ||
+                            m.Provider.Equals("ivy", StringComparison.OrdinalIgnoreCase))
+                .Select(m => new ModelInfo
+                {
+                    Id = m.Id,
+                    DisplayName = FormatIvyDisplayName(m.Id, m.DisplayName),
+                    Capabilities = m.Capabilities,
+                    Provider = "ivy",
+                    IsDefault = m.IsDefault,
+                    ContextWindow = m.ContextWindow,
+                    InputPerMillion = m.InputPerMillion,
+                    OutputPerMillion = m.OutputPerMillion,
+                    CacheReadPerMillion = m.CacheReadPerMillion,
+                    CacheWritePerMillion = m.CacheWritePerMillion,
+                })
+                .ToList();
+
+            if (ivyModels.Count > 0)
+            {
+                return new ModelCatalogResult
+                {
+                    AgentId = AgentId,
+                    Models = ivyModels,
+                    Source = result.Source,
+                    RetrievedAt = result.RetrievedAt,
+                    ExpiresAt = result.ExpiresAt,
+                };
+            }
+        }
+        catch
+        {
+            // Fallback to static model list
+        }
+
         return new ModelCatalogResult
         {
             AgentId = AgentId,
-            Models = result.Models.Select(m => new ModelInfo
-            {
-                Id = m.Id,
-                DisplayName = m.DisplayName.Replace("OpenCode", "Ivy Agent"),
-                Capabilities = m.Capabilities,
-                Provider = "ivy",
-                IsDefault = m.IsDefault,
-                ContextWindow = m.ContextWindow,
-                InputPerMillion = m.InputPerMillion,
-                OutputPerMillion = m.OutputPerMillion,
-                CacheReadPerMillion = m.CacheReadPerMillion,
-                CacheWritePerMillion = m.CacheWritePerMillion,
-            }).ToList(),
-            Source = result.Source,
-            RetrievedAt = result.RetrievedAt,
-            ExpiresAt = result.ExpiresAt,
+            Models = staticModels,
+            Source = ModelCatalogSource.Static,
+            RetrievedAt = DateTimeOffset.UtcNow,
         };
+    }
+
+    private static string FormatIvyDisplayName(string id, string? rawDisplayName)
+    {
+        if (string.Equals(id, "ivy-stem", StringComparison.OrdinalIgnoreCase)) return "Ivy Stem";
+        if (string.Equals(id, "ivy-branch", StringComparison.OrdinalIgnoreCase)) return "Ivy Branch";
+        if (string.Equals(id, "ivy-leaf", StringComparison.OrdinalIgnoreCase)) return "Ivy Leaf";
+        if (string.Equals(id, "default", StringComparison.OrdinalIgnoreCase)) return "Ivy Default";
+
+        if (!string.IsNullOrEmpty(rawDisplayName) && rawDisplayName.StartsWith("Ivy", StringComparison.OrdinalIgnoreCase))
+            return rawDisplayName;
+
+        return "Ivy " + id.Replace("ivy-", "").Replace("-", " ");
     }
 }

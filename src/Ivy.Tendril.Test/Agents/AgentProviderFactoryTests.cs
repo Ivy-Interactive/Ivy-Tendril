@@ -304,7 +304,7 @@ public class AgentProviderFactoryTests
             });
 
         var resolution = AgentProviderFactory.Resolve(runner, settings, "Test");
-        Assert.Equal("", resolution.Model); // Antigravity CLI doesn't support ModelSelection
+        Assert.Equal("antigravity-2.5-pro", resolution.Model);
     }
 
     [Fact]
@@ -507,5 +507,33 @@ public class AgentProviderFactoryTests
         Assert.Contains("WebSearch", resolution.AllowedTools);
 
         Assert.Equal(6, resolution.AllowedTools.Count);
+    }
+
+    [Fact]
+    public void Resolve_OpenCode_ResolvesOllamaEnvironmentVariables()
+    {
+        var runner = CreateRunner();
+        var settings = CreateSettings(
+            "opencode",
+            codingAgents: new List<AgentConfig>
+            {
+                new()
+                {
+                    Name = "opencode",
+                    EnvironmentVariables = new Dictionary<string, string>
+                    {
+                        ["OLLAMA_HOST"] = "http://localhost:11434",
+                        ["OLLAMA_BASE_URL"] = "http://localhost:11434"
+                    }
+                }
+            });
+
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "ExecutePlan");
+
+        Assert.Equal("opencode", resolution.AgentId);
+        Assert.True(resolution.EnvironmentVariables.TryGetValue("OLLAMA_HOST", out var host));
+        Assert.Equal("http://localhost:11434", host);
+        Assert.True(resolution.EnvironmentVariables.TryGetValue("OLLAMA_BASE_URL", out var baseUrl));
+        Assert.Equal("http://localhost:11434", baseUrl);
     }
 }

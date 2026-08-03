@@ -166,20 +166,23 @@ public class VerificationAddCommand : Command<VerificationAddSettings>
     {
         var config = new ConfigService();
 
-        if (config.Settings.Verifications.Any(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
-            throw new InvalidOperationException($"Verification already exists: {settings.Name}");
-
+        // Read stdin before taking the config lock: ResolveInput can block on a pipe for its timeout.
         var prompt = ConsoleHelper.ResolveInput(settings.Stdin, settings.FilePath, settings.Prompt);
         if (string.IsNullOrWhiteSpace(prompt))
             throw new ArgumentException("Provide --prompt, --file, or --stdin");
 
-        config.Settings.Verifications.Add(new VerificationConfig
+        config.MutateAndSave(s =>
         {
-            Name = settings.Name,
-            Prompt = prompt
+            if (s.Verifications.Any(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException($"Verification already exists: {settings.Name}");
+
+            s.Verifications.Add(new VerificationConfig
+            {
+                Name = settings.Name,
+                Prompt = prompt
+            });
         });
 
-        config.SaveSettings();
         Console.WriteLine($"Added verification definition: {settings.Name}");
         return 0;
     }
@@ -190,14 +193,18 @@ public class VerificationRemoveCommand : Command<VerificationRemoveSettings>
     protected override int Execute(CommandContext context, VerificationRemoveSettings settings, CancellationToken cancellationToken)
     {
         var config = new ConfigService();
-        var match = config.Settings.Verifications
-            .FirstOrDefault(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
-        if (match == null)
-            CliValidation.ThrowVerificationNotFound(settings.Name, config.Settings.Verifications.Select(v => v.Name));
+        config.MutateAndSave(s =>
+        {
+            var match = s.Verifications
+                .FirstOrDefault(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
-        config.Settings.Verifications.Remove(match);
-        config.SaveSettings();
+            if (match == null)
+                CliValidation.ThrowVerificationNotFound(settings.Name, s.Verifications.Select(v => v.Name));
+
+            s.Verifications.Remove(match);
+        });
+
         Console.WriteLine($"Removed verification definition: {settings.Name}");
         return 0;
     }
@@ -208,30 +215,34 @@ public class VerificationSetCommand : Command<VerificationSetSettings>
     protected override int Execute(CommandContext context, VerificationSetSettings settings, CancellationToken cancellationToken)
     {
         var config = new ConfigService();
-        var match = config.Settings.Verifications
-            .FirstOrDefault(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
-        if (match == null)
-            CliValidation.ThrowVerificationNotFound(settings.Name, config.Settings.Verifications.Select(v => v.Name));
-
+        // Read stdin before taking the config lock: ResolveInput can block on a pipe for its timeout.
         var value = ConsoleHelper.ResolveInput(settings.Stdin, settings.FilePath, settings.Value);
 
         if (string.IsNullOrEmpty(value))
             throw new ArgumentException("value is required (use an inline <value>, --file, or --stdin)");
 
-        switch (settings.Field.ToLower())
+        config.MutateAndSave(s =>
         {
-            case "name":
-                match.Name = value;
-                break;
-            case "prompt":
-                match.Prompt = value;
-                break;
-            default:
-                throw new ArgumentException($"Unknown field: {settings.Field}. Valid fields: name, prompt");
-        }
+            var match = s.Verifications
+                .FirstOrDefault(v => v.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
 
-        config.SaveSettings();
+            if (match == null)
+                CliValidation.ThrowVerificationNotFound(settings.Name, s.Verifications.Select(v => v.Name));
+
+            switch (settings.Field.ToLower())
+            {
+                case "name":
+                    match.Name = value;
+                    break;
+                case "prompt":
+                    match.Prompt = value;
+                    break;
+                default:
+                    throw new ArgumentException($"Unknown field: {settings.Field}. Valid fields: name, prompt");
+            }
+        });
+
         var summary = value.Length <= 60 && !value.Contains('\n') ? $"to '{value}'" : $"({value.Length} chars)";
         Console.WriteLine($"Updated verification {settings.Field} {summary}");
         return 0;

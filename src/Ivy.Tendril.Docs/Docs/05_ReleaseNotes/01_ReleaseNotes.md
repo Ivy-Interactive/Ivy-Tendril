@@ -14,6 +14,95 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.1.19 (2026-07-28)
+
+### Features
+
+- **Claude Opus 5 Support** - Added `Claude Opus 5` (`claude-opus-5`) model support to the Claude catalog with refreshed pricing metadata.
+- **Bulk Job Cancellation** - Introduced "Stop All Jobs" and "Stop All Queued" header actions in `JobsApp` (`IJobService.StopAllJobs` and `StopQueuedJobs`) for bulk job management.
+- **Promptware Memory Pruning** - Added `promptware delete-memory` CLI command and firmware capability, allowing promptwares to delete obsolete memory files.
+- **Memory Reference Resolution** - Automatically resolve memory references in `read-memory` CLI command instead of erroring when referenced notes are requested.
+- **Configurable Ollama Agent URL** - Added configurable base URL option (`--url`) for local Ollama agent endpoints.
+- **Import Issues Capacity** - Expanded the Import Issues dialog limit from 100 to 1,000 issues with truncation warnings when reaching ceilings.
+- **In-Flight Job State Persistence** - Persisted active in-flight jobs in SQLite database so job status updates survive master process restarts.
+- **Windows Automatic CLI PATH Setup** - Automatically create `tendril.cmd` wrappers and register the application directory in the Windows User PATH on app launch and Velopack installer hooks.
+
+### Improvements
+
+- **Tunnel Auto-Refresh Coalescing** - Coalesced bursty inbox auto-refreshes and gated `JobsApp` cell updates on data changes, stopping excessive refreshes over Cloudflare tunnel connections.
+- **Sequential Agent Read Optimization** - Reduced process spin-up overhead during sequential file reads by coding agents.
+- **Dashboard Cost Chart Currency** - Added currency indicators ($) to the cost chart bar series on the dashboard.
+- **Jobs Table Formatting** - Flattened markdown links and formatting in the Jobs table prompt/title column for cleaner tabular output.
+- **Piped CLI Output and JSON Support** - Added ASCII fallbacks for piped CLI table rendering and introduced `--json` output flag for `tendril verification list`.
+- **Legacy .NET Tool Redirection** - Added doctor checks and automatic redirection to route legacy `.NET` tool invocations (`ivy-tendril`) to the installed Tendril CLI.
+- **Documentation Redesign** - Redesigned `README.md` following the Orca layout with updated feature GIFs.
+
+### Bug Fixes
+
+- **Project Name Validation** - Added strict project name validation across the CLI, Settings dialog, and onboarding flow to reject invalid names and prevent crashes during setup.
+- **CLI Boot Overhead** - Prevented the Tendril server from booting up when `--help`, `-h`, or unrecognized arguments are passed to `tendril`.
+- **Job Status 404 Reporting** - Made `tendril job status` and `tendril job fail` endpoints best-effort instead of throwing fatal 404 errors.
+- **Duplicate Analyzer Warning** - Removed duplicate `Ivy.Analyser` PackageReference in `Ivy.Tendril.csproj` eliminating NU1504 warnings, and updated `UpdateIvyPackages.ps1` to edit versions in-place.
+- **PlatformHelper Shell Execution** - Explicitly set `UseShellExecute` to `false` for `open` (macOS) and `xdg-open` (Linux) commands in `PlatformHelper`.
+
+## 1.1.16 (2026-07-24)
+
+### Features
+
+- **Ivy Agent Integration** - Introduced integration for the standalone Ivy Agent, including a one-click CDN installer in Settings, custom Ivy Proxy URL settings, and beta flag gating (`TENDRIL_BETA` or `IVY_BETA`).
+- **Compact Badge Selectors** - Replaced full-width project and priority select inputs in the Create Plan dialog with scrollable compact badge buttons (`BadgeSelect` widget).
+
+### Improvements
+
+- **Cloudflare Tunnel DNS Diagnostics** - Surfaced detailed startup and connection diagnostic messages for `cloudflared` tunnel failures.
+- **Settings View Cleanup** - Refactored settings inputs to use native C# `.Description(...)` builder properties for visual consistency.
+
+### Bug Fixes
+
+- **Add Project Dialog Layering** - Made the "New Project" button in Create Plan open the Add Project dialog directly on top without navigating away.
+- **Tunnel URL Parsing** - Fixed cloudflared tunnel URL extraction by ignoring internal `api.trycloudflare.com` domain references.
+
+## 1.1.14 (2026-07-21)
+
+### Features
+
+- **Third-Party Notices Documentation** - Added `THIRD_PARTY_NOTICES.md` to document bundled third-party dependency licenses.
+
+### Improvements
+
+- **ContentInput Optimistic State** - Implemented optimistic local text state updates in the `ContentInput` widget, deferring background property updates while typing to prevent input clobbering.
+
+### Bug Fixes
+
+- **Cloudflared Downloader** - Resolved a setup crash in the automatic `cloudflared` binary installer and downloader.
+- **Codex Failure Analysis** - Fixed Codex coding agent failure parsing and model catalog validation.
+- **Tunnel Settings Layout** - Corrected string and layout typos in the Tunnel Setup Settings screen.
+
+## 1.1.13 (2026-07-20)
+
+### Features
+
+- **Batch Recommendations Implementation** - Batch-select and implement multiple recommendations at once in the Review app.
+- **Investigate and Discuss with Agent** - Added "Investigate with Agent" and "Discuss with Agent" action buttons in Drafts, Review, and the Job Debug sheet.
+- **Plan Add Worktree CLI Command** - Added `tendril plan add-worktree` CLI command for symmetric worktree management.
+- **Rerun Completed RetryPlan Jobs** - Added ability to rerun completed `RetryPlan` jobs directly from the Jobs list.
+
+### Improvements
+
+- **Config Auto-Reload** - Automatically reload configuration on external file edits.
+- **Review Summary and Tabs** - Rendered Review Summary as DraftMarkdown with sticky Verifications card and extracted Review tabs into dedicated views.
+- **Job Log Consolidation** - Consolidated all job execution logs under a unified `<TendrilHome>/Jobs/` directory.
+- **Sidebar and Table Row Highlighting** - Enhanced sidebar list items and data tables with filled background selection styling.
+- **Desktop Framework Update** - Updated Ivy framework dependencies to 1.3.8 and configured desktop About dialog details.
+
+### Bug Fixes
+
+- **State Preservation on Job Deletion** - Preserved completed plan state when deleting finished jobs.
+- **Markdown and Math Rendering** - Fixed prose dollar signs rendering as LaTeX math and fixed inline code styling in DraftMarkdown.
+- **Job Slot Semaphore Leak** - Fixed a semaphore leak in job slot allocation during unhandled launch failures.
+- **Jobs Starting State Hang** - Fixed jobs hanging indefinitely in starting state by adding launch error handling.
+- **Worktree Commit Sync** - Ensured commits from all plan worktrees are synchronized correctly.
+
 ## 1.1.12 (2026-07-03)
 
 ### Improvements

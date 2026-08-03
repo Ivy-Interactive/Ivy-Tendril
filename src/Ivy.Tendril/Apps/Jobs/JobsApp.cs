@@ -77,14 +77,22 @@ public partial class JobsApp : ViewBase
             return new RerunJobDialog(isOpen, job, jobService, () => refreshToken.Refresh());
         });
 
-        UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken));
-        UseInterval(() => JobsApp.AutoRefreshCheck(jobService, refreshToken), TimeSpan.FromSeconds(5));
+        var renderedSignature = UseRef("");
 
+        UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken));
+        UseInterval(() =>
+        {
+            if (JobsApp.ComputeStructuralSignature(jobService.GetJobs()) == renderedSignature.Value) return;
+            refreshToken.Refresh();
+        }, TimeSpan.FromSeconds(5));
+
+        var sentCells = UseRef(new Dictionary<string, string>(StringComparer.Ordinal));
         var updateStream = UseDataTableUpdates(
             Observable.Interval(TimeSpan.FromSeconds(1))
-                .SelectMany(_ => JobsApp.BuildDataTableUpdates(jobService)));
+                .SelectMany(_ => JobsApp.BuildDataTableUpdates(jobService, sentCells.Value)));
 
         var jobs = jobService.GetJobs();
+        renderedSignature.Value = JobsApp.ComputeStructuralSignature(jobs);
         var projectColors = BuildProjectColorMapping(config);
         var rows = BuildJobRows(jobs, planService);
         var jobsProgress = jobs.Count > 0 ? BuildStatusProgress(jobs, config) : null;

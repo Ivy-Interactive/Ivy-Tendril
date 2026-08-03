@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -8,7 +9,29 @@ namespace Ivy.Tendril.Helpers;
 
 public static class GitHelper
 {
+    private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
     private static readonly ConcurrentDictionary<string, string> _defaultBranchCache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Builds a ProcessStartInfo for git with fsmonitor suppressed. Git spawns a detached
+    /// `git fsmonitor--daemon` per repo/worktree when core.fsmonitor is enabled; it outlives the
+    /// invocation and escapes both Kill(entireProcessTree) and ChildProcessTracker's job object,
+    /// so one leaks per worktree Tendril touches (#1853). Tendril's git usage is short-lived reads
+    /// and worktree management, which gain nothing from a persistent watcher.
+    /// </summary>
+    public static ProcessStartInfo MakeGitStartInfo(string arguments, string? workingDirectory = null)
+    {
+        return new ProcessStartInfo("git", $"-c core.fsmonitor=false --no-optional-locks {arguments}")
+        {
+            WorkingDirectory = !string.IsNullOrEmpty(workingDirectory) ? workingDirectory : Path.GetTempPath(),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            StandardOutputEncoding = Utf8NoBom,
+            StandardErrorEncoding = Utf8NoBom
+        };
+    }
 
     /// <summary>
     /// Resolves a repository's default branch as a bare name (e.g. "development").
@@ -89,14 +112,7 @@ public static class GitHelper
     /// </summary>
     public static (int ExitCode, string StdOut, string StdErr) RunGit(string arguments, string workingDirectory, int timeoutMs = 60000)
     {
-        var psi = new ProcessStartInfo("git", arguments)
-        {
-            WorkingDirectory = workingDirectory,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
+        var psi = MakeGitStartInfo(arguments, workingDirectory);
         using var process = Process.Start(psi)!;
         var outTask = process.StandardOutput.ReadToEndAsync();
         var errTask = process.StandardError.ReadToEndAsync();
@@ -116,15 +132,7 @@ public static class GitHelper
     {
         try
         {
-            var psi = new ProcessStartInfo("git", args)
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            if (!string.IsNullOrEmpty(workingDir))
-                psi.WorkingDirectory = workingDir;
+            var psi = MakeGitStartInfo(args, workingDir);
 
             using var process = Process.Start(psi);
             if (process == null) return null;

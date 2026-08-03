@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Services;
 
@@ -6,6 +7,8 @@ namespace Ivy.Tendril.Helpers;
 
 public static class AgentProcessHelper
 {
+    private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
     public static ProcessStartInfo ToPsi(AgentProcessSpec spec)
     {
         var psi = new ProcessStartInfo
@@ -24,6 +27,17 @@ public static class AgentProcessHelper
 
         foreach (var (key, value) in spec.Environment)
             psi.Environment[key] = value;
+
+        // Without these, .NET falls back to GetConsoleOutputCP()/GetConsoleCP(). Tendril runs
+        // console-less (CreateNoWindow, WinExe), so those return 0 and the streams get the ANSI
+        // codepage (Windows-1252 here). Agent output is UTF-8, so an em dash arrives as three
+        // characters, and on stdin every character outside CP1252 is replaced with "?" (#1798).
+        if (spec.RedirectStdin)
+            psi.StandardInputEncoding = Utf8NoBom;
+        if (spec.RedirectStdout)
+            psi.StandardOutputEncoding = Utf8NoBom;
+        if (spec.RedirectStderr)
+            psi.StandardErrorEncoding = Utf8NoBom;
 
         return psi;
     }
@@ -56,12 +70,23 @@ public static class AgentProcessHelper
         var shimDir = Path.Combine(Path.GetTempPath(), "tendril-shim");
         FileHelper.EnsureDirectory(shimDir);
 
-        var cmdShim = Path.Combine(shimDir, "tendril.cmd");
-        File.WriteAllText(cmdShim, $"@dotnet exec \"{dllPath}\" %*\r\n");
+        try
+        {
+            var cmdShim = Path.Combine(shimDir, "tendril.cmd");
+            if (!File.Exists(cmdShim))
+                File.WriteAllText(cmdShim, $"@dotnet exec \"{dllPath}\" %*\r\n");
 
-        var bashDllPath = dllPath.Replace('\\', '/');
-        var bashShim = Path.Combine(shimDir, "tendril");
-        File.WriteAllText(bashShim, $"#!/usr/bin/env bash\ndotnet exec '{bashDllPath}' \"$@\"\n");
+            var bashShim = Path.Combine(shimDir, "tendril");
+            if (!File.Exists(bashShim))
+            {
+                var bashDllPath = dllPath.Replace('\\', '/');
+                File.WriteAllText(bashShim, $"#!/usr/bin/env bash\ndotnet exec '{bashDllPath}' \"$@\"\n");
+            }
+        }
+        catch (IOException)
+        {
+            // Another concurrent job/thread is creating/writing the shims
+        }
 
         return shimDir;
     }
@@ -96,17 +121,10 @@ public static class AgentProcessHelper
         var fileName = psi.FileName;
         if (Path.IsPathRooted(fileName) || Path.HasExtension(fileName)) return;
 
-        var pathDirs = (psi.Environment.TryGetValue("PATH", out var p) ? p : Environment.GetEnvironmentVariable("PATH"))
-            ?.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries) ?? [];
-
-        foreach (var dir in pathDirs)
+        var resolved = Agents.Helpers.BinaryResolver.FindOnPath(fileName);
+        if (resolved != null)
         {
-            var cmdPath = Path.Combine(dir, fileName + ".cmd");
-            if (File.Exists(cmdPath))
-            {
-                psi.FileName = cmdPath;
-                return;
-            }
+            psi.FileName = resolved;
         }
     }
 

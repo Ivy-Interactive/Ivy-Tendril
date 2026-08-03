@@ -139,16 +139,31 @@ public sealed class PlanTools : AuthenticatedToolBase
     public string SetField(
         [Description("Plan ID (e.g., '03228') or full folder path")] string planId,
         [Description("Field name (state, project, level, title, executionProfile, initialPrompt, sourceUrl, priority)")] string field,
-        [Description("New value")] string value)
+        [Description("New value")] string value,
+        [Description("Record Completed despite a failed verification (partial delivery)")] bool allowFailedVerifications = false)
     {
         return ExecuteAuthenticated(() =>
         {
             var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
             var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            string? warning = null;
 
             switch (field.ToLower())
             {
-                case "state": plan.State = value; break;
+                case "state":
+                    // Writes plan.yaml directly rather than going through
+                    // PlanReaderService.TransitionState, so the Completed check is applied here
+                    // explicitly (see plan 00090).
+                    try
+                    {
+                        warning = PlanCompletionGuard.ApplyState(
+                            plan, value, allowFailedVerifications, planId);
+                    }
+                    catch (PlanTransitionBlockedException ex)
+                    {
+                        return $"Error: {ex.Message}";
+                    }
+                    break;
                 case "project": plan.Project = value; break;
                 case "level": plan.Level = value; break;
                 case "title": plan.Title = value; break;
@@ -168,7 +183,9 @@ public sealed class PlanTools : AuthenticatedToolBase
                 plan.Updated = DateTime.UtcNow;
 
             PlanCommandHelpers.WritePlan(planFolder, plan);
-            return $"Updated {field} to '{value}'";
+            return warning != null
+                ? $"Updated {field} to '{value}'. {warning}"
+                : $"Updated {field} to '{value}'";
         });
     }
 
@@ -660,6 +677,7 @@ public sealed class PlanTools : AuthenticatedToolBase
         ["initialprompt"] = (p, _) => p.InitialPrompt ?? "",
         ["sourceurl"] = (p, _) => p.SourceUrl ?? "",
         ["priority"] = (p, _) => p.Priority.ToString(),
+        ["partialdelivery"] = (p, _) => p.PartialDelivery.ToString().ToLowerInvariant(),
         ["repos"] = (p, _) => string.Join("\n", p.Repos),
         ["prs"] = (p, _) => string.Join("\n", p.Prs),
         ["commits"] = (p, _) => string.Join("\n", p.Commits),

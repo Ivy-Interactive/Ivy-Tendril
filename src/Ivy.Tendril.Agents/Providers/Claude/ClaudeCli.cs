@@ -73,10 +73,105 @@ public sealed class ClaudeCli : IAgentCli
             }
         };
 
+        var allowedRules = new List<string>();
+
+        if (config.AllowedTools.Count > 0)
+        {
+            var activeTools = new List<string>();
+            foreach (var tool in config.AllowedTools)
+            {
+                if (tool.StartsWith("Bash(", StringComparison.OrdinalIgnoreCase) && tool.EndsWith(")"))
+                {
+                    allowedRules.Add(tool);
+                    if (!activeTools.Contains("Bash")) activeTools.Add("Bash");
+                }
+                else
+                {
+                    var nativeName = TranslateToolName(tool) ?? tool;
+                    if (nativeName.Equals("Bash", StringComparison.OrdinalIgnoreCase))
+                    {
+                        allowedRules.Add("Bash(*)");
+                    }
+                    else
+                    {
+                        allowedRules.Add(nativeName);
+                    }
+                    if (!activeTools.Contains(nativeName)) activeTools.Add(nativeName);
+                }
+            }
+
+            if (activeTools.Count > 0)
+            {
+                args.Add("--tools");
+                args.Add(string.Join(",", activeTools));
+            }
+        }
+        else if (config.PermissionMode == PermissionMode.FullAuto)
+        {
+            // Tailor default safe/essential permissions needed to work with Tendril
+            allowedRules.AddRange([
+                "Read", "Write", "Edit", "Glob", "Grep", "WebFetch", "WebSearch",
+                "Bash(tendril *)",
+                "Bash(git *)",
+                "Bash(gh *)",
+                "Bash(dotnet *)",
+                "Bash(pnpm *)",
+                "Bash(npm *)",
+                "Bash(yarn *)",
+                "Bash(bun *)",
+                "Bash(node *)",
+                "Bash(ls *)",
+                "Bash(find *)",
+                "Bash(cat *)",
+                "Bash(head *)",
+                "Bash(tail *)",
+                "Bash(grep *)",
+                "Bash(mkdir *)",
+                "Bash(rmdir *)",
+                "Bash(rm *)",
+                "Bash(cp *)",
+                "Bash(mv *)",
+                "Bash(touch *)",
+                "Bash(chmod *)",
+                "Bash(pwd)",
+                "Bash(echo *)",
+                "Bash(which *)",
+                "Bash(npx *)",
+                "Bash(vite *)",
+                "Bash(tsc *)",
+                "Bash(eslint *)",
+                "Bash(prettier *)",
+                "Bash(python *)",
+                "Bash(python3 *)",
+                "Bash(pip *)",
+                "Bash(pip3 *)",
+                "Bash(uv *)",
+                "Bash(refitter *)",
+                "Bash(svcutil *)",
+                "Bash(ivy-inspector-*)",
+                "Bash(dotnet-*)",
+                "Bash(strawberryshake *)"
+            ]);
+        }
+
+        if (allowedRules.Count > 0)
+        {
+            var settingsObj = new
+            {
+                permissions = new
+                {
+                    allow = allowedRules
+                }
+            };
+            var settingsJson = System.Text.Json.JsonSerializer.Serialize(settingsObj);
+            args.Add("--settings");
+            args.Add(settingsJson);
+        }
+
         if (!string.IsNullOrEmpty(config.Model))
         {
             args.Add("--model");
-            args.Add(config.Model);
+            args.Add(NormalizeClaudeModel(config.Model));
         }
 
         if (config.Effort is not null)
@@ -97,12 +192,6 @@ public sealed class ClaudeCli : IAgentCli
         {
             args.Add("--session-id");
             args.Add(config.SessionId);
-        }
-
-        if (config.AllowedTools.Count > 0)
-        {
-            args.Add("--allowedTools");
-            args.Add(string.Join(" ", config.AllowedTools));
         }
 
         if (config.MaxTurns.HasValue)
@@ -154,4 +243,13 @@ public sealed class ClaudeCli : IAgentCli
             ["CI"] = "true",
             ["TERM"] = "dumb"
         };
+
+    private static string NormalizeClaudeModel(string model)
+    {
+        if (string.Equals(model, "default", StringComparison.OrdinalIgnoreCase)) return "opus";
+        if (model.Contains("opus", StringComparison.OrdinalIgnoreCase)) return "opus";
+        if (model.Contains("sonnet", StringComparison.OrdinalIgnoreCase)) return "sonnet";
+        if (model.Contains("haiku", StringComparison.OrdinalIgnoreCase)) return "haiku";
+        return model;
+    }
 }

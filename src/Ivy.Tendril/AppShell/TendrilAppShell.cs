@@ -95,6 +95,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     private static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status,
         IConfigService config, IAgentRunner runner)
     {
+        var nonChatAgentCount = Math.Max(0, runner.ActiveSessions.Count - status.GeneratingChatSessionsCount);
         var badges = new Dictionary<string, int>
         {
             ["drafts"] = status.DraftCount,
@@ -102,7 +103,9 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             ["jobs"] = status.JobCount,
             ["icebox"] = status.IceboxCount,
             ["recommendations"] = status.RecommendationsCount,
-            ["trash"] = status.TrashCount
+            ["trash"] = status.TrashCount,
+            ["chat"] = status.GeneratingChatSessionsCount,
+            ["agent"] = nonChatAgentCount
         };
         var agentId = config.Settings.CodingAgent;
         return repo.GetMenuItems()
@@ -572,9 +575,20 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             )
             .Variant(ButtonVariant.Ghost).Width(Size.Full());
 
+        var settingsTriggerCollapsed = new Button()
+            .Icon(Icons.Settings)
+            .Tooltip("Settings")
+            .Variant(ButtonVariant.Ghost).Width(Size.Full());
+
         var settingsMenu = new DropDownMenu(
                 DropDownMenu.DefaultSelectHandler(),
                 settingsTrigger)
+            .Top()
+            .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
+
+        var settingsMenuCollapsed = new DropDownMenu(
+                DropDownMenu.DefaultSelectHandler(),
+                settingsTriggerCollapsed)
             .Top()
             .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
 
@@ -598,16 +612,18 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             new SidebarLayout(
                 body ?? null!,
                 sidebarMenu,
-                Layout.Vertical().Gap(2)
-                | settings.Header
-                | new NewPlanButton()
-                ,
-                Layout.Vertical(
+                sidebarHeader: Layout.Vertical().Gap(2)
+                    | settings.Header
+                    | new NewPlanButton(collapsed: false),
+                sidebarFooter: Layout.Vertical(
                     new SidebarNews(newsArticles.Value),
                     settings.Footer,
                     footer
                 ),
-                settings.Width
+                width: settings.Width,
+                sidebarHeaderCollapsed: Layout.Vertical().Gap(2)
+                    | new NewPlanButton(collapsed: true),
+                sidebarFooterCollapsed: settingsMenuCollapsed
             ).Open(sidebarOpen.Value).MainAppSidebar(),
             importIssuesDialog,
             updateDialog

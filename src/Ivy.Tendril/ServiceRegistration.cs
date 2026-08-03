@@ -3,6 +3,7 @@ using Ivy.Core.Exceptions;
 using Ivy.Tendril.Agents;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Memory;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -20,6 +21,7 @@ internal static class ServiceRegistration
 
         server.Services.AddSingleton<IConfigService>(configService);
         server.Services.AddSingleton<ConfigService>(configService);
+        server.Services.AddSingleton<IChatHistoryService, ChatHistoryService>();
         server.Services.AddSingleton<ICreatePlanPreferences, CreatePlanPreferences>();
 
         Program.SetConfigServiceForCleanup(configService);
@@ -70,6 +72,42 @@ internal static class ServiceRegistration
                     return userInfo?.Email;
                 };
             };
+
+            opts.OpenAiProxyApiKeyProviderFactory = sp =>
+            {
+                var config = sp.GetService<IConfigService>();
+                return () =>
+                {
+                    if (config?.Settings != null)
+                    {
+                        var openAiProxyAgent = config.Settings.CodingAgents.FirstOrDefault(a =>
+                            a.Name.Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
+                        if (openAiProxyAgent != null && openAiProxyAgent.EnvironmentVariables.TryGetValue("ANTHROPIC_API_KEY", out var key) && !string.IsNullOrEmpty(key))
+                        {
+                            return key;
+                        }
+                    }
+                    return null;
+                };
+            };
+
+            opts.OpenAiProxyBaseUrlProviderFactory = sp =>
+            {
+                var config = sp.GetService<IConfigService>();
+                return () =>
+                {
+                    if (config?.Settings != null)
+                    {
+                        var openAiProxyAgent = config.Settings.CodingAgents.FirstOrDefault(a =>
+                            a.Name.Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
+                        if (openAiProxyAgent != null && openAiProxyAgent.EnvironmentVariables.TryGetValue("ANTHROPIC_BASE_URL", out var url) && !string.IsNullOrEmpty(url))
+                        {
+                            return url;
+                        }
+                    }
+                    return null;
+                };
+            };
         });
 
         server.Services.AddSingleton<ModelPricingService>();
@@ -88,6 +126,7 @@ internal static class ServiceRegistration
 
         server.Services.AddSingleton<VersionCheckService>();
         server.Services.AddSingleton<IVersionCheckService>(sp => sp.GetRequiredService<VersionCheckService>());
+        server.Services.AddSingleton<IMemoryService, MemoryService>();
         server.Services.AddSingleton<IPromptwareRunner, PromptwareRunner>();
 
         server.Services.AddSingleton<OnboardingSetupService>();
@@ -102,7 +141,7 @@ internal static class ServiceRegistration
         {
             var config = sp.GetRequiredService<IConfigService>();
             var home = string.IsNullOrEmpty(config.TendrilHome)
-                ? System.IO.Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile), ".tendril")
+                ? Helpers.PathHelper.GetDefaultTendrilHome()
                 : config.TendrilHome;
             return new WorktreeLifecycleLogger(home);
         });
@@ -174,7 +213,8 @@ internal static class ServiceRegistration
             var planWatcher = sp.GetRequiredService<IPlanWatcherService>();
             var config = sp.GetRequiredService<IConfigService>();
             var logger = sp.GetRequiredService<ILogger<TendrilProcessStatusService>>();
-            return new TendrilProcessStatusService(planReader, jobService, planWatcher, config, logger);
+            var chatHistory = sp.GetService<IChatHistoryService>();
+            return new TendrilProcessStatusService(planReader, jobService, planWatcher, config, logger, chatHistory);
         });
         server.Services.AddSingleton<ITendrilProcessStatusService>(sp => sp.GetRequiredService<TendrilProcessStatusService>());
         server.Services.AddSingleton<InboxWatcherService>(sp =>

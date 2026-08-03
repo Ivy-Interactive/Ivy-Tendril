@@ -32,10 +32,7 @@ public sealed class IvyCli : IAgentCli
         var spec = _inner.BuildProcessSpec(config);
 
         var env = new Dictionary<string, string>(spec.Environment);
-        if (!env.TryGetValue("ANTHROPIC_BASE_URL", out var baseUrl) || string.IsNullOrEmpty(baseUrl))
-        {
-            env["ANTHROPIC_BASE_URL"] = "https://llmproxy.ivy.app";
-        }
+        env["ANTHROPIC_BASE_URL"] = "https://llmproxy.ivy.app";
 
         var apiKey = _apiKeyProvider();
         if (!string.IsNullOrEmpty(apiKey))

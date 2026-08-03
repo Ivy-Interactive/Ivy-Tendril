@@ -139,11 +139,64 @@ public class PlanReaderService(
     }
 
     /// <summary>
+    ///     Names of verifications in a Fail state, read from <c>plan.yaml</c> on disk (not from the
+    ///     database) so a stale cache cannot green-light a blocked transition. Empty when the plan is
+    ///     clean, missing, or unreadable.
+    /// </summary>
+    /// <remarks>
+    ///     Pending is deliberately excluded: a user may legitimately skip gates, and
+    ///     JobCompletionHandler.EnsurePlanStateTransitioned already routes Pending to Failed. Only Fail
+    ///     is a positive statement that a gate ran and rejected the work.
+    /// </remarks>
+    /// <param name="folderName">Name of the plan folder (e.g. <c>01105-TestPlan</c>).</param>
+    public IReadOnlyList<string> GetFailedVerifications(string folderName)
+    {
+        var planYaml = PlanYamlHelper.ReadPlanYaml(Path.Combine(PlansDirectory, folderName));
+        return PlanCompletionGuard.FailedVerificationNames(planYaml);
+    }
+
+    /// <summary>
     ///     Transitions a plan to a new state by updating its <c>plan.yaml</c> file.
     /// </summary>
     /// <param name="folderName">Name of the plan folder (e.g. <c>01105-TestPlan</c>).</param>
     /// <param name="newState">The target state to transition to.</param>
+    /// <exception cref="PlanTransitionBlockedException">
+    ///     Thrown when <paramref name="newState" /> is Completed and either (a) a verification failed
+    ///     (plan 00090) or (b) pre-execution failed and the plan has no commits/PRs (plan 00103).
+    /// </exception>
     public void TransitionState(string folderName, PlanStatus newState)
+    {
+        if (newState == PlanStatus.Completed)
+        {
+            // Plan 00090: block on failed verifications
+            var failed = GetFailedVerifications(folderName);
+            if (failed.Count > 0)
+                throw new PlanTransitionBlockedException(folderName, failed);
+
+            // Plan 00103: block on failed pre-execution with no deliverables
+            if (GetCompletionBlockReason(Path.Combine(PlansDirectory, folderName)) is { } blockReason)
+                throw new PlanTransitionBlockedException(folderName, newState, blockReason);
+        }
+
+        WriteStateTransition(folderName, newState, markPartialDelivery: false);
+    }
+
+    /// <summary>
+    ///     The sanctioned override for <see cref="TransitionState" />'s failed-verification block: moves
+    ///     the plan to Completed and stamps <see cref="PlanYaml.PartialDelivery" /> so duplicate detection
+    ///     can tell that the deliverable may be missing (see plan 00090).
+    /// </summary>
+    /// <remarks>
+    ///     This is for a human deliberately recording a partial delivery. It is not a way to silence the
+    ///     guard: the flag it writes is what keeps the plan visible to CreatePlan.
+    /// </remarks>
+    /// <param name="folderName">Name of the plan folder (e.g. <c>01105-TestPlan</c>).</param>
+    public void CompleteWithPartialDelivery(string folderName)
+    {
+        WriteStateTransition(folderName, PlanStatus.Completed, markPartialDelivery: true);
+    }
+
+    private void WriteStateTransition(string folderName, PlanStatus newState, bool markPartialDelivery)
     {
         var planId = ExtractPlanId(folderName);
 
@@ -180,8 +233,31 @@ public class PlanReaderService(
             var planYaml = YamlHelper.Deserializer.Deserialize<PlanYaml>(yaml) ?? new PlanYaml();
             planYaml.State = newState.ToString();
             planYaml.Updated = DateTime.UtcNow;
+            if (markPartialDelivery) planYaml.PartialDelivery = true;
             FileHelper.WriteAllText(planYamlPath, YamlHelper.SerializerCompact.Serialize(planYaml));
         }, Path.Combine(PlansDirectory, folderName));
+    }
+
+    /// <summary>
+    ///     Returns the reason a plan must not be marked Completed, or null when the transition is fine.
+    ///     Blocks a plan whose <c>Verification/PreExecution.md</c> reads <c>result: Fail</c> and which has
+    ///     no commits and no PRs: pre-execution rejected the plan's premise and nothing was delivered, so
+    ///     Completed would record a phantom owner for work that never happened. The no-commits-and-no-PRs
+    ///     conjunct keeps config-only plans (which legitimately have neither, and pass pre-execution) and
+    ///     any plan that did real work out of the block. See plan 00103.
+    /// </summary>
+    internal static string? GetCompletionBlockReason(string planFolder)
+    {
+        if (PlanYamlHelper.ReadPreExecutionResult(planFolder) != VerificationStatus.Fail) return null;
+
+        var planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
+        if (planYaml == null) return null;
+        if (planYaml.Commits?.Count > 0 || planYaml.Prs?.Count > 0) return null;
+
+        var reportPath = Path.Combine(planFolder, "Verification", "PreExecution.md");
+        return "Pre-execution validation failed and this plan has no commits and no PRs, so there is "
+               + $"nothing to complete. See {reportPath} for the diagnosis. To retire it, set the state "
+               + "to Skipped instead; to complete it anyway, record its commits or PRs first.";
     }
 
     /// <summary>
@@ -961,7 +1037,8 @@ public class PlanReaderService(
                 planYaml.Created,
                 planYaml.Updated,
                 planYaml.InitialPrompt,
-                planYaml.SourceUrl
+                planYaml.SourceUrl,
+                planYaml.PartialDelivery
             );
 
             var latestContent = ReadLatestRevisionFromFileSystem(folderName);

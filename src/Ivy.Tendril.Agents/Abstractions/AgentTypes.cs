@@ -9,6 +9,7 @@ public static class AgentId
     public const string Gemini = "gemini";
     public const string OpenCode = "opencode";
     public const string Ivy = "ivy";
+    public const string OpenAiProxy = "openaiproxy";
 }
 
 public static class CanonicalTools
