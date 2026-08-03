@@ -660,7 +660,9 @@ export function ChatWidget({
                   ) : (
                     msg.content && (
                       <div className="chat-markdown-body">
-                        <ReactMarkdown {...getMarkdownPlugins(msg.content)}>{msg.content}</ReactMarkdown>
+                        <ReactMarkdown {...getMarkdownPlugins(msg.content)}>
+                          {msg.content}
+                        </ReactMarkdown>
                       </div>
                     )
                   )}
