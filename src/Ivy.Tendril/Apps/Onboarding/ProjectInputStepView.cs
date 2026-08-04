@@ -79,7 +79,7 @@ public class ProjectInputStepView(
             | new Spacer()
             | (onBack != null ? (object)new Button("Back").Outline().Large().Icon(Icons.ArrowLeft).OnClick(onBack) : null!)
             | (isBeta
-                ? (object)new Button("Bg job").Outline().Large().Disabled(!canContinue).OnClick(handleBgJob)
+                ? (object)new Button("Background (beta)").Outline().Large().Disabled(!canContinue).OnClick(handleBgJob)
                 : null!)
             | new Button(nextButtonText).Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
                 .Disabled(!canContinue)
