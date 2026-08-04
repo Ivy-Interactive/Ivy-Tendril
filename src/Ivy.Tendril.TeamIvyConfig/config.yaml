@@ -9,7 +9,7 @@ projects:
   meta:
     slackEmoji: ':hammer_and_wrench:'
   repos:
-  - path: D:\Repos\_Ivy\Ivy-Framework
+  - path: D:/Repos/_Ivy/Ivy-Framework
     prRule: yolo
     baseBranch: development
   verifications:
@@ -54,10 +54,10 @@ projects:
   meta:
     slackEmoji: ':seedling:'
   repos:
-  - path: D:\Repos\_Ivy\Ivy-Tendril
+  - path: D:/Repos/_Ivy/Ivy-Tendril
     prRule: yolo
     baseBranch: development
-  - path: D:\Repos\_Ivy\Ivy-Framework
+  - path: D:/Repos/_Ivy/Ivy-Framework
     prRule: yolo
     baseBranch: development
   verifications:
@@ -93,7 +93,7 @@ projects:
   meta:
     slackEmoji: ':crab:'
   repos:
-  - path: D:\Repos\_Ivy\Rustino
+  - path: D:/Repos/_Ivy/Rustino
     prRule: yolo
     baseBranch: development
   verifications:
@@ -129,7 +129,7 @@ projects:
   color: Green
   meta: {}
   repos:
-  - path: D:\Tendril\Repos\lots-of-dev-tools
+  - path: D:/Tendril/Repos/lots-of-dev-tools
     prRule: default
   verifications:
   - name: NpmLint
@@ -151,7 +151,7 @@ projects:
   color: Green
   meta: {}
   repos:
-  - path: D:\Repos\_Ivy\Ivy-Tendril-Services
+  - path: D:/Repos/_Ivy/Ivy-Tendril-Services
     prRule: default
     baseBranch: development
   verifications:
@@ -544,12 +544,13 @@ codingAgents:
     effort: ''
     arguments: ''
 tunnel:
-  enabled: true
+  enabled: false
   port: 5010
   binaryPath: ''
   maxRestarts: 10
 telemetry: true
 desktopNotifications: true
+beta: false
 dismissedUpdateVersion: 1.1.10
 levels:
 - name: Bug

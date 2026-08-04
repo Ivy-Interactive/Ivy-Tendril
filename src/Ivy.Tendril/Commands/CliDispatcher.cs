@@ -38,7 +38,7 @@ internal static class CliDispatcher
     private static readonly string[] ServerFlags =
     [
         "--port", "--find-available-port", "--i-kill-for-this-port", "--path-base",
-        "--enable-dev-tools", "--describe-connection", "--test-connection"
+        "--enable-dev-tools", "--describe-connection", "--test-connection", "--browse"
     ];
 
     // Server flags above that consume the following token as their value.
