@@ -168,7 +168,7 @@ public class FileExplorerView : ViewBase
         var options = new List<ProjectOrPromptwareOption>();
         var normWorkingDir = workingDir.Replace('\\', '/').TrimEnd('/');
 
-        // 1. Projects
+        #region 1. Projects
         if (projects != null && projects.Count > 0)
         {
             foreach (var proj in projects)
@@ -183,13 +183,13 @@ public class FileExplorerView : ViewBase
                         var fullPath = Path.GetFullPath(rawPath).Replace('\\', '/').TrimEnd('/');
                         var name = Path.GetFileName(fullPath);
                         if (string.IsNullOrEmpty(name)) name = proj.Name;
-                        var label = $"📁 Project: {name}";
+                        var label = $"Project: {name}";
                         options.Add(new ProjectOrPromptwareOption(label, label, fullPath, name, false));
                     }
                 }
                 else
                 {
-                    var label = $"📁 Project: {proj.Name}";
+                    var label = $"Project: {proj.Name}";
                     options.Add(new ProjectOrPromptwareOption(label, label, normWorkingDir, proj.Name, false));
                 }
             }
@@ -197,11 +197,12 @@ public class FileExplorerView : ViewBase
         else
         {
             var name = Path.GetFileName(normWorkingDir);
-            var label = $"📁 Project: {name}";
+            var label = $"Project: {name}";
             options.Add(new ProjectOrPromptwareOption(label, label, normWorkingDir, name, false));
         }
+        #endregion
 
-        // 2. Promptwares
+        #region 2. Promptwares
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
         var promptwareRoots = new[]
@@ -224,7 +225,7 @@ public class FileExplorerView : ViewBase
                 if (seenPw.Add(pwName))
                 {
                     var normPwDir = Path.GetFullPath(pwDir).Replace('\\', '/').TrimEnd('/');
-                    var label = $"✨ Promptware: {pwName}";
+                    var label = $"Promptware: {pwName}";
                     options.Add(new ProjectOrPromptwareOption(label, label, normPwDir, pwName, true));
                 }
             }
@@ -238,11 +239,12 @@ public class FileExplorerView : ViewBase
                 {
                     var folder = PromptwareHelper.ResolvePromptwareFolder(name, tendrilHome);
                     var normFolder = Path.GetFullPath(folder).Replace('\\', '/').TrimEnd('/');
-                    var label = $"✨ Promptware: {name}";
+                    var label = $"Promptware: {name}";
                     options.Add(new ProjectOrPromptwareOption(label, label, normFolder, name, true));
                 }
             }
         }
+        #endregion
 
         return options;
     }
