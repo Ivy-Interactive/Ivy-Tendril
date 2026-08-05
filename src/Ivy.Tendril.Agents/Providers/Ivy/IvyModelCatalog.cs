@@ -44,7 +44,7 @@ public sealed class IvyModelCatalog : IModelCatalogProvider
             var result = await _inner.GetModelsAsync(ct);
             var ivyModels = result.Models
                 .Where(m => m.Id.StartsWith("ivy", StringComparison.OrdinalIgnoreCase) ||
-                            m.Provider.Equals("ivy", StringComparison.OrdinalIgnoreCase))
+                            "ivy".Equals(m.Provider, StringComparison.OrdinalIgnoreCase))
                 .Select(m => new ModelInfo
                 {
                     Id = m.Id,
