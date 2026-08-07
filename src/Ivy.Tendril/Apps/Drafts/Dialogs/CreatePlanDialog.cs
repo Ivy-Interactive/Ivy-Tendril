@@ -137,51 +137,22 @@ public class CreatePlanDialog(
 
         object projectPickerWidget;
 
+        var options = new List<Option<string>>();
+        if (currentProjectNames.Count > 1 || currentProjectNames.Count == 0)
+        {
+            options.Add(new Option<string>("Auto", "Auto"));
+        }
+        options.AddRange(currentProjectNames.Select(p => new Option<string>(p, p)));
+        options.Add(new Option<string>("+ Add New Project", AddProjectActionValue));
+
         if (currentProjectNames.Count <= 6)
         {
-            var activeProject = string.IsNullOrEmpty(selectedProject.Value) ? "Auto" : selectedProject.Value;
-
-            var cardsLayout = Layout.Grid().Columns(3).Gap(1);
-
-            // First card is always Auto
-            cardsLayout |= new Button("Auto")
-                .Variant(activeProject == "Auto" ? ButtonVariant.Secondary : ButtonVariant.Ghost)
-                .Width(Size.Full())
-                .OnClick(() => selectedProject.Set("Auto"));
-
-            // Project cards
-            foreach (var proj in currentProjectNames)
-            {
-                var pName = proj;
-                cardsLayout |= new Button(pName)
-                    .Variant(activeProject == pName ? ButtonVariant.Secondary : ButtonVariant.Ghost)
-                    .Width(Size.Full())
-                    .OnClick(() => selectedProject.Set(pName));
-            }
-
-            // Option to add a new project
-            cardsLayout |= new Button("Add Project")
-                .Variant(ButtonVariant.Ghost)
-                .Icon(Icons.Plus)
-                .Width(Size.Full())
-                .OnClick(() =>
-                {
-                    HandleClose();
-                    nav.Navigate<SettingsApp>(new SettingsAppArgs(SettingsApp.TagProjects));
-                });
-
-            projectPickerWidget = cardsLayout;
+            projectPickerWidget = selectedProject.ToSelectInput(options)
+                .Variant(SelectInputVariant.Toggle);
         }
         else
         {
-            var projectOptions = new List<Option<string>>
-            {
-                new Option<string>("Auto", "Auto")
-            };
-            projectOptions.AddRange(currentProjectNames.Select(p => new Option<string>(p, p)));
-            projectOptions.Add(new Option<string>("+ Add New Project", AddProjectActionValue));
-
-            projectPickerWidget = selectedProject.ToSelectInput(projectOptions)
+            projectPickerWidget = selectedProject.ToSelectInput(options)
                 .Searchable(true)
                 .Placeholder("Select project...")
                 .Variant(SelectInputVariant.Select);
