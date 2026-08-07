@@ -249,11 +249,14 @@ public class ChangesTabView(
             | totalsText
             | submitBtn;
 
-        var toolbar = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween).Height(Size.Auto())
+        var toolbar = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween).Height(Size.Auto()).Padding(2, 0, 0, 0)
             | leftSide
             | rightSide;
 
-        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0)))
+        // Padding order is (left, top, right, bottom). Left 2 aligns the tree/diff content with
+        // the toolbar above; bottom 4 matches Cap()'s bottom inset so content doesn't run into
+        // the action bar separator below.
+        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(2, 0, 2, 4)
             | treePanel
             | diffsLayout;
 
