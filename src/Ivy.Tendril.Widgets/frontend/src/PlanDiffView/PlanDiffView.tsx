@@ -624,9 +624,11 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
 
                 <div className="flex items-center gap-4 shrink-0 pl-2">
                   {/* Additions / Deletions count */}
-                  <span className="flex items-center gap-1 font-mono text-xs">
-                    {additions > 0 && <span className="text-[var(--success)]">+{additions}</span>}
-                    {deletions > 0 && <span className="text-[var(--destructive)]">-{deletions}</span>}
+                  <span className="flex items-center gap-1 font-mono text-xs tabular-nums">
+                    <span className="flex items-center justify-end gap-1 min-w-[4.5rem]">
+                      {additions > 0 && <span className="text-[var(--success)]">+{additions}</span>}
+                      {deletions > 0 && <span className="text-[var(--destructive)]">-{deletions}</span>}
+                    </span>
                     {renderDiffSquares(additions, deletions)}
                   </span>
 
@@ -683,9 +685,9 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                         }}
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
-                        {fileCommentCount > 0 && (
-                          <span className="font-mono text-xs">{fileCommentCount}</span>
-                        )}
+                        <span className="font-mono text-xs tabular-nums min-w-4 text-left">
+                          {fileCommentCount > 0 ? fileCommentCount : ""}
+                        </span>
                       </button>
                     );
                   })()}
