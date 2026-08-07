@@ -81,24 +81,25 @@ public class ProjectRepoPickerView(
         }
 
         object pickerControls;
+        var repoInput = inputValue.ToTextInput("Repository URL or Local Path")
+                            .Width(Size.Grow())
+                            .OnSubmit(() => { _ = AddAsync(); });
+
         if (isDesktop)
         {
-            pickerControls = inputValue.ToTextInput("Repository URL or Local Path")
-                                 .Width(Size.Grow())
-                                 .OnSubmit(() => { _ = AddAsync(); })
-                                 .Suffix(new Button("Browse").Icon(Icons.FolderOpen).Ghost()
-                                     .OnClick(() =>
-                                     {
-                                         var picked = desktop!.ShowSelectFolderDialog("Select repository folder");
-                                         if (picked is { Length: > 0 } && !string.IsNullOrEmpty(picked[0]))
-                                             inputValue.Set(picked[0]);
-                                     }));
+            pickerControls = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center).Gap(2)
+                             | repoInput
+                             | new Button("Browse").Icon(Icons.FolderOpen).Outline()
+                                 .OnClick(() =>
+                                 {
+                                     var picked = desktop!.ShowSelectFolderDialog("Select repository folder");
+                                     if (picked is { Length: > 0 } && !string.IsNullOrEmpty(picked[0]))
+                                         inputValue.Set(picked[0]);
+                                 });
         }
         else
         {
-            pickerControls = inputValue.ToTextInput("Repository URL or Local Path")
-                                 .Width(Size.Grow())
-                                 .OnSubmit(() => { _ = AddAsync(); });
+            pickerControls = repoInput;
         }
 
         var addButton = new Button("Add Repository").Icon(Icons.Plus)
