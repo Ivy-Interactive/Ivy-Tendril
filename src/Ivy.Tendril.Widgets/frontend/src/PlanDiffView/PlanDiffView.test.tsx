@@ -170,6 +170,26 @@ describe("PlanDiffView", () => {
     const listItems = document.querySelectorAll(".diff-comment-markdown ul li");
     expect(listItems.length).toBe(2);
   });
+
+  it("does not render any off-scale text size classes", () => {
+    render(
+      <PlanDiffView
+        id="pdv-1"
+        onIvyEvent={vi.fn()}
+        diff={diff}
+        comments={[
+          {
+            filePath: "a.txt",
+            changeKey: changeKey,
+            content: "a comment",
+            lineNumber: 1,
+          },
+        ]}
+      />
+    );
+
+    expect(document.querySelectorAll('[class*="text-[10px]"], [class*="text-[11px]"]').length).toBe(0);
+  });
 });
 
 describe("PlanDiffView unified column collapse", () => {
