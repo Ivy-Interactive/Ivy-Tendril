@@ -144,47 +144,75 @@ public class ChangesTabView(
                 },
                 OnEditFile = e =>
                 {
+                    var relativeOrAbs = e.Value.TrimStart('/', '\\');
                     var repoPath = changesData?.SourceRepoPath;
                     if (string.IsNullOrEmpty(repoPath))
                     {
                         repoPath = selectedPlan.GetEffectiveRepoPaths(config).FirstOrDefault();
                     }
-                    if (!string.IsNullOrEmpty(repoPath))
+
+                    string fullPath;
+                    if (Path.IsPathRooted(e.Value))
                     {
-                        var absolutePath = Path.Combine(repoPath, e.Value).Replace('\\', '/');
-                        var process = Process.Start(new ProcessStartInfo
-                        {
-                            FileName = "code",
-                            Arguments = $"\"{absolutePath}\"",
-                            UseShellExecute = true,
-                            CreateNoWindow = true
-                        });
+                        fullPath = Path.GetFullPath(e.Value);
+                    }
+                    else if (!string.IsNullOrEmpty(repoPath))
+                    {
+                        fullPath = Path.GetFullPath(Path.Combine(repoPath, relativeOrAbs));
+                    }
+                    else
+                    {
+                        fullPath = Path.GetFullPath(Path.Combine(selectedPlan.FolderPath, relativeOrAbs));
+                    }
+
+                    try
+                    {
+                        config.OpenInEditor(fullPath);
+                    }
+                    catch (EditorNotAvailableException ex)
+                    {
+                        client.Toast(
+                            $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                            "Editor Not Available",
+                            variant: ToastVariant.Destructive);
                     }
                     return ValueTask.CompletedTask;
                 },
                 OnDeleteFile = async e =>
                 {
+                    var relativeOrAbs = e.Value.TrimStart('/', '\\');
                     var repoPath = changesData?.SourceRepoPath;
                     if (string.IsNullOrEmpty(repoPath))
                     {
                         repoPath = selectedPlan.GetEffectiveRepoPaths(config).FirstOrDefault();
                     }
-                    if (!string.IsNullOrEmpty(repoPath))
+
+                    string absolutePath;
+                    if (Path.IsPathRooted(e.Value))
                     {
-                        var absolutePath = Path.Combine(repoPath, e.Value).Replace('\\', '/');
-                        try
+                        absolutePath = Path.GetFullPath(e.Value);
+                    }
+                    else if (!string.IsNullOrEmpty(repoPath))
+                    {
+                        absolutePath = Path.GetFullPath(Path.Combine(repoPath, relativeOrAbs));
+                    }
+                    else
+                    {
+                        absolutePath = Path.GetFullPath(Path.Combine(selectedPlan.FolderPath, relativeOrAbs));
+                    }
+
+                    try
+                    {
+                        if (File.Exists(absolutePath))
                         {
-                            if (File.Exists(absolutePath))
-                            {
-                                File.Delete(absolutePath);
-                            }
-                            client.Toast($"Deleted file: {e.Value}", "File Deleted");
-                            refreshPlans();
+                            File.Delete(absolutePath);
                         }
-                        catch (Exception ex)
-                        {
-                            client.Toast($"Failed to delete file: {ex.Message}", "Delete Failed", variant: ToastVariant.Destructive);
-                        }
+                        client.Toast($"Deleted file: {e.Value}", "File Deleted");
+                        refreshPlans();
+                    }
+                    catch (Exception ex)
+                    {
+                        client.Toast($"Failed to delete file: {ex.Message}", "Delete Failed", variant: ToastVariant.Destructive);
                     }
                     await Task.CompletedTask;
                 }
@@ -216,32 +244,14 @@ public class ChangesTabView(
             .Run($"+{totals.Additions}", color: Colors.Success)
             .Run($" -{totals.Deletions}", color: Colors.Destructive);
 
-        var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
-
-        var discussBtn = new Button($"Discuss with {agentLabel}")
-            .Icon(agentIcon)
-            .Outline()
-            .OnClick(() => onDiscussWithAgent?.Invoke());
-
-        var draftCount = draftComments.Value.Count;
-        var requestChangesBtn = new Button(draftCount > 0 ? $"Request Changes ({draftCount})" : "Request Changes")
-            .Icon(Icons.MessageSquare)
-            .OnClick(() => showSuggestChangesDialog());
-
-        requestChangesBtn = draftCount > 0 ? requestChangesBtn.Primary() : requestChangesBtn.Outline();
-
         var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
-            | totalsText
-            | discussBtn
-            | requestChangesBtn;
+            | totalsText;
 
         var toolbar = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween).Height(Size.Auto()).Padding(2, 0, 4, 0)
             | leftSide
             | rightSide;
 
-        // Padding order is (left, top, right, bottom). Left 2 aligns the tree/diff content with
-        // the toolbar above; bottom 4 matches Cap()'s bottom inset so content doesn't run into
-        // the action bar separator below.
+        // Padding order is (left, top, right, bottom).
         var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(2, 0, 4, 4)
             | treePanel
             | diffsLayout;

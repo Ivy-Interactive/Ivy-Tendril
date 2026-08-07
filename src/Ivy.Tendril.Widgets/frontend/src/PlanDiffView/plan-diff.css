@@ -93,7 +93,7 @@
 
 /* Highlights within lines */
 .diff-code-edit-mark {
-  background-color: color-mix(in srgb, currentColor, transparent 70%);
+  background-color: transparent !important;
 }
 
 /* Selection */
@@ -340,5 +340,65 @@ td.diff-gutter-empty::after {
 .diff-comment-markdown img {
   max-width: 100%;
   height: auto;
+}
+
+/* Syntax Highlighting Tokens (Direct match with Ivy Framework prismTheme) */
+.diff-code {
+  color: var(--foreground);
+}
+
+.diff-code .token.comment,
+.diff-code .token.prolog,
+.diff-code .token.doctype,
+.diff-code .token.cdata {
+  color: var(--muted-foreground) !important;
+  font-style: italic;
+}
+
+.diff-code .token.keyword,
+.diff-code .token.namespace,
+.diff-code .token.property,
+.diff-code .token.atrule,
+.diff-code .token.rule {
+  color: var(--purple, #c084fc) !important;
+  font-weight: 500;
+}
+
+.diff-code .token.string,
+.diff-code .token.attr-value,
+.diff-code .token.url,
+.diff-code .token.regex,
+.diff-code .token.char,
+.diff-code .token.color {
+  color: var(--primary, #34d399) !important;
+}
+
+.diff-code .token.function,
+.diff-code .token.class-name,
+.diff-code .token.tag,
+.diff-code .token.variable,
+.diff-code .token.builtin,
+.diff-code .token.entity,
+.diff-code .token.boolean {
+  color: var(--cyan, #38bdf8) !important;
+}
+
+.diff-code .token.attr-name {
+  color: var(--pink, #ec4899) !important;
+}
+
+.diff-code .token.constant,
+.diff-code .token.symbol,
+.diff-code .token.selector,
+.diff-code .token.directive {
+  color: var(--violet, #8b5cf6) !important;
+}
+
+.diff-code .token.number,
+.diff-code .token.operator,
+.diff-code .token.punctuation,
+.diff-code .token.unit,
+.diff-code .token.plain {
+  color: var(--foreground) !important;
 }
 

@@ -242,7 +242,7 @@ public class ContentView(
             args, selectedRecTitles, ImplementRecommendations);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
-            showCreatePrDialog, copyToClipboard, client, logger, nav, args, agentRunner);
+            showCreatePrDialog, copyToClipboard, client, logger, nav, args, agentRunner, draftComments);
         var content = BuildContent(
             selectedPlanState.Value, planData, planContentQuery, selectedTab, openVerification,
             openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
@@ -425,7 +425,8 @@ public class ContentView(
         ILogger<ContentView> logger,
         INavigator nav,
         ReviewAppArgs? args,
-        IAgentRunner agentRunner)
+        IAgentRunner agentRunner,
+        IState<List<DraftComment>> draftComments)
     {
         var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
 
@@ -456,7 +457,7 @@ public class ContentView(
             {
                 PlatformHelper.OpenInTerminal(selectedPlan.FolderPath, logger);
             }),
-            new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
+            new MenuItem("Copy Path", Icon: Icons.Copy, Tag: "CopyPath")
                 .OnSelect(() =>
                 {
                     copyToClipboard(selectedPlan.FolderPath);
@@ -504,14 +505,32 @@ public class ContentView(
         };
         compactDropdownItems.AddRange(standardOverflowItems);
 
+        var commentCount = draftComments.Value.Count;
+        var requestChangesMenuLabel = commentCount > 0 ? $"Request Changes ({commentCount})" : "Request Changes";
+
         // Minimal-tier dropdown: all action buttons + standard overflow
         var minimalDropdownItems = new List<MenuItem>
         {
             new MenuItem("Reset to Draft", Icon: Icons.RotateCcw, Tag: "ResetToDraft").OnSelect(showResetToDraftDialog),
-            new MenuItem("Request Changes", Icon: Icons.MessageSquare, Tag: "RequestChanges").OnSelect(showSuggestChangesDialog),
+            new MenuItem(requestChangesMenuLabel, Icon: Icons.MessageSquare, Tag: "RequestChanges").OnSelect(showSuggestChangesDialog),
             new MenuItem("Discard", Icon: Icons.Trash, Tag: "Discard").OnSelect(showDiscardDialog)
         };
         minimalDropdownItems.AddRange(standardOverflowItems);
+
+        var requestChangesBtn = new Button("Request Changes")
+            .Icon(Icons.MessageSquare)
+            .ShortcutKey("c")
+            .OnClick(showSuggestChangesDialog)
+            .CompactUp();
+
+        if (commentCount > 0)
+        {
+            requestChangesBtn = requestChangesBtn.Badge(commentCount.ToString()).Primary();
+        }
+        else
+        {
+            requestChangesBtn = requestChangesBtn.Outline();
+        }
 
         // Action bar without .Wrap() - single row with progressive collapse.
         // Full (>=1024px): Previous, Next, Reset to Draft, Request Changes, Discard inline + overflow dropdown.
@@ -524,8 +543,7 @@ public class ContentView(
                     .ShortcutKey("n").AlwaysVisible()
                 | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r")
                     .OnClick(showResetToDraftDialog).CompactUp()
-                | new Button("Request Changes").Icon(Icons.MessageSquare).Outline().ShortcutKey("c")
-                    .OnClick(showSuggestChangesDialog).CompactUp()
+                | requestChangesBtn
                 | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
                     .OnClick(showDiscardDialog).FullOnly()
                 | ActionBarResponsive.DropdownAtFull(

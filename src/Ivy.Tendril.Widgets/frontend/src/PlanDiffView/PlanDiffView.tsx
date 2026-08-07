@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { parseDiff, Diff, Hunk, getChangeKey, type ChangeData, type HunkData } from "react-diff-view";
+import { parseDiff, Diff, Hunk, getChangeKey, tokenize, type ChangeData, type HunkData } from "react-diff-view";
 import "react-diff-view/style/index.css";
 import "./plan-diff.css";
 import Markdown from "react-markdown";
@@ -8,6 +8,118 @@ type IvyEventHandler = (eventName: string, widgetId: string, args: any[]) => voi
 import { getWidth, getHeight } from "../styles";
 import { getMarkdownPlugins } from "../math";
 import { Pencil, Trash2, MoreHorizontal, MessageSquare } from "lucide-react";
+import { refractor } from "refractor/all";
+import { prismTheme } from "../prismTheme";
+
+const refractorAdapter = {
+  ...refractor,
+  highlight: (code: string, language: string) => {
+    const res = refractor.highlight(code, language);
+    return Array.isArray(res) ? res : res && (res as any).children ? (res as any).children : [];
+  },
+};
+
+const getStyleForTokenClass = (classNameStr: string): React.CSSProperties | undefined => {
+  if (!classNameStr) return undefined;
+  const classes = classNameStr.split(" ");
+  for (const cls of classes) {
+    if (cls === "token") continue;
+    const camelCls = cls.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+    if (prismTheme[camelCls]) return prismTheme[camelCls];
+    if (prismTheme[cls]) return prismTheme[cls];
+  }
+  return undefined;
+};
+
+const customRenderToken = (token: any, renderDefault: any, index: number): React.ReactNode => {
+  if (!token || token.type === "text") {
+    return renderDefault(token, index);
+  }
+
+  const className =
+    token.className ||
+    (token.properties && Array.isArray(token.properties.className)
+      ? token.properties.className.join(" ")
+      : "");
+  const style = getStyleForTokenClass(className);
+
+  if (style) {
+    return (
+      <span key={index} className={className} style={style}>
+        {token.children && token.children.length > 0
+          ? token.children.map((child: any, i: number) => customRenderToken(child, renderDefault, i))
+          : token.value}
+      </span>
+    );
+  }
+
+  return renderDefault(token, index);
+};
+
+
+
+export function getLanguageFromFilePath(filePath: string): string {
+  if (!filePath) return "text";
+  const ext = filePath.split(".").pop()?.toLowerCase() || "";
+  switch (ext) {
+    case "cs":
+      return "csharp";
+    case "js":
+    case "cjs":
+    case "mjs":
+      return "javascript";
+    case "jsx":
+      return "jsx";
+    case "ts":
+    case "mts":
+    case "cts":
+      return "typescript";
+    case "tsx":
+      return "tsx";
+    case "py":
+      return "python";
+    case "html":
+    case "htm":
+      return "markup";
+    case "css":
+      return "css";
+    case "json":
+      return "json";
+    case "xml":
+    case "csproj":
+    case "props":
+    case "targets":
+    case "svg":
+      return "markup";
+    case "md":
+    case "markdown":
+      return "markdown";
+    case "sh":
+    case "bash":
+    case "zsh":
+      return "bash";
+    case "yaml":
+    case "yml":
+      return "yaml";
+    case "sql":
+      return "sql";
+    case "c":
+    case "h":
+    case "cpp":
+    case "hpp":
+    case "cc":
+    case "cxx":
+      return "cpp";
+    case "java":
+      return "java";
+    case "go":
+      return "go";
+    case "rs":
+      return "rust";
+    default:
+      return ext || "text";
+  }
+}
 
 /** Container width (px) below which the diff is too cramped for a side-by-side (split) view. */
 export const NARROW_BREAKPOINT = 768;
@@ -224,6 +336,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
   onIvyEvent,
   diff,
   viewType = "Unified",
+  language,
   oldRevision,
   newRevision,
   wordWrap,
@@ -705,31 +818,51 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                 </div>
               </div>
             )}
-            {!isCollapsed && (
-              <div className="overflow-x-auto">
-                <Diff
-                  className={`${effectiveViewType === "unified" ? "diff-unified-view" : "diff-split-view"} ${deletions === 0 && additions > 0 ? "diff-no-deletions" : ""} ${additions === 0 && deletions > 0 ? "diff-no-additions" : ""}`}
-                  viewType={effectiveViewType}
-                  diffType={file.type}
-                  hunks={file.hunks}
-                  widgets={getWidgets(file.hunks, commentsHidden[fileIndex] ?? false)}
-                  gutterEvents={{
-                    onClick: ({ change }) => {
-                      if (change) {
-                        const changeKey = getChangeKey(change);
-                        setActiveFormKeys((prev) => ({ ...prev, [changeKey]: !prev[changeKey] }));
-                      }
-                    },
-                  }}
-                >
-                  {(hunks) =>
-                    hunks.map((hunk) => (
-                      <Hunk key={hunk.content} hunk={hunk} />
-                    ))
+            {!isCollapsed && (() => {
+              const fileLang = language || getLanguageFromFilePath(effectiveFilePath);
+              let fileTokens: any = undefined;
+              if (file.hunks && file.hunks.length > 0) {
+                try {
+                  if (fileLang && refractor.registered(fileLang)) {
+                    fileTokens = tokenize(file.hunks, {
+                      highlight: true,
+                      refractor: refractorAdapter,
+                      language: fileLang,
+                    });
                   }
-                </Diff>
-              </div>
-            )}
+                } catch {
+                  // Fallback if language tokenization fails
+                }
+              }
+
+              return (
+                <div className="overflow-x-auto">
+                  <Diff
+                    className={`${effectiveViewType === "unified" ? "diff-unified-view" : "diff-split-view"} ${deletions === 0 && additions > 0 ? "diff-no-deletions" : ""} ${additions === 0 && deletions > 0 ? "diff-no-additions" : ""}`}
+                    viewType={effectiveViewType}
+                    diffType={file.type}
+                    hunks={file.hunks}
+                    tokens={fileTokens}
+                    renderToken={customRenderToken}
+                    widgets={getWidgets(file.hunks, commentsHidden[fileIndex] ?? false)}
+                    gutterEvents={{
+                      onClick: ({ change }) => {
+                        if (change) {
+                          const changeKey = getChangeKey(change);
+                          setActiveFormKeys((prev) => ({ ...prev, [changeKey]: !prev[changeKey] }));
+                        }
+                      },
+                    }}
+                  >
+                    {(hunks) =>
+                      hunks.map((hunk) => (
+                        <Hunk key={hunk.content} hunk={hunk} />
+                      ))
+                    }
+                  </Diff>
+                </div>
+              );
+            })()}
           </div>
         );
       })}

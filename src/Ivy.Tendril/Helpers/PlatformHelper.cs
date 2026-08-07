@@ -159,10 +159,27 @@ public static class PlatformHelper
     {
         try
         {
+            var formattedTarget = Path.GetFullPath(target);
+
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                // Verify the command exists via 'where' before launching.
-                // cmd.exe /c always succeeds even if the inner command is invalid.
+                // Try launching directly via UseShellExecute first (handles .cmd, .bat, AppPaths, and spaces)
+                try
+                {
+                    using var shellProc = Process.Start(new ProcessStartInfo
+                    {
+                        FileName = editorCommand,
+                        Arguments = $"\"{formattedTarget}\"",
+                        UseShellExecute = true,
+                        CreateNoWindow = true
+                    });
+                    if (shellProc != null) return true;
+                }
+                catch
+                {
+                    // Fall back to cmd.exe /c if direct launch failed
+                }
+
                 using var check = Process.Start(new ProcessStartInfo
                 {
                     FileName = "where",
@@ -179,7 +196,7 @@ public static class PlatformHelper
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "cmd.exe",
-                    Arguments = $"/c \"{editorCommand} \"{target}\" > NUL 2>&1\"",
+                    Arguments = $"/c {editorCommand} \"{formattedTarget}\"",
                     UseShellExecute = false,
                     CreateNoWindow = true
                 });
