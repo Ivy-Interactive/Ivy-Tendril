@@ -30,10 +30,9 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
                 );
             return new CreatePlanDialog(
                 projectNames,
-                (description, projects, priority, uploadSessionId) =>
+                (description, project, priority, uploadSessionId) =>
                 {
-                    preferences.LastSelectedProjects = projects;
-                    var project = string.Join(",", projects);
+                    preferences.LastSelectedProject = project;
                     var args = new CreatePlanArgs(description, project, priority, Force: true, UploadSessionId: uploadSessionId);
                     pendingJobArgs.Set(args);
                     isOpen.Set(false);
@@ -46,7 +45,7 @@ public class CreatePlanDialogLauncher(Func<Action, object> renderTrigger) : View
                     });
                 },
                 () => isOpen.Set(false),
-                preferences.LastSelectedProjects
+                preferences.LastSelectedProject
             );
         });
 

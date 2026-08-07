@@ -14,13 +14,15 @@ namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
 public class CreatePlanDialog(
     List<string> projectNames,
-    Action<string, string[], int, string?> onCreatePlan,
+    Action<string, string, int, string?> onCreatePlan,
     Action onClose,
-    string[]? defaultProjects = null) : ViewBase
+    string? defaultProject = null) : ViewBase
 {
-    private readonly string[] _defaultProjects = projectNames.Count == 1
-        ? [projectNames[0]]
-        : defaultProjects ?? ["Auto"];
+    private readonly string _defaultProject = projectNames.Count == 1
+        ? projectNames[0]
+        : defaultProject == "Auto" || (defaultProject != null && projectNames.Contains(defaultProject))
+            ? defaultProject!
+            : "Auto";
 
     internal static readonly List<string> PriorityOptions = ["Normal", "High", "Urgent"];
 
@@ -47,19 +49,15 @@ public class CreatePlanDialog(
     };
 
     // Builds the seed prompt for the "Continue with <agent>" flow. The description is
-    // trimmed, a single project reads "the project X", multiple read "the projects X or Y",
-    // and "Auto" lets the agent pick the project itself.
-    internal static string BuildAgentPrompt(string[] projects, string description)
+    // trimmed; a blank or "Auto" project lets the agent pick the project itself.
+    internal static string BuildAgentPrompt(string project, string description)
     {
         var trimmed = description.Trim();
-        var realProjects = projects.Where(p => p != "Auto").ToArray();
 
-        if (realProjects.Length == 0)
+        if (string.IsNullOrEmpty(project) || project == "Auto")
             return $"I want to discuss creating a Tendril plan from this description: \"{trimmed}\". Determine the most appropriate project for it yourself.";
 
-        var projectWord = realProjects.Length == 1 ? "project" : "projects";
-        var projectList = string.Join(" or ", realProjects);
-        return $"I want to discuss creating a Tendril plan for the {projectWord} {projectList} from this description: \"{trimmed}\"";
+        return $"I want to discuss creating a Tendril plan for the project {project} from this description: \"{trimmed}\"";
     }
 
     public override object Build()
@@ -67,7 +65,7 @@ public class CreatePlanDialog(
         var nav = UseNavigation();
         var isCreating = UseState(false);
         var createPlanText = UseState("");
-        var selectedProjects = UseState(_defaultProjects);
+        var selectedProject = UseState(_defaultProject);
         var selectedPriority = UseState("Normal");
         var configService = UseService<IConfigService>();
         var agentRunner = UseService<IAgentRunner>();
@@ -105,24 +103,6 @@ public class CreatePlanDialog(
         var continueLabel = $"Chat with {AgentBranding.For(configService.Settings.CodingAgent, agentRunner).Label}";
 
         var currentProjectNames = configService.Projects.Select(p => p.Name).ToList();
-        var hasAutoOption = currentProjectNames.Count > 1;
-
-        // "Auto" is exclusive: picking it clears real projects, picking a real project clears "Auto".
-        void SetProjects(string[] rawValue)
-        {
-            var newValue = rawValue.Where(p => p != AddProjectActionValue).ToArray();
-            var current = selectedProjects.Value;
-            string[] next;
-            if (newValue.Contains("Auto") && !current.Contains("Auto"))
-                next = ["Auto"];
-            else if (newValue.Contains("Auto") && newValue.Any(p => p != "Auto"))
-                next = newValue.Where(p => p != "Auto").ToArray();
-            else if (newValue.Length == 0)
-                next = hasAutoOption ? ["Auto"] : currentProjectNames.Take(1).ToArray();
-            else
-                next = newValue;
-            selectedProjects.Set(next);
-        }
 
         var (projectOptions, projectActions) = BuildProjectPickerOptions(currentProjectNames);
 
@@ -150,16 +130,16 @@ public class CreatePlanDialog(
         var projectPicker = new BadgeSelect
         {
             Options = projectOptions,
-            Value = selectedProjects.Value,
-            Placeholder = "Select project(s)",
-            Icon = selectedProjects.Value.Contains("Auto") || selectedProjects.Value.Length == 0
+            Value = [selectedProject.Value],
+            Placeholder = "Select project",
+            Icon = selectedProject.Value == "Auto"
                     ? "WandSparkles"
                     : "Folder",
-            Multiple = true,
-            Tooltip = "Select project(s)",
+            Multiple = false,
+            Tooltip = "Select project",
             Actions = projectActions,
         }
-            .WithOnChange(SetProjects)
+            .WithOnChange(values => selectedProject.Set(values.FirstOrDefault() ?? _defaultProject))
             .WithOnAction(value =>
             {
                 if (value == AddProjectActionValue) isAddProjectOpen.Set(true);
@@ -193,10 +173,7 @@ public class CreatePlanDialog(
                         {
                             isCreating.Set(true);
                             planWasCreated = true;
-                            var projects = selectedProjects.Value.Any()
-                                ? selectedProjects.Value
-                                : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
-                            onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value), uploadSessionId.Value);
+                            onCreatePlan(createPlanText.Value, selectedProject.Value, ParsePriority(selectedPriority.Value), uploadSessionId.Value);
                             onClose();
                         }
                         return ValueTask.CompletedTask;
@@ -206,11 +183,8 @@ public class CreatePlanDialog(
                         if (e.Value == continueLabel)
                         {
                             if (string.IsNullOrWhiteSpace(createPlanText.Value)) return ValueTask.CompletedTask;
-                            var projects = selectedProjects.Value.Any()
-                                ? selectedProjects.Value
-                                : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
                             planWasCreated = true;
-                            var prompt = BuildAgentPrompt(projects, createPlanText.Value);
+                            var prompt = BuildAgentPrompt(selectedProject.Value, createPlanText.Value);
                             nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
                             onClose();
                         }
