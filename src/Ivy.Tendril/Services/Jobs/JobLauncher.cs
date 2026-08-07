@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Linq;
 using Ivy.Helpers;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
@@ -559,8 +560,12 @@ internal class JobLauncher
         values["PrDeleteBranch"] = pr.DeleteBranch.ToString().ToLowerInvariant();
         values["PrIncludeArtifacts"] = pr.IncludeArtifacts.ToString().ToLowerInvariant();
         values["PrDraft"] = pr.Draft.ToString().ToLowerInvariant();
-        if (!string.IsNullOrEmpty(pr.Reviewer))
-            values["PrReviewer"] = pr.Reviewer;
+        var reviewers = (pr.Reviewers ?? [])
+            .Where(r => !string.IsNullOrWhiteSpace(r))
+            .Select(r => r.Trim())
+            .ToArray();
+        if (reviewers.Length > 0)
+            values["PrReviewer"] = string.Join(",", reviewers);
         if (!string.IsNullOrEmpty(pr.Comment))
             values["PrComment"] = pr.Comment;
     }

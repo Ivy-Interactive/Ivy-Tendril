@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Linq;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Microsoft.Extensions.Logging;
@@ -32,6 +33,10 @@ public class JobStartSettings : CommandSettings
     [Description("Assignee")]
     [CommandOption("--assignee")]
     public string? Assignee { get; set; }
+
+    [Description("Reviewer(s) for CreatePr. Repeatable, or comma-separated.")]
+    [CommandOption("--reviewer")]
+    public string[]? Reviewers { get; set; }
 
     [Description("Comment")]
     [CommandOption("--comment")]
@@ -196,14 +201,19 @@ public class JobStartCommand : Command<JobStartSettings>
         }
 
         if (string.Equals(jobType, Constants.JobTypes.CreatePr, StringComparison.OrdinalIgnoreCase))
+        {
+            var reviewers = settings.Reviewers is { Length: > 0 }
+                ? settings.Reviewers.SelectMany(r => r.Split(',')).ToArray()
+                : settings.Assignee is null ? null : [settings.Assignee];
             return new CreatePrArgs(
                 planFolder,
                 Merge: !settings.NoMerge,
                 DeleteBranch: !settings.NoDeleteBranch,
                 IncludeArtifacts: !settings.NoArtifacts,
-                Reviewer: settings.Assignee,
+                Reviewers: reviewers,
                 Comment: settings.Comment,
                 Draft: settings.Draft);
+        }
 
         if (string.Equals(jobType, Constants.JobTypes.RetryPlan, StringComparison.OrdinalIgnoreCase))
         {
