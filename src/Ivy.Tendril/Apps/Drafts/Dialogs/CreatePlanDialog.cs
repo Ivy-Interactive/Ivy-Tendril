@@ -102,10 +102,6 @@ public class CreatePlanDialog(
         // e.g. "Continue with Claude Code" — branded to the configured coding agent.
         var continueLabel = $"Chat with {AgentBranding.For(configService.Settings.CodingAgent, agentRunner).Label}";
 
-        var currentProjectNames = configService.Projects.Select(p => p.Name).ToList();
-
-        var (projectOptions, projectActions) = BuildProjectPickerOptions(currentProjectNames);
-
         var planWasCreated = false;
         void HandleClose()
         {
@@ -127,104 +123,136 @@ public class CreatePlanDialog(
             onClose();
         }
 
-        var projectPicker = new BadgeSelect
+        var currentProjectNames = configService.Projects.Select(p => p.Name).ToList();
+
+        UseEffect(() =>
         {
-            Options = projectOptions,
-            Value = [selectedProject.Value],
-            Placeholder = "Select project",
-            Icon = selectedProject.Value == "Auto"
-                    ? "WandSparkles"
-                    : "Folder",
-            Multiple = false,
-            Tooltip = "Select project",
-            Actions = projectActions,
-        }
-            .WithOnChange(values => selectedProject.Set(values.FirstOrDefault() ?? _defaultProject))
-            .WithOnAction(value =>
+            if (selectedProject.Value == AddProjectActionValue)
             {
-                if (value == AddProjectActionValue) isAddProjectOpen.Set(true);
-            })
-            .Width(Size.Grow());
+                selectedProject.Set("Auto");
+                HandleClose();
+                nav.Navigate<SettingsApp>(new SettingsAppArgs(SettingsApp.TagProjects));
+            }
+        }, selectedProject);
 
-        var priorityPicker = new BadgeSelect
+        object projectPickerWidget;
+
+        if (currentProjectNames.Count <= 6)
         {
-            Options = PriorityOptions.Select(p => new BadgeSelectOption(p, p)).ToArray(),
-            Value = [selectedPriority.Value],
-            Placeholder = "Priority",
-            Icon = "Flag",
-            Multiple = false,
-            Tooltip = "Priority",
-        }
-            .WithOnChange(values => selectedPriority.Set(values.FirstOrDefault() ?? "Normal"))
-            .Width(Size.Auto());
+            var activeProject = string.IsNullOrEmpty(selectedProject.Value) ? "Auto" : selectedProject.Value;
 
-        var bodyContent =
-                Layout.Vertical().Gap(2)
-                | (Layout.Horizontal().Gap(1).AlignContent(Align.Left).Width(Size.Full())
-                    | projectPicker
-                    | priorityPicker)
-                | new Ivy.Tendril.Widgets.ContentInput
+            var cardsLayout = Layout.Grid().Columns(3).Gap(1);
+
+            // First card is always Auto
+            cardsLayout |= new Button("Auto")
+                .Variant(activeProject == "Auto" ? ButtonVariant.Secondary : ButtonVariant.Ghost)
+                .Width(Size.Full())
+                .OnClick(() => selectedProject.Set("Auto"));
+
+            // Project cards
+            foreach (var proj in currentProjectNames)
+            {
+                var pName = proj;
+                cardsLayout |= new Button(pName)
+                    .Variant(activeProject == pName ? ButtonVariant.Secondary : ButtonVariant.Ghost)
+                    .Width(Size.Full())
+                    .OnClick(() => selectedProject.Set(pName));
+            }
+
+            // Option to add a new project
+            cardsLayout |= new Button("Add Project")
+                .Variant(ButtonVariant.Ghost)
+                .Icon(Icons.Plus)
+                .Width(Size.Full())
+                .OnClick(() =>
                 {
-                    UploadUrl = uploadContext.Value.UploadUrl,
-                    AutoFocus = true,
-                    OnSubmit = _ =>
-                    {
-                        if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
-                        {
-                            isCreating.Set(true);
-                            planWasCreated = true;
-                            onCreatePlan(createPlanText.Value, selectedProject.Value, ParsePriority(selectedPriority.Value), uploadSessionId.Value);
-                            onClose();
-                        }
-                        return ValueTask.CompletedTask;
-                    },
-                    OnMenuAction = e =>
-                    {
-                        if (e.Value == continueLabel)
-                        {
-                            if (string.IsNullOrWhiteSpace(createPlanText.Value)) return ValueTask.CompletedTask;
-                            planWasCreated = true;
-                            var prompt = BuildAgentPrompt(selectedProject.Value, createPlanText.Value);
-                            nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
-                            onClose();
-                        }
-                        return ValueTask.CompletedTask;
-                    },
-                    OnRemoveAttachment = e =>
-                    {
-                        var filePath = e.Value;
-                        try
-                        {
-                            if (File.Exists(filePath))
-                            {
-                                File.Delete(filePath);
-                            }
-                        }
-                        catch
-                        {
-                            // ignore
-                        }
-                        var newList = new List<string>(uploadedFiles.Value);
-                        newList.Remove(filePath);
-                        uploadedFiles.Set(newList);
+                    HandleClose();
+                    nav.Navigate<SettingsApp>(new SettingsAppArgs(SettingsApp.TagProjects));
+                });
 
-                        var fileRef = $" [file: {filePath}]";
-                        var currentText = createPlanText.Value;
-                        if (currentText.Contains(fileRef))
-                        {
-                            createPlanText.Set(currentText.Replace(fileRef, ""));
-                        }
-                        else if (currentText.Contains(fileRef.Trim()))
-                        {
-                            createPlanText.Set(currentText.Replace(fileRef.Trim(), ""));
-                        }
-                        return ValueTask.CompletedTask;
+            projectPickerWidget = cardsLayout;
+        }
+        else
+        {
+            var projectOptions = new List<Option<string>>
+            {
+                new Option<string>("Auto", "Auto")
+            };
+            projectOptions.AddRange(currentProjectNames.Select(p => new Option<string>(p, p)));
+            projectOptions.Add(new Option<string>("+ Add New Project", AddProjectActionValue));
+
+            projectPickerWidget = selectedProject.ToSelectInput(projectOptions)
+                .Searchable(true)
+                .Placeholder("Select project...")
+                .Variant(SelectInputVariant.Select);
+        }
+
+        object contentInputWidget = new Ivy.Tendril.Widgets.ContentInput
+        {
+            UploadUrl = uploadContext.Value.UploadUrl,
+            AutoFocus = true,
+            OnSubmit = _ =>
+            {
+                if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
+                {
+                    isCreating.Set(true);
+                    planWasCreated = true;
+                    onCreatePlan(createPlanText.Value, selectedProject.Value, 0, uploadSessionId.Value);
+                    onClose();
+                }
+                return ValueTask.CompletedTask;
+            },
+            OnMenuAction = e =>
+            {
+                if (e.Value == continueLabel)
+                {
+                    if (string.IsNullOrWhiteSpace(createPlanText.Value)) return ValueTask.CompletedTask;
+                    planWasCreated = true;
+                    var prompt = BuildAgentPrompt(selectedProject.Value, createPlanText.Value);
+                    nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
+                    onClose();
+                }
+                return ValueTask.CompletedTask;
+            },
+            OnRemoveAttachment = e =>
+            {
+                var filePath = e.Value;
+                try
+                {
+                    if (File.Exists(filePath))
+                    {
+                        File.Delete(filePath);
                     }
                 }
-                    .Bind(createPlanText)
-                    .SubmitLabel("Create")
-                    .MenuOptions(continueLabel)
-                    .Placeholder("Enter task description...");
+                catch
+                {
+                    // ignore
+                }
+                var newList = new List<string>(uploadedFiles.Value);
+                newList.Remove(filePath);
+                uploadedFiles.Set(newList);
+
+                var fileRef = $" [file: {filePath}]";
+                var currentText = createPlanText.Value;
+                if (currentText.Contains(fileRef))
+                {
+                    createPlanText.Set(currentText.Replace(fileRef, ""));
+                }
+                else if (currentText.Contains(fileRef.Trim()))
+                {
+                    createPlanText.Set(currentText.Replace(fileRef.Trim(), ""));
+                }
+                return ValueTask.CompletedTask;
+            }
+        }
+            .Bind(createPlanText)
+            .SubmitLabel("Create")
+            .MenuOptions(continueLabel)
+            .Placeholder("Enter task description...");
+
+        var bodyContent = Layout.Vertical().Gap(2)
+            | projectPickerWidget
+            | contentInputWidget;
 
         object planSurface = breakpoint.Value == Breakpoint.Mobile
             ? new Sheet(
@@ -241,7 +269,6 @@ public class CreatePlanDialog(
 
         return new Fragment(
             breakpointListener,
-            planSurface,
-            new AddProjectDialog(isAddProjectOpen, configService, client, refreshToken));
+            planSurface);
     }
 }

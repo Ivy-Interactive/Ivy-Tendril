@@ -96,6 +96,8 @@ interface ContentInputProps {
   uploadUrl?: string;
   models?: string[];
   selectedModel?: string;
+  projects?: string[];
+  selectedProject?: string;
   attachedFiles?: AttachedFile[];
   submitLabel?: string;
   menuOptions?: string[];
@@ -103,6 +105,10 @@ interface ContentInputProps {
   onIvyEvent?: (eventName: string, id: string, argumentsArray: unknown[]) => void;
   eventHandler?: (eventName: string, id: string, argumentsArray: unknown[]) => void;
   events?: string[];
+  slots?: {
+    ProjectPicker?: React.ReactNode;
+    LeftActions?: React.ReactNode;
+  };
 }
 
 const findScrollableParent = (el: HTMLElement): HTMLElement | null => {
@@ -160,6 +166,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   menuOptions = [],
   onIvyEvent,
   eventHandler,
+  slots,
 }) => {
   const dispatchEvent = onIvyEvent || eventHandler;
 
@@ -453,7 +460,13 @@ export const ContentInput: React.FC<ContentInputProps> = ({
     if (uploadUrl) {
       try {
         const formData = new FormData();
-        formData.append("file", file);
+        const mimeType = file.type || "image/png";
+        const ext = mimeType.split("/")[1] || "png";
+        const fileName = file.name && file.name.trim() !== "" && file.name !== "image.png" && file.name !== "blob"
+          ? file.name
+          : `screenshot_${Date.now()}.${ext}`;
+
+        formData.append("file", file, fileName);
 
         const response = await fetch(uploadUrl, {
           method: "POST",
@@ -539,18 +552,24 @@ export const ContentInput: React.FC<ContentInputProps> = ({
 
   const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData.items;
-    const files: File[] = [];
+    const pastedFiles: File[] = [];
     for (let i = 0; i < items.length; i++) {
       if (items[i].kind === "file") {
-        const file = items[i].getAsFile();
-        if (file) {
-          files.push(file);
+        const itemFile = items[i].getAsFile();
+        if (itemFile) {
+          const mimeType = itemFile.type || "image/png";
+          const ext = mimeType.split("/")[1] || "png";
+          const fileName = itemFile.name && itemFile.name.trim() !== "" && itemFile.name !== "image.png" && itemFile.name !== "blob"
+            ? itemFile.name
+            : `screenshot_${Date.now()}_${i}.${ext}`;
+          const renamedFile = new File([itemFile], fileName, { type: mimeType });
+          pastedFiles.push(renamedFile);
         }
       }
     }
-    if (files.length > 0) {
+    if (pastedFiles.length > 0) {
       e.preventDefault();
-      await handleFiles(files);
+      await handleFiles(pastedFiles);
     }
   };
 
@@ -765,7 +784,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
 
         {/* Action Controls Row */}
         <div className="civ-control-bar">
-          {/* Attachment upload button & pills */}
+          {/* Attachment upload button & project ghost select */}
           <div className="civ-attachment-row">
             <div className="civ-attachment-upload-container">
               <input
@@ -791,6 +810,8 @@ export const ContentInput: React.FC<ContentInputProps> = ({
                 </svg>
               </button>
             </div>
+
+            {slots?.ProjectPicker || slots?.LeftActions}
           </div>
 
           {/* Right Side Buttons */}
