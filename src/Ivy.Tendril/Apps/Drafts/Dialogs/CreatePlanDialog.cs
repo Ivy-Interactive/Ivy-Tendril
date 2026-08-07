@@ -140,7 +140,7 @@ public class CreatePlanDialog(
         var options = new List<Option<string>>();
         if (currentProjectNames.Count > 1 || currentProjectNames.Count == 0)
         {
-            options.Add(new Option<string>("Auto", "Auto"));
+            options.Add(new Option<string>("Auto", "Auto", icon: Icons.WandSparkles));
         }
         options.AddRange(currentProjectNames.Select(p => new Option<string>(p, p)));
         options.Add(new Option<string>("+ Add New Project", AddProjectActionValue));
