@@ -20,7 +20,6 @@ public class ChangesTabView(
     PlanFile selectedPlan,
     IJobService jobService,
     Action refreshPlans,
-    IState<string?> openFile,
     string? projectName = null) : ViewBase
 {
     public int FileCount => changesData?.Files.Count ?? 0;
@@ -139,20 +138,6 @@ public class ChangesTabView(
                 {
                     await HandleDirectEdit(e.Value);
                 },
-                OnViewFile = e =>
-                {
-                    var repoPath = changesData?.SourceRepoPath;
-                    if (string.IsNullOrEmpty(repoPath))
-                    {
-                        repoPath = selectedPlan.GetEffectiveRepoPaths(config).FirstOrDefault();
-                    }
-                    if (!string.IsNullOrEmpty(repoPath))
-                    {
-                        var absolutePath = Path.Combine(repoPath, e.Value).Replace('\\', '/');
-                        openFile.Set(absolutePath);
-                    }
-                    return ValueTask.CompletedTask;
-                },
                 OnEditFile = e =>
                 {
                     var repoPath = changesData?.SourceRepoPath;
@@ -236,11 +221,14 @@ public class ChangesTabView(
             | totalsText
             | submitBtn;
 
-        var toolbar = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween).Height(Size.Auto())
+        var toolbar = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween).Height(Size.Auto()).Padding(2, 0, 0, 0)
             | leftSide
             | rightSide;
 
-        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0)))
+        // Padding order is (left, top, right, bottom). Left 2 aligns the tree/diff content with
+        // the toolbar above; bottom 4 matches Cap()'s bottom inset so content doesn't run into
+        // the action bar separator below.
+        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(2, 0, 2, 4)
             | treePanel
             | diffsLayout;
 

@@ -23,6 +23,7 @@ Queue of finished work: **Review** or **Failed** plans. Nothing merges without y
 - **Diff** — Changes vs. your tracked branch.
 - **Verification output** — Logs from hooks (`DotnetBuild`, `NpmTest`, …).
 - **Plan text** — Latest `revisions/*.md` (what the agent was implementing).
+- **Git tab**: Worktrees, recorded commits and PRs for the plan, with a button to synchronize a worktree with its remote.
 
 ## Actions
 
