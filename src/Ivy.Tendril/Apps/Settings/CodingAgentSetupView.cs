@@ -572,8 +572,7 @@ public class CodingAgentSetupView : ViewBase
                 using var codesignProc = Process.Start(codesignInfo);
                 if (codesignProc != null) await codesignProc.WaitForExitAsync();
             }
-
-            PathHelper.EnsureIvyAgentCliSetup();
+            
             return true;
         }
         finally

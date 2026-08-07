@@ -9,8 +9,7 @@ public class CreatePlanPreferencesTests
     {
         var preferences = new CreatePlanPreferences();
 
-        Assert.Single(preferences.LastSelectedProjects);
-        Assert.Equal("Auto", preferences.LastSelectedProjects[0]);
+        Assert.Equal("Auto", preferences.LastSelectedProject);
     }
 
     [Fact]
@@ -18,12 +17,10 @@ public class CreatePlanPreferencesTests
     {
         var sharedPreferences = new CreatePlanPreferences();
 
-        sharedPreferences.LastSelectedProjects = ["Tendril", "Other"];
-        var retrieved = sharedPreferences.LastSelectedProjects;
+        sharedPreferences.LastSelectedProject = "Tendril";
+        var retrieved = sharedPreferences.LastSelectedProject;
 
-        Assert.Equal(2, retrieved.Length);
-        Assert.Equal("Tendril", retrieved[0]);
-        Assert.Equal("Other", retrieved[1]);
+        Assert.Equal("Tendril", retrieved);
     }
 
     [Fact]
@@ -32,9 +29,8 @@ public class CreatePlanPreferencesTests
         ICreatePlanPreferences preferences = new CreatePlanPreferences();
         ICreatePlanPreferences sameReference = preferences;
 
-        preferences.LastSelectedProjects = ["ProjectA"];
+        preferences.LastSelectedProject = "ProjectA";
 
-        Assert.Single(sameReference.LastSelectedProjects);
-        Assert.Equal("ProjectA", sameReference.LastSelectedProjects[0]);
+        Assert.Equal("ProjectA", sameReference.LastSelectedProject);
     }
 }

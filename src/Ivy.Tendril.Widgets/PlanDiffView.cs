@@ -68,8 +68,6 @@ public record PlanDiffView : WidgetBase<PlanDiffView>
 
     [Event] public Func<Event<PlanDiffView, DirectEditArgs>, ValueTask>? OnDirectEdit { get; init; }
 
-    [Event] public Func<Event<PlanDiffView, string>, ValueTask>? OnViewFile { get; init; }
-
     [Event] public Func<Event<PlanDiffView, string>, ValueTask>? OnEditFile { get; init; }
 
     [Event] public Func<Event<PlanDiffView, string>, ValueTask>? OnDeleteFile { get; init; }

@@ -7,9 +7,15 @@ public static class PromptwareHelper
         if (!string.IsNullOrEmpty(promptwarePath))
         {
             var overrideFolder = Path.Combine(promptwarePath, promptwareName);
-            if (File.Exists(Path.Combine(overrideFolder, "Program.md")) || Directory.Exists(Path.Combine(overrideFolder, "Memory")) || Directory.Exists(overrideFolder))
+            if (File.Exists(Path.Combine(overrideFolder, "Program.md")))
                 return overrideFolder;
         }
+
+        var sourceRoot = ResolvePromptsRoot(tendrilHome);
+        var sourceFolder = Path.Combine(sourceRoot, promptwareName);
+
+        if (File.Exists(Path.Combine(sourceFolder, "Program.md")))
+            return sourceFolder;
 
         if (string.IsNullOrEmpty(tendrilHome))
             tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
@@ -17,15 +23,9 @@ public static class PromptwareHelper
         {
             var deployedRoot = Path.Combine(tendrilHome, "Promptwares");
             var deployedFolder = Path.Combine(deployedRoot, promptwareName);
-            if (File.Exists(Path.Combine(deployedFolder, "Program.md")) || Directory.Exists(Path.Combine(deployedFolder, "Memory")) || Directory.Exists(deployedFolder))
+            if (File.Exists(Path.Combine(deployedFolder, "Program.md")))
                 return deployedFolder;
         }
-
-        var sourceRoot = ResolvePromptsRoot(tendrilHome);
-        var sourceFolder = Path.Combine(sourceRoot, promptwareName);
-
-        if (File.Exists(Path.Combine(sourceFolder, "Program.md")) || Directory.Exists(Path.Combine(sourceFolder, "Memory")) || Directory.Exists(sourceFolder))
-            return sourceFolder;
 
         return sourceFolder;
     }
@@ -55,13 +55,13 @@ public static class PromptwareHelper
 
     public static void RequireProgramFolder(string programFolder, string promptwareName, string? tendrilHome)
     {
-        if (File.Exists(Path.Combine(programFolder, "Program.md")) || Directory.Exists(Path.Combine(programFolder, "Memory")) || Directory.Exists(programFolder))
+        if (File.Exists(Path.Combine(programFolder, "Program.md")))
             return;
 
         var promptsRoot = ResolvePromptsRoot(tendrilHome);
         var available = Directory.Exists(promptsRoot)
             ? string.Join(", ", Directory.EnumerateDirectories(promptsRoot)
-                .Where(d => File.Exists(Path.Combine(d, "Program.md")) || Directory.Exists(Path.Combine(d, "Memory")))
+                .Where(d => File.Exists(Path.Combine(d, "Program.md")))
                 .Select(Path.GetFileName)
                 .OrderBy(n => n, StringComparer.Ordinal))
             : "";
@@ -71,22 +71,5 @@ public static class PromptwareHelper
         throw new FileNotFoundException(
             $"Promptware not found: {promptwareName}. Available promptwares: {available}",
             programFolder);
-    }
-
-    public static string? ResolveBrainwaresVaultDir(string? workspaceDir = null)
-    {
-        workspaceDir ??= Directory.GetCurrentDirectory();
-        var localVault = Path.Combine(workspaceDir, ".brainwares");
-        if (Directory.Exists(localVault)) return localVault;
-
-        var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril");
-        var globalVault = Path.Combine(tendrilHome, "Promptwares");
-        return Directory.Exists(globalVault) ? globalVault : null;
-    }
-
-    public static string? FindProjectNameForPath(string path, string tendrilHome)
-    {
-        return "global";
     }
 }

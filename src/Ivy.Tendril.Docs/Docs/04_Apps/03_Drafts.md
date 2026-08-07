@@ -23,6 +23,7 @@ New plans start here. Refine the plan with the UI and promptwares before heavy c
 - **Sidebar** — Filtered draft list; main pane shows the selected plan.
 - **Content** — Latest revision markdown (problem, approach, tests).
 - **Project** — Settings from `config.yaml` for that repo.
+- **Git tab** — Appears for drafts that already have worktrees, commits or PRs (for example after a Revise from Review).
 
 ## Actions
 

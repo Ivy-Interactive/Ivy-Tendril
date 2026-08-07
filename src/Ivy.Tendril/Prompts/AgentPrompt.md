@@ -193,7 +193,7 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `SplitPlan` | `<plan-id>` | — |
 | `ExpandPlan` | `<plan-id>` | — |
 | `CreateIssue` | `<plan-id>`, `--repo` | `--assignee`, `--comment`, `--labels` |
-| `CreatePr` | `<plan-id>` | `--no-merge`, `--no-delete-branch`, `--no-artifacts`, `--assignee`, `--comment`, `--draft` |
+| `CreatePr` | `<plan-id>` | `--no-merge`, `--no-delete-branch`, `--no-artifacts`, `--assignee`, `--reviewer`, `--comment`, `--draft` |
 | `RetryPlan` | `<plan-id>`, `--change-request` | — |
 | `CreatePlan` | `--description`, `--project` | `--priority`, `--force`, `--source-path` |
 | `SetupProject` | `<project-name>` | — |

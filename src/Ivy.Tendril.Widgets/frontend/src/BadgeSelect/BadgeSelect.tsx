@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Flag, Folder, WandSparkles, X, type LucideIcon } from "lucide-react";
+import { ChevronDown, Flag, Folder, Plus, WandSparkles, X, type LucideIcon } from "lucide-react";
 import "./badge-select.css";
 
 type IvyEventHandler = (eventName: string, widgetId: string, args: unknown[]) => void;
@@ -21,11 +21,13 @@ interface BadgeSelectProps {
   multiple?: boolean;
   tooltip?: string;
   width?: string;
+  actions?: BadgeSelectOption[];
   events?: string[];
   eventHandler?: IvyEventHandler;
 }
 
 const EMPTY_OPTIONS: BadgeSelectOption[] = [];
+const EMPTY_ACTIONS: BadgeSelectOption[] = [];
 const EMPTY_VALUE: string[] = [];
 const EMPTY_EVENTS: string[] = [];
 const MENU_GAP = 4;
@@ -35,6 +37,7 @@ const ICONS: Record<string, LucideIcon> = {
   ChevronDown,
   Flag,
   Folder,
+  Plus,
   WandSparkles,
   X,
 };
@@ -95,6 +98,7 @@ export function BadgeSelect({
   multiple = true,
   tooltip,
   width,
+  actions = EMPTY_ACTIONS,
   events = EMPTY_EVENTS,
   eventHandler,
 }: BadgeSelectProps) {
@@ -132,7 +136,7 @@ export function BadgeSelect({
   useLayoutEffect(() => {
     if (!open) return;
     updateMenuPosition();
-  }, [open, options.length, selected.length]);
+  }, [open, options.length, selected.length, actions.length]);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -206,6 +210,13 @@ export function BadgeSelect({
     }
   };
 
+  const runAction = (actionValue: string) => {
+    if (eventHandler && events.includes("OnAction")) {
+      eventHandler("OnAction", id, [actionValue]);
+    }
+    setOpen(false);
+  };
+
   const toggle = (optionValue: string) => {
     if (multiple) {
       if (selected.includes(optionValue)) {
@@ -263,6 +274,22 @@ export function BadgeSelect({
             </button>
           );
         })}
+        {actions.length > 0 && (
+          <>
+            <div className="bselect-separator" role="separator" />
+            {actions.map((action) => (
+              <button
+                key={action.value}
+                type="button"
+                className="bselect-item bselect-action"
+                onClick={() => runAction(action.value)}
+              >
+                <NamedIcon name={action.icon} />
+                <span className="bselect-item-label">{action.label}</span>
+              </button>
+            ))}
+          </>
+        )}
       </div>,
       document.body,
     );
