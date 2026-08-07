@@ -41,7 +41,7 @@ public record ContentInput : WidgetBase<ContentInput>, IAnyInput
     [Event] public Func<Event<ContentInput, string>, ValueTask>? OnQuickAction { get; init; }
     [Event] public Func<Event<ContentInput, string>, ValueTask>? OnRemoveAttachment { get; init; }
     [Event] public Func<Event<ContentInput, UploadFileEventArgs>, ValueTask>? OnUploadFile { get; init; }
-    
+
     public Type[] SupportedStateTypes() => [typeof(string)];
 }
 
