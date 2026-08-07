@@ -124,12 +124,10 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
   onCancelEdit,
 }) => {
   const [inputText, setInputText] = useState("");
-  const [activeTab, setActiveTab] = useState<"write" | "preview">("write");
-
   const hasComment = comments.length > 0;
 
   return (
-    <div className="diff-comment-widget p-3 bg-[var(--background)] border border-[var(--border)] rounded-md m-2 shadow-sm max-w-[600px] text-xs">
+    <div className="diff-comment-widget p-3 bg-[var(--background)] border border-[var(--border)] rounded-md m-2 shadow-sm max-w-[600px] text-xs font-sans">
       {hasComment && !isEditing ? (
         <div className="flex flex-col gap-2">
           {comments.map((comment, idx) => (
@@ -161,94 +159,56 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
           ))}
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between border-b border-[var(--border)] pb-1">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className={`pb-1 px-1 border-b-2 text-xs font-medium transition-all cursor-pointer ${
-                    activeTab === "write"
-                      ? "border-[var(--primary)] text-[var(--foreground)]"
-                      : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                  }`}
-                  onClick={() => setActiveTab("write")}
-                >
-                  Write
-                </button>
-                <button
-                  type="button"
-                  className={`pb-1 px-1 border-b-2 text-xs font-medium transition-all cursor-pointer ${
-                    activeTab === "preview"
-                      ? "border-[var(--primary)] text-[var(--foreground)]"
-                      : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                  }`}
-                  onClick={() => setActiveTab("preview")}
-                >
-                  Preview
-                </button>
-              </div>
-              <span className="text-xs text-[var(--muted-foreground)]">
-                Markdown instruction for the agent
-              </span>
-            </div>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between pb-1">
+            <span className="text-xs font-medium text-[var(--foreground)]">
+              {isEditing ? "Edit Agent Instruction" : "Agent Instruction"}
+            </span>
+          </div>
 
-            {activeTab === "write" ? (
-              <textarea
-                className="w-full min-h-[80px] p-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-y"
-                placeholder="Enter instruction for the agent at this line..."
-                value={isEditing ? (editingText ?? "") : inputText}
-                onChange={(e) => {
-                  if (isEditing) {
-                    onStartEdit(e.target.value);
-                  } else {
-                    setInputText(e.target.value);
-                  }
-                }}
-                autoFocus
-              />
-            ) : (
-              <div className="diff-comment-markdown w-full min-h-[80px] p-2 text-sm bg-[var(--muted)] border border-[var(--border)] rounded overflow-auto">
-                {(isEditing ? editingText : inputText)?.trim() ? (
-                  <Markdown {...getMarkdownPlugins((isEditing ? editingText : inputText) ?? "")}>
-                    {isEditing ? editingText : inputText}
-                  </Markdown>
-                ) : (
-                  <span className="text-[var(--muted-foreground)] italic">Nothing to preview</span>
-                )}
-              </div>
-            )}
+          <textarea
+            className="w-full min-h-[80px] p-2 text-sm font-sans bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-y"
+            placeholder="Enter instruction for the agent at this line..."
+            value={isEditing ? (editingText ?? "") : inputText}
+            onChange={(e) => {
+              if (isEditing) {
+                onStartEdit(e.target.value);
+              } else {
+                setInputText(e.target.value);
+              }
+            }}
+            autoFocus
+          />
 
-            <div className="flex items-center justify-end gap-2 mt-1">
-              <button
-                type="button"
-                className="px-3 py-1 text-xs font-medium border border-[var(--border)] rounded hover:bg-[var(--muted)] transition-colors cursor-pointer"
-                onClick={() => {
-                  if (isEditing) {
-                    onCancelEdit();
-                  } else {
-                    onCancelForm();
-                  }
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="px-3 py-1 text-xs font-medium bg-[var(--primary)] text-[var(--primary-foreground)] rounded hover:opacity-90 transition-colors disabled:opacity-50 cursor-pointer"
-                disabled={isEditing ? !editingText?.trim() : !inputText.trim()}
-                onClick={() => {
-                  if (isEditing) {
-                    onUpdateComment(editingText ?? "");
-                  } else {
-                    onAddComment(inputText);
-                    setInputText("");
-                  }
-                }}
-              >
-                {isEditing ? "Update Comment" : "Add Comment"}
-              </button>
-            </div>
+          <div className="flex items-center justify-end gap-2 mt-1">
+            <button
+              type="button"
+              className="px-3 py-1 text-xs font-medium border border-[var(--border)] rounded hover:bg-[var(--muted)] transition-colors cursor-pointer"
+              onClick={() => {
+                if (isEditing) {
+                  onCancelEdit();
+                } else {
+                  onCancelForm();
+                }
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="px-3 py-1 text-xs font-medium bg-[var(--primary)] text-[var(--primary-foreground)] rounded hover:opacity-90 transition-colors disabled:opacity-50 cursor-pointer"
+              disabled={isEditing ? !editingText?.trim() : !inputText.trim()}
+              onClick={() => {
+                if (isEditing) {
+                  onUpdateComment(editingText ?? "");
+                } else {
+                  onAddComment(inputText);
+                  setInputText("");
+                }
+              }}
+            >
+              {isEditing ? "Update Comment" : "Add Comment"}
+            </button>
           </div>
         </div>
       )}
@@ -504,16 +464,14 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
     <div ref={containerRef} style={style} className={`ivy-diff-view text-sm${effectiveWordWrap ? " diff-wrap" : ""}`}>
       {showFileDropdown && (
         <div
-          className="sticky top-0 z-20 flex items-center gap-2 px-3 py-1.5 bg-[var(--muted)] border-b border-[var(--border)]"
-          style={{ fontFamily: 'var(--font-sans, sans-serif)' }}
+          className="sticky top-0 z-20 flex items-center gap-2 px-3 py-1.5 bg-[var(--muted)] border-b border-[var(--border)] font-sans"
         >
           <span className="text-xs text-[var(--muted-foreground)] shrink-0">
             {fileMeta.length} files
           </span>
           <select
             aria-label="Jump to file"
-            className="flex-1 min-w-0 text-xs px-2 py-1 rounded bg-[var(--background)] text-[var(--foreground)] border border-[var(--border)]"
-            style={{ fontFamily: 'var(--font-sans, sans-serif)' }}
+            className="flex-1 min-w-0 text-xs px-2 py-1 rounded bg-[var(--background)] text-[var(--foreground)] border border-[var(--border)] font-sans"
             defaultValue=""
             onChange={(e) => {
               if (e.target.value) scrollToFile(e.target.value);
@@ -584,14 +542,14 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
           <div
             key={fileIndex}
             id={elementId}
-            className={`border border-[var(--border)] rounded-md ${isCollapsed ? "mb-0" : "mb-1.5"} bg-[var(--background)] overflow-hidden`}
+            className={`border border-[var(--border)] rounded-md ${isCollapsed ? "mb-0" : "mb-1.5"} bg-[var(--background)] overflow-clip`}
             style={{ scrollMarginTop: showFileDropdown ? "2rem" : 0 }}
           >
             {hasHeader && (
               <div
-                className="flex items-center justify-between px-3 py-1.5 text-sm bg-[var(--muted)] text-[var(--muted-foreground)] border-b border-[var(--border)] sticky top-0 z-10 font-sans"
+                className="flex items-center justify-between px-3 py-1 text-xs bg-[var(--muted)] text-[var(--muted-foreground)] border-b border-[var(--border)] sticky z-10 font-sans"
                 style={{
-                  top: showFileDropdown ? "2rem" : 0,
+                  top: showFileDropdown ? "2rem" : "-1px",
                 }}
               >
                 <div
@@ -633,19 +591,21 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                   </span>
 
                   {/* Viewed / Collapsed Checkbox */}
-                  <label className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] cursor-pointer select-none font-medium">
-                    <button
-                      type="button"
-                      role="checkbox"
-                      aria-checked={isCollapsed}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCollapsedState((prev) => ({
-                          ...prev,
-                          [fileIndex]: !isCollapsed,
-                        }));
-                      }}
-                      className={`size-3.5 shrink-0 rounded-sm border transition-colors flex items-center justify-center cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)] ${
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={isCollapsed}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCollapsedState((prev) => ({
+                        ...prev,
+                        [fileIndex]: !isCollapsed,
+                      }));
+                    }}
+                    className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] cursor-pointer select-none font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)] rounded px-1 py-0.5"
+                  >
+                    <span
+                      className={`size-3.5 shrink-0 rounded-sm border transition-colors flex items-center justify-center ${
                         isCollapsed
                           ? "bg-[var(--primary)] text-[var(--primary-foreground)] border-[var(--primary)]"
                           : "border-[var(--border)] bg-[var(--background)] hover:bg-[var(--accent)]"
@@ -656,9 +616,9 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                           <polyline points="2 6 5 9 10 3" />
                         </svg>
                       )}
-                    </button>
+                    </span>
                     Viewed
-                  </label>
+                  </button>
 
                   {/* Comment count / visibility toggle */}
                   {(() => {

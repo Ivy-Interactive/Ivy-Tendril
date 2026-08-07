@@ -38,6 +38,7 @@
   border: none;
   border-radius: 0;
   font-family: var(--font-mono);
+  font-size: 12px;
 }
 
 .diff-gutter {
@@ -184,7 +185,7 @@ td.diff-gutter-empty::after {
 
 /* Outer layout and widget padding adjustments */
 .ivy-diff-view {
-  padding-right: 1.25rem;
+  padding-right: 0;
 }
 
 .ivy-tree {
