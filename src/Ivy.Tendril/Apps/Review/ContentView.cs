@@ -37,7 +37,6 @@ public class ContentView(
         var openVerification = UseState<string?>(null);
         var openArtifact = UseState<string?>(null);
         var openFile = UseState<string?>(null);
-        var openCommit = UseState<string?>(null);
         var syncingWorktrees = UseState(new HashSet<string>());
         var selectedRecTitles = UseState(() => new HashSet<string>());
         var selectedTab = UseState(0);
@@ -140,7 +139,7 @@ public class ContentView(
                 {
                     if (selectedPlanState.Value is null)
                         return new PlanContentData(new List<RecommendationYaml>(), null,
-                            new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(),
+                            new Dictionary<string, List<string>>(),
                             new Dictionary<string, bool>(), new List<(string Name, bool ConditionMet)>(), null);
 
                     // Recommendations from database (or plan.yaml fallback)
@@ -161,9 +160,6 @@ public class ContentView(
 
                     // Artifacts
                     var artifacts = PlanContentHelpers.GetArtifacts(folderPath);
-
-                    // Commit rows
-                    var commitRows = PlanContentHelpers.BuildCommitRows(selectedPlanState.Value!, config, gitService);
 
                     // All changes data
                     var allChanges = PlanContentHelpers.GetAllChangesData(selectedPlanState.Value!, config, gitService);
@@ -188,12 +184,12 @@ public class ContentView(
                         actionStates[i] = (action.Name, PlatformHelper.EvaluatePowerShellCondition(action.Condition, folderPath, logger: logger));
                     });
 
-                    return new PlanContentData(recs, summaryMd, artifacts, commitRows, verReports, actionStates.ToList(), allChanges);
+                    return new PlanContentData(recs, summaryMd, artifacts, verReports, actionStates.ToList(), allChanges);
                 }, ct);
             },
             options: QueryScope.View,
             initialValue: new PlanContentData(new List<RecommendationYaml>(), null,
-                new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(), new Dictionary<string, bool>(),
+                new Dictionary<string, List<string>>(), new Dictionary<string, bool>(),
                 new List<(string Name, bool ConditionMet)>(), null)
         );
 
@@ -245,7 +241,7 @@ public class ContentView(
             showCreatePrDialog, copyToClipboard, client, logger, nav, args, agentRunner);
         var content = BuildContent(
             selectedPlanState.Value, planData, planContentQuery, selectedTab, openVerification,
-            openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
+            openFile, openArtifact, artifactContentQuery, assigneesQuery,
             assigneesError, syncingWorktrees, selectedRecTitles, pendingRecs,
             client, copyToClipboard, logger, nav, args, showDebugJob, draftComments);
 
@@ -545,7 +541,6 @@ public class ContentView(
         QueryResult<PlanContentData> planContentQuery,
         IState<int> selectedTab,
         IState<string?> openVerification,
-        IState<string?> openCommit,
         IState<string?> openFile,
         IState<string?> openArtifact,
         QueryResult<string> artifactContentQuery,
@@ -613,8 +608,6 @@ public class ContentView(
                 selectedPlan!,
                 jobService,
                 refreshPlans,
-                planData.CommitRows,
-                hash => openCommit.Set(hash),
                 openFile,
                 selectedPlan.Project);
 
@@ -677,7 +670,6 @@ public class ContentView(
         }
 
         content |= new VerificationReportSheet(openVerification, selectedPlan, config);
-        content |= new CommitDetailSheet(openCommit, selectedPlan, config, gitService);
 
         if (openArtifact.Value is { } artifactPath)
         {
@@ -858,7 +850,6 @@ public class ContentView(
         List<RecommendationYaml> Recommendations,
         string? SummaryMarkdown,
         Dictionary<string, List<string>> Artifacts,
-        List<PlanContentHelpers.CommitRow> CommitRows,
         Dictionary<string, bool> VerificationReports,
         List<(string Name, bool ConditionMet)> ReviewActionStates,
         PlanContentHelpers.AllChangesData? AllChanges);
