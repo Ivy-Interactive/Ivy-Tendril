@@ -232,7 +232,25 @@ public class ContentView(
         }
         else
         {
-            var tabs = Layout.Tabs(
+            var planData = planContentQuery.Value;
+            var gitData = GitTabDataBuilder.BuildGitTabData(planData.CommitRows, selectedPlan!, config, gitService);
+            var gitItemCount = GitTabDataBuilder.CountGitItems(gitData, selectedPlan!);
+
+            var gitTabView = new GitTabView(
+                gitData,
+                selectedPlan!,
+                hash => openCommit.Set(hash),
+                path =>
+                {
+                    copyToClipboard(path);
+                    client.Toast("Copied path to clipboard", "Path Copied");
+                    return null!;
+                },
+                null,
+                null);
+
+            var tabList = new List<Tab>
+            {
                 // DraftMarkdown owns its own scroll and the pinned StickyContent slot,
                 // so it is not wrapped in Cap() (whose outer scroll would also scroll the
                 // pinned element). The widget reproduces Cap()'s left inset + max-width.
@@ -240,8 +258,14 @@ public class ContentView(
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan!,
                     jobService.GetJobsForPlan(selectedPlan!.FolderName),
                     showDebugJob, planService, selectedPlanState, refreshPlans,
-                    folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath)))))
-            ).OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).RemoveParentPadding();
+                    folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath))))),
+            };
+
+            if (gitItemCount > 0)
+                tabList.Add(new Tab("Git", Cap(gitTabView)).Badge(gitItemCount.ToString()));
+
+            var tabs = Layout.Tabs(tabList.ToArray())
+                .OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).RemoveParentPadding();
 
             content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
         }

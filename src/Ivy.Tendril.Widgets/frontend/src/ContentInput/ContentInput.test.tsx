@@ -167,4 +167,10 @@ describe("ContentInput", () => {
       expect(errorBanner?.textContent).toContain("System Settings");
     });
   });
+
+  it("does not render a job execution mode selector", () => {
+    render(<ContentInput id="civ-1" value="" />);
+    expect(document.querySelector(".civ-mode-selector-container")).toBeNull();
+    expect(screen.queryByTitle("Select job execution mode")).toBeNull();
+  });
 });

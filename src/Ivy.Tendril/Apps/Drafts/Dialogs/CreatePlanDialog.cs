@@ -26,6 +26,20 @@ public class CreatePlanDialog(
 
     internal static readonly List<string> PriorityOptions = ["Normal", "High", "Urgent"];
 
+    internal const string AddProjectActionValue = "__tendril_add_project__";
+
+    internal static (BadgeSelectOption[] Options, BadgeSelectOption[] Actions) BuildProjectPickerOptions(
+        IReadOnlyList<string> projectNames)
+    {
+        var options = new List<BadgeSelectOption>();
+        if (projectNames.Count > 1)
+            options.Add(new BadgeSelectOption("Auto", "Auto", "WandSparkles", Removable: false));
+        options.AddRange(projectNames.Select(p => new BadgeSelectOption(p, p)));
+
+        var actions = new[] { new BadgeSelectOption(AddProjectActionValue, "Add Project", "Plus") };
+        return (options.ToArray(), actions);
+    }
+
     internal static int ParsePriority(string option) => option.ToLowerInvariant() switch
     {
         "normal" => 0,
@@ -89,12 +103,8 @@ public class CreatePlanDialog(
         var continueLabel = $"Chat with {AgentBranding.For(configService.Settings.CodingAgent, agentRunner).Label}";
 
         var currentProjectNames = configService.Projects.Select(p => p.Name).ToList();
-        var hasAutoOption = currentProjectNames.Count > 1;
 
-        var projectOptions = new List<BadgeSelectOption>();
-        if (hasAutoOption)
-            projectOptions.Add(new BadgeSelectOption("Auto", "Auto", "WandSparkles", Removable: false));
-        projectOptions.AddRange(currentProjectNames.Select(p => new BadgeSelectOption(p, p)));
+        var (projectOptions, projectActions) = BuildProjectPickerOptions(currentProjectNames);
 
         var planWasCreated = false;
         void HandleClose()
@@ -119,7 +129,7 @@ public class CreatePlanDialog(
 
         var projectPicker = new BadgeSelect
         {
-            Options = projectOptions.ToArray(),
+            Options = projectOptions,
             Value = [selectedProject.Value],
             Placeholder = "Select project",
             Icon = selectedProject.Value == "Auto"
@@ -127,8 +137,13 @@ public class CreatePlanDialog(
                     : "Folder",
             Multiple = false,
             Tooltip = "Select project",
+            Actions = projectActions,
         }
             .WithOnChange(values => selectedProject.Set(values.FirstOrDefault() ?? _defaultProject))
+            .WithOnAction(value =>
+            {
+                if (value == AddProjectActionValue) isAddProjectOpen.Set(true);
+            })
             .Width(Size.Grow());
 
         var priorityPicker = new BadgeSelect
@@ -143,19 +158,11 @@ public class CreatePlanDialog(
             .WithOnChange(values => selectedPriority.Set(values.FirstOrDefault() ?? "Normal"))
             .Width(Size.Auto());
 
-        var newProjectButton = new Button()
-            .Icon(Icons.Plus)
-            .Small().Ghost()
-            .Tooltip("New Project")
-            .OnClick(() => isAddProjectOpen.Set(true));
-
         var bodyContent =
                 Layout.Vertical().Gap(2)
                 | (Layout.Horizontal().Gap(1).AlignContent(Align.Left).Width(Size.Full())
-                    | (Layout.Horizontal().Gap(1).Width(Size.Grow())
-                        | projectPicker
-                        | priorityPicker)
-                    | newProjectButton)
+                    | projectPicker
+                    | priorityPicker)
                 | new Ivy.Tendril.Widgets.ContentInput
                 {
                     UploadUrl = uploadContext.Value.UploadUrl,
