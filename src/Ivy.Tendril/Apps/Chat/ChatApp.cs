@@ -12,6 +12,8 @@ using Ivy.Core.Hooks;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Agents.Providers;
+using Ivy.Tendril.Agents.Runtime;
+using Ivy.Tendril.Apps.Chat.Dialogs;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Widgets;
@@ -361,102 +363,44 @@ public class ChatApp : ViewBase
             SendMessage(new ChatSendMessageDto(args.Prompt, null, targetId));
         }
 
-        string activeSessionLiveStream = activeSessionId.Value != null && liveSessionStreams.Value.TryGetValue(activeSessionId.Value, out var streamText)
-            ? streamText
-            : "";
+        var sidebar = new SidebarView(
+            sessions,
+            activeSessionId,
+            sessionVersion,
+            selectedAgent,
+            selectedModel,
+            renamingSessionId,
+            renameText,
+            searchState,
+            chatService
+        );
 
-        return new ChatWidget
-        {
-            ActiveSessionId = activeSessionId.Value,
-            StreamingSessionId = streamingSessionId.Value,
-            Sessions = sessionDtos,
-            Agents = agentDtos,
-            Models = modelDtos,
-            SelectedAgent = selectedAgent.Value,
-            SelectedModel = selectedModel.Value,
-            IsStreaming = activeSessionId.Value != null && runningSessionIds.Value.Contains(activeSessionId.Value),
-            StreamingText = activeSessionLiveStream,
+        var content = new ContentView(
+            activeSession,
+            activeSessionId,
+            sessionVersion,
+            selectedAgent,
+            selectedModel,
+            isStreaming,
+            streamingSessionId,
+            runningSessionIds,
+            liveSessionStreams,
+            messageQueue,
+            activeSessionRef,
+            sessionDtos,
+            agentDtos,
+            modelDtos,
+            chatService,
+            agentRunner,
+            SendMessage
+        );
 
-            OnSelectSession = e =>
-            {
-                activeSessionId.Set(e.Value);
-                return ValueTask.CompletedTask;
-            },
-            OnCreateSession = _ =>
-            {
-                var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value);
-                activeSessionId.Set(newSess.Id);
-                sessionVersion.Set(v => v + 1);
-                return ValueTask.CompletedTask;
-            },
-            OnDeleteSession = e =>
-            {
-                chatService.DeleteSession(e.Value);
-                sessionVersion.Set(v => v + 1);
-                if (activeSessionId.Value == e.Value)
-                {
-                    var remaining = chatService.GetSessions();
-                    activeSessionId.Set(remaining.FirstOrDefault()?.Id);
-                }
-                return ValueTask.CompletedTask;
-            },
-            OnRenameSession = e =>
-            {
-                if (e.Value.Length >= 2)
-                {
-                    chatService.RenameSession(e.Value[0], e.Value[1]);
-                    sessionVersion.Set(v => v + 1);
-                }
-                return ValueTask.CompletedTask;
-            },
-            OnSendMessage = e =>
-            {
-                SendMessage(e.Value);
-                return ValueTask.CompletedTask;
-            },
-            OnCancelStream = _ =>
-            {
-                var targetId = activeSessionId.Value;
-                if (!string.IsNullOrEmpty(targetId))
-                {
-                    chatService.SetSessionGenerating(targetId, false);
-                }
-                if (activeSessionRef.Value != null)
-                {
-                    try
-                    {
-                        var stopTask = activeSessionRef.Value.StopAsync();
-                    }
-                    catch
-                    {
-                        // Ignore cancel exceptions
-                    }
-                }
-                isStreaming.Set(false);
-                streamingSessionId.Set(null);
-                runningSessionIds.Set(new HashSet<string>());
-                liveSessionStreams.Set(new Dictionary<string, string>());
-                return ValueTask.CompletedTask;
-            },
-            OnAgentChanged = e =>
-            {
-                selectedAgent.Set(e.Value);
-                var newModels = GetModelsForAgent(agentRunner, e.Value);
-                if (newModels.Count > 0)
-                {
-                    selectedModel.Set(newModels[0].Id);
-                }
-                return ValueTask.CompletedTask;
-            },
-            OnModelChanged = e =>
-            {
-                selectedModel.Set(e.Value);
-                return ValueTask.CompletedTask;
-            }
-        }
-        .WithLayout()
-        .Full()
-        .RemoveParentPadding();
+        var layoutView = new SidebarLayout(content, sidebar).SidebarContentScroll(Scroll.None);
+
+        return new Fragment(
+            layoutView,
+            new RenameSessionDialog(renamingSessionId, renameText, chatService, sessionVersion)
+        );
     }
 
     internal static List<(string Id, string DisplayName)> GetModelsForAgent(IAgentRunner runner, string agentId)
