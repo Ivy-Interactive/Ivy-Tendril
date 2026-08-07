@@ -628,8 +628,6 @@ public class ContentView(
                 selectedPlan!,
                 jobService,
                 refreshPlans,
-                planData.CommitRows,
-                hash => openCommit.Set(hash),
                 selectedPlan.Project);
 
             var tabNamesList = new List<string> { "summary", "plan", "details", "git" };

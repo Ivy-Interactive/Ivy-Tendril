@@ -20,8 +20,6 @@ public class ChangesTabView(
     PlanFile selectedPlan,
     IJobService jobService,
     Action refreshPlans,
-    List<PlanContentHelpers.CommitRow> commitRows,
-    Action<string> setOpenCommit,
     string? projectName = null) : ViewBase
 {
     public int FileCount => changesData?.Files.Count ?? 0;
@@ -201,19 +199,8 @@ public class ChangesTabView(
                 fd => client.Redirect($"#{fd.FilePath}"))
             .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-        var commitItems = commitRows.Select(c =>
-            new MenuItem($"{c.ShortHash} - {c.Title}", Icon: Icons.GitCommitHorizontal)
-                .OnSelect(() => setOpenCommit(c.Hash))
-        ).ToArray();
-
-        var rawCommitsBtn = new Button($"{commitRows.Count} Commits").Icon(Icons.GitCommitHorizontal).Outline();
-        object commitsBtn = commitItems.Length > 0
-            ? rawCommitsBtn.WithDropDown(commitItems)
-            : rawCommitsBtn;
-
         var leftSide = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-            | hideFormatting.ToSwitchInput(label: "Hide formatting changes")
-            | commitsBtn;
+            | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
 
         if (hideFormatting.Value && hiddenCount > 0)
             leftSide |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
