@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Trash2, Mic, Bot, Cpu, Search, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square, Clock, Loader2 } from "lucide-react";
+import { Mic, Bot, Cpu, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square, Clock } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { AgentViewer } from "../AgentViewer";
 import { getMarkdownPlugins } from "../math";
@@ -196,13 +196,10 @@ export function ChatWidget({
   events = [],
   eventHandler,
 }: ChatWidgetProps) {
-  const [searchTerm, setSearchTerm] = useState("");
   const [promptText, setPromptText] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitleText, setEditingTitleText] = useState("");
-  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
-  const [sidebarEditingText, setSidebarEditingText] = useState("");
   const [attachments, setAttachments] = useState<ChatAttachmentDto[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<QueuedItem[]>([]);
   const [pendingRenames, setPendingRenames] = useState<Record<string, string>>({});
@@ -257,19 +254,6 @@ export function ChatWidget({
     }
   };
 
-  const handleSelectSession = (sessionId: string) => {
-    emit("OnSelectSession", sessionId);
-  };
-
-  const handleDeleteSession = (sessionId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    emit("OnDeleteSession", sessionId);
-  };
-
-  const handleCreateSession = () => {
-    emit("OnCreateSession");
-  };
-
   const startHeaderTitleEdit = () => {
     if (!activeSession) return;
     setEditingTitleText(activeSession.title || "New Chat");
@@ -283,21 +267,6 @@ export function ChatWidget({
       emit("OnRenameSession", activeSession.id, newTitle);
     }
     setIsEditingTitle(false);
-  };
-
-  const startSidebarTitleEdit = (sess: ChatSessionDto, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingSessionId(sess.id);
-    setSidebarEditingText(sess.title || "New Chat");
-  };
-
-  const saveSidebarTitleEdit = (sessionId: string) => {
-    if (sidebarEditingText.trim()) {
-      const newTitle = sidebarEditingText.trim();
-      setPendingRenames((prev) => ({ ...prev, [sessionId]: newTitle }));
-      emit("OnRenameSession", sessionId, newTitle);
-    }
-    setEditingSessionId(null);
   };
 
   const handleSendMessage = () => {
@@ -472,13 +441,6 @@ export function ChatWidget({
     recognition.start();
   };
 
-  const filteredSessions = sessions.filter(
-    (s) =>
-      !searchTerm ||
-      s.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.messages.some((m) => m.content.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-
   const agentSelectOptions = agents.map((a) => ({ value: a.id, label: a.label }));
   const modelSelectOptions = models.map((m) => ({ value: m.id, label: m.displayName }));
 
@@ -491,112 +453,6 @@ export function ChatWidget({
         style={{ display: "none" }}
         onChange={handleFileSelect}
       />
-
-      {/* Sidebar */}
-      <div className="chat-sidebar">
-        <div className="chat-sidebar-header">
-          <div className="chat-sidebar-title-row">
-            <h2 className="chat-sidebar-title">History</h2>
-            <button type="button" className="chat-new-btn" onClick={handleCreateSession} title="New Chat">
-              <Plus size={13} />
-              <span>New Chat</span>
-            </button>
-          </div>
-          <div className="chat-search-wrapper">
-            <Search size={13} className="chat-search-icon" />
-            <input
-              type="text"
-              className="chat-search-input"
-              placeholder="Search history..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="chat-session-list">
-          {filteredSessions.length > 0 ? (
-            filteredSessions.map((sess) => {
-              const isActive = sess.id === activeSessionId;
-              const isEditingThis = editingSessionId === sess.id;
-              const status = sess.status || "done";
-              const dateStr = new Date(sess.updatedAt).toLocaleTimeString([], {
-                month: "numeric",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              });
-              return (
-                <div
-                  key={sess.id}
-                  className={`chat-session-item ${isActive ? "active" : ""}`}
-                  onClick={() => handleSelectSession(sess.id)}
-                >
-                  <div className="chat-session-info">
-                    {isEditingThis ? (
-                      <input
-                        type="text"
-                        className="chat-sidebar-rename-input"
-                        value={sidebarEditingText}
-                        onChange={(e) => setSidebarEditingText(e.target.value)}
-                        onBlur={() => saveSidebarTitleEdit(sess.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") saveSidebarTitleEdit(sess.id);
-                          if (e.key === "Escape") setEditingSessionId(null);
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        autoFocus
-                      />
-                    ) : (
-                      <span className="chat-session-title">
-                        {pendingRenames[sess.id] || sess.title || "Untitled Chat"}
-                      </span>
-                    )}
-                    <div className="chat-session-meta">
-                      {status === "generating" ? (
-                        <span className="chat-session-status generating">
-                          <Loader2 size={10} className="chat-spin" />
-                          <span>Generating</span>
-                        </span>
-                      ) : status === "waiting" ? (
-                        <span className="chat-session-status waiting">
-                          <Clock size={10} />
-                          <span>Waiting</span>
-                        </span>
-                      ) : (
-                        <span>{dateStr}</span>
-                      )}
-                      <span>• {sess.agentId}</span>
-                    </div>
-                  </div>
-                  <div className="chat-session-item-actions">
-                    <button
-                      type="button"
-                      className="chat-edit-btn"
-                      title="Rename chat"
-                      onClick={(e) => startSidebarTitleEdit(sess, e)}
-                    >
-                      <Pencil size={12} />
-                    </button>
-                    <button
-                      type="button"
-                      className="chat-delete-btn"
-                      title="Delete chat"
-                      onClick={(e) => handleDeleteSession(sess.id, e)}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div style={{ color: "var(--muted-foreground)", fontSize: "12px", textAlign: "center", padding: "16px" }}>
-              No chat history found.
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* Main Chat Area */}
       <div className="chat-main">
@@ -806,7 +662,7 @@ export function ChatWidget({
                       title="Queue message"
                     >
                       <span>Queue</span>
-                      <span className="chat-shortcut-hint">↵</span>
+                      <kbd className="chat-shortcut-hint">↵</kbd>
                     </button>
                   </>
                 ) : (
@@ -817,7 +673,7 @@ export function ChatWidget({
                     onClick={handleSendMessage}
                   >
                     <span>Send</span>
-                    <span className="chat-shortcut-hint">↵</span>
+                    <kbd className="chat-shortcut-hint">↵</kbd>
                   </button>
                 )}
               </div>

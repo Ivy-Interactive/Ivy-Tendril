@@ -6,12 +6,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Reactive.Disposables;
+using Ivy;
 using Ivy.Core;
 using Ivy.Core.Hooks;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Agents.Providers;
 using Ivy.Tendril.Agents.Runtime;
+using Ivy.Tendril.Apps.Chat.Dialogs;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Widgets;
@@ -36,12 +38,15 @@ public class ChatApp : ViewBase
         var lastSyncedSessionId = UseRef<string?>(null);
         var isStreaming = UseState(false);
         var streamingSessionId = UseState<string?>(null);
-        var streamingText = UseState("");
         var liveSessionStreams = UseState(new Dictionary<string, string>());
         var activeSessionRef = UseRef<IAgentSession?>(null);
         var runningSessionIds = UseState(() => new HashSet<string>(chatService.GetGeneratingSessionIds()));
         var messageQueue = UseRef(new ConcurrentQueue<ChatSendMessageDto>());
         var initialHandled = UseRef(false);
+
+        var searchState = UseState("");
+        var renamingSessionId = UseState<string?>(null);
+        var renameText = UseState("");
 
         UseEffect(() =>
         {
@@ -61,8 +66,7 @@ public class ChatApp : ViewBase
             });
         });
 
-        // Map sessions to DTOs - force re-evaluation when sessionVersion changes
-        var currentVersion = sessionVersion.Value; // Read to establish reactive dependency
+        var currentVersion = sessionVersion.Value;
         var sessions = chatService.GetSessions();
         if (activeSessionId.Value == null && sessions.Count > 0 && !initialHandled.Value && string.IsNullOrEmpty(args?.Prompt))
         {
@@ -84,7 +88,6 @@ public class ChatApp : ViewBase
             }
         }
 
-        // Get dynamic agent options
         var registeredAgentIds = agentRunner.RegisteredAgents;
         if (registeredAgentIds.Count == 0)
         {
@@ -97,7 +100,6 @@ public class ChatApp : ViewBase
             return new AgentOptionDto(id, label);
         }).ToList();
 
-        // Get dynamic model options for selected agent from its model catalog provider
         var currentModelOptions = GetModelsForAgent(agentRunner, selectedAgent.Value);
         var modelDtos = currentModelOptions.Select(m => new ModelOptionDto(m.Id, m.DisplayName)).ToList();
 
@@ -147,7 +149,6 @@ public class ChatApp : ViewBase
             streamingSessionId.Set(targetSessionId);
             chatService.SetSessionGenerating(targetSessionId, true);
 
-            // Save attachments to disk
             var attachedFilePaths = new List<string>();
             if (attachments.Count > 0)
             {
@@ -177,7 +178,6 @@ public class ChatApp : ViewBase
                 }
             }
 
-            // Build user prompt with attachment notes if applicable
             var promptWithAttachments = userPrompt;
             if (attachedFilePaths.Count > 0)
             {
@@ -190,7 +190,6 @@ public class ChatApp : ViewBase
                 promptWithAttachments = sb.ToString();
             }
 
-            // Fetch previous history for conversation discussion context
             var sess = chatService.GetSession(targetSessionId);
             var history = sess?.Messages ?? [];
 
@@ -218,7 +217,6 @@ public class ChatApp : ViewBase
 
             var fullAgentPrompt = agentPromptBuilder.ToString();
 
-            // Save clean user prompt into database & UI
             chatService.AddMessage(targetSessionId, "user", promptWithAttachments, selectedAgent.Value, selectedModel.Value);
             isStreaming.Set(true);
 
@@ -301,7 +299,6 @@ public class ChatApp : ViewBase
                 map.Remove(targetSessionId);
                 liveSessionStreams.Set(map);
 
-                // Process next message in queue if any for this session
                 var remainingItems = new List<ChatSendMessageDto>();
                 ChatSendMessageDto? nextForSession = null;
                 while (messageQueue.Value.TryDequeue(out var item))
@@ -353,7 +350,6 @@ public class ChatApp : ViewBase
             }
         }
 
-        // Auto-run if prompt argument was passed in
         if (!initialHandled.Value && !string.IsNullOrEmpty(args?.Prompt))
         {
             initialHandled.Value = true;
@@ -367,99 +363,47 @@ public class ChatApp : ViewBase
             SendMessage(new ChatSendMessageDto(args.Prompt, null, targetId));
         }
 
-        string activeSessionLiveStream = activeSessionId.Value != null && liveSessionStreams.Value.TryGetValue(activeSessionId.Value, out var streamText)
-            ? streamText
-            : "";
+        var sidebar = new SidebarView(
+            sessions,
+            activeSessionId,
+            sessionVersion,
+            selectedAgent,
+            selectedModel,
+            renamingSessionId,
+            renameText,
+            searchState,
+            chatService
+        );
 
-        return new ChatWidget
-        {
-            ActiveSessionId = activeSessionId.Value,
-            StreamingSessionId = streamingSessionId.Value,
-            Sessions = sessionDtos,
-            Agents = agentDtos,
-            Models = modelDtos,
-            SelectedAgent = selectedAgent.Value,
-            SelectedModel = selectedModel.Value,
-            IsStreaming = activeSessionId.Value != null && runningSessionIds.Value.Contains(activeSessionId.Value),
-            StreamingText = activeSessionLiveStream,
+        var content = new ContentView(
+            activeSession,
+            activeSessionId,
+            sessionVersion,
+            selectedAgent,
+            selectedModel,
+            isStreaming,
+            streamingSessionId,
+            runningSessionIds,
+            liveSessionStreams,
+            messageQueue,
+            activeSessionRef,
+            sessionDtos,
+            agentDtos,
+            modelDtos,
+            chatService,
+            agentRunner,
+            SendMessage
+        );
 
-            OnSelectSession = e =>
-            {
-                activeSessionId.Set(e.Value);
-                return ValueTask.CompletedTask;
-            },
-            OnDeleteSession = e =>
-            {
-                chatService.DeleteSession(e.Value);
-                sessionVersion.Set(v => v + 1);
-                if (activeSessionId.Value == e.Value)
-                {
-                    var remaining = chatService.GetSessions();
-                    activeSessionId.Set(remaining.FirstOrDefault()?.Id);
-                }
-                return ValueTask.CompletedTask;
-            },
-            OnRenameSession = e =>
-            {
-                if (e.Value != null && e.Value.Length >= 2)
-                {
-                    chatService.RenameSession(e.Value[0], e.Value[1]);
-                    sessionVersion.Set(v => v + 1);
-                }
-                return ValueTask.CompletedTask;
-            },
-            OnCreateSession = _ =>
-            {
-                var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value);
-                activeSessionId.Set(newSess.Id);
-                return ValueTask.CompletedTask;
-            },
-            OnSendMessage = e =>
-            {
-                SendMessage(e.Value);
-                return ValueTask.CompletedTask;
-            },
-            OnCancelStream = async _ =>
-            {
-                while (messageQueue.Value.TryDequeue(out var _)) { }
-                try
-                {
-                    if (activeSessionRef.Value != null)
-                    {
-                        await activeSessionRef.Value.StopAsync();
-                    }
-                }
-                catch
-                {
-                    // Ignore cancel exceptions
-                }
-                isStreaming.Set(false);
-                streamingSessionId.Set(null);
-                runningSessionIds.Set(new HashSet<string>());
-                liveSessionStreams.Set(new Dictionary<string, string>());
-            },
-            OnAgentChanged = e =>
-            {
-                selectedAgent.Set(e.Value);
-                var newModels = GetModelsForAgent(agentRunner, e.Value);
-                if (newModels.Count > 0)
-                {
-                    selectedModel.Set(newModels[0].Id);
-                }
-                return ValueTask.CompletedTask;
-            },
-            OnModelChanged = e =>
-            {
-                selectedModel.Set(e.Value);
-                return ValueTask.CompletedTask;
-            }
-        }
-        .WithLayout()
-        .Full()
-        .RemoveParentPadding();
+        var layoutView = new SidebarLayout(content, sidebar).SidebarContentScroll(Scroll.None);
+
+        return new Fragment(
+            layoutView,
+            new RenameSessionDialog(renamingSessionId, renameText, chatService, sessionVersion)
+        );
     }
 
-    private static List<(string Id, string DisplayName)> GetModelsForAgent(IAgentRunner runner, string agentId)
+    internal static List<(string Id, string DisplayName)> GetModelsForAgent(IAgentRunner runner, string agentId)
     {
         var normalized = AgentProviderFactory.NormalizeAgentName(agentId);
         var catalog = runner.GetModelCatalog(normalized);
