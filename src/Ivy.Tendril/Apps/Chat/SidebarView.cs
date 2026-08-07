@@ -71,7 +71,8 @@ public class SidebarView(
                         .OnClick(() =>
                         {
                             renamingSessionId.Set(sess.Id);
-                            renameText.Set(sess.Title);
+                            var cleanTitle = sess.Title.TrimEnd('.').TrimEnd('…').Trim();
+                            renameText.Set(cleanTitle);
                         })
                     | new Button()
                         .Icon(Icons.Trash2)
