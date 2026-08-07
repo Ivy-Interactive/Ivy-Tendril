@@ -26,6 +26,7 @@ public class NodeBasedGraphView : ViewBase
     private readonly IState<bool> _isDeleteOpen;
     private readonly IState<bool> _isAiEditOpen;
     private readonly string _workingDir;
+    private readonly string? _projectName;
     private readonly IMemoryService _memoryService;
 
     public NodeBasedGraphView(
@@ -41,6 +42,7 @@ public class NodeBasedGraphView : ViewBase
         IState<bool> isDeleteOpen,
         IState<bool> isAiEditOpen,
         string workingDir,
+        string? projectName,
         IMemoryService memoryService)
     {
         _allMemories = allMemories;
@@ -55,6 +57,7 @@ public class NodeBasedGraphView : ViewBase
         _isDeleteOpen = isDeleteOpen;
         _isAiEditOpen = isAiEditOpen;
         _workingDir = workingDir;
+        _projectName = projectName;
         _memoryService = memoryService;
     }
 
@@ -166,7 +169,7 @@ public class NodeBasedGraphView : ViewBase
                     | (isOutdated
                        ? (object)new Button("Update Reference").Primary().Icon(Icons.RefreshCw).Small().OnClick(() =>
                          {
-                             _memoryService.UpdateMemory(currentNoteName, _workingDir);
+                             _memoryService.UpdateMemory(currentNoteName, _workingDir, _projectName);
                              _client.Toast($"Updated hash for {currentNoteName}", "Updated");
                              _onLoadStatus();
                          })
@@ -180,7 +183,7 @@ public class NodeBasedGraphView : ViewBase
                           | new Button("Cancel").Outline().Small().OnClick(() => _isEditing.Set(false))
                           | new Button("Save Note").Primary().Icon(Icons.Save).Small().OnClick(() =>
                             {
-                                _memoryService.WriteMemory(currentNoteName, _editContent.Value, _workingDir);
+                                _memoryService.WriteMemory(currentNoteName, _editContent.Value, _workingDir, _projectName);
                                 _isEditing.Set(false);
                                 _client.Toast($"Saved note {currentNoteName}", "Saved");
                                 _onLoadStatus();

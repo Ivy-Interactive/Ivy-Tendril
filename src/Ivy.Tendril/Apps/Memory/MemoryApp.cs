@@ -55,11 +55,20 @@ public class MemoryApp : ViewBase
         var projects = config.Settings.Projects ?? new List<ProjectConfig>();
         var configuredPromptwares = config.Settings.Promptwares;
 
+        var sourceOptions = FileExplorerView.GetAllSourceOptions(projects, workingDir, configuredPromptwares);
+        var currentSourceMatch = sourceOptions.FirstOrDefault(o =>
+            string.Equals(o.Id, selectedSourceKey.Value, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(o.Label, selectedSourceKey.Value, StringComparison.OrdinalIgnoreCase))
+            ?? sourceOptions.FirstOrDefault();
+
+        var selectedSourceName = currentSourceMatch?.Name;
+        var selectedSourcePath = currentSourceMatch?.Path;
+
         void LoadStatus()
         {
             try
             {
-                var status = memoryService.GetStatus(workingDir);
+                var status = memoryService.GetStatus(selectedSourcePath ?? workingDir);
                 vaultStatus.Set(status);
             }
             catch (Exception ex)
@@ -81,7 +90,7 @@ public class MemoryApp : ViewBase
                 {
                     foreach (var noteName in vaultStatus.Value.OutdatedNoteNames)
                     {
-                        memoryService.UpdateMemory(noteName, workingDir);
+                        memoryService.UpdateMemory(noteName, selectedSourcePath ?? workingDir);
                     }
                 }
                 client.Toast("Synchronized memory reference hashes", "Vault Synchronized");
@@ -125,13 +134,13 @@ public class MemoryApp : ViewBase
             LoadStatus();
             LoadProjectFiles();
             return Disposable.Empty;
-        }, selectedFolderPath);
+        }, selectedFolderPath, selectedSourceKey);
 
         UseEffect(() =>
         {
             if (selectedNote.Value != null)
             {
-                var note = memoryService.ReadMemory(selectedNote.Value, workingDir);
+                var note = memoryService.ReadMemory(selectedNote.Value, selectedSourcePath ?? workingDir);
                 if (note != null)
                 {
                     editContent.Set(note.Content);
@@ -139,21 +148,12 @@ public class MemoryApp : ViewBase
             }
             isEditing.Set(false);
             return Disposable.Empty;
-        }, selectedNote);
-
-        var sourceOptions = FileExplorerView.GetAllSourceOptions(projects, workingDir, configuredPromptwares);
-        var currentSourceMatch = sourceOptions.FirstOrDefault(o =>
-            string.Equals(o.Id, selectedSourceKey.Value, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(o.Label, selectedSourceKey.Value, StringComparison.OrdinalIgnoreCase))
-            ?? sourceOptions.FirstOrDefault();
-
-        var selectedSourceName = currentSourceMatch?.Name;
-        var selectedSourcePath = currentSourceMatch?.Path;
+        }, selectedNote, selectedSourceKey);
 
         var availableMemories = new List<MemoryNote>();
         try
         {
-            availableMemories = memoryService.ListMemories(workingDir).ToList();
+            availableMemories = memoryService.ListMemories(selectedSourcePath ?? workingDir, selectedSourceName).ToList();
         }
         catch { }
 
@@ -201,7 +201,8 @@ public class MemoryApp : ViewBase
                 isDeleteOpen,
                 isAiEditOpen,
                 isLinkFileOpen,
-                workingDir,
+                selectedSourcePath ?? workingDir,
+                selectedSourceName,
                 memoryService
               )
             : new NodeBasedGraphView(
@@ -216,7 +217,8 @@ public class MemoryApp : ViewBase
                 client,
                 isDeleteOpen,
                 isAiEditOpen,
-                workingDir,
+                selectedSourcePath ?? workingDir,
+                selectedSourceName,
                 memoryService
               );
 
@@ -298,19 +300,19 @@ public class MemoryApp : ViewBase
 
         if (isNewNoteOpen.Value)
         {
-            rootLayout |= new CreateMemoryNoteDialog(isNewNoteOpen, selectedNote, client, memoryService);
+            rootLayout |= new CreateMemoryNoteDialog(isNewNoteOpen, selectedNote, client, memoryService, selectedSourcePath ?? workingDir, selectedSourceName);
         }
 
         if (isDeleteOpen.Value)
         {
-            rootLayout |= new DeleteMemoryNoteDialog(isDeleteOpen, selectedNote, LoadStatus, client, memoryService);
+            rootLayout |= new DeleteMemoryNoteDialog(isDeleteOpen, selectedNote, LoadStatus, client, memoryService, selectedSourcePath ?? workingDir, selectedSourceName);
         }
 
         if (isPurgeOpen.Value)
         {
             rootLayout |= new PurgeMemoriesDialog(isPurgeOpen, () =>
             {
-                int count = memoryService.PurgeMemories(workingDir, selectedSourceName);
+                int count = memoryService.PurgeMemories(selectedSourcePath ?? workingDir, selectedSourceName);
                 client.Toast($"Purged {count} memory note(s)", "Purge Complete");
                 LoadStatus();
             });
@@ -320,7 +322,7 @@ public class MemoryApp : ViewBase
         {
             rootLayout |= new CompactMemoriesDialog(isCompactOpen, () =>
             {
-                int count = memoryService.CompactMemories(workingDir, selectedSourceName);
+                int count = memoryService.CompactMemories(selectedSourcePath ?? workingDir, selectedSourceName);
                 client.Toast($"Compacted {count} memory note(s)", "Compaction Complete");
                 LoadStatus();
             });
@@ -362,7 +364,9 @@ public class MemoryApp : ViewBase
                 allMemories,
                 LoadStatus,
                 client,
-                memoryService
+                memoryService,
+                selectedSourcePath ?? workingDir,
+                selectedSourceName
             );
         }
 

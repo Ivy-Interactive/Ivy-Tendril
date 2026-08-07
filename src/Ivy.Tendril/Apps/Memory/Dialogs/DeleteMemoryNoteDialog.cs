@@ -9,7 +9,9 @@ public class DeleteMemoryNoteDialog(
     IState<string?> selectedNote,
     Action onLoadStatus,
     IClientProvider client,
-    IMemoryService memoryService) : ViewBase
+    IMemoryService memoryService,
+    string? workspaceDir = null,
+    string? projectName = null) : ViewBase
 {
     public override object? Build()
     {
@@ -28,7 +30,7 @@ public class DeleteMemoryNoteDialog(
                 | new Button("Cancel").Outline().OnClick(() => isOpen.Set(false))
                 | new Button("Delete").Destructive().OnClick(() =>
                   {
-                      memoryService.DeleteMemory(targetNote);
+                      memoryService.DeleteMemory(targetNote, workspaceDir: workspaceDir, projectName: projectName);
                       selectedNote.Set(null);
                       isOpen.Set(false);
                       client.Toast($"Deleted note: {targetNote}", "Memory Note Deleted");

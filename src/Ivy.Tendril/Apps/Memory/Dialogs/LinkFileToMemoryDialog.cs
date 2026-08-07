@@ -13,7 +13,9 @@ public class LinkFileToMemoryDialog(
     List<MemoryNote> availableNotes,
     Action onLoadStatus,
     IClientProvider client,
-    IMemoryService memoryService) : ViewBase
+    IMemoryService memoryService,
+    string? workspaceDir = null,
+    string? projectName = null) : ViewBase
 {
     public override object? Build()
     {
@@ -62,7 +64,7 @@ public class LinkFileToMemoryDialog(
 
                          try
                          {
-                             memoryService.LinkFile(noteName, filePath);
+                             memoryService.LinkFile(noteName, filePath, workspaceDir: workspaceDir, projectName: projectName);
                              isOpen.Set(false);
                              client.Toast($"Linked file '{filePath}' to note '{noteName}'", "Memory Linked");
                              onLoadStatus();

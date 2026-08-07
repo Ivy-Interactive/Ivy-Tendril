@@ -28,6 +28,7 @@ public class FileMemoryMapView : ViewBase
     private readonly IState<bool> _isLinkFileOpen;
     private readonly string _workingDir;
     private readonly IMemoryService _memoryService;
+    private readonly string? _projectName;
 
     public FileMemoryMapView(
         IState<string?> selectedFile,
@@ -43,6 +44,7 @@ public class FileMemoryMapView : ViewBase
         IState<bool> isAiEditOpen,
         IState<bool> isLinkFileOpen,
         string workingDir,
+        string? projectName,
         IMemoryService memoryService)
     {
         _selectedFile = selectedFile;
@@ -58,6 +60,7 @@ public class FileMemoryMapView : ViewBase
         _isAiEditOpen = isAiEditOpen;
         _isLinkFileOpen = isLinkFileOpen;
         _workingDir = workingDir;
+        _projectName = projectName;
         _memoryService = memoryService;
     }
 
@@ -76,10 +79,10 @@ public class FileMemoryMapView : ViewBase
             var upToDateCount = Math.Max(0, totalMem - outdatedCount);
 
             var statsGrid = Layout.Grid().Columns(4).Gap(3)
-                | new MetricView("Total Memories", Icons.Brain, ctx => ctx.UseQuery("totalMem", () => System.Threading.Tasks.Task.FromResult(new MetricRecord(totalMem.ToString()))))
-                | new MetricView("Up to Date", Icons.Check, ctx => ctx.UseQuery("upToDate", () => System.Threading.Tasks.Task.FromResult(new MetricRecord(upToDateCount.ToString()))))
-                | new MetricView("Clean Links", Icons.Link, ctx => ctx.UseQuery("cleanLinks", () => System.Threading.Tasks.Task.FromResult(new MetricRecord(cleanLinks.ToString()))))
-                | new MetricView("Orphans", Icons.FileText, ctx => ctx.UseQuery("orphans", () => System.Threading.Tasks.Task.FromResult(new MetricRecord(orphanCount.ToString()))));
+                | new MetricView("Total Memories", Icons.Brain, ctx => ctx.UseQuery($"totalMem-{totalMem}", () => System.Threading.Tasks.Task.FromResult(new MetricRecord(totalMem.ToString()))))
+                | new MetricView("Up to Date", Icons.Check, ctx => ctx.UseQuery($"upToDate-{upToDateCount}", () => System.Threading.Tasks.Task.FromResult(new MetricRecord(upToDateCount.ToString()))))
+                | new MetricView("Clean Links", Icons.Link, ctx => ctx.UseQuery($"cleanLinks-{cleanLinks}", () => System.Threading.Tasks.Task.FromResult(new MetricRecord(cleanLinks.ToString()))))
+                | new MetricView("Orphans", Icons.FileText, ctx => ctx.UseQuery($"orphans-{orphanCount}", () => System.Threading.Tasks.Task.FromResult(new MetricRecord(orphanCount.ToString()))));
 
             var recentNotesCards = _allMemories.Take(12).Select(note =>
             {
@@ -229,10 +232,10 @@ public class FileMemoryMapView : ViewBase
                        | (isOutdated
                           ? (object)new Button("Update Reference").Primary().Icon(Icons.RefreshCw).Small().OnClick(() =>
                             {
-                                _memoryService.UpdateMemory(note.Name, _workingDir);
-                                _client.Toast($"Updated reference hash for {note.Name}", "Synchronized");
-                                _onLoadStatus();
-                            })
+                                 _memoryService.UpdateMemory(note.Name, _workingDir, _projectName);
+                                 _client.Toast($"Updated reference hash for {note.Name}", "Synchronized");
+                                 _onLoadStatus();
+                             })
                           : new Fragment())
                        | new Button("Delete").Destructive().Icon(Icons.Trash2).Small().OnClick(() =>
                          {
@@ -247,7 +250,7 @@ public class FileMemoryMapView : ViewBase
                           | new Button("Cancel").Outline().OnClick(() => _isEditing.Set(false))
                           | new Button("Save Note").Primary().Icon(Icons.Save).OnClick(() =>
                             {
-                                _memoryService.WriteMemory(note.Name, _editContent.Value, _workingDir);
+                                 _memoryService.WriteMemory(note.Name, _editContent.Value, _workingDir, _projectName);
                                 _isEditing.Set(false);
                                 _client.Toast($"Saved note {note.Name}", "Saved");
                                 _onLoadStatus();

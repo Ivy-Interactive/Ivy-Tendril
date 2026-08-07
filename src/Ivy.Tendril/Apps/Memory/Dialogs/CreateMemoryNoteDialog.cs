@@ -7,7 +7,9 @@ public class CreateMemoryNoteDialog(
     IState<bool> isOpen,
     IState<string?> selectedNote,
     IClientProvider client,
-    IMemoryService memoryService) : ViewBase
+    IMemoryService memoryService,
+    string? workspaceDir = null,
+    string? projectName = null) : ViewBase
 {
     public override object? Build()
     {
@@ -41,7 +43,7 @@ public class CreateMemoryNoteDialog(
                       }
 
                       var title = string.IsNullOrWhiteSpace(noteTitleState.Value) ? name : noteTitleState.Value;
-                      memoryService.AddMemory(name, title: title);
+                      memoryService.AddMemory(name, title: title, workspaceDir: workspaceDir, projectName: projectName);
                       selectedNote.Set(name);
                       isOpen.Set(false);
                       client.Toast($"Created note: {name}", "Memory Note Created");
