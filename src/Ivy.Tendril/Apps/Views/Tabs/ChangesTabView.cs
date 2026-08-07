@@ -22,7 +22,6 @@ public class ChangesTabView(
     Action refreshPlans,
     List<PlanContentHelpers.CommitRow> commitRows,
     Action<string> setOpenCommit,
-    IState<string?> openFile,
     string? projectName = null) : ViewBase
 {
     public int FileCount => changesData?.Files.Count ?? 0;
@@ -140,20 +139,6 @@ public class ChangesTabView(
                 OnDirectEdit = async e =>
                 {
                     await HandleDirectEdit(e.Value);
-                },
-                OnViewFile = e =>
-                {
-                    var repoPath = changesData?.SourceRepoPath;
-                    if (string.IsNullOrEmpty(repoPath))
-                    {
-                        repoPath = selectedPlan.GetEffectiveRepoPaths(config).FirstOrDefault();
-                    }
-                    if (!string.IsNullOrEmpty(repoPath))
-                    {
-                        var absolutePath = Path.Combine(repoPath, e.Value).Replace('\\', '/');
-                        openFile.Set(absolutePath);
-                    }
-                    return ValueTask.CompletedTask;
                 },
                 OnEditFile = e =>
                 {

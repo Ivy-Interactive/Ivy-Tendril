@@ -48,7 +48,7 @@ describe("PlanDiffView comment toggle", () => {
     expect(button.disabled).toBe(false);
     expect(button.getAttribute("aria-pressed")).toBe("true");
     // Check the button contains a count span
-    const countSpan = button.querySelector("span.font-mono.text-\\[10px\\]");
+    const countSpan = button.querySelector("span.font-mono.text-xs");
     expect(countSpan).toBeTruthy();
     expect(countSpan?.textContent).toBe("1");
   });
@@ -76,8 +76,8 @@ describe("PlanDiffView comment toggle", () => {
 
     expect(emptyButton.children.length).toBe(withCommentButton.children.length);
 
-    const emptyCountSpan = emptyButton.querySelector("span.font-mono.text-\\[10px\\]");
-    const withCommentCountSpan = withCommentButton.querySelector("span.font-mono.text-\\[10px\\]");
+    const emptyCountSpan = emptyButton.querySelector("span.font-mono.text-xs");
+    const withCommentCountSpan = withCommentButton.querySelector("span.font-mono.text-xs");
     expect(emptyCountSpan).toBeTruthy();
     expect(withCommentCountSpan).toBeTruthy();
     expect(emptyCountSpan?.textContent).toBe("");

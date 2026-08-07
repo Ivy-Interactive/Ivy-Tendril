@@ -97,7 +97,7 @@ Starts a job on the running Tendril server. Requires Tendril to be running (comm
 | `SplitPlan` | `<plan-id>` | — |
 | `ExpandPlan` | `<plan-id>` | — |
 | `CreateIssue` | `<plan-id>`, `--repo` | `--assignee`, `--comment`, `--labels` |
-| `CreatePr` | `<plan-id>` | `--no-merge`, `--no-delete-branch`, `--no-artifacts`, `--assignee`, `--comment`, `--draft` |
+| `CreatePr` | `<plan-id>` | `--no-merge`, `--no-delete-branch`, `--no-artifacts`, `--assignee`, `--reviewer`, `--comment`, `--draft` |
 | `RetryPlan` | `<plan-id>`, `--change-request` | — |
 | `CreatePlan` | `--description`, `--project` | `--priority`, `--force`, `--source-path` |
 

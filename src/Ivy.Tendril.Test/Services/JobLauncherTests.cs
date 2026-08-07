@@ -92,9 +92,10 @@ projects:
         return values;
     }
 
-    // The PR dialog's "Reviewer" field flows into CreatePrArgs.Reviewer and must reach the
-    // CreatePr promptware as the PrReviewer firmware value (issue #1311). It used to be the
-    // PrAssignee value, which emitted a GitHub assignee instead of a requested reviewer.
+    // The PR dialog's "Reviewer" field flows into CreatePrArgs.Reviewers and must reach the
+    // CreatePr promptware as the PrReviewer firmware value (issue #1311, extended for #1765 to
+    // support multiple reviewers). It used to be the PrAssignee value, which emitted a GitHub
+    // assignee instead of a requested reviewer.
     [Fact]
     public void AddCreatePrOptions_EmitsPrReviewer_WhenReviewerSet()
     {
@@ -102,7 +103,7 @@ projects:
         {
             Id = "pr-1",
             Type = "CreatePr",
-            TypedArgs = new CreatePrArgs(@"D:\Plans\01234-TestPlan", Reviewer: "octocat"),
+            TypedArgs = new CreatePrArgs(@"D:\Plans\01234-TestPlan", Reviewers: ["octocat"]),
             Project = "TestProject"
         };
 
@@ -126,6 +127,44 @@ projects:
         var values = InvokeAddCreatePrOptions(job);
 
         Assert.False(values.ContainsKey("PrReviewer"));
+    }
+
+    [Fact]
+    public void AddCreatePrOptions_JoinsPrReviewers_WhenMultipleSet()
+    {
+        var job = new JobItem
+        {
+            Id = "pr-3",
+            Type = "CreatePr",
+            TypedArgs = new CreatePrArgs(@"D:\Plans\01234-TestPlan", Reviewers: ["octocat", "hubot"]),
+            Project = "TestProject"
+        };
+
+        var values = InvokeAddCreatePrOptions(job);
+
+        Assert.Equal("octocat,hubot", values["PrReviewer"]);
+    }
+
+    [Fact]
+    public void AddCreatePrOptions_OmitsPrReviewer_WhenReviewersEmptyOrBlank()
+    {
+        var emptyJob = new JobItem
+        {
+            Id = "pr-4",
+            Type = "CreatePr",
+            TypedArgs = new CreatePrArgs(@"D:\Plans\01234-TestPlan", Reviewers: []),
+            Project = "TestProject"
+        };
+        var blankJob = new JobItem
+        {
+            Id = "pr-5",
+            Type = "CreatePr",
+            TypedArgs = new CreatePrArgs(@"D:\Plans\01234-TestPlan", Reviewers: ["", "  "]),
+            Project = "TestProject"
+        };
+
+        Assert.False(InvokeAddCreatePrOptions(emptyJob).ContainsKey("PrReviewer"));
+        Assert.False(InvokeAddCreatePrOptions(blankJob).ContainsKey("PrReviewer"));
     }
 
     public void Dispose()
