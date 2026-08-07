@@ -133,7 +133,7 @@ td.diff-gutter-delete:hover {
 td.diff-gutter-normal::after,
 td.diff-gutter-insert::after,
 td.diff-gutter-delete::after {
-  content: "+";
+  content: "";
   position: absolute;
   left: 50%;
   top: 50%;
@@ -141,14 +141,15 @@ td.diff-gutter-delete::after {
   width: 18px;
   height: 18px;
   background-color: var(--primary);
-  color: var(--primary-foreground, #ffffff);
+  /* Two bars instead of a "+" text glyph: text ink is positioned by font
+     metrics, not by the box, so the glyph rendered 1.5px low (#1941). */
+  background-image:
+    linear-gradient(var(--primary-foreground, #ffffff), var(--primary-foreground, #ffffff)),
+    linear-gradient(var(--primary-foreground, #ffffff), var(--primary-foreground, #ffffff));
+  background-size: 8px 2px, 2px 8px;
+  background-position: center center;
+  background-repeat: no-repeat;
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  line-height: 1;
-  font-weight: 600;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.1s ease, transform 0.1s ease;

@@ -145,9 +145,6 @@ public class UpdatePlanDialog(
                     .Bind(updateText)
                     .SubmitLabel("Update")
                     .Placeholder("Enter update instructions...")
-            ),
-            new DialogFooter(
-                new Button("Cancel").Outline().OnClick(() => HandleClose())
             )
         ).Width(Size.Rem(30));
     }

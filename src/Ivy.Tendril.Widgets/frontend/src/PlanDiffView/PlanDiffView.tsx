@@ -7,7 +7,7 @@ import Markdown from "react-markdown";
 type IvyEventHandler = (eventName: string, widgetId: string, args: any[]) => void;
 import { getWidth, getHeight } from "../styles";
 import { getMarkdownPlugins } from "../math";
-import { Eye, Pencil, Trash2, MoreHorizontal, MessageSquare } from "lucide-react";
+import { Pencil, Trash2, MoreHorizontal, MessageSquare } from "lucide-react";
 
 /** Container width (px) below which the diff is too cramped for a side-by-side (split) view. */
 export const NARROW_BREAKPOINT = 768;
@@ -134,7 +134,7 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
         <div className="flex flex-col gap-2">
           {comments.map((comment, idx) => (
             <div key={idx} className="flex flex-col gap-1 border-b border-[var(--border)] pb-2 last:border-0 last:pb-0">
-              <div className="flex items-center justify-between text-[10px] text-[var(--muted-foreground)]">
+              <div className="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
                 <span className="font-medium text-[var(--foreground)]">Agent Instruction (Draft)</span>
                 <div className="flex items-center gap-1">
                   <button
@@ -154,7 +154,7 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
                   </button>
                 </div>
               </div>
-              <div className="diff-comment-markdown leading-relaxed text-[11px] text-[var(--foreground)] mt-1">
+              <div className="diff-comment-markdown leading-relaxed text-sm text-[var(--foreground)] mt-1">
                 <Markdown {...getMarkdownPlugins(comment.content)}>{comment.content}</Markdown>
               </div>
             </div>
@@ -167,7 +167,7 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
               <div className="flex gap-2">
                 <button
                   type="button"
-                  className={`pb-1 px-1 border-b-2 text-[11px] font-medium transition-all cursor-pointer ${
+                  className={`pb-1 px-1 border-b-2 text-xs font-medium transition-all cursor-pointer ${
                     activeTab === "write"
                       ? "border-[var(--primary)] text-[var(--foreground)]"
                       : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
@@ -178,7 +178,7 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
                 </button>
                 <button
                   type="button"
-                  className={`pb-1 px-1 border-b-2 text-[11px] font-medium transition-all cursor-pointer ${
+                  className={`pb-1 px-1 border-b-2 text-xs font-medium transition-all cursor-pointer ${
                     activeTab === "preview"
                       ? "border-[var(--primary)] text-[var(--foreground)]"
                       : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
@@ -188,14 +188,14 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
                   Preview
                 </button>
               </div>
-              <span className="text-[10px] text-[var(--muted-foreground)]">
+              <span className="text-xs text-[var(--muted-foreground)]">
                 Markdown instruction for the agent
               </span>
             </div>
 
             {activeTab === "write" ? (
               <textarea
-                className="w-full min-h-[80px] p-2 text-[11px] bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-y"
+                className="w-full min-h-[80px] p-2 text-sm bg-[var(--background)] border border-[var(--border)] rounded focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-y"
                 placeholder="Enter instruction for the agent at this line..."
                 value={isEditing ? (editingText ?? "") : inputText}
                 onChange={(e) => {
@@ -208,7 +208,7 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
                 autoFocus
               />
             ) : (
-              <div className="diff-comment-markdown w-full min-h-[80px] p-2 text-[11px] bg-[var(--muted)] border border-[var(--border)] rounded overflow-auto">
+              <div className="diff-comment-markdown w-full min-h-[80px] p-2 text-sm bg-[var(--muted)] border border-[var(--border)] rounded overflow-auto">
                 {(isEditing ? editingText : inputText)?.trim() ? (
                   <Markdown {...getMarkdownPlugins((isEditing ? editingText : inputText) ?? "")}>
                     {isEditing ? editingText : inputText}
@@ -222,7 +222,7 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
             <div className="flex items-center justify-end gap-2 mt-1">
               <button
                 type="button"
-                className="px-3 py-1 text-[10px] font-medium border border-[var(--border)] rounded hover:bg-[var(--muted)] transition-colors cursor-pointer"
+                className="px-3 py-1 text-xs font-medium border border-[var(--border)] rounded hover:bg-[var(--muted)] transition-colors cursor-pointer"
                 onClick={() => {
                   if (isEditing) {
                     onCancelEdit();
@@ -235,7 +235,7 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
               </button>
               <button
                 type="button"
-                className="px-3 py-1 text-[10px] font-medium bg-[var(--primary)] text-[var(--primary-foreground)] rounded hover:opacity-90 transition-colors disabled:opacity-50 cursor-pointer"
+                className="px-3 py-1 text-xs font-medium bg-[var(--primary)] text-[var(--primary-foreground)] rounded hover:opacity-90 transition-colors disabled:opacity-50 cursor-pointer"
                 disabled={isEditing ? !editingText?.trim() : !inputText.trim()}
                 onClick={() => {
                   if (isEditing) {
@@ -501,18 +501,18 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
   }
 
   return (
-    <div ref={containerRef} style={style} className={`ivy-diff-view text-xs${effectiveWordWrap ? " diff-wrap" : ""}`}>
+    <div ref={containerRef} style={style} className={`ivy-diff-view text-sm${effectiveWordWrap ? " diff-wrap" : ""}`}>
       {showFileDropdown && (
         <div
           className="sticky top-0 z-20 flex items-center gap-2 px-3 py-1.5 bg-[var(--muted)] border-b border-[var(--border)]"
           style={{ fontFamily: 'var(--font-sans, sans-serif)' }}
         >
-          <span className="text-[11px] text-[var(--muted-foreground)] shrink-0">
+          <span className="text-xs text-[var(--muted-foreground)] shrink-0">
             {fileMeta.length} files
           </span>
           <select
             aria-label="Jump to file"
-            className="flex-1 min-w-0 text-[11px] px-2 py-1 rounded bg-[var(--background)] text-[var(--foreground)] border border-[var(--border)]"
+            className="flex-1 min-w-0 text-xs px-2 py-1 rounded bg-[var(--background)] text-[var(--foreground)] border border-[var(--border)]"
             style={{ fontFamily: 'var(--font-sans, sans-serif)' }}
             defaultValue=""
             onChange={(e) => {
@@ -589,7 +589,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
           >
             {hasHeader && (
               <div
-                className="flex items-center justify-between px-3 py-1.5 text-[11px] bg-[var(--muted)] text-[var(--muted-foreground)] border-b border-[var(--border)] sticky top-0 z-10 font-sans"
+                className="flex items-center justify-between px-3 py-1.5 text-sm bg-[var(--muted)] text-[var(--muted-foreground)] border-b border-[var(--border)] sticky top-0 z-10 font-sans"
                 style={{
                   top: showFileDropdown ? "2rem" : 0,
                 }}
@@ -624,14 +624,14 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
 
                 <div className="flex items-center gap-4 shrink-0 pl-2">
                   {/* Additions / Deletions count */}
-                  <span className="flex items-center gap-1 font-mono text-[11px]">
+                  <span className="flex items-center gap-1 font-mono text-xs">
                     {additions > 0 && <span className="text-[var(--success)]">+{additions}</span>}
                     {deletions > 0 && <span className="text-[var(--destructive)]">-{deletions}</span>}
                     {renderDiffSquares(additions, deletions)}
                   </span>
 
                   {/* Viewed / Collapsed Checkbox */}
-                  <label className="flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)] cursor-pointer select-none font-medium">
+                  <label className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] cursor-pointer select-none font-medium">
                     <button
                       type="button"
                       role="checkbox"
@@ -684,7 +684,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
                         {fileCommentCount > 0 && (
-                          <span className="font-mono text-[10px]">{fileCommentCount}</span>
+                          <span className="font-mono text-xs">{fileCommentCount}</span>
                         )}
                       </button>
                     );
@@ -714,17 +714,6 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                         style={dropdownStyle}
                         className="diff-more-actions-menu bg-[var(--background)] border border-[var(--border)] rounded-md shadow-lg py-1 text-xs"
                       >
-                        <button
-                          type="button"
-                          className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--muted)] text-[var(--foreground)] text-left cursor-pointer"
-                          onClick={() => {
-                            setActiveDropdownIndex(null);
-                            dispatchEvent?.("OnViewFile", id, [effectiveFilePath]);
-                          }}
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          View file
-                        </button>
                         <button
                           type="button"
                           className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--muted)] text-[var(--foreground)] text-left cursor-pointer"

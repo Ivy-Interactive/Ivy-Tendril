@@ -615,7 +615,6 @@ public class ContentView(
                 refreshPlans,
                 planData.CommitRows,
                 hash => openCommit.Set(hash),
-                openFile,
                 selectedPlan.Project);
 
             var tabNamesList = new List<string> { "summary", "plan", "details" };

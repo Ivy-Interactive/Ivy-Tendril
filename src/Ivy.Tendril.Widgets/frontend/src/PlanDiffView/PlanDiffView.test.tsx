@@ -170,6 +170,26 @@ describe("PlanDiffView", () => {
     const listItems = document.querySelectorAll(".diff-comment-markdown ul li");
     expect(listItems.length).toBe(2);
   });
+
+  it("does not render any off-scale text size classes", () => {
+    render(
+      <PlanDiffView
+        id="pdv-1"
+        onIvyEvent={vi.fn()}
+        diff={diff}
+        comments={[
+          {
+            filePath: "a.txt",
+            changeKey: changeKey,
+            content: "a comment",
+            lineNumber: 1,
+          },
+        ]}
+      />
+    );
+
+    expect(document.querySelectorAll('[class*="text-[10px]"], [class*="text-[11px]"]').length).toBe(0);
+  });
 });
 
 describe("PlanDiffView unified column collapse", () => {
@@ -280,10 +300,10 @@ describe("PlanDiffView kebab menu", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /more actions/i }));
 
-    const viewFileItem = screen.getByText("View file");
-    expect(viewFileItem).toBeInTheDocument();
-    expect(viewFileItem.closest(".ivy-diff-view")).toBeNull();
-    expect(document.body.contains(viewFileItem)).toBe(true);
+    const editFileItem = screen.getByText("Edit file");
+    expect(editFileItem).toBeInTheDocument();
+    expect(editFileItem.closest(".ivy-diff-view")).toBeNull();
+    expect(document.body.contains(editFileItem)).toBe(true);
   });
 
   it("menu style is fixed positioned with a high z-index", () => {
@@ -291,7 +311,7 @@ describe("PlanDiffView kebab menu", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /more actions/i }));
 
-    const menu = screen.getByText("View file").closest(".diff-more-actions-menu") as HTMLElement;
+    const menu = screen.getByText("Edit file").closest(".diff-more-actions-menu") as HTMLElement;
     expect(menu.style.position).toBe("fixed");
     expect(Number(menu.style.zIndex)).toBeGreaterThanOrEqual(1000);
   });
@@ -304,9 +324,9 @@ describe("PlanDiffView kebab menu", () => {
     expect(moreActionsButtons.length).toBe(2);
     fireEvent.click(moreActionsButtons[1]);
 
-    fireEvent.click(screen.getByText("View file"));
+    fireEvent.click(screen.getByText("Edit file"));
 
-    expect(onIvyEvent).toHaveBeenCalledWith("OnViewFile", "pdv-1", ["b.txt"]);
+    expect(onIvyEvent).toHaveBeenCalledWith("OnEditFile", "pdv-1", ["b.txt"]);
   });
 
   it("clicking inside the portaled menu does not swallow the action", () => {
