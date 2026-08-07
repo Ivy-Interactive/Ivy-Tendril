@@ -42,4 +42,36 @@ public class CreatePlanDialogTests
         Assert.Contains("description: \"Make a md5 tool\"", prompt);
         Assert.DoesNotContain("md5 tool \"", prompt);
     }
+
+    [Fact]
+    public void BuildProjectPickerOptions_MultipleProjects_ReturnsAutoFirstThenEachProject()
+    {
+        var (options, _) = CreatePlanDialog.BuildProjectPickerOptions(["Tendril-Services", "lots-of-dev-tools"]);
+
+        Assert.Equal(3, options.Length);
+        Assert.Equal("Auto", options[0].Value);
+        Assert.False(options[0].Removable);
+        Assert.Equal("Tendril-Services", options[1].Value);
+        Assert.Equal("lots-of-dev-tools", options[2].Value);
+    }
+
+    [Fact]
+    public void BuildProjectPickerOptions_SingleProject_OmitsAuto()
+    {
+        var (options, _) = CreatePlanDialog.BuildProjectPickerOptions(["Tendril-Services"]);
+
+        Assert.Single(options);
+        Assert.Equal("Tendril-Services", options[0].Value);
+    }
+
+    [Fact]
+    public void BuildProjectPickerOptions_ReturnsExactlyOneAddProjectAction()
+    {
+        var (options, actions) = CreatePlanDialog.BuildProjectPickerOptions(["Tendril-Services", "lots-of-dev-tools"]);
+
+        Assert.Single(actions);
+        Assert.Equal(CreatePlanDialog.AddProjectActionValue, actions[0].Value);
+        Assert.Equal("Add Project", actions[0].Label);
+        Assert.DoesNotContain(options, o => o.Value == CreatePlanDialog.AddProjectActionValue);
+    }
 }
