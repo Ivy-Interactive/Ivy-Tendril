@@ -17,7 +17,7 @@ public enum MemoryViewMode
     NodeBased
 }
 
-[App(title: "Memory", icon: Icons.Brain, group: ["Apps"], order: Constants.Memory, isVisible: false)]
+[App(title: "Memory", icon: Icons.Brain, group: ["Apps"], order: Constants.Memory)]
 public class MemoryApp : ViewBase
 {
     public override object Build()
