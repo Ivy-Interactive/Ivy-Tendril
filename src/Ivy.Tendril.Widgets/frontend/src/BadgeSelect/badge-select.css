@@ -164,3 +164,17 @@
   flex-shrink: 0;
   color: var(--muted-foreground);
 }
+
+.bselect-separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border);
+}
+
+.bselect-action {
+  color: var(--muted-foreground);
+}
+
+.bselect-action:hover {
+  color: var(--foreground);
+}

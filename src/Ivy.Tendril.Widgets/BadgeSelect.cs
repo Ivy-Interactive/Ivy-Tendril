@@ -21,8 +21,10 @@ public record BadgeSelect : WidgetBase<BadgeSelect>
     [Prop] public string? Icon { get; init; }
     [Prop] public bool Multiple { get; init; } = true;
     [Prop] public string? Tooltip { get; init; }
+    [Prop] public BadgeSelectOption[] Actions { get; init; } = [];
 
     [Event] public Func<Event<BadgeSelect, string[]>, ValueTask>? OnChange { get; init; }
+    [Event] public Func<Event<BadgeSelect, string>, ValueTask>? OnAction { get; init; }
 }
 
 public static class BadgeSelectExtensions
@@ -47,6 +49,24 @@ public static class BadgeSelectExtensions
 
     public static BadgeSelect Tooltip(this BadgeSelect w, string? tooltip) =>
         w with { Tooltip = tooltip };
+
+    public static BadgeSelect Actions(this BadgeSelect w, params BadgeSelectOption[] actions) =>
+        w with { Actions = actions };
+
+    public static BadgeSelect WithOnAction(
+        this BadgeSelect w,
+        Func<Event<BadgeSelect, string>, ValueTask> handler
+    ) => w with { OnAction = handler };
+
+    public static BadgeSelect WithOnAction(this BadgeSelect w, Action<string> handler) =>
+        w with
+        {
+            OnAction = e =>
+            {
+                handler(e.Value);
+                return ValueTask.CompletedTask;
+            }
+        };
 
     public static BadgeSelect WithOnChange(
         this BadgeSelect w,
