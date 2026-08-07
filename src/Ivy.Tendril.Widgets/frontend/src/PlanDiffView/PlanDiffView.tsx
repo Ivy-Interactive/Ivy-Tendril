@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import React, { useMemo, useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { parseDiff, Diff, Hunk, getChangeKey, type ChangeData, type HunkData } from "react-diff-view";
 import "react-diff-view/style/index.css";
 import "./plan-diff.css";
@@ -10,6 +11,10 @@ import { Eye, Pencil, Trash2, MoreHorizontal, MessageSquare } from "lucide-react
 
 /** Container width (px) below which the diff is too cramped for a side-by-side (split) view. */
 export const NARROW_BREAKPOINT = 768;
+
+const DROPDOWN_MENU_WIDTH = 144; // w-36
+const DROPDOWN_MENU_HEIGHT_ESTIMATE = 110;
+const DROPDOWN_MENU_GAP = 4;
 
 interface DraftComment {
   filePath: string;
@@ -282,20 +287,60 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
   const [editingCommentKeys, setEditingCommentKeys] = useState<Record<string, string>>({});
   const [activeDropdownIndex, setActiveDropdownIndex] = useState<number | null>(null);
   const [commentsHidden, setCommentsHidden] = useState<Record<number, boolean>>({});
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const dropdownTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const dropdownMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const updateDropdownPosition = useCallback(() => {
+    const trigger = dropdownTriggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom - DROPDOWN_MENU_GAP;
+    const spaceAbove = rect.top - DROPDOWN_MENU_GAP;
+    const flipUp = spaceBelow < DROPDOWN_MENU_HEIGHT_ESTIMATE && spaceAbove > spaceBelow;
+    const left = Math.max(
+      4,
+      Math.min(rect.right - DROPDOWN_MENU_WIDTH, window.innerWidth - DROPDOWN_MENU_WIDTH - 4)
+    );
+
+    setDropdownStyle({
+      position: "fixed",
+      left,
+      width: DROPDOWN_MENU_WIDTH,
+      top: flipUp ? undefined : rect.bottom + DROPDOWN_MENU_GAP,
+      bottom: flipUp ? window.innerHeight - rect.top + DROPDOWN_MENU_GAP : undefined,
+      zIndex: 1000,
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (activeDropdownIndex === null) return;
+    updateDropdownPosition();
+  }, [activeDropdownIndex, updateDropdownPosition]);
 
   useEffect(() => {
     if (activeDropdownIndex === null) return;
     const handleOutsideClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest(".diff-more-actions-container")) {
-        setActiveDropdownIndex(null);
-      }
+      if (target.closest(".diff-more-actions-container")) return;
+      if (dropdownMenuRef.current?.contains(target)) return;
+      setActiveDropdownIndex(null);
     };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setActiveDropdownIndex(null);
+    };
+    const onReposition = () => updateDropdownPosition();
     document.addEventListener("click", handleOutsideClick);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", onReposition);
+    window.addEventListener("scroll", onReposition, true);
     return () => {
       document.removeEventListener("click", handleOutsideClick);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", onReposition);
+      window.removeEventListener("scroll", onReposition, true);
     };
-  }, [activeDropdownIndex]);
+  }, [activeDropdownIndex, updateDropdownPosition]);
 
   const [containerRef, isNarrow] = useIsNarrow();
   const diffViewType = viewType === "Split" ? "split" : "unified";
@@ -487,6 +532,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       )}
       {files.map((file, fileIndex) => {
         const { oldName, newName, isRename, hasHeader, elementId } = fileMeta[fileIndex];
+        const effectiveFilePath = filePath || newName || oldName;
 
         const isCollapsed = collapsedState[fileIndex] ?? defaultCollapsed;
 
@@ -650,6 +696,11 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                       type="button"
                       aria-label="More actions"
                       className="p-1 rounded hover:bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors flex items-center justify-center cursor-pointer"
+                      ref={(node) => {
+                        if (activeDropdownIndex === fileIndex) {
+                          dropdownTriggerRef.current = node;
+                        }
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
                         setActiveDropdownIndex(prev => prev === fileIndex ? null : fileIndex);
@@ -657,14 +708,18 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                     >
                       <MoreHorizontal className="w-3.5 h-3.5" />
                     </button>
-                    {activeDropdownIndex === fileIndex && (
-                      <div className="absolute right-0 mt-1 z-50 w-36 bg-[var(--background)] border border-[var(--border)] rounded-md shadow-lg py-1 text-xs">
+                    {activeDropdownIndex === fileIndex && createPortal(
+                      <div
+                        ref={dropdownMenuRef}
+                        style={dropdownStyle}
+                        className="diff-more-actions-menu bg-[var(--background)] border border-[var(--border)] rounded-md shadow-lg py-1 text-xs"
+                      >
                         <button
                           type="button"
                           className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--muted)] text-[var(--foreground)] text-left cursor-pointer"
                           onClick={() => {
                             setActiveDropdownIndex(null);
-                            dispatchEvent?.("OnViewFile", id, [filePath]);
+                            dispatchEvent?.("OnViewFile", id, [effectiveFilePath]);
                           }}
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -675,7 +730,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                           className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--muted)] text-[var(--foreground)] text-left cursor-pointer"
                           onClick={() => {
                             setActiveDropdownIndex(null);
-                            dispatchEvent?.("OnEditFile", id, [filePath]);
+                            dispatchEvent?.("OnEditFile", id, [effectiveFilePath]);
                           }}
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -686,13 +741,14 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                           className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-destructive/10 text-[var(--destructive)] text-left border-t border-[var(--border)] cursor-pointer"
                           onClick={() => {
                             setActiveDropdownIndex(null);
-                            dispatchEvent?.("OnDeleteFile", id, [filePath]);
+                            dispatchEvent?.("OnDeleteFile", id, [effectiveFilePath]);
                           }}
                         >
                           <Trash2 className="w-3.5 h-3.5 text-[var(--destructive)]" />
                           Delete file
                         </button>
-                      </div>
+                      </div>,
+                      document.body
                     )}
                   </div>
                 </div>
