@@ -10,6 +10,9 @@ searchHints:
   - hash
   - password
   - update
+  - agent-instructions
+  - instructions
+  - prompt
 ---
 
 # Other Commands
@@ -149,4 +152,12 @@ server to be running. Agents pass the `TendrilJobId` firmware header value as `<
 ```
 
 Writes a file to `$TENDRIL_HOME/Trash/` from `--file` or `--stdin`. Used by agents to soft-delete content (e.g. duplicate plan files) instead of permanently removing it. Prints the written file path to stdout.
+
+## agent-instructions
+
+```terminal
+>tendril agent-instructions
+```
+
+Prints the compiled agent system prompt — the same instructions the Agent app gives the interactive assistant — to stdout, with `{TENDRIL_HOME}` and `{PLAN_FOLDER}` substituted from `config.yaml`. Exits 1 if the embedded prompt resource is missing. Useful for piping into another agent or diffing prompt changes.
 
