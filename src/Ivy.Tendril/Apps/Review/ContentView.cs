@@ -88,7 +88,7 @@ public class ContentView(
         var (suggestChangesDialog, showSuggestChangesDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
-            return new SuggestChangesDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans);
+            return new SuggestChangesDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans, draftComments.Value, draftComments);
         });
 
         var (createPrDialog, showCreatePrDialog) = UseTrigger((isOpen) =>
@@ -628,7 +628,9 @@ public class ContentView(
                 selectedPlan!,
                 jobService,
                 refreshPlans,
-                selectedPlan.Project);
+                selectedPlan.Project,
+                onDiscussWithAgent: () => nav.Navigate<AgentApp>(new AgentAppArgs(
+                    $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode.")));
 
             var tabNamesList = new List<string> { "summary", "plan", "details", "git" };
             var tabList = new List<Tab>

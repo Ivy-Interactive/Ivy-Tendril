@@ -8,6 +8,9 @@ using Ivy.Tendril.Widgets;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Plans;
+using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Apps.Agent;
+using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Review.Dialogs;
 
 namespace Ivy.Tendril.Apps.Views.Tabs;
@@ -20,7 +23,8 @@ public class ChangesTabView(
     PlanFile selectedPlan,
     IJobService jobService,
     Action refreshPlans,
-    string? projectName = null) : ViewBase
+    string? projectName = null,
+    Action? onDiscussWithAgent = null) : ViewBase
 {
     public int FileCount => changesData?.Files.Count ?? 0;
 
@@ -30,19 +34,19 @@ public class ChangesTabView(
         var planService = UseService<IPlanReaderService>();
         var gitService = UseService<IGitService>();
         var config = UseService<IConfigService>();
+        var agentRunner = UseService<IAgentRunner>();
         var hideFormatting = UseState(true);
 
-        var (submitReviewDialog, showSubmitReviewDialog) = UseTrigger((isOpen) =>
+        var (suggestChangesDialog, showSuggestChangesDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
-            return new SubmitReviewDialog(
+            return new SuggestChangesDialog(
                 isOpen,
                 selectedPlan,
-                draftComments.Value,
-                draftComments,
                 jobService,
-                planService,
-                refreshPlans
+                refreshPlans,
+                draftComments.Value,
+                draftComments
             );
         });
 
@@ -188,7 +192,9 @@ public class ChangesTabView(
         }
 
         var treePanel = new Box(Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0))) | tree)
-            .Width(Size.Auto()).Height(Size.Full().Min(Size.Px(0)))
+            .Width(SidebarLayout.DefaultWidth)
+            .Height(Size.Full().Min(Size.Px(0)))
+            .Padding(2, 2, 0, 2)
             .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
         var mobileFilePicker = MobileItemPicker.Build(
@@ -210,25 +216,33 @@ public class ChangesTabView(
             .Run($"+{totals.Additions}", color: Colors.Success)
             .Run($" -{totals.Deletions}", color: Colors.Destructive);
 
+        var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
+
+        var discussBtn = new Button($"Discuss with {agentLabel}")
+            .Icon(agentIcon)
+            .Outline()
+            .OnClick(() => onDiscussWithAgent?.Invoke());
+
         var draftCount = draftComments.Value.Count;
-        var submitBtn = new Button(draftCount > 0 ? $"Agent Review ({draftCount})" : "Agent Review")
-            .Icon(Icons.GitPullRequest)
-            .OnClick(() => showSubmitReviewDialog());
+        var requestChangesBtn = new Button(draftCount > 0 ? $"Request Changes ({draftCount})" : "Request Changes")
+            .Icon(Icons.MessageSquare)
+            .OnClick(() => showSuggestChangesDialog());
 
-        submitBtn = draftCount > 0 ? submitBtn.Primary() : submitBtn.Outline();
+        requestChangesBtn = draftCount > 0 ? requestChangesBtn.Primary() : requestChangesBtn.Outline();
 
-        var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right).Padding(0, 0, 2, 0)
+        var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
             | totalsText
-            | submitBtn;
+            | discussBtn
+            | requestChangesBtn;
 
-        var toolbar = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween).Height(Size.Auto()).Padding(2, 0, 0, 0)
+        var toolbar = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween).Height(Size.Auto()).Padding(2, 0, 4, 0)
             | leftSide
             | rightSide;
 
         // Padding order is (left, top, right, bottom). Left 2 aligns the tree/diff content with
         // the toolbar above; bottom 4 matches Cap()'s bottom inset so content doesn't run into
         // the action bar separator below.
-        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(2, 0, 2, 4)
+        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(2, 0, 4, 4)
             | treePanel
             | diffsLayout;
 
@@ -238,7 +252,7 @@ public class ChangesTabView(
         outer |= toolbar;
         outer |= mobileFilePicker;
         outer |= mainLayout;
-        outer |= submitReviewDialog;
+        outer |= suggestChangesDialog;
         return outer;
 
         async Task HandleDirectEdit(DirectEditArgs args)
