@@ -6,7 +6,7 @@ import Markdown from "react-markdown";
 type IvyEventHandler = (eventName: string, widgetId: string, args: any[]) => void;
 import { getWidth, getHeight } from "../styles";
 import { getMarkdownPlugins } from "../math";
-import { Eye, Pencil, Trash2, MoreHorizontal, MessageSquare } from "lucide-react";
+import { Pencil, Trash2, MoreHorizontal, MessageSquare } from "lucide-react";
 
 /** Container width (px) below which the diff is too cramped for a side-by-side (split) view. */
 export const NARROW_BREAKPOINT = 768;
@@ -659,17 +659,6 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                     </button>
                     {activeDropdownIndex === fileIndex && (
                       <div className="absolute right-0 mt-1 z-50 w-36 bg-[var(--background)] border border-[var(--border)] rounded-md shadow-lg py-1 text-xs">
-                        <button
-                          type="button"
-                          className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--muted)] text-[var(--foreground)] text-left cursor-pointer"
-                          onClick={() => {
-                            setActiveDropdownIndex(null);
-                            dispatchEvent?.("OnViewFile", id, [filePath]);
-                          }}
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          View file
-                        </button>
                         <button
                           type="button"
                           className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--muted)] text-[var(--foreground)] text-left cursor-pointer"
