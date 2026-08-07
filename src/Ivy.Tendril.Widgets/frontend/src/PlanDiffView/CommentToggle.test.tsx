@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, within } from "@testing-library/react";
 import { PlanDiffView } from "./PlanDiffView";
 
 const DIFF_FIXTURE = `diff --git a/index.html b/index.html
@@ -51,6 +51,42 @@ describe("PlanDiffView comment toggle", () => {
     const countSpan = button.querySelector("span.font-mono.text-\\[10px\\]");
     expect(countSpan).toBeTruthy();
     expect(countSpan?.textContent).toBe("1");
+  });
+
+  it("reserves the comment count column with no comments", () => {
+    const empty = render(
+      <PlanDiffView
+        id="test-widget-empty"
+        diff={DIFF_FIXTURE}
+        filePath="index.html"
+        comments={[]}
+      />
+    );
+    const withComment = render(
+      <PlanDiffView
+        id="test-widget-with-comment"
+        diff={DIFF_FIXTURE}
+        filePath="index.html"
+        comments={[COMMENT_FIXTURE]}
+      />
+    );
+
+    const emptyButton = within(empty.container).getByLabelText("Hide comments") as HTMLButtonElement;
+    const withCommentButton = within(withComment.container).getByLabelText("Hide comments") as HTMLButtonElement;
+
+    expect(emptyButton.children.length).toBe(withCommentButton.children.length);
+
+    const emptyCountSpan = emptyButton.querySelector("span.font-mono.text-\\[10px\\]");
+    const withCommentCountSpan = withCommentButton.querySelector("span.font-mono.text-\\[10px\\]");
+    expect(emptyCountSpan).toBeTruthy();
+    expect(withCommentCountSpan).toBeTruthy();
+    expect(emptyCountSpan?.textContent).toBe("");
+    expect(withCommentCountSpan?.textContent).toBe("1");
+
+    // Stat wrapper reserves width for the +N / -N spans
+    const statWrapper = withComment.container.querySelector(".min-w-\\[4\\.5rem\\]");
+    expect(statWrapper).toBeTruthy();
+    expect(statWrapper?.textContent).toContain("+");
   });
 
   it("toggles visibility both ways", () => {
