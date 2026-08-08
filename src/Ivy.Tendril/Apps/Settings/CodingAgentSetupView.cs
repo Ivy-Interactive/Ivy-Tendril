@@ -119,7 +119,7 @@ public class CodingAgentSetupView : ViewBase
                         isCheckingIvyUpdate.Set(true);
                         using var http = new HttpClient();
                         http.DefaultRequestHeaders.UserAgent.ParseAdd("IvyTendril");
-                        var latest = (await http.GetStringAsync("https://cdn.ivy.app/ivy-agent-cli/releases/latest.txt")).Trim();
+                        var latest = await FetchLatestIvyVersionAsync(http);
                         latestIvyVersion.Set(latest);
                     }
                     catch
@@ -606,33 +606,42 @@ public class CodingAgentSetupView : ViewBase
             using var httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("IvyTendril");
             
-            // 1. Get latest version from CDN
-            string latestTxtUrl = "https://cdn.ivy.app/ivy-agent-cli/releases/latest.txt";
+            // 1. Get latest version from GitHub releases / CDN
             string version;
             try
             {
-                version = (await httpClient.GetStringAsync(latestTxtUrl)).Trim();
+                version = await FetchLatestIvyVersionAsync(httpClient);
             }
             catch (Exception ex)
             {
-                throw new Exception($"Failed to fetch latest version metadata from CDN: {ex.Message}");
+                throw new Exception($"Failed to fetch latest version metadata: {ex.Message}");
             }
             
             // 2. Download the archive
             string extension = os == "windows" ? ".zip" : ".tar.gz";
             string archiveName = $"ivy-agent-cli-{os}-{arch}{extension}";
-            string downloadUrl = $"https://cdn.ivy.app/ivy-agent-cli/releases/download/{version}/{archiveName}";
+            string downloadUrl = $"https://github.com/Ivy-Interactive/ivy-agent-cli/releases/download/{version}/{archiveName}";
+            string cdnFallbackUrl = $"https://cdn.ivy.app/ivy-agent-cli/releases/download/{version}/{archiveName}";
             string archivePath = Path.Combine(tempDir, archiveName);
             
             try
             {
-                using var stream = await httpClient.GetStreamAsync(downloadUrl);
-                using var fileStream = new FileStream(archivePath, FileMode.Create, FileAccess.Write, FileShare.None);
-                await stream.CopyToAsync(fileStream);
+                try
+                {
+                    using var stream = await httpClient.GetStreamAsync(downloadUrl);
+                    using var fileStream = new FileStream(archivePath, FileMode.Create, FileAccess.Write, FileShare.None);
+                    await stream.CopyToAsync(fileStream);
+                }
+                catch
+                {
+                    using var stream = await httpClient.GetStreamAsync(cdnFallbackUrl);
+                    using var fileStream = new FileStream(archivePath, FileMode.Create, FileAccess.Write, FileShare.None);
+                    await stream.CopyToAsync(fileStream);
+                }
             }
             catch (Exception ex)
             {
-                throw new Exception($"Failed to download release archive from CDN: {ex.Message}");
+                throw new Exception($"Failed to download release archive: {ex.Message}");
             }
             
             if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
@@ -784,6 +793,33 @@ public class CodingAgentSetupView : ViewBase
         else
         {
             ac.EnvironmentVariables["ANTHROPIC_BASE_URL"] = url;
+        }
+    }
+
+    private static async Task<string> FetchLatestIvyVersionAsync(HttpClient httpClient)
+    {
+        try
+        {
+            var json = await httpClient.GetStringAsync("https://api.github.com/repos/Ivy-Interactive/ivy-agent-cli/releases/latest");
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("tag_name", out var tagProp))
+            {
+                var tag = tagProp.GetString();
+                if (!string.IsNullOrWhiteSpace(tag)) return tag.Trim();
+            }
+        }
+        catch
+        {
+            // Fallback to CDN
+        }
+
+        try
+        {
+            return (await httpClient.GetStringAsync("https://cdn.ivy.app/ivy-agent-cli/releases/latest.txt")).Trim();
+        }
+        catch
+        {
+            return "v0.1.0";
         }
     }
 }
