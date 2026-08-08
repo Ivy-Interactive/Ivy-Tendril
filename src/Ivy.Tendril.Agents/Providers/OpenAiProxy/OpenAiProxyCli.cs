@@ -98,7 +98,14 @@ public sealed class OpenAiProxyCli : IAgentCli
         var baseUrl = _baseUrlProvider();
         if (!string.IsNullOrEmpty(baseUrl))
         {
+            env["OPENAI_BASE_URL"] = baseUrl;
             env["ANTHROPIC_BASE_URL"] = baseUrl;
+        }
+        var apiKey = _apiKeyProvider();
+        if (!string.IsNullOrEmpty(apiKey))
+        {
+            env["OPENAI_API_KEY"] = apiKey;
+            env["ANTHROPIC_API_KEY"] = apiKey;
         }
         return env;
     }
