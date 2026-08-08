@@ -118,19 +118,22 @@ public class CodingAgentStepView(
         {
             var isAnthropicCard = selectedAgent.Value == "anthropic_card";
             var cardTitle = isAnthropicCard ? "Setup Anthropic" : "Setup OpenAI";
+            var defaultUrl = isAnthropicCard ? "https://api.anthropic.com/v1" : "https://api.openai.com";
 
-            object agentInputs = isAnthropicCard
-                ? (Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
-                    | openAiProxyApiKey.ToPasswordInput("sk-...")
-                        .WithField()
-                        .Label("API Key"))
-                : (Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
-                    | openAiProxyBaseUrl.ToTextInput("https://api.openai.com")
-                        .WithField()
-                        .Label("API Base URL")
-                    | openAiProxyApiKey.ToPasswordInput("sk-...")
-                        .WithField()
-                        .Label("API Key"));
+            if (string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value) ||
+                (isAnthropicCard && openAiProxyBaseUrl.Value == "https://api.openai.com") ||
+                (!isAnthropicCard && openAiProxyBaseUrl.Value == "https://api.anthropic.com/v1"))
+            {
+                openAiProxyBaseUrl.Set(defaultUrl);
+            }
+
+            object agentInputs = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                | openAiProxyBaseUrl.ToTextInput(defaultUrl)
+                    .WithField()
+                    .Label("API Base URL")
+                | openAiProxyApiKey.ToPasswordInput("sk-...")
+                    .WithField()
+                    .Label("API Key");
 
             return Layout.Vertical().Margin(0, 0, 0, 2)
                    | Text.H3(cardTitle)
@@ -154,16 +157,12 @@ public class CodingAgentStepView(
                                    return;
                                }
 
-                               if (isAnthropicCard)
-                               {
-                                   SaveOpenAiProxyBaseUrl(config, "https://api.anthropic.com/v1");
-                                   SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
-                               }
-                               else
-                               {
-                                   SaveOpenAiProxyBaseUrl(config, openAiProxyBaseUrl.Value);
-                                   SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
-                               }
+                               var baseUrl = string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value)
+                                   ? defaultUrl
+                                   : openAiProxyBaseUrl.Value;
+
+                               SaveOpenAiProxyBaseUrl(config, baseUrl);
+                               SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
 
                                config.SaveSettings();
                                _ = RunFlowAsync("openaiproxy");
