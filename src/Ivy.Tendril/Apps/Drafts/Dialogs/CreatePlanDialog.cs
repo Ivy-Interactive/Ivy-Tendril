@@ -100,7 +100,7 @@ public class CreatePlanDialog(
         });
 
         // e.g. "Continue with Claude Code" — branded to the configured coding agent.
-        var continueLabel = $"Chat with {AgentBranding.For(configService.Settings.CodingAgent, agentRunner).Label}";
+        var continueLabel = $"Chat with {AgentBranding.For(configService.Settings.CodingAgent, agentRunner, configService).Label}";
 
         var planWasCreated = false;
         void HandleClose()

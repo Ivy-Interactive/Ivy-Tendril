@@ -18,12 +18,26 @@ public static class AgentBranding
     public const string DefaultLabel = "Agent";
 
     /// <summary>Maps a coding agent id to its logo icon, falling back to <see cref="DefaultIcon"/>.</summary>
-    public static Icons IconFor(string? agentId)
+    public static Icons IconFor(string? agentId, IConfigService? config = null)
     {
         if (string.IsNullOrWhiteSpace(agentId))
             return DefaultIcon;
 
-        return AgentProviderFactory.NormalizeAgentName(agentId) switch
+        var normalized = AgentProviderFactory.NormalizeAgentName(agentId);
+        if (config != null && normalized.Equals("openaiproxy", StringComparison.OrdinalIgnoreCase))
+        {
+            var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+                AgentProviderFactory.NormalizeAgentName(a.Name).Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
+            if (ac != null && ac.EnvironmentVariables.TryGetValue("ANTHROPIC_BASE_URL", out var url))
+            {
+                if (url.Contains("api.berget.ai"))
+                    return Icons.ChevronUp;
+                if (url.Contains("api.anthropic.com"))
+                    return Icons.ClaudeCode;
+            }
+        }
+
+        return normalized switch
         {
             AgentId.Claude => Icons.ClaudeCode,
             AgentId.Copilot => Icons.Copilot,
@@ -43,9 +57,31 @@ public static class AgentBranding
     /// falling back gracefully to <see cref="DefaultLabel"/>/<see cref="DefaultIcon"/>
     /// for unknown or unregistered agents.
     /// </summary>
-    public static (string Label, Icons Icon) For(string? agentId, IAgentRunner runner)
+    public static (string Label, Icons Icon) For(string? agentId, IAgentRunner runner, IConfigService? config = null)
     {
-        var icon = IconFor(agentId);
+        if (config != null && AgentProviderFactory.NormalizeAgentName(agentId).Equals("openaiproxy", StringComparison.OrdinalIgnoreCase))
+        {
+            var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+                AgentProviderFactory.NormalizeAgentName(a.Name).Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
+            if (ac != null && ac.EnvironmentVariables.TryGetValue("ANTHROPIC_BASE_URL", out var url))
+            {
+                if (url.Contains("api.berget.ai"))
+                {
+                    return ("Berget AI", Icons.ChevronUp);
+                }
+                if (url.Contains("api.anthropic.com"))
+                {
+                    return ("Anthropic", Icons.ClaudeCode);
+                }
+            }
+        }
+
+        if (AgentProviderFactory.NormalizeAgentName(agentId).Equals("berget", StringComparison.OrdinalIgnoreCase))
+        {
+            return ("Berget AI", Icons.ChevronUp);
+        }
+
+        var icon = IconFor(agentId, config);
 
         if (string.IsNullOrWhiteSpace(agentId))
             return (DefaultLabel, icon);
