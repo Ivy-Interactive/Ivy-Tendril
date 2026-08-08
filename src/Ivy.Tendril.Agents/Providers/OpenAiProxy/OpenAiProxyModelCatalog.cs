@@ -28,7 +28,7 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
             [
                 new ModelInfo
                 {
-                    Id = "kimi-k3",
+                    Id = "moonshotai/Kimi-K3",
                     DisplayName = "Kimi K3",
                     Capabilities = DefaultCaps,
                     Provider = "berget",

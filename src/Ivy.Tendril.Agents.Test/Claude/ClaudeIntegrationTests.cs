@@ -208,7 +208,7 @@ public class ClaudeIntegrationTests : IAsyncLifetime
     [Fact]
     public void RegisteredAgents_IncludesClaude()
     {
-        Assert.Contains(AgentId.Claude, _runner.RegisteredAgents);
+        Assert.Contains((string)AgentId.Claude, _runner.RegisteredAgents);
     }
 
     [Fact]

@@ -118,9 +118,9 @@ public class CodingAgentSetupView : ViewBase
             var balanced = GetProfileModel(config, realAgentId, "balanced");
             var quick = GetProfileModel(config, realAgentId, "quick");
 
-            deepModel.Set(deep == "default" && isBerget ? "kimi-k3" : deep);
-            balancedModel.Set(balanced == "default" && isBerget ? "kimi-k3" : balanced);
-            quickModel.Set(quick == "default" && isBerget ? "kimi-k3" : quick);
+            deepModel.Set(deep == "default" && isBerget ? "moonshotai/Kimi-K3" : deep);
+            balancedModel.Set(balanced == "default" && isBerget ? "moonshotai/Kimi-K3" : balanced);
+            quickModel.Set(quick == "default" && isBerget ? "moonshotai/Kimi-K3" : quick);
             ollamaUrl.Set(GetOllamaUrlFromConfig(config, realAgentId));
             lastRealAgent.Set(realAgentId);
             testAgentId.Set(realAgentId);
@@ -228,9 +228,9 @@ public class CodingAgentSetupView : ViewBase
                     {
                         openAiProxyBaseUrl.Set("https://api.berget.ai/v1");
                     }
-                    if (deepModel.Value == "default") deepModel.Set("kimi-k3");
-                    if (balancedModel.Value == "default") balancedModel.Set("kimi-k3");
-                    if (quickModel.Value == "default") quickModel.Set("kimi-k3");
+                    if (deepModel.Value == "default") deepModel.Set("moonshotai/Kimi-K3");
+                    if (balancedModel.Value == "default") balancedModel.Set("moonshotai/Kimi-K3");
+                    if (quickModel.Value == "default") quickModel.Set("moonshotai/Kimi-K3");
                 }
             }));
 

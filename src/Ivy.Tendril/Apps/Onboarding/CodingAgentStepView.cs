@@ -173,7 +173,7 @@ public class CodingAgentStepView(
                                SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
                                if (isBergetCard)
                                {
-                                   SaveProfiles(config, "openaiproxy", "kimi-k3", "kimi-k3", "kimi-k3");
+                                   SaveProfiles(config, "openaiproxy", "moonshotai/Kimi-K3", "moonshotai/Kimi-K3", "moonshotai/Kimi-K3");
                                }
 
                                config.SaveSettings();

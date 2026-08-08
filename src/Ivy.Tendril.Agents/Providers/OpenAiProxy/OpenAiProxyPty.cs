@@ -30,9 +30,9 @@ public sealed class OpenAiProxyPty : IAgentPty
             {
                 return
                 [
-                    new AgentProfileDefault(ProfileTier.Deep, "kimi-k3", null),
-                    new AgentProfileDefault(ProfileTier.Balanced, "kimi-k3", null),
-                    new AgentProfileDefault(ProfileTier.Quick, "kimi-k3", null),
+                    new AgentProfileDefault(ProfileTier.Deep, "moonshotai/Kimi-K3", null),
+                    new AgentProfileDefault(ProfileTier.Balanced, "moonshotai/Kimi-K3", null),
+                    new AgentProfileDefault(ProfileTier.Quick, "moonshotai/Kimi-K3", null),
                 ];
             }
             return _inner.DefaultProfiles;
@@ -50,7 +50,7 @@ public sealed class OpenAiProxyPty : IAgentPty
         var isBerget = baseUrl?.Contains("api.berget.ai") ?? false;
         if (isBerget && string.IsNullOrEmpty(config.Model))
         {
-            config = config with { Model = "kimi-k3" };
+            config = config with { Model = "moonshotai/Kimi-K3" };
         }
 
         var spec = _inner.BuildPtySpec(config);

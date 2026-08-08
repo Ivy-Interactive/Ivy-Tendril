@@ -13,7 +13,7 @@ public class AgentRunnerRegistrationTests
         var runner = new AgentRunner();
         runner.Register(new ClaudeCli(), new ClaudeEventParser(), new ClaudeHealthCheck());
 
-        Assert.Contains(AgentId.Claude, runner.RegisteredAgents);
+        Assert.Contains((string)AgentId.Claude, runner.RegisteredAgents);
         Assert.NotNull(runner.GetCli(AgentId.Claude));
         Assert.NotNull(runner.GetHealthCheck(AgentId.Claude));
         Assert.NotNull(runner.GetDescriptor(AgentId.Claude));
