@@ -84,21 +84,52 @@ public class CodingAgentSetupView : ViewBase
             initialValue: []
         );
 
+        var tendrilArgs = UseService<TendrilArgs>();
+        var installedIvyVersion = UseState<string?>(null);
+        var latestIvyVersion = UseState<string?>(null);
+        var isCheckingIvyUpdate = UseState(false);
+        var isIvyUpdating = UseState(false);
+        var ivyUpdateError = UseState<string?>(null);
         var isIvyInstalled = UseState(false);
         var isInstalling = UseState(false);
         var installError = UseState<string?>(null);
 
         var checkIvyInstall = async () =>
         {
-            var hc = runner.GetHealthCheck("ivy") ?? runner.GetHealthCheck("openaiproxy");
+            var hc = runner.GetHealthCheck("ivy") ?? runner.GetHealthCheck("openaiproxy") ?? runner.GetHealthCheck("opencode");
             if (hc != null)
             {
                 var status = await hc.CheckInstallAsync();
                 isIvyInstalled.Set(status.IsInstalled);
+                installedIvyVersion.Set(status.Version);
             }
             else
             {
                 isIvyInstalled.Set(false);
+                installedIvyVersion.Set(null);
+            }
+
+            if (tendrilArgs.Beta && (selectedAgent.Value == "openaiproxy_card" || selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card" || selectedAgent.Value == "ivy_card" || selectedAgent.Value == "opencode"))
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        isCheckingIvyUpdate.Set(true);
+                        using var http = new HttpClient();
+                        http.DefaultRequestHeaders.UserAgent.ParseAdd("IvyTendril");
+                        var latest = (await http.GetStringAsync("https://cdn.ivy.app/ivy-agent-cli/releases/latest.txt")).Trim();
+                        latestIvyVersion.Set(latest);
+                    }
+                    catch
+                    {
+                        // Ignore quiet errors for background check
+                    }
+                    finally
+                    {
+                        isCheckingIvyUpdate.Set(false);
+                    }
+                });
             }
         };
 
@@ -277,6 +308,59 @@ public class CodingAgentSetupView : ViewBase
             | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced")
             | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick");
 
+        object? ivyAgentUpdateCard = null;
+        if (tendrilArgs.Beta && (selectedAgent.Value == "openaiproxy_card" || selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card" || selectedAgent.Value == "ivy_card" || selectedAgent.Value == "opencode"))
+        {
+            var hasUpdate = !string.IsNullOrEmpty(latestIvyVersion.Value) &&
+                !string.Equals(installedIvyVersion.Value, latestIvyVersion.Value, StringComparison.OrdinalIgnoreCase);
+
+            ivyAgentUpdateCard = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                | new Card(
+                    Layout.Vertical()
+                    | (Layout.Horizontal()
+                        | Text.Block("Ivy Agent CLI Status").Bold()
+                        | new Spacer()
+                        | (isCheckingIvyUpdate.Value
+                            ? Text.Muted("Checking update...").Small()
+                            : (hasUpdate
+                                ? new Badge($"Update Available: {installedIvyVersion.Value ?? "Not Installed"} → {latestIvyVersion.Value}", BadgeVariant.Warning)
+                                : new Badge($"Up to Date ({installedIvyVersion.Value ?? "Installed"})", BadgeVariant.Success))))
+                    | (hasUpdate
+                        ? (object)(Layout.Vertical()
+                            | Text.Muted($"A newer version of the Ivy Agent CLI ({latestIvyVersion.Value}) is available on the CDN.").Small()
+                            | (ivyUpdateError.Value != null ? Text.Danger(ivyUpdateError.Value).Small() : null!)
+                            | new Button(isIvyUpdating.Value ? "Updating Ivy Agent CLI..." : "Update Ivy Agent CLI")
+                                .Primary()
+                                .Disabled(isIvyUpdating.Value)
+                                .OnClick(async () =>
+                                {
+                                    isIvyUpdating.Set(true);
+                                    ivyUpdateError.Set(null);
+                                    try
+                                    {
+                                        var success = await InstallIvyAgentAsync(client);
+                                        if (success)
+                                        {
+                                            await checkIvyInstall();
+                                        }
+                                        else
+                                        {
+                                            ivyUpdateError.Set("Installation failed.");
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        ivyUpdateError.Set(ex.Message);
+                                    }
+                                    finally
+                                    {
+                                        isIvyUpdating.Set(false);
+                                    }
+                                }))
+                        : null!)
+                );
+        }
+
         return Layout.Vertical()
                | Text.Block("Coding Agent").Bold()
                | (Layout.Vertical()
@@ -290,6 +374,7 @@ public class CodingAgentSetupView : ViewBase
                            | byoGrid.Width(Size.Full())))
                    : null!)
                | agentInputs
+               | ivyAgentUpdateCard
                | profileModels
                | new Spacer()
                | (Layout.Horizontal()
