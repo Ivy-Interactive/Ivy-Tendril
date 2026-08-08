@@ -669,9 +669,33 @@ public class CodingAgentSetupView : ViewBase
                 throw new Exception($"Binary '{binaryName}' not found in the downloaded archive.");
             }
             
+            // Kill any running ivy-agent processes before updating
+            try
+            {
+                foreach (var proc in Process.GetProcessesByName("ivy-agent"))
+                {
+                    try { proc.Kill(true); } catch { }
+                }
+            }
+            catch { }
+
             string destPath = Path.Combine(installDir, binaryName);
-            if (File.Exists(destPath)) File.Delete(destPath);
-            File.Move(binarySource, destPath);
+            try
+            {
+                if (File.Exists(destPath)) File.Delete(destPath);
+            }
+            catch
+            {
+                // On Windows, if file is locked, rename it to .old first
+                var oldPath = destPath + ".old." + DateTime.UtcNow.Ticks;
+                try { File.Move(destPath, oldPath); } catch { }
+            }
+
+            if (File.Exists(binarySource))
+            {
+                File.Copy(binarySource, destPath, overwrite: true);
+                File.Delete(binarySource);
+            }
 
             var localBin = Path.Combine(home, ".local", "bin", binaryName);
             if (File.Exists(localBin))
