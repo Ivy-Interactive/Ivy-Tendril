@@ -617,50 +617,21 @@ public class CodingAgentSetupView : ViewBase
                 throw new Exception($"Failed to fetch latest version metadata: {ex.Message}");
             }
             
-            // 2. Download the archive
+            // 2. Download the archive from CDN
             string extension = os == "windows" ? ".zip" : ".tar.gz";
             string archiveName = $"ivy-agent-cli-{os}-{arch}{extension}";
+            string downloadUrl = $"https://cdn.ivy.app/ivy-agent-cli/releases/download/{version}/{archiveName}";
             string archivePath = Path.Combine(tempDir, archiveName);
             
-            bool downloaded = false;
             try
             {
-                var (exitCode, _, _) = await HealthCheckRunner.RunAsync(
-                    "gh", ["release", "download", version, "--repo", "Ivy-Interactive/ivy-agent-cli", "--pattern", archiveName, "--dir", tempDir, "--clobber"],
-                    TimeSpan.FromMinutes(2), CancellationToken.None);
-                if (exitCode == 0 && File.Exists(archivePath))
-                {
-                    downloaded = true;
-                }
+                using var stream = await httpClient.GetStreamAsync(downloadUrl);
+                using var fileStream = new FileStream(archivePath, FileMode.Create, FileAccess.Write, FileShare.None);
+                await stream.CopyToAsync(fileStream);
             }
-            catch
+            catch (Exception ex)
             {
-                // Fallback to HTTP download
-            }
-
-            if (!downloaded)
-            {
-                string downloadUrl = $"https://github.com/Ivy-Interactive/ivy-agent-cli/releases/download/{version}/{archiveName}";
-                string cdnFallbackUrl = $"https://cdn.ivy.app/ivy-agent-cli/releases/download/{version}/{archiveName}";
-                try
-                {
-                    try
-                    {
-                        using var stream = await httpClient.GetStreamAsync(downloadUrl);
-                        using var fileStream = new FileStream(archivePath, FileMode.Create, FileAccess.Write, FileShare.None);
-                        await stream.CopyToAsync(fileStream);
-                    }
-                    catch
-                    {
-                        using var stream = await httpClient.GetStreamAsync(cdnFallbackUrl);
-                        using var fileStream = new FileStream(archivePath, FileMode.Create, FileAccess.Write, FileShare.None);
-                        await stream.CopyToAsync(fileStream);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    throw new Exception($"Failed to download release archive: {ex.Message}");
-                }
+                throw new Exception($"Failed to download release archive from CDN: {ex.Message}");
             }
             
             if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
@@ -817,40 +788,6 @@ public class CodingAgentSetupView : ViewBase
 
     private static async Task<string> FetchLatestIvyVersionAsync(HttpClient httpClient)
     {
-        try
-        {
-            var (exitCode, stdout, _) = await HealthCheckRunner.RunAsync(
-                "gh", ["release", "list", "--repo", "Ivy-Interactive/ivy-agent-cli", "--limit", "1"],
-                TimeSpan.FromSeconds(5), CancellationToken.None);
-            if (exitCode == 0 && !string.IsNullOrWhiteSpace(stdout))
-            {
-                var parts = stdout.Trim().Split('\t');
-                if (parts.Length >= 3 && !string.IsNullOrWhiteSpace(parts[2]))
-                {
-                    return parts[2].Trim();
-                }
-            }
-        }
-        catch
-        {
-            // Fallback to HTTP GitHub API & CDN
-        }
-
-        try
-        {
-            var json = await httpClient.GetStringAsync("https://api.github.com/repos/Ivy-Interactive/ivy-agent-cli/releases/latest");
-            using var doc = System.Text.Json.JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("tag_name", out var tagProp))
-            {
-                var tag = tagProp.GetString();
-                if (!string.IsNullOrWhiteSpace(tag)) return tag.Trim();
-            }
-        }
-        catch
-        {
-            // Fallback to CDN
-        }
-
         try
         {
             return (await httpClient.GetStringAsync("https://cdn.ivy.app/ivy-agent-cli/releases/latest.txt")).Trim();
