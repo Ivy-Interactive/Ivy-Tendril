@@ -3,7 +3,7 @@ using Ivy.Tendril.Agents.Helpers;
 
 namespace Ivy.Tendril.Agents.Providers.Ivy;
 
-internal static class IvyBinaryResolver
+public static class IvyBinaryResolver
 {
     private static string? _cachedPath;
 

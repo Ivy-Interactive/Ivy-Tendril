@@ -27,7 +27,7 @@ public class AgentServiceCollectionExtensionsTests
 
         var runner = sp.GetRequiredService<IAgentRunner>();
 
-        Assert.Contains(AgentId.Claude, runner.RegisteredAgents);
+        Assert.Contains((string)AgentId.Claude, runner.RegisteredAgents);
     }
 
     [Fact]
@@ -143,7 +143,7 @@ public class AgentServiceCollectionExtensionsTests
 
         var runner = sp.GetRequiredService<IAgentRunner>();
 
-        Assert.Contains(AgentId.Antigravity, runner.RegisteredAgents);
+        Assert.Contains((string)AgentId.Antigravity, runner.RegisteredAgents);
     }
 
     [Fact]

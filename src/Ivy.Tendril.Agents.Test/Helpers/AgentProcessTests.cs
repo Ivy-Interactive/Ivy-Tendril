@@ -5,13 +5,19 @@ namespace Ivy.Tendril.Agents.Test.Helpers;
 
 public class AgentProcessTests
 {
+    private static (string FileName, string[] Arguments) EchoSpec(string text) =>
+        System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows)
+            ? ("cmd.exe", ["/c", "echo", text])
+            : ("echo", [text]);
+
     [Fact]
     public async Task Start_SimpleCommand_Succeeds()
     {
+        var (file, args) = EchoSpec("hello");
         var spec = new AgentProcessSpec
         {
-            FileName = "echo",
-            Arguments = ["hello"],
+            FileName = file,
+            Arguments = args,
             WorkingDirectory = Path.GetTempPath(),
             Environment = new Dictionary<string, string>(),
             RedirectStdin = false,
@@ -26,10 +32,11 @@ public class AgentProcessTests
     [Fact]
     public async Task ReadStdoutLinesAsync_ReadsOutput()
     {
+        var (file, args) = EchoSpec("test output");
         var spec = new AgentProcessSpec
         {
-            FileName = "echo",
-            Arguments = ["test output"],
+            FileName = file,
+            Arguments = args,
             WorkingDirectory = Path.GetTempPath(),
             Environment = new Dictionary<string, string>(),
             RedirectStdin = false,
@@ -72,10 +79,11 @@ public class AgentProcessTests
     [Fact]
     public async Task WaitForExitAsync_CompletesAfterExit()
     {
+        var (file, args) = EchoSpec("done");
         var spec = new AgentProcessSpec
         {
-            FileName = "echo",
-            Arguments = ["done"],
+            FileName = file,
+            Arguments = args,
             WorkingDirectory = Path.GetTempPath(),
             Environment = new Dictionary<string, string>(),
             RedirectStdin = false,

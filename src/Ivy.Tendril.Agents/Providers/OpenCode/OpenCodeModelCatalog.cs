@@ -15,7 +15,7 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
     [
         new()
         {
-            Id = "kimi-k3", DisplayName = "Kimi k3",
+            Id = "moonshotai/Kimi-K3", DisplayName = "Kimi k3",
             Capabilities = DefaultCaps, Provider = "moonshot", IsDefault = true,
         },
         new()

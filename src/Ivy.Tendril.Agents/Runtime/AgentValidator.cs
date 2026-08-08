@@ -41,16 +41,13 @@ public sealed class AgentValidator
             });
         }
 
-        var binaryName = cli.Id switch
-        {
-            AgentId.Antigravity => "agy",
-            AgentId.Claude => "claude",
-            AgentId.Copilot => Providers.Copilot.CopilotBinaryResolver.Resolve().FileName,
-            AgentId.OpenCode => Providers.OpenCode.OpenCodeBinaryResolver.Resolve(),
-            AgentId.Ivy => Providers.Ivy.IvyBinaryResolver.Resolve(),
-            AgentId.OpenAiProxy => Providers.Ivy.IvyBinaryResolver.Resolve(),
-            _ => cli.Id
-        };
+        var id = cli.Id;
+        var binaryName = id == AgentId.Antigravity ? "agy"
+            : (id == AgentId.Claude ? "claude"
+            : (id == AgentId.Copilot ? Providers.Copilot.CopilotBinaryResolver.Resolve().FileName
+            : (id == AgentId.OpenCode ? Providers.OpenCode.OpenCodeBinaryResolver.Resolve()
+            : (id == AgentId.Ivy || id == AgentId.OpenAiProxy ? Providers.Ivy.IvyBinaryResolver.Resolve()
+            : cli.Id))));
         if (!BinaryResolver.IsInstalled(binaryName))
         {
             problems.Add(new ValidationProblem

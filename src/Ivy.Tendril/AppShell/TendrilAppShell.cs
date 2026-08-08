@@ -80,15 +80,15 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
     // Re-brand the generic "Agent" menu item to the configured coding agent (e.g. "Claude Code"
     // with the Claude icon), so the sidebar matches what actually launches.
-    private static MenuItem BrandAgentItem(MenuItem item, string agentId, IAgentRunner runner)
+    private static MenuItem BrandAgentItem(MenuItem item, string agentId, IAgentRunner runner, IConfigService config)
     {
         if (item.Tag is string tag && tag == AgentAppId)
         {
-            var (label, icon) = AgentBranding.For(agentId, runner);
+            var (label, icon) = AgentBranding.For(agentId, runner, config);
             item = item.Label(label).Icon(icon);
         }
         if (item.Children is { Length: > 0 })
-            item = item with { Children = item.Children.Select(c => BrandAgentItem(c, agentId, runner)).ToArray() };
+            item = item with { Children = item.Children.Select(c => BrandAgentItem(c, agentId, runner, config)).ToArray() };
         return item;
     }
 
@@ -110,7 +110,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var agentId = config.Settings.CodingAgent;
         return repo.GetMenuItems()
             .Select(m => AddBadge(m, badges))
-            .Select(m => BrandAgentItem(m, agentId, runner))
+            .Select(m => BrandAgentItem(m, agentId, runner, config))
             .ToArray();
     }
 
@@ -233,7 +233,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         {
             if (app.Id == AgentAppId)
             {
-                var (label, icon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
+                var (label, icon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner, config);
                 return (label, icon);
             }
             return (app.Title, app.Icon);
