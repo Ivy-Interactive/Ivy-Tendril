@@ -124,7 +124,7 @@ public static class AgentServiceCollectionExtensions
                     new Providers.OpenAiProxy.OpenAiProxyFailureAnalyzer(),
                     new Providers.OpenAiProxy.OpenAiProxySessionCostParser(),
                     new Providers.OpenAiProxy.OpenAiProxyPty(openAiProxyApiKeyProvider, openAiProxyBaseUrlProvider),
-                    new Providers.OpenAiProxy.OpenAiProxyModelCatalog());
+                    new Providers.OpenAiProxy.OpenAiProxyModelCatalog(openAiProxyBaseUrlProvider));
             }
 
             return runner;

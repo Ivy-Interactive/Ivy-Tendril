@@ -1,16 +1,20 @@
 namespace Ivy.Tendril.Agents.Abstractions;
 
-public static class AgentId
+public readonly record struct AgentId(string Value)
 {
-    public const string Antigravity = "antigravity";
-    public const string Claude = "claude";
-    public const string Codex = "codex";
-    public const string Copilot = "copilot";
-    public const string Gemini = "gemini";
-    public const string OpenCode = "opencode";
-    public const string Ivy = "ivy";
-    public const string OpenAiProxy = "openaiproxy";
-    public const string Berget = "berget";
+    public static readonly AgentId Antigravity = new("antigravity");
+    public static readonly AgentId Claude = new("claude");
+    public static readonly AgentId Codex = new("codex");
+    public static readonly AgentId Copilot = new("copilot");
+    public static readonly AgentId Gemini = new("gemini");
+    public static readonly AgentId OpenCode = new("opencode");
+    public static readonly AgentId Ivy = new("ivy");
+    public static readonly AgentId OpenAiProxy = new("openaiproxy");
+    public static readonly AgentId Berget = new("berget");
+
+    public static implicit operator string(AgentId agentId) => agentId.Value ?? "";
+    public static implicit operator AgentId(string? value) => new(value ?? "");
+    public override string ToString() => Value ?? "";
 }
 
 public static class CanonicalTools
