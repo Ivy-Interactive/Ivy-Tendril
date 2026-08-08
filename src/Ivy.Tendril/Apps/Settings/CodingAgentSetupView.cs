@@ -206,6 +206,10 @@ public class CodingAgentSetupView : ViewBase
                 {
                     openAiProxyBaseUrl.Set("https://api.openai.com");
                 }
+                else if (a.Key == "anthropic_card" && (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com")))
+                {
+                    openAiProxyBaseUrl.Set("https://api.anthropic.com/v1");
+                }
             }));
 
         object? agentInputs = null;
@@ -222,6 +226,9 @@ public class CodingAgentSetupView : ViewBase
         else if (selectedAgent.Value == "anthropic_card")
         {
             agentInputs = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                | openAiProxyBaseUrl.ToTextInput("https://api.anthropic.com/v1")
+                    .WithField()
+                    .Label("API Base URL")
                 | openAiProxyApiKey.ToPasswordInput("sk-...")
                     .WithField()
                     .Label("API Key");
@@ -274,7 +281,8 @@ public class CodingAgentSetupView : ViewBase
                            }
                            else if (isAnthropic)
                            {
-                               SaveOpenAiProxyBaseUrl(config, "https://api.anthropic.com/v1");
+                               var baseUrl = string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value) ? "https://api.anthropic.com/v1" : openAiProxyBaseUrl.Value;
+                               SaveOpenAiProxyBaseUrl(config, baseUrl);
                                SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
                                SaveIvyApiKey(config, "");
                            }
