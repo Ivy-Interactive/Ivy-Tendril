@@ -69,7 +69,8 @@ public class CodingAgentStepView(
     private static readonly ByoAgentInfo[] ByoAgents =
     [
         new("openaiproxy_card", "OpenAI", Icons.OpenAI),
-        new("anthropic_card", "Anthropic", Icons.ClaudeCode)
+        new("anthropic_card", "Anthropic", Icons.ClaudeCode),
+        new("berget_card", "Berget AI", Icons.Server)
     ];
 
     public override object Build()
@@ -107,33 +108,40 @@ public class CodingAgentStepView(
             {
                 selectedAgent.Set(agentKey);
                 error.Set(null);
-                if (agentKey != "openaiproxy_card" && agentKey != "anthropic_card")
+                if (agentKey != "openaiproxy_card" && agentKey != "anthropic_card" && agentKey != "berget_card")
                 {
                     _ = RunFlowAsync(agentKey);
                 }
             }, error.Value);
         }
 
-        if (progressMessage.Value is null && (selectedAgent.Value == "openaiproxy_card" || selectedAgent.Value == "anthropic_card"))
+        if (progressMessage.Value is null && (selectedAgent.Value == "openaiproxy_card" || selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card"))
         {
             var isAnthropicCard = selectedAgent.Value == "anthropic_card";
-            var cardTitle = isAnthropicCard ? "Setup Anthropic" : "Setup OpenAI";
-            var defaultUrl = isAnthropicCard ? "https://api.anthropic.com/v1" : "https://api.openai.com";
+            var isBergetCard = selectedAgent.Value == "berget_card";
+            var cardTitle = isBergetCard ? "Setup Berget AI" : (isAnthropicCard ? "Setup Anthropic" : "Setup OpenAI");
+            var defaultUrl = isBergetCard ? "https://api.berget.ai/v1" : (isAnthropicCard ? "https://api.anthropic.com/v1" : "https://api.openai.com");
 
             if (string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value) ||
-                (isAnthropicCard && openAiProxyBaseUrl.Value == "https://api.openai.com") ||
-                (!isAnthropicCard && openAiProxyBaseUrl.Value == "https://api.anthropic.com/v1"))
+                (isBergetCard && !openAiProxyBaseUrl.Value.Contains("api.berget.ai")) ||
+                (isAnthropicCard && (openAiProxyBaseUrl.Value == "https://api.openai.com" || openAiProxyBaseUrl.Value.Contains("api.berget.ai"))) ||
+                (!isAnthropicCard && !isBergetCard && (openAiProxyBaseUrl.Value.Contains("api.anthropic.com") || openAiProxyBaseUrl.Value.Contains("api.berget.ai"))))
             {
                 openAiProxyBaseUrl.Set(defaultUrl);
             }
 
-            object agentInputs = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
-                | openAiProxyBaseUrl.ToTextInput(defaultUrl)
-                    .WithField()
-                    .Label("API Base URL")
-                | openAiProxyApiKey.ToPasswordInput("sk-...")
-                    .WithField()
-                    .Label("API Key");
+            object agentInputs = isBergetCard
+                ? (Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                    | openAiProxyApiKey.ToPasswordInput("...")
+                        .WithField()
+                        .Label("API Key"))
+                : (Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                    | openAiProxyBaseUrl.ToTextInput(defaultUrl)
+                        .WithField()
+                        .Label("API Base URL")
+                    | openAiProxyApiKey.ToPasswordInput("sk-...")
+                        .WithField()
+                        .Label("API Key"));
 
             return Layout.Vertical().Margin(0, 0, 0, 2)
                    | Text.H3(cardTitle)
@@ -157,7 +165,7 @@ public class CodingAgentStepView(
                                    return;
                                }
 
-                               var baseUrl = string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value)
+                               var baseUrl = isBergetCard || string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value)
                                    ? defaultUrl
                                    : openAiProxyBaseUrl.Value;
 
@@ -171,9 +179,10 @@ public class CodingAgentStepView(
         }
 
         var selectedLabel = Agents.FirstOrDefault(a => a.Key == selectedAgent.Value)?.Label
-            ?? (selectedAgent.Value == "openaiproxy_card" ? "OpenAI"
+            ?? (selectedAgent.Value == "berget_card" ? "Berget AI"
+            : (selectedAgent.Value == "openaiproxy_card" ? "OpenAI"
             : (selectedAgent.Value == "anthropic_card" ? "Anthropic"
-            : (selectedAgent.Value == "openaiproxy" ? "OpenAI Proxy" : selectedAgent.Value)));
+            : (selectedAgent.Value == "openaiproxy" ? "OpenAI Proxy" : selectedAgent.Value))));
 
         return Layout.Vertical().Margin(0, 0, 0, 2)
                | Text.Block(progressMessage.Value ?? $"Setting Up {selectedLabel}")

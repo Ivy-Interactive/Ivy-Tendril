@@ -37,9 +37,11 @@ public class CodingAgentSetupView : ViewBase
                 : (config.Settings.CodingAgent == "ivy"
                     ? "openaiproxy_card"
                     : (config.Settings.CodingAgent == "openaiproxy"
-                        ? (GetOpenAiProxyBaseUrlFromConfig(config).Contains("api.anthropic.com")
-                            ? "anthropic_card"
-                            : "openaiproxy_card")
+                        ? (GetOpenAiProxyBaseUrlFromConfig(config).Contains("api.berget.ai")
+                            ? "berget_card"
+                            : (GetOpenAiProxyBaseUrlFromConfig(config).Contains("api.anthropic.com")
+                                ? "anthropic_card"
+                                : "openaiproxy_card"))
                         : config.Settings.CodingAgent))
         );
 
@@ -71,7 +73,7 @@ public class CodingAgentSetupView : ViewBase
         var modelsQuery = UseQuery<ModelInfo[], string>(
             selectedAgent.Value == "openaiproxy_card"
                 ? (openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app") ? "ivy" : "openaiproxy")
-                : (selectedAgent.Value == "anthropic_card" ? "openaiproxy" : selectedAgent.Value),
+                : (selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card" ? "openaiproxy" : selectedAgent.Value),
             async (agentId, ct) =>
             {
                 var catalog = runner.GetModelCatalog(agentId);
@@ -107,7 +109,7 @@ public class CodingAgentSetupView : ViewBase
 
         var realAgentId = selectedAgent.Value == "openaiproxy_card"
             ? (openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app") ? "ivy" : "openaiproxy")
-            : (selectedAgent.Value == "anthropic_card" ? "openaiproxy" : selectedAgent.Value);
+            : (selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card" ? "openaiproxy" : selectedAgent.Value);
 
         if (lastRealAgent.Value != realAgentId)
         {
@@ -128,11 +130,12 @@ public class CodingAgentSetupView : ViewBase
 
         var isIvy = selectedAgent.Value == "openaiproxy_card" && openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app");
         var isAnthropic = selectedAgent.Value == "anthropic_card";
+        var isBerget = selectedAgent.Value == "berget_card";
         var isOpenAi = selectedAgent.Value == "openaiproxy_card" && !isIvy;
 
         string finalAgent;
         if (isIvy) finalAgent = "ivy";
-        else if (isAnthropic || isOpenAi) finalAgent = "openaiproxy";
+        else if (isBerget || isAnthropic || isOpenAi) finalAgent = "openaiproxy";
         else finalAgent = selectedAgent.Value;
 
         var hasAgentChanges = finalAgent != config.Settings.CodingAgent;
@@ -149,6 +152,10 @@ public class CodingAgentSetupView : ViewBase
         if (isIvy)
         {
             hasCredsChanged = openAiProxyApiKey.Value != currentIvyKey;
+        }
+        else if (isBerget)
+        {
+            hasCredsChanged = openAiProxyApiKey.Value != currentOpenAiKey || !currentOpenAiBaseUrl.Contains("api.berget.ai");
         }
         else if (isAnthropic)
         {
@@ -187,7 +194,8 @@ public class CodingAgentSetupView : ViewBase
         var byoAgents = new[]
         {
             new ByoAgentInfo("openaiproxy_card", "OpenAI", Icons.OpenAI),
-            new ByoAgentInfo("anthropic_card", "Anthropic", Icons.ClaudeCode)
+            new ByoAgentInfo("anthropic_card", "Anthropic", Icons.ClaudeCode),
+            new ByoAgentInfo("berget_card", "Berget AI", Icons.Server)
         };
 
         var byoGrid = Layout.Grid()
@@ -202,13 +210,17 @@ public class CodingAgentSetupView : ViewBase
             ).Width(Size.Full()).Height(Size.Full()).OnClick(() =>
             {
                 selectedAgent.Set(a.Key);
-                if (a.Key == "openaiproxy_card" && openAiProxyBaseUrl.Value.Contains("api.anthropic.com"))
+                if (a.Key == "openaiproxy_card" && (openAiProxyBaseUrl.Value.Contains("api.anthropic.com") || openAiProxyBaseUrl.Value.Contains("api.berget.ai")))
                 {
                     openAiProxyBaseUrl.Set("https://api.openai.com");
                 }
-                else if (a.Key == "anthropic_card" && (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com")))
+                else if (a.Key == "anthropic_card" && (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com") || openAiProxyBaseUrl.Value.Contains("api.berget.ai")))
                 {
                     openAiProxyBaseUrl.Set("https://api.anthropic.com/v1");
+                }
+                else if (a.Key == "berget_card" && (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com") || openAiProxyBaseUrl.Value.Contains("api.anthropic.com")))
+                {
+                    openAiProxyBaseUrl.Set("https://api.berget.ai/v1");
                 }
             }));
 
@@ -230,6 +242,13 @@ public class CodingAgentSetupView : ViewBase
                     .WithField()
                     .Label("API Base URL")
                 | openAiProxyApiKey.ToPasswordInput("sk-...")
+                    .WithField()
+                    .Label("API Key");
+        }
+        else if (selectedAgent.Value == "berget_card")
+        {
+            agentInputs = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                | openAiProxyApiKey.ToPasswordInput("...")
                     .WithField()
                     .Label("API Key");
         }
@@ -278,6 +297,15 @@ public class CodingAgentSetupView : ViewBase
                                SaveIvyApiKey(config, openAiProxyApiKey.Value);
                                SaveOpenAiProxyApiKey(config, "");
                                SaveOpenAiProxyBaseUrl(config, "");
+                           }
+                           else if (isBerget)
+                           {
+                               var baseUrl = string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value) || !openAiProxyBaseUrl.Value.Contains("api.berget.ai")
+                                   ? "https://api.berget.ai/v1"
+                                   : openAiProxyBaseUrl.Value;
+                               SaveOpenAiProxyBaseUrl(config, baseUrl);
+                               SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
+                               SaveIvyApiKey(config, "");
                            }
                            else if (isAnthropic)
                            {
