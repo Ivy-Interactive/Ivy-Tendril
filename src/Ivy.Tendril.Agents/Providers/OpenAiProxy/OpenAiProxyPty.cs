@@ -21,7 +21,23 @@ public sealed class OpenAiProxyPty : IAgentPty
 
     public AgentCapabilities Capabilities => _inner.Capabilities;
     public TransportKind SupportedTransports => _inner.SupportedTransports;
-    public IReadOnlyList<AgentProfileDefault> DefaultProfiles => _inner.DefaultProfiles;
+    public IReadOnlyList<AgentProfileDefault> DefaultProfiles
+    {
+        get
+        {
+            var baseUrl = _baseUrlProvider();
+            if (baseUrl != null && baseUrl.Contains("api.berget.ai"))
+            {
+                return
+                [
+                    new AgentProfileDefault(ProfileTier.Deep, "kimi-k3", null),
+                    new AgentProfileDefault(ProfileTier.Balanced, "kimi-k3", null),
+                    new AgentProfileDefault(ProfileTier.Quick, "kimi-k3", null),
+                ];
+            }
+            return _inner.DefaultProfiles;
+        }
+    }
     public string? ContextFileName => _inner.ContextFileName;
 
     public string? TranslateToolName(string canonicalTool) => _inner.TranslateToolName(canonicalTool);
@@ -30,10 +46,16 @@ public sealed class OpenAiProxyPty : IAgentPty
 
     public AgentPtySpec BuildPtySpec(AgentPtyConfig config)
     {
+        var baseUrl = _baseUrlProvider();
+        var isBerget = baseUrl?.Contains("api.berget.ai") ?? false;
+        if (isBerget && string.IsNullOrEmpty(config.Model))
+        {
+            config = config with { Model = "kimi-k3" };
+        }
+
         var spec = _inner.BuildPtySpec(config);
 
         var env = new Dictionary<string, string>(spec.Environment);
-        var baseUrl = _baseUrlProvider();
         if (!string.IsNullOrEmpty(baseUrl))
         {
             env["ANTHROPIC_BASE_URL"] = baseUrl;

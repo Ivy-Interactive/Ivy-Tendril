@@ -89,7 +89,15 @@ public class AgentApp : ViewBase
         WriteAgentInstructionsIfNeeded(workDir, systemPrompt, pty);
 
         // Claude takes "--model default" to explicitly select its configured default model.
-        var model = pty?.Id == AgentId.Claude ? "default" : null;
+        var agentConfig = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
+        var configuredModel = agentConfig?.Profiles.FirstOrDefault(p => p.Name.Equals("balanced", StringComparison.OrdinalIgnoreCase))?.Model;
+        if (string.IsNullOrEmpty(configuredModel) || configuredModel == "default")
+        {
+            configuredModel = agentConfig?.Profiles.FirstOrDefault(p => !string.IsNullOrEmpty(p.Model) && p.Model != "default")?.Model;
+        }
+
+        var model = pty?.Id == AgentId.Claude ? "default" : configuredModel;
 
         var spec = pty?.BuildPtySpec(new AgentPtyConfig
         {
