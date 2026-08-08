@@ -428,7 +428,7 @@ public class ContentView(
         IAgentRunner agentRunner,
         IState<List<DraftComment>> draftComments)
     {
-        var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
+        var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner, config);
 
         // Standard overflow menu items
         var standardOverflowItems = new[]

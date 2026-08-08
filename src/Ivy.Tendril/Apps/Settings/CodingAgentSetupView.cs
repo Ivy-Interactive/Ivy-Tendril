@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Net.Http;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Providers.Ivy;
 using Ivy.Tendril.Apps.Settings.Dialogs;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
@@ -37,9 +38,11 @@ public class CodingAgentSetupView : ViewBase
                 : (config.Settings.CodingAgent == "ivy"
                     ? "openaiproxy_card"
                     : (config.Settings.CodingAgent == "openaiproxy"
-                        ? (GetOpenAiProxyBaseUrlFromConfig(config).Contains("api.anthropic.com")
-                            ? "anthropic_card"
-                            : "openaiproxy_card")
+                        ? (GetOpenAiProxyBaseUrlFromConfig(config).Contains("api.berget.ai")
+                            ? "berget_card"
+                            : (GetOpenAiProxyBaseUrlFromConfig(config).Contains("api.anthropic.com")
+                                ? "anthropic_card"
+                                : "openaiproxy_card"))
                         : config.Settings.CodingAgent))
         );
 
@@ -71,7 +74,7 @@ public class CodingAgentSetupView : ViewBase
         var modelsQuery = UseQuery<ModelInfo[], string>(
             selectedAgent.Value == "openaiproxy_card"
                 ? (openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app") ? "ivy" : "openaiproxy")
-                : (selectedAgent.Value == "anthropic_card" ? "openaiproxy" : selectedAgent.Value),
+                : (selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card" ? "openaiproxy" : selectedAgent.Value),
             async (agentId, ct) =>
             {
                 var catalog = runner.GetModelCatalog(agentId);
@@ -82,21 +85,52 @@ public class CodingAgentSetupView : ViewBase
             initialValue: []
         );
 
+        var tendrilArgs = UseService<TendrilArgs>();
+        var installedIvyVersion = UseState<string?>(null);
+        var latestIvyVersion = UseState<string?>(null);
+        var isCheckingIvyUpdate = UseState(false);
+        var isIvyUpdating = UseState(false);
+        var ivyUpdateError = UseState<string?>(null);
         var isIvyInstalled = UseState(false);
         var isInstalling = UseState(false);
         var installError = UseState<string?>(null);
 
         var checkIvyInstall = async () =>
         {
-            var hc = runner.GetHealthCheck("ivy") ?? runner.GetHealthCheck("openaiproxy");
+            var hc = runner.GetHealthCheck("ivy") ?? runner.GetHealthCheck("openaiproxy") ?? runner.GetHealthCheck("opencode");
             if (hc != null)
             {
                 var status = await hc.CheckInstallAsync();
                 isIvyInstalled.Set(status.IsInstalled);
+                installedIvyVersion.Set(status.Version);
             }
             else
             {
                 isIvyInstalled.Set(false);
+                installedIvyVersion.Set(null);
+            }
+
+            if (tendrilArgs.Beta && (selectedAgent.Value == "openaiproxy_card" || selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card" || selectedAgent.Value == "ivy_card" || selectedAgent.Value == "opencode"))
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        isCheckingIvyUpdate.Set(true);
+                        using var http = new HttpClient();
+                        http.DefaultRequestHeaders.UserAgent.ParseAdd("IvyTendril");
+                        var latest = (await http.GetStringAsync("https://cdn.ivy.app/ivy-agent-cli/releases/latest.txt")).Trim();
+                        latestIvyVersion.Set(latest);
+                    }
+                    catch
+                    {
+                        // Ignore quiet errors for background check
+                    }
+                    finally
+                    {
+                        isCheckingIvyUpdate.Set(false);
+                    }
+                });
             }
         };
 
@@ -105,15 +139,20 @@ public class CodingAgentSetupView : ViewBase
             await checkIvyInstall();
         }, selectedAgent);
 
+        var isBerget = selectedAgent.Value == "berget_card";
         var realAgentId = selectedAgent.Value == "openaiproxy_card"
             ? (openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app") ? "ivy" : "openaiproxy")
-            : (selectedAgent.Value == "anthropic_card" ? "openaiproxy" : selectedAgent.Value);
+            : (selectedAgent.Value == "anthropic_card" || isBerget ? "openaiproxy" : selectedAgent.Value);
 
-        if (lastRealAgent.Value != realAgentId)
+        if (lastRealAgent.Value != realAgentId || (isBerget && deepModel.Value == "default"))
         {
-            deepModel.Set(GetProfileModel(config, realAgentId, "deep"));
-            balancedModel.Set(GetProfileModel(config, realAgentId, "balanced"));
-            quickModel.Set(GetProfileModel(config, realAgentId, "quick"));
+            var deep = GetProfileModel(config, realAgentId, "deep");
+            var balanced = GetProfileModel(config, realAgentId, "balanced");
+            var quick = GetProfileModel(config, realAgentId, "quick");
+
+            deepModel.Set(deep == "default" && isBerget ? "moonshotai/Kimi-K3" : deep);
+            balancedModel.Set(balanced == "default" && isBerget ? "moonshotai/Kimi-K3" : balanced);
+            quickModel.Set(quick == "default" && isBerget ? "moonshotai/Kimi-K3" : quick);
             ollamaUrl.Set(GetOllamaUrlFromConfig(config, realAgentId));
             lastRealAgent.Set(realAgentId);
             testAgentId.Set(realAgentId);
@@ -132,7 +171,7 @@ public class CodingAgentSetupView : ViewBase
 
         string finalAgent;
         if (isIvy) finalAgent = "ivy";
-        else if (isAnthropic || isOpenAi) finalAgent = "openaiproxy";
+        else if (isBerget || isAnthropic || isOpenAi) finalAgent = "openaiproxy";
         else finalAgent = selectedAgent.Value;
 
         var hasAgentChanges = finalAgent != config.Settings.CodingAgent;
@@ -149,6 +188,10 @@ public class CodingAgentSetupView : ViewBase
         if (isIvy)
         {
             hasCredsChanged = openAiProxyApiKey.Value != currentIvyKey;
+        }
+        else if (isBerget)
+        {
+            hasCredsChanged = openAiProxyApiKey.Value != currentOpenAiKey || !currentOpenAiBaseUrl.Contains("api.berget.ai");
         }
         else if (isAnthropic)
         {
@@ -187,7 +230,8 @@ public class CodingAgentSetupView : ViewBase
         var byoAgents = new[]
         {
             new ByoAgentInfo("openaiproxy_card", "OpenAI", Icons.OpenAI),
-            new ByoAgentInfo("anthropic_card", "Anthropic", Icons.ClaudeCode)
+            new ByoAgentInfo("anthropic_card", "Anthropic", Icons.ClaudeCode),
+            new ByoAgentInfo("berget_card", "Berget AI", Icons.ChevronUp)
         };
 
         var byoGrid = Layout.Grid()
@@ -202,13 +246,23 @@ public class CodingAgentSetupView : ViewBase
             ).Width(Size.Full()).Height(Size.Full()).OnClick(() =>
             {
                 selectedAgent.Set(a.Key);
-                if (a.Key == "openaiproxy_card" && openAiProxyBaseUrl.Value.Contains("api.anthropic.com"))
+                if (a.Key == "openaiproxy_card" && (openAiProxyBaseUrl.Value.Contains("api.anthropic.com") || openAiProxyBaseUrl.Value.Contains("api.berget.ai")))
                 {
                     openAiProxyBaseUrl.Set("https://api.openai.com");
                 }
-                else if (a.Key == "anthropic_card" && (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com")))
+                else if (a.Key == "anthropic_card" && (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com") || openAiProxyBaseUrl.Value.Contains("api.berget.ai")))
                 {
                     openAiProxyBaseUrl.Set("https://api.anthropic.com/v1");
+                }
+                else if (a.Key == "berget_card")
+                {
+                    if (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com") || openAiProxyBaseUrl.Value.Contains("api.anthropic.com"))
+                    {
+                        openAiProxyBaseUrl.Set("https://api.berget.ai/v1");
+                    }
+                    if (deepModel.Value == "default") deepModel.Set("moonshotai/Kimi-K3");
+                    if (balancedModel.Value == "default") balancedModel.Set("moonshotai/Kimi-K3");
+                    if (quickModel.Value == "default") quickModel.Set("moonshotai/Kimi-K3");
                 }
             }));
 
@@ -233,6 +287,13 @@ public class CodingAgentSetupView : ViewBase
                     .WithField()
                     .Label("API Key");
         }
+        else if (selectedAgent.Value == "berget_card")
+        {
+            agentInputs = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                | openAiProxyApiKey.ToPasswordInput("...")
+                    .WithField()
+                    .Label("API Key");
+        }
         else if (selectedAgent.Value == "opencode")
         {
             agentInputs = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
@@ -248,6 +309,54 @@ public class CodingAgentSetupView : ViewBase
             | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced")
             | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick");
 
+        object? ivyAgentUpdateCard = null;
+        if (tendrilArgs.Beta && (selectedAgent.Value == "openaiproxy_card" || selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card" || selectedAgent.Value == "ivy_card" || selectedAgent.Value == "opencode"))
+        {
+            var hasUpdate = !string.IsNullOrEmpty(latestIvyVersion.Value) &&
+                !string.Equals(installedIvyVersion.Value, latestIvyVersion.Value, StringComparison.OrdinalIgnoreCase);
+
+            if (hasUpdate)
+            {
+                ivyAgentUpdateCard = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                    | new Card(
+                        Layout.Vertical()
+                        | (Layout.Horizontal()
+                            | Text.Block("Update Client").Bold()
+                            | new Spacer()
+                            | new Badge($"Update Available: {installedIvyVersion.Value ?? "Not Installed"} → {latestIvyVersion.Value}", BadgeVariant.Warning))
+                        | (ivyUpdateError.Value != null ? Text.Danger(ivyUpdateError.Value).Small() : null!)
+                        | new Button(isIvyUpdating.Value ? "Updating Ivy Agent CLI..." : "Update Ivy Agent CLI")
+                            .Primary()
+                            .Disabled(isIvyUpdating.Value)
+                            .OnClick(async () =>
+                            {
+                                isIvyUpdating.Set(true);
+                                ivyUpdateError.Set(null);
+                                try
+                                {
+                                    var success = await InstallIvyAgentAsync(client);
+                                    if (success)
+                                    {
+                                        await checkIvyInstall();
+                                    }
+                                    else
+                                    {
+                                        ivyUpdateError.Set("Installation failed.");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    ivyUpdateError.Set(ex.Message);
+                                }
+                                finally
+                                {
+                                    isIvyUpdating.Set(false);
+                                }
+                            })
+                    );
+            }
+        }
+
         return Layout.Vertical()
                | Text.Block("Coding Agent").Bold()
                | (Layout.Vertical()
@@ -261,6 +370,7 @@ public class CodingAgentSetupView : ViewBase
                            | byoGrid.Width(Size.Full())))
                    : null!)
                | agentInputs
+               | ivyAgentUpdateCard
                | profileModels
                | new Spacer()
                | (Layout.Horizontal()
@@ -278,6 +388,15 @@ public class CodingAgentSetupView : ViewBase
                                SaveIvyApiKey(config, openAiProxyApiKey.Value);
                                SaveOpenAiProxyApiKey(config, "");
                                SaveOpenAiProxyBaseUrl(config, "");
+                           }
+                           else if (isBerget)
+                           {
+                               var baseUrl = string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value) || !openAiProxyBaseUrl.Value.Contains("api.berget.ai")
+                                   ? "https://api.berget.ai/v1"
+                                   : openAiProxyBaseUrl.Value;
+                               SaveOpenAiProxyBaseUrl(config, baseUrl);
+                               SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
+                               SaveIvyApiKey(config, "");
                            }
                            else if (isAnthropic)
                            {
@@ -554,6 +673,21 @@ public class CodingAgentSetupView : ViewBase
             string destPath = Path.Combine(installDir, binaryName);
             if (File.Exists(destPath)) File.Delete(destPath);
             File.Move(binarySource, destPath);
+
+            var localBin = Path.Combine(home, ".local", "bin", binaryName);
+            if (File.Exists(localBin))
+            {
+                try
+                {
+                    File.Copy(destPath, localBin, overwrite: true);
+                }
+                catch
+                {
+                    // Ignore quiet copy issues to localBin if locked
+                }
+            }
+
+            IvyBinaryResolver.ResetCache();
             
             if (os != "windows")
             {

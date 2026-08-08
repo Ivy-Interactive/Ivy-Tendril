@@ -23,7 +23,23 @@ public sealed class OpenAiProxyCli : IAgentCli
     public TransportKind SupportedTransports => _inner.SupportedTransports;
     public PromptTransport PromptTransport => _inner.PromptTransport;
     public OutputFormat PreferredOutputFormat => _inner.PreferredOutputFormat;
-    public IReadOnlyList<AgentProfileDefault> DefaultProfiles => _inner.DefaultProfiles;
+    public IReadOnlyList<AgentProfileDefault> DefaultProfiles
+    {
+        get
+        {
+            var baseUrl = _baseUrlProvider();
+            if (baseUrl != null && baseUrl.Contains("api.berget.ai"))
+            {
+                return
+                [
+                    new AgentProfileDefault(ProfileTier.Deep, "moonshotai/Kimi-K3", null),
+                    new AgentProfileDefault(ProfileTier.Balanced, "moonshotai/Kimi-K3", null),
+                    new AgentProfileDefault(ProfileTier.Quick, "moonshotai/Kimi-K3", null),
+                ];
+            }
+            return _inner.DefaultProfiles;
+        }
+    }
 
     public string? TranslateToolName(string canonicalTool) => _inner.TranslateToolName(canonicalTool);
     public string? ReverseTranslateToolName(string nativeTool) => _inner.ReverseTranslateToolName(nativeTool);
@@ -31,11 +47,20 @@ public sealed class OpenAiProxyCli : IAgentCli
 
     public AgentProcessSpec BuildProcessSpec(AgentLaunchConfig config)
     {
+        var baseUrl = _baseUrlProvider();
+        var isBerget = baseUrl?.Contains("api.berget.ai") ?? false;
+        if (isBerget)
+        {
+            var model = config.Model;
+            if (string.IsNullOrEmpty(model) || model == "default" || model.Equals("kimi-k3", StringComparison.OrdinalIgnoreCase) || !model.Contains('/'))
+            {
+                config = config with { Model = "moonshotai/Kimi-K3" };
+            }
+        }
+
         var spec = _inner.BuildProcessSpec(config);
 
         var env = new Dictionary<string, string>(spec.Environment);
-
-        var baseUrl = _baseUrlProvider();
         if (!string.IsNullOrEmpty(baseUrl))
         {
             env["ANTHROPIC_BASE_URL"] = baseUrl;

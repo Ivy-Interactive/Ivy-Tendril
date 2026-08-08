@@ -96,7 +96,7 @@ public class ChatApp : ViewBase
 
         var agentDtos = registeredAgentIds.Select(id =>
         {
-            var (label, _) = AgentBranding.For(id, agentRunner);
+            var (label, _) = AgentBranding.For(id, agentRunner, configService);
             return new AgentOptionDto(id, label);
         }).ToList();
 

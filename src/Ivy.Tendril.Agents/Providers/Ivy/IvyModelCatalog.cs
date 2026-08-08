@@ -21,17 +21,12 @@ public sealed class IvyModelCatalog : IModelCatalogProvider
         },
         new()
         {
-            Id = "ivy-branch", DisplayName = "Ivy Branch",
+            Id = "ivy-root", DisplayName = "Ivy Root",
             Capabilities = DefaultCaps, Provider = "ivy",
         },
         new()
         {
             Id = "ivy-leaf", DisplayName = "Ivy Leaf",
-            Capabilities = DefaultCaps, Provider = "ivy",
-        },
-        new()
-        {
-            Id = "default", DisplayName = "Ivy Default",
             Capabilities = DefaultCaps, Provider = "ivy",
         },
     ];
@@ -89,9 +84,8 @@ public sealed class IvyModelCatalog : IModelCatalogProvider
     private static string FormatIvyDisplayName(string id, string? rawDisplayName)
     {
         if (string.Equals(id, "ivy-stem", StringComparison.OrdinalIgnoreCase)) return "Ivy Stem";
-        if (string.Equals(id, "ivy-branch", StringComparison.OrdinalIgnoreCase)) return "Ivy Branch";
+        if (string.Equals(id, "ivy-root", StringComparison.OrdinalIgnoreCase)) return "Ivy Root";
         if (string.Equals(id, "ivy-leaf", StringComparison.OrdinalIgnoreCase)) return "Ivy Leaf";
-        if (string.Equals(id, "default", StringComparison.OrdinalIgnoreCase)) return "Ivy Default";
 
         if (!string.IsNullOrEmpty(rawDisplayName) && rawDisplayName.StartsWith("Ivy", StringComparison.OrdinalIgnoreCase))
             return rawDisplayName;
