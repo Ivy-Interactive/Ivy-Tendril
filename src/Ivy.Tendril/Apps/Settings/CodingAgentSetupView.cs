@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Net.Http;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Providers.Ivy;
 using Ivy.Tendril.Apps.Settings.Dialogs;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
@@ -314,51 +315,46 @@ public class CodingAgentSetupView : ViewBase
             var hasUpdate = !string.IsNullOrEmpty(latestIvyVersion.Value) &&
                 !string.Equals(installedIvyVersion.Value, latestIvyVersion.Value, StringComparison.OrdinalIgnoreCase);
 
-            ivyAgentUpdateCard = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
-                | new Card(
-                    Layout.Vertical()
-                    | (Layout.Horizontal()
-                        | Text.Block("Ivy Agent CLI Status").Bold()
-                        | new Spacer()
-                        | (isCheckingIvyUpdate.Value
-                            ? Text.Muted("Checking update...").Small()
-                            : (hasUpdate
-                                ? new Badge($"Update Available: {installedIvyVersion.Value ?? "Not Installed"} → {latestIvyVersion.Value}", BadgeVariant.Warning)
-                                : new Badge($"Up to Date ({installedIvyVersion.Value ?? "Installed"})", BadgeVariant.Success))))
-                    | (hasUpdate
-                        ? (object)(Layout.Vertical()
-                            | Text.Muted($"A newer version of the Ivy Agent CLI ({latestIvyVersion.Value}) is available on the CDN.").Small()
-                            | (ivyUpdateError.Value != null ? Text.Danger(ivyUpdateError.Value).Small() : null!)
-                            | new Button(isIvyUpdating.Value ? "Updating Ivy Agent CLI..." : "Update Ivy Agent CLI")
-                                .Primary()
-                                .Disabled(isIvyUpdating.Value)
-                                .OnClick(async () =>
+            if (hasUpdate)
+            {
+                ivyAgentUpdateCard = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                    | new Card(
+                        Layout.Vertical()
+                        | (Layout.Horizontal()
+                            | Text.Block("Update Client").Bold()
+                            | new Spacer()
+                            | new Badge($"Update Available: {installedIvyVersion.Value ?? "Not Installed"} → {latestIvyVersion.Value}", BadgeVariant.Warning))
+                        | (ivyUpdateError.Value != null ? Text.Danger(ivyUpdateError.Value).Small() : null!)
+                        | new Button(isIvyUpdating.Value ? "Updating Ivy Agent CLI..." : "Update Ivy Agent CLI")
+                            .Primary()
+                            .Disabled(isIvyUpdating.Value)
+                            .OnClick(async () =>
+                            {
+                                isIvyUpdating.Set(true);
+                                ivyUpdateError.Set(null);
+                                try
                                 {
-                                    isIvyUpdating.Set(true);
-                                    ivyUpdateError.Set(null);
-                                    try
+                                    var success = await InstallIvyAgentAsync(client);
+                                    if (success)
                                     {
-                                        var success = await InstallIvyAgentAsync(client);
-                                        if (success)
-                                        {
-                                            await checkIvyInstall();
-                                        }
-                                        else
-                                        {
-                                            ivyUpdateError.Set("Installation failed.");
-                                        }
+                                        await checkIvyInstall();
                                     }
-                                    catch (Exception ex)
+                                    else
                                     {
-                                        ivyUpdateError.Set(ex.Message);
+                                        ivyUpdateError.Set("Installation failed.");
                                     }
-                                    finally
-                                    {
-                                        isIvyUpdating.Set(false);
-                                    }
-                                }))
-                        : null!)
-                );
+                                }
+                                catch (Exception ex)
+                                {
+                                    ivyUpdateError.Set(ex.Message);
+                                }
+                                finally
+                                {
+                                    isIvyUpdating.Set(false);
+                                }
+                            })
+                    );
+            }
         }
 
         return Layout.Vertical()
@@ -677,6 +673,21 @@ public class CodingAgentSetupView : ViewBase
             string destPath = Path.Combine(installDir, binaryName);
             if (File.Exists(destPath)) File.Delete(destPath);
             File.Move(binarySource, destPath);
+
+            var localBin = Path.Combine(home, ".local", "bin", binaryName);
+            if (File.Exists(localBin))
+            {
+                try
+                {
+                    File.Copy(destPath, localBin, overwrite: true);
+                }
+                catch
+                {
+                    // Ignore quiet copy issues to localBin if locked
+                }
+            }
+
+            IvyBinaryResolver.ResetCache();
             
             if (os != "windows")
             {
