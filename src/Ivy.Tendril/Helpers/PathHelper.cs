@@ -33,8 +33,7 @@ public static class PathHelper
             if (envHome.StartsWith("\"") && envHome.EndsWith("\""))
                 envHome = envHome[1..^1];
 
-            if (File.Exists(Path.Combine(envHome, "config.yaml")))
-                return envHome;
+            return envHome;
         }
 
         if (OperatingSystem.IsWindows())
