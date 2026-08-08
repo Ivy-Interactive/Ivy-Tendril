@@ -54,6 +54,7 @@ public class CodingAgentStepView(
     IState<bool> isStepLoading) : ViewBase
 {
     private record AgentInfo(string Key, string Label, Icons Logo);
+    private record ByoAgentInfo(string Key, string Label, Icons Logo);
 
     private static readonly AgentInfo[] Agents =
     [
@@ -62,8 +63,13 @@ public class CodingAgentStepView(
         new("codex",    "Codex",    AgentBranding.IconFor("codex")),
         new("gemini",   "Gemini",   AgentBranding.IconFor("gemini")),
         new("antigravity", "Antigravity", AgentBranding.IconFor("antigravity")),
-        new("opencode", "OpenCode", AgentBranding.IconFor("opencode")),
-        new("ivy", "Ivy Agent", AgentBranding.IconFor("ivy"))
+        new("opencode", "OpenCode", AgentBranding.IconFor("opencode"))
+    ];
+
+    private static readonly ByoAgentInfo[] ByoAgents =
+    [
+        new("openaiproxy_card", "OpenAI", Icons.OpenAI),
+        new("anthropic_card", "Anthropic", Icons.ClaudeCode)
     ];
 
     public override object Build()
@@ -78,25 +84,100 @@ public class CodingAgentStepView(
         var authCode = UseState<string?>(null);
         var error = UseState<string?>(null);
 
+        var openAiProxyBaseUrl = UseState(
+            GetOpenAiProxyBaseUrlFromConfig(config) is var url && !string.IsNullOrEmpty(url)
+                ? url
+                : "https://api.openai.com"
+        );
+
+        var openAiProxyApiKey = UseState(
+            GetOpenAiProxyApiKeyFromConfig(config)
+        );
+
         var (installDialog, showInstallDialog) = UseTrigger<InstallDialogArgs>((isOpen, args) =>
             new InstallMissingDialog(isOpen, args));
 
         var registeredAgents = agentRunner.RegisteredAgents;
         var visibleAgents = Agents.Where(a => registeredAgents.Contains(a.Key)).ToArray();
+        var hasByoSupport = registeredAgents.Contains("openaiproxy") || registeredAgents.Contains("ivy");
 
         if (selectedAgent.Value is null)
         {
-            return BuildPicker(visibleAgents, agentKey =>
+            return BuildPicker(visibleAgents, hasByoSupport, agentKey =>
             {
                 selectedAgent.Set(agentKey);
-                _ = RunFlowAsync(agentKey);
+                error.Set(null);
+                if (agentKey != "openaiproxy_card" && agentKey != "anthropic_card")
+                {
+                    _ = RunFlowAsync(agentKey);
+                }
             }, error.Value);
         }
 
-        var selected = Agents.First(a => a.Key == selectedAgent.Value);
+        if (progressMessage.Value is null && (selectedAgent.Value == "openaiproxy_card" || selectedAgent.Value == "anthropic_card"))
+        {
+            var isAnthropicCard = selectedAgent.Value == "anthropic_card";
+            var cardTitle = isAnthropicCard ? "Setup Anthropic" : "Setup OpenAI";
+
+            object agentInputs = isAnthropicCard
+                ? (Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                    | openAiProxyApiKey.ToPasswordInput("sk-...")
+                        .WithField()
+                        .Label("API Key"))
+                : (Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                    | openAiProxyBaseUrl.ToTextInput("https://api.openai.com")
+                        .WithField()
+                        .Label("API Base URL")
+                    | openAiProxyApiKey.ToPasswordInput("sk-...")
+                        .WithField()
+                        .Label("API Key"));
+
+            return Layout.Vertical().Margin(0, 0, 0, 2)
+                   | Text.H3(cardTitle)
+                   | (error.Value != null ? Text.Danger(error.Value) : null!)
+                   | agentInputs
+                   | (Layout.Horizontal().Margin(2, 0, 0, 0)
+                       | new Button("Back")
+                           .Ghost()
+                           .OnClick(() =>
+                           {
+                               selectedAgent.Set(null);
+                               error.Set(null);
+                           })
+                       | new Button("Continue")
+                           .Primary()
+                           .OnClick(() =>
+                           {
+                               if (string.IsNullOrWhiteSpace(openAiProxyApiKey.Value))
+                               {
+                                   error.Set("API Key is required.");
+                                   return;
+                               }
+
+                               if (isAnthropicCard)
+                               {
+                                   SaveOpenAiProxyBaseUrl(config, "https://api.anthropic.com/v1");
+                                   SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
+                               }
+                               else
+                               {
+                                   SaveOpenAiProxyBaseUrl(config, openAiProxyBaseUrl.Value);
+                                   SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
+                               }
+
+                               config.SaveSettings();
+                               _ = RunFlowAsync("openaiproxy");
+                           })
+                   );
+        }
+
+        var selectedLabel = Agents.FirstOrDefault(a => a.Key == selectedAgent.Value)?.Label
+            ?? (selectedAgent.Value == "openaiproxy_card" ? "OpenAI"
+            : (selectedAgent.Value == "anthropic_card" ? "Anthropic"
+            : (selectedAgent.Value == "openaiproxy" ? "OpenAI Proxy" : selectedAgent.Value)));
 
         return Layout.Vertical().Margin(0, 0, 0, 2)
-               | Text.Block(progressMessage.Value ?? $"Setting Up {selected.Label}")
+               | Text.Block(progressMessage.Value ?? $"Setting Up {selectedLabel}")
                | (progressValue.Value != null
                    ? new Progress(progressValue.Value.Value)
                    : null!)
@@ -222,18 +303,50 @@ public class CodingAgentStepView(
         }
     }
 
-    private static object BuildPicker(AgentInfo[] agents, Action<string> onSelect, string? errorMessage)
+    private static object BuildPicker(
+        AgentInfo[] agents,
+        bool hasByoSupport,
+        Action<string> onSelect,
+        string? errorMessage)
     {
         var grid = Layout.Grid().Columns(3).Gap(2);
 
-        grid = agents.Aggregate(grid, (current, a) => current | new Card(Layout.Horizontal().Gap(2).AlignContent(Align.Center).Padding(0) | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32)) | Text.Block(a.Label)).OnClick(() => onSelect(a.Key)));
+        grid = agents.Aggregate(grid, (current, a) =>
+            current | new Card(
+                Layout.Horizontal()
+                    .Gap(2)
+                    .AlignContent(Align.Center)
+                    .Padding(0)
+                | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))
+                | Text.Block(a.Label)
+            ).OnClick(() => onSelect(a.Key)));
+
+        object? byoSection = null;
+        if (hasByoSupport)
+        {
+            var byoGrid = Layout.Grid().Columns(3).Gap(2);
+            byoGrid = ByoAgents.Aggregate(byoGrid, (current, a) =>
+                current | new Card(
+                    Layout.Horizontal()
+                        .Gap(2)
+                        .AlignContent(Align.Center)
+                        .Padding(0)
+                    | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))
+                    | Text.Block(a.Label)
+                ).OnClick(() => onSelect(a.Key)));
+
+            byoSection = Layout.Vertical().Margin(2, 0, 0, 0)
+                | Text.Block("Bring your own LLM").Bold()
+                | byoGrid;
+        }
 
         return Layout.Vertical().Margin(0, 0, 0, 2)
                | Text.H3("What is your coding agent?")
                | Text.Muted(
                    "Tendril is a coding orchestrator that runs on top of your own coding agent. Pick the agent you'd like to use:")
                | (errorMessage != null ? Text.Danger(errorMessage) : null!)
-               | grid;
+               | grid
+               | (byoSection ?? null!);
     }
 
     private static List<SoftwareCheck> BuildChecks(IAgentRunner runner, string agentKey)
@@ -297,4 +410,63 @@ public class CodingAgentStepView(
         return agentCheck;
     }
 
+    private static string GetOpenAiProxyApiKeyFromConfig(IConfigService config)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
+        if (ac != null && ac.EnvironmentVariables.TryGetValue("ANTHROPIC_API_KEY", out var key))
+            return key;
+        return "";
+    }
+
+    private static void SaveOpenAiProxyApiKey(IConfigService config, string apiKey)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
+
+        if (ac == null)
+        {
+            ac = new AgentConfig { Name = "openaiproxy" };
+            config.Settings.CodingAgents.Add(ac);
+        }
+
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            ac.EnvironmentVariables.Remove("ANTHROPIC_API_KEY");
+        }
+        else
+        {
+            ac.EnvironmentVariables["ANTHROPIC_API_KEY"] = apiKey;
+        }
+    }
+
+    private static string GetOpenAiProxyBaseUrlFromConfig(IConfigService config)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
+        if (ac != null && ac.EnvironmentVariables.TryGetValue("ANTHROPIC_BASE_URL", out var url))
+            return url;
+        return "";
+    }
+
+    private static void SaveOpenAiProxyBaseUrl(IConfigService config, string url)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
+
+        if (ac == null)
+        {
+            ac = new AgentConfig { Name = "openaiproxy" };
+            config.Settings.CodingAgents.Add(ac);
+        }
+
+        if (string.IsNullOrEmpty(url))
+        {
+            ac.EnvironmentVariables.Remove("ANTHROPIC_BASE_URL");
+        }
+        else
+        {
+            ac.EnvironmentVariables["ANTHROPIC_BASE_URL"] = url;
+        }
+    }
 }
