@@ -790,7 +790,8 @@ public class CodingAgentSetupView : ViewBase
     {
         try
         {
-            return (await httpClient.GetStringAsync("https://cdn.ivy.app/ivy-agent-cli/releases/latest.txt")).Trim();
+            var url = $"https://cdn.ivy.app/ivy-agent-cli/releases/latest.txt?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+            return (await httpClient.GetStringAsync(url)).Trim();
         }
         catch
         {
