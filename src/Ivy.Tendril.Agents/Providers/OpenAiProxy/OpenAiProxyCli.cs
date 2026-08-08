@@ -59,11 +59,6 @@ public sealed class OpenAiProxyCli : IAgentCli
             model = "moonshotai/Kimi-K3";
         }
 
-        if (!string.IsNullOrEmpty(baseUrl) && !model.StartsWith("anthropic/", StringComparison.OrdinalIgnoreCase))
-        {
-            model = "anthropic/" + model;
-        }
-
         config = config with { Model = model };
 
         var spec = _inner.BuildProcessSpec(config);
@@ -71,12 +66,14 @@ public sealed class OpenAiProxyCli : IAgentCli
         var env = new Dictionary<string, string>(spec.Environment);
         if (!string.IsNullOrEmpty(baseUrl))
         {
+            env["OPENAI_BASE_URL"] = baseUrl;
             env["ANTHROPIC_BASE_URL"] = baseUrl;
         }
 
         var apiKey = _apiKeyProvider();
         if (!string.IsNullOrEmpty(apiKey))
         {
+            env["OPENAI_API_KEY"] = apiKey;
             env["ANTHROPIC_API_KEY"] = apiKey;
         }
 
