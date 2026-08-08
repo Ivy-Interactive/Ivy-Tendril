@@ -70,7 +70,7 @@ public class CodingAgentStepView(
     [
         new("openaiproxy_card", "OpenAI", Icons.OpenAI),
         new("anthropic_card", "Anthropic", Icons.ClaudeCode),
-        new("berget_card", "Berget AI", Icons.Server)
+        new("berget_card", "Berget AI", Icons.ChevronUp)
     ];
 
     public override object Build()

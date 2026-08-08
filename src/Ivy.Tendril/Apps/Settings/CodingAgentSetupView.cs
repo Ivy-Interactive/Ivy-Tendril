@@ -199,7 +199,7 @@ public class CodingAgentSetupView : ViewBase
         {
             new ByoAgentInfo("openaiproxy_card", "OpenAI", Icons.OpenAI),
             new ByoAgentInfo("anthropic_card", "Anthropic", Icons.ClaudeCode),
-            new ByoAgentInfo("berget_card", "Berget AI", Icons.Server)
+            new ByoAgentInfo("berget_card", "Berget AI", Icons.ChevronUp)
         };
 
         var byoGrid = Layout.Grid()

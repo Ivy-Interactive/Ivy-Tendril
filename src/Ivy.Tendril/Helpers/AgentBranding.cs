@@ -33,6 +33,7 @@ public static class AgentBranding
             AgentId.OpenCode => Icons.OpenCode,
             AgentId.Ivy => Icons.IvyCorner,
             AgentId.OpenAiProxy => Icons.OpenAI,
+            AgentId.Berget => Icons.ChevronUp,
             _ => DefaultIcon,
         };
     }
