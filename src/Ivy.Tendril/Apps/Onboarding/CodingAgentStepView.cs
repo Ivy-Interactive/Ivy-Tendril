@@ -171,6 +171,10 @@ public class CodingAgentStepView(
 
                                SaveOpenAiProxyBaseUrl(config, baseUrl);
                                SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
+                               if (isBergetCard)
+                               {
+                                   SaveProfiles(config, "openaiproxy", "kimi-k3", "kimi-k3", "kimi-k3");
+                               }
 
                                config.SaveSettings();
                                _ = RunFlowAsync("openaiproxy");
@@ -476,5 +480,35 @@ public class CodingAgentStepView(
         {
             ac.EnvironmentVariables["ANTHROPIC_BASE_URL"] = url;
         }
+    }
+
+    private static void SaveProfiles(IConfigService config, string agentId, string deep, string balanced, string quick)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
+
+        if (ac == null)
+        {
+            ac = new AgentConfig { Name = agentId };
+            config.Settings.CodingAgents.Add(ac);
+        }
+
+        SetProfileModel(ac, "deep", deep);
+        SetProfileModel(ac, "balanced", balanced);
+        SetProfileModel(ac, "quick", quick);
+    }
+
+    private static void SetProfileModel(AgentConfig ac, string profileName, string model)
+    {
+        var profile = ac.Profiles.FirstOrDefault(p =>
+            p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
+
+        if (profile == null)
+        {
+            profile = new AgentProfileConfig { Name = profileName };
+            ac.Profiles.Add(profile);
+        }
+
+        profile.Model = model;
     }
 }

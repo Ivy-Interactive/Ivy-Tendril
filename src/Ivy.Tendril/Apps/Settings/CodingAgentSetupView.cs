@@ -107,15 +107,20 @@ public class CodingAgentSetupView : ViewBase
             await checkIvyInstall();
         }, selectedAgent);
 
+        var isBerget = selectedAgent.Value == "berget_card";
         var realAgentId = selectedAgent.Value == "openaiproxy_card"
             ? (openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app") ? "ivy" : "openaiproxy")
-            : (selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card" ? "openaiproxy" : selectedAgent.Value);
+            : (selectedAgent.Value == "anthropic_card" || isBerget ? "openaiproxy" : selectedAgent.Value);
 
-        if (lastRealAgent.Value != realAgentId)
+        if (lastRealAgent.Value != realAgentId || (isBerget && deepModel.Value == "default"))
         {
-            deepModel.Set(GetProfileModel(config, realAgentId, "deep"));
-            balancedModel.Set(GetProfileModel(config, realAgentId, "balanced"));
-            quickModel.Set(GetProfileModel(config, realAgentId, "quick"));
+            var deep = GetProfileModel(config, realAgentId, "deep");
+            var balanced = GetProfileModel(config, realAgentId, "balanced");
+            var quick = GetProfileModel(config, realAgentId, "quick");
+
+            deepModel.Set(deep == "default" && isBerget ? "kimi-k3" : deep);
+            balancedModel.Set(balanced == "default" && isBerget ? "kimi-k3" : balanced);
+            quickModel.Set(quick == "default" && isBerget ? "kimi-k3" : quick);
             ollamaUrl.Set(GetOllamaUrlFromConfig(config, realAgentId));
             lastRealAgent.Set(realAgentId);
             testAgentId.Set(realAgentId);
@@ -130,7 +135,6 @@ public class CodingAgentSetupView : ViewBase
 
         var isIvy = selectedAgent.Value == "openaiproxy_card" && openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app");
         var isAnthropic = selectedAgent.Value == "anthropic_card";
-        var isBerget = selectedAgent.Value == "berget_card";
         var isOpenAi = selectedAgent.Value == "openaiproxy_card" && !isIvy;
 
         string finalAgent;
@@ -218,9 +222,15 @@ public class CodingAgentSetupView : ViewBase
                 {
                     openAiProxyBaseUrl.Set("https://api.anthropic.com/v1");
                 }
-                else if (a.Key == "berget_card" && (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com") || openAiProxyBaseUrl.Value.Contains("api.anthropic.com")))
+                else if (a.Key == "berget_card")
                 {
-                    openAiProxyBaseUrl.Set("https://api.berget.ai/v1");
+                    if (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com") || openAiProxyBaseUrl.Value.Contains("api.anthropic.com"))
+                    {
+                        openAiProxyBaseUrl.Set("https://api.berget.ai/v1");
+                    }
+                    if (deepModel.Value == "default") deepModel.Set("kimi-k3");
+                    if (balancedModel.Value == "default") balancedModel.Set("kimi-k3");
+                    if (quickModel.Value == "default") quickModel.Set("kimi-k3");
                 }
             }));
 
