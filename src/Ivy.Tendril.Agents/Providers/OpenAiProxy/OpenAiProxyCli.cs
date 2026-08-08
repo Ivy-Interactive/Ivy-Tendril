@@ -49,9 +49,13 @@ public sealed class OpenAiProxyCli : IAgentCli
     {
         var baseUrl = _baseUrlProvider();
         var isBerget = baseUrl?.Contains("api.berget.ai") ?? false;
-        if (isBerget && string.IsNullOrEmpty(config.Model))
+        if (isBerget)
         {
-            config = config with { Model = "moonshotai/Kimi-K3" };
+            var model = config.Model;
+            if (string.IsNullOrEmpty(model) || model == "default" || model.Equals("kimi-k3", StringComparison.OrdinalIgnoreCase) || !model.Contains('/'))
+            {
+                config = config with { Model = "moonshotai/Kimi-K3" };
+            }
         }
 
         var spec = _inner.BuildProcessSpec(config);
