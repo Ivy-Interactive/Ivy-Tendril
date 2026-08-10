@@ -1589,6 +1589,7 @@ maxConcurrentJobs: 10
         var prevHashSecret = Environment.GetEnvironmentVariable("TENDRIL_AUTH_HASH_SECRET");
         try
         {
+            PathHelper.DefaultTendrilHomeOverride = emptyDir;
             Environment.SetEnvironmentVariable("TENDRIL_HOME", emptyDir);
             Environment.SetEnvironmentVariable("TENDRIL_AUTH_PASSWORD", "mysecretpassword");
             Environment.SetEnvironmentVariable("TENDRIL_AUTH_HASH_SECRET",
@@ -1602,6 +1603,7 @@ maxConcurrentJobs: 10
         }
         finally
         {
+            PathHelper.DefaultTendrilHomeOverride = null;
             Environment.SetEnvironmentVariable("TENDRIL_HOME", prevHome);
             Environment.SetEnvironmentVariable("TENDRIL_AUTH_PASSWORD", prevPassword);
             Environment.SetEnvironmentVariable("TENDRIL_AUTH_HASH_SECRET", prevHashSecret);

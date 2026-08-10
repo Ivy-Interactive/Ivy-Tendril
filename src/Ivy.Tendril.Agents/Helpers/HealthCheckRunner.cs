@@ -18,22 +18,62 @@ public static class HealthCheckRunner
     {
         timeout ??= TimeSpan.FromSeconds(30);
 
-        var resolvedFileName = ResolveFileName(fileName);
-
-        var psi = new ProcessStartInfo
+        ProcessStartInfo psi;
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            FileName = resolvedFileName,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            RedirectStandardInput = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-        };
+            var resolvedFileName = ResolveFileName(fileName);
+            var isCmdExe = fileName.Equals("cmd", StringComparison.OrdinalIgnoreCase) ||
+                           fileName.Equals("cmd.exe", StringComparison.OrdinalIgnoreCase);
 
-        foreach (var arg in arguments)
-            psi.ArgumentList.Add(arg);
+            if (isCmdExe)
+            {
+                psi = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    RedirectStandardInput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = Encoding.UTF8,
+                    StandardErrorEncoding = Encoding.UTF8,
+                };
+                foreach (var arg in arguments)
+                    psi.ArgumentList.Add(arg);
+            }
+            else
+            {
+                var escapedArgs = string.Join(" ", arguments.Select(a => a.Contains(' ') || a.Contains('&') || a.Contains('|') ? $"\"{a}\"" : a));
+                psi = new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = $"/S /c \"\"{resolvedFileName}\" {escapedArgs}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    RedirectStandardInput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = Encoding.UTF8,
+                    StandardErrorEncoding = Encoding.UTF8,
+                };
+            }
+        }
+        else
+        {
+            psi = new ProcessStartInfo
+            {
+                FileName = fileName,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                RedirectStandardInput = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8,
+            };
+            foreach (var arg in arguments)
+                psi.ArgumentList.Add(arg);
+        }
 
         psi.Environment["CI"] = "true";
         psi.Environment["TERM"] = "dumb";

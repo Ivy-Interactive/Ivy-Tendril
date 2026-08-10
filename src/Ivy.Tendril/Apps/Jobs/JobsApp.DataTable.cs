@@ -314,11 +314,6 @@ public partial class JobsApp
                     jobService.ClearFailedJobs();
                     refreshToken.Refresh();
                 }));
-                overflowItems.Add(new MenuItem("Clear All Finished", Icon: Icons.Trash, Tag: "ClearAll").OnSelect(() =>
-                {
-                    jobService.ClearAllJobs();
-                    refreshToken.Refresh();
-                }));
 
                 return Layout.Horizontal()
                        | (jobsProgress != null ? jobsProgress : null!)

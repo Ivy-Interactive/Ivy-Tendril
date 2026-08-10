@@ -64,6 +64,20 @@ public class ChatHistoryService : IChatHistoryService
         return dir;
     }
 
+    private static string CleanTitle(string? rawTitle)
+    {
+        if (string.IsNullOrWhiteSpace(rawTitle)) return "New Chat";
+        var title = rawTitle.Trim();
+        while (title.EndsWith("...") || title.EndsWith("…"))
+        {
+            if (title.EndsWith("..."))
+                title = title[..^3].TrimEnd();
+            else if (title.EndsWith("…"))
+                title = title[..^1].TrimEnd();
+        }
+        return string.IsNullOrWhiteSpace(title) ? "New Chat" : title;
+    }
+
     private void LoadSessionsFromDisk()
     {
         try
@@ -78,6 +92,11 @@ public class ChatHistoryService : IChatHistoryService
                     var session = JsonSerializer.Deserialize<ChatSessionModel>(json, JsonOptions);
                     if (session != null && !string.IsNullOrEmpty(session.Id))
                     {
+                        var cleanedTitle = CleanTitle(session.Title);
+                        if (cleanedTitle != session.Title)
+                        {
+                            session = session with { Title = cleanedTitle };
+                        }
                         _sessions[session.Id] = session;
                     }
                 }
@@ -111,7 +130,7 @@ public class ChatHistoryService : IChatHistoryService
     {
         var now = DateTimeOffset.UtcNow;
         var id = Guid.NewGuid().ToString("N");
-        var displayTitle = !string.IsNullOrWhiteSpace(title) ? title.Trim() : "New Chat";
+        var displayTitle = !string.IsNullOrWhiteSpace(title) ? CleanTitle(title) : "New Chat";
 
         var session = new ChatSessionModel(
             Id: id,
@@ -166,7 +185,7 @@ public class ChatHistoryService : IChatHistoryService
             if (session == null) return;
             var updated = session with
             {
-                Title = newTitle.Trim(),
+                Title = CleanTitle(newTitle),
                 UpdatedAt = DateTimeOffset.UtcNow
             };
             _sessions[id] = updated;
@@ -198,10 +217,12 @@ public class ChatHistoryService : IChatHistoryService
             var updatedMessages = new List<ChatMessageModel>(session.Messages) { msg };
 
             // Auto update title from first user message if title is "New Chat"
-            var title = session.Title;
+            var title = CleanTitle(session.Title);
             if ((title == "New Chat" || string.IsNullOrWhiteSpace(title)) && role == "user" && !string.IsNullOrWhiteSpace(content))
             {
-                title = content.Length > 30 ? content[..30] + "..." : content;
+                var firstLine = content.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? content;
+                var clean = firstLine.Trim();
+                title = clean.Length > 50 ? clean[..50].Trim() : clean;
             }
 
             var updatedSession = session with

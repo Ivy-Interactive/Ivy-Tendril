@@ -33,7 +33,7 @@ public class JobDebugSheet(
             if (job is null) return null;
             // Snapshot branding + details while the job is live, so confirming always navigates
             // even if the job is evicted between opening the dialog and clicking the button.
-            var branding = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
+            var branding = AgentBranding.For(config.Settings.CodingAgent, agentRunner, config);
             var details = FormatCopyDetails(BuildData(job));
             return new DebugWithAgentDialog(isOpen, branding, focus =>
             {
@@ -97,7 +97,7 @@ public class JobDebugSheet(
         // `.Label()` API takes lambda expressions and can't be shared with the copy projection).
         var copyDetails = FormatCopyDetails(data);
 
-        var agentBranding = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
+        var agentBranding = AgentBranding.For(config.Settings.CodingAgent, agentRunner, config);
 
         var header = Layout.Horizontal().Gap(2)
                      | new Button("Copy Details").Icon(Icons.ClipboardCopy).Outline().OnClick(() =>

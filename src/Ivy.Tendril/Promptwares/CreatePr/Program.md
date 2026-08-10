@@ -45,7 +45,7 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
   - `PrMerge` — `true`/`false` (default: `true`) — **whether to merge the PR after creating it**
   - `PrDeleteBranch` — `true`/`false` (default: `true`)
   - `PrIncludeArtifacts` — `true`/`false` (default: `true`)
-  - `PrReviewer` — GitHub username to request as reviewer (default: none)
+  - `PrReviewer` — comma-separated GitHub usernames to request as reviewers (default: none)
   - `PrComment` — Review comment text (default: none)
   - `PrDraft` — `true`/`false` (default: `false`)
 
@@ -190,7 +190,7 @@ rm -f "$body_file"
   body="${issueLink}${summaryContent}\n\n---\n${commitsList}${artifactMarkdown}\n\n---\nCreated using [Ivy Tendril](https://ivy.app)."
   ```
 - **Draft (custom options):** If custom options exist and `draft` is `true`, add `--draft` to the `gh pr create` command to create the PR in draft mode. If no custom options or `draft` is `false`, create as ready for review (default behavior).
-- **Reviewer (custom options):** If custom options exist and `reviewer` is non-empty, add `--reviewer <reviewer>` to the `gh pr create` command. **Never pass a bare `--reviewer` with no value** — that fails with `flag needs an argument: --reviewer`. Omit the flag entirely when `PrReviewer` is empty.
+- **Reviewer (custom options):** If custom options exist and `reviewer` is non-empty, split `PrReviewer` on commas and add one `--reviewer <username>` flag per name to the `gh pr create` command. **Never pass a bare `--reviewer` with no value** — that fails with `flag needs an argument: --reviewer`. Omit the flag entirely when `PrReviewer` is empty.
 - **Assignee:** Always pass `--assignee @me` so the PR is assigned to the current (gh-authenticated) user. If assignment fails (e.g. the account cannot self-assign on a given repo), this is non-fatal — log a warning and continue; do not fail PR creation.
 
 ### 3.5. Add PR Comment (custom options)

@@ -3,7 +3,6 @@ using Ivy.Core.Exceptions;
 using Ivy.Tendril.Agents;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Services.Memory;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -126,7 +125,6 @@ internal static class ServiceRegistration
 
         server.Services.AddSingleton<VersionCheckService>();
         server.Services.AddSingleton<IVersionCheckService>(sp => sp.GetRequiredService<VersionCheckService>());
-        server.Services.AddSingleton<IMemoryService, MemoryService>();
         server.Services.AddSingleton<IPromptwareRunner, PromptwareRunner>();
 
         server.Services.AddSingleton<OnboardingSetupService>();

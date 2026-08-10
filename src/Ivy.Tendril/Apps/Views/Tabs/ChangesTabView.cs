@@ -8,6 +8,9 @@ using Ivy.Tendril.Widgets;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Plans;
+using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Apps.Agent;
+using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Review.Dialogs;
 
 namespace Ivy.Tendril.Apps.Views.Tabs;
@@ -20,10 +23,8 @@ public class ChangesTabView(
     PlanFile selectedPlan,
     IJobService jobService,
     Action refreshPlans,
-    List<PlanContentHelpers.CommitRow> commitRows,
-    Action<string> setOpenCommit,
-    IState<string?> openFile,
-    string? projectName = null) : ViewBase
+    string? projectName = null,
+    Action? onDiscussWithAgent = null) : ViewBase
 {
     public int FileCount => changesData?.Files.Count ?? 0;
 
@@ -33,19 +34,19 @@ public class ChangesTabView(
         var planService = UseService<IPlanReaderService>();
         var gitService = UseService<IGitService>();
         var config = UseService<IConfigService>();
+        var agentRunner = UseService<IAgentRunner>();
         var hideFormatting = UseState(true);
 
-        var (submitReviewDialog, showSubmitReviewDialog) = UseTrigger((isOpen) =>
+        var (suggestChangesDialog, showSuggestChangesDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
-            return new SubmitReviewDialog(
+            return new SuggestChangesDialog(
                 isOpen,
                 selectedPlan,
-                draftComments.Value,
-                draftComments,
                 jobService,
-                planService,
-                refreshPlans
+                refreshPlans,
+                draftComments.Value,
+                draftComments
             );
         });
 
@@ -141,63 +142,77 @@ public class ChangesTabView(
                 {
                     await HandleDirectEdit(e.Value);
                 },
-                OnViewFile = e =>
-                {
-                    var repoPath = changesData?.SourceRepoPath;
-                    if (string.IsNullOrEmpty(repoPath))
-                    {
-                        repoPath = selectedPlan.GetEffectiveRepoPaths(config).FirstOrDefault();
-                    }
-                    if (!string.IsNullOrEmpty(repoPath))
-                    {
-                        var absolutePath = Path.Combine(repoPath, e.Value).Replace('\\', '/');
-                        openFile.Set(absolutePath);
-                    }
-                    return ValueTask.CompletedTask;
-                },
                 OnEditFile = e =>
                 {
+                    var relativeOrAbs = e.Value.TrimStart('/', '\\');
                     var repoPath = changesData?.SourceRepoPath;
                     if (string.IsNullOrEmpty(repoPath))
                     {
                         repoPath = selectedPlan.GetEffectiveRepoPaths(config).FirstOrDefault();
                     }
-                    if (!string.IsNullOrEmpty(repoPath))
+
+                    string fullPath;
+                    if (Path.IsPathRooted(e.Value))
                     {
-                        var absolutePath = Path.Combine(repoPath, e.Value).Replace('\\', '/');
-                        var process = Process.Start(new ProcessStartInfo
-                        {
-                            FileName = "code",
-                            Arguments = $"\"{absolutePath}\"",
-                            UseShellExecute = true,
-                            CreateNoWindow = true
-                        });
+                        fullPath = Path.GetFullPath(e.Value);
+                    }
+                    else if (!string.IsNullOrEmpty(repoPath))
+                    {
+                        fullPath = Path.GetFullPath(Path.Combine(repoPath, relativeOrAbs));
+                    }
+                    else
+                    {
+                        fullPath = Path.GetFullPath(Path.Combine(selectedPlan.FolderPath, relativeOrAbs));
+                    }
+
+                    try
+                    {
+                        config.OpenInEditor(fullPath);
+                    }
+                    catch (EditorNotAvailableException ex)
+                    {
+                        client.Toast(
+                            $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
+                            "Editor Not Available",
+                            variant: ToastVariant.Destructive);
                     }
                     return ValueTask.CompletedTask;
                 },
                 OnDeleteFile = async e =>
                 {
+                    var relativeOrAbs = e.Value.TrimStart('/', '\\');
                     var repoPath = changesData?.SourceRepoPath;
                     if (string.IsNullOrEmpty(repoPath))
                     {
                         repoPath = selectedPlan.GetEffectiveRepoPaths(config).FirstOrDefault();
                     }
-                    if (!string.IsNullOrEmpty(repoPath))
+
+                    string absolutePath;
+                    if (Path.IsPathRooted(e.Value))
                     {
-                        var absolutePath = Path.Combine(repoPath, e.Value).Replace('\\', '/');
-                        try
+                        absolutePath = Path.GetFullPath(e.Value);
+                    }
+                    else if (!string.IsNullOrEmpty(repoPath))
+                    {
+                        absolutePath = Path.GetFullPath(Path.Combine(repoPath, relativeOrAbs));
+                    }
+                    else
+                    {
+                        absolutePath = Path.GetFullPath(Path.Combine(selectedPlan.FolderPath, relativeOrAbs));
+                    }
+
+                    try
+                    {
+                        if (File.Exists(absolutePath))
                         {
-                            if (File.Exists(absolutePath))
-                            {
-                                File.Delete(absolutePath);
-                            }
-                            client.Toast($"Deleted file: {e.Value}", "File Deleted");
-                            refreshPlans();
+                            File.Delete(absolutePath);
                         }
-                        catch (Exception ex)
-                        {
-                            client.Toast($"Failed to delete file: {ex.Message}", "Delete Failed", variant: ToastVariant.Destructive);
-                        }
+                        client.Toast($"Deleted file: {e.Value}", "File Deleted");
+                        refreshPlans();
+                    }
+                    catch (Exception ex)
+                    {
+                        client.Toast($"Failed to delete file: {ex.Message}", "Delete Failed", variant: ToastVariant.Destructive);
                     }
                     await Task.CompletedTask;
                 }
@@ -205,7 +220,9 @@ public class ChangesTabView(
         }
 
         var treePanel = new Box(Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0))) | tree)
-            .Width(Size.Auto()).Height(Size.Full().Min(Size.Px(0)))
+            .Width(SidebarLayout.DefaultWidth)
+            .Height(Size.Full().Min(Size.Px(0)))
+            .Padding(2, 2, 0, 2)
             .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
         var mobileFilePicker = MobileItemPicker.Build(
@@ -216,19 +233,8 @@ public class ChangesTabView(
                 fd => client.Redirect($"#{fd.FilePath}"))
             .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-        var commitItems = commitRows.Select(c =>
-            new MenuItem($"{c.ShortHash} - {c.Title}", Icon: Icons.GitCommitHorizontal)
-                .OnSelect(() => setOpenCommit(c.Hash))
-        ).ToArray();
-
-        var rawCommitsBtn = new Button($"{commitRows.Count} Commits").Icon(Icons.GitCommitHorizontal).Outline();
-        object commitsBtn = commitItems.Length > 0
-            ? rawCommitsBtn.WithDropDown(commitItems)
-            : rawCommitsBtn;
-
         var leftSide = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-            | hideFormatting.ToSwitchInput(label: "Hide formatting changes")
-            | commitsBtn;
+            | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
 
         if (hideFormatting.Value && hiddenCount > 0)
             leftSide |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
@@ -238,22 +244,15 @@ public class ChangesTabView(
             .Run($"+{totals.Additions}", color: Colors.Success)
             .Run($" -{totals.Deletions}", color: Colors.Destructive);
 
-        var draftCount = draftComments.Value.Count;
-        var submitBtn = new Button(draftCount > 0 ? $"Agent Review ({draftCount})" : "Agent Review")
-            .Icon(Icons.GitPullRequest)
-            .OnClick(() => showSubmitReviewDialog());
+        var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+            | totalsText;
 
-        submitBtn = draftCount > 0 ? submitBtn.Primary() : submitBtn.Outline();
-
-        var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right).Padding(0, 0, 2, 0)
-            | totalsText
-            | submitBtn;
-
-        var toolbar = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween).Height(Size.Auto())
+        var toolbar = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween).Height(Size.Auto()).Padding(2, 0, 4, 0)
             | leftSide
             | rightSide;
 
-        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0)))
+        // Padding order is (left, top, right, bottom).
+        var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(2, 0, 4, 4)
             | treePanel
             | diffsLayout;
 
@@ -263,7 +262,7 @@ public class ChangesTabView(
         outer |= toolbar;
         outer |= mobileFilePicker;
         outer |= mainLayout;
-        outer |= submitReviewDialog;
+        outer |= suggestChangesDialog;
         return outer;
 
         async Task HandleDirectEdit(DirectEditArgs args)

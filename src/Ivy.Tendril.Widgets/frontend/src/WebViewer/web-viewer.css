@@ -1,0 +1,145 @@
+.wvr-shell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #f3f4f6;
+}
+
+.wvr-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  overflow: auto;
+}
+
+/* Device-emulation mode: center the fixed-size frame on a neutral backdrop. */
+.wvr-stage.wvr-device {
+  align-items: flex-start;
+  justify-content: center;
+  padding: 16px;
+  background: #e5e7eb;
+}
+
+.wvr-frame {
+  border: 0;
+  background: #fff;
+  display: block;
+}
+
+.wvr-stage.wvr-device .wvr-frame {
+  flex: 0 0 auto;
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}
+
+.wvr-empty {
+  margin: auto;
+  color: #6b7280;
+  font:
+    13px/1.4 ui-sans-serif,
+    system-ui,
+    sans-serif;
+}
+
+/* ---- comment overlay (rendered on top of the iframe) ---- */
+.wvr-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(17, 24, 39, 0.45);
+}
+
+.wvr-comment-box {
+  width: min(440px, 90%);
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  padding: 16px;
+  font:
+    13px/1.45 ui-sans-serif,
+    system-ui,
+    sans-serif;
+  color: #111827;
+}
+
+.wvr-comment-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.wvr-comment-xpath {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: #374151;
+  word-break: break-all;
+  margin-bottom: 6px;
+}
+
+.wvr-comment-tag {
+  display: inline-block;
+  background: #eef2ff;
+  color: #4338ca;
+  border-radius: 4px;
+  padding: 0 5px;
+  margin-right: 6px;
+  font-weight: 600;
+}
+
+.wvr-comment-meta {
+  font-size: 12px;
+  color: #6b7280;
+  word-break: break-all;
+  margin-bottom: 6px;
+}
+
+.wvr-comment-key {
+  display: inline-block;
+  min-width: 60px;
+  color: #9ca3af;
+  margin-right: 6px;
+}
+
+.wvr-comment-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font: inherit;
+  resize: vertical;
+}
+
+.wvr-comment-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.wvr-btn {
+  padding: 6px 14px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.wvr-btn:hover {
+  background: #f9fafb;
+}
+
+.wvr-btn-primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.wvr-btn-primary:hover {
+  background: #1d4ed8;
+}

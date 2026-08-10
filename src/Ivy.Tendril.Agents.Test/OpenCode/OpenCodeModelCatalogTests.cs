@@ -17,9 +17,8 @@ public class OpenCodeModelCatalogTests
     public void GetStaticModels_ReturnsDefault()
     {
         var models = _catalog.GetStaticModels();
-        Assert.Single(models);
-        Assert.True(models[0].IsDefault);
-        Assert.Equal("default", models[0].Id);
+        Assert.NotEmpty(models);
+        Assert.Contains(models, m => m.Id == "moonshotai/Kimi-K3" && m.IsDefault);
     }
 
     [Fact]

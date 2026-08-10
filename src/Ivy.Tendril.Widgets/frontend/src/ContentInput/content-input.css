@@ -19,7 +19,7 @@
 .civ-shell {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
   font-family:
     ui-sans-serif,
     system-ui,
@@ -81,13 +81,13 @@
   background: var(--civ-bg);
   border: none;
   border-radius: var(--radius-fields);
-  padding: 10px 12px;
+  padding: 8px 12px;
   box-shadow: var(--civ-card-shadow);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   transition: border-color 0.2s;
 }
 
@@ -111,8 +111,8 @@
   font-size: 0.95rem;
   line-height: 1.5;
   color: var(--civ-text);
-  padding: 2px 12px 2px 0;
-  min-height: 80px;
+  padding: 2px 8px 2px 0;
+  min-height: 52px;
   max-height: 280px;
   width: 100%;
 }
@@ -130,6 +130,12 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.civ-attachment-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* Plus button container */
@@ -169,6 +175,96 @@
 .civ-plus-btn svg {
   width: 16px;
   height: 16px;
+}
+
+/* Project Ghost Select */
+.civ-project-picker-container {
+  position: relative;
+  display: inline-flex;
+}
+
+.civ-project-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  height: 28px;
+  border-radius: var(--radius-buttons, 6px);
+  border: none;
+  background: transparent;
+  color: var(--civ-placeholder);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.civ-project-ghost-btn:hover {
+  background: var(--civ-pill-bg);
+  color: var(--civ-text);
+}
+
+.civ-project-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+
+.civ-project-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.civ-project-chevron {
+  width: 12px;
+  height: 12px;
+  opacity: 0.5;
+}
+
+.civ-project-menu {
+  position: fixed;
+  min-width: 150px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--civ-bg);
+  border: 1px solid var(--civ-border);
+  border-radius: var(--radius-buttons, 6px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 4px;
+  z-index: 99999;
+  animation: slideDown 0.15s ease-out;
+}
+
+.civ-project-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 0.78rem;
+  color: var(--civ-text);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.civ-project-menu-item:hover {
+  background: var(--civ-pill-bg);
+}
+
+.civ-project-menu-item.active {
+  font-weight: 600;
+  color: var(--civ-primary);
+}
+
+.civ-project-check {
+  width: 12px;
+  height: 12px;
+  color: var(--civ-primary);
 }
 
 /* Right Actions */
@@ -724,74 +820,4 @@
 .civ-shortcut-enter {
   display: inline-flex;
   align-items: center;
-}
-
-/* Mode Selector styling */
-.civ-mode-selector-container {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.85rem;
-}
-
-.civ-mode-label {
-  color: var(--civ-placeholder);
-  user-select: none;
-}
-
-.civ-mode-value-btn {
-  background: none;
-  border: none;
-  color: var(--civ-text);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  text-decoration-color: var(--civ-border);
-  font-weight: 500;
-  padding: 2px 4px;
-  cursor: pointer;
-  transition: color 0.2s, text-decoration-color 0.2s;
-}
-
-.civ-mode-value-btn:hover {
-  color: var(--civ-primary);
-  text-decoration-color: var(--civ-primary);
-}
-
-.civ-mode-dropdown {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  margin-bottom: 6px;
-  background: var(--civ-bg);
-  border: 1px solid var(--civ-border);
-  border-radius: var(--radius-buttons, 6px);
-  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
-  min-width: 100px;
-  z-index: 100;
-  display: flex;
-  flex-direction: column;
-  padding: 4px 0;
-  backdrop-filter: blur(8px);
-}
-
-.civ-mode-dropdown-item {
-  background: transparent;
-  border: none;
-  color: var(--civ-text);
-  padding: 6px 12px;
-  font-size: 0.8rem;
-  text-align: left;
-  cursor: pointer;
-  width: 100%;
-  transition: background-color 0.15s, color 0.15s;
-}
-
-.civ-mode-dropdown-item:hover {
-  background: var(--civ-pill-hover);
-}
-
-.civ-mode-dropdown-item.active {
-  font-weight: 600;
-  color: var(--civ-primary);
 }
