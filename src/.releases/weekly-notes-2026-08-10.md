@@ -1,4 +1,4 @@
-# Ivy Tendril Release Notes - v1.1.29 (2026-08-10)
+# Ivy Tendril Release Notes - v1.1.30 (2026-08-10)
 
 > [!NOTE]
 > We release regular updates for Ivy Tendril. Sign up at [https://ivy.app/](https://ivy.app/auth/sign-up) to get release notes directly in your inbox.
