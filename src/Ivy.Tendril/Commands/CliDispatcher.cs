@@ -22,7 +22,7 @@ internal static class CliDispatcher
         "db-version", "db-migrate", "db-reset", "reset",
         "update-promptwares", "promptware", "version", "update", "report-bug",
         "job", "plan", "verification", "models", "agent-instructions",
-        "trash", "project", "config", "memory"
+        "trash", "project", "config"
     ];
 
     // Legacy handlers not yet migrated to Spectre.Console.Cli (HashPasswordCommand, McpCommand).
@@ -38,7 +38,7 @@ internal static class CliDispatcher
     private static readonly string[] ServerFlags =
     [
         "--port", "--find-available-port", "--i-kill-for-this-port", "--path-base",
-        "--enable-dev-tools", "--describe-connection", "--test-connection"
+        "--enable-dev-tools", "--describe-connection", "--test-connection", "--browse"
     ];
 
     // Server flags above that consume the following token as their value.

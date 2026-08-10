@@ -20,7 +20,7 @@ public class CreatePrDialog(
         var createPrDeleteBranch = UseState(true);
         var createPrIncludeArtifacts = UseState(false);
         var createPrDraft = UseState(false);
-        var createPrReviewer = UseState<string?>(null);
+        var createPrReviewers = UseState(Array.Empty<string>());
         var createPrComment = UseState("");
         
         UseEffect(() =>
@@ -47,8 +47,9 @@ public class CreatePrDialog(
                     .Disabled(!createPrMerge.Value)
                 | createPrIncludeArtifacts.ToBoolInput("Include Artifacts")
                 | createPrDraft.ToBoolInput("Create as Draft")
-                | createPrReviewer.ToSelectInput((assigneesQuery.Value ?? Array.Empty<string>()).ToOptions())
-                    .Nullable().WithField().Label("Reviewer")
+                | createPrReviewers.ToSelectInput((assigneesQuery.Value ?? Array.Empty<string>()).ToOptions())
+                    .Placeholder("Select reviewers...")
+                    .WithField().Label("Reviewers")
                 | (assigneesError.Value is { } err
                     ? Text.Danger(err).Small()
                     : null)
@@ -67,7 +68,7 @@ public class CreatePrDialog(
                             Merge: createPrMerge.Value,
                             DeleteBranch: createPrDeleteBranch.Value && createPrMerge.Value,
                             IncludeArtifacts: createPrIncludeArtifacts.Value,
-                            Reviewer: createPrReviewer.Value,
+                            Reviewers: createPrReviewers.Value,
                             Comment: string.IsNullOrEmpty(createPrComment.Value) ? null : createPrComment.Value,
                             Draft: createPrDraft.Value));
                         // Plan transition (and pre-state snapshot) handled by JobService.StartJob.

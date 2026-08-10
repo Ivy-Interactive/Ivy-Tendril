@@ -248,6 +248,8 @@ public class GitHelperTests : IDisposable
         }
     }
 
+    // Only ever reached from the Windows-guarded fsmonitor test; GetCommandLine is WMI-based.
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private static int CountFsmonitorDaemons()
     {
         try

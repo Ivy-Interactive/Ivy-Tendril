@@ -4,7 +4,6 @@ import { DraftMarkdown } from "./DraftMarkdown";
 import { SortableVerificationList } from "./SortableVerificationList";
 import { ContentInput } from "./ContentInput/ContentInput";
 import { BadgeSelect } from "./BadgeSelect";
-import { BrainMap } from "./BrainMap/BrainMap";
 import { PlanDiffView } from "./PlanDiffView/PlanDiffView";
 import { ChatWidget } from "./ChatWidget/ChatWidget";
 
@@ -16,7 +15,6 @@ if (typeof window !== "undefined") {
     SortableVerificationList,
     ContentInput,
     BadgeSelect,
-    BrainMap,
     PlanDiffView,
     ChatWidget,
   };
@@ -29,7 +27,6 @@ export {
   SortableVerificationList,
   ContentInput,
   BadgeSelect,
-  BrainMap,
   PlanDiffView,
   ChatWidget,
 };

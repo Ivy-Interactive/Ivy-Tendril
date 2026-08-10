@@ -40,6 +40,13 @@ public static class GitTabDataBuilder
         return BuildGitTabDataInternal(plan, config, gitService, precomputedCommitRows);
     }
 
+    /// <summary>
+    /// Number of git items behind the Git tab: worktrees, recorded commits and PRs.
+    /// Zero means there is nothing to show and the tab is hidden.
+    /// </summary>
+    public static int CountGitItems(GitTabData data, PlanFile plan) =>
+        data.WorktreeSections.Count + plan.Commits.Count + plan.Prs.Count;
+
     private static GitTabData BuildGitTabDataInternal(
         PlanFile plan,
         IConfigService config,

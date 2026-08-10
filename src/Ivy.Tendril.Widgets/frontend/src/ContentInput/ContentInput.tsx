@@ -96,7 +96,8 @@ interface ContentInputProps {
   uploadUrl?: string;
   models?: string[];
   selectedModel?: string;
-  selectedMode?: string;
+  projects?: string[];
+  selectedProject?: string;
   attachedFiles?: AttachedFile[];
   submitLabel?: string;
   menuOptions?: string[];
@@ -104,6 +105,10 @@ interface ContentInputProps {
   onIvyEvent?: (eventName: string, id: string, argumentsArray: unknown[]) => void;
   eventHandler?: (eventName: string, id: string, argumentsArray: unknown[]) => void;
   events?: string[];
+  slots?: {
+    ProjectPicker?: React.ReactNode;
+    LeftActions?: React.ReactNode;
+  };
 }
 
 const findScrollableParent = (el: HTMLElement): HTMLElement | null => {
@@ -155,13 +160,13 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   transcriptionUrl = "wss://tendril-api.ivy.app/transcribe/ws",
   uploadUrl,
   selectedModel = "Build",
-  selectedMode = "default",
   attachedFiles = [],
   autoFocus = false,
   submitLabel,
   menuOptions = [],
   onIvyEvent,
   eventHandler,
+  slots,
 }) => {
   const dispatchEvent = onIvyEvent || eventHandler;
 
@@ -174,8 +179,6 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   const [recordError, setRecordError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [currentMode, setCurrentMode] = useState(selectedMode);
-  const [modeMenuOpen, setModeMenuOpen] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
   const [previews, setPreviews] = useState<Record<string, string>>({});
@@ -186,7 +189,6 @@ export const ContentInput: React.FC<ContentInputProps> = ({
   const timerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const modeMenuRef = useRef<HTMLDivElement>(null);
   const filesRef = useRef(files);
   const textRef = useRef(text);
 
@@ -265,33 +267,6 @@ export const ContentInput: React.FC<ContentInputProps> = ({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [menuOpen]);
-
-  // Sync selectedMode prop
-  useEffect(() => {
-    setCurrentMode(selectedMode);
-  }, [selectedMode]);
-
-  // Close mode menu when clicking outside
-  useEffect(() => {
-    if (!modeMenuOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (modeMenuRef.current && !modeMenuRef.current.contains(e.target as Node)) {
-        setModeMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [modeMenuOpen]);
-
-  const handleModeSelect = (newMode: string) => {
-    setCurrentMode(newMode);
-    setModeMenuOpen(false);
-    if (dispatchEvent) {
-      dispatchEvent("OnModeChanged", id, [newMode]);
-    }
-  };
 
   // Sync value prop to text and files state
   useEffect(() => {
@@ -485,7 +460,13 @@ export const ContentInput: React.FC<ContentInputProps> = ({
     if (uploadUrl) {
       try {
         const formData = new FormData();
-        formData.append("file", file);
+        const mimeType = file.type || "image/png";
+        const ext = mimeType.split("/")[1] || "png";
+        const fileName = file.name && file.name.trim() !== "" && file.name !== "image.png" && file.name !== "blob"
+          ? file.name
+          : `screenshot_${Date.now()}.${ext}`;
+
+        formData.append("file", file, fileName);
 
         const response = await fetch(uploadUrl, {
           method: "POST",
@@ -571,18 +552,24 @@ export const ContentInput: React.FC<ContentInputProps> = ({
 
   const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData.items;
-    const files: File[] = [];
+    const pastedFiles: File[] = [];
     for (let i = 0; i < items.length; i++) {
       if (items[i].kind === "file") {
-        const file = items[i].getAsFile();
-        if (file) {
-          files.push(file);
+        const itemFile = items[i].getAsFile();
+        if (itemFile) {
+          const mimeType = itemFile.type || "image/png";
+          const ext = mimeType.split("/")[1] || "png";
+          const fileName = itemFile.name && itemFile.name.trim() !== "" && itemFile.name !== "image.png" && itemFile.name !== "blob"
+            ? itemFile.name
+            : `screenshot_${Date.now()}_${i}.${ext}`;
+          const renamedFile = new File([itemFile], fileName, { type: mimeType });
+          pastedFiles.push(renamedFile);
         }
       }
     }
-    if (files.length > 0) {
+    if (pastedFiles.length > 0) {
       e.preventDefault();
-      await handleFiles(files);
+      await handleFiles(pastedFiles);
     }
   };
 
@@ -797,7 +784,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
 
         {/* Action Controls Row */}
         <div className="civ-control-bar">
-          {/* Attachment upload button & pills */}
+          {/* Attachment upload button & project ghost select */}
           <div className="civ-attachment-row">
             <div className="civ-attachment-upload-container">
               <input
@@ -824,34 +811,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
               </button>
             </div>
 
-            <div className="civ-mode-selector-container" ref={modeMenuRef}>
-              <button
-                type="button"
-                className="civ-mode-value-btn"
-                onClick={() => setModeMenuOpen(!modeMenuOpen)}
-                title="Select job execution mode"
-              >
-                {currentMode}
-              </button>
-              {modeMenuOpen && (
-                <div className="civ-mode-dropdown">
-                  <button
-                    type="button"
-                    onClick={() => handleModeSelect("default")}
-                    className={`civ-mode-dropdown-item ${currentMode === "default" ? "active" : ""}`}
-                  >
-                    default
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleModeSelect("express")}
-                    className={`civ-mode-dropdown-item ${currentMode === "express" ? "active" : ""}`}
-                  >
-                    express
-                  </button>
-                </div>
-              )}
-            </div>
+            {slots?.ProjectPicker || slots?.LeftActions}
           </div>
 
           {/* Right Side Buttons */}

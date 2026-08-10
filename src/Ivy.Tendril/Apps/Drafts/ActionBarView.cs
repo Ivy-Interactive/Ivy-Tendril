@@ -31,7 +31,7 @@ public class ActionBarView(
         var client = UseService<IClientProvider>();
         var nav = UseNavigation();
         var agentRunner = UseService<IAgentRunner>();
-        var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
+        var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner, config);
 
         if (isEditingState.Value)
         {

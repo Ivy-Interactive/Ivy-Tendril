@@ -88,7 +88,7 @@ public class ContentView(
         var (suggestChangesDialog, showSuggestChangesDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
-            return new SuggestChangesDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans);
+            return new SuggestChangesDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans, draftComments.Value, draftComments);
         });
 
         var (createPrDialog, showCreatePrDialog) = UseTrigger((isOpen) =>
@@ -242,7 +242,7 @@ public class ContentView(
             args, selectedRecTitles, ImplementRecommendations);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
-            showCreatePrDialog, copyToClipboard, client, logger, nav, args, agentRunner);
+            showCreatePrDialog, copyToClipboard, client, logger, nav, args, agentRunner, draftComments);
         var content = BuildContent(
             selectedPlanState.Value, planData, planContentQuery, selectedTab, openVerification,
             openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
@@ -425,9 +425,10 @@ public class ContentView(
         ILogger<ContentView> logger,
         INavigator nav,
         ReviewAppArgs? args,
-        IAgentRunner agentRunner)
+        IAgentRunner agentRunner,
+        IState<List<DraftComment>> draftComments)
     {
-        var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner);
+        var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner, config);
 
         // Standard overflow menu items
         var standardOverflowItems = new[]
@@ -456,7 +457,7 @@ public class ContentView(
             {
                 PlatformHelper.OpenInTerminal(selectedPlan.FolderPath, logger);
             }),
-            new MenuItem("Copy Path to Clipboard", Icon: Icons.ClipboardCopy, Tag: "CopyPath")
+            new MenuItem("Copy Path", Icon: Icons.Copy, Tag: "CopyPath")
                 .OnSelect(() =>
                 {
                     copyToClipboard(selectedPlan.FolderPath);
@@ -504,14 +505,32 @@ public class ContentView(
         };
         compactDropdownItems.AddRange(standardOverflowItems);
 
+        var commentCount = draftComments.Value.Count;
+        var requestChangesMenuLabel = commentCount > 0 ? $"Request Changes ({commentCount})" : "Request Changes";
+
         // Minimal-tier dropdown: all action buttons + standard overflow
         var minimalDropdownItems = new List<MenuItem>
         {
             new MenuItem("Reset to Draft", Icon: Icons.RotateCcw, Tag: "ResetToDraft").OnSelect(showResetToDraftDialog),
-            new MenuItem("Request Changes", Icon: Icons.MessageSquare, Tag: "RequestChanges").OnSelect(showSuggestChangesDialog),
+            new MenuItem(requestChangesMenuLabel, Icon: Icons.MessageSquare, Tag: "RequestChanges").OnSelect(showSuggestChangesDialog),
             new MenuItem("Discard", Icon: Icons.Trash, Tag: "Discard").OnSelect(showDiscardDialog)
         };
         minimalDropdownItems.AddRange(standardOverflowItems);
+
+        var requestChangesBtn = new Button("Request Changes")
+            .Icon(Icons.MessageSquare)
+            .ShortcutKey("c")
+            .OnClick(showSuggestChangesDialog)
+            .CompactUp();
+
+        if (commentCount > 0)
+        {
+            requestChangesBtn = requestChangesBtn.Badge(commentCount.ToString()).Primary();
+        }
+        else
+        {
+            requestChangesBtn = requestChangesBtn.Outline();
+        }
 
         // Action bar without .Wrap() - single row with progressive collapse.
         // Full (>=1024px): Previous, Next, Reset to Draft, Request Changes, Discard inline + overflow dropdown.
@@ -524,8 +543,7 @@ public class ContentView(
                     .ShortcutKey("n").AlwaysVisible()
                 | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r")
                     .OnClick(showResetToDraftDialog).CompactUp()
-                | new Button("Request Changes").Icon(Icons.MessageSquare).Outline().ShortcutKey("c")
-                    .OnClick(showSuggestChangesDialog).CompactUp()
+                | requestChangesBtn
                 | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
                     .OnClick(showDiscardDialog).FullOnly()
                 | ActionBarResponsive.DropdownAtFull(
@@ -598,6 +616,21 @@ public class ContentView(
         }
         else
         {
+            var gitData = GitTabDataBuilder.BuildGitTabData(planData.CommitRows, selectedPlan!, config, gitService);
+            var gitTabView = new GitTabView(
+                gitData,
+                selectedPlan!,
+                hash => openCommit.Set(hash),
+                path =>
+                {
+                    copyToClipboard(path);
+                    client.Toast("Copied path to clipboard", "Path Copied");
+                    return null!;
+                },
+                syncingWorktrees.Value,
+                worktreePath => SynchronizeWorktreeAsync(worktreePath, syncingWorktrees, planContentQuery, client, planService, selectedPlanState, logger)
+            );
+
             var totalArtifacts = (planData.Artifacts.GetValueOrDefault("screenshots")?.Count ?? 0)
                                  + (planData.Artifacts.ContainsKey("sample") ? 1 : 0);
 
@@ -613,12 +646,11 @@ public class ContentView(
                 selectedPlan!,
                 jobService,
                 refreshPlans,
-                planData.CommitRows,
-                hash => openCommit.Set(hash),
-                openFile,
-                selectedPlan.Project);
+                selectedPlan.Project,
+                onDiscussWithAgent: () => nav.Navigate<AgentApp>(new AgentAppArgs(
+                    $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode.")));
 
-            var tabNamesList = new List<string> { "summary", "plan", "details" };
+            var tabNamesList = new List<string> { "summary", "plan", "details", "git" };
             var tabList = new List<Tab>
             {
                 // Summary is rendered via DraftMarkdown with a pinned Verifications sidebar, so it is
@@ -633,6 +665,7 @@ public class ContentView(
                     jobService.GetJobsForPlan(selectedPlan.FolderName),
                     showDebugJob, planService, selectedPlanState, refreshPlans,
                     folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath))))),
+                new Tab("Git", Cap(gitTabView)).Badge(GitTabDataBuilder.CountGitItems(gitData, selectedPlan).ToString()),
             };
 
             // Only surface the Changes tab once there are actual file changes — no point showing

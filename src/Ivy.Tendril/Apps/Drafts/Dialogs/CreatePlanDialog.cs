@@ -14,15 +14,31 @@ namespace Ivy.Tendril.Apps.Drafts.Dialogs;
 
 public class CreatePlanDialog(
     List<string> projectNames,
-    Action<string, string[], int, string?> onCreatePlan,
+    Action<string, string, int, string?> onCreatePlan,
     Action onClose,
-    string[]? defaultProjects = null) : ViewBase
+    string? defaultProject = null) : ViewBase
 {
-    private readonly string[] _defaultProjects = projectNames.Count == 1
-        ? [projectNames[0]]
-        : defaultProjects ?? ["Auto"];
+    private readonly string _defaultProject = projectNames.Count == 1
+        ? projectNames[0]
+        : defaultProject == "Auto" || (defaultProject != null && projectNames.Contains(defaultProject))
+            ? defaultProject!
+            : "Auto";
 
     internal static readonly List<string> PriorityOptions = ["Normal", "High", "Urgent"];
+
+    internal const string AddProjectActionValue = "__tendril_add_project__";
+
+    internal static (BadgeSelectOption[] Options, BadgeSelectOption[] Actions) BuildProjectPickerOptions(
+        IReadOnlyList<string> projectNames)
+    {
+        var options = new List<BadgeSelectOption>();
+        if (projectNames.Count > 1)
+            options.Add(new BadgeSelectOption("Auto", "Auto", "WandSparkles", Removable: false));
+        options.AddRange(projectNames.Select(p => new BadgeSelectOption(p, p)));
+
+        var actions = new[] { new BadgeSelectOption(AddProjectActionValue, "Add Project", "Plus") };
+        return (options.ToArray(), actions);
+    }
 
     internal static int ParsePriority(string option) => option.ToLowerInvariant() switch
     {
@@ -33,19 +49,15 @@ public class CreatePlanDialog(
     };
 
     // Builds the seed prompt for the "Continue with <agent>" flow. The description is
-    // trimmed, a single project reads "the project X", multiple read "the projects X or Y",
-    // and "Auto" lets the agent pick the project itself.
-    internal static string BuildAgentPrompt(string[] projects, string description)
+    // trimmed; a blank or "Auto" project lets the agent pick the project itself.
+    internal static string BuildAgentPrompt(string project, string description)
     {
         var trimmed = description.Trim();
-        var realProjects = projects.Where(p => p != "Auto").ToArray();
 
-        if (realProjects.Length == 0)
+        if (string.IsNullOrEmpty(project) || project == "Auto")
             return $"I want to discuss creating a Tendril plan from this description: \"{trimmed}\". Determine the most appropriate project for it yourself.";
 
-        var projectWord = realProjects.Length == 1 ? "project" : "projects";
-        var projectList = string.Join(" or ", realProjects);
-        return $"I want to discuss creating a Tendril plan for the {projectWord} {projectList} from this description: \"{trimmed}\"";
+        return $"I want to discuss creating a Tendril plan for the project {project} from this description: \"{trimmed}\"";
     }
 
     public override object Build()
@@ -53,7 +65,7 @@ public class CreatePlanDialog(
         var nav = UseNavigation();
         var isCreating = UseState(false);
         var createPlanText = UseState("");
-        var selectedProjects = UseState(_defaultProjects);
+        var selectedProject = UseState(_defaultProject);
         var selectedPriority = UseState("Normal");
         var configService = UseService<IConfigService>();
         var agentRunner = UseService<IAgentRunner>();
@@ -88,31 +100,7 @@ public class CreatePlanDialog(
         });
 
         // e.g. "Continue with Claude Code" — branded to the configured coding agent.
-        var continueLabel = $"Chat with {AgentBranding.For(configService.Settings.CodingAgent, agentRunner).Label}";
-
-        var currentProjectNames = configService.Projects.Select(p => p.Name).ToList();
-        var hasAutoOption = currentProjectNames.Count > 1;
-
-        // "Auto" is exclusive: picking it clears real projects, picking a real project clears "Auto".
-        void SetProjects(string[] newValue)
-        {
-            var current = selectedProjects.Value;
-            string[] next;
-            if (newValue.Contains("Auto") && !current.Contains("Auto"))
-                next = ["Auto"];
-            else if (newValue.Contains("Auto") && newValue.Any(p => p != "Auto"))
-                next = newValue.Where(p => p != "Auto").ToArray();
-            else if (newValue.Length == 0)
-                next = hasAutoOption ? ["Auto"] : currentProjectNames.Take(1).ToArray();
-            else
-                next = newValue;
-            selectedProjects.Set(next);
-        }
-
-        var projectOptions = new List<BadgeSelectOption>();
-        if (hasAutoOption)
-            projectOptions.Add(new BadgeSelectOption("Auto", "Auto", "WandSparkles", Removable: false));
-        projectOptions.AddRange(currentProjectNames.Select(p => new BadgeSelectOption(p, p)));
+        var continueLabel = $"Chat with {AgentBranding.For(configService.Settings.CodingAgent, agentRunner, configService).Label}";
 
         var planWasCreated = false;
         void HandleClose()
@@ -135,113 +123,107 @@ public class CreatePlanDialog(
             onClose();
         }
 
-        var projectPicker = new BadgeSelect
+        var currentProjectNames = configService.Projects.Select(p => p.Name).ToList();
+
+        UseEffect(() =>
         {
-            Options = projectOptions.ToArray(),
-            Value = selectedProjects.Value,
-            Placeholder = "Select project(s)",
-            Icon = selectedProjects.Value.Contains("Auto") || selectedProjects.Value.Length == 0
-                    ? "WandSparkles"
-                    : "Folder",
-            Multiple = true,
-            Tooltip = "Select project(s)",
-        }
-            .WithOnChange(SetProjects)
-            .Width(Size.Grow());
+            if (selectedProject.Value == AddProjectActionValue)
+            {
+                selectedProject.Set("Auto");
+                HandleClose();
+                nav.Navigate<SettingsApp>(new SettingsAppArgs(SettingsApp.TagProjects));
+            }
+        }, selectedProject);
 
-        var priorityPicker = new BadgeSelect
+        object projectPickerWidget;
+
+        var options = new List<Option<string>>();
+        if (currentProjectNames.Count > 1 || currentProjectNames.Count == 0)
         {
-            Options = PriorityOptions.Select(p => new BadgeSelectOption(p, p)).ToArray(),
-            Value = [selectedPriority.Value],
-            Placeholder = "Priority",
-            Icon = "Flag",
-            Multiple = false,
-            Tooltip = "Priority",
+            options.Add(new Option<string>("Auto", "Auto", icon: Icons.WandSparkles));
         }
-            .WithOnChange(values => selectedPriority.Set(values.FirstOrDefault() ?? "Normal"))
-            .Width(Size.Auto());
+        options.AddRange(currentProjectNames.Select(p => new Option<string>(p, p)));
+        options.Add(new Option<string>("+ Add New Project", AddProjectActionValue));
 
-        var newProjectButton = new Button()
-            .Icon(Icons.Plus)
-            .Small().Ghost()
-            .Tooltip("New Project")
-            .OnClick(() => isAddProjectOpen.Set(true));
+        if (currentProjectNames.Count <= 6)
+        {
+            projectPickerWidget = selectedProject.ToSelectInput(options)
+                .Variant(SelectInputVariant.Toggle);
+        }
+        else
+        {
+            projectPickerWidget = selectedProject.ToSelectInput(options)
+                .Searchable(true)
+                .Placeholder("Select project...")
+                .Variant(SelectInputVariant.Select);
+        }
 
-        var bodyContent =
-                Layout.Vertical().Gap(2)
-                | (Layout.Horizontal().Gap(1).AlignContent(Align.Left).Width(Size.Full())
-                    | (Layout.Horizontal().Gap(1).Width(Size.Grow())
-                        | projectPicker
-                        | priorityPicker)
-                    | newProjectButton)
-                | new Ivy.Tendril.Widgets.ContentInput
+        object contentInputWidget = new Ivy.Tendril.Widgets.ContentInput
+        {
+            UploadUrl = uploadContext.Value.UploadUrl,
+            AutoFocus = true,
+            OnSubmit = _ =>
+            {
+                if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
                 {
-                    UploadUrl = uploadContext.Value.UploadUrl,
-                    AutoFocus = true,
-                    OnSubmit = _ =>
+                    isCreating.Set(true);
+                    planWasCreated = true;
+                    onCreatePlan(createPlanText.Value, selectedProject.Value, 0, uploadSessionId.Value);
+                    onClose();
+                }
+                return ValueTask.CompletedTask;
+            },
+            OnMenuAction = e =>
+            {
+                if (e.Value == continueLabel)
+                {
+                    if (string.IsNullOrWhiteSpace(createPlanText.Value)) return ValueTask.CompletedTask;
+                    planWasCreated = true;
+                    var prompt = BuildAgentPrompt(selectedProject.Value, createPlanText.Value);
+                    nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
+                    onClose();
+                }
+                return ValueTask.CompletedTask;
+            },
+            OnRemoveAttachment = e =>
+            {
+                var filePath = e.Value;
+                try
+                {
+                    if (File.Exists(filePath))
                     {
-                        if (!string.IsNullOrWhiteSpace(createPlanText.Value) && !isCreating.Value)
-                        {
-                            isCreating.Set(true);
-                            planWasCreated = true;
-                            var projects = selectedProjects.Value.Any()
-                                ? selectedProjects.Value
-                                : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
-                            onCreatePlan(createPlanText.Value, projects, ParsePriority(selectedPriority.Value), uploadSessionId.Value);
-                            onClose();
-                        }
-                        return ValueTask.CompletedTask;
-                    },
-                    OnMenuAction = e =>
-                    {
-                        if (e.Value == continueLabel)
-                        {
-                            if (string.IsNullOrWhiteSpace(createPlanText.Value)) return ValueTask.CompletedTask;
-                            var projects = selectedProjects.Value.Any()
-                                ? selectedProjects.Value
-                                : projectNames.Count == 1 ? [projectNames[0]] : ["Auto"];
-                            planWasCreated = true;
-                            var prompt = BuildAgentPrompt(projects, createPlanText.Value);
-                            nav.Navigate<Ivy.Tendril.Apps.Chat.ChatApp>(new Ivy.Tendril.Apps.Chat.ChatAppArgs(prompt));
-                            onClose();
-                        }
-                        return ValueTask.CompletedTask;
-                    },
-                    OnRemoveAttachment = e =>
-                    {
-                        var filePath = e.Value;
-                        try
-                        {
-                            if (File.Exists(filePath))
-                            {
-                                File.Delete(filePath);
-                            }
-                        }
-                        catch
-                        {
-                            // ignore
-                        }
-                        var newList = new List<string>(uploadedFiles.Value);
-                        newList.Remove(filePath);
-                        uploadedFiles.Set(newList);
-
-                        var fileRef = $" [file: {filePath}]";
-                        var currentText = createPlanText.Value;
-                        if (currentText.Contains(fileRef))
-                        {
-                            createPlanText.Set(currentText.Replace(fileRef, ""));
-                        }
-                        else if (currentText.Contains(fileRef.Trim()))
-                        {
-                            createPlanText.Set(currentText.Replace(fileRef.Trim(), ""));
-                        }
-                        return ValueTask.CompletedTask;
+                        File.Delete(filePath);
                     }
                 }
-                    .Bind(createPlanText)
-                    .SubmitLabel("Create")
-                    .MenuOptions(continueLabel)
-                    .Placeholder("Enter task description...");
+                catch
+                {
+                    // ignore
+                }
+                var newList = new List<string>(uploadedFiles.Value);
+                newList.Remove(filePath);
+                uploadedFiles.Set(newList);
+
+                var fileRef = $" [file: {filePath}]";
+                var currentText = createPlanText.Value;
+                if (currentText.Contains(fileRef))
+                {
+                    createPlanText.Set(currentText.Replace(fileRef, ""));
+                }
+                else if (currentText.Contains(fileRef.Trim()))
+                {
+                    createPlanText.Set(currentText.Replace(fileRef.Trim(), ""));
+                }
+                return ValueTask.CompletedTask;
+            }
+        }
+            .Bind(createPlanText)
+            .SubmitLabel("Create")
+            .MenuOptions(continueLabel)
+            .Placeholder("Enter task description...");
+
+        var bodyContent = Layout.Vertical().Gap(2)
+            | projectPickerWidget
+            | contentInputWidget;
 
         object planSurface = breakpoint.Value == Breakpoint.Mobile
             ? new Sheet(
@@ -258,7 +240,6 @@ public class CreatePlanDialog(
 
         return new Fragment(
             breakpointListener,
-            planSurface,
-            new AddProjectDialog(isAddProjectOpen, configService, client, refreshToken));
+            planSurface);
     }
 }

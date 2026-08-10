@@ -151,7 +151,7 @@ public class AddProjectDialog(
                 },
                 skipButtonText: "Manual Setup",
                 nextButtonText: "Create Project",
-                title: "Add a project",
+                title: "Add a Project",
                 disableSkipWhenCannotContinue: true,
                 showHeader: false),
             1 => new ProjectAgentStepView(
@@ -202,7 +202,7 @@ public class AddProjectDialog(
 
         var headerTitle = step.Value switch
         {
-            0 => "Add a project",
+            0 => "Add a Project",
             1 => "Setting up your project",
             2 => "Review Harness",
             _ => "Add Project"

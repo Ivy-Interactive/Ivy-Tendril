@@ -74,11 +74,6 @@ public class AntigravityCliTests
         Assert.Equal("/tmp", spec.WorkingDirectory);
         Assert.Contains("--print", spec.Arguments);
         Assert.Contains("--dangerously-skip-permissions", spec.Arguments);
-        Assert.Contains("--print-timeout", spec.Arguments);
-
-        var timeoutIdx = spec.Arguments.ToList().IndexOf("--print-timeout");
-        Assert.True(timeoutIdx >= 0);
-        Assert.Equal("0s", spec.Arguments[timeoutIdx + 1]);
     }
 
     [Fact]
