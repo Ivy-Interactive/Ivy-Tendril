@@ -1,4 +1,4 @@
-# Ivy Tendril v1.1.28 Release Notes
+# Ivy Tendril Release Notes - v1.1.30 (2026-08-10)
 
 > [!NOTE]
 > We release regular updates for Ivy Tendril. Sign up at [https://ivy.app/](https://ivy.app/auth/sign-up) to get release notes directly in your inbox.
@@ -7,6 +7,9 @@
 
 ### Security & Certificate Improvements
 - **Fixed System Password Prompt on Launch (macOS)**: Resolved an issue where macOS would prompt for system password authorization on every application launch. The certificate trust check now checks the System Keychain (`LocalMachine`), correctly identifying pre-trusted installer certificates without re-prompting.
+
+### Cross-Platform Onboarding Fixes
+- **Windows Onboarding Health Check Fix**: Fixed Onboarding step 1 getting stuck on "Setting Up Claude" on Windows by wrapping health check CLI calls in `cmd.exe /S /c ""` so `.cmd` batch file stdio streams exit cleanly.
 
 ### Installer & Agent Stability
 - **Locked File Handling on Upgrade**: Improved the installer update process to gracefully handle locked files and terminate running background `ivy-agent` instances prior to replacing application binaries.
