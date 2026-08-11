@@ -176,6 +176,7 @@ public class TendrilSettings
     public Dictionary<string, PromptwareConfig> Promptwares { get; set; } = new();
     public List<AgentConfig> CodingAgents { get; set; } = new();
     public Tunnel.TunnelConfig? Tunnel { get; set; }
+    public Slack.SlackbotConfig? Slackbot { get; set; }
     public bool Telemetry { get; set; } = true;
     public bool DesktopNotifications { get; set; } = true;
     public bool Beta { get; set; } = false;

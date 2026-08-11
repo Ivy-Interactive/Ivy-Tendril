@@ -264,5 +264,17 @@ internal static class ServiceRegistration
             sp.GetRequiredService<Services.Tunnel.CloudflaredService>());
         server.Services.AddSingleton<IStartable>(sp =>
             sp.GetRequiredService<Services.Tunnel.CloudflaredService>());
+
+        server.Services.AddSingleton<Services.Slack.SlackbotService>(sp =>
+            new Services.Slack.SlackbotService(
+                sp.GetRequiredService<IConfigService>(),
+                sp.GetRequiredService<IJobService>(),
+                sp.GetRequiredService<IHttpClientFactory>(),
+                sp.GetRequiredService<Services.Tunnel.ICloudflaredService>(),
+                sp.GetRequiredService<ILogger<Services.Slack.SlackbotService>>()));
+        server.Services.AddSingleton<Services.Slack.ISlackbotService>(sp =>
+            sp.GetRequiredService<Services.Slack.SlackbotService>());
+        server.Services.AddSingleton<IStartable>(sp =>
+            sp.GetRequiredService<Services.Slack.SlackbotService>());
     }
 }
