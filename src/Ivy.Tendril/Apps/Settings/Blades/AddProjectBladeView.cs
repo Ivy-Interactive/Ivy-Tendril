@@ -5,24 +5,24 @@ using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Jobs;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Helpers;
 
-namespace Ivy.Tendril.Apps.Settings.Dialogs;
+namespace Ivy.Tendril.Apps.Settings.Blades;
 
-public class AddProjectDialog(
-    IState<bool> isOpen,
+public class AddProjectBladeView(
     IConfigService config,
     IClientProvider client,
     RefreshToken refreshToken) : ViewBase
 {
     public override object? Build()
     {
+        var bladeContext = UseContext<IBladeContext>();
         var jobService = UseService<IJobService>();
         var step = UseState(0);
         var editName = UseState("");
         var editRepos = UseState(new List<RepoRef>());
         var isStepLoading = UseState(false);
 
-        // State for step 2 (agent run)
         var verificationStream = UseStream<string>();
         var verificationHandle = UseState<PromptwareRunHandle?>();
         var verificationHasOutput = UseState(false);
@@ -55,33 +55,12 @@ public class AddProjectDialog(
 
         UseEffect(() =>
         {
-            if (isOpen.Value)
-            {
-                step.Set(0);
-                editName.Set("");
-                editRepos.Set(new List<RepoRef>());
-                isStepLoading.Set(false);
-                hasCreated.Set(false);
-                skipAgent.Set(false);
-                setupTriggered.Set(false);
-                session.Reset();
-            }
-        }, isOpen);
-
-        // Transition to step 1 as soon as the agent run is triggered (not after first
-        // output). The ProjectAgentStepView's setup effect, which actually starts the run,
-        // only fires once that view is mounted — so this mount must happen up front. The
-        // AgentViewer then renders immediately and shows its own "Starting…" loading state
-        // below the stream until output arrives.
-        UseEffect(() =>
-        {
             if (setupTriggered.Value && !skipAgent.Value && step.Value == 0)
             {
                 step.Set(1);
             }
         }, [setupTriggered, skipAgent]);
 
-        // Transition to step 2 when skipAgent is enabled and setup is done
         UseEffect(() =>
         {
             if (skipAgent.Value && setupTriggered.Value && step.Value == 0 && !session.Running.Value && !isStepLoading.Value)
@@ -89,8 +68,6 @@ public class AddProjectDialog(
                 step.Set(2);
             }
         }, [skipAgent, setupTriggered, step, session.Running, isStepLoading]);
-
-        if (!isOpen.Value) return null;
 
         void RemoveCommittedProject()
         {
@@ -111,8 +88,8 @@ public class AddProjectDialog(
         {
             session.Reset();
             RemoveCommittedProject();
-            isOpen.Set(false);
             refreshToken.Refresh();
+            bladeContext.Pop(this);
         }
 
         object activeView = step.Value switch
@@ -146,8 +123,8 @@ public class AddProjectDialog(
                     jobService.StartJob(new AddProjectArgs(newProj.Name, newProj.Repos));
 
                     client.Toast($"Created background job for project '{newProj.Name}'", "Job Started");
-                    isOpen.Set(false);
                     refreshToken.Refresh();
+                    bladeContext.Pop(this);
                 },
                 skipButtonText: "Manual Setup",
                 nextButtonText: "Create Project",
@@ -187,31 +164,18 @@ public class AddProjectDialog(
                 },
                 onNext: () =>
                 {
-                    hasCreated.Set(false); // Clear so we don't delete on close
-                    isOpen.Set(false);
+                    hasCreated.Set(false);
                     refreshToken.Refresh();
                     client.Toast($"Project '{editName.Value}' added successfully", "Success");
+                    bladeContext.Pop(this);
                 },
                 nextButtonText: "Finish",
                 showHeader: false),
             _ => throw new ArgumentOutOfRangeException()
         };
 
-        var dialogBody = Layout.Vertical()
-            | activeView;
-
-        var headerTitle = step.Value switch
-        {
-            0 => "Add a Project",
-            1 => "Setting up your project",
-            2 => "Review Harness",
-            _ => "Add Project"
-        };
-
-        return new Dialog(
-            _ => CancelAndClose(),
-            new DialogHeader(headerTitle),
-            new DialogBody(dialogBody)
-        ).Width(Size.Rem(40));
+        return Layout.Vertical()
+            | activeView
+            | new Button("Cancel").Outline().OnClick(() => CancelAndClose());
     }
 }

@@ -27,11 +27,25 @@ public class SettingsApp : ViewBase
         var navigator = UseNavigation();
         var client = UseService<IClientProvider>();
         var httpContextAccessor = UseService<IHttpContextAccessor>();
+        var refreshToken = UseRefreshToken();
         var args = UseArgs<SettingsAppArgs>();
         var selected = UseState(() => args?.Section ?? TagCodingAgent);
+        var isProjectsExpanded = UseState(false);
+
+        var (addProjectDialog, openAddProjectDialog) = UseTrigger((IState<bool> isOpen) =>
+            new AddProjectDialog(isOpen, config, client, refreshToken, onCreated: newProjName =>
+            {
+                var projectsList = config.Settings.Projects;
+                var newIdx = projectsList.FindIndex(p => p.Name.Equals(newProjName, StringComparison.OrdinalIgnoreCase));
+                if (newIdx >= 0) selected.Set($"project:{newIdx}");
+            }));
+
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
         var isDesktop = desktopWindow != null;
         var capturedHost = ConfigYamlUiHelper.CaptureHost(httpContextAccessor);
+
+        var projects = config.Settings.Projects;
+        var selectedTag = selected.Value;
 
         var sections = new List<(string Label, string Tag, Icons Icon)>
         {
@@ -48,28 +62,102 @@ public class SettingsApp : ViewBase
             ("Advanced", TagAdvanced, Icons.Cog),
         };
 
-        var rows = sections
-            .Select(s => SidebarListRow.Build(s.Label, s.Icon, () => selected.Set(s.Tag), selected.Value == s.Tag))
-            .Append(SidebarListRow.Build("Open config.yaml", Icons.FileText,
-                () => ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost)));
+        var rows = new List<object>
+        {
+            SidebarListRow.Build("Coding Agent", Icons.Bot, () => selected.Set(TagCodingAgent), selectedTag == TagCodingAgent),
+            SidebarListRow.Build("Plans", Icons.Feather, () => selected.Set(TagPlans), selectedTag == TagPlans),
+            SidebarListRow.Build("Appearance", Icons.Sun, () => selected.Set(TagAppearance), selectedTag == TagAppearance),
+
+            SidebarListRow.Build(
+                "Projects",
+                isProjectsExpanded.Value ? Icons.ChevronDown : Icons.ChevronRight,
+                () =>
+                {
+                    var willExpand = !isProjectsExpanded.Value;
+                    isProjectsExpanded.Set(willExpand);
+                    if (willExpand && selectedTag != TagProjects && !selectedTag.StartsWith("project:"))
+                    {
+                        if (projects.Count > 0) selected.Set("project:0");
+                    }
+                },
+                selectedTag == TagProjects
+            )
+        };
+
+        if (isProjectsExpanded.Value)
+        {
+            for (int i = 0; i < projects.Count; i++)
+            {
+                var proj = projects[i];
+                var tag = $"project:{i}";
+                var isSelected = selectedTag == tag || (selectedTag == TagProjects && i == 0);
+                var localIdx = i;
+                rows.Add(SidebarListRow.BuildSubItem(proj.Name, null, () => selected.Set($"project:{localIdx}"), isSelected));
+            }
+            rows.Add(SidebarListRow.BuildSubItem("Add Project", Icons.Plus, () => openAddProjectDialog(), false));
+        }
+
+        rows.Add(SidebarListRow.Build("Verifications", Icons.CircleCheck, () => selected.Set(TagVerifications), selectedTag == TagVerifications));
+        rows.Add(SidebarListRow.Build("Promptwares", Icons.Wand, () => selected.Set(TagPromptwares), selectedTag == TagPromptwares));
+        rows.Add(SidebarListRow.Build("Levels", Icons.ListOrdered, () => selected.Set(TagLevels), selectedTag == TagLevels));
+        rows.Add(SidebarListRow.Build("Notifications", Icons.Bell, () => selected.Set(TagNotifications), selectedTag == TagNotifications));
+        rows.Add(SidebarListRow.Build("Security", Icons.Lock, () => selected.Set(TagSecurity), selectedTag == TagSecurity));
+        rows.Add(SidebarListRow.Build("Tunnel", Icons.Globe, () => selected.Set(TagTunnel), selectedTag == TagTunnel));
+        rows.Add(SidebarListRow.Build("Advanced", Icons.Cog, () => selected.Set(TagAdvanced), selectedTag == TagAdvanced));
+        rows.Add(SidebarListRow.Build("Open config.yaml", Icons.FileText, () => ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost), false));
 
         var sidebar = Layout.Vertical(rows).Gap(1);
 
-        object content = selected.Value switch
+        object content;
+        if (selectedTag.StartsWith("project:"))
         {
-            TagCodingAgent => new CodingAgentSetupView(),
-            TagPlans => new PlansSetupView(),
-            TagAppearance => new AppearanceSetupView(),
-            TagNotifications => new NotificationsSetupView(),
-            TagSecurity => new SecuritySetupView(),
-            TagLevels => new LevelsSetupView(),
-            TagVerifications => new VerificationsSetupView(),
-            TagPromptwares => new PromptwaresSetupView(),
-            TagProjects => new ProjectsSetupView(),
-            TagTunnel => new TunnelSetupView(),
-            TagAdvanced => new AdvancedSetupView(),
-            _ => new CodingAgentSetupView()
-        };
+            var idxStr = selectedTag["project:".Length..];
+            if (int.TryParse(idxStr, out var projIdx) && projIdx >= 0 && projIdx < projects.Count)
+            {
+                content = new ProjectDetailView(
+                    projIdx,
+                    projects,
+                    config,
+                    client,
+                    refreshToken,
+                    onDeleteProject: () =>
+                    {
+                        var name = projects[projIdx].Name;
+                        projects.RemoveAt(projIdx);
+                        config.SaveSettings();
+                        if (projects.Count > 0) selected.Set("project:0");
+                        else selected.Set(TagCodingAgent);
+                        refreshToken.Refresh();
+                        client.Toast($"Deleted project '{name}'", "Deleted");
+                    });
+            }
+            else
+            {
+                content = projects.Count > 0
+                    ? new ProjectDetailView(0, projects, config, client, refreshToken)
+                    : new CodingAgentSetupView();
+            }
+        }
+        else
+        {
+            content = selectedTag switch
+            {
+                TagCodingAgent => new CodingAgentSetupView(),
+                TagPlans => new PlansSetupView(),
+                TagAppearance => new AppearanceSetupView(),
+                TagNotifications => new NotificationsSetupView(),
+                TagSecurity => new SecuritySetupView(),
+                TagLevels => new LevelsSetupView(),
+                TagVerifications => new VerificationsSetupView(),
+                TagPromptwares => new PromptwaresSetupView(),
+                TagProjects => projects.Count > 0
+                    ? new ProjectDetailView(0, projects, config, client, refreshToken)
+                    : new CodingAgentSetupView(),
+                TagTunnel => new TunnelSetupView(),
+                TagAdvanced => new AdvancedSetupView(),
+                _ => new CodingAgentSetupView()
+            };
+        }
 
         var currentLabel = sections.FirstOrDefault(s => s.Tag == selected.Value).Label ?? "Configuration";
 
@@ -83,7 +171,8 @@ public class SettingsApp : ViewBase
 
         var contentWithMobileHeader = Layout.Vertical().Height(Size.Full()).Gap(2)
                                       | mobileHeader
-                                      | (Layout.Vertical().Height(Size.Grow()) | content);
+                                      | (Layout.Vertical().Height(Size.Grow()) | content)
+                                      | addProjectDialog;
 
         return new SidebarLayout(contentWithMobileHeader, sidebar);
     }

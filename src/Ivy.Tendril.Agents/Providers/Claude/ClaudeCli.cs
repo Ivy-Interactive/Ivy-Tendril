@@ -208,6 +208,13 @@ public sealed class ClaudeCli : IAgentCli
             args.Add(tempFile);
         }
 
+        var mcpConfigFile = global::Ivy.Tendril.Agents.Helpers.McpConfigWriter.WriteConfigFile(config.McpServers);
+        if (!string.IsNullOrEmpty(mcpConfigFile))
+        {
+            args.Add("--mcp-config");
+            args.Add(mcpConfigFile);
+        }
+
         foreach (var mcp in config.McpServers)
         {
             args.Add("--mcp-server");
