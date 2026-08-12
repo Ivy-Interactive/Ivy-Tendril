@@ -7,7 +7,7 @@ namespace Ivy.Tendril.Agents.Test.End2End.Tests;
 [Collection("Agents")]
 public class AntigravityEnd2EndTests(AgentFixture fixture)
 {
-    private const string Agent = AgentId.Antigravity;
+    private static readonly AgentId Agent = AgentId.Antigravity;
 
     [SkippableFact]
     public async Task SimplePrompt_ReturnsSuccessfulResult()

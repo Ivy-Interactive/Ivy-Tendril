@@ -7,7 +7,7 @@ namespace Ivy.Tendril.Agents.Test.End2End.Tests;
 [Collection("Agents")]
 public class GeminiEnd2EndTests(AgentFixture fixture)
 {
-    private const string Agent = AgentId.Gemini;
+    private static readonly AgentId Agent = AgentId.Gemini;
 
     [SkippableFact]
     public async Task SimplePrompt_ReturnsSuccessfulResult()
