@@ -7,7 +7,7 @@ namespace Ivy.Tendril.Agents.Test.End2End.Tests;
 [Collection("Agents")]
 public class OpenCodeEnd2EndTests(AgentFixture fixture)
 {
-    private const string Agent = AgentId.OpenCode;
+    private static readonly AgentId Agent = AgentId.OpenCode;
 
     [SkippableFact]
     public async Task SimplePrompt_ReturnsSuccessfulResult()

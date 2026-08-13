@@ -6,6 +6,7 @@ import { ContentInput } from "./ContentInput/ContentInput";
 import { BadgeSelect } from "./BadgeSelect";
 import { PlanDiffView } from "./PlanDiffView/PlanDiffView";
 import { ChatWidget } from "./ChatWidget/ChatWidget";
+import { WebViewer } from "./WebViewer";
 
 if (typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).IvyTendrilWidgets = {
@@ -17,6 +18,7 @@ if (typeof window !== "undefined") {
     BadgeSelect,
     PlanDiffView,
     ChatWidget,
+    WebViewer,
   };
 }
 
@@ -29,4 +31,5 @@ export {
   BadgeSelect,
   PlanDiffView,
   ChatWidget,
+  WebViewer,
 };

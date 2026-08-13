@@ -60,6 +60,8 @@ export const CodeBlock: React.FC<React.HTMLAttributes<HTMLElement>> = ({ classNa
       );
     }
 
+    const normalizedLang = lang === "xml" || lang === "html" || lang === "svg" ? "markup" : lang;
+
     return (
       <div className="pmv-code-block">
         <button
@@ -71,7 +73,7 @@ export const CodeBlock: React.FC<React.HTMLAttributes<HTMLElement>> = ({ classNa
         </button>
         <SyntaxHighlighter
           style={prismTheme as unknown as { [key: string]: React.CSSProperties }}
-          language={lang}
+          language={normalizedLang}
           PreTag="pre"
           customStyle={codeBlockPreStyle}
           wrapLongLines={false}

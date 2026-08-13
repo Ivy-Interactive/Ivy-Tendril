@@ -7,7 +7,7 @@ namespace Ivy.Tendril.Agents.Test.End2End.Tests;
 [Collection("Agents")]
 public class CopilotEnd2EndTests(AgentFixture fixture)
 {
-    private const string Agent = AgentId.Copilot;
+    private static readonly AgentId Agent = AgentId.Copilot;
 
     [SkippableFact]
     public async Task SimplePrompt_ReturnsSuccessfulResult()

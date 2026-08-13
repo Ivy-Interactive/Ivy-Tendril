@@ -10,4 +10,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Ivy.Tendril.Widgets.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Static assets served by WebViewerProxy.cs (proxied-page agent, service worker, screenshot lib). -->
+    <Content Include="proxy-assets\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
