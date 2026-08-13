@@ -6,13 +6,8 @@ namespace Ivy.Tendril.Apps.Jobs;
 
 public partial class JobsApp
 {
-    private Dictionary<string, string> BuildProjectColorMapping(IConfigService config)
-    {
-        return config.Projects
-            .Select(p => new { p.Name, Color = config.GetProjectColor(p.Name) })
-            .Where(x => x.Color.HasValue)
-            .ToDictionary(x => x.Name, x => x.Color!.Value.ToString());
-    }
+    private Dictionary<string, string> BuildProjectColorMapping(IConfigService config) =>
+        ProjectHelper.BuildColorMapping(config);
 
     private List<JobItemRow> BuildJobRows(List<JobItem> jobs, IPlanReaderService planService)
     {

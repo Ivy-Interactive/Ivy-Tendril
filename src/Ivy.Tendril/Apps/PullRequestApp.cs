@@ -70,6 +70,7 @@ public class PullRequestApp : ViewBase
         });
 
         var prStatuses = databaseService.GetAllPrStatuses();
+        var projectColors = ProjectHelper.BuildColorMapping(config);
 
         var plans = planService.GetPlans()
             .Where(p => p.Prs.Count > 0)
@@ -132,6 +133,10 @@ public class PullRequestApp : ViewBase
                     ["Merged"] = nameof(Colors.Purple),
                     ["Closed"] = nameof(Colors.Zinc)
                 }
+            })
+            .Renderer(t => t.Project, new LabelsDisplayRenderer
+            {
+                BadgeColorMapping = projectColors
             })
             .Renderer(t => t.Pr, new LinkDisplayRenderer())
             .SortDirection(t => t.PlanId, SortDirection.Descending)
