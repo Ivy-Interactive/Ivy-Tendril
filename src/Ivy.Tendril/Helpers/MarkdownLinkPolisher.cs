@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Ivy.Tendril.Helpers;
@@ -33,9 +34,63 @@ public class MarkdownLinkPolisher
         if (string.IsNullOrEmpty(markdownContent))
             return markdownContent;
 
-        var result = markdownContent;
+        var questionFences = QuestionBlockParser.FindFenceRanges(markdownContent);
+        if (questionFences.Count == 0)
+            return Polish(markdownContent, plansDirectory);
 
-        result = RemoveBackticksFromFileLinkText(result);
+        // A `questions` fence is machine-read YAML — option values are slugs matched literally
+        // against answers — so polishing one would corrupt the block (a bare 5-digit value would
+        // become a plan link). Everything around it is polished as before. Lines keep their own
+        // terminators, so splitting and rejoining on '\n' is byte-preserving for CRLF too.
+        var lines = markdownContent.Split('\n');
+        var builder = new StringBuilder();
+        var pending = new List<string>();
+        var fenceIndex = 0;
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var lineNumber = i + 1;
+            while (fenceIndex < questionFences.Count && questionFences[fenceIndex].EndLine < lineNumber)
+                fenceIndex++;
+
+            var insideFence = fenceIndex < questionFences.Count &&
+                              lineNumber >= questionFences[fenceIndex].StartLine &&
+                              lineNumber <= questionFences[fenceIndex].EndLine;
+
+            if (!insideFence)
+            {
+                pending.Add(lines[i]);
+                continue;
+            }
+
+            Flush();
+            Append(lines[i]);
+        }
+
+        Flush();
+        return builder.ToString();
+
+        void Flush()
+        {
+            if (pending.Count == 0)
+                return;
+
+            Append(Polish(string.Join("\n", pending), plansDirectory));
+            pending.Clear();
+        }
+
+        void Append(string text)
+        {
+            if (builder.Length > 0)
+                builder.Append('\n');
+
+            builder.Append(text);
+        }
+    }
+
+    private string Polish(string content, string plansDirectory)
+    {
+        var result = RemoveBackticksFromFileLinkText(content);
         result = PolishMarkdownLinks(result);
         result = ConvertBarePlanNumbers(result, plansDirectory);
 
