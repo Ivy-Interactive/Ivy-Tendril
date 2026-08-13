@@ -46,6 +46,7 @@ public class MarkdownLinkPolisher
         var builder = new StringBuilder();
         var pending = new List<string>();
         var fenceIndex = 0;
+        var wroteAny = false;
 
         for (var i = 0; i < lines.Length; i++)
         {
@@ -81,9 +82,13 @@ public class MarkdownLinkPolisher
 
         void Append(string text)
         {
-            if (builder.Length > 0)
+            // Tracked with a flag rather than `builder.Length > 0`: the first segment is the empty
+            // string whenever the document opens with a blank line, and testing the length would
+            // swallow the separator and silently drop that line.
+            if (wroteAny)
                 builder.Append('\n');
 
+            wroteAny = true;
             builder.Append(text);
         }
     }

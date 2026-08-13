@@ -167,4 +167,16 @@ public class RevisionWriterTests : IDisposable
         Assert.Contains($"    description: \"{bait}\"", written);
         Assert.EndsWith(input[input.IndexOf("```questions", StringComparison.Ordinal)..], written);
     }
+
+    [Fact]
+    public void WriteNext_PreservesBlankLinesAroundQuestionBlock()
+    {
+        // Splitting the document around the fence must not lose empty segments: a document that
+        // opens with a blank line makes the first polished segment the empty string.
+        const string input = "\n\n```questions\nquestions:\n  - title: Which one?\n```\n\ntail\n";
+
+        var written = File.ReadAllText(RevisionWriter.WriteNext(_planFolder, input, _config));
+
+        Assert.Equal(input, written);
+    }
 }
