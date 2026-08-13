@@ -115,9 +115,9 @@ public class GitTabView(
                 new("Repository", Text.Monospaced(section.ParentRepoPath.Replace('\\', '/')))
             ];
 
-            if (section is { ParentBranch: not null, ParentShortHash: not null })
+            if (section is { BaseBranch: not null, BaseShortHash: not null })
             {
-                detailsList.Add(new("Parent", Text.Monospaced($"{section.ParentBranch}@{section.ParentShortHash}")));
+                detailsList.Add(new("Base", Text.Monospaced($"{section.BaseBranch}@{section.BaseShortHash}")));
             }
 
             detailsList.Add(new("Worktree", Text.Monospaced(section.Path.Replace('\\', '/'))));
