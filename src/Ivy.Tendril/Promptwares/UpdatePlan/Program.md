@@ -36,17 +36,17 @@ For each question in the instructions:
 1. Read relevant source files to find the answer
 2. Use the firmware header for project context if needed
 
-### 3.5. Resolve Answered Questions
+### 3.5. Retire Answered Questions
 
-Compare each existing question in `## Questions` against:
-- The user's instructions (user may have directly answered a question)
-- Your research findings from step 3
+This is where the user's answers land: the UI writes them back into the revision markdown, and the user then runs UpdatePlan. The schema and answer semantics are in the **Question Blocks** section of **Reference Documents**.
 
-For each question, determine if it has been answered — either explicitly by the user's instructions or implicitly by a decision made in the updated plan. If answered:
-- Wrap the question in a `<details>` block (collapsed) with the answer as the body
-- The answer should reference the user's instruction or the design decision that resolves it
-
-If all questions are resolved and no new questions arose, omit the `## Questions` section entirely.
+1. Scan the revision markdown for every `questions` fence. There may be several, anywhere in the document.
+2. For every question whose block has an `answer` key with a non-null value, treat it as a decision by the user. Fold it into whichever section it sits nearest to (or `## Problem` / `## Solution` for a scope-level question) as concrete prose or steps, and **delete that question from its block**. Never restate it as an open question, and never leave an answered question in a revision.
+3. For every question with `answer: null` (declined), make the call yourself, write one sentence near where the block sits saying which way you went and that the user deferred, then delete the question.
+4. A question the user answered in prose in `UpdateInstructions` counts as answered even though the markdown has no `answer` key. Same handling.
+5. Carry every question with no `answer` key forward verbatim — same `header`, `options`, ordering, and position in the document. Do not reword it, and do not add an `answer`.
+6. If a block's last question is retired, drop that fence entirely. If new ambiguity appeared, add new blocks, each with 4 or fewer questions, placed next to the section it concerns.
+7. The old prose `## Questions` section is gone. If a prior revision has one, convert the still-open items into `questions` block(s) and fold the rest into the plan.
 
 ### 4. Apply Changes
 
@@ -61,13 +61,7 @@ Report status: `tendril job status TendrilJobId --message="Applying changes..."`
 
   The command reads from STDIN and auto-creates the next numbered revision file. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`.
 - Incorporate the intent of each instruction into the updated plan
-- Maintain the `## Questions` section (placed after the title, before `## Problem`) using `<details>` tags: (1) Existing questions answered by the user's instructions or research should be collapsed into `<details>` blocks with the answer. (2) New questions become new `<details>` blocks with answers. (3) Unanswered questions from prior revisions remain as open items (not in `<details>`). (4) If all questions are resolved and no new ones arose, omit the section entirely. Format:
-  ```html
-  <details>
-  <summary>Question</summary>
-  Answer
-  </details>
-  ```
+- Carry the `questions` blocks forward as decided in step 3.5. `write-revision` rejects a malformed block and writes nothing; fix the reported lines and retry.
 - Preserve the plan template structure
 - The updated plan must be at least as comprehensive as the original
 

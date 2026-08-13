@@ -438,9 +438,17 @@ Analyze the task complexity and choose an `executionProfile`. This is passed via
 
 If you cannot determine complexity (e.g., task is too vague), omit `--execution-profile` — ExecutePlan will use the configured default.
 
-### 4.6. Questions Section
+### 4.6. Questions
 
-Only include `## Questions` if you have genuine questions for the user that block the plan. Place it immediately after the title (before `## Problem`). If there are no questions, **omit the section entirely** — do not include an empty heading or placeholder text.
+When you hit a genuine ambiguity, ask the user with a fenced `questions` block. The schema, answer semantics and lint rules are in the **Question Blocks** section of **Reference Documents** — follow them exactly.
+
+- Ask only about an ambiguity that research cannot settle and that changes what gets built. A question you can answer by reading the code is not a question, it is research you skipped.
+- Emit one or more blocks of 1-4 questions each. Place each block where it is most relevant: right after the H1 for a scope-level question, or inline under the `## Solution` subsection it concerns for a narrower design question.
+- Never write an `answer` key. CreatePlan asks; it never answers.
+- Prefer options with `recommended: true` on the one you would pick, so an unanswered plan still has a defensible default.
+- The plan must remain executable if nobody answers: state the fallback in `## Solution`.
+- There is no `## Questions` section any more. Do not write one.
+- `write-revision` rejects a malformed block and writes nothing; fix the reported lines and retry.
 
 ### 4.7. Tests Section
 

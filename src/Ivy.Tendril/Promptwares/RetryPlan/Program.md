@@ -226,6 +226,15 @@ The launcher script handles state transitions (Completed/Failed) based on exit c
 
 You are running in non-interactive mode and CANNOT ask questions. If you are unsure about requirements, encounter conflicting instructions, or cannot find referenced files — STOP and fail with a clear message explaining what needs clarification. Do NOT guess when uncertain.
 
+**Unanswered question blocks.** Before doing any work, scan the plan revision you read for any fenced `questions` block (see the **Question Blocks** section of **Reference Documents**). If any question in it has no `answer` key, the plan is not ready:
+
+```bash
+tendril job fail TendrilJobId --message="Plan has an unanswered question; answer it and run UpdatePlan"
+exit 1
+```
+
+Guessing at an open question wastes an execution. A block that is fully answered but still present — the user retried without running UpdatePlan first — is not a failure: honor the answers as decisions and continue. RetryPlan never writes revisions, so it never adds question blocks.
+
 ## Rules
 
 - All work happens in worktree directories, never in the original repos

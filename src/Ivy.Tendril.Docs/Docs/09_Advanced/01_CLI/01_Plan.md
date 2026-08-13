@@ -202,6 +202,37 @@ Writes a numbered revision file to `Revisions/` (e.g. `002.md`) from stdin or `-
 
 Prints revision content to stdout — the latest revision by default, or a specific numbered revision with `--number`.
 
+## Questions
+
+A revision can carry questions for the user in fenced `questions` blocks. Promptwares run headless and cannot ask anything mid-run, so a planning agent that hits an ambiguity it cannot research away emits a block instead. The user answers in the UI, which writes the answers back into the same block, and UpdatePlan then folds them into the plan and removes the questions.
+
+````
+```questions
+questions:                    # 1-4 items
+  - title:       string       # required, the question
+    header:      string       # optional, <=12 char chip label
+    description: markdown     # optional, context shown under the question
+    multiple:    bool         # optional, default false; true = multi-select
+    other:       bool         # optional, default true; user may type a free value
+    options:                  # 2-4 items; omit entirely for a pure free-text question
+      - title:       string   # required, 1-5 words
+        description: markdown # optional
+        value:       slug     # required, ^[a-z0-9][a-z0-9-]*$, referenced by `answer`
+        recommended: bool     # optional, max one per question
+    answer:      value | [values] | string   # filled in on response
+```
+````
+
+A block may appear anywhere in the document, and a revision may contain any number of them. No `answer` key means unanswered; `answer: null` means the user deliberately skipped the question and left the decision to the agent.
+
+`write-revision` validates every block and refuses the write if any is malformed, printing each problem prefixed with the line of its opening fence. Nothing is written on rejection, so a rejected revision does not consume a revision number. A block whose body predates the schema (plain prose rather than a `questions` mapping) is reported as a warning and written unchanged.
+
+```terminal
+>tendril plan write-revision <plan-id> --file revision.md --no-question-check
+```
+
+`--no-question-check` skips the validation. It exists for scripted and test use — promptwares should not use it.
+
 ## Recommendations
 
 ```terminal

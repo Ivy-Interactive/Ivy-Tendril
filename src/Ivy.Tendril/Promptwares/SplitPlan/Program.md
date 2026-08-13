@@ -68,7 +68,15 @@ EOF
 
 **The revision's first line is the `# {title}` H1 heading — it MUST be the exact same string you passed as `<Title>` to `tendril plan create` for that plan** (human-readable Title Case, not the PascalCase folder form). The `plan.yaml` title and the spec H1 must always match.
 
-The command reads from STDIN and auto-creates the next numbered revision file. Fill in Problem, Solution, Remaining Design Questions, Tests sections. Each plan must be fully self-contained. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`.
+The command reads from STDIN and auto-creates the next numbered revision file. Fill in Problem, Solution, Tests sections. Each plan must be fully self-contained. Do NOT use the Write or Edit tools to create revision files directly in `Revisions/`.
+
+#### Open Questions
+
+The parent's open questions live in fenced `questions` blocks (see the **Question Blocks** section of **Reference Documents**), and the split has to distribute them:
+
+- Each open question goes to exactly one child plan — the one whose scope it decides. Never copy the same question into two children, or the user answers it twice.
+- Answered questions are folded into whichever children they affect, and are not carried over.
+- A question that decides the split itself belongs in the parent, which means the split is premature. Say so instead of splitting.
 
 #### Project Assignment
 
