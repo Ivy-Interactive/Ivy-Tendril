@@ -272,4 +272,40 @@ test.describe("DraftMarkdown Annotations", () => {
     await expect(highlights).toHaveCount(2);
     await stepScreenshot("both-annotations-visible");
   });
+
+  test("selection toolbar follows the text while scrolling", async ({ page, stepScreenshot }) => {
+    const shell = page.locator(".pmv-shell");
+
+    // Sanity: the sample content must actually overflow the shell at this
+    // viewport, otherwise scrolling below would be a no-op and the position
+    // assertion would pass vacuously.
+    const isScrollable = await shell.evaluate((el) => el.scrollHeight > el.clientHeight + 50);
+    expect(isScrollable).toBe(true);
+
+    const paragraph = page.locator(".pmv-markdown p").first();
+    const box = await paragraph.boundingBox();
+    expect(box).not.toBeNull();
+
+    await page.mouse.move(box!.x + 5, box!.y + box!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + 200, box!.y + box!.height / 2);
+    await page.mouse.up();
+
+    const toolbar = page.locator(".pmv-selection-toolbar");
+    await expect(toolbar).toBeVisible({ timeout: 5000 });
+    const before = await toolbar.boundingBox();
+    expect(before).not.toBeNull();
+    await stepScreenshot("toolbar-before-scroll");
+
+    await shell.evaluate((el) => el.scrollBy(0, 200));
+
+    // The capture-phase scroll listener repositions the toolbar
+    // asynchronously; poll until it settles at the expected offset.
+    await expect(async () => {
+      const after = await toolbar.boundingBox();
+      expect(after).not.toBeNull();
+      expect(Math.abs(before!.y - 200 - after!.y)).toBeLessThanOrEqual(2);
+    }).toPass({ timeout: 5000 });
+    await stepScreenshot("toolbar-after-scroll");
+  });
 });
