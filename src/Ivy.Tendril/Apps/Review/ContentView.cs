@@ -239,7 +239,7 @@ public class ContentView(
             planContentQuery.Mutator.Revalidate);
 
         var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCreatePrDialog, nav,
-            args, selectedRecTitles, ImplementRecommendations);
+            args);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
             showCreatePrDialog, copyToClipboard, client, logger, nav, args, agentRunner, draftComments);
@@ -247,7 +247,7 @@ public class ContentView(
             selectedPlanState.Value, planData, planContentQuery, selectedTab, openVerification,
             openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
             assigneesError, syncingWorktrees, selectedRecTitles, pendingRecs,
-            client, copyToClipboard, logger, nav, args, showDebugJob, draftComments);
+            client, copyToClipboard, logger, nav, args, showDebugJob, draftComments, ImplementRecommendations);
 
         var mainLayout = new HeaderLayout(
             header,
@@ -267,9 +267,7 @@ public class ContentView(
         IClientProvider client,
         Action showCreatePrDialog,
         INavigator nav,
-        ReviewAppArgs? args,
-        IState<HashSet<string>> selectedRecTitles,
-        Action onImplementRecommendations)
+        ReviewAppArgs? args)
     {
         object BuildTitleArea(bool isMobile)
         {
@@ -312,8 +310,6 @@ public class ContentView(
 
         object BuildControls(bool isMobile)
         {
-            var hasSelection = selectedRecTitles.Value.Count > 0;
-
             var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                            | Text.Rich()
                                .NoWrap()
@@ -366,9 +362,9 @@ public class ContentView(
                         showCreatePrDialog();
                     }
                 }).ShortcutKey("m");
-                createPrBtn = hasSelection ? createPrBtn.Outline() : createPrBtn.Primary();
+                createPrBtn = createPrBtn.Primary();
 
-                rightSide |= (allYolo && !isPrUpdate && !hasSelection)
+                rightSide |= (allYolo && !isPrUpdate)
                     ? createPrBtn.WithConfetti(AnimationTrigger.Click)
                     : createPrBtn;
             }
@@ -394,18 +390,7 @@ public class ContentView(
                     // Fire and forget - clean up worktrees in the background
                     WorktreeCleanupService.RemoveWorktreesInBackground(selectedPlan.FolderPath);
                 }).ShortcutKey("m");
-                rightSide |= hasSelection ? completePlanBtn.Outline() : completePlanBtn.Primary();
-            }
-
-            if (hasSelection)
-            {
-                var count = selectedRecTitles.Value.Count;
-                var label = count > 1 ? "Implement Recommendations" : "Implement Recommendation";
-                rightSide |= new Button(label)
-                    .Badge(count.ToString())
-                    .Icon(Icons.Rocket)
-                    .Primary()
-                    .OnClick(onImplementRecommendations);
+                rightSide |= completePlanBtn.Primary();
             }
 
             return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
@@ -578,7 +563,8 @@ public class ContentView(
         INavigator nav,
         ReviewAppArgs? args,
         Action<string> showDebugJob,
-        IState<List<DraftComment>> draftComments)
+        IState<List<DraftComment>> draftComments,
+        Action onImplementRecommendations)
     {
         var content = Layout.Vertical().Gap(0).Height(Size.Full());
 
@@ -636,7 +622,7 @@ public class ContentView(
 
             content |= new ReviewActionsBarView(selectedPlan, planData.ReviewActionStates, config, logger);
 
-            var recommendationsTab = new RecommendationsTabView(pendingRecs, selectedRecTitles, config);
+            var recommendationsTab = new RecommendationsTabView(pendingRecs, selectedRecTitles, config, onImplementRecommendations);
 
             var changesTabView = new ChangesTabView(
                 planData.AllChanges,
