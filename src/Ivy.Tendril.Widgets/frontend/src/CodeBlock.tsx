@@ -1,6 +1,7 @@
 import React, { lazy, Suspense, useCallback, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { prismTheme } from "./prismTheme";
+import { QuestionsCallout } from "./DraftMarkdown/QuestionsCallout";
 
 const MermaidRenderer = lazy(() => import("./DraftMarkdown/MermaidRenderer").then((m) => ({ default: m.MermaidRenderer })));
 const GraphvizRenderer = lazy(() => import("./DraftMarkdown/GraphvizRenderer").then((m) => ({ default: m.GraphvizRenderer })));
@@ -58,6 +59,10 @@ export const CodeBlock: React.FC<React.HTMLAttributes<HTMLElement>> = ({ classNa
           <GraphvizRenderer content={content} />
         </Suspense>
       );
+    }
+
+    if (lang === "questions") {
+      return <QuestionsCallout content={content} />;
     }
 
     const normalizedLang = lang === "xml" || lang === "html" || lang === "svg" ? "markup" : lang;
