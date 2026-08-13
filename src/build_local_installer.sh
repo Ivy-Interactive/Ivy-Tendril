@@ -114,10 +114,18 @@ sudo -u "$USER" rm -rf ~/Library/Caches/velopack/IvyTendril
 sudo -u "$USER" env VELOPACK_FIRSTRUN=1 open "$2/Ivy Tendril.app/"
 
 # Path to the installed app certificate
-CERT_PATH="$3/Applications/Ivy Tendril.app/Contents/Resources/certs/localhost.crt"
+APP_PATH="$2/Ivy Tendril.app"
+if [ ! -d "$APP_PATH" ]; then
+  APP_PATH="$3/Applications/Ivy Tendril.app"
+fi
+if [ ! -d "$APP_PATH" ]; then
+  APP_PATH="/Applications/Ivy Tendril.app"
+fi
+
+CERT_PATH="$APP_PATH/Contents/Resources/certs/localhost.crt"
 if [ -f "$CERT_PATH" ]; then
   echo "Trusting Ivy Tendril localhost certificate system-wide..."
-  security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CERT_PATH"
+  security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CERT_PATH" || true
 fi
 exit 0
 EOF
