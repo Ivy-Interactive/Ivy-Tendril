@@ -675,6 +675,45 @@
   color: hsl(0 84% 60%);
 }
 
+/* ─── Questions callout ─────────────────────────────────────────────────
+   Rendered by BlockHandler for ```questions fences, wrapped in a <pre> by
+   react-markdown (only the `code` element is overridden). Reset the UA
+   `pre` styles (monospace font, white-space: pre) that would otherwise
+   inherit in and stop the question text from wrapping like prose. */
+.pmv-questions {
+  border-radius: 0.375rem;
+  border: 1px solid;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  white-space: normal;
+  border-color: hsl(199 89% 48% / 0.3);
+  background: hsl(199 89% 48% / 0.08);
+}
+
+.pmv-questions-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  white-space: normal;
+  color: hsl(199 89% 48%);
+}
+
+.pmv-questions-header svg {
+  flex-shrink: 0;
+}
+
+.pmv-questions-title {
+  font-size: 0.875rem;
+}
+
+.pmv-questions-content {
+  margin-top: 0.25rem;
+  white-space: pre-wrap;
+}
+
 /* Image viewer */
 .pmv-img-clickable {
   cursor: pointer;

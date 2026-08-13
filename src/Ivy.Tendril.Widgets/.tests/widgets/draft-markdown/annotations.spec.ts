@@ -272,4 +272,26 @@ test.describe("DraftMarkdown Annotations", () => {
     await expect(highlights).toHaveCount(2);
     await stepScreenshot("both-annotations-visible");
   });
+
+  test("renders a questions callout in the sample app", async ({ page, stepScreenshot }) => {
+    const callout = page.locator(".pmv-questions");
+    await expect(callout).toBeVisible();
+    await expect(callout).toContainText("Should the retry budget be per-request or per-session?");
+    await stepScreenshot("questions-callout-visible");
+  });
+
+  test("selecting text inside a questions callout does not show the selection toolbar", async ({ page, stepScreenshot }) => {
+    const calloutContent = page.locator(".pmv-questions-content");
+    const box = await calloutContent.boundingBox();
+    expect(box).not.toBeNull();
+
+    await page.mouse.move(box!.x + 5, box!.y + box!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + box!.width - 5, box!.y + box!.height / 2);
+    await page.mouse.up();
+
+    const toolbar = page.locator(".pmv-selection-toolbar");
+    await expect(toolbar).not.toBeVisible();
+    await stepScreenshot("no-toolbar-for-questions-selection");
+  });
 });

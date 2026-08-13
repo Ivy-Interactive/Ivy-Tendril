@@ -1,7 +1,7 @@
 import React from "react";
 import Markdown from "react-markdown";
 import type { ResultWire } from "./types";
-import { CodeBlock } from "../CodeBlock";
+import { BlockHandler } from "../BlockHandler";
 import { getMarkdownPlugins } from "../math";
 
 interface ResultSummaryProps {
@@ -57,7 +57,7 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({ wire }) => {
           <Markdown
             remarkPlugins={plugins.remarkPlugins}
             rehypePlugins={plugins.rehypePlugins}
-            components={{ code: CodeBlock }}
+            components={{ code: BlockHandler }}
           >
             {wire.response}
           </Markdown>
