@@ -885,36 +885,39 @@ public class PlanDatabaseService : IPlanDatabaseService
         }
     }
 
-    public Dictionary<string, string> GetAllPrStatuses()
+    public Dictionary<string, PrInfo> GetAllPrStatuses()
     {
         using (new ReadLockHandle(_lock))
         {
-            var list = ReadList("SELECT PrUrl, Status FROM PrStatuses", reader =>
-                (Url: reader.GetString(0), Status: reader.GetString(1)));
+            var list = ReadList("SELECT PrUrl, Status, Branch FROM PrStatuses", reader =>
+                (Url: reader.GetString(0), Status: reader.GetString(1),
+                    Branch: reader.IsDBNull(2) ? "" : reader.GetString(2)));
 
-            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (url, status) in list)
-                result[url] = status;
+            var result = new Dictionary<string, PrInfo>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (url, status, branch) in list)
+                result[url] = new PrInfo(status, branch);
             return result;
         }
     }
 
-    public void UpsertPrStatus(string prUrl, string owner, string repo, string status, DateTime lastChecked)
+    public void UpsertPrStatus(string prUrl, string owner, string repo, string status, string branch, DateTime lastChecked)
     {
         using (new WriteLockHandle(_lock))
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                              INSERT INTO PrStatuses (PrUrl, Owner, Repo, Status, LastChecked)
-                              VALUES (@url, @owner, @repo, @status, @checked)
+                              INSERT INTO PrStatuses (PrUrl, Owner, Repo, Status, Branch, LastChecked)
+                              VALUES (@url, @owner, @repo, @status, @branch, @checked)
                               ON CONFLICT(PrUrl) DO UPDATE SET
                                   Status = excluded.Status,
+                                  Branch = excluded.Branch,
                                   LastChecked = excluded.LastChecked
                               """;
             cmd.Parameters.AddWithValue("@url", prUrl);
             cmd.Parameters.AddWithValue("@owner", owner);
             cmd.Parameters.AddWithValue("@repo", repo);
             cmd.Parameters.AddWithValue("@status", status);
+            cmd.Parameters.AddWithValue("@branch", branch);
             cmd.Parameters.AddWithValue("@checked", lastChecked.ToString("O", CultureInfo.InvariantCulture));
             cmd.ExecuteNonQuery();
         }
