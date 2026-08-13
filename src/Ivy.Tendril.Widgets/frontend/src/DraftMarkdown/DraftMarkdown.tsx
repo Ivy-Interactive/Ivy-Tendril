@@ -10,6 +10,7 @@ import { AlertBlockquote } from "./AlertBlockquote";
 import { ImageRenderer } from "./ImageRenderer";
 import { isLocalFileUrl, transformLocalFileUrl } from "./localFiles";
 import { getMarkdownPlugins } from "../math";
+import { useAnchoredPosition } from "./useAnchoredPosition";
 
 type IvyEventHandler = (eventName: string, widgetId: string, args: unknown[]) => void;
 
@@ -28,13 +29,7 @@ interface DraftMarkdownProps {
   };
 }
 
-interface Position {
-  top: number;
-  left: number;
-}
-
 interface SelectionState {
-  position: Position;
   startOffset: number;
   endOffset: number;
   selectedText: string;
@@ -56,9 +51,17 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
   slots,
 }) => {
   const contentRef = useRef<HTMLDivElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
   const [selectionToolbar, setSelectionToolbar] = useState<SelectionState | null>(null);
   const [addPopover, setAddPopover] = useState<SelectionState | null>(null);
-  const [editPopover, setEditPopover] = useState<{ position: Position; annotation: MarkdownAnnotation } | null>(null);
+  const [editPopover, setEditPopover] = useState<MarkdownAnnotation | null>(null);
+
+  // Re-measured on scroll/resize so the fixed-position toolbar/popovers stay
+  // lined up with the text they anchor to, instead of the one-shot rect
+  // captured at mouseup/click time.
+  const selectionAnchor = useAnchoredPosition(contentRef, shellRef, selectionToolbar);
+  const addAnchor = useAnchoredPosition(contentRef, shellRef, addPopover);
+  const editAnchor = useAnchoredPosition(contentRef, shellRef, editPopover);
 
   const annotationsEnabled = events.includes("OnAnnotationsChange");
 
@@ -101,13 +104,7 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
       const startOffset = getPlainTextOffset(container, range.startContainer, range.startOffset);
       const endOffset = getPlainTextOffset(container, range.endContainer, range.endOffset);
 
-      const rect = range.getBoundingClientRect();
-      setSelectionToolbar({
-        position: { top: rect.bottom + 4, left: rect.left },
-        startOffset,
-        endOffset,
-        selectedText,
-      });
+      setSelectionToolbar({ startOffset, endOffset, selectedText });
     };
 
     container.addEventListener("mouseup", handleMouseUp);
@@ -133,18 +130,16 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
     if (!container) return;
 
     const handleClick = (e: MouseEvent) => {
-      const mark = (e.target as HTMLElement).closest("mark[data-annotation-id]") as HTMLElement | null;
+      const mark = (e.target as HTMLElement).closest(
+        "mark[data-annotation-id]",
+      ) as HTMLElement | null;
       if (!mark) return;
 
       const annotationId = mark.dataset.annotationId;
       const annotation = annotations.find((a) => a.id === annotationId);
       if (!annotation) return;
 
-      const rect = mark.getBoundingClientRect();
-      setEditPopover({
-        position: { top: rect.bottom + 4, left: rect.left },
-        annotation,
-      });
+      setEditPopover(annotation);
     };
 
     container.addEventListener("click", handleClick);
@@ -195,7 +190,7 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
   const handleEditAnnotation = useCallback(
     (comment: string) => {
       if (!editPopover) return;
-      const updated = annotations.map((a) => (a.id === editPopover.annotation.id ? { ...a, comment } : a));
+      const updated = annotations.map((a) => (a.id === editPopover.id ? { ...a, comment } : a));
       fireAnnotationsChange(updated);
       setEditPopover(null);
     },
@@ -204,7 +199,7 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
 
   const handleRemoveAnnotation = useCallback(() => {
     if (!editPopover) return;
-    const filtered = annotations.filter((a) => a.id !== editPopover.annotation.id);
+    const filtered = annotations.filter((a) => a.id !== editPopover.id);
     fireAnnotationsChange(filtered);
     setEditPopover(null);
   }, [editPopover, annotations, fireAnnotationsChange]);
@@ -222,7 +217,8 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
     (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
       const { href, children, ...rest } = props;
       const isLocalFile =
-        !!href && (href.startsWith("file:") || (!/^[a-z]+:\/\//i.test(href) && !href.startsWith("#")));
+        !!href &&
+        (href.startsWith("file:") || (!/^[a-z]+:\/\//i.test(href) && !href.startsWith("#")));
       if (isLocalFile && !dangerouslyAllowLocalFiles) {
         return <span {...rest}>{children}</span>;
       }
@@ -271,14 +267,19 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
   };
 
   return (
-    <div className="pmv-shell" style={shellStyle}>
+    <div ref={shellRef} className="pmv-shell" style={shellStyle}>
       <div className="pmv-body">
         <div ref={contentRef} className={article ? "pmv-markdown pmv-article" : "pmv-markdown"}>
           <Markdown
             remarkPlugins={plugins.remarkPlugins}
             rehypePlugins={plugins.rehypePlugins}
             urlTransform={urlTransform}
-            components={{ a: anchor, code: CodeBlock, blockquote: AlertBlockquote, img: ImageRenderer }}
+            components={{
+              a: anchor,
+              code: CodeBlock,
+              blockquote: AlertBlockquote,
+              img: ImageRenderer,
+            }}
           >
             {content}
           </Markdown>
@@ -286,21 +287,27 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
       </div>
       {hasFixed && <div className="pmv-sticky">{fixed}</div>}
 
-      {annotationsEnabled && selectionToolbar && (
-        <SelectionToolbar position={selectionToolbar.position} onAddComment={handleAddComment} />
+      {annotationsEnabled && selectionToolbar && selectionAnchor && (
+        <SelectionToolbar
+          position={selectionAnchor.position}
+          visible={selectionAnchor.visible}
+          onAddComment={handleAddComment}
+        />
       )}
-      {annotationsEnabled && addPopover && (
+      {annotationsEnabled && addPopover && addAnchor && (
         <AddAnnotationPopover
-          position={addPopover.position}
+          position={addAnchor.position}
+          visible={addAnchor.visible}
           selectedText={addPopover.selectedText}
           onAdd={handleAddAnnotation}
           onCancel={() => setAddPopover(null)}
         />
       )}
-      {annotationsEnabled && editPopover && (
+      {annotationsEnabled && editPopover && editAnchor && (
         <EditAnnotationPopover
-          position={editPopover.position}
-          annotation={editPopover.annotation}
+          position={editAnchor.position}
+          visible={editAnchor.visible}
+          annotation={editPopover}
           onSave={handleEditAnnotation}
           onRemove={handleRemoveAnnotation}
           onCancel={() => setEditPopover(null)}
