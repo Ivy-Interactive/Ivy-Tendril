@@ -119,16 +119,7 @@ public class ContentView(
         // Content
         var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(6, 2, 6, 2);
 
-        // Source plan info
-        var metaRow = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                      | Text.Muted($"Plan #{selectedRecommendation.ShortPlanId}: {selectedRecommendation.PlanTitle}");
-
-        scrollableContent |= Layout.Vertical().Gap(1)
-                             | Text.Block("Source Plan").Bold()
-                             | metaRow;
-
         // Description
-        scrollableContent |= new Separator();
         scrollableContent |= new Markdown(MarkdownHelper.PrepareForDisplay(selectedRecommendation.Description, config))
             .DangerouslyAllowLocalFiles()
             .Article()
