@@ -6,6 +6,15 @@ export interface MarkdownAnnotation {
   comment: string;
 }
 
+export const QUESTIONS_SELECTOR = ".pmv-questions";
+
+export function rangeTouchesQuestions(container: HTMLElement, range: Range): boolean {
+  for (const block of container.querySelectorAll(QUESTIONS_SELECTOR)) {
+    if (range.intersectsNode(block)) return true;
+  }
+  return false;
+}
+
 export function getPlainTextOffset(
   container: Node,
   targetNode: Node,
@@ -58,7 +67,13 @@ function getTextNodesInRange(
     const nodeStart = offset;
     const nodeEnd = offset + nodeLen;
 
-    if (nodeEnd > startOffset && nodeStart < endOffset) {
+    // Callout text is excluded from highlighting, but the offset counter below
+    // must still advance over it — getPlainTextOffset walks every text node in
+    // the container, so skipping the offset here would shift every annotation
+    // that appears after a questions block.
+    const inQuestions = !!(node as Text).parentElement?.closest(QUESTIONS_SELECTOR);
+
+    if (!inQuestions && nodeEnd > startOffset && nodeStart < endOffset) {
       const sliceStart = Math.max(0, startOffset - nodeStart);
       const sliceEnd = Math.min(nodeLen, endOffset - nodeStart);
       const slice = node.textContent?.slice(sliceStart, sliceEnd) ?? "";

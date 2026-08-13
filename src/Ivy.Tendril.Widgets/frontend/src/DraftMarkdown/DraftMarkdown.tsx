@@ -4,7 +4,7 @@ import "./draft-markdown.css";
 import { getHeight, getWidth } from "../styles";
 import { CodeBlock } from "../CodeBlock";
 import type { MarkdownAnnotation } from "./annotationUtils";
-import { applyAnnotationHighlights, getPlainTextOffset } from "./annotationUtils";
+import { applyAnnotationHighlights, getPlainTextOffset, rangeTouchesQuestions } from "./annotationUtils";
 import { AddAnnotationPopover, EditAnnotationPopover, SelectionToolbar } from "./AnnotationPopover";
 import { AlertBlockquote } from "./AlertBlockquote";
 import { ImageRenderer } from "./ImageRenderer";
@@ -92,6 +92,10 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
 
       const range = selection.getRangeAt(0);
       if (!container.contains(range.commonAncestorContainer)) {
+        return;
+      }
+
+      if (rangeTouchesQuestions(container, range)) {
         return;
       }
 
