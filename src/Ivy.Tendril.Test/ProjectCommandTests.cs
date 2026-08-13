@@ -156,8 +156,7 @@ verifications: []
         var config2 = CreateConfig();
         config2.Settings.Projects[0].Repos.Add(new RepoRef
         {
-            Path = repoPath,
-            PrRule = "default"
+            Path = repoPath
         });
         config2.SaveSettings();
 

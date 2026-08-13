@@ -48,7 +48,6 @@ projects:
     color: Blue
     repos:
       - path: D:\Repos\MyProject
-        prRule: default
     verifications:
       - name: Build
         required: true

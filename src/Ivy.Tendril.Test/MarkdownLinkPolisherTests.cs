@@ -176,11 +176,103 @@ public class MarkdownLinkPolisherTests : IDisposable
     [Fact]
     public void PolishLinks_PreservesPlanLinks()
     {
+        Directory.CreateDirectory(Path.Combine(_plansDir, "01234-SomePlan"));
+
         var polisher = new MarkdownLinkPolisher();
         var input = "[Plan 01234](plan://01234)";
         var result = polisher.PolishLinks(input, _plansDir);
 
         Assert.Equal("[Plan 01234](plan://01234)", result);
+    }
+
+    [Fact]
+    public void PolishLinks_PreservesPlanLinkAlongsideBareNumber()
+    {
+        Directory.CreateDirectory(Path.Combine(_plansDir, "01234-SomePlan"));
+        Directory.CreateDirectory(Path.Combine(_plansDir, "02369-SomePlan"));
+
+        var polisher = new MarkdownLinkPolisher();
+        var input = "[Plan 01234](plan://01234) and Plan 02369.";
+        var result = polisher.PolishLinks(input, _plansDir);
+
+        Assert.Equal("[Plan 01234](plan://01234) and Plan [02369](plan://02369).", result);
+    }
+
+    [Fact]
+    public void PolishLinks_DoesNotLinkPlanNumbersInInlineCode()
+    {
+        Directory.CreateDirectory(Path.Combine(_plansDir, "02369-SomePlan"));
+
+        var polisher = new MarkdownLinkPolisher();
+        var input = "Run `Plan 02369` and also ``Plan 02369``.";
+        var result = polisher.PolishLinks(input, _plansDir);
+
+        Assert.Equal("Run `Plan 02369` and also ``Plan 02369``.", result);
+    }
+
+    [Fact]
+    public void PolishLinks_DoesNotLinkPlanNumbersInFencedCode()
+    {
+        Directory.CreateDirectory(Path.Combine(_plansDir, "02369-SomePlan"));
+
+        var polisher = new MarkdownLinkPolisher();
+        var input = "```\nSee Plan 02369 for details.\n```";
+        var result = polisher.PolishLinks(input, _plansDir);
+
+        Assert.Equal("```\nSee Plan 02369 for details.\n```", result);
+    }
+
+    [Fact]
+    public void PolishLinks_CollapsesNestedPlanLinks()
+    {
+        Directory.CreateDirectory(Path.Combine(_plansDir, "00050-SomePlan"));
+
+        var polisher = new MarkdownLinkPolisher();
+        var input = "[Plan [00050](plan://00050)](plan://00050)";
+        var result = polisher.PolishLinks(input, _plansDir);
+
+        Assert.Equal("[Plan 00050](plan://00050)", result);
+    }
+
+    [Fact]
+    public void PolishLinks_IsIdempotentForPlanLinks()
+    {
+        Directory.CreateDirectory(Path.Combine(_plansDir, "01234-SomePlan"));
+
+        var polisher = new MarkdownLinkPolisher();
+        var input = "[Plan 01234](plan://01234)";
+
+        var once = polisher.PolishLinks(input, _plansDir);
+        var twice = polisher.PolishLinks(once, _plansDir);
+
+        Assert.Equal(once, twice);
+        Assert.DoesNotMatch(@"\]\(plan://\d+\)\]\(", once);
+        Assert.Equal("[Plan 01234](plan://01234)", once);
+    }
+
+    [Fact]
+    public void PolishLinks_PreservesPluralPlanLinkText()
+    {
+        Directory.CreateDirectory(Path.Combine(_plansDir, "01234-SomePlan"));
+        Directory.CreateDirectory(Path.Combine(_plansDir, "02369-SomePlan"));
+
+        var polisher = new MarkdownLinkPolisher();
+        var input = "[Plans 01234, 02369](plan://01234)";
+        var result = polisher.PolishLinks(input, _plansDir);
+
+        Assert.Equal("[Plans 01234, 02369](plan://01234)", result);
+    }
+
+    [Fact]
+    public void PolishLinks_DoesNotCollapseNestedPlanLinkInInlineCode()
+    {
+        Directory.CreateDirectory(Path.Combine(_plansDir, "00050-SomePlan"));
+
+        var polisher = new MarkdownLinkPolisher();
+        var input = "`[Plan [00050](plan://00050)](plan://00050)`";
+        var result = polisher.PolishLinks(input, _plansDir);
+
+        Assert.Equal("`[Plan [00050](plan://00050)](plan://00050)`", result);
     }
 
     [Fact]
