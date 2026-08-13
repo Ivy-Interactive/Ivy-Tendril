@@ -30,7 +30,7 @@ const codeBlockPreStyle: React.CSSProperties = {
   overflowWrap: "break-word",
 };
 
-export const CodeBlock: React.FC<React.HTMLAttributes<HTMLElement>> = ({ className, children, style: _style, ...rest }) => {
+export const BlockHandler: React.FC<React.HTMLAttributes<HTMLElement>> = ({ className, children, style: _style, ...rest }) => {
   const match = /language-(\w+)/.exec(String(className || ""));
   const content = String(children).replace(/\n$/, "");
   const [copied, setCopied] = useState(false);

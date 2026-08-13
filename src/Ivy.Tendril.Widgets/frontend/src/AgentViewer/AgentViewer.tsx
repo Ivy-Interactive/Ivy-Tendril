@@ -3,7 +3,7 @@ import Markdown from "react-markdown";
 import "./agent-output.css";
 import type { EventHandler, PresentationEvent } from "./types";
 import { getHeight, getWidth } from "../styles";
-import { CodeBlock } from "../CodeBlock";
+import { BlockHandler } from "../BlockHandler";
 import { useAutoScroll } from "./use-auto-scroll";
 import { parseEventWireStream } from "./parse-events";
 import { deriveStatus } from "./status";
@@ -188,7 +188,7 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
             case "assistant-text":
               return (
                 <div key={idx} className="aov-markdown aov-assistant">
-                  <Markdown {...getMarkdownPlugins(event.text)} components={{ code: CodeBlock }}>
+                  <Markdown {...getMarkdownPlugins(event.text)} components={{ code: BlockHandler }}>
                     {event.text}
                   </Markdown>
                 </div>

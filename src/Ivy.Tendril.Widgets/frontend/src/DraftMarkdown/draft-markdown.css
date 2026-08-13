@@ -676,7 +676,7 @@
 }
 
 /* ─── Questions callout ─────────────────────────────────────────────────
-   Rendered by CodeBlock for ```questions fences, wrapped in a <pre> by
+   Rendered by BlockHandler for ```questions fences, wrapped in a <pre> by
    react-markdown (only the `code` element is overridden). Reset the UA
    `pre` styles (monospace font, white-space: pre) that would otherwise
    inherit in and stop the question text from wrapping like prose. */

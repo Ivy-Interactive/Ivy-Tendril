@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Markdown, { defaultUrlTransform } from "react-markdown";
 import "./draft-markdown.css";
 import { getHeight, getWidth } from "../styles";
-import { CodeBlock } from "../CodeBlock";
+import { BlockHandler } from "../BlockHandler";
 import type { MarkdownAnnotation } from "./annotationUtils";
 import { applyAnnotationHighlights, getPlainTextOffset, rangeTouchesQuestions } from "./annotationUtils";
 import { AddAnnotationPopover, EditAnnotationPopover, SelectionToolbar } from "./AnnotationPopover";
@@ -282,7 +282,7 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
             remarkPlugins={plugins.remarkPlugins}
             rehypePlugins={plugins.rehypePlugins}
             urlTransform={urlTransform}
-            components={{ a: anchor, code: CodeBlock, blockquote: AlertBlockquote, img: ImageRenderer }}
+            components={{ a: anchor, code: BlockHandler, blockquote: AlertBlockquote, img: ImageRenderer }}
           >
             {content}
           </Markdown>
