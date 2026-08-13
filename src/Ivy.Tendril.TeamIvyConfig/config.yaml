@@ -6,8 +6,7 @@ maxConcurrentJobs: 10
 projects:
 - name: Framework
   color: Blue
-  meta:
-    slackEmoji: ':hammer_and_wrench:'
+  meta: {}
   repos:
   - path: D:/Repos/_Ivy/Ivy-Framework
     prRule: yolo
@@ -41,18 +40,11 @@ projects:
   - name: Samples
     condition: Test-Path "worktrees\Ivy-Framework\src\Ivy.Samples"
     command: "& '.\\worktrees\\Ivy-Framework\\src\\IvySamples.ps1'"
-  hooks:
-  - name: SlackNotify
-    when: after
-    promptwares:
-    - CreatePr
-    condition: ''
-    action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
+  hooks: []
   buildDependencies: []
 - name: Tendril
   color: Emerald
-  meta:
-    slackEmoji: ':seedling:'
+  meta: {}
   repos:
   - path: D:/Repos/_Ivy/Ivy-Tendril
     prRule: yolo
@@ -80,18 +72,11 @@ projects:
   - name: Docs
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs"
     command: "& '.\\worktrees\\Ivy-Tendril\\src\\Ivy.Tendril.Docs\\Run.ps1'"
-  hooks:
-  - name: SlackNotify
-    when: after
-    promptwares:
-    - CreatePr
-    condition: ''
-    action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
+  hooks: []
   buildDependencies: []
 - name: Rustino
   color: Orange
-  meta:
-    slackEmoji: ':crab:'
+  meta: {}
   repos:
   - path: D:/Repos/_Ivy/Rustino
     prRule: yolo
@@ -117,13 +102,7 @@ projects:
   - name: Samples
     condition: Test-Path "worktrees\Rustino\src\Rustino.Samples"
     command: ''
-  hooks:
-  - name: SlackNotify
-    when: after
-    promptwares:
-    - CreatePr
-    condition: ''
-    action: pwsh -NoProfile -File D:\Tendril\Hooks\NotifySlack.ps1
+  hooks: []
   buildDependencies: []
 - name: lots-of-dev-tools
   color: Green
@@ -171,6 +150,37 @@ projects:
   - name: Admin
     condition: Test-Path "Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services.Admin"
     command: dotnet run --project Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services.Admin --browse --find-available-port
+  hooks: []
+  buildDependencies: []
+- name: Tendril-EpicDraftQuestions
+  color: Emerald
+  meta: {}
+  repos:
+  - path: D:/Repos/_Ivy/Ivy-Tendril
+    prRule: yolo
+    baseBranch: epic-draft-questions
+  - path: D:/Repos/_Ivy/Ivy-Framework
+    prRule: yolo
+    baseBranch: development
+  verifications:
+  - name: DotnetBuild
+    required: true
+  - name: DotnetFormat
+    required: true
+  - name: DotnetTest
+    required: true
+  - name: CodeReview
+    required: true
+  - name: CheckResult
+    required: true
+  context: "Plan management TUI. Key folders: - src\\Ivy.Tendril\\Services\\ — ConfigService, PlanReaderService, JobService - src\\Ivy.Tendril\\Apps\\ — DraftsApp, JobsApp UI - src\\Ivy.Tendril\\Promptwares\\ — CreatePlan, UpdatePlan, SplitPlan, ExpandPlan This project uses the Ivy Framework - there's CLI helper methods you can use:  ivy docs AGENTS.md  ivy question \"How do I make a button in Ivy?\""
+  reviewActions:
+  - name: Tendril
+    condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril"
+    command: "& '.\\worktrees\\Ivy-Tendril\\src\\Ivy.Tendril\\Run.ps1'"
+  - name: Docs
+    condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs"
+    command: "& '.\\worktrees\\Ivy-Tendril\\src\\Ivy.Tendril.Docs\\Run.ps1'"
   hooks: []
   buildDependencies: []
 verifications:
