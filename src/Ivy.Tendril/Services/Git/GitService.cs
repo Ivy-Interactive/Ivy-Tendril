@@ -283,6 +283,37 @@ public class GitService : IGitService
         }
     }
 
+    public GitResult<WorktreeBaseInfo?> GetWorktreeBase(string repoPath)
+    {
+        try
+        {
+            if (!Directory.Exists(repoPath))
+                return GitResult<WorktreeBaseInfo?>.Failure(GitError.InvalidRepoPath, $"Repository path does not exist: {repoPath}");
+
+            var (upstreamExit, upstreamOutput) = RunGitCommand(repoPath, "rev-parse --abbrev-ref @{u}");
+            var upstream = upstreamOutput.Trim();
+            if (upstreamExit != 0 || string.IsNullOrEmpty(upstream))
+                return GitResult<WorktreeBaseInfo?>.Success(null);
+
+            var (baseExit, baseOutput) = RunGitCommand(repoPath, "merge-base HEAD @{u}");
+            var forkPoint = baseOutput.Trim();
+            if (baseExit != 0 || string.IsNullOrEmpty(forkPoint))
+                return GitResult<WorktreeBaseInfo?>.Success(null);
+
+            return GitResult<WorktreeBaseInfo?>.Success(new WorktreeBaseInfo(upstream, forkPoint));
+        }
+        catch (FileNotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Git executable not found");
+            return GitResult<WorktreeBaseInfo?>.Failure(GitError.GitNotFound, "Git executable not found");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Unknown error resolving worktree base");
+            return GitResult<WorktreeBaseInfo?>.Failure(GitError.UnknownError, ex.Message);
+        }
+    }
+
     // --- Infrastructure ---
 
     private GitResult<T> ExecuteGitCommand<T>(string repoPath, string args, Func<string, T> parseOutput)
