@@ -203,4 +203,35 @@ public class GitServiceTests
         Assert.NotNull(result.Value);
         Assert.Empty(result.Value);
     }
+
+    [Fact]
+    public void GetWorktreeBase_WithInvalidRepo_ReturnsInvalidRepoPathError()
+    {
+        // Arrange
+        var gitService = CreateGitService();
+        var invalidRepoPath = "D:\\NonExistent\\Repo\\Path";
+
+        // Act
+        var result = gitService.GetWorktreeBase(invalidRepoPath);
+
+        // Assert
+        Assert.False(result.IsSuccess);
+        Assert.Equal(GitError.InvalidRepoPath, result.Error);
+        Assert.Contains("Repository path does not exist", result.ErrorMessage);
+    }
+
+    [Fact]
+    public void GetWorktreeBase_WithNoUpstream_ReturnsNullValue()
+    {
+        // Arrange
+        var gitService = CreateGitService();
+        var validRepoPath = System.IO.Path.GetTempPath(); // Use temp path as a valid directory
+
+        // Act
+        var result = gitService.GetWorktreeBase(validRepoPath);
+
+        // Assert
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value);
+    }
 }
