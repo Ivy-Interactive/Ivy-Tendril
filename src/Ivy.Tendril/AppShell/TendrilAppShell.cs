@@ -3,6 +3,7 @@ using System.Reactive.Disposables;
 using System.Text.Json;
 using Ivy.Core;
 using Ivy.Core.Apps;
+using Ivy.Desktop;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
@@ -48,6 +49,15 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         int.TryParse(PlanYamlHelper.ExtractPlanIdFromFolder(planFolderName), out var id)
             ? id.ToString()
             : planFolderName;
+
+    /// <summary>
+    ///     Whether the in-app toast should be shown for a job notification. In desktop mode the
+    ///     native OS notification raised in Program.cs covers it, so the toast would be a duplicate.
+    ///     When desktop notifications are switched off the native path does not fire, so the toast
+    ///     is the only notification left and must stay.
+    /// </summary>
+    internal static bool ShouldShowInAppToast(bool isDesktop, bool desktopNotificationsEnabled)
+        => !isDesktop || !desktopNotificationsEnabled;
 
     private static async Task<SidebarNewsArticle[]> FetchNewsAsync()
     {
@@ -203,11 +213,18 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         });
 
         var jobService = UseService<IJobService>();
+        Context.TryUseService<DesktopWindow>(out var desktopWindow);
+        var isDesktop = desktopWindow != null;
 
         UseEffect(() =>
         {
             void OnNotification(JobNotification notification)
             {
+                // Read the setting at notification time: the user can toggle it in Settings while
+                // the shell is mounted, and the effect does not re-subscribe on that change.
+                if (!ShouldShowInAppToast(isDesktop, config.Settings.DesktopNotifications))
+                    return;
+
                 if (notification.IsSuccess)
                     client.Toast(notification.Message, notification.Title);
                 else
