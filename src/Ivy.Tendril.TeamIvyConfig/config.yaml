@@ -9,7 +9,6 @@ projects:
   meta: {}
   repos:
   - path: D:/Repos/_Ivy/Ivy-Framework
-    prRule: yolo
     baseBranch: development
   verifications:
   - name: FrameworkDotnetBuild
@@ -47,10 +46,8 @@ projects:
   meta: {}
   repos:
   - path: D:/Repos/_Ivy/Ivy-Tendril
-    prRule: yolo
     baseBranch: development
   - path: D:/Repos/_Ivy/Ivy-Framework
-    prRule: yolo
     baseBranch: development
   verifications:
   - name: DotnetBuild
@@ -79,7 +76,6 @@ projects:
   meta: {}
   repos:
   - path: D:/Repos/_Ivy/Rustino
-    prRule: yolo
     baseBranch: development
   verifications:
   - name: DotnetBuild
@@ -109,7 +105,6 @@ projects:
   meta: {}
   repos:
   - path: D:/Tendril/Repos/lots-of-dev-tools
-    prRule: default
   verifications:
   - name: NpmLint
     required: true
@@ -131,7 +126,6 @@ projects:
   meta: {}
   repos:
   - path: D:/Repos/_Ivy/Ivy-Tendril-Services
-    prRule: default
     baseBranch: development
   verifications:
   - name: DotnetFormat
@@ -157,10 +151,8 @@ projects:
   meta: {}
   repos:
   - path: D:/Repos/_Ivy/Ivy-Tendril
-    prRule: yolo
     baseBranch: epic-draft-questions
   - path: D:/Repos/_Ivy/Ivy-Framework
-    prRule: yolo
     baseBranch: development
   verifications:
   - name: DotnetBuild
