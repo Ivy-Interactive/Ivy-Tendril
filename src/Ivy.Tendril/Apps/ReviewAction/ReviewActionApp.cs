@@ -53,22 +53,30 @@ public class ReviewActionApp : ViewBase
             }
         }), EffectTrigger.OnMount());
 
-        // The plan/action lookup that determines the command line and working directory happens
-        // inside GetCommandLine/GetWorkDir (called as direct arguments, like AgentApp does), not
-        // as statements preceding UsePty. When nothing resolves, GetCommandLine returns an empty
-        // array, which makes UsePty's StartPtyAsync a no-op, so nothing is spawned.
+        // The plan/action lookup happens once via UseMemo (itself a hook, so this still satisfies
+        // IVYHOOK005's "hooks must come first" rule - it can't be a plain statement preceding
+        // UsePty). GetCommandLine then derives its argv from the already-resolved tuple instead
+        // of re-running ResolvePlan/ResolveAction. When nothing resolves, GetCommandLine returns
+        // an empty array, which makes UsePty's StartPtyAsync a no-op, so nothing is spawned.
+        var (plan, action) = UseMemo(() =>
+        {
+            var resolvedPlan = ResolvePlan(planService, args?.PlanId);
+            var resolvedAction = resolvedPlan is not null
+                ? ResolveAction(configService, resolvedPlan.Project, args?.ActionName)
+                : null;
+            return (resolvedPlan, resolvedAction);
+        });
+
         var ptyHandle = Context.UsePty(
-            GetCommandLine(configService, planService, args),
-            GetWorkDir(planService, args));
+            GetCommandLine(plan, action),
+            plan?.FolderPath);
         ptyHandleRef.Value = ptyHandle;
 
-        var plan = ResolvePlan(planService, args?.PlanId);
         if (plan is null)
         {
             return Text.Muted("Plan not found.");
         }
 
-        var action = ResolveAction(configService, plan.Project, args?.ActionName);
         if (action is null)
         {
             return Text.Muted($"Review action \"{args?.ActionName}\" is not configured for project \"{plan.Project}\".");
@@ -86,17 +94,10 @@ public class ReviewActionApp : ViewBase
             .RemoveParentPadding();
     }
 
-    private static string[] GetCommandLine(IConfigService configService, IPlanReaderService planService, ReviewActionAppArgs? args)
-    {
-        var plan = ResolvePlan(planService, args?.PlanId);
-        var action = plan is not null ? ResolveAction(configService, plan.Project, args?.ActionName) : null;
-        return action is not null
+    private static string[] GetCommandLine(PlanFile? plan, ReviewActionConfig? action) =>
+        plan is not null && action is not null
             ? [PathHelper.GetPwshPath(), "-NoExit", "-NoProfile", "-Command", action.Command]
             : [];
-    }
-
-    private static string? GetWorkDir(IPlanReaderService planService, ReviewActionAppArgs? args) =>
-        ResolvePlan(planService, args?.PlanId)?.FolderPath;
 
     private static PlanFile? ResolvePlan(IPlanReaderService planService, string? planId)
     {
