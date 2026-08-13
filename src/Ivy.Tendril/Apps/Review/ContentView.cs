@@ -587,7 +587,7 @@ public class ContentView(
 
             content |= new ReviewActionsBarView(selectedPlan, planData.ReviewActionStates, config);
 
-            var recommendationsTab = new RecommendationsTabView(pendingRecs, selectedRecTitles, config, onImplementRecommendations);
+            var recommendationsTab = new RecommendationsTabView(pendingRecs, selectedRecTitles, config, onImplementRecommendations, onLinkClick);
 
             var changesTabView = new ChangesTabView(
                 planData.AllChanges,
