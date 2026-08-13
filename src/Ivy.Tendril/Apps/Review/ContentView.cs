@@ -634,7 +634,7 @@ public class ContentView(
             var totalArtifacts = (planData.Artifacts.GetValueOrDefault("screenshots")?.Count ?? 0)
                                  + (planData.Artifacts.ContainsKey("sample") ? 1 : 0);
 
-            content |= new ReviewActionsBarView(selectedPlan, planData.ReviewActionStates, config, logger);
+            content |= new ReviewActionsBarView(selectedPlan, planData.ReviewActionStates, config);
 
             var recommendationsTab = new RecommendationsTabView(pendingRecs, selectedRecTitles, config);
 

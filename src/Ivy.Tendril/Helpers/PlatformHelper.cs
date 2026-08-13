@@ -57,65 +57,6 @@ public static class PlatformHelper
             "$1");
     }
 
-    /// <summary>
-    /// Launches a PowerShell action. Returns false if pwsh is not found or the launch fails.
-    /// </summary>
-    public static bool RunPowerShellAction(string action, string workingDirectory, ILogger? logger = null)
-    {
-        try
-        {
-            var pwshPath = PathHelper.GetPwshPath();
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                // On macOS, create a temporary .command script and open it in Terminal.app
-                // This ensures the terminal window is visible and interactive
-                var scriptPath = Path.Combine(Path.GetTempPath(), $"tendril-action-{Guid.NewGuid():N}.command");
-                var scriptContent = $"#!/bin/bash\ncd \"{workingDirectory}\"\n\"{pwshPath}\" -NoExit -NoProfile -Command \"{action.Replace("\"", "\\\"")}\"\nrm \"{scriptPath}\"\n";
-                File.WriteAllText(scriptPath, scriptContent);
-
-                // Make the script executable
-                var chmodPsi = new ProcessStartInfo("chmod", $"+x \"{scriptPath}\"")
-                {
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using (var chmodProc = Process.Start(chmodPsi))
-                {
-                    chmodProc?.WaitForExit();
-                }
-
-                // Open the script in Terminal.app
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "open",
-                    Arguments = $"-a Terminal \"{scriptPath}\"",
-                    UseShellExecute = false
-                });
-                return true;
-            }
-
-            // Windows and Linux: run pwsh directly
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = pwshPath,
-                Arguments = $"-NoExit -NoProfile -Command \"{action}\"",
-                WorkingDirectory = workingDirectory,
-                UseShellExecute = true
-            });
-            return true;
-        }
-        catch (Win32Exception ex)
-        {
-            logger?.LogWarning(ex, "Failed to run PowerShell action");
-            return false;
-        }
-        catch (FileNotFoundException ex)
-        {
-            logger?.LogWarning(ex, "Failed to run PowerShell action");
-            return false;
-        }
-    }
-
     public static bool OpenInTerminal(string workingDirectory, ILogger? logger = null)
     {
         try
