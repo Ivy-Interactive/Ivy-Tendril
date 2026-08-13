@@ -18,8 +18,8 @@ public static class GitTabDataBuilder
         bool HasUncommittedChanges,
         List<PlanContentHelpers.CommitRow> CommitRows,
         string? ParentRepoPath = null,
-        string? ParentBranch = null,
-        string? ParentShortHash = null
+        string? BaseBranch = null,
+        string? BaseShortHash = null
     );
 
     public static GitTabData BuildGitTabData(
@@ -88,9 +88,7 @@ public static class GitTabDataBuilder
 
         if (worktree == null) return null;
 
-        var shortHash = worktree.CommitHash.Length > 7
-            ? worktree.CommitHash[..7]
-            : worktree.CommitHash;
+        var shortHash = Shorten(worktree.CommitHash);
 
         var hasUncommitted = false;
         var statusResult = gitService.HasUncommittedChanges(repoDir);
@@ -117,7 +115,7 @@ public static class GitTabDataBuilder
             }
         }
 
-        var (parentRepoPath, parentBranch, parentShortHash) = ResolveParentInfo(repoDir, worktreesResult.Value, gitService);
+        var (parentRepoPath, baseBranch, baseShortHash) = ResolveParentInfo(repoDir, worktreesResult.Value, gitService);
 
         return new WorktreeSection(
             Path.GetFileName(repoDir),
@@ -127,12 +125,27 @@ public static class GitTabDataBuilder
             hasUncommitted,
             worktreeCommits,
             parentRepoPath,
-            parentBranch,
-            parentShortHash
+            baseBranch,
+            baseShortHash
         );
     }
 
     private static (string? Path, string? Branch, string? ShortHash) ResolveParentInfo(
+        string repoDir, List<WorktreeInfo> worktrees, IGitService gitService)
+    {
+        var fallback = ResolveMainWorktreeInfo(repoDir, worktrees, gitService);
+
+        var baseResult = gitService.GetWorktreeBase(repoDir);
+        if (baseResult.IsSuccess && baseResult.Value != null)
+        {
+            var baseInfo = baseResult.Value;
+            return (fallback.Path, StripOriginPrefix(baseInfo.Branch), Shorten(baseInfo.CommitHash));
+        }
+
+        return fallback;
+    }
+
+    private static (string? Path, string? Branch, string? ShortHash) ResolveMainWorktreeInfo(
         string repoDir, List<WorktreeInfo> worktrees, IGitService gitService)
     {
         var mainWorktree = worktrees.FirstOrDefault(w =>
@@ -143,7 +156,7 @@ public static class GitTabDataBuilder
             return (
                 mainWorktree.Path,
                 mainWorktree.Branch,
-                mainWorktree.CommitHash.Length > 7 ? mainWorktree.CommitHash[..7] : mainWorktree.CommitHash
+                Shorten(mainWorktree.CommitHash)
             );
         }
 
@@ -161,7 +174,12 @@ public static class GitTabDataBuilder
         return (
             resolvedRoot,
             main.Branch,
-            main.CommitHash.Length > 7 ? main.CommitHash[..7] : main.CommitHash
+            Shorten(main.CommitHash)
         );
     }
+
+    private static string StripOriginPrefix(string branch) =>
+        branch.StartsWith("origin/", StringComparison.Ordinal) ? branch["origin/".Length..] : branch;
+
+    private static string Shorten(string hash) => hash.Length > 7 ? hash[..7] : hash;
 }
