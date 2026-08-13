@@ -11,6 +11,12 @@ When changing the `plan.yaml` structure (adding/removing/renaming fields, changi
 
 Existing plans on disk are never recreated — they must be migrated in place. If a migration can't fix a plan it is logged and skipped, and that plan won't appear in the UI. Always test your migration against real plan files. Terminal plans (Completed/Skipped) are treated as immutable and are not migrated.
 
+## Question Blocks
+
+Fenced `questions` blocks let a planning agent ask the user something from a headless run. The normative spec is the `## Question Blocks` section of `Prompts/Plans.md` (embedded as an assembly resource and injected into every promptware firmware); the enforcement is `Services/Plans/QuestionValidationService.cs`, reached from `RevisionWriter.WriteNext` so the CLI, REST and MCP write paths are all covered. **The two must change together** — a rule the validator enforces but Plans.md does not document is a rule agents cannot follow, and vice versa.
+
+No `plan.yaml` migration is involved: questions live in the revision markdown, not in `plan.yaml`.
+
 ## Project Structure
 
 - `Services/` — ConfigService, PlanReaderService, JobService, GitService
