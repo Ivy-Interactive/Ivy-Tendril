@@ -54,12 +54,12 @@ projects:
         return (string?)method?.Invoke(launcher, new object[] { plan, project });
     }
 
-    // prRule is a UI-only concept (it decides whether the PR dialog is shown and its defaults).
-    // It must NOT leak into the firmware header — the CreatePr promptware acts solely on the
-    // explicit Pr* flags, and a stray "prRule: yolo" used to make the agent merge despite the
-    // user opting out (issue #1272).
+    // prRule is no longer a model field (the Create PR dialog is now always shown, unconditionally).
+    // The config fixture above still carries the legacy "prRule:" key to prove a stray key in an
+    // old config.yaml is ignored on load (IgnoreUnmatchedProperties) and, more importantly, cannot
+    // reach the firmware header — the CreatePr promptware acts solely on the explicit Pr* flags.
     [Fact]
-    public void BuildRepoConfigsYaml_DoesNotEmitPrRule_EvenForYoloRepo()
+    public void BuildRepoConfigsYaml_DoesNotEmitLegacyPrRuleKey()
     {
         var launcher = CreateLauncher();
         var plan = new PlanYaml { Project = "TestProject", Repos = { @"D:\YoloRepo" } };
