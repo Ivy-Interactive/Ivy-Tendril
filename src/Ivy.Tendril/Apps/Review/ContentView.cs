@@ -231,23 +231,20 @@ public class ContentView(
         }
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlanState.Value.FolderName);
-        var planData = planContentQuery.Value;
-        var pendingRecs = planData.Recommendations.Where(r => r.State == RecommendationStatus.Pending).ToList();
+        var context = new ReviewViewContext(client, logger, nav, args, copyToClipboard);
+        var sheets = new SheetsState(openVerification, openCommit, openFile, openArtifact, artifactContentQuery);
 
         void ImplementRecommendations() => ImplementSelectedRecommendations(
             selectedPlanState.Value!, selectedRecTitles, client,
             planContentQuery.Mutator.Revalidate);
 
-        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, client, showCreatePrDialog, nav,
-            args);
+        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, context, showCreatePrDialog);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
-            showCreatePrDialog, copyToClipboard, client, logger, nav, args, agentRunner, draftComments);
+            showCreatePrDialog, context, agentRunner, draftComments);
         var content = BuildContent(
-            selectedPlanState.Value, planData, planContentQuery, selectedTab, openVerification,
-            openCommit, openFile, openArtifact, artifactContentQuery, assigneesQuery,
-            assigneesError, syncingWorktrees, selectedRecTitles, pendingRecs,
-            client, copyToClipboard, logger, nav, args, showDebugJob, draftComments, ImplementRecommendations);
+            selectedPlanState.Value, planContentQuery, selectedTab, sheets,
+            syncingWorktrees, selectedRecTitles, context, showDebugJob, draftComments, ImplementRecommendations);
 
         var mainLayout = new HeaderLayout(
             header,
@@ -264,15 +261,13 @@ public class ContentView(
         PlanFile selectedPlan,
         List<PlanFile> allPlans,
         int currentIndex,
-        IClientProvider client,
-        Action showCreatePrDialog,
-        INavigator nav,
-        ReviewAppArgs? args)
+        ReviewViewContext context,
+        Action showCreatePrDialog)
     {
         object BuildTitleArea(bool isMobile)
         {
             object SourceButton() => new Button(selectedPlan.IsPullRequestSource ? "PR" : "Issue")
-                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
+                .Icon(Icons.ExternalLink).Ghost().OnClick(() => context.Client.OpenUrl(selectedPlan.SourceUrl));
 
             var hasSourceUrl = !string.IsNullOrEmpty(selectedPlan.SourceUrl);
 
@@ -381,7 +376,7 @@ public class ContentView(
                     {
                         // This handler is fire-and-forget, so an uncaught throw would look like a
                         // silent no-op. Surface the reason and leave the plan where it is.
-                        client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
+                        context.Client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
                         return;
                     }
 
@@ -405,14 +400,11 @@ public class ContentView(
         Action showSuggestChangesDialog,
         Action showDiscardDialog,
         Action showCreatePrDialog,
-        Action<string> copyToClipboard,
-        IClientProvider client,
-        ILogger<ContentView> logger,
-        INavigator nav,
-        ReviewAppArgs? args,
+        ReviewViewContext context,
         IAgentRunner agentRunner,
         IState<List<DraftComment>> draftComments)
     {
+        var (client, logger, nav, args, copyToClipboard) = context;
         var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner, config);
 
         // Standard overflow menu items
@@ -544,34 +536,27 @@ public class ContentView(
 
     private object BuildContent(
         PlanFile selectedPlan,
-        PlanContentData planData,
         QueryResult<PlanContentData> planContentQuery,
         IState<int> selectedTab,
-        IState<string?> openVerification,
-        IState<string?> openCommit,
-        IState<string?> openFile,
-        IState<string?> openArtifact,
-        QueryResult<string> artifactContentQuery,
-        QueryResult<string[]> assigneesQuery,
-        IState<string?> assigneesError,
+        SheetsState sheets,
         IState<HashSet<string>> syncingWorktrees,
         IState<HashSet<string>> selectedRecTitles,
-        List<RecommendationYaml> pendingRecs,
-        IClientProvider client,
-        Action<string> copyToClipboard,
-        ILogger<ContentView> logger,
-        INavigator nav,
-        ReviewAppArgs? args,
+        ReviewViewContext context,
         Action<string> showDebugJob,
         IState<List<DraftComment>> draftComments,
         Action onImplementRecommendations)
     {
+        var (client, logger, nav, args, copyToClipboard) = context;
+        var (openVerification, openCommit, openFile, openArtifact, artifactContentQuery) = sheets;
         var content = Layout.Vertical().Gap(0).Height(Size.Full());
 
         if (selectedPlan is null)
         {
             return content | Text.Muted("No plan selected");
         }
+
+        var planData = planContentQuery.Value;
+        var pendingRecs = planData.Recommendations.Where(r => r.State == RecommendationStatus.Pending).ToList();
 
         var planTabContent = new PlanTabView(selectedPlan, selectedPlanState, openFile, planService, config);
 
@@ -881,4 +866,23 @@ public class ContentView(
         Dictionary<string, bool> VerificationReports,
         List<(string Name, bool ConditionMet)> ReviewActionStates,
         PlanContentHelpers.AllChangesData? AllChanges);
+
+    // Groups the request-scoped services and navigation state shared by BuildHeader, BuildActionBar
+    // and BuildContent, so a new piece of shared infrastructure only needs to be added here instead
+    // of threaded through every Build* signature and call site.
+    private record ReviewViewContext(
+        IClientProvider Client,
+        ILogger<ContentView> Logger,
+        INavigator Nav,
+        ReviewAppArgs? Args,
+        Action<string> CopyToClipboard);
+
+    // Groups the sheet-open state consumed by BuildContent, mirroring PlanContentData's grouping of
+    // query results.
+    private record SheetsState(
+        IState<string?> OpenVerification,
+        IState<string?> OpenCommit,
+        IState<string?> OpenFile,
+        IState<string?> OpenArtifact,
+        QueryResult<string> ArtifactContentQuery);
 }
