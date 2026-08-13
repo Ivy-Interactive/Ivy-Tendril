@@ -183,6 +183,40 @@ projects:
     command: "& '.\\worktrees\\Ivy-Tendril\\src\\Ivy.Tendril.Docs\\Run.ps1'"
   hooks: []
   buildDependencies: []
+- name: Tendril-Widgets
+  color: Cyan
+  meta: {}
+  repos:
+  - path: D:/Repos/_Ivy/Ivy-Tendril
+    prRule: yolo
+    baseBranch: development
+  - path: D:/Repos/_Ivy/Ivy-Framework
+    prRule: yolo
+    baseBranch: development
+  verifications:
+  - name: DotnetFormat
+    required: true
+  - name: WidgetsFrontendCheck
+    required: true
+  - name: WidgetsDotnetBuild
+    required: true
+  - name: WidgetsFrontendTest
+    required: true
+  - name: WidgetsE2ETest
+    required: false
+  - name: NewTendrilWidgetChecklist
+    required: false
+  - name: CodeReview
+    required: true
+  - name: CheckResult
+    required: true
+  context: "Focused on the external widget library at src\\Ivy.Tendril.Widgets in the Ivy-Tendril repo - do NOT change other parts of the repo unless the plan explicitly requires it. Layout (relative to src\\Ivy.Tendril.Widgets): <Widget>.cs - widget records with [Prop]/[Event]/[Slot] exposed on window.IvyTendrilWidgets (DraftMarkdown, AgentViewer, PlanDiffView, ChatWidget, ContentInput, BadgeSelect, SortableVerificationList, TendrilProcessViewer, WebViewer); frontend\\ - React + Vite+ bundle, vp build produces dist\\ivy-tendril-widgets.{js,css} which MSBuild embeds into the DLL, unit tests run under vitest; frontend\\src\\index.ts - registers every widget on window.IvyTendrilWidgets and re-exports it; .samples\\ - standalone Ivy app hosting all widgets (namespace path maps to kebab-case URL), both dev playground and E2E target; .tests\\ - Playwright E2E specs, fixtures (console capture, step screenshots) and server helpers. Build: dotnet build src\\Ivy.Tendril.Widgets\\.samples (MSBuild runs pnpm install + vp build for the frontend). Run: cd src\\Ivy.Tendril.Widgets\\.samples then dotnet run -- --port 5100. Read src\\Ivy.Tendril.Widgets\\AGENTS.md for the widget/framework contract before adding or changing a widget. .samples sets IvySource=true, so Ivy.Tendril.Widgets references ..\\..\\..\\Ivy-Framework\\src\\Ivy\\Ivy.csproj - the Ivy-Framework worktree must sit next to the Ivy-Tendril worktree, which is why both repos belong to this project. Frontend dependency gotcha: the vite-plus native binding needs Node ^20.19.0 || ^22.18.0 || >=24.11.0; if the system Node is older, install frontend deps with vite-plus bundled Node first on PATH (prepend C:\\Users\\niels\\.vite-plus\\bin) or the build fails with 'Cannot find native binding'. This project uses the Ivy Framework - CLI helpers are available: ivy docs AGENTS.md, and ivy question 'How do I make a button in Ivy?'"
+  reviewActions:
+  - name: Widget Samples
+    condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril.Widgets\.samples"
+    command: dotnet run --project '.\worktrees\Ivy-Tendril\src\Ivy.Tendril.Widgets\.samples' --find-available-port --browse
+  hooks: []
+  buildDependencies: []
 verifications:
 - name: FrameworkDotnetBuild
   prompt: >
@@ -387,6 +421,108 @@ verifications:
   prompt: Run `pnpm lint` (or the project's lint script) in the plan's worktree directory. Report any lint errors or warnings. If there are auto-fixable issues, run `pnpm check` or `pnpm lint --fix` and commit the fixes.
 - name: NpmBuild
   prompt: Run `pnpm build` (or the project's build\typecheck script) in the plan's worktree directory. Verify the build completes with zero errors. Report any type errors or build failures.
+- name: WidgetsFrontendCheck
+  prompt: >
+    Run the Vite+ checks for the Ivy.Tendril.Widgets frontend in the plan's worktree directory (not the original repo).
+
+
+    Working directory: `src\Ivy.Tendril.Widgets\frontend` inside the Ivy-Tendril worktree.
+
+
+    1. If `node_modules` is missing, install dependencies first. IMPORTANT: the vite-plus native binding requires Node `^20.19.0 || ^22.18.0 || >=24.11.0`. If the system Node is older (e.g. 22.17.1), pnpm silently skips the native package and every later build fails with "Cannot find native binding" / "Cannot find module '@voidzero-dev/vite-plus-win32-x64-msvc'". Install with the Node that vite-plus bundles on PATH:
+       `$env:PATH = "$env:USERPROFILE\.vite-plus\bin;$env:PATH"; npx -y pnpm@10.33.0 install --config.confirmModulesPurge=false`
+    2. **Scope to this plan's changes.** The frontend has pre-existing formatting drift, so never check or fix the whole tree. Get the frontend files this plan touched with
+       `git diff --name-only --diff-filter=ACM HEAD~<N> -- src/Ivy.Tendril.Widgets/frontend`
+       (N = number of commits in this execution), then convert them to paths relative to `frontend\` and pass them through: `npx vp check <file> <file> ...`.
+    3. If it reports fixable issues **in those files**, run `npx vp check --fix <same files>`, then stage and commit the changes. Never run a bare `npx vp check --fix` — it would reformat ~32 unrelated files and pollute the PR.
+
+    4. Re-run `npx vp check <files>` and verify it is clean. Fail only on lint or type errors, or formatting issues, in files this plan changed.
+
+    5. If this plan changed no files under `src\Ivy.Tendril.Widgets\frontend`, skip this verification with Pass.
+- name: WidgetsDotnetBuild
+  prompt: >
+    Build the Ivy.Tendril.Widgets library and its samples app in the plan's worktree directory (not the original repo). This project is scoped to `src\Ivy.Tendril.Widgets` — do NOT build the whole Ivy-Tendril solution.
+
+
+    1. `dotnet build --warnaserror src\Ivy.Tendril.Widgets\Ivy.Tendril.Widgets.csproj`
+
+    2. `dotnet build --warnaserror src\Ivy.Tendril.Widgets\.samples\Ivy.Tendril.Widgets.Samples.csproj`
+
+
+    Both must succeed with zero errors and zero warnings.
+
+
+    Notes:
+
+    - The library csproj builds the React bundle via its `WidgetsNpmInstall` / `WidgetsBuildFrontend` MSBuild targets (`npx -y pnpm@10.33.0 install` and `run build` in `frontend`), so the frontend bundle build is covered here.
+
+    - `.samples` sets `IvySource=true`, which makes Ivy.Tendril.Widgets reference `..\..\..\Ivy-Framework\src\Ivy\Ivy.csproj` — the Ivy-Framework worktree must be present as a sibling of the Ivy-Tendril worktree. If it is missing, report the failure; never edit the csproj to work around it.
+
+    - If the build fails with "Cannot find native binding" / "Cannot find module '@voidzero-dev/vite-plus-win32-x64-msvc'", the frontend deps were installed with a Node below vite-plus's `^22.18.0` floor. Reinstall with vite-plus's bundled Node on PATH, then rebuild:
+      `cd src\Ivy.Tendril.Widgets\frontend; $env:PATH = "$env:USERPROFILE\.vite-plus\bin;$env:PATH"; npx -y pnpm@10.33.0 install --config.confirmModulesPurge=false`
+- name: WidgetsFrontendTest
+  prompt: >
+    Run the frontend unit tests (vitest via Vite+) for Ivy.Tendril.Widgets in the plan's worktree directory (not the original repo).
+
+
+    Working directory: `src\Ivy.Tendril.Widgets\frontend` inside the Ivy-Tendril worktree.
+
+
+    1. Read the plan revision's **## Tests** section for test scope instructions.
+
+    2. Run the tests once (non-watch), scoped to the plan:
+       - Scoped (preferred): `npx vp test --run <path-or-pattern>` for the widget(s) this plan touched, e.g. `npx vp test --run src/PlanDiffView`.
+       - Full suite: `npx vp test --run` only when the plan says the change is cross-cutting.
+       - If the `vp test` passthrough misbehaves, fall back to `npx vitest run [pattern]` (vitest and `vitest.config.ts` are present; `package.json` has no `test` script).
+    3. Verify all executed tests pass and report pass/fail counts.
+
+    4. **Pre-existing failures.** This suite is not fully green on the base branch (as of 2026-08-13, 4 tests in `src/PlanDiffView/PlanDiffView.test.tsx` fail there). If a test fails, check whether it also fails on the base branch — e.g. run the same spec at `git stash` / a clean base checkout, or inspect whether the plan touched that file at all. Report such failures as PRE-EXISTING in the summary and do not fail this verification for them. Any test that passes on the base branch and fails after this plan's changes IS a real failure — fail the verification.
+
+    5. If the plan changed no files under `src\Ivy.Tendril.Widgets\frontend`, skip this verification with Pass.
+
+
+    Dependencies: if `node_modules` is missing, install it the way the `WidgetsFrontendCheck` verification describes — with vite-plus's bundled Node on PATH (`$env:PATH = "$env:USERPROFILE\.vite-plus\bin;$env:PATH"`), otherwise the native binding is skipped.
+- name: WidgetsE2ETest
+  prompt: >
+    Run the Playwright E2E suite for Ivy.Tendril.Widgets in the plan's worktree directory (not the original repo).
+
+
+    Working directory: `src\Ivy.Tendril.Widgets\.tests` inside the Ivy-Tendril worktree.
+
+
+    1. Read the plan revision's **## Tests** section. If the plan changed no widget behavior or UI (for example C#-comment-, docs- or config-only changes), skip this verification with Pass.
+
+    2. On a fresh worktree, install first: `npm install`, then `npx playwright install chromium`.
+
+    3. Run the specs relevant to the changed widget: `npx playwright test widgets/<widget-name>`. Run the full suite (`npx playwright test`) only when the plan states the change is cross-cutting.
+
+    4. `global-setup.ts` builds the `.samples` project, picks a free port, spawns `dotnet run` and waits for an HTTPS health check; `global-teardown.ts` kills the server process tree. The suite is single-worker and sequential, so allow several minutes.
+
+    5. Verify all executed specs pass. On failure, inspect `.tests\artifacts\` (step screenshots, per-test console logs, `backend.log`) and report the actual cause rather than just the assertion text.
+
+    6. The `.samples` build in global setup needs the Ivy-Framework worktree present as a sibling of the Ivy-Tendril worktree (`.samples` sets `IvySource=true`). If setup fails for that reason, report it instead of editing project files.
+- name: NewTendrilWidgetChecklist
+  prompt: >
+    Verify the required elements exist for any NEW widget this plan adds to Ivy.Tendril.Widgets. If the plan adds no new widget, skip this verification with Pass.
+
+
+    Paths are relative to `src\Ivy.Tendril.Widgets` in the Ivy-Tendril worktree:
+
+
+    1. Backend widget record — `<WidgetName>.cs` with `[Prop]` / `[Event]` attributes, `[JsonIgnore]` on delegates, `Has*` booleans, and the external-widget attribute whose `GlobalName` is `IvyTendrilWidgets`.
+
+    2. Frontend component — `frontend\src\<WidgetName>.tsx` or `frontend\src\<WidgetName>\<WidgetName>.tsx`.
+
+    3. Registration — imported and present in BOTH the `window.IvyTendrilWidgets` object and the export list in `frontend\src\index.ts`.
+
+    4. Sample app — `.samples\Apps\<WidgetName>\<Something>App.cs` (the namespace path maps to the kebab-case URL, e.g. `WidgetSamples.Apps.DraftMarkdown.AnnotationsApp` -> `/draft-markdown/annotations`).
+
+    5. Playwright spec — `.tests\widgets\<widget-name>\*.spec.ts`.
+
+    6. Contract conformance — camelCase props on the JS side matching the PascalCase C# `[Prop]` names; events fired via `eventHandler(eventName, widgetId, [args])`; named slots read from `slots.SlotName` (PascalCase preserved from `[Slot("Name")]`).
+
+
+    Report which elements are present versus missing. `src\Ivy.Tendril.Widgets\AGENTS.md` documents the full widget/framework contract.
 planTemplate: >
   # {title}
 
