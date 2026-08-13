@@ -322,11 +322,6 @@ public class ContentView(
 
             if (selectedPlan.Commits.Count > 0)
             {
-                var repoPaths = selectedPlan.GetEffectiveRepoPaths(config);
-                var project = config.GetProject(selectedPlan.Project);
-                var allYolo = repoPaths.All(rp =>
-                    project?.GetRepoRef(rp)?.PrRule == "yolo");
-
                 // When the plan's source is an existing PR, the CTA updates that PR instead of
                 // opening a second one. There's nothing to configure for an update (no new branch,
                 // no merge/delete choices), so we skip the Create PR dialog and push directly.
@@ -348,19 +343,6 @@ public class ContentView(
                             IncludeArtifacts: true));
                         refreshPlans();
                     }
-                    else if (allYolo)
-                    {
-                        // "yolo" is purely a UI setting: skip the dialog and create the PR with the
-                        // merge-and-clean-up defaults. The promptware acts only on these explicit flags.
-                        jobService.StartJob(new CreatePrArgs(
-                            selectedPlan.FolderPath,
-                            SolveMergeConflicts: true,
-                            Merge: true,
-                            DeleteBranch: true,
-                            IncludeArtifacts: true));
-                        // Plan transition (and pre-state snapshot) handled by JobService.StartJob.
-                        refreshPlans();
-                    }
                     else
                     {
                         showCreatePrDialog();
@@ -368,9 +350,7 @@ public class ContentView(
                 }).ShortcutKey("m");
                 createPrBtn = hasSelection ? createPrBtn.Outline() : createPrBtn.Primary();
 
-                rightSide |= (allYolo && !isPrUpdate && !hasSelection)
-                    ? createPrBtn.WithConfetti(AnimationTrigger.Click)
-                    : createPrBtn;
+                rightSide |= createPrBtn;
             }
             else
             {
