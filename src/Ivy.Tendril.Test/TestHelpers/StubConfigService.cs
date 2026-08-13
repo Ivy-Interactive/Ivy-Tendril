@@ -2,13 +2,13 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test.TestHelpers;
 
-public class StubConfigService : IConfigService
+public class StubConfigService(List<ProjectConfig>? projects = null) : IConfigService
 {
     public TendrilSettings Settings => new();
     public string TendrilHome => "";
     public string ConfigPath => "";
     public string PlanFolder => "";
-    public List<ProjectConfig> Projects => [];
+    public List<ProjectConfig> Projects => projects ?? [];
     public List<LevelConfig> Levels => [];
     public string[] LevelNames => [];
     public EditorConfig Editor => new() { Command = "code", Label = "VS Code" };
@@ -17,7 +17,7 @@ public class StubConfigService : IConfigService
 
     public ProjectConfig? GetProject(string name)
     {
-        return null;
+        return Projects.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
     }
 
     public Colors? GetLevelColor(string level)
