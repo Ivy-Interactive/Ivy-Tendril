@@ -7,6 +7,7 @@ using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.Onboarding;
+using Ivy.Tendril.Apps.ReviewAction;
 using Ivy.Tendril.Apps.Settings;
 using Ivy.Tendril.Apps.Trash;
 using Ivy.Tendril.Apps.Views;
@@ -27,6 +28,26 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     private static readonly HttpClient NewsHttp = new();
     private static readonly HashSet<string> OnboardingAppIds =
         new(StringComparer.OrdinalIgnoreCase) { "onboarding", "OnboardingApp", "onboarding-app" };
+
+    /// <summary>
+    ///     Overrides the default app-descriptor tab title for apps whose title depends on the
+    ///     navigation args rather than being fixed. Currently only <see cref="ReviewActionApp"/>,
+    ///     which is titled "#&lt;PlanId&gt; &lt;ReviewActionName&gt;". Returns null (use the
+    ///     descriptor title) for every other arg shape.
+    /// </summary>
+    internal static string? ResolveArgsTabTitle(object? appArgs) => appArgs switch
+    {
+        ReviewActionAppArgs { PlanId: { Length: > 0 } planId, ActionName: { Length: > 0 } name }
+            => $"#{FormatPlanId(planId)} {name}",
+        _ => null
+    };
+
+    // "00074-OpenReviewActions..." -> "74". Falls back to the raw folder name when the numeric
+    // prefix is missing, so a malformed arg never throws inside OpenApp (which swallows exceptions).
+    private static string FormatPlanId(string planFolderName) =>
+        int.TryParse(PlanYamlHelper.ExtractPlanIdFromFolder(planFolderName), out var id)
+            ? id.ToString()
+            : planFolderName;
 
     private static async Task<SidebarNewsArticle[]> FetchNewsAsync()
     {
@@ -367,6 +388,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             var appHost = navigateArgs.ToAppHost(args.ConnectionId);
             var app = appRepository.GetAppOrDefault(effectiveAppId);
             var (tabTitle, tabIcon) = BrandedAppDisplay(app);
+            tabTitle = ResolveArgsTabTitle(navigateArgs.AppArgs) ?? tabTitle;
 
             var newTabs = tabs.Value.Add(new TabState(tabId, app.Id, tabTitle, appHost,
                 tabIcon, Guid.NewGuid().ToString()));
