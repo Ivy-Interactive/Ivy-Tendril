@@ -321,8 +321,10 @@ verifications:
 
     - For each minor concern, add a plan recommendation:
       `tendril plan rec add "<plan-id>" "<short imperative title>"`
-    - Then attach detail (file:line + what to change) via:
+    - Then attach detail as markdown via:
       `tendril plan rec set "<plan-id>" "<short imperative title>" description "<detail>"`
+      Write `<detail>` as a markdown link to the file (`[file.cs:42](file:///absolute/path/to/file.cs)`,
+      line number in the link text only, never in the URL) followed by what to change.
     - Use the plan id derived in Step 1 (the plan folder name works as the id).
 
     - Do not edit code for minor concerns — they are left for the human to accept or decline.

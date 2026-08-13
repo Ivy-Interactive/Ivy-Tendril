@@ -14,7 +14,8 @@ public class RecommendationsTabView(
     List<RecommendationYaml> pendingRecs,
     IState<HashSet<string>> selectedRecTitles,
     IConfigService config,
-    Action onImplement) : ViewBase
+    Action onImplement,
+    Action<string> onLinkClick) : ViewBase
 {
     public override object Build()
     {
@@ -37,7 +38,7 @@ public class RecommendationsTabView(
 
         for (var i = 0; i < pendingRecs.Count; i++)
         {
-            layout |= new RecommendationRowView(pendingRecs[i], selectedRecTitles, config)
+            layout |= new RecommendationRowView(pendingRecs[i], selectedRecTitles, config, onLinkClick)
                 .Key(pendingRecs[i].Title);
             if (i < pendingRecs.Count - 1)
                 layout |= new Separator();
@@ -55,7 +56,8 @@ public class RecommendationsTabView(
 public class RecommendationRowView(
     RecommendationYaml rec,
     IState<HashSet<string>> selectedTitles,
-    IConfigService config) : ViewBase
+    IConfigService config,
+    Action<string> onLinkClick) : ViewBase
 {
     public override object Build()
     {
@@ -95,6 +97,7 @@ public class RecommendationRowView(
         return content
                | new Markdown(MarkdownHelper.PrepareForDisplay(rec.Description, config))
                    .DangerouslyAllowLocalFiles()
-                   .Article();
+                   .Article()
+                   .OnLinkClick(onLinkClick);
     }
 }

@@ -112,6 +112,8 @@ tendril plan add-depends-on <plan-id> <folder-name>
 
 # Recommendations
 tendril plan rec add <plan-id> <title> -d <description> [--impact=Small|Medium|High]
+# <description> is markdown, rendered in the Recommendations app and the Review tab. File links
+# follow the same file:/// rules given in the Notes section at the bottom of this document.
 tendril plan rec accept <plan-id> <title> [--notes=<text>]
 tendril plan rec decline <plan-id> <title> [--reason=<text>]
 tendril plan rec set <plan-id> <title> <field> <value>
