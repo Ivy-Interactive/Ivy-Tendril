@@ -113,7 +113,7 @@ public class SuggestChangesDialog(
             new DialogHeader($"Request Changes for Plan #{_selectedPlan.Id}"),
             new DialogBody(
                 Layout.Vertical().Gap(2)
-                | Text.P("Provide suggestions or instructions for changes to the plan.")
+                | Text.P("Provide suggestions or instructions for changes to the implementation.")
                 | (commentCount > 0
                     ? Callout.Info($"{commentCount} inline comment(s) on file diffs will be included with your feedback.")
                     : null)
