@@ -1,4 +1,5 @@
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -60,7 +61,8 @@ public class ActionBarView(
         {
             new MenuItem($"Discuss with {agentLabel}", Icon: agentIcon, Tag: "DiscussWithAgent")
                 .OnSelect(() => nav.Navigate<AgentApp>(new AgentAppArgs(
-                    $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Draft mode."))),
+                    $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Draft mode.",
+                    $"#{TendrilAppShell.FormatPlanId(selectedPlan.FolderName)}"))),
             new MenuItem("Create Issue", Icon: Icons.Github, Tag: "CreateIssue").OnSelect(showCreateIssueDialog),
             new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
                 .OnSelect(() => { PlatformHelper.OpenInFileManager(selectedPlan.FolderPath); }),
