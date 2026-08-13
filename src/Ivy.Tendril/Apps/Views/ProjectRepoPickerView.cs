@@ -46,7 +46,7 @@ public class ProjectRepoPickerView(
                 return;
             }
 
-            var draft = new RepoRef { Path = path, PrRule = "default" };
+            var draft = new RepoRef { Path = path };
             var suggestedName = RepoPathValidator.ExtractRepoName(path) ?? path;
 
             addingError.Set(null);

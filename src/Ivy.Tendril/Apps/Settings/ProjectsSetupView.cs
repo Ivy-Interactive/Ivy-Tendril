@@ -35,7 +35,6 @@ public class ProjectsSetupView : ViewBase
                 {
                     var row = Layout.Horizontal().Gap(2).AlignContent(Align.Left);
                     row |= Text.Block(repo.Path).Muted().Small();
-                    row |= new Badge(repo.PrRule).Variant(BadgeVariant.Outline).Small();
                     if (!string.IsNullOrEmpty(repo.BaseBranch))
                         row |= new Badge(repo.BaseBranch).Variant(BadgeVariant.Secondary).Small();
                     layout |= row;

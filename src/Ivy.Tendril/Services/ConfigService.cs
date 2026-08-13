@@ -18,7 +18,6 @@ public record RepoConfig
 public record RepoRef
 {
     public string Path { get; set; } = "";
-    public string PrRule { get; set; } = "default";
     public string? BaseBranch { get; set; }
 }
 
