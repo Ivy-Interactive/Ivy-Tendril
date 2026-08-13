@@ -95,10 +95,6 @@ public class ProjectAddRepoSettings : CommandSettings
     [CommandArgument(1, "<repo-path>")]
     public string RepoPath { get; set; } = "";
 
-    [CommandOption("--pr-rule")]
-    [Description("PR rule: default, yolo")]
-    public string? PrRule { get; set; }
-
     [CommandOption("--base-branch")]
     [Description("Base branch name")]
     public string? BaseBranch { get; set; }
@@ -107,8 +103,7 @@ public class ProjectAddRepoSettings : CommandSettings
     {
         return CliValidation.Combine(
             CliValidation.RequireNonEmpty(ProjectName, "project-name"),
-            CliValidation.RequireNonEmpty(RepoPath, "repo-path"),
-            CliValidation.ValidateOneOf(PrRule, "--pr-rule", CliValidation.ValidPrRules)
+            CliValidation.RequireNonEmpty(RepoPath, "repo-path")
         );
     }
 }
@@ -331,10 +326,9 @@ public class ProjectGetCommand : Command<ProjectGetSettings>
             var repoRows = project.Repos.Select(r => (IReadOnlyList<string>)new[]
             {
                 r.Path,
-                r.PrRule,
                 r.BaseBranch ?? "-"
             });
-            CliOutput.WriteTable(["Path", "PR Rule", "Base Branch"], repoRows);
+            CliOutput.WriteTable(["Path", "Base Branch"], repoRows);
         }
 
         if (project.Verifications.Count > 0)
@@ -515,7 +509,6 @@ public class ProjectAddRepoCommand : Command<ProjectAddRepoSettings>
             project.Repos.Add(new RepoRef
             {
                 Path = repoPath,
-                PrRule = settings.PrRule ?? "default",
                 BaseBranch = baseBranch
             });
         });
