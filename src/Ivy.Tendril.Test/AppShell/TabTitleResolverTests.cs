@@ -44,6 +44,24 @@ public class TabTitleResolverTests
     }
 
     [Fact]
+    public void ResolveArgsTabTitle_AgentArgs_ReturnsTitleVerbatim()
+    {
+        var title = ResolveArgsTabTitle(new AgentAppArgs("prompt", "#85"));
+
+        Assert.Equal("#85", title);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void ResolveArgsTabTitle_AgentArgs_NullOrEmptyTitle_ReturnsNull(string? title)
+    {
+        var result = ResolveArgsTabTitle(new AgentAppArgs("prompt", title));
+
+        Assert.Null(result);
+    }
+
+    [Fact]
     public void ResolveArgsTabTitle_NullArgs_ReturnsNull()
     {
         Assert.Null(ResolveArgsTabTitle(null));
