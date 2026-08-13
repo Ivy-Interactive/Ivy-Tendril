@@ -282,13 +282,17 @@ test.describe("DraftMarkdown Annotations", () => {
     const isScrollable = await shell.evaluate((el) => el.scrollHeight > el.clientHeight + 50);
     expect(isScrollable).toBe(true);
 
-    const paragraph = page.locator(".pmv-markdown p").first();
-    const box = await paragraph.boundingBox();
+    // Select within the (single-line) "Overview" heading rather than a
+    // wrapped paragraph: a drag whose midpoint Y lands between two wrapped
+    // lines can produce a collapsed selection, as the "text selection shows
+    // toolbar" test above avoids by using the same heading.
+    const heading = page.locator(".pmv-markdown h2").first();
+    const box = await heading.boundingBox();
     expect(box).not.toBeNull();
 
     await page.mouse.move(box!.x + 5, box!.y + box!.height / 2);
     await page.mouse.down();
-    await page.mouse.move(box!.x + 200, box!.y + box!.height / 2);
+    await page.mouse.move(box!.x + box!.width - 5, box!.y + box!.height / 2);
     await page.mouse.up();
 
     const toolbar = page.locator(".pmv-selection-toolbar");
