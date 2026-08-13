@@ -513,6 +513,45 @@ public class DatabaseMigratorTests : IDisposable
         Assert.Equal("4242|00069|Persist Jobs|boom", selectCmd.ExecuteScalar()?.ToString());
     }
 
+    [Fact]
+    public void Migration_018_PrStatusBranch_AddsColumn()
+    {
+        new Migration_001_InitialSchema().Apply(_connection);
+        new Migration_002_Fts5Search().Apply(_connection);
+        new Migration_003_JobsTable().Apply(_connection);
+        new Migration_004_SourceUrl().Apply(_connection);
+        new Migration_005_CostsLogTimestampIndex().Apply(_connection);
+        new Migration_006_CostsCompositeIndex().Apply(_connection);
+        new Migration_007_FtsSourceUrl().Apply(_connection);
+        new Migration_008_PrStatusTable().Apply(_connection);
+        new Migration_009_JobsArgs().Apply(_connection);
+        new Migration_010_RecommendationImpactRisk().Apply(_connection);
+        new Migration_011_JobsTypedArgs().Apply(_connection);
+        new Migration_012_JobsPlanFileIndex().Apply(_connection);
+        new Migration_013_JobsWorkingDirAndCliCommand().Apply(_connection);
+        new Migration_014_JobsCleared().Apply(_connection);
+        new Migration_015_RenamePlanStates().Apply(_connection);
+        new Migration_016_DropRecommendationRisk().Apply(_connection);
+        new Migration_017_JobsInFlightFields().Apply(_connection);
+
+        Assert.Equal(17, GetUserVersion());
+
+        new Migration_018_PrStatusBranch().Apply(_connection);
+
+        Assert.Equal(18, GetUserVersion());
+
+        var columns = new List<string>();
+        using (var pragmaCmd = _connection.CreateCommand())
+        {
+            pragmaCmd.CommandText = "PRAGMA table_info(PrStatuses);";
+            using var reader = pragmaCmd.ExecuteReader();
+            while (reader.Read())
+                columns.Add(reader.GetString(reader.GetOrdinal("name")));
+        }
+
+        Assert.Contains("Branch", columns);
+    }
+
     private class FakeMigration : IMigration
     {
         private readonly List<int>? _tracker;
