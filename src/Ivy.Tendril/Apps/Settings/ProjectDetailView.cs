@@ -220,6 +220,28 @@ public class ProjectDetailView(
         var autoImplementSelect = autoImplement.ToSelectInput(new[] { "Auto-Implement Plans", "Always Ask Review" })
             .WithField().Label("Artifact Review / Auto-Implement Policy");
 
+        Func<RepoRef, Task<RepoRef?>> cloneRemoteOnAdd = async draft =>
+        {
+            var kind = RepoPathValidator.Classify(draft.Path);
+            if (kind == RepoPathKind.LocalPath || kind == RepoPathKind.Invalid) return draft;
+
+            var tendrilHome = config.TendrilHome;
+            var projName = project.Name;
+            var owner = RepoPathValidator.ExtractOwnerName(draft.Path) ?? "default";
+            var repoName = RepoPathValidator.ExtractRepoName(draft.Path) ?? Guid.NewGuid().ToString();
+            var destPath = ProjectPathHelper.GetRepoPath(tendrilHome, projName, owner, repoName);
+            Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+
+            var success = await ProcessCheckHelper.CloneRepositoryAsync(draft.Path, destPath);
+            if (!success)
+            {
+                client.Toast($"Failed to fetch repository: {draft.Path}", "Error");
+                return null;
+            }
+
+            return draft with { Path = destPath };
+        };
+
         var innerContent = Layout.Vertical().Width(Size.Full())
             // Section 1: Header (Color Picker + Name)
             | nameHeader
@@ -227,7 +249,7 @@ public class ProjectDetailView(
 
             // Section 2: Repositories
             | Text.H4("Repositories").Bold()
-            | new ProjectRepoPickerView(repos, showBaseBranchPicker: true)
+            | new ProjectRepoPickerView(repos, onAdd: cloneRemoteOnAdd, showBaseBranchPicker: true)
             | new Separator()
 
             // Section 3: Review Actions

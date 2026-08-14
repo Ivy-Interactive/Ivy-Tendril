@@ -254,7 +254,7 @@ When the user asks you to add or configure a project (e.g. "add https://github.c
    ```bash
    tendril job start AddProject "<ProjectName>"
    ```
-3. **CLONE REMOTE REPOS TO DISK**: Always ensure remote Git repository URLs are cloned/pulled into `{TENDRIL_HOME}/Repos/<RepoName>` so local repository files exist on disk before inspecting or running project setup.
+3. **CLONE REMOTE REPOS TO DISK**: Always ensure remote Git repository URLs are cloned/pulled into `{TENDRIL_HOME}/Projects/<ProjectName>/Repos/<RepoOwner>/<RepoName>` so local repository files exist on disk before inspecting or running project setup.
 
 ## Finding Projects & Repositories
 

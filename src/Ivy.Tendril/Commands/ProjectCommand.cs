@@ -663,10 +663,11 @@ public class ProjectAddRepoCommand : Command<ProjectAddRepoSettings>
         if (kind != RepoPathKind.LocalPath)
         {
             var tendrilHome = config.TendrilHome;
-            var reposDir = Path.Combine(tendrilHome, "Repos");
-            Directory.CreateDirectory(reposDir);
+            var owner = RepoPathValidator.ExtractOwnerName(repoPath) ?? "default";
             var repoName = RepoPathValidator.ExtractRepoName(repoPath) ?? Guid.NewGuid().ToString();
-            var destPath = Path.Combine(reposDir, repoName);
+            var destPath = ProjectPathHelper.GetRepoPath(tendrilHome, settings.ProjectName, owner, repoName);
+            Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+
             if (!Directory.Exists(destPath))
             {
                 var success = ProcessCheckHelper.CloneRepositoryAsync(repoPath, destPath).GetAwaiter().GetResult();
