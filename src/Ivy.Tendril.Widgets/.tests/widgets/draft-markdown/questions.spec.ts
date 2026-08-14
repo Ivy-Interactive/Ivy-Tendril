@@ -58,6 +58,23 @@ test.describe("DraftMarkdown Questions", () => {
     await expect(page.locator(".pmv-code-block")).toContainText("This one is an example");
   });
 
+  test("the answered sample stays read-only", async ({ page, stepScreenshot }) => {
+    await navigateToApp(page, "draft-markdown/questions-answered");
+    await waitForDraftMarkdown(page);
+
+    // No OnAnswersChange subscriber, so every block renders as the static callout — including the
+    // ones that parse as the structured schema.
+    const callouts = page.locator(".pmv-questions");
+    await expect(callouts).toHaveCount(3);
+    await expect(page.locator(".pmv-question-option")).toHaveCount(0);
+    await expect(callouts.first().locator(".pmv-questions-content")).toBeVisible();
+
+    // The legacy plain-text fence still reads as prose.
+    await expect(callouts.nth(2)).toContainText("Should we support notification templates");
+
+    await stepScreenshot("answered-read-only");
+  });
+
   test("dragging across the picker raises no selection toolbar", async ({ page, stepScreenshot }) => {
     const callout = page.locator(".pmv-questions").first();
     const box = await callout.boundingBox();
