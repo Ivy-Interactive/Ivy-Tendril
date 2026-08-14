@@ -119,6 +119,7 @@ public class McpServersTableView : ViewBase
     private readonly IState<List<RepoRef>>? _repos;
     private readonly Action<int?>? _onEdit;
     private readonly Action? _onImport;
+    private readonly Action<int>? _onDelete;
 
     public McpServersTableView(IState<List<ProjectMcpServerRef>> mcpServers, Action<int?> onEdit)
     {
@@ -126,12 +127,13 @@ public class McpServersTableView : ViewBase
         _onEdit = onEdit;
     }
 
-    public McpServersTableView(IState<List<ProjectMcpServerRef>> mcpServers, IState<List<RepoRef>>? repos, Action<int?>? onEdit = null, Action? onImport = null)
+    public McpServersTableView(IState<List<ProjectMcpServerRef>> mcpServers, IState<List<RepoRef>>? repos, Action<int?>? onEdit = null, Action? onImport = null, Action<int>? onDelete = null)
     {
         _mcpServers = mcpServers;
         _repos = repos;
         _onEdit = onEdit;
         _onImport = onImport;
+        _onDelete = onDelete;
     }
 
     public override object? Build()
@@ -177,9 +179,16 @@ public class McpServersTableView : ViewBase
                 | (_onEdit != null ? new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => _onEdit(idx)) : null)
                 | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
                 {
-                    var current = new List<ProjectMcpServerRef>(_mcpServers.Value);
-                    current.RemoveAt(idx);
-                    _mcpServers.Set(current);
+                    if (_onDelete != null)
+                    {
+                        _onDelete(idx);
+                    }
+                    else
+                    {
+                        var current = new List<ProjectMcpServerRef>(_mcpServers.Value);
+                        current.RemoveAt(idx);
+                        _mcpServers.Set(current);
+                    }
                 });
 
             var cardHeader = Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full())
@@ -225,6 +234,7 @@ public class SkillsTableView : ViewBase
     private readonly IState<List<RepoRef>>? _repos;
     private readonly Action<int?>? _onEdit;
     private readonly Action? _onImport;
+    private readonly Action<int>? _onDelete;
 
     public SkillsTableView(IState<List<ProjectSkillRef>> skills, Action<int?> onEdit)
     {
@@ -232,12 +242,13 @@ public class SkillsTableView : ViewBase
         _onEdit = onEdit;
     }
 
-    public SkillsTableView(IState<List<ProjectSkillRef>> skills, IState<List<RepoRef>>? repos, Action<int?>? onEdit = null, Action? onImport = null)
+    public SkillsTableView(IState<List<ProjectSkillRef>> skills, IState<List<RepoRef>>? repos, Action<int?>? onEdit = null, Action? onImport = null, Action<int>? onDelete = null)
     {
         _skills = skills;
         _repos = repos;
         _onEdit = onEdit;
         _onImport = onImport;
+        _onDelete = onDelete;
     }
 
     public override object? Build()
@@ -306,9 +317,16 @@ public class SkillsTableView : ViewBase
                 | (_onEdit != null ? new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => _onEdit(idx)) : null)
                 | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
                 {
-                    var current = new List<ProjectSkillRef>(_skills.Value);
-                    current.RemoveAt(idx);
-                    _skills.Set(current);
+                    if (_onDelete != null)
+                    {
+                        _onDelete(idx);
+                    }
+                    else
+                    {
+                        var current = new List<ProjectSkillRef>(_skills.Value);
+                        current.RemoveAt(idx);
+                        _skills.Set(current);
+                    }
                 });
 
             var cardHeader = Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full())

@@ -24,24 +24,24 @@ public class ProjectDetailView(
     {
         // Inline Name & Color Editing State
         var isEditingName = UseState(false);
-        var editName = UseState(projectIndex >= 0 && projectIndex < projects.Count ? projects[projectIndex].Name : "");
-        var projectColor = UseState<Colors?>(projectIndex >= 0 && projectIndex < projects.Count && Enum.TryParse<Colors>(projects[projectIndex].Color, true, out var c) ? c : Colors.Slate);
+        var editName = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : "");
+        var projectColor = UseState<Colors?>(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count && Enum.TryParse<Colors>(config.Settings.Projects[projectIndex].Color, true, out var c) ? c : Colors.Slate);
 
         // Agent Behavior State
-        var autoImplement = UseState(projectIndex >= 0 && projectIndex < projects.Count ? (projects[projectIndex].AutoImplementPlans == "Auto-Implement Plans" ? "Auto-Implement Plans" : "Always Ask Review") : "Always Ask Review");
+        var autoImplement = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? (config.Settings.Projects[projectIndex].AutoImplementPlans == "Auto-Implement Plans" ? "Auto-Implement Plans" : "Always Ask Review") : "Always Ask Review");
 
         // Repositories State
-        var repos = UseState(projectIndex >= 0 && projectIndex < projects.Count ? new List<RepoRef>(projects[projectIndex].Repos) : new List<RepoRef>());
+        var repos = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? new List<RepoRef>(config.Settings.Projects[projectIndex].Repos) : new List<RepoRef>());
 
         // Review Actions State
-        var reviewActions = UseState(projectIndex >= 0 && projectIndex < projects.Count ? new List<ReviewActionConfig>(projects[projectIndex].ReviewActions) : new List<ReviewActionConfig>());
+        var reviewActions = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? new List<ReviewActionConfig>(config.Settings.Projects[projectIndex].ReviewActions) : new List<ReviewActionConfig>());
 
         // Verifications State
-        var verifications = UseState(projectIndex >= 0 && projectIndex < projects.Count ? new List<ProjectVerificationRef>(projects[projectIndex].Verifications) : new List<ProjectVerificationRef>());
+        var verifications = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? new List<ProjectVerificationRef>(config.Settings.Projects[projectIndex].Verifications) : new List<ProjectVerificationRef>());
 
         // MCP & Skills States
-        var mcpServers = UseState(projectIndex >= 0 && projectIndex < projects.Count ? new List<ProjectMcpServerRef>(projects[projectIndex].McpServers) : new List<ProjectMcpServerRef>());
-        var skills = UseState(projectIndex >= 0 && projectIndex < projects.Count ? new List<ProjectSkillRef>(projects[projectIndex].Skills) : new List<ProjectSkillRef>());
+        var mcpServers = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? new List<ProjectMcpServerRef>(config.Settings.Projects[projectIndex].McpServers) : new List<ProjectMcpServerRef>());
+        var skills = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? new List<ProjectSkillRef>(config.Settings.Projects[projectIndex].Skills) : new List<ProjectSkillRef>());
         var memoryRefresh = UseState(0);
 
         // Triggers
@@ -49,7 +49,7 @@ public class ProjectDetailView(
             new OnboardingEditReviewActionDialog(isOpen, existingIndex, reviewActions));
 
         var (verificationTrigger, showVerificationTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
-            new OnboardingEditVerificationDialog(isOpen, existingIndex, config, client, refreshToken, projectIndex >= 0 && projectIndex < projects.Count ? projects[projectIndex].Name : ""));
+            new OnboardingEditVerificationDialog(isOpen, existingIndex, config, client, refreshToken, projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : ""));
 
         var (mcpSheet, openMcpSheet) = UseTrigger((IState<bool> isOpen, int? editingIndex) =>
             new EditMcpServerSheet(isOpen, editingIndex, mcpServers));
@@ -58,20 +58,21 @@ public class ProjectDetailView(
             new EditSkillSheet(isOpen, editingIndex, skills));
 
         var (memorySheet, openMemorySheet) = UseTrigger((IState<bool> isOpen, string? editingFileName) =>
-            new EditProjectMemorySheet(isOpen, config.TendrilHome, projectIndex >= 0 && projectIndex < projects.Count ? projects[projectIndex].Name : "", editingFileName, memoryRefresh));
+            new EditProjectMemorySheet(isOpen, config.TendrilHome, projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : "", editingFileName, memoryRefresh));
 
         var (importMcpDialog, openImportMcpDialog) = UseTrigger((IState<bool> isOpen) =>
-            new ImportRepoAssetsDialog(isOpen, ImportAssetKind.McpServers, projectIndex >= 0 && projectIndex < projects.Count ? projects[projectIndex].Name : "", repos.Value, config, client, mcpServers: mcpServers));
+            new ImportRepoAssetsDialog(isOpen, ImportAssetKind.McpServers, projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : "", repos.Value, config, client, mcpServers: mcpServers));
 
         var (importSkillsDialog, openImportSkillsDialog) = UseTrigger((IState<bool> isOpen) =>
-            new ImportRepoAssetsDialog(isOpen, ImportAssetKind.Skills, projectIndex >= 0 && projectIndex < projects.Count ? projects[projectIndex].Name : "", repos.Value, config, client, skills: skills));
+            new ImportRepoAssetsDialog(isOpen, ImportAssetKind.Skills, projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : "", repos.Value, config, client, skills: skills));
 
         // Auto-save settings on state changes
         void SaveProjectChanges()
         {
-            if (projectIndex < 0 || projectIndex >= projects.Count) return;
+            var activeProjects = config.Settings.Projects;
+            if (projectIndex < 0 || projectIndex >= activeProjects.Count) return;
 
-            var currentProj = projects[projectIndex];
+            var currentProj = activeProjects[projectIndex];
             var changed = false;
 
             var colorStr = projectColor.Value?.ToString() ?? "Slate";
@@ -125,15 +126,65 @@ public class ProjectDetailView(
             }
         }
 
+        void DeleteSkill(int idx)
+        {
+            var list = new List<ProjectSkillRef>(skills.Value);
+            if (idx < 0 || idx >= list.Count) return;
+
+            var sk = list[idx];
+            var projName = projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : "";
+            if (!string.IsNullOrEmpty(projName) && !string.IsNullOrEmpty(config.TendrilHome))
+            {
+                var localSkillsDir = ProjectPathHelper.GetSkillsDir(config.TendrilHome, projName);
+                var skillFolder = Path.Combine(localSkillsDir, sk.Name);
+                if (Directory.Exists(skillFolder))
+                {
+                    try { Directory.Delete(skillFolder, true); } catch { }
+                }
+            }
+
+            list.RemoveAt(idx);
+            skills.Set(list);
+
+            var activeProjects = config.Settings.Projects;
+            if (projectIndex >= 0 && projectIndex < activeProjects.Count)
+            {
+                activeProjects[projectIndex].Skills = new List<ProjectSkillRef>(list);
+                config.SaveSettings();
+                refreshToken.Refresh();
+                client.Toast($"Deleted skill '{sk.Name}'", "Deleted");
+            }
+        }
+
+        void DeleteMcpServer(int idx)
+        {
+            var list = new List<ProjectMcpServerRef>(mcpServers.Value);
+            if (idx < 0 || idx >= list.Count) return;
+
+            var srv = list[idx];
+            list.RemoveAt(idx);
+            mcpServers.Set(list);
+
+            var activeProjects = config.Settings.Projects;
+            if (projectIndex >= 0 && projectIndex < activeProjects.Count)
+            {
+                activeProjects[projectIndex].McpServers = new List<ProjectMcpServerRef>(list);
+                config.SaveSettings();
+                refreshToken.Refresh();
+                client.Toast($"Deleted MCP server '{srv.Name}'", "Deleted");
+            }
+        }
+
         UseEffect(SaveProjectChanges, [projectColor, autoImplement, repos, reviewActions, verifications, mcpServers, skills]);
 
-        if (projectIndex < 0 || projectIndex >= projects.Count)
+        var currentProjectList = config.Settings.Projects;
+        if (projectIndex < 0 || projectIndex >= currentProjectList.Count)
         {
             return Layout.Vertical()
                    | Text.Block("No project selected.").Muted();
         }
 
-        var project = projects[projectIndex];
+        var project = currentProjectList[projectIndex];
 
         // Color Picker Control at the top
         var colorInput = projectColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker);
@@ -200,13 +251,13 @@ public class ProjectDetailView(
 
             // Section 6: Local Permissions (MCP Tools & Servers)
             | Text.H4("Local Permissions").Bold()
-            | new McpServersTableView(mcpServers, repos, idx => openMcpSheet(idx), onImport: () => openImportMcpDialog())
+            | new McpServersTableView(mcpServers, repos, idx => openMcpSheet(idx), onImport: () => openImportMcpDialog(), onDelete: idx => DeleteMcpServer(idx))
             | new Separator()
 
             // Section 7: Customizations
             | Text.H4("Customizations").Bold()
             | new ProjectMemoryTableView(config.TendrilHome, project.Name, memoryRefresh, fileName => openMemorySheet(fileName))
-            | new SkillsTableView(skills, repos, idx => openSkillSheet(idx), onImport: () => openImportSkillsDialog())
+            | new SkillsTableView(skills, repos, idx => openSkillSheet(idx), onImport: () => openImportSkillsDialog(), onDelete: idx => DeleteSkill(idx))
             | new Separator()
 
             // Section 8: Danger Zone
