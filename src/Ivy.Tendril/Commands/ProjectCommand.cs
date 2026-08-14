@@ -982,28 +982,18 @@ internal static class ProjectRepoResolver
 {
     public static string ResolveRepoPath(ProjectConfig project, string repoArg, string tendrilHome)
     {
-        if (Directory.Exists(repoArg))
-            return Path.GetFullPath(repoArg);
-
         var matchingRepo = project.Repos.FirstOrDefault(r =>
             r.Path.Equals(repoArg, StringComparison.OrdinalIgnoreCase) ||
             Path.GetFileName(r.Path).Equals(repoArg, StringComparison.OrdinalIgnoreCase) ||
             r.Path.EndsWith("/" + repoArg, StringComparison.OrdinalIgnoreCase) ||
             r.Path.EndsWith("\\" + repoArg, StringComparison.OrdinalIgnoreCase));
 
-        if (matchingRepo != null)
-        {
-            var expanded = VariableExpansion.ExpandVariables(matchingRepo.Path, tendrilHome);
-            if (Directory.Exists(expanded)) return expanded;
-        }
+        var target = matchingRepo != null ? matchingRepo.Path : repoArg;
+        var (path, error) = RepoAssetScanner.ResolveAndPrepareRepoPath(target, tendrilHome);
+        if (error != null || string.IsNullOrEmpty(path))
+            throw new InvalidOperationException(error ?? $"Failed to resolve repository: {repoArg}");
 
-        var directPath = Path.Combine(tendrilHome, "Repos", repoArg);
-        if (Directory.Exists(directPath)) return directPath;
-
-        var projectRepoPath = Path.Combine(ProjectPathHelper.GetReposDir(tendrilHome, project.Name), repoArg);
-        if (Directory.Exists(projectRepoPath)) return projectRepoPath;
-
-        return repoArg;
+        return path;
     }
 }
 

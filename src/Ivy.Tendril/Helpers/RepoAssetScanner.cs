@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -44,6 +45,65 @@ public static class RepoAssetScanner
     {
         ".git", "node_modules", "bin", "obj", "dist", "build", ".vs", ".idea", ".venv", "venv", ".cache"
     };
+
+    public static (string? LocalPath, string? Error) ResolveAndPrepareRepoPath(string repoPathOrUrl, string tendrilHome)
+    {
+        if (string.IsNullOrWhiteSpace(repoPathOrUrl))
+            return (null, "Repository path or URL cannot be empty.");
+
+        var expanded = VariableExpansion.ExpandVariables(repoPathOrUrl.Trim(), tendrilHome ?? "");
+
+        if (Directory.Exists(expanded))
+            return (Path.GetFullPath(expanded), null);
+
+        var kind = RepoPathValidator.Classify(expanded);
+        if (kind == RepoPathKind.HttpUrl || kind == RepoPathKind.SshUrl)
+        {
+            var repoName = RepoPathValidator.ExtractRepoName(expanded) ?? "remote-repo";
+            var cacheRoot = string.IsNullOrEmpty(tendrilHome)
+                ? Path.Combine(Path.GetTempPath(), "tendril-imports")
+                : Path.Combine(tendrilHome, "Cache", "Imports");
+            var targetDir = Path.Combine(cacheRoot, InputSanitizer.SanitizeProjectName(repoName));
+
+            try
+            {
+                if (Directory.Exists(targetDir))
+                {
+                    var pullPsi = GitHelper.MakeGitStartInfo("pull --depth 1", targetDir);
+                    using var pullProc = Process.Start(pullPsi);
+                    if (pullProc != null && pullProc.WaitForExit(20000) && pullProc.ExitCode == 0)
+                    {
+                        return (targetDir, null);
+                    }
+
+                    try { Directory.Delete(targetDir, recursive: true); } catch { }
+                }
+
+                Directory.CreateDirectory(cacheRoot);
+                var clonePsi = GitHelper.MakeGitStartInfo($"clone --depth 1 \"{expanded}\" \"{targetDir}\"");
+                using var cloneProc = Process.Start(clonePsi);
+                if (cloneProc == null)
+                    return (null, "Failed to start git clone process.");
+
+                var stdErr = cloneProc.StandardError.ReadToEnd();
+                cloneProc.WaitForExit(60000);
+
+                if (cloneProc.ExitCode == 0 && Directory.Exists(targetDir))
+                    return (targetDir, null);
+
+                return (null, $"Git clone failed: {stdErr.Trim()}");
+            }
+            catch (Exception ex)
+            {
+                return (null, $"Failed to clone repository: {ex.Message}");
+            }
+        }
+
+        if (RepoPathValidator.IsLocalPath(expanded))
+            return (null, $"Directory does not exist: {expanded}");
+
+        return (null, $"Invalid repository path or URL: {expanded}");
+    }
 
     public static List<DiscoveredMcpServer> ScanMcpServers(string repoPath)
     {
