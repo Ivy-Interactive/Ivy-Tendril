@@ -41,7 +41,7 @@ public class ContentView(
                 plan?.Title ?? folderName
             ).Width(UxHelper.SheetWidth).Resizable();
 
-            return new Fragment(sheet, new FileSheet(openFile, config));
+            return sheet;
         });
         var (notesDialog, showNotesDialog) = UseTrigger((isOpen) =>
         {
@@ -119,17 +119,17 @@ public class ContentView(
         // Content
         var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(6, 2, 6, 2);
 
-        // Source plan info
-        var metaRow = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                      | Text.Muted($"Plan #{selectedRecommendation.ShortPlanId}: {selectedRecommendation.PlanTitle}");
-
-        scrollableContent |= Layout.Vertical().Gap(1)
-                             | Text.Block("Source Plan").Bold()
-                             | metaRow;
-
         // Description
-        scrollableContent |= new Separator();
-        scrollableContent |= new Markdown(MarkdownHelper.PrepareForDisplay(selectedRecommendation.Description, config));
+        scrollableContent |= new Markdown(MarkdownHelper.PrepareForDisplay(selectedRecommendation.Description, config))
+            .DangerouslyAllowLocalFiles()
+            .Article()
+            .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>
+            {
+                var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
+                    .FirstOrDefault();
+                if (planFolder != null)
+                    showPlan(planFolder);
+            }));
 
         // Standard overflow menu items
         var standardOverflowItems = new[]
@@ -223,7 +223,7 @@ public class ContentView(
             ).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full());
 
-        return new Fragment(mainLayout, planSheet, notesDialog);
+        return new Fragment(mainLayout, planSheet, notesDialog, new FileSheet(openFile, config));
     }
 
     private void GoToNext()

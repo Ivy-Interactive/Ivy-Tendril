@@ -40,7 +40,6 @@ Manage projects stored in `config.yaml`. Projects group repositories, verificati
 
 | Option | Effect |
 |--------|--------|
-| `--pr-rule` | PR rule (`default`, `yolo`) |
 | `--base-branch` | Default base branch (e.g. `main`) |
 | `--sync-strategy` | Worktree sync strategy (`fetch`, `pull`) |
 

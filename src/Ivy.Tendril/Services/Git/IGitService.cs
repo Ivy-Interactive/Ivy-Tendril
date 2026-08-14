@@ -13,6 +13,9 @@ public interface IGitService
     GitResult<bool> HasUncommittedChanges(string repoPath);
     GitResult<List<string>> GetReachableCommits(string repoPath, IEnumerable<string> candidateHashes);
     GitResult<DirtyRepoResult> GetRepoDirtyState(string repoPath, string expectedBaseBranch);
+    GitResult<WorktreeBaseInfo?> GetWorktreeBase(string repoPath);
 }
 
 public record WorktreeInfo(string Path, string Branch, string CommitHash);
+
+public record WorktreeBaseInfo(string Branch, string CommitHash);

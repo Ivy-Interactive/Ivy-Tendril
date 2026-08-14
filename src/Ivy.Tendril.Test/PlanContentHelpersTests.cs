@@ -480,5 +480,8 @@ public class PlanContentHelpersTests
         {
             return GitResult<DirtyRepoResult>.Success(new DirtyRepoResult());
         }
+
+        public GitResult<WorktreeBaseInfo?> GetWorktreeBase(string repoPath) =>
+            GitResult<WorktreeBaseInfo?>.Success(null);
     }
 }

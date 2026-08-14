@@ -67,6 +67,15 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
         },
         new()
         {
+            Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5",
+            Capabilities = MidCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
+            Provider = "anthropic",
+            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
+            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
+        },
+        new()
+        {
             Id = "claude-sonnet-4-6", DisplayName = "Claude Sonnet 4.6",
             Capabilities = MidCaps,
             ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
