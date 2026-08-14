@@ -117,6 +117,16 @@ public class ContentView(
             ).Width(UxHelper.SheetWidth).Resizable();
         });
 
+        var (costSheet, showCostJob) = UseTrigger<string>((isOpen, jobId) =>
+        {
+            if (!isOpen.Value) return null;
+            return new Sheet(
+                () => isOpen.Set(false),
+                new JobCostSheet(jobId, jobService),
+                "Cost & Tokens"
+            ).Width(UxHelper.SheetWidth).Resizable();
+        });
+
         var artifactContentQuery = UseQuery<string, string>(
             openArtifact.Value ?? "",
             async (filePath, ct) =>
@@ -245,7 +255,8 @@ public class ContentView(
             showCreatePrDialog, context, agentRunner, draftComments);
         var content = BuildContent(
             selectedPlanState.Value, planContentQuery, selectedTab, sheets,
-            syncingWorktrees, selectedRecTitles, context, showDebugJob, draftComments, ImplementRecommendations);
+            syncingWorktrees, selectedRecTitles, context, showDebugJob, showCostJob, draftComments,
+            ImplementRecommendations);
 
         var mainLayout = new HeaderLayout(
             header,
@@ -255,7 +266,8 @@ public class ContentView(
             ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlanState.Value.Id);
 
-        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, createPrDialog, resetToDraftDialog, debugSheet);
+        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, createPrDialog, resetToDraftDialog,
+            debugSheet, costSheet);
     }
 
     private object BuildHeader(
@@ -525,6 +537,7 @@ public class ContentView(
         IState<HashSet<string>> selectedRecTitles,
         ReviewViewContext context,
         Action<string> showDebugJob,
+        Action<string> showCostJob,
         IState<List<DraftComment>> draftComments,
         Action onImplementRecommendations)
     {
@@ -617,7 +630,7 @@ public class ContentView(
                 new Tab("Plan", Cap(planTabContent)),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan,
                     jobService.GetJobsForPlan(selectedPlan.FolderName),
-                    showDebugJob, planService, selectedPlanState, refreshPlans,
+                    showDebugJob, showCostJob, planService, selectedPlanState, refreshPlans,
                     folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath))))),
                 new Tab("Git", Cap(gitTabView)).Badge(GitTabDataBuilder.CountGitItems(gitData, selectedPlan).ToString()),
             };

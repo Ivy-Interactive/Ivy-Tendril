@@ -64,6 +64,16 @@ public class ContentView(
             ).Width(UxHelper.SheetWidth).Resizable();
         });
 
+        var (costSheet, showCostJob) = UseTrigger<string>((isOpen, jobId) =>
+        {
+            if (!isOpen.Value) return null;
+            return new Sheet(
+                () => isOpen.Set(false),
+                new JobCostSheet(jobId, jobService),
+                "Cost & Tokens"
+            ).Width(UxHelper.SheetWidth).Resizable();
+        });
+
         var isEditing = UseState(false);
         var editContent = UseState("");
         var originalContent = UseState("");
@@ -257,7 +267,7 @@ public class ContentView(
                 new Tab("Plan", planTabContent),
                 new Tab("Details", Cap(new DetailsTabView(selectedPlan!,
                     jobService.GetJobsForPlan(selectedPlan!.FolderName),
-                    showDebugJob, planService, selectedPlanState, refreshPlans,
+                    showDebugJob, showCostJob, planService, selectedPlanState, refreshPlans,
                     folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath))))),
             };
 
@@ -331,7 +341,8 @@ public class ContentView(
             updateDialog,
             deleteDialog,
             createIssueDialog,
-            debugSheet
+            debugSheet,
+            costSheet
         };
 
         if (dirtyRepoDialog is not null)
