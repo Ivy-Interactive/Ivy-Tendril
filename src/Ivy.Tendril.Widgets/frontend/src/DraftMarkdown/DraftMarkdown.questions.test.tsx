@@ -148,7 +148,7 @@ describe("DraftMarkdown interactive questions", () => {
 
     expect(eventHandler).toHaveBeenCalledTimes(1);
     expect(eventHandler).toHaveBeenCalledWith("OnAnswersChange", "w1", [
-      { QuestionId: "budget", Answer: ["per-request"] },
+      { questionId: "budget", answer: ["per-request"] },
     ]);
   });
 
@@ -157,7 +157,7 @@ describe("DraftMarkdown interactive questions", () => {
 
     fireEvent.click(checks(container)[1]);
 
-    expect(answerCalls(eventHandler)).toEqual([{ QuestionId: "budget", Answer: ["per-session"] }]);
+    expect(answerCalls(eventHandler)).toEqual([{ questionId: "budget", answer: ["per-session"] }]);
   });
 
   it("accumulates values on a multi-select question", () => {
@@ -166,7 +166,7 @@ describe("DraftMarkdown interactive questions", () => {
     fireEvent.click(checks(container)[1]);
 
     expect(answerCalls(eventHandler)).toEqual([
-      { QuestionId: "channels", Answer: ["in-app", "email"] },
+      { questionId: "channels", answer: ["in-app", "email"] },
     ]);
   });
 
@@ -175,7 +175,7 @@ describe("DraftMarkdown interactive questions", () => {
 
     fireEvent.click(checks(container)[0]);
 
-    expect(answerCalls(eventHandler)).toEqual([{ QuestionId: "channels", Answer: [] }]);
+    expect(answerCalls(eventHandler)).toEqual([{ questionId: "channels", answer: [] }]);
   });
 
   it("fires the typed text when Other is chosen", () => {
@@ -189,7 +189,7 @@ describe("DraftMarkdown interactive questions", () => {
     expect(input).not.toBeNull();
     fireEvent.change(input!, { target: { value: "per-tenant" } });
 
-    expect(answerCalls(eventHandler)).toEqual([{ QuestionId: "budget", Answer: ["per-tenant"] }]);
+    expect(answerCalls(eventHandler)).toEqual([{ questionId: "budget", answer: ["per-tenant"] }]);
   });
 
   it("fires a null answer when Clear is used", () => {
@@ -197,7 +197,7 @@ describe("DraftMarkdown interactive questions", () => {
 
     fireEvent.click(container.querySelector<HTMLButtonElement>(".pmv-question-clear")!);
 
-    expect(answerCalls(eventHandler)).toEqual([{ QuestionId: "budget", Answer: null }]);
+    expect(answerCalls(eventHandler)).toEqual([{ questionId: "budget", answer: null }]);
   });
 
   it("renders no Other row when other is false", () => {
@@ -218,7 +218,7 @@ describe("DraftMarkdown interactive questions", () => {
     expect(input).not.toBeNull();
 
     fireEvent.change(input!, { target: { value: "Notifier" } });
-    expect(answerCalls(eventHandler)).toEqual([{ QuestionId: "name", Answer: ["Notifier"] }]);
+    expect(answerCalls(eventHandler)).toEqual([{ questionId: "name", answer: ["Notifier"] }]);
   });
 
   it("marks the recommended option with a chip", () => {

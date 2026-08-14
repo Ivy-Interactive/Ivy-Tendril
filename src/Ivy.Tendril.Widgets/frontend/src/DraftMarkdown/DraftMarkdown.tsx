@@ -77,7 +77,9 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
       const value =
         answer === undefined ? null : answer === null ? [] : Array.isArray(answer) ? answer : [answer];
 
-      eventHandler("OnAnswersChange", id, [{ QuestionId: questionId, Answer: value }]);
+      // camelCase on the wire: the server deserializes event args with a camelCase naming policy
+      // and no case-insensitive fallback, so PascalCase keys would bind to nothing.
+      eventHandler("OnAnswersChange", id, [{ questionId, answer: value }]);
     },
     [eventHandler, id],
   );
