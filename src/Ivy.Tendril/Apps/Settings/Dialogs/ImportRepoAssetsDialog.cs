@@ -178,19 +178,22 @@ public class ImportRepoAssetsDialog(
         if (sourceMode.Value == "Project Repo")
         {
             var repoOptions = projectRepos.Select(r => new Option<string>(r.Path, Path.GetFileName(r.Path) ?? r.Path)).ToList();
-            sourceInputsLayout |= selectedRepoPath.ToSelectInput(repoOptions).WithField().Label("Project Repository");
+            sourceInputsLayout |= Text.Block("Project Repository").Bold().Small();
+            sourceInputsLayout |= selectedRepoPath.ToSelectInput(repoOptions);
         }
         else if (sourceMode.Value == "Git URL")
         {
-            sourceInputsLayout |= (Layout.Horizontal().AlignContent(Align.Left)
-                | gitUrl.ToTextInput("https://github.com/owner/repo.git or git@...").WithField().Label("Git Repository URL")
-                | new Button("Fetch & Scan").Icon(Icons.Search).Outline().Small().Loading(isScanning.Value).OnClick(() => PerformScan(gitUrl.Value)));
+            sourceInputsLayout |= Text.Block("Git Repository URL").Bold().Small();
+            sourceInputsLayout |= (Layout.Horizontal().AlignContent(Align.Left).Width(Size.Full())
+                | gitUrl.ToTextInput("https://github.com/owner/repo.git or git@...").Width(Size.Full())
+                | new Button("Fetch & Scan").Icon(Icons.Search).Outline().Loading(isScanning.Value).OnClick(() => PerformScan(gitUrl.Value)));
         }
         else if (sourceMode.Value == "Local Path")
         {
-            sourceInputsLayout |= (Layout.Horizontal().AlignContent(Align.Left)
-                | localPath.ToTextInput("~/path/to/repository or /Users/...").WithField().Label("Local Folder Path")
-                | new Button("Scan").Icon(Icons.Search).Outline().Small().Loading(isScanning.Value).OnClick(() => PerformScan(localPath.Value)));
+            sourceInputsLayout |= Text.Block("Local Folder Path").Bold().Small();
+            sourceInputsLayout |= (Layout.Horizontal().AlignContent(Align.Left).Width(Size.Full())
+                | localPath.ToTextInput("~/path/to/repository or /Users/...").Width(Size.Full())
+                | new Button("Scan").Icon(Icons.Search).Outline().Loading(isScanning.Value).OnClick(() => PerformScan(localPath.Value)));
         }
 
         var resultsLayout = Layout.Vertical();
