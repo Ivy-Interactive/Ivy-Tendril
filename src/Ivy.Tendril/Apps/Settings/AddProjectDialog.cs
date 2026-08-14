@@ -18,24 +18,41 @@ public class AddProjectDialog(
         var repos = UseState(new List<RepoRef>());
         var isCreating = UseState(false);
 
-        var sanitized = InputSanitizer.SanitizeProjectName(projectName.Value ?? "");
-        var nameExists = !string.IsNullOrWhiteSpace(sanitized) &&
-                         config.Settings.Projects.Any(p => p.Name.Equals(sanitized, StringComparison.OrdinalIgnoreCase));
-        var canCreate = !string.IsNullOrWhiteSpace(sanitized) && !nameExists && repos.Value.Count > 0;
+        UseEffect(() =>
+        {
+            var raw = projectName.Value ?? "";
+            var sanitized = InputSanitizer.SanitizeProjectName(raw);
+            if (sanitized != raw) projectName.Set(sanitized);
+        }, projectName);
+
+        if (!isOpen.Value) return null;
+
+        var existingProject = !string.IsNullOrWhiteSpace(projectName.Value)
+            ? config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projectName.Value.Trim(), StringComparison.OrdinalIgnoreCase))
+            : null;
+        var nameExists = existingProject != null;
+        var canCreate = !string.IsNullOrWhiteSpace(projectName.Value) && !nameExists && repos.Value.Count > 0;
 
         return new Dialog(
             _ => isOpen.Set(false),
             new DialogHeader("Add New Project"),
             new DialogBody(
                 Layout.Vertical()
+                | Text.Block("A project groups one or more repositories together so Tendril can plan and verify changes across them.").Muted().Small()
+                | new ProjectRepoPickerView(repos, projectName, showBaseBranchPicker: false)
                 | projectName.ToTextInput("Project name...").WithField().Label("Project Name").Required()
-                | (nameExists ? Text.Block("A project with this name already exists.").Color(Colors.Destructive).Small() : null!)
-                | Text.Block("Repositories").Bold().Small()
-                | new ProjectRepoPickerView(repos, showBaseBranchPicker: false)
+                | (nameExists ? new Box()
+                    .BorderColor(Colors.Destructive)
+                    .BorderRadius(BorderRadius.Rounded)
+                    .Content(
+                        Layout.Vertical()
+                        | Text.Block("A project with this name already exists.").Bold().Color(Colors.Destructive)
+                        | Text.Block("To resolve this conflict, you can enter a different name above.").Small()
+                    ) : null!)
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => isOpen.Set(false)),
-                new Button("Create Project").Primary().Disabled(!canCreate || isCreating.Value).OnClick(() =>
+                new Button("Create Project").Primary().Disabled(!canCreate || isCreating.Value).Loading(isCreating.Value).OnClick(() =>
                 {
                     var projName = InputSanitizer.SanitizeProjectName(projectName.Value.Trim());
                     if (string.IsNullOrWhiteSpace(projName)) return;
@@ -65,6 +82,6 @@ public class AddProjectDialog(
                     }
                 })
             )
-        ).Width(Size.Rem(35));
+        ).Width(Size.Rem(38));
     }
 }
