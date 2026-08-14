@@ -108,7 +108,7 @@ public class PullRequestApp : ViewBase
             .RefreshToken(refreshToken)
             .Width(Size.Full())
             .Height(Size.Full())
-            .Order(e => e.Plan, e => e.Project, e => e.Status, e => e.Pr, e => e.Branch, e => e.Tokens, e => e.Cost, e => e.Repository)
+            .Order(e => e.Plan, e => e.Project, e => e.Status, e => e.Pr, e => e.Repository, e => e.Branch, e => e.Tokens, e => e.Cost)
             .Header(t => t.Project, "Project")
             .Header(t => t.Repository, "Repository")
             .Header(t => t.Status, "Status")
@@ -117,14 +117,14 @@ public class PullRequestApp : ViewBase
             .Header(t => t.Pr, "PR")
             .Header(t => t.Branch, "Branch")
             .Header(t => t.Plan, "Plan")
-            .Width(t => t.Project, Size.Px(150))
-            .Width(t => t.Repository, Size.Fraction(1 / 6f))
-            .Width(t => t.Status, Size.Px(90))
+            .Width(t => t.Plan, Size.Fraction(1 / 4f))
+            .Width(t => t.Project, Size.Px(100))
+            .Width(t => t.Status, Size.Px(100))
             .Width(t => t.Pr, Size.Fraction(1 / 4f))
+            .Width(t => t.Repository, Size.Fraction(1 / 4f))
             .Width(t => t.Branch, Size.Fraction(1 / 4f))
-            .Width(t => t.Plan, Size.Fraction(1 / 3f))
-            .Width(t => t.Cost, Size.Px(80))
             .Width(t => t.Tokens, Size.Px(80))
+            .Width(t => t.Cost, Size.Px(80))
             .Renderer(t => t.Status, new LabelsDisplayRenderer
             {
                 BadgeColorMapping = new Dictionary<string, string>
