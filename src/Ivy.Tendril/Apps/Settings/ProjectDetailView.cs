@@ -177,7 +177,7 @@ public class ProjectDetailView(
 
             // Section 8: Danger Zone
             | Text.H4("Danger Zone").Bold()
-            | new Button("Delete Project").Primary().OnClick(() =>
+            | new Button("Delete Project").Destructive().OnClick(() =>
             {
                 onDeleteProject?.Invoke();
             }).WithConfirm(
