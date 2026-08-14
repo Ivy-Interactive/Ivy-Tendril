@@ -34,7 +34,12 @@ public class ChatApp : ViewBase
         var activeSessionId = UseState<string?>(args?.SessionId);
         var sessionVersion = UseState(0);
         var selectedAgent = UseState(() => configService.Settings.CodingAgent ?? "claude");
-        var selectedModel = UseState("claude-opus-5");
+        var selectedModel = UseState(() =>
+        {
+            var agent = configService.Settings.CodingAgent ?? "claude";
+            var initialModels = GetModelsForAgent(agentRunner, agent);
+            return initialModels.Count > 0 ? initialModels[0].Id : "default";
+        });
         var lastSyncedSessionId = UseRef<string?>(null);
         var isStreaming = UseState(false);
         var streamingSessionId = UseState<string?>(null);
