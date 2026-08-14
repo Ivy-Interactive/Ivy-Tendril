@@ -37,6 +37,10 @@ public sealed class ModelPricingProvider : IModelPricingProvider
                     OutputPerMillion = model.OutputPerMillion,
                     CacheWritePerMillion = model.CacheWritePerMillion,
                     CacheReadPerMillion = model.CacheReadPerMillion,
+                    // GetStaticModels() never carries a PricingSource (only the async
+                    // GetModelsAsync path enriches from models.dev), so in practice this labels the
+                    // hardcoded catalog. That is the truth, and the cost sheet says so.
+                    Source = model.PricingSource ?? $"Static catalog ({catalog.AgentId})",
                 };
 
                 var hasPricing = model.InputPerMillion > 0 || model.OutputPerMillion > 0;
