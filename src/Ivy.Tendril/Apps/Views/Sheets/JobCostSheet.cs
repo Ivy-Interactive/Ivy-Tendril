@@ -1,3 +1,4 @@
+using System.Globalization;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
@@ -14,6 +15,17 @@ namespace Ivy.Tendril.Apps.Views.Sheets;
 public class JobCostSheet(string jobId, IJobService jobService) : ViewBase
 {
     private const string NoValue = "—";
+
+    /// <summary>
+    /// Every number here is presented as US dollars or a raw token count, so it is formatted with
+    /// the invariant culture. Current-culture formatting would render a cost as "$1,2500" wherever
+    /// the decimal separator is a comma.
+    /// </summary>
+    private static string Usd(decimal value) => "$" + value.ToString("F4", CultureInfo.InvariantCulture);
+
+    private static string Rate(decimal value) => "$" + value.ToString("N2", CultureInfo.InvariantCulture);
+
+    private static string Count(int value) => value.ToString("N0", CultureInfo.InvariantCulture);
 
     /// <summary>Folder + type-name prefix of each provider's hardcoded catalog, keyed by agent id.</summary>
     private static readonly Dictionary<string, string> CatalogFolders = new(StringComparer.OrdinalIgnoreCase)
@@ -64,9 +76,9 @@ public class JobCostSheet(string jobId, IJobService jobService) : ViewBase
             .Select(b => new UsageRow
             {
                 Kind = b.Kind,
-                Tokens = b.Tokens.ToString("N0"),
-                RatePerMillion = b.Rate.HasValue ? $"${b.Rate.Value:N2}" : NoValue,
-                Cost = b.Rate.HasValue ? $"${b.Tokens * b.Rate.Value / 1_000_000m:F4}" : NoValue,
+                Tokens = Count(b.Tokens),
+                RatePerMillion = b.Rate.HasValue ? Rate(b.Rate.Value) : NoValue,
+                Cost = b.Rate.HasValue ? Usd(b.Tokens * b.Rate.Value / 1_000_000m) : NoValue,
             })
             .ToTable()
             .Header(x => x.Kind, "Token type")
@@ -77,8 +89,8 @@ public class JobCostSheet(string jobId, IJobService jobService) : ViewBase
             .AlignContent(x => x.RatePerMillion, Align.Right)
             .AlignContent(x => x.Cost, Align.Right)
             .Totals(x => x.Kind, _ => "Total")
-            .Totals(x => x.Tokens, _ => totalTokens.ToString("N0"))
-            .Totals(x => x.Cost, _ => computedCost.HasValue ? $"${computedCost.Value:F4}" : NoValue)
+            .Totals(x => x.Tokens, _ => Count(totalTokens))
+            .Totals(x => x.Cost, _ => computedCost.HasValue ? Usd(computedCost.Value) : NoValue)
             .Width(Size.Full());
 
         return Layout.Vertical().Gap(4)
@@ -101,9 +113,9 @@ public class JobCostSheet(string jobId, IJobService jobService) : ViewBase
     /// One row of the breakdown, in raw (unformatted) form so the footer totals can be summed
     /// before anything is stringified.
     /// </summary>
-    private readonly record struct Bucket(string Kind, int Tokens, decimal? Rate, bool CountsTowardTotal);
+    internal readonly record struct Bucket(string Kind, int Tokens, decimal? Rate, bool CountsTowardTotal);
 
-    private static List<Bucket> BuildBuckets(JobItem job, ModelPricing? pricing)
+    internal static List<Bucket> BuildBuckets(JobItem job, ModelPricing? pricing)
     {
         var buckets = new List<Bucket>();
 
@@ -138,8 +150,8 @@ public class JobCostSheet(string jobId, IJobService jobService) : ViewBase
         }
 
         var totals = new List<string>();
-        if (job.Tokens is > 0) totals.Add($"{job.Tokens.Value:N0} tokens (input + output)");
-        if (job.Cost is not null) totals.Add($"${job.Cost.Value:F4}");
+        if (job.Tokens is > 0) totals.Add($"{Count(job.Tokens.Value)} tokens (input + output)");
+        if (job.Cost is not null) totals.Add(Usd(job.Cost.Value));
 
         return Layout.Vertical().Gap(2)
                | Text.Block(string.Join(" · ", totals))
@@ -152,12 +164,12 @@ public class JobCostSheet(string jobId, IJobService jobService) : ViewBase
     /// States plainly whether the displayed cost came from the agent's own report or from the rates
     /// in the table, and surfaces the gap when the two disagree.
     /// </summary>
-    private static string BuildReconciliation(JobItem job, decimal? computedCost)
+    internal static string BuildReconciliation(JobItem job, decimal? computedCost)
     {
         if (job.Cost is null)
             return "No cost recorded for this job; the figures above are token counts only.";
 
-        var charged = $"${job.Cost.Value:F4}";
+        var charged = Usd(job.Cost.Value);
 
         if (job.CostSource == JobCostSources.Computed)
             return $"Charged {charged}, computed from the rates above (the agent did not report a cost).";
@@ -168,7 +180,7 @@ public class JobCostSheet(string jobId, IJobService jobService) : ViewBase
                        + "above are Tendril's reference prices and were not used for this figure.";
 
             if (computedCost.HasValue && Math.Abs(computedCost.Value - job.Cost.Value) > 0.01m)
-                text += $" Those rates would give ${computedCost.Value:F4}.";
+                text += $" Those rates would give {Usd(computedCost.Value)}.";
 
             return text;
         }
@@ -176,7 +188,7 @@ public class JobCostSheet(string jobId, IJobService jobService) : ViewBase
         return $"Charged {charged}. The source of this figure was not recorded (it predates cost-source tracking).";
     }
 
-    private static string BuildPriceListSource(JobItem job, ModelPricing? pricing)
+    internal static string BuildPriceListSource(JobItem job, ModelPricing? pricing)
     {
         if (pricing is null)
         {
@@ -198,7 +210,7 @@ public class JobCostSheet(string jobId, IJobService jobService) : ViewBase
     /// Maps a "Static catalog (claude)" source label back to the file the rates are written in.
     /// Returns null for any other source (e.g. a models.dev URL), which is already self-describing.
     /// </summary>
-    private static string? ResolveCatalogFile(string? source)
+    internal static string? ResolveCatalogFile(string? source)
     {
         const string prefix = "Static catalog (";
         if (source is null || !source.StartsWith(prefix, StringComparison.Ordinal) || !source.EndsWith(')'))

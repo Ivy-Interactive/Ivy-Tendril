@@ -1,4 +1,5 @@
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Jobs;
 using Ivy.Tendril.Services.Telemetry;
@@ -222,5 +223,142 @@ public class JobCostResolutionTests
         JobCompletionHandler.ResolveJobCost(Inline(1000, 500, 1.25m), priced: null).ApplyTo(job);
 
         Assert.Equal("claude-opus-5", job.Model);
+    }
+
+    // The breakdown sheet's whole point is that it does not overstate what Tendril knows, so the
+    // statements it makes about provenance are asserted here rather than left to inspection.
+
+    private static readonly ModelPricing StaticClaudePricing = new()
+    {
+        Model = "claude-opus-5",
+        InputPerMillion = 3m,
+        OutputPerMillion = 15m,
+        CacheReadPerMillion = 0.3m,
+        CacheWritePerMillion = 3.75m,
+        Source = "Static catalog (claude)",
+    };
+
+    private static JobItem CostedJob(string? costSource, decimal? cost = 1.25m) => new()
+    {
+        Id = "j1",
+        Type = "ExecutePlan",
+        PlanFile = "p",
+        Project = "Tendril",
+        Provider = "claude",
+        Model = "claude-opus-5",
+        Cost = cost,
+        Tokens = 1500,
+        InputTokens = 1000,
+        OutputTokens = 500,
+        CacheReadTokens = 90_000,
+        CacheWriteTokens = 300,
+        ReasoningTokens = 42,
+        CostSource = costSource,
+    };
+
+    [Fact]
+    public void Sheet_BuildBuckets_ExcludesReasoningFromTheTotals()
+    {
+        var buckets = JobCostSheet.BuildBuckets(CostedJob(JobCostSources.Agent), StaticClaudePricing);
+
+        Assert.Equal(
+            new[] { "Input", "Output", "Cache read", "Cache write", "Reasoning" },
+            buckets.Select(b => b.Kind));
+
+        // Reasoning is reported alongside (and by some providers inside) output, so counting it
+        // would inflate the total.
+        var reasoning = buckets.Single(b => b.Kind == "Reasoning");
+        Assert.False(reasoning.CountsTowardTotal);
+        Assert.Null(reasoning.Rate);
+        Assert.All(buckets.Where(b => b.Kind != "Reasoning"), b => Assert.True(b.CountsTowardTotal));
+    }
+
+    [Fact]
+    public void Sheet_BuildBuckets_OmitsEmptyBucketsAndRatesWhenUnpriced()
+    {
+        var job = CostedJob(JobCostSources.Agent);
+        job.CacheWriteTokens = 0;
+        job.ReasoningTokens = null;
+
+        var buckets = JobCostSheet.BuildBuckets(job, pricing: null);
+
+        Assert.Equal(new[] { "Input", "Output", "Cache read" }, buckets.Select(b => b.Kind));
+        Assert.All(buckets, b => Assert.Null(b.Rate));
+    }
+
+    [Fact]
+    public void Sheet_Reconciliation_AgentReportedCost_DisclaimsTheLocalRates()
+    {
+        var text = JobCostSheet.BuildReconciliation(CostedJob(JobCostSources.Agent), computedCost: 1.2505m);
+
+        Assert.Contains("$1.2500", text);
+        Assert.Contains("as reported by the claude CLI", text);
+        Assert.Contains("were not used for this figure", text);
+        // Within a cent of the charge, so the computed figure is not worth surfacing.
+        Assert.DoesNotContain("Those rates would give", text);
+    }
+
+    [Fact]
+    public void Sheet_Reconciliation_AgentCostFarFromComputed_ShowsTheGap()
+    {
+        var text = JobCostSheet.BuildReconciliation(CostedJob(JobCostSources.Agent), computedCost: 0.4m);
+
+        Assert.Contains("Those rates would give $0.4000", text);
+    }
+
+    [Fact]
+    public void Sheet_Reconciliation_ComputedCost_SaysItCameFromTheRates()
+    {
+        var text = JobCostSheet.BuildReconciliation(CostedJob(JobCostSources.Computed), computedCost: 1.25m);
+
+        Assert.Contains("computed from the rates above", text);
+        Assert.DoesNotContain("were not used", text);
+    }
+
+    [Fact]
+    public void Sheet_Reconciliation_UnknownSource_DoesNotClaimEitherOrigin()
+    {
+        // Jobs costed before CostSource existed must not be described as agent-reported.
+        var text = JobCostSheet.BuildReconciliation(CostedJob(costSource: null), computedCost: 1.25m);
+
+        Assert.Contains("was not recorded", text);
+        Assert.DoesNotContain("as reported by", text);
+        Assert.DoesNotContain("computed from the rates", text);
+    }
+
+    [Fact]
+    public void Sheet_Reconciliation_NoCost_SaysSo()
+    {
+        var text = JobCostSheet.BuildReconciliation(CostedJob(costSource: null, cost: null), computedCost: null);
+
+        Assert.Contains("No cost recorded", text);
+    }
+
+    [Fact]
+    public void Sheet_PriceListSource_NamesTheStaticCatalogFile()
+    {
+        var text = JobCostSheet.BuildPriceListSource(CostedJob(JobCostSources.Agent), StaticClaudePricing);
+
+        Assert.Contains("Static catalog (claude)", text);
+        Assert.Contains("src/Ivy.Tendril.Agents/Providers/Claude/ClaudeModelCatalog.cs", text);
+    }
+
+    [Fact]
+    public void Sheet_PriceListSource_NoMatchingEntry_SaysNoRatesApplied()
+    {
+        var text = JobCostSheet.BuildPriceListSource(CostedJob(JobCostSources.Agent), pricing: null);
+
+        Assert.Contains("No price list entry matches 'claude-opus-5'", text);
+    }
+
+    [Theory]
+    [InlineData("Static catalog (claude)", "src/Ivy.Tendril.Agents/Providers/Claude/ClaudeModelCatalog.cs")]
+    [InlineData("Static catalog (opencode)", "src/Ivy.Tendril.Agents/Providers/OpenCode/OpenCodeModelCatalog.cs")]
+    [InlineData("Static catalog (nonesuch)", null)]
+    [InlineData("https://models.dev", null)]
+    [InlineData(null, null)]
+    public void Sheet_ResolveCatalogFile(string? source, string? expected)
+    {
+        Assert.Equal(expected, JobCostSheet.ResolveCatalogFile(source));
     }
 }
