@@ -152,7 +152,6 @@ public class ProjectDetailView(
                 activeProjects[projectIndex].Skills = new List<ProjectSkillRef>(list);
                 config.SaveSettings();
                 refreshToken.Refresh();
-                client.Toast($"Deleted skill '{sk.Name}'", "Deleted");
             }
         }
 
@@ -171,7 +170,6 @@ public class ProjectDetailView(
                 activeProjects[projectIndex].McpServers = new List<ProjectMcpServerRef>(list);
                 config.SaveSettings();
                 refreshToken.Refresh();
-                client.Toast($"Deleted MCP server '{srv.Name}'", "Deleted");
             }
         }
 
