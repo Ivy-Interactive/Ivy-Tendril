@@ -420,18 +420,12 @@ public class ProjectVerificationsTableView(
         var list = verifications.Value;
         if (list.Count == 0) return null;
 
-        var rows = list.Select((v, i) => new VerificationRow(v.Name, v.Required, i)).ToList();
+        var rows = list.Select((v, i) => new VerificationRow(v.Name, i)).ToList();
 
         return new TableBuilder<VerificationRow>(rows)
             .Header(t => t.Name, "Verification Name")
             .Builder(t => t.Name, f => f.Func<VerificationRow, string>(name =>
                 Text.Block(name).Bold().Small()
-            ))
-            .Header(t => t.Required, "Requirement")
-            .Builder(t => t.Required, f => f.Func<VerificationRow, bool>(req =>
-                req
-                    ? new Badge("Required").Variant(BadgeVariant.Secondary).Small()
-                    : new Badge("Optional").Variant(BadgeVariant.Outline).Small()
             ))
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<VerificationRow, int>(idx =>
@@ -447,5 +441,5 @@ public class ProjectVerificationsTableView(
             .Width(Size.Fit());
     }
 
-    private record VerificationRow(string Name, bool Required, int Index);
+    private record VerificationRow(string Name, int Index);
 }
