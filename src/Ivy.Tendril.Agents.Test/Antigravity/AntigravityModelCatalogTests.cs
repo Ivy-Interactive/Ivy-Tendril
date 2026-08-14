@@ -42,9 +42,12 @@ public class AntigravityModelCatalogTests
     }
 
     [Theory]
+    [InlineData("gemini-3.7-flash")]
     [InlineData("gemini-3.6-flash")]
     [InlineData("gemini-3.5-flash")]
     [InlineData("gemini-3.1-pro")]
+    [InlineData("claude-opus-5")]
+    [InlineData("claude-sonnet-5")]
     [InlineData("claude-sonnet-4-6")]
     public void GetStaticModels_ContainsModels(string expectedId)
     {

@@ -19,6 +19,8 @@ public sealed class CopilotModelCatalog : CachedModelCatalogProvider
         new() { Id = "gpt-5.4-mini", DisplayName = "GPT-5.4 Mini", Capabilities = DefaultCaps, Provider = "openai" },
         new() { Id = "gpt-5-mini", DisplayName = "GPT-5 Mini", Capabilities = DefaultCaps, Provider = "openai" },
         new() { Id = "gpt-4.1", DisplayName = "GPT-4.1", Capabilities = DefaultCaps, Provider = "openai" },
+        new() { Id = "claude-opus-5", DisplayName = "Claude Opus 5", Capabilities = DefaultCaps, Provider = "anthropic" },
+        new() { Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5", Capabilities = DefaultCaps, Provider = "anthropic" },
         new() { Id = "claude-sonnet-4-6", DisplayName = "Claude Sonnet 4.6", Capabilities = DefaultCaps, Provider = "anthropic" },
         new() { Id = "claude-sonnet-4-5", DisplayName = "Claude Sonnet 4.5", Capabilities = DefaultCaps, Provider = "anthropic" },
         new() { Id = "claude-haiku-4-5", DisplayName = "Claude Haiku 4.5", Capabilities = DefaultCaps, Provider = "anthropic" },

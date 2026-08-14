@@ -23,16 +23,16 @@ public sealed class GeminiModelCatalog : CachedModelCatalogProvider
     [
         new()
         {
-            Id = "gemini-2.5-pro", DisplayName = "Gemini 2.5 Pro",
-            Capabilities = FullCaps,
+            Id = "gemini-3.7-flash", DisplayName = "Gemini 3.7 Flash",
+            Capabilities = MidCaps,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google", IsDefault = true,
-            InputPerMillion = 1.25m, OutputPerMillion = 10.00m,
-            CacheWritePerMillion = 0m, CacheReadPerMillion = 0.315m,
+            InputPerMillion = 0.15m, OutputPerMillion = 0.60m,
+            CacheWritePerMillion = 0m, CacheReadPerMillion = 0.0375m,
         },
         new()
         {
-            Id = "gemini-2.5-flash", DisplayName = "Gemini 2.5 Flash",
+            Id = "gemini-3.6-flash", DisplayName = "Gemini 3.6 Flash",
             Capabilities = MidCaps,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
@@ -41,12 +41,21 @@ public sealed class GeminiModelCatalog : CachedModelCatalogProvider
         },
         new()
         {
-            Id = "gemini-2.5-flash-lite", DisplayName = "Gemini 2.5 Flash Lite",
+            Id = "gemini-3.5-flash", DisplayName = "Gemini 3.5 Flash",
             Capabilities = MidCaps,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
-            InputPerMillion = 0.075m, OutputPerMillion = 0.30m,
-            CacheWritePerMillion = 0m, CacheReadPerMillion = 0.01875m,
+            InputPerMillion = 0.15m, OutputPerMillion = 0.60m,
+            CacheWritePerMillion = 0m, CacheReadPerMillion = 0.0375m,
+        },
+        new()
+        {
+            Id = "gemini-3.1-pro", DisplayName = "Gemini 3.1 Pro",
+            Capabilities = FullCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "google",
+            InputPerMillion = 1.25m, OutputPerMillion = 10.00m,
+            CacheWritePerMillion = 0m, CacheReadPerMillion = 0.315m,
         },
         new()
         {
