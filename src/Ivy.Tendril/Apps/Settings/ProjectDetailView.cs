@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.Settings.Blades;
 using Ivy.Tendril.Apps.Settings.Dialogs;
@@ -19,6 +22,8 @@ public class ProjectDetailView(
 {
     public override object? Build()
     {
+        var loadedProjectIndex = UseState(projectIndex);
+
         // Inline Name & Color Editing State
         var isEditingName = UseState(false);
         var editName = UseState(projectIndex >= 0 && projectIndex < projects.Count ? projects[projectIndex].Name : "");
@@ -63,6 +68,91 @@ public class ProjectDetailView(
         var (importSkillsDialog, openImportSkillsDialog) = UseTrigger((IState<bool> isOpen) =>
             new ImportRepoAssetsDialog(isOpen, ImportAssetKind.Skills, projectIndex >= 0 && projectIndex < projects.Count ? projects[projectIndex].Name : "", repos.Value, config, client, skills: skills));
 
+        // Auto-save settings on state changes
+        void SaveProjectChanges()
+        {
+            if (projectIndex < 0 || projectIndex >= projects.Count) return;
+            if (loadedProjectIndex.Value != projectIndex) return;
+
+            var currentProj = projects[projectIndex];
+            var changed = false;
+
+            if (currentProj.Color != projectColor.Value)
+            {
+                currentProj.Color = projectColor.Value;
+                changed = true;
+            }
+            if (currentProj.AutoImplementPlans != autoImplement.Value)
+            {
+                currentProj.AutoImplementPlans = autoImplement.Value;
+                changed = true;
+            }
+            if (!AreReposEqual(currentProj.Repos, repos.Value))
+            {
+                currentProj.Repos = new List<RepoRef>(repos.Value);
+                changed = true;
+            }
+            if (!AreReviewActionsEqual(currentProj.ReviewActions, reviewActions.Value))
+            {
+                currentProj.ReviewActions = new List<ReviewActionConfig>(reviewActions.Value);
+                changed = true;
+            }
+            if (!AreVerificationsEqual(currentProj.Verifications, verifications.Value))
+            {
+                currentProj.Verifications = new List<ProjectVerificationRef>(verifications.Value);
+                changed = true;
+            }
+            if (!AreMcpServersEqual(currentProj.McpServers, mcpServers.Value))
+            {
+                currentProj.McpServers = new List<ProjectMcpServerRef>(mcpServers.Value);
+                changed = true;
+            }
+            if (!AreSkillsEqual(currentProj.Skills, skills.Value))
+            {
+                currentProj.Skills = new List<ProjectSkillRef>(skills.Value);
+                changed = true;
+            }
+
+            if (changed)
+            {
+                try
+                {
+                    config.SaveSettings();
+                    refreshToken.Refresh();
+                }
+                catch (Exception ex)
+                {
+                    client.Toast($"Failed to save project settings: {ex.Message}", "Error");
+                }
+            }
+        }
+
+        UseEffect(() =>
+        {
+            if (projectIndex >= 0 && projectIndex < projects.Count)
+            {
+                var curProj = projects[projectIndex];
+
+                // If project selection switched, reload states from the newly selected project
+                if (loadedProjectIndex.Value != projectIndex)
+                {
+                    loadedProjectIndex.Set(projectIndex);
+                    editName.Set(curProj.Name);
+                    projectColor.Set(!string.IsNullOrEmpty(curProj.Color) ? curProj.Color : "Slate");
+                    autoImplement.Set(curProj.AutoImplementPlans == "Auto-Implement Plans" ? "Auto-Implement Plans" : "Always Ask Review");
+                    repos.Set(new List<RepoRef>(curProj.Repos));
+                    reviewActions.Set(new List<ReviewActionConfig>(curProj.ReviewActions));
+                    verifications.Set(new List<ProjectVerificationRef>(curProj.Verifications));
+                    mcpServers.Set(new List<ProjectMcpServerRef>(curProj.McpServers));
+                    skills.Set(new List<ProjectSkillRef>(curProj.Skills));
+                    isEditingName.Set(false);
+                    return;
+                }
+
+                SaveProjectChanges();
+            }
+        }, [loadedProjectIndex, projectColor, autoImplement, repos, reviewActions, verifications, mcpServers, skills]);
+
         if (projectIndex < 0 || projectIndex >= projects.Count)
         {
             return Layout.Vertical()
@@ -71,35 +161,20 @@ public class ProjectDetailView(
 
         var project = projects[projectIndex];
 
-        // Auto-save settings on state changes
-        void SaveProjectChanges()
+        // If projectIndex changed since initial state render, sync local states immediately for rendering
+        if (loadedProjectIndex.Value != projectIndex)
         {
-            project.Color = projectColor.Value;
-            project.AutoImplementPlans = autoImplement.Value;
-            project.Repos = new List<RepoRef>(repos.Value);
-            project.ReviewActions = new List<ReviewActionConfig>(reviewActions.Value);
-            project.Verifications = new List<ProjectVerificationRef>(verifications.Value);
-            project.McpServers = new List<ProjectMcpServerRef>(mcpServers.Value);
-            project.Skills = new List<ProjectSkillRef>(skills.Value);
-
-            try
-            {
-                config.SaveSettings();
-                refreshToken.Refresh();
-            }
-            catch (Exception ex)
-            {
-                client.Toast($"Failed to save project settings: {ex.Message}", "Error");
-            }
+            loadedProjectIndex.Set(projectIndex);
+            editName.Set(project.Name);
+            projectColor.Set(!string.IsNullOrEmpty(project.Color) ? project.Color : "Slate");
+            autoImplement.Set(project.AutoImplementPlans == "Auto-Implement Plans" ? "Auto-Implement Plans" : "Always Ask Review");
+            repos.Set(new List<RepoRef>(project.Repos));
+            reviewActions.Set(new List<ReviewActionConfig>(project.ReviewActions));
+            verifications.Set(new List<ProjectVerificationRef>(project.Verifications));
+            mcpServers.Set(new List<ProjectMcpServerRef>(project.McpServers));
+            skills.Set(new List<ProjectSkillRef>(project.Skills));
+            isEditingName.Set(false);
         }
-
-        UseEffect(() =>
-        {
-            if (projectIndex >= 0 && projectIndex < projects.Count)
-            {
-                SaveProjectChanges();
-            }
-        }, [projectColor, autoImplement, repos, reviewActions, verifications, mcpServers, skills]);
 
         // Color Picker Control at the top
         var colorInput = projectColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker);
@@ -207,5 +282,60 @@ public class ProjectDetailView(
 
         return Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full()).Height(Size.Full())
             | innerContent;
+    }
+
+    private static bool AreReposEqual(List<RepoRef> a, List<RepoRef> b)
+    {
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (a[i].Path != b[i].Path || a[i].BaseBranch != b[i].BaseBranch)
+                return false;
+        }
+        return true;
+    }
+
+    private static bool AreReviewActionsEqual(List<ReviewActionConfig> a, List<ReviewActionConfig> b)
+    {
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (a[i].Name != b[i].Name || a[i].Command != b[i].Command || a[i].Condition != b[i].Condition)
+                return false;
+        }
+        return true;
+    }
+
+    private static bool AreVerificationsEqual(List<ProjectVerificationRef> a, List<ProjectVerificationRef> b)
+    {
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (a[i].Name != b[i].Name || a[i].Required != b[i].Required)
+                return false;
+        }
+        return true;
+    }
+
+    private static bool AreMcpServersEqual(List<ProjectMcpServerRef> a, List<ProjectMcpServerRef> b)
+    {
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (a[i].Name != b[i].Name || a[i].Command != b[i].Command || a[i].Disabled != b[i].Disabled)
+                return false;
+        }
+        return true;
+    }
+
+    private static bool AreSkillsEqual(List<ProjectSkillRef> a, List<ProjectSkillRef> b)
+    {
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (a[i].Name != b[i].Name || a[i].Path != b[i].Path || a[i].Disabled != b[i].Disabled)
+                return false;
+        }
+        return true;
     }
 }
