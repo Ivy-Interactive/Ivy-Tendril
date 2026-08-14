@@ -200,6 +200,32 @@ describe("DraftMarkdown interactive questions", () => {
     expect(answerCalls(eventHandler)).toEqual([{ questionId: "budget", answer: null }]);
   });
 
+  it("marks an explicitly skipped question as skipped rather than unanswered", () => {
+    const skipped = fence(
+      "questions:",
+      "  - id: budget",
+      "    title: Retry budget scope?",
+      "    options:",
+      "      - title: Per request",
+      "        value: per-request",
+      "      - title: Per session",
+      "        value: per-session",
+      "    answer: null",
+    );
+
+    const { container } = renderInteractive(skipped);
+
+    expect(container.querySelector(".pmv-question-skipped")?.textContent).toBe("Skipped — you decide");
+    // Skipping selects nothing, which is what made it look identical to an untouched question.
+    expect(checks(container).some((check) => check.checked)).toBe(false);
+  });
+
+  it("does not mark an unanswered question as skipped", () => {
+    const { container } = renderInteractive(SINGLE);
+
+    expect(container.querySelector(".pmv-question-skipped")).toBeNull();
+  });
+
   it("renders no Other row when other is false", () => {
     const { container } = renderInteractive(SINGLE_NO_OTHER);
 

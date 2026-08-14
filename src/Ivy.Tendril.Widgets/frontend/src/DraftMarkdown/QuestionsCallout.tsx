@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import Markdown from "react-markdown";
-import { answerEntries, otherEntry, parseQuestions, questionLabel } from "./questionsSchema";
+import { answerEntries, isSkipped, otherEntry, parseQuestions, questionLabel } from "./questionsSchema";
 import type { PlanQuestion, QuestionOption } from "./questionsSchema";
 import type { AnswerCallback } from "./questionsContext";
 
@@ -59,7 +59,9 @@ const QuestionView: React.FC<QuestionViewProps> = ({ question, blockIndex, onAns
   const entries = answerEntries(question);
   const options = question.options ?? [];
   const hasOptions = options.length > 0;
-  const optionValues = useMemo(() => new Set(options.map((o) => o.value)), [options]);
+  // Not memoized: `options` is a fresh array whenever `question.options` is absent, so a memo keyed
+  // on it would never hit anyway, and a set of 2-4 slugs is cheaper to rebuild than to track.
+  const optionValues = new Set(options.map((o) => o.value));
   const typed = otherEntry(question);
 
   // The typed text is a draft, not answer state: the host is told only what changed and may never
@@ -141,6 +143,10 @@ const QuestionView: React.FC<QuestionViewProps> = ({ question, blockIndex, onAns
           <InlineMarkdown text={question.description} />
         </div>
       )}
+
+      {/* `answer: null` selects nothing, so without this a skipped question is indistinguishable
+          from one that was never touched. */}
+      {isSkipped(question) && <div className="pmv-question-skipped">Skipped — you decide</div>}
 
       <div className="pmv-question-options">
         {options.map((option) => {

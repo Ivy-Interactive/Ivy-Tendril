@@ -763,6 +763,13 @@
   margin-bottom: 0.5rem;
 }
 
+.pmv-question-skipped {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-style: italic;
+  margin-bottom: 0.5rem;
+}
+
 .pmv-question-options {
   display: flex;
   flex-direction: column;

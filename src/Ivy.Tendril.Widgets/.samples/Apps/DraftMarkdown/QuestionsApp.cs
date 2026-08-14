@@ -83,7 +83,9 @@ class QuestionsApp : ViewBase
         ## Naming and ownership
 
         Two questions with no options at all — the pure free-text shape. Because there is
-        more than one question in this block, they render as a tab strip.
+        more than one question in this block, they render as a tab strip. The second one
+        carries `answer: null` — asked and deliberately skipped — which the picker says out
+        loud instead of leaving it looking untouched.
 
         ```questions
         questions:
@@ -95,6 +97,7 @@ class QuestionsApp : ViewBase
             title: Who owns the rollout?
             header: Owner
             description: The person paged when delivery latency regresses.
+            answer: null
         ```
 
         ## Not a question
