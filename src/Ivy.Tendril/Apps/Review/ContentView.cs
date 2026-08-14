@@ -3,6 +3,7 @@ using System.Reactive.Disposables;
 using System.Text;
 using Ivy.Core;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Apps.Jobs;
@@ -392,7 +393,8 @@ public class ContentView(
         {
             new MenuItem($"Discuss with {agentLabel}", Icon: agentIcon, Tag: "DiscussWithAgent")
                 .OnSelect(() => nav.Navigate<AgentApp>(new AgentAppArgs(
-                    $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode."))),
+                    $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode.",
+                    $"#{TendrilAppShell.FormatPlanId(selectedPlan.FolderName)}"))),
             new MenuItem("Create PR", Icon: Icons.GitPullRequest, Tag: "CreatePR").OnSelect(showCreatePrDialog),
             new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
             {
@@ -599,7 +601,8 @@ public class ContentView(
                 refreshPlans,
                 selectedPlan.Project,
                 onDiscussWithAgent: () => nav.Navigate<AgentApp>(new AgentAppArgs(
-                    $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode.")));
+                    $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode.",
+                    $"#{TendrilAppShell.FormatPlanId(selectedPlan.FolderName)}")));
 
             var tabNamesList = new List<string> { "summary", "plan", "details", "git" };
             var tabList = new List<Tab>

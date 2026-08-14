@@ -7,6 +7,7 @@ using Ivy.Desktop;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.ReviewAction;
 using Ivy.Tendril.Apps.Settings;
@@ -32,20 +33,24 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
     /// <summary>
     ///     Overrides the default app-descriptor tab title for apps whose title depends on the
-    ///     navigation args rather than being fixed. Currently only <see cref="ReviewActionApp"/>,
-    ///     which is titled "#&lt;PlanId&gt; &lt;ReviewActionName&gt;". Returns null (use the
-    ///     descriptor title) for every other arg shape.
+    ///     navigation args rather than being fixed. <see cref="ReviewActionApp"/> is titled
+    ///     "#&lt;PlanId&gt; &lt;ReviewActionName&gt;", formatted here from the plan folder name.
+    ///     <see cref="AgentApp"/> is titled with the caller-supplied <see cref="AgentAppArgs.Title"/>
+    ///     verbatim (see the Draft/Review "Discuss with &lt;Agent&gt;" call sites, which build it
+    ///     with <see cref="FormatPlanId"/>). Returns null (use the descriptor title) for every other
+    ///     arg shape, including <see cref="AgentAppArgs"/> without a <see cref="AgentAppArgs.Title"/>.
     /// </summary>
     internal static string? ResolveArgsTabTitle(object? appArgs) => appArgs switch
     {
         ReviewActionAppArgs { PlanId: { Length: > 0 } planId, ActionName: { Length: > 0 } name }
             => $"#{FormatPlanId(planId)} {name}",
+        AgentAppArgs { Title: { Length: > 0 } title } => title,
         _ => null
     };
 
     // "00074-OpenReviewActions..." -> "74". Falls back to the raw folder name when the numeric
     // prefix is missing, so a malformed arg never throws inside OpenApp (which swallows exceptions).
-    private static string FormatPlanId(string planFolderName) =>
+    internal static string FormatPlanId(string planFolderName) =>
         int.TryParse(PlanYamlHelper.ExtractPlanIdFromFolder(planFolderName), out var id)
             ? id.ToString()
             : planFolderName;
