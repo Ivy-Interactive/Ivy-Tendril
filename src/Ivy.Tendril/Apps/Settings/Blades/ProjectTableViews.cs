@@ -94,7 +94,7 @@ public class SkillsTableView(
         var list = skills.Value;
         if (list.Count == 0) return null;
 
-        var rows = list.Select((s, i) => new SkillRow(s.Name, s.Description, s.Disabled, i)).ToList();
+        var rows = list.Select((s, i) => new SkillRow(s.Name, s.Description, i)).ToList();
 
         return new TableBuilder<SkillRow>(rows)
             .Header(t => t.Name, "Name")
@@ -104,12 +104,6 @@ public class SkillsTableView(
             .Header(t => t.Description, "Description")
             .Builder(t => t.Description, f => f.Func<SkillRow, string>(desc =>
                 Text.Block(desc).Muted().Small()
-            ))
-            .Header(t => t.Disabled, "Status")
-            .Builder(t => t.Disabled, f => f.Func<SkillRow, bool>(disabled =>
-                disabled
-                    ? new Badge("Disabled").Variant(BadgeVariant.Secondary).Small()
-                    : new Badge("Active").Variant(BadgeVariant.Outline).Small()
             ))
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<SkillRow, int>(idx =>
@@ -125,7 +119,7 @@ public class SkillsTableView(
             .Width(Size.Fit());
     }
 
-    private record SkillRow(string Name, string Description, bool Disabled, int Index);
+    private record SkillRow(string Name, string Description, int Index);
 }
 
 public class ReviewActionsTableView(

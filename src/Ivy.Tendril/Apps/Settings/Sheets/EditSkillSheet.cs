@@ -14,7 +14,6 @@ public class EditSkillSheet(
         var editDescription = UseState("");
         var editInstructions = UseState("");
         var editPath = UseState("");
-        var editDisabled = UseState(false);
 
         UseEffect(() =>
         {
@@ -26,7 +25,6 @@ public class EditSkillSheet(
                 editDescription.Set(sk.Description);
                 editInstructions.Set(sk.Instructions ?? "");
                 editPath.Set(sk.Path ?? "");
-                editDisabled.Set(sk.Disabled);
             }
         }, EffectTrigger.OnMount());
 
@@ -37,7 +35,6 @@ public class EditSkillSheet(
             | editDescription.ToTextInput("Short description...").WithField().Label("Description")
             | editInstructions.ToTextareaInput("Instructions / markdown rules...").Rows(5).WithField().Label("Inline Instructions")
             | editPath.ToTextInput("Path to skill folder/file (e.g. %TENDRIL_HOME%/Skills/my-skill)...").WithField().Label("File/Folder Path")
-            | editDisabled.ToSwitchInput().WithField().Label("Disabled")
             | (Layout.Horizontal().AlignContent(Align.Right)
                | new Button("Cancel").Outline().OnClick(() => isOpen.Set(false))
                | new Button(isNew ? "Add" : "Save").Primary().OnClick(() =>
@@ -51,7 +48,7 @@ public class EditSkillSheet(
                        Description = editDescription.Value.Trim(),
                        Instructions = string.IsNullOrWhiteSpace(editInstructions.Value) ? null : editInstructions.Value,
                        Path = string.IsNullOrWhiteSpace(editPath.Value) ? null : editPath.Value,
-                       Disabled = editDisabled.Value
+                       Disabled = false
                    };
 
                    if (isNew)
