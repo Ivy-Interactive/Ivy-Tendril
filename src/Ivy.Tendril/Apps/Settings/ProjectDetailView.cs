@@ -22,6 +22,8 @@ public class ProjectDetailView(
 {
     public override object? Build()
     {
+        Context.TryUseService<TendrilArgs>(out var tendrilArgs);
+
         // Inline Name & Color Editing State
         var isEditingName = UseState(false);
         var editName = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : "");
@@ -65,6 +67,11 @@ public class ProjectDetailView(
 
         var (importSkillsDialog, openImportSkillsDialog) = UseTrigger((IState<bool> isOpen) =>
             new ImportRepoAssetsDialog(isOpen, ImportAssetKind.Skills, projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : "", repos.Value, config, client, skills: skills));
+
+        var isBeta = (tendrilArgs?.Beta ?? false) ||
+                     (config?.Settings?.Beta ?? false) ||
+                     Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
+                     Environment.GetEnvironmentVariable("IVY_BETA") == "1";
 
         // Auto-save settings on state changes
         void SaveProjectChanges()
@@ -265,20 +272,29 @@ public class ProjectDetailView(
             | new Separator()
 
             // Section 5: Agent Behavior
-            | Text.H4("Agent Behavior").Bold()
-            | autoImplementSelect
-            | new Separator()
+            | (isBeta
+                ? (object)(Layout.Vertical()
+                    | Text.H4("Agent Behavior").Bold()
+                    | autoImplementSelect
+                    | new Separator())
+                : null!)
 
             // Section 6: Local Permissions (MCP Tools & Servers)
-            | Text.H4("Local Permissions").Bold()
-            | new McpServersTableView(mcpServers, repos, idx => openMcpSheet(idx), onImport: () => openImportMcpDialog(), onDelete: idx => DeleteMcpServer(idx))
-            | new Separator()
+            | (isBeta
+                ? (object)(Layout.Vertical()
+                    | Text.H4("Local Permissions").Bold()
+                    | new McpServersTableView(mcpServers, repos, idx => openMcpSheet(idx), onImport: () => openImportMcpDialog(), onDelete: idx => DeleteMcpServer(idx))
+                    | new Separator())
+                : null!)
 
             // Section 7: Customizations
-            | Text.H4("Customizations").Bold()
-            | new ProjectMemoryTableView(config.TendrilHome, project.Name, memoryRefresh, fileName => openMemorySheet(fileName))
-            | new SkillsTableView(skills, repos, idx => openSkillSheet(idx), onImport: () => openImportSkillsDialog(), onDelete: idx => DeleteSkill(idx))
-            | new Separator()
+            | (isBeta
+                ? (object)(Layout.Vertical()
+                    | Text.H4("Customizations").Bold()
+                    | new ProjectMemoryTableView(config.TendrilHome, project.Name, memoryRefresh, fileName => openMemorySheet(fileName))
+                    | new SkillsTableView(skills, repos, idx => openSkillSheet(idx), onImport: () => openImportSkillsDialog(), onDelete: idx => DeleteSkill(idx))
+                    | new Separator())
+                : null!)
 
             // Section 8: Danger Zone
             | Text.H4("Danger Zone").Bold()

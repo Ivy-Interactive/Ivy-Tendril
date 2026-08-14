@@ -23,6 +23,7 @@ public class EditProjectBladeView(
 
     public override object? Build()
     {
+        Context.TryUseService<TendrilArgs>(out var tendrilArgs);
         var bladeContext = UseContext<IBladeContext>();
         var editName = UseState(editIndex >= 0 && editIndex < projectsList.Count ? projectsList[editIndex].Name : "");
         var editColor = UseState<Colors?>(editIndex >= 0 && editIndex < projectsList.Count && Enum.TryParse<Colors>(projectsList[editIndex].Color, out var c) ? c : null);
@@ -133,79 +134,92 @@ public class EditProjectBladeView(
             })
             .WithTooltip(hasInvalidRepos ? "Fix or remove invalid repositories before saving" : null);
 
+        var isBeta = (tendrilArgs?.Beta ?? false) ||
+                     (config?.Settings?.Beta ?? false) ||
+                     Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
+                     Environment.GetEnvironmentVariable("IVY_BETA") == "1";
+
+        var tabs = new List<Tab>
+        {
+            new Tab("Basic",
+                Layout.Vertical()
+                | Text.Block("Configure the project's name, color, and AI context.").Muted().Small()
+                | editName.ToTextInput("Project name...").Invalid(nameError).WithField().Label("Name")
+                | editColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker).Nullable().WithField().Label("Color")
+                | editContext.ToTextareaInput("Project context or prompt for AI agents...").Rows(4).WithField().Label("Context / Prompt")
+            ),
+            new Tab("Repositories",
+                Layout.Vertical()
+                | Text.Block("Manage source code repositories for this project.").Muted().Small()
+                | new ProjectRepoPickerView(editRepos, onAdd: cloneRemoteOnAdd, showBaseBranchPicker: true)
+            )
+        };
+
+        if (isBeta)
+        {
+            tabs.Add(new Tab("Memory",
+                Layout.Vertical()
+                | Text.Block("Store persistent memories about this project (e.g. stack.md, conventions.md).").Muted().Small()
+                | new ProjectMemoryTableView(config.TendrilHome, editName.Value, memoryRefresh, fileName =>
+                {
+                    bladeContext.Push(this, new EditProjectMemoryBladeView(config.TendrilHome, editName.Value, fileName, memoryRefresh), title: fileName == null ? "Add Memory" : $"Edit Memory: {fileName}");
+                })
+                | new Button("Add Project Memory").Icon(Icons.Plus).Outline().OnClick(() =>
+                {
+                    bladeContext.Push(this, new EditProjectMemoryBladeView(config.TendrilHome, editName.Value, null, memoryRefresh), title: "Add Project Memory");
+                })
+            ));
+            tabs.Add(new Tab("MCP Servers",
+                Layout.Vertical()
+                | Text.Block("Custom Model Context Protocol (MCP) servers for this project.").Muted().Small()
+                | new McpServersTableView(editMcpServers, idx =>
+                {
+                    bladeContext.Push(this, new EditMcpServerBladeView(idx, editMcpServers), title: idx == null ? "Add MCP Server" : "Edit MCP Server");
+                })
+                | new Button("Add MCP Server").Icon(Icons.Plus).Outline().OnClick(() =>
+                {
+                    bladeContext.Push(this, new EditMcpServerBladeView(null, editMcpServers), title: "Add MCP Server");
+                })
+            ));
+            tabs.Add(new Tab("Custom Skills",
+                Layout.Vertical()
+                | Text.Block("Custom Skills and prompt instructions for AI agents working on this project.").Muted().Small()
+                | new SkillsTableView(editSkills, idx =>
+                {
+                    bladeContext.Push(this, new EditSkillBladeView(idx, editSkills), title: idx == null ? "Add Custom Skill" : "Edit Custom Skill");
+                })
+                | new Button("Add Custom Skill").Icon(Icons.Plus).Outline().OnClick(() =>
+                {
+                    bladeContext.Push(this, new EditSkillBladeView(null, editSkills), title: "Add Custom Skill");
+                })
+            ));
+        }
+
+        tabs.Add(new Tab("Review Actions",
+            Layout.Vertical()
+            | Text.Block("Quick-launch buttons shown during review to preview or run the app.").Muted().Small()
+            | new ReviewActionsTableView(editReviewActions, idx =>
+            {
+                bladeContext.Push(this, new EditReviewActionBladeView(idx, editReviewActions), title: idx == null ? "Add Review Action" : "Edit Review Action");
+            })
+            | new Button("Add Review Action").Icon(Icons.Plus).Outline().OnClick(() =>
+            {
+                bladeContext.Push(this, new EditReviewActionBladeView(null, editReviewActions), title: "Add Review Action");
+            })
+        ));
+        tabs.Add(new Tab("Verifications",
+            Layout.Vertical()
+            | Text.Block("Quality checks required before plans are marked complete.").Muted().Small()
+            | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() =>
+            {
+                bladeContext.Push(this, new EditVerificationBladeView(config, client, refreshToken, editVerifications), title: "Add Verification");
+            })
+            | (Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Rem(20)).Width(Size.Full())
+                | sortableVerificationList)
+        ));
+
         return Layout.Vertical().Width(Size.Full().Max(Size.Units(160)))
-            | Layout.Tabs(
-                new Tab("Basic",
-                    Layout.Vertical()
-                    | Text.Block("Configure the project's name, color, and AI context.").Muted().Small()
-                    | editName.ToTextInput("Project name...").Invalid(nameError).WithField().Label("Name")
-                    | editColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker).Nullable().WithField().Label("Color")
-                    | editContext.ToTextareaInput("Project context or prompt for AI agents...").Rows(4).WithField().Label("Context / Prompt")
-                ),
-                new Tab("Repositories",
-                    Layout.Vertical()
-                    | Text.Block("Manage source code repositories for this project.").Muted().Small()
-                    | new ProjectRepoPickerView(editRepos, onAdd: cloneRemoteOnAdd, showBaseBranchPicker: true)
-                ),
-                new Tab("Memory",
-                    Layout.Vertical()
-                    | Text.Block("Store persistent memories about this project (e.g. stack.md, conventions.md).").Muted().Small()
-                    | new ProjectMemoryTableView(config.TendrilHome, editName.Value, memoryRefresh, fileName =>
-                    {
-                        bladeContext.Push(this, new EditProjectMemoryBladeView(config.TendrilHome, editName.Value, fileName, memoryRefresh), title: fileName == null ? "Add Memory" : $"Edit Memory: {fileName}");
-                    })
-                    | new Button("Add Project Memory").Icon(Icons.Plus).Outline().OnClick(() =>
-                    {
-                        bladeContext.Push(this, new EditProjectMemoryBladeView(config.TendrilHome, editName.Value, null, memoryRefresh), title: "Add Project Memory");
-                    })
-                ),
-                new Tab("MCP Servers",
-                    Layout.Vertical()
-                    | Text.Block("Custom Model Context Protocol (MCP) servers for this project.").Muted().Small()
-                    | new McpServersTableView(editMcpServers, idx =>
-                    {
-                        bladeContext.Push(this, new EditMcpServerBladeView(idx, editMcpServers), title: idx == null ? "Add MCP Server" : "Edit MCP Server");
-                    })
-                    | new Button("Add MCP Server").Icon(Icons.Plus).Outline().OnClick(() =>
-                    {
-                        bladeContext.Push(this, new EditMcpServerBladeView(null, editMcpServers), title: "Add MCP Server");
-                    })
-                ),
-                new Tab("Custom Skills",
-                    Layout.Vertical()
-                    | Text.Block("Custom Skills and prompt instructions for AI agents working on this project.").Muted().Small()
-                    | new SkillsTableView(editSkills, idx =>
-                    {
-                        bladeContext.Push(this, new EditSkillBladeView(idx, editSkills), title: idx == null ? "Add Custom Skill" : "Edit Custom Skill");
-                    })
-                    | new Button("Add Custom Skill").Icon(Icons.Plus).Outline().OnClick(() =>
-                    {
-                        bladeContext.Push(this, new EditSkillBladeView(null, editSkills), title: "Add Custom Skill");
-                    })
-                ),
-                new Tab("Review Actions",
-                    Layout.Vertical()
-                    | Text.Block("Quick-launch buttons shown during review to preview or run the app.").Muted().Small()
-                    | new ReviewActionsTableView(editReviewActions, idx =>
-                    {
-                        bladeContext.Push(this, new EditReviewActionBladeView(idx, editReviewActions), title: idx == null ? "Add Review Action" : "Edit Review Action");
-                    })
-                    | new Button("Add Review Action").Icon(Icons.Plus).Outline().OnClick(() =>
-                    {
-                        bladeContext.Push(this, new EditReviewActionBladeView(null, editReviewActions), title: "Add Review Action");
-                    })
-                ),
-                new Tab("Verifications",
-                    Layout.Vertical()
-                    | Text.Block("Quality checks required before plans are marked complete.").Muted().Small()
-                    | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() =>
-                    {
-                        bladeContext.Push(this, new EditVerificationBladeView(config, client, refreshToken, editVerifications), title: "Add Verification");
-                    })
-                    | (Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Rem(20)).Width(Size.Full())
-                        | sortableVerificationList)
-                )
-            ).Variant(TabsVariant.Content).Width(Size.Full())
+            | Layout.Tabs(tabs.ToArray()).Variant(TabsVariant.Content).Width(Size.Full())
             | Layout.Horizontal()
                 | new Button("Cancel").Outline().OnClick(() => bladeContext.Pop(this))
                 | saveButton;
