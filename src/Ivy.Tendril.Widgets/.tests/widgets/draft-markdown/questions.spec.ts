@@ -35,6 +35,11 @@ test.describe("DraftMarkdown Questions", () => {
     await expect(panel.getByText("retry-scope", { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(panel.getByText("per-request", { exact: true })).toBeVisible({ timeout: 15_000 });
 
+    // A second answer appends rather than replacing, and lands at the top (newest first).
+    await callout.locator(".pmv-question-check").nth(1).click();
+    await expect(panel.getByText("Answers received (2)")).toBeVisible({ timeout: 15_000 });
+    await expect(panel.getByText("per-session", { exact: true })).toBeVisible({ timeout: 15_000 });
+
     await stepScreenshot("answer-received");
   });
 
