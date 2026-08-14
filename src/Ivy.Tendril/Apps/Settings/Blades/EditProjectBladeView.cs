@@ -133,7 +133,7 @@ public class EditProjectBladeView(
             })
             .WithTooltip(hasInvalidRepos ? "Fix or remove invalid repositories before saving" : null);
 
-        return Layout.Vertical()
+        return Layout.Vertical().Width(Size.Full().Max(Size.Units(200)))
             | Layout.Tabs(
                 new Tab("Basic",
                     Layout.Vertical()
