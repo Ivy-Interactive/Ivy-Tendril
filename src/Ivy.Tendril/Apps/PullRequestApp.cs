@@ -70,6 +70,7 @@ public class PullRequestApp : ViewBase
         });
 
         var prStatuses = databaseService.GetAllPrStatuses();
+        var projectColors = ProjectHelper.BuildColorMapping(config);
 
         var plans = planService.GetPlans()
             .Where(p => p.Prs.Count > 0)
@@ -82,17 +83,23 @@ public class PullRequestApp : ViewBase
             var cost = costValue > 0 ? $"${costValue:F2}" : "";
             var tokenValue = planService.GetPlanTotalTokens(plan.FolderPath);
             var tokens = tokenValue > 0 ? FormatHelper.FormatTokens(tokenValue) : "";
-            return plan.Prs.Where(IsValidUrl).Reverse().Select((pr, i) => new PrRow
+            return plan.Prs.Where(IsValidUrl).Reverse().Select((pr, i) =>
             {
-                Id = $"{plan.Id}-{i}",
-                PlanId = $"{plan.Id:D5}",
-                Repository = ExtractRepo(pr, logger),
-                Status = prStatuses.GetValueOrDefault(pr, ""),
-                Pr = pr,
-                Plan = $"#{plan.Id:D5} {plan.Title}",
-                Cost = cost,
-                Tokens = tokens,
-                PlanFolderPath = plan.FolderPath
+                var info = prStatuses.GetValueOrDefault(pr);
+                return new PrRow
+                {
+                    Id = $"{plan.Id}-{i}",
+                    PlanId = $"{plan.Id:D5}",
+                    Project = plan.Project,
+                    Repository = ExtractRepo(pr, logger),
+                    Status = info?.Status ?? "",
+                    Pr = pr,
+                    Branch = info?.Branch ?? "",
+                    Plan = $"#{plan.Id:D5} {plan.Title}",
+                    Cost = cost,
+                    Tokens = tokens,
+                    PlanFolderPath = plan.FolderPath
+                };
             });
         }).ToList();
 
@@ -101,19 +108,23 @@ public class PullRequestApp : ViewBase
             .RefreshToken(refreshToken)
             .Width(Size.Full())
             .Height(Size.Full())
-            .Order(e => e.Plan, e => e.Status, e => e.Pr, e => e.Tokens, e => e.Cost, e => e.Repository)
+            .Order(e => e.Plan, e => e.Project, e => e.Status, e => e.Pr, e => e.Repository, e => e.Branch, e => e.Tokens, e => e.Cost)
+            .Header(t => t.Project, "Project")
             .Header(t => t.Repository, "Repository")
             .Header(t => t.Status, "Status")
             .Header(t => t.Cost, "Cost")
             .Header(t => t.Tokens, "Tokens")
             .Header(t => t.Pr, "PR")
+            .Header(t => t.Branch, "Branch")
             .Header(t => t.Plan, "Plan")
-            .Width(t => t.Repository, Size.Fraction(1 / 3f))
-            .Width(t => t.Status, Size.Px(90))
-            .Width(t => t.Pr, Size.Fraction(1 / 3f))
-            .Width(t => t.Plan, Size.Fraction(1 / 3f))
-            .Width(t => t.Cost, Size.Px(80))
+            .Width(t => t.Plan, Size.Fraction(1 / 4f))
+            .Width(t => t.Project, Size.Px(100))
+            .Width(t => t.Status, Size.Px(100))
+            .Width(t => t.Pr, Size.Fraction(1 / 4f))
+            .Width(t => t.Repository, Size.Fraction(1 / 4f))
+            .Width(t => t.Branch, Size.Fraction(1 / 4f))
             .Width(t => t.Tokens, Size.Px(80))
+            .Width(t => t.Cost, Size.Px(80))
             .Renderer(t => t.Status, new LabelsDisplayRenderer
             {
                 BadgeColorMapping = new Dictionary<string, string>
@@ -122,6 +133,10 @@ public class PullRequestApp : ViewBase
                     ["Merged"] = nameof(Colors.Purple),
                     ["Closed"] = nameof(Colors.Zinc)
                 }
+            })
+            .Renderer(t => t.Project, new LabelsDisplayRenderer
+            {
+                BadgeColorMapping = projectColors
             })
             .Renderer(t => t.Pr, new LinkDisplayRenderer())
             .SortDirection(t => t.PlanId, SortDirection.Descending)

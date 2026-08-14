@@ -262,6 +262,41 @@ public class GithubServiceTests
     }
 
     [Fact]
+    public void ParsePrStatuses_ParsesStatusAndBranch()
+    {
+        var json = """
+                   [
+                     {"url": "https://github.com/owner/repo/pull/1", "state": "OPEN", "headRefName": "feature/foo"},
+                     {"url": "https://github.com/owner/repo/pull/2", "state": "MERGED", "headRefName": "feature/bar"}
+                   ]
+                   """;
+
+        var statuses = GithubService.ParsePrStatuses(json);
+
+        Assert.Equal(2, statuses.Count);
+        Assert.Equal("Open", statuses["https://github.com/owner/repo/pull/1"].Status);
+        Assert.Equal("feature/foo", statuses["https://github.com/owner/repo/pull/1"].Branch);
+        Assert.Equal("Merged", statuses["https://github.com/owner/repo/pull/2"].Status);
+        Assert.Equal("feature/bar", statuses["https://github.com/owner/repo/pull/2"].Branch);
+    }
+
+    [Fact]
+    public void ParsePrStatuses_TreatsMissingHeadRefNameAsEmpty()
+    {
+        var json = """
+                   [
+                     {"url": "https://github.com/owner/repo/pull/1", "state": "OPEN"}
+                   ]
+                   """;
+
+        var statuses = GithubService.ParsePrStatuses(json);
+
+        Assert.Single(statuses);
+        Assert.Equal("Open", statuses["https://github.com/owner/repo/pull/1"].Status);
+        Assert.Equal("", statuses["https://github.com/owner/repo/pull/1"].Branch);
+    }
+
+    [Fact]
     public async Task GetLabelsAsync_Returns_Error_When_Command_Fails()
     {
         var configService = new ConfigService(new TendrilSettings());
