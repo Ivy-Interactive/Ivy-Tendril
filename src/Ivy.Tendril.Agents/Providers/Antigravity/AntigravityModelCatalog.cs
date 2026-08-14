@@ -27,6 +27,13 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
     [
         new()
         {
+            Id = "gemini-3.7-flash", DisplayName = "Gemini 3.7 Flash",
+            Capabilities = MidCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "google",
+        },
+        new()
+        {
             Id = "gemini-3.6-flash", DisplayName = "Gemini 3.6 Flash",
             Capabilities = MidCaps, IsDefault = true,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
@@ -45,6 +52,20 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
             Capabilities = FullCaps,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
+        },
+        new()
+        {
+            Id = "claude-opus-5", DisplayName = "Claude Opus 5",
+            Capabilities = FullCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "anthropic",
+        },
+        new()
+        {
+            Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5",
+            Capabilities = FullCaps,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "anthropic",
         },
         new()
         {
