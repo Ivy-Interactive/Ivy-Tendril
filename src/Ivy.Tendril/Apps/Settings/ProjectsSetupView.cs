@@ -1,7 +1,4 @@
-using System.Reactive.Disposables;
-using Ivy.Tendril.Apps.Settings.Dialogs;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Apps.Settings;
 
@@ -12,78 +9,14 @@ public class ProjectsSetupView : ViewBase
         var config = UseService<IConfigService>();
         var client = UseService<IClientProvider>();
         var refreshToken = UseRefreshToken();
-        var editIndex = UseState<int?>(-1);
-        var isAddOpen = UseState(false);
-
-        UseEffect(() =>
-        {
-            void OnSettingsReloaded(object? sender, EventArgs e) => refreshToken.Refresh();
-            config.SettingsReloaded += OnSettingsReloaded;
-            return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);
-        });
 
         var projects = config.Settings.Projects;
-        var allVerifications = config.Settings.Verifications.Select(v => v.Name).ToList();
 
-        var rows = projects.Select((p, i) => new ProjectRow(p.Name, p.Repos, i)).ToList();
+        if (projects.Count == 0)
+        {
+            return new AddProjectView(config, client, refreshToken);
+        }
 
-        var table = new TableBuilder<ProjectRow>(rows)
-            .Builder(t => t.Repos, f => f.Func<ProjectRow, List<RepoRef>>(repos =>
-            {
-                var layout = Layout.Vertical().Gap(1);
-                foreach (var repo in repos)
-                {
-                    var row = Layout.Horizontal().Gap(2).AlignContent(Align.Left);
-                    row |= Text.Block(repo.Path).Muted().Small();
-                    if (!string.IsNullOrEmpty(repo.BaseBranch))
-                        row |= new Badge(repo.BaseBranch).Variant(BadgeVariant.Secondary).Small();
-                    layout |= row;
-                }
-                return layout;
-            }))
-            .Header(t => t.Index, "")
-            .Builder(t => t.Index, f => f.Func<ProjectRow, int>(idx =>
-                Layout.Horizontal().Gap(1)
-                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit this project").OnClick(() =>
-                {
-                    editIndex.Set(idx);
-                })
-                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete this project").OnClick(() =>
-                {
-                    var name = projects[idx].Name;
-                    try
-                    {
-                        var removedProject = projects[idx];
-                        projects.RemoveAt(idx);
-                        config.SaveSettings();
-                        refreshToken.Refresh();
-                        client.Toast($"Project '{name}' deleted", "Deleted");
-                    }
-                    catch (Exception ex)
-                    {
-                        refreshToken.Refresh();
-                        client.Toast($"Failed to delete project: {ex.Message}", "Error");
-                    }
-                }).WithConfirm(
-                    $"Are you sure you want to delete the project '{projects[idx].Name}'? This cannot be undone.",
-                    title: "Delete Project",
-                    confirmLabel: "Delete Project",
-                    destructive: true
-                )
-            ))
-            .Width(Size.Fit());
-
-        return Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(200)))
-               | Text.Block("Projects").Bold()
-               | Text.Block("Manage projects, their repositories, and verification assignments.").Muted().Small()
-               | table
-               | new Button("Add Project").Icon(Icons.Plus).Outline().OnClick(() =>
-               {
-                   isAddOpen.Set(true);
-               })
-               | new EditProjectDialog(editIndex, projects, allVerifications, config, client, refreshToken)
-               | new AddProjectDialog(isAddOpen, config, client, refreshToken);
+        return new ProjectDetailView(0, projects, config, client, refreshToken);
     }
-
-    private record ProjectRow(string Name, List<RepoRef> Repos, int Index);
 }

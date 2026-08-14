@@ -82,7 +82,7 @@ public class ProjectAgentStepView(
                     }
 
                     var refs = await OnboardingRepoHelper.ResolveReposAsync(
-                        selectedRepos.Value, tendrilHome, progressMessage, error, isCloning, isStepLoading);
+                        selectedRepos.Value, tendrilHome, name, progressMessage, error, isCloning, isStepLoading);
 
                     if (refs == null)
                     {

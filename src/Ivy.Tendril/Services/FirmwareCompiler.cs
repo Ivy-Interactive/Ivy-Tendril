@@ -185,6 +185,34 @@ public static class FirmwareCompiler
                 }
                 sb.AppendLine();
             }
+
+            if (project.Skills is { Count: > 0 })
+            {
+                sb.AppendLine("**Skills:**");
+                foreach (var skill in project.Skills)
+                {
+                    sb.AppendLine($"#### Skill: {skill.Name}");
+                    if (!string.IsNullOrWhiteSpace(skill.Description))
+                        sb.AppendLine($"*{skill.Description}*");
+                    if (!string.IsNullOrWhiteSpace(skill.Instructions))
+                    {
+                        sb.AppendLine();
+                        sb.AppendLine(skill.Instructions);
+                    }
+                    sb.AppendLine();
+                }
+            }
+
+            if (project.Memories is { Count: > 0 })
+            {
+                sb.AppendLine("**Memory:**");
+                foreach (var mem in project.Memories)
+                {
+                    sb.AppendLine($"#### Memory: {mem.Name}");
+                    sb.AppendLine(mem.Content);
+                    sb.AppendLine();
+                }
+            }
         }
 
         return sb.ToString();
@@ -264,7 +292,9 @@ public record ProjectInfo(
     string Name,
     string Context,
     List<ProjectRepoInfo> Repos,
-    List<ProjectVerificationInfo> Verifications);
+    List<ProjectVerificationInfo> Verifications,
+    List<ProjectSkillInfo>? Skills = null,
+    List<ProjectMemoryInfo>? Memories = null);
 
 public record ProjectRepoInfo(
     string Path,
@@ -274,3 +304,12 @@ public record ProjectVerificationInfo(
     string Name,
     bool Required,
     bool Delegated);
+
+public record ProjectSkillInfo(
+    string Name,
+    string Description,
+    string Instructions);
+
+public record ProjectMemoryInfo(
+    string Name,
+    string Content);
