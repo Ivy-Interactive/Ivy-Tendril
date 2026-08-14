@@ -228,8 +228,8 @@ public class GitService : IGitService
         var markers = new (string Path, bool IsDir, string Operation)[]
         {
             ("MERGE_HEAD", false, "merge"),
-            ("REBASE_HEAD", false, "rebase"),
             ("CHERRY_PICK_HEAD", false, "cherry-pick"),
+            ("REVERT_HEAD", false, "revert"),
             ("BISECT_LOG", false, "bisect"),
             ("rebase-merge", true, "rebase"),
             ("rebase-apply", true, "rebase"),
