@@ -4,7 +4,7 @@ public static class SidebarListRow
 {
     public static object Build(string title, object content, Action onClick, bool isSelected = false)
     {
-        var row = Layout.Vertical().Gap(1)
+        var row = Layout.Vertical()
             | Text.Literal(title)
             | content;
 
@@ -18,7 +18,7 @@ public static class SidebarListRow
 
     public static object Build(string title, Icons icon, Action onClick, bool isSelected = false)
     {
-        var row = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
+        var row = Layout.Horizontal().AlignContent(Align.Left).Width(Size.Full())
             | icon.ToIcon()
             | Text.Literal(title);
 
@@ -27,11 +27,24 @@ public static class SidebarListRow
 
     public static object BuildSubItem(string title, Icons? icon, Action onClick, bool isSelected = false)
     {
-        var row = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
+        return BuildSubItem(title, icon, null, onClick, isSelected);
+    }
+
+    public static object BuildSubItem(string title, Icons? icon, Colors? color, Action onClick, bool isSelected = false)
+    {
+        var row = Layout.Horizontal().AlignContent(Align.Left).Width(Size.Full())
             | new Spacer().Width(Size.Rem(1));
 
         if (icon.HasValue)
-            row |= icon.Value.ToIcon();
+        {
+            row |= color.HasValue
+                ? new Icon(icon.Value, color.Value).Small()
+                : icon.Value.ToIcon();
+        }
+        else if (color.HasValue)
+        {
+            row |= new Icon(Icons.Circle, color.Value).Small();
+        }
 
         row |= Text.Literal(title);
 

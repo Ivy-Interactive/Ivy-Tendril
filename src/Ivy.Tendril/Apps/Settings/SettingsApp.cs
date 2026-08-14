@@ -92,7 +92,8 @@ public class SettingsApp : ViewBase
                 var tag = $"project:{i}";
                 var isSelected = selectedTag == tag || (selectedTag == TagProjects && i == 0);
                 var localIdx = i;
-                rows.Add(SidebarListRow.BuildSubItem(proj.Name, null, () => selected.Set($"project:{localIdx}"), isSelected));
+                var projColor = config.GetProjectColor(proj.Name) ?? Colors.Slate;
+                rows.Add(SidebarListRow.BuildSubItem(proj.Name, null, projColor, () => selected.Set($"project:{localIdx}"), isSelected));
             }
             rows.Add(SidebarListRow.BuildSubItem("Add Project", Icons.Plus, () => openAddProjectDialog(), false));
         }
