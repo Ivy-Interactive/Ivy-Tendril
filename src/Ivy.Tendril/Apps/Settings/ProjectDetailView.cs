@@ -27,7 +27,7 @@ public class ProjectDetailView(
         // Inline Name & Color Editing State
         var isEditingName = UseState(false);
         var editName = UseState(projectIndex >= 0 && projectIndex < projects.Count ? projects[projectIndex].Name : "");
-        var projectColor = UseState(projectIndex >= 0 && projectIndex < projects.Count ? (projects[projectIndex].Color ?? "Slate") : "Slate");
+        var projectColor = UseState<Colors?>(projectIndex >= 0 && projectIndex < projects.Count && Enum.TryParse<Colors>(projects[projectIndex].Color, true, out var c) ? c : Colors.Slate);
 
         // Agent Behavior State
         var autoImplement = UseState(projectIndex >= 0 && projectIndex < projects.Count ? (projects[projectIndex].AutoImplementPlans == "Auto-Implement Plans" ? "Auto-Implement Plans" : "Always Ask Review") : "Always Ask Review");
@@ -77,9 +77,10 @@ public class ProjectDetailView(
             var currentProj = projects[projectIndex];
             var changed = false;
 
-            if (currentProj.Color != projectColor.Value)
+            var colorStr = projectColor.Value?.ToString() ?? "Slate";
+            if (currentProj.Color != colorStr)
             {
-                currentProj.Color = projectColor.Value;
+                currentProj.Color = colorStr;
                 changed = true;
             }
             if (currentProj.AutoImplementPlans != autoImplement.Value)
@@ -138,7 +139,7 @@ public class ProjectDetailView(
                 {
                     loadedProjectIndex.Set(projectIndex);
                     editName.Set(curProj.Name);
-                    projectColor.Set(!string.IsNullOrEmpty(curProj.Color) ? curProj.Color : "Slate");
+                    projectColor.Set(Enum.TryParse<Colors>(curProj.Color, true, out var col) ? col : Colors.Slate);
                     autoImplement.Set(curProj.AutoImplementPlans == "Auto-Implement Plans" ? "Auto-Implement Plans" : "Always Ask Review");
                     repos.Set(new List<RepoRef>(curProj.Repos));
                     reviewActions.Set(new List<ReviewActionConfig>(curProj.ReviewActions));
@@ -166,7 +167,7 @@ public class ProjectDetailView(
         {
             loadedProjectIndex.Set(projectIndex);
             editName.Set(project.Name);
-            projectColor.Set(!string.IsNullOrEmpty(project.Color) ? project.Color : "Slate");
+            projectColor.Set(Enum.TryParse<Colors>(project.Color, true, out var col) ? col : Colors.Slate);
             autoImplement.Set(project.AutoImplementPlans == "Auto-Implement Plans" ? "Auto-Implement Plans" : "Always Ask Review");
             repos.Set(new List<RepoRef>(project.Repos));
             reviewActions.Set(new List<ReviewActionConfig>(project.ReviewActions));

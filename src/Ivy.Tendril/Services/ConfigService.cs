@@ -542,13 +542,13 @@ public class ConfigService : IConfigService, IDisposable
     public Colors? GetLevelColor(string level)
     {
         var colorStr = Settings.Levels.FirstOrDefault(l => l.Name == level)?.Color;
-        return !string.IsNullOrEmpty(colorStr) && Enum.TryParse<Colors>(colorStr, out var c) ? c : null;
+        return !string.IsNullOrEmpty(colorStr) && Enum.TryParse<Colors>(colorStr, ignoreCase: true, out var c) ? c : null;
     }
 
     public Colors? GetProjectColor(string projectName)
     {
         var colorStr = GetProject(projectName)?.Color;
-        return !string.IsNullOrEmpty(colorStr) && Enum.TryParse<Colors>(colorStr, out var c) ? c : null;
+        return !string.IsNullOrEmpty(colorStr) && Enum.TryParse<Colors>(colorStr, ignoreCase: true, out var c) ? c : null;
     }
 
     public event EventHandler? SettingsReloaded;

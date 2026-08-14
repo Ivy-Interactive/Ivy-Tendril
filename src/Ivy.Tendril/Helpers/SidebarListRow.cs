@@ -43,7 +43,11 @@ public static class SidebarListRow
         }
         else if (color.HasValue)
         {
-            row |= new Icon(Icons.Circle, color.Value).Small();
+            row |= new Box()
+                .Background(color.Value)
+                .BorderRadius(BorderRadius.Rounded)
+                .Width(Size.Units(3))
+                .Height(Size.Units(3));
         }
 
         row |= Text.Literal(title);
