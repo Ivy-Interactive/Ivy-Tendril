@@ -223,6 +223,7 @@ public class ImportRepoAssetsDialog(
                     | selectAllBtn);
 
                 var itemsList = Layout.Vertical();
+                if (serversList.Count > 4) itemsList = itemsList.Height(Size.Rem(16)).Scroll(Scroll.Auto);
                 foreach (var srv in serversList)
                 {
                     var argsStr = srv.Arguments.Count > 0 ? " " + string.Join(" ", srv.Arguments) : "";
@@ -252,6 +253,7 @@ public class ImportRepoAssetsDialog(
                     | selectAllBtn);
 
                 var itemsList = Layout.Vertical();
+                if (skillsList.Count > 4) itemsList = itemsList.Height(Size.Rem(16)).Scroll(Scroll.Auto);
                 foreach (var sk in skillsList)
                 {
                     itemsList |= new DiscoveredItemRowView(

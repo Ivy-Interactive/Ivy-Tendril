@@ -59,7 +59,7 @@ public class McpServersTableView(
 
         var rows = servers.Select((s, i) => new McpServerRow(s.Name, s.Command, s.Arguments.Count, i)).ToList();
 
-        return new TableBuilder<McpServerRow>(rows)
+        var table = new TableBuilder<McpServerRow>(rows)
             .Header(t => t.Name, "Name")
             .Builder(t => t.Name, f => f.Func<McpServerRow, string>(name =>
                 Text.Block(name).Bold().Small()
@@ -79,7 +79,11 @@ public class McpServersTableView(
                     mcpServers.Set(list);
                 })
             ))
-            .Width(Size.Fit());
+            .Width(Size.Full());
+
+        return rows.Count > 5
+            ? (Layout.Vertical().Height(Size.Rem(14)).Scroll(Scroll.Auto) | table)
+            : table;
     }
 
     private record McpServerRow(string Name, string Command, int ArgCount, int Index);
@@ -96,7 +100,7 @@ public class SkillsTableView(
 
         var rows = list.Select((s, i) => new SkillRow(s.Name, s.Description, i)).ToList();
 
-        return new TableBuilder<SkillRow>(rows)
+        var table = new TableBuilder<SkillRow>(rows)
             .Header(t => t.Name, "Name")
             .Builder(t => t.Name, f => f.Func<SkillRow, string>(name =>
                 Text.Block(name).Bold().Small()
@@ -116,7 +120,11 @@ public class SkillsTableView(
                     skills.Set(current);
                 })
             ))
-            .Width(Size.Fit());
+            .Width(Size.Full());
+
+        return rows.Count > 5
+            ? (Layout.Vertical().Height(Size.Rem(14)).Scroll(Scroll.Auto) | table)
+            : table;
     }
 
     private record SkillRow(string Name, string Description, int Index);

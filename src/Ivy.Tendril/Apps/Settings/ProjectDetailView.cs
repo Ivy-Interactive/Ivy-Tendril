@@ -171,7 +171,7 @@ public class ProjectDetailView(
         var autoImplementSelect = autoImplement.ToSelectInput(new[] { "Auto-Implement Plans", "Always Ask Review" })
             .WithField().Label("Artifact Review / Auto-Implement Policy");
 
-        var innerContent = Layout.Vertical().Width(Size.Rem(48))
+        var innerContent = Layout.Vertical().Width(Size.Full())
             // Section 1: Header (Color Picker + Name)
             | nameHeader
             | new Separator()
