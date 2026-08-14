@@ -1,3 +1,5 @@
+using System.Reactive.Disposables;
+using Ivy.Core.Hooks;
 using Ivy.Desktop;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
@@ -41,6 +43,15 @@ public class SettingsApp : ViewBase
             }));
 
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
+
+        UseEffect(() =>
+        {
+            void OnSettingsReloaded(object? sender, EventArgs e) => refreshToken.Refresh();
+            config.SettingsReloaded += OnSettingsReloaded;
+            return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);
+        });
+
+        _ = refreshToken.Token;
         var isDesktop = desktopWindow != null;
         var capturedHost = ConfigYamlUiHelper.CaptureHost(httpContextAccessor);
 
@@ -92,7 +103,7 @@ public class SettingsApp : ViewBase
                 var tag = $"project:{i}";
                 var isSelected = selectedTag == tag || (selectedTag == TagProjects && i == 0);
                 var localIdx = i;
-                var projColor = config.GetProjectColor(proj.Name) ?? Colors.Slate;
+                var projColor = Enum.TryParse<Colors>(proj.Color, out var parsed) ? parsed : (config.GetProjectColor(proj.Name) ?? Colors.Slate);
                 rows.Add(SidebarListRow.BuildSubItem(proj.Name, null, projColor, () => selected.Set($"project:{localIdx}"), isSelected));
             }
             rows.Add(SidebarListRow.BuildSubItem("Add Project", Icons.Plus, () => openAddProjectDialog(), false));
