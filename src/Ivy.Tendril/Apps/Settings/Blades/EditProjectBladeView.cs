@@ -140,7 +140,7 @@ public class EditProjectBladeView(
                     | Text.Block("Configure the project's name, color, and AI context.").Muted().Small()
                     | editName.ToTextInput("Project name...").Invalid(nameError).WithField().Label("Name")
                     | editColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker).Nullable().WithField().Label("Color")
-                    | editContext.ToTextareaInput("Project context or prompt for AI agents (optional)...").Rows(4).WithField().Label("Context / Prompt (Optional)")
+                    | editContext.ToTextareaInput("Project context or prompt for AI agents...").Rows(4).WithField().Label("Context / Prompt")
                 ),
                 new Tab("Repositories",
                     Layout.Vertical()

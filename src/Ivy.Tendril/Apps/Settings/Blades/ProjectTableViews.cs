@@ -57,7 +57,7 @@ public class McpServersTableView(
         var servers = mcpServers.Value;
         if (servers.Count == 0) return null;
 
-        var rows = servers.Select((s, i) => new McpServerRow(s.Name, s.Command, s.Arguments.Count, s.Disabled, i)).ToList();
+        var rows = servers.Select((s, i) => new McpServerRow(s.Name, s.Command, s.Arguments.Count, i)).ToList();
 
         return new TableBuilder<McpServerRow>(rows)
             .Header(t => t.Name, "Name")
@@ -67,12 +67,6 @@ public class McpServersTableView(
             .Header(t => t.Command, "Command")
             .Builder(t => t.Command, f => f.Func<McpServerRow, string>(cmd =>
                 Text.Block(cmd).Muted().Small()
-            ))
-            .Header(t => t.Disabled, "Status")
-            .Builder(t => t.Disabled, f => f.Func<McpServerRow, bool>(disabled =>
-                disabled
-                    ? new Badge("Disabled").Variant(BadgeVariant.Secondary).Small()
-                    : new Badge("Active").Variant(BadgeVariant.Outline).Small()
             ))
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<McpServerRow, int>(idx =>
@@ -88,7 +82,7 @@ public class McpServersTableView(
             .Width(Size.Fit());
     }
 
-    private record McpServerRow(string Name, string Command, int ArgCount, bool Disabled, int Index);
+    private record McpServerRow(string Name, string Command, int ArgCount, int Index);
 }
 
 public class SkillsTableView(

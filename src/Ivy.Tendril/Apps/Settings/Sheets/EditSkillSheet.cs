@@ -34,9 +34,9 @@ public class EditSkillSheet(
 
         var sheetContent = Layout.Vertical()
             | editName.ToTextInput("Skill name (e.g. code-review)...").WithField().Label("Name").Required()
-            | editDescription.ToTextInput("Short description...").WithField().Label("Description (optional)")
-            | editInstructions.ToTextareaInput("Instructions / markdown rules...").Rows(5).WithField().Label("Inline Instructions (optional)")
-            | editPath.ToTextInput("Path to skill folder/file (e.g. %TENDRIL_HOME%/Skills/my-skill)...").WithField().Label("File/Folder Path (optional)")
+            | editDescription.ToTextInput("Short description...").WithField().Label("Description")
+            | editInstructions.ToTextareaInput("Instructions / markdown rules...").Rows(5).WithField().Label("Inline Instructions")
+            | editPath.ToTextInput("Path to skill folder/file (e.g. %TENDRIL_HOME%/Skills/my-skill)...").WithField().Label("File/Folder Path")
             | editDisabled.ToSwitchInput().WithField().Label("Disabled")
             | (Layout.Horizontal().AlignContent(Align.Right)
                | new Button("Cancel").Outline().OnClick(() => isOpen.Set(false))

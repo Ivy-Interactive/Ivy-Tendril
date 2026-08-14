@@ -29,7 +29,7 @@ public class EditReviewActionBladeView(
         return Layout.Vertical()
             | editName.ToTextInput("Action name...").WithField().Label("Name").Required()
             | editCommand.ToTextareaInput("e.g. dotnet test").Rows(2).WithField().Label("Command").Required()
-            | editCondition.ToTextareaInput("e.g. ${hasChanges}").Rows(2).WithField().Label("Condition (optional)")
+            | editCondition.ToTextareaInput("e.g. ${hasChanges}").Rows(2).WithField().Label("Condition")
             | Layout.Horizontal()
                 | new Button("Cancel").Outline().OnClick(() => bladeContext.Pop(this))
                 | new Button(isNew ? "Add" : "Save").Primary().OnClick(() =>

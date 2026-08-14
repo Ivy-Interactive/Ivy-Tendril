@@ -14,7 +14,6 @@ public class EditMcpServerSheet(
         var editCommand = UseState("");
         var editArguments = UseState("");
         var editEnv = UseState("");
-        var editDisabled = UseState(false);
 
         UseEffect(() =>
         {
@@ -26,7 +25,6 @@ public class EditMcpServerSheet(
                 editCommand.Set(s.Command);
                 editArguments.Set(string.Join(" ", s.Arguments));
                 editEnv.Set(string.Join("\n", s.Environment.Select(kv => $"{kv.Key}={kv.Value}")));
-                editDisabled.Set(s.Disabled);
             }
         }, EffectTrigger.OnMount());
 
@@ -35,9 +33,8 @@ public class EditMcpServerSheet(
         var sheetContent = Layout.Vertical()
             | editName.ToTextInput("Server name (e.g. sqlite)...").WithField().Label("Name").Required()
             | editCommand.ToTextInput("Command executable (e.g. npx)...").WithField().Label("Command").Required()
-            | editArguments.ToTextInput("Arguments (e.g. -y @modelcontextprotocol/server-sqlite)...").WithField().Label("Arguments (optional)")
-            | editEnv.ToTextareaInput("Environment variables (KEY=VALUE per line)...").Rows(3).WithField().Label("Environment Variables (optional)")
-            | editDisabled.ToSwitchInput().WithField().Label("Disabled")
+            | editArguments.ToTextInput("Arguments (e.g. -y @modelcontextprotocol/server-sqlite)...").WithField().Label("Arguments")
+            | editEnv.ToTextareaInput("Environment variables (KEY=VALUE per line)...").Rows(3).WithField().Label("Environment Variables")
             | (Layout.Horizontal().AlignContent(Align.Right)
                | new Button("Cancel").Outline().OnClick(() => isOpen.Set(false))
                | new Button(isNew ? "Add" : "Save").Primary().OnClick(() =>
@@ -63,7 +60,7 @@ public class EditMcpServerSheet(
                        Command = editCommand.Value.Trim(),
                        Arguments = argsList,
                        Environment = envDict,
-                       Disabled = editDisabled.Value
+                       Disabled = false
                    };
 
                    if (editingIndex.HasValue && editingIndex.Value < updated.Count)
