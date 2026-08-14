@@ -281,7 +281,7 @@ public class ImportRepoAssetsDialog(
                 new Button("Cancel").Outline().OnClick(() => isOpen.Set(false)),
                 new Button($"Import Selected ({selectedCount})").Primary().Disabled(selectedCount == 0 || isScanning.Value).OnClick(ExecuteImport)
             )
-        ).Width(Size.Rem(30));
+        ).Width(Size.Rem(36));
     }
 }
 
