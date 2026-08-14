@@ -72,7 +72,7 @@ public class ProjectMemoryTableView(
                     client.Toast("Copied memory path to clipboard", "Copied");
                 })
                 | new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => onEdit(fileName))
-                | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
+                | new Button().Icon(Icons.Trash).Destructive().Small().Tooltip("Delete").OnClick(() =>
                 {
                     if (File.Exists(fullPath)) File.Delete(fullPath);
                     refreshCounter.Set(refreshCounter.Value + 1);
@@ -179,7 +179,7 @@ public class McpServersTableView : ViewBase
                     client.Toast("Copied command to clipboard", "Copied");
                 })
                 | (_onEdit != null ? new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => _onEdit(idx)) : null)
-                | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
+                | new Button().Icon(Icons.Trash).Destructive().Small().Tooltip("Delete").OnClick(() =>
                 {
                     var current = new List<ProjectMcpServerRef>(_mcpServers.Value);
                     current.RemoveAt(idx);
@@ -312,7 +312,7 @@ public class SkillsTableView : ViewBase
                     }
                 })
                 | (_onEdit != null ? new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => _onEdit(idx)) : null)
-                | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
+                | new Button().Icon(Icons.Trash).Destructive().Small().Tooltip("Delete").OnClick(() =>
                 {
                     var current = new List<ProjectSkillRef>(_skills.Value);
                     current.RemoveAt(idx);
@@ -388,7 +388,7 @@ public class ReviewActionsTableView(
             .Builder(t => t.Index, f => f.Func<ReviewActionRow, int>(idx =>
                 Layout.Horizontal()
                 | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
-                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
+                | new Button().Icon(Icons.Trash).Destructive().Small().Tooltip("Delete").OnClick(() =>
                 {
                     var list = new List<ReviewActionConfig>(actions);
                     list.RemoveAt(idx);
@@ -427,7 +427,7 @@ public class ProjectVerificationsTableView(
             .Builder(t => t.Index, f => f.Func<VerificationRow, int>(idx =>
                 Layout.Horizontal()
                 | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
-                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
+                | new Button().Icon(Icons.Trash).Destructive().Small().Tooltip("Delete").OnClick(() =>
                 {
                     var current = new List<ProjectVerificationRef>(verifications.Value);
                     current.RemoveAt(idx);
