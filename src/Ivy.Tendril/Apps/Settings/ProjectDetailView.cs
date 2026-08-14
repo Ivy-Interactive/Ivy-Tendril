@@ -205,10 +205,7 @@ public class ProjectDetailView(
 
             // Section 7: Customizations
             | Text.H4("Customizations").Bold()
-            | Text.Block("Project Memories").Bold().Small()
             | new ProjectMemoryTableView(config.TendrilHome, project.Name, memoryRefresh, fileName => openMemorySheet(fileName))
-            | new Button("Add Project Memory").Icon(Icons.Plus).Outline().Small().OnClick(() => openMemorySheet(null))
-
             | new SkillsTableView(skills, repos, idx => openSkillSheet(idx), onImport: () => openImportSkillsDialog())
             | new Separator()
 

@@ -11,41 +11,106 @@ public class ProjectMemoryTableView(
 {
     public override object? Build()
     {
+        var copyToClipboard = UseClipboard();
+        var client = UseService<IClientProvider>();
         _ = refreshCounter.Value;
+
         var memoryDir = ProjectPathHelper.GetMemoryDir(tendrilHome, projectName);
-        if (!Directory.Exists(memoryDir)) return null;
+        var files = Directory.Exists(memoryDir)
+            ? Directory.GetFiles(memoryDir, "*.md")
+                .Select(Path.GetFileName)
+                .Where(n => !string.IsNullOrEmpty(n))
+                .OrderBy(n => n!)
+                .ToList()
+            : new List<string?>();
 
-        var files = Directory.GetFiles(memoryDir, "*.md")
-            .Select(Path.GetFileName)
-            .Where(n => !string.IsNullOrEmpty(n))
-            .OrderBy(n => n!)
-            .ToList();
+        var header = Layout.Horizontal().AlignContent(Align.Left)
+            | Text.H4("Project Memories").Bold()
+            | new Badge($"{files.Count}").Variant(BadgeVariant.Secondary).Small();
 
-        if (files.Count == 0) return null;
+        if (files.Count == 0)
+        {
+            var emptyContent = Layout.Vertical()
+                | Text.Block("No project memory files found (stored in .tendril/Projects/<Project>/memory/).").Muted().Small()
+                | (Layout.Horizontal().AlignContent(Align.Left)
+                    | new Button("Add Project Memory").Icon(Icons.Plus).Outline().Small().OnClick(() => onEdit(null)));
 
-        var rows = files.Select((f, i) => new MemoryRow(f!, i)).ToList();
+            return new Expandable(header, emptyContent).Open(true);
+        }
 
-        return new TableBuilder<MemoryRow>(rows)
-            .Header(t => t.Name, "Memory File")
-            .Builder(t => t.Name, f => f.Func<MemoryRow, string>(name =>
-                Text.Block(name).Bold().Small()
-            ))
-            .Header(t => t.Index, "")
-            .Builder(t => t.Index, f => f.Func<MemoryRow, int>(idx =>
-                Layout.Horizontal()
-                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit Memory").OnClick(() => onEdit(files[idx]))
-                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete Memory").OnClick(() =>
+        var cards = Layout.Vertical();
+        for (int i = 0; i < files.Count; i++)
+        {
+            var fileName = files[i]!;
+            var idx = i;
+            var fullPath = Path.Combine(memoryDir, fileName);
+
+            string? snippet = null;
+            try
+            {
+                if (File.Exists(fullPath))
                 {
-                    var name = files[idx];
-                    var fullPath = Path.Combine(memoryDir, name!);
+                    var lines = File.ReadAllLines(fullPath)
+                        .Where(l => !string.IsNullOrWhiteSpace(l))
+                        .Take(2)
+                        .Select(l => l.Trim().TrimStart('#', ' ', '-'))
+                        .Where(l => !string.IsNullOrWhiteSpace(l));
+                    snippet = string.Join(" — ", lines);
+                }
+            }
+            catch { }
+
+            // Header row of Memory card
+            var leftGroup = Layout.Horizontal().AlignContent(Align.Left)
+                | Text.Block(fileName).Bold().Small()
+                | new Badge("Memory").Color(Colors.Blue).Variant(BadgeVariant.Secondary).Small();
+
+            var rightGroup = Layout.Horizontal().AlignContent(Align.Right)
+                | new Button().Icon(Icons.Copy).Ghost().Small().Tooltip("Copy file path").OnClick(() =>
+                {
+                    copyToClipboard(fullPath);
+                    client.Toast("Copied memory path to clipboard", "Copied");
+                })
+                | new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => onEdit(fileName))
+                | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
+                {
                     if (File.Exists(fullPath)) File.Delete(fullPath);
                     refreshCounter.Set(refreshCounter.Value + 1);
-                })
-            ))
-            .Width(Size.Fit());
-    }
+                });
 
-    private record MemoryRow(string Name, int Index);
+            var cardHeader = Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full())
+                | leftGroup
+                | rightGroup;
+
+            var cardBody = Text.Block(string.IsNullOrWhiteSpace(snippet) ? "Memory markdown document." : snippet).Muted().Small();
+
+            var card = Layout.Vertical()
+                | cardHeader
+                | cardBody;
+
+            if (i > 0)
+            {
+                cards |= new Separator();
+            }
+            cards |= card;
+        }
+
+        var scrollableCards = files.Count > 5
+            ? (Layout.Vertical().Height(Size.Rem(18)).Scroll(Scroll.Auto) | cards)
+            : cards;
+
+        var containerBox = new Box(scrollableCards)
+            .BorderRadius(BorderRadius.Rounded)
+            .BorderColor(Colors.Slate, 0.2f)
+            .Width(Size.Full());
+
+        var content = Layout.Vertical()
+            | containerBox
+            | (Layout.Horizontal().AlignContent(Align.Left)
+                | new Button("Add Project Memory").Icon(Icons.Plus).Outline().Small().OnClick(() => onEdit(null)));
+
+        return new Expandable(header, content).Open(true);
+    }
 }
 
 public class McpServersTableView : ViewBase
@@ -103,23 +168,27 @@ public class McpServersTableView : ViewBase
             badges |= new Badge("MCP").Color(Colors.Green).Variant(BadgeVariant.Secondary).Small();
 
             // Header row of MCP card
-            var cardHeader = Layout.Horizontal().AlignContent(Align.Left).Width(Size.Full())
+            var leftGroup = Layout.Horizontal().AlignContent(Align.Left)
                 | Text.Block(srv.Name).Bold().Small()
-                | badges
-                | new Spacer()
-                | (Layout.Horizontal().AlignContent(Align.Right)
-                    | new Button().Icon(Icons.Copy).Ghost().Small().Tooltip("Copy command").OnClick(() =>
-                    {
-                        copyToClipboard(fullCmd);
-                        client.Toast("Copied command to clipboard", "Copied");
-                    })
-                    | (_onEdit != null ? new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => _onEdit(idx)) : null)
-                    | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
-                    {
-                        var current = new List<ProjectMcpServerRef>(_mcpServers.Value);
-                        current.RemoveAt(idx);
-                        _mcpServers.Set(current);
-                    }));
+                | badges;
+
+            var rightGroup = Layout.Horizontal().AlignContent(Align.Right)
+                | new Button().Icon(Icons.Copy).Ghost().Small().Tooltip("Copy command").OnClick(() =>
+                {
+                    copyToClipboard(fullCmd);
+                    client.Toast("Copied command to clipboard", "Copied");
+                })
+                | (_onEdit != null ? new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => _onEdit(idx)) : null)
+                | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
+                {
+                    var current = new List<ProjectMcpServerRef>(_mcpServers.Value);
+                    current.RemoveAt(idx);
+                    _mcpServers.Set(current);
+                });
+
+            var cardHeader = Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full())
+                | leftGroup
+                | rightGroup;
 
             // Command / description row
             var cardBody = Text.Block(fullCmd).Muted().Small();
@@ -229,26 +298,30 @@ public class SkillsTableView : ViewBase
             }
 
             // Header row of skill card
-            var cardHeader = Layout.Horizontal().AlignContent(Align.Left).Width(Size.Full())
+            var leftGroup = Layout.Horizontal().AlignContent(Align.Left)
                 | Text.Block(skill.Name).Bold().Small()
-                | badges
-                | new Spacer()
-                | (Layout.Horizontal().AlignContent(Align.Right)
-                    | new Button().Icon(Icons.Copy).Ghost().Small().Tooltip("Copy skill path").OnClick(() =>
+                | badges;
+
+            var rightGroup = Layout.Horizontal().AlignContent(Align.Right)
+                | new Button().Icon(Icons.Copy).Ghost().Small().Tooltip("Copy skill path").OnClick(() =>
+                {
+                    if (!string.IsNullOrWhiteSpace(skill.Path))
                     {
-                        if (!string.IsNullOrWhiteSpace(skill.Path))
-                        {
-                            copyToClipboard(skill.Path);
-                            client.Toast("Copied skill path to clipboard", "Copied");
-                        }
-                    })
-                    | (_onEdit != null ? new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => _onEdit(idx)) : null)
-                    | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
-                    {
-                        var current = new List<ProjectSkillRef>(_skills.Value);
-                        current.RemoveAt(idx);
-                        _skills.Set(current);
-                    }));
+                        copyToClipboard(skill.Path);
+                        client.Toast("Copied skill path to clipboard", "Copied");
+                    }
+                })
+                | (_onEdit != null ? new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => _onEdit(idx)) : null)
+                | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
+                {
+                    var current = new List<ProjectSkillRef>(_skills.Value);
+                    current.RemoveAt(idx);
+                    _skills.Set(current);
+                });
+
+            var cardHeader = Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full())
+                | leftGroup
+                | rightGroup;
 
             // Description row
             var cardBody = Text.Block(string.IsNullOrWhiteSpace(skill.Description) ? "No description provided." : skill.Description).Muted().Small();
