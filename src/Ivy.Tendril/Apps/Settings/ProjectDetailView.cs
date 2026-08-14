@@ -242,7 +242,7 @@ public class ProjectDetailView(
             return draft with { Path = destPath };
         };
 
-        var innerContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200)))
+        var innerContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(120)))
             // Section 1: Header (Color Picker + Name)
             | nameHeader
             | new Separator()
