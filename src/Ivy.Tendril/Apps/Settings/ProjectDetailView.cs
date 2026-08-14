@@ -200,11 +200,7 @@ public class ProjectDetailView(
 
             // Section 6: Local Permissions (MCP Tools & Servers)
             | Text.H4("Local Permissions").Bold()
-            | Text.Block("MCP Tools & Servers").Bold().Small()
-            | new McpServersTableView(mcpServers, idx => openMcpSheet(idx))
-            | (Layout.Horizontal().AlignContent(Align.Left)
-                | new Button("Add MCP Server").Icon(Icons.Plus).Outline().Small().OnClick(() => openMcpSheet(null))
-                | new Button("Import from Repository").Icon(Icons.Download).Outline().Small().OnClick(() => openImportMcpDialog()))
+            | new McpServersTableView(mcpServers, repos, idx => openMcpSheet(idx), onImport: () => openImportMcpDialog())
             | new Separator()
 
             // Section 7: Customizations
@@ -213,11 +209,7 @@ public class ProjectDetailView(
             | new ProjectMemoryTableView(config.TendrilHome, project.Name, memoryRefresh, fileName => openMemorySheet(fileName))
             | new Button("Add Project Memory").Icon(Icons.Plus).Outline().Small().OnClick(() => openMemorySheet(null))
 
-            | Text.Block("Custom Skills").Bold().Small()
-            | new SkillsTableView(skills, idx => openSkillSheet(idx))
-            | (Layout.Horizontal().AlignContent(Align.Left)
-                | new Button("Add Custom Skill").Icon(Icons.Plus).Outline().Small().OnClick(() => openSkillSheet(null))
-                | new Button("Import from Repository").Icon(Icons.Download).Outline().Small().OnClick(() => openImportSkillsDialog()))
+            | new SkillsTableView(skills, repos, idx => openSkillSheet(idx), onImport: () => openImportSkillsDialog())
             | new Separator()
 
             // Section 8: Danger Zone

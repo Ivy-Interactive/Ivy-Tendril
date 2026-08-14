@@ -48,86 +48,251 @@ public class ProjectMemoryTableView(
     private record MemoryRow(string Name, int Index);
 }
 
-public class McpServersTableView(
-    IState<List<ProjectMcpServerRef>> mcpServers,
-    Action<int?> onEdit) : ViewBase
+public class McpServersTableView : ViewBase
 {
-    public override object? Build()
+    private readonly IState<List<ProjectMcpServerRef>> _mcpServers;
+    private readonly IState<List<RepoRef>>? _repos;
+    private readonly Action<int?>? _onEdit;
+    private readonly Action? _onImport;
+
+    public McpServersTableView(IState<List<ProjectMcpServerRef>> mcpServers, Action<int?> onEdit)
     {
-        var servers = mcpServers.Value;
-        if (servers.Count == 0) return null;
-
-        var rows = servers.Select((s, i) => new McpServerRow(s.Name, s.Command, s.Arguments.Count, i)).ToList();
-
-        var table = new TableBuilder<McpServerRow>(rows)
-            .Header(t => t.Name, "Name")
-            .Builder(t => t.Name, f => f.Func<McpServerRow, string>(name =>
-                Text.Block(name).Bold().Small()
-            ))
-            .Header(t => t.Command, "Command")
-            .Builder(t => t.Command, f => f.Func<McpServerRow, string>(cmd =>
-                Text.Block(cmd).Muted().Small()
-            ))
-            .Header(t => t.Index, "")
-            .Builder(t => t.Index, f => f.Func<McpServerRow, int>(idx =>
-                Layout.Horizontal()
-                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
-                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
-                {
-                    var list = new List<ProjectMcpServerRef>(mcpServers.Value);
-                    list.RemoveAt(idx);
-                    mcpServers.Set(list);
-                })
-            ))
-            .Width(Size.Full());
-
-        return rows.Count > 5
-            ? (Layout.Vertical().Height(Size.Rem(14)).Scroll(Scroll.Auto) | table)
-            : table;
+        _mcpServers = mcpServers;
+        _onEdit = onEdit;
     }
 
-    private record McpServerRow(string Name, string Command, int ArgCount, int Index);
+    public McpServersTableView(IState<List<ProjectMcpServerRef>> mcpServers, IState<List<RepoRef>>? repos, Action<int?>? onEdit = null, Action? onImport = null)
+    {
+        _mcpServers = mcpServers;
+        _repos = repos;
+        _onEdit = onEdit;
+        _onImport = onImport;
+    }
+
+    public override object? Build()
+    {
+        var copyToClipboard = UseClipboard();
+        var client = UseService<IClientProvider>();
+        var list = _mcpServers.Value;
+
+        var header = Layout.Horizontal().AlignContent(Align.Left)
+            | Text.H4("MCP Tools & Servers").Bold()
+            | new Badge($"{list.Count}").Variant(BadgeVariant.Secondary).Small();
+
+        if (list.Count == 0)
+        {
+            var emptyContent = Layout.Vertical()
+                | Text.Block("No MCP servers configured for this project.").Muted().Small()
+                | (Layout.Horizontal().AlignContent(Align.Left)
+                    | (_onEdit != null ? new Button("Add MCP Server").Icon(Icons.Plus).Outline().Small().OnClick(() => _onEdit(null)) : null)
+                    | (_onImport != null ? new Button("Import from Repository").Icon(Icons.Download).Outline().Small().OnClick(_onImport) : null));
+
+            return new Expandable(header, emptyContent).Open(true);
+        }
+
+        var cards = Layout.Vertical();
+        for (int i = 0; i < list.Count; i++)
+        {
+            var srv = list[i];
+            var idx = i;
+            var argsStr = srv.Arguments.Count > 0 ? " " + string.Join(" ", srv.Arguments) : "";
+            var fullCmd = $"{srv.Command}{argsStr}";
+
+            // Badges
+            var badges = Layout.Horizontal().AlignContent(Align.Left);
+            badges |= new Badge("MCP").Color(Colors.Green).Variant(BadgeVariant.Secondary).Small();
+
+            // Header row of MCP card
+            var cardHeader = Layout.Horizontal().AlignContent(Align.Left).Width(Size.Full())
+                | Text.Block(srv.Name).Bold().Small()
+                | badges
+                | new Spacer()
+                | (Layout.Horizontal().AlignContent(Align.Right)
+                    | new Button().Icon(Icons.Copy).Ghost().Small().Tooltip("Copy command").OnClick(() =>
+                    {
+                        copyToClipboard(fullCmd);
+                        client.Toast("Copied command to clipboard", "Copied");
+                    })
+                    | (_onEdit != null ? new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => _onEdit(idx)) : null)
+                    | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
+                    {
+                        var current = new List<ProjectMcpServerRef>(_mcpServers.Value);
+                        current.RemoveAt(idx);
+                        _mcpServers.Set(current);
+                    }));
+
+            // Command / description row
+            var cardBody = Text.Block(fullCmd).Muted().Small();
+
+            var card = Layout.Vertical()
+                | cardHeader
+                | cardBody;
+
+            if (i > 0)
+            {
+                cards |= new Separator();
+            }
+            cards |= card;
+        }
+
+        var scrollableCards = list.Count > 5
+            ? (Layout.Vertical().Height(Size.Rem(18)).Scroll(Scroll.Auto) | cards)
+            : cards;
+
+        var containerBox = new Box(scrollableCards)
+            .BorderRadius(BorderRadius.Rounded)
+            .BorderColor(Colors.Slate, 0.2f)
+            .Width(Size.Full());
+
+        var content = Layout.Vertical()
+            | containerBox
+            | (Layout.Horizontal().AlignContent(Align.Left)
+                | (_onEdit != null ? new Button("Add MCP Server").Icon(Icons.Plus).Outline().Small().OnClick(() => _onEdit(null)) : null)
+                | (_onImport != null ? new Button("Import from Repository").Icon(Icons.Download).Outline().Small().OnClick(_onImport) : null));
+
+        return new Expandable(header, content).Open(true);
+    }
 }
 
-public class SkillsTableView(
-    IState<List<ProjectSkillRef>> skills,
-    Action<int?> onEdit) : ViewBase
+public class SkillsTableView : ViewBase
 {
-    public override object? Build()
+    private readonly IState<List<ProjectSkillRef>> _skills;
+    private readonly IState<List<RepoRef>>? _repos;
+    private readonly Action<int?>? _onEdit;
+    private readonly Action? _onImport;
+
+    public SkillsTableView(IState<List<ProjectSkillRef>> skills, Action<int?> onEdit)
     {
-        var list = skills.Value;
-        if (list.Count == 0) return null;
-
-        var rows = list.Select((s, i) => new SkillRow(s.Name, s.Description, i)).ToList();
-
-        var table = new TableBuilder<SkillRow>(rows)
-            .Header(t => t.Name, "Name")
-            .Builder(t => t.Name, f => f.Func<SkillRow, string>(name =>
-                Text.Block(name).Bold().Small()
-            ))
-            .Header(t => t.Description, "Description")
-            .Builder(t => t.Description, f => f.Func<SkillRow, string>(desc =>
-                Text.Block(desc).Muted().Small()
-            ))
-            .Header(t => t.Index, "")
-            .Builder(t => t.Index, f => f.Func<SkillRow, int>(idx =>
-                Layout.Horizontal()
-                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
-                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
-                {
-                    var current = new List<ProjectSkillRef>(skills.Value);
-                    current.RemoveAt(idx);
-                    skills.Set(current);
-                })
-            ))
-            .Width(Size.Full());
-
-        return rows.Count > 5
-            ? (Layout.Vertical().Height(Size.Rem(14)).Scroll(Scroll.Auto) | table)
-            : table;
+        _skills = skills;
+        _onEdit = onEdit;
     }
 
-    private record SkillRow(string Name, string Description, int Index);
+    public SkillsTableView(IState<List<ProjectSkillRef>> skills, IState<List<RepoRef>>? repos, Action<int?>? onEdit = null, Action? onImport = null)
+    {
+        _skills = skills;
+        _repos = repos;
+        _onEdit = onEdit;
+        _onImport = onImport;
+    }
+
+    public override object? Build()
+    {
+        var copyToClipboard = UseClipboard();
+        var client = UseService<IClientProvider>();
+        var list = _skills.Value;
+
+        var header = Layout.Horizontal().AlignContent(Align.Left)
+            | Text.H4("Custom Skills").Bold()
+            | new Badge($"{list.Count}").Variant(BadgeVariant.Secondary).Small();
+
+        if (list.Count == 0)
+        {
+            var emptyContent = Layout.Vertical()
+                | Text.Block("No custom skills configured for this project.").Muted().Small()
+                | (Layout.Horizontal().AlignContent(Align.Left)
+                    | (_onEdit != null ? new Button("Add Custom Skill").Icon(Icons.Plus).Outline().Small().OnClick(() => _onEdit(null)) : null)
+                    | (_onImport != null ? new Button("Import from Repository").Icon(Icons.Download).Outline().Small().OnClick(_onImport) : null));
+
+            return new Expandable(header, emptyContent).Open(true);
+        }
+
+        var cards = Layout.Vertical();
+        for (int i = 0; i < list.Count; i++)
+        {
+            var skill = list[i];
+            var idx = i;
+
+            // Badges
+            var badges = Layout.Horizontal().AlignContent(Align.Left);
+            var path = skill.Path ?? "";
+
+            // Check repo match
+            var matchingRepo = _repos?.Value.FirstOrDefault(r => !string.IsNullOrEmpty(r.Path) && path.StartsWith(r.Path, StringComparison.OrdinalIgnoreCase));
+            if (matchingRepo != null)
+            {
+                var repoName = Path.GetFileName(matchingRepo.Path.TrimEnd('/', '\\')) ?? matchingRepo.Path;
+                badges |= new Badge($"Repo: {repoName}").Color(Colors.Purple).Variant(BadgeVariant.Secondary).Small();
+            }
+            else if (path.Contains("/plugins/", StringComparison.OrdinalIgnoreCase) || path.Contains("/plugin/", StringComparison.OrdinalIgnoreCase))
+            {
+                var pluginName = ExtractPluginName(path);
+                if (!string.IsNullOrEmpty(pluginName))
+                    badges |= new Badge($"Plugin: {pluginName}").Color(Colors.Purple).Variant(BadgeVariant.Secondary).Small();
+            }
+            else if (path.Contains(".gemini", StringComparison.OrdinalIgnoreCase) || path.Contains("Global", StringComparison.OrdinalIgnoreCase))
+            {
+                badges |= new Badge("Global").Color(Colors.Blue).Variant(BadgeVariant.Secondary).Small();
+            }
+            else
+            {
+                badges |= new Badge("Project").Color(Colors.Blue).Variant(BadgeVariant.Secondary).Small();
+            }
+
+            // Header row of skill card
+            var cardHeader = Layout.Horizontal().AlignContent(Align.Left).Width(Size.Full())
+                | Text.Block(skill.Name).Bold().Small()
+                | badges
+                | new Spacer()
+                | (Layout.Horizontal().AlignContent(Align.Right)
+                    | new Button().Icon(Icons.Copy).Ghost().Small().Tooltip("Copy skill path").OnClick(() =>
+                    {
+                        if (!string.IsNullOrWhiteSpace(skill.Path))
+                        {
+                            copyToClipboard(skill.Path);
+                            client.Toast("Copied skill path to clipboard", "Copied");
+                        }
+                    })
+                    | (_onEdit != null ? new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => _onEdit(idx)) : null)
+                    | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
+                    {
+                        var current = new List<ProjectSkillRef>(_skills.Value);
+                        current.RemoveAt(idx);
+                        _skills.Set(current);
+                    }));
+
+            // Description row
+            var cardBody = Text.Block(string.IsNullOrWhiteSpace(skill.Description) ? "No description provided." : skill.Description).Muted().Small();
+
+            var card = Layout.Vertical()
+                | cardHeader
+                | cardBody;
+
+            if (i > 0)
+            {
+                cards |= new Separator();
+            }
+            cards |= card;
+        }
+
+        var scrollableCards = list.Count > 5
+            ? (Layout.Vertical().Height(Size.Rem(18)).Scroll(Scroll.Auto) | cards)
+            : cards;
+
+        var containerBox = new Box(scrollableCards)
+            .BorderRadius(BorderRadius.Rounded)
+            .BorderColor(Colors.Slate, 0.2f)
+            .Width(Size.Full());
+
+        var content = Layout.Vertical()
+            | containerBox
+            | (Layout.Horizontal().AlignContent(Align.Left)
+                | (_onEdit != null ? new Button("Add Custom Skill").Icon(Icons.Plus).Outline().Small().OnClick(() => _onEdit(null)) : null)
+                | (_onImport != null ? new Button("Import from Repository").Icon(Icons.Download).Outline().Small().OnClick(_onImport) : null));
+
+        return new Expandable(header, content).Open(true);
+    }
+
+    private static string? ExtractPluginName(string path)
+    {
+        var idx = path.IndexOf("/plugins/", StringComparison.OrdinalIgnoreCase);
+        if (idx >= 0)
+        {
+            var remainder = path[(idx + "/plugins/".Length)..];
+            var slashIdx = remainder.IndexOf('/');
+            return slashIdx > 0 ? remainder[..slashIdx] : remainder;
+        }
+        return null;
+    }
 }
 
 public class ReviewActionsTableView(
