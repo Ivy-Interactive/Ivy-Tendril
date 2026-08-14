@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.Settings.Blades;
+using Ivy.Tendril.Apps.Settings.Dialogs;
 using Ivy.Tendril.Apps.Settings.Sheets;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
@@ -56,6 +57,12 @@ public class ProjectDetailView(
         var (memorySheet, openMemorySheet) = UseTrigger((IState<bool> isOpen, string? editingFileName) =>
             new EditProjectMemorySheet(isOpen, config.TendrilHome, projectIndex >= 0 && projectIndex < projects.Count ? projects[projectIndex].Name : "", editingFileName, memoryRefresh));
 
+        var (importMcpDialog, openImportMcpDialog) = UseTrigger((IState<bool> isOpen) =>
+            new ImportRepoAssetsDialog(isOpen, ImportAssetKind.McpServers, projectIndex >= 0 && projectIndex < projects.Count ? projects[projectIndex].Name : "", repos.Value, config, client, mcpServers: mcpServers));
+
+        var (importSkillsDialog, openImportSkillsDialog) = UseTrigger((IState<bool> isOpen) =>
+            new ImportRepoAssetsDialog(isOpen, ImportAssetKind.Skills, projectIndex >= 0 && projectIndex < projects.Count ? projects[projectIndex].Name : "", repos.Value, config, client, skills: skills));
+
         if (projectIndex < 0 || projectIndex >= projects.Count)
         {
             return Layout.Vertical()
@@ -92,7 +99,7 @@ public class ProjectDetailView(
             {
                 SaveProjectChanges();
             }
-        }, [projectColor, autoImplement, repos, reviewActions, verifications]);
+        }, [projectColor, autoImplement, repos, reviewActions, verifications, mcpServers, skills]);
 
         // Color Picker Control at the top
         var colorInput = projectColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker);
@@ -161,7 +168,9 @@ public class ProjectDetailView(
             | Text.H4("Local Permissions").Bold()
             | Text.Block("MCP Tools & Servers").Bold().Small()
             | new McpServersTableView(mcpServers, idx => openMcpSheet(idx))
-            | new Button("Add MCP Server").Icon(Icons.Plus).Outline().Small().OnClick(() => openMcpSheet(null))
+            | (Layout.Horizontal().AlignContent(Align.Left)
+                | new Button("Add MCP Server").Icon(Icons.Plus).Outline().Small().OnClick(() => openMcpSheet(null))
+                | new Button("Import from Repository").Icon(Icons.Download).Outline().Small().OnClick(() => openImportMcpDialog()))
             | new Separator()
 
             // Section 7: Customizations
@@ -172,7 +181,9 @@ public class ProjectDetailView(
 
             | Text.Block("Custom Skills").Bold().Small()
             | new SkillsTableView(skills, idx => openSkillSheet(idx))
-            | new Button("Add Custom Skill").Icon(Icons.Plus).Outline().Small().OnClick(() => openSkillSheet(null))
+            | (Layout.Horizontal().AlignContent(Align.Left)
+                | new Button("Add Custom Skill").Icon(Icons.Plus).Outline().Small().OnClick(() => openSkillSheet(null))
+                | new Button("Import from Repository").Icon(Icons.Download).Outline().Small().OnClick(() => openImportSkillsDialog()))
             | new Separator()
 
             // Section 8: Danger Zone
@@ -190,7 +201,9 @@ public class ProjectDetailView(
             | verificationTrigger
             | mcpSheet
             | skillSheet
-            | memorySheet;
+            | memorySheet
+            | importMcpDialog
+            | importSkillsDialog;
 
         return Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full()).Height(Size.Full())
             | innerContent;
