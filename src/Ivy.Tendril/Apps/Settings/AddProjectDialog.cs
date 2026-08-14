@@ -209,6 +209,6 @@ public class AddProjectDialog(
                 Layout.Vertical()
                 | activeView
             )
-        ).Width(Size.Rem(30));
+        ).Width(Size.Units(150));
     }
 }
