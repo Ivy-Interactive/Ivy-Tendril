@@ -844,3 +844,214 @@ button .text-muted {
   font-weight: 400 !important;
   color: var(--muted-foreground) !important;
 }
+
+/* Queued Messages Panel */
+.chat-queued-panel {
+  margin-bottom: 0.625rem;
+  background-color: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 10px);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.chat-queued-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background-color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+
+.chat-queued-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.chat-queued-title {
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.chat-queued-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  background-color: var(--accent);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+
+.chat-queued-subtitle {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  margin-left: 0.25rem;
+}
+
+.chat-queued-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.chat-queued-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted-foreground);
+  padding: 0.25rem;
+  border-radius: var(--radius, 4px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.chat-queued-toggle-btn:hover {
+  color: var(--foreground);
+  background-color: var(--accent);
+}
+
+.chat-queued-chevron {
+  transition: transform 0.2s ease;
+}
+
+.chat-queued-chevron.collapsed {
+  transform: rotate(-90deg);
+}
+
+.chat-queued-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.chat-queued-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8125rem;
+  background-color: var(--background);
+  transition: background-color 0.15s ease;
+}
+
+.chat-queued-item:last-child {
+  border-bottom: none;
+}
+
+.chat-queued-item:hover {
+  background-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.chat-queued-item-text {
+  flex: 1;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.chat-queued-item-att-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  background-color: var(--muted);
+  border-radius: 4px;
+  padding: 0.0625rem 0.3125rem;
+}
+
+.chat-queued-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.chat-queued-item-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted-foreground);
+  padding: 0.25rem;
+  border-radius: var(--radius, 4px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.chat-queued-item-btn:hover {
+  color: var(--foreground);
+  background-color: var(--accent);
+}
+
+.chat-queued-item-btn.send:hover {
+  color: var(--primary);
+  background-color: color-mix(in srgb, var(--primary) 15%, transparent);
+}
+
+.chat-queued-item-btn.edit:hover {
+  color: var(--foreground);
+  background-color: var(--accent);
+}
+
+.chat-queued-item-btn.delete:hover {
+  color: var(--destructive);
+  background-color: color-mix(in srgb, var(--destructive) 15%, transparent);
+}
+
+.chat-queued-edit-container {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: 100%;
+}
+
+.chat-queued-edit-input {
+  flex: 1;
+  background-color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 4px);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--foreground);
+  outline: none;
+}
+
+.chat-queued-edit-input:focus {
+  border-color: var(--ring);
+}
+
+.chat-queued-item-btn.save {
+  color: var(--primary);
+}
+
+.chat-queued-item-btn.save:hover {
+  background-color: color-mix(in srgb, var(--primary) 15%, transparent);
+}
+
+.chat-queued-item-btn.cancel:hover {
+  color: var(--destructive);
+  background-color: color-mix(in srgb, var(--destructive) 15%, transparent);
+}
+
