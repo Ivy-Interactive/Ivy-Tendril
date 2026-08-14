@@ -61,11 +61,11 @@ public class ProjectMemoryTableView(
             catch { }
 
             // Header row of Memory card
-            var leftGroup = Layout.Horizontal().AlignContent(Align.Left)
-                | Text.Block(fileName).Bold().Small()
+            var leftGroup = Layout.Horizontal().AlignContent(Align.Left).Width(Size.Fit())
+                | Text.Inline(fileName).Bold().Small()
                 | new Badge("Memory").Color(Colors.Blue).Variant(BadgeVariant.Secondary).Small();
 
-            var rightGroup = Layout.Horizontal().AlignContent(Align.Right)
+            var rightGroup = Layout.Horizontal().AlignContent(Align.Right).Width(Size.Fit())
                 | new Button().Icon(Icons.Copy).Ghost().Small().Tooltip("Copy file path").OnClick(() =>
                 {
                     copyToClipboard(fullPath);
@@ -163,16 +163,12 @@ public class McpServersTableView : ViewBase
             var argsStr = srv.Arguments.Count > 0 ? " " + string.Join(" ", srv.Arguments) : "";
             var fullCmd = $"{srv.Command}{argsStr}";
 
-            // Badges
-            var badges = Layout.Horizontal().AlignContent(Align.Left);
-            badges |= new Badge("MCP").Color(Colors.Green).Variant(BadgeVariant.Secondary).Small();
-
             // Header row of MCP card
-            var leftGroup = Layout.Horizontal().AlignContent(Align.Left)
-                | Text.Block(srv.Name).Bold().Small()
-                | badges;
+            var leftGroup = Layout.Horizontal().AlignContent(Align.Left).Width(Size.Fit())
+                | Text.Inline(srv.Name).Bold().Small()
+                | new Badge("MCP").Color(Colors.Green).Variant(BadgeVariant.Secondary).Small();
 
-            var rightGroup = Layout.Horizontal().AlignContent(Align.Right)
+            var rightGroup = Layout.Horizontal().AlignContent(Align.Right).Width(Size.Fit())
                 | new Button().Icon(Icons.Copy).Ghost().Small().Tooltip("Copy command").OnClick(() =>
                 {
                     copyToClipboard(fullCmd);
@@ -270,39 +266,35 @@ public class SkillsTableView : ViewBase
         {
             var skill = list[i];
             var idx = i;
-
-            // Badges
-            var badges = Layout.Horizontal().AlignContent(Align.Left);
             var path = skill.Path ?? "";
+
+            // Header row of skill card
+            var leftGroup = Layout.Horizontal().AlignContent(Align.Left).Width(Size.Fit())
+                | Text.Inline(skill.Name).Bold().Small();
 
             // Check repo match
             var matchingRepo = _repos?.Value.FirstOrDefault(r => !string.IsNullOrEmpty(r.Path) && path.StartsWith(r.Path, StringComparison.OrdinalIgnoreCase));
             if (matchingRepo != null)
             {
                 var repoName = Path.GetFileName(matchingRepo.Path.TrimEnd('/', '\\')) ?? matchingRepo.Path;
-                badges |= new Badge($"Repo: {repoName}").Color(Colors.Purple).Variant(BadgeVariant.Secondary).Small();
+                leftGroup |= new Badge($"Repo: {repoName}").Color(Colors.Purple).Variant(BadgeVariant.Secondary).Small();
             }
             else if (path.Contains("/plugins/", StringComparison.OrdinalIgnoreCase) || path.Contains("/plugin/", StringComparison.OrdinalIgnoreCase))
             {
                 var pluginName = ExtractPluginName(path);
                 if (!string.IsNullOrEmpty(pluginName))
-                    badges |= new Badge($"Plugin: {pluginName}").Color(Colors.Purple).Variant(BadgeVariant.Secondary).Small();
+                    leftGroup |= new Badge($"Plugin: {pluginName}").Color(Colors.Purple).Variant(BadgeVariant.Secondary).Small();
             }
             else if (path.Contains(".gemini", StringComparison.OrdinalIgnoreCase) || path.Contains("Global", StringComparison.OrdinalIgnoreCase))
             {
-                badges |= new Badge("Global").Color(Colors.Blue).Variant(BadgeVariant.Secondary).Small();
+                leftGroup |= new Badge("Global").Color(Colors.Blue).Variant(BadgeVariant.Secondary).Small();
             }
             else
             {
-                badges |= new Badge("Project").Color(Colors.Blue).Variant(BadgeVariant.Secondary).Small();
+                leftGroup |= new Badge("Project").Color(Colors.Blue).Variant(BadgeVariant.Secondary).Small();
             }
 
-            // Header row of skill card
-            var leftGroup = Layout.Horizontal().AlignContent(Align.Left)
-                | Text.Block(skill.Name).Bold().Small()
-                | badges;
-
-            var rightGroup = Layout.Horizontal().AlignContent(Align.Right)
+            var rightGroup = Layout.Horizontal().AlignContent(Align.Right).Width(Size.Fit())
                 | new Button().Icon(Icons.Copy).Ghost().Small().Tooltip("Copy skill path").OnClick(() =>
                 {
                     if (!string.IsNullOrWhiteSpace(skill.Path))
