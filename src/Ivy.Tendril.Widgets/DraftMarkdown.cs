@@ -12,6 +12,21 @@ public record MarkdownAnnotation
 }
 
 /// <summary>
+/// A single question's answer, identified by the question's <c>id</c> in the <c>questions</c>
+/// YAML schema. <see cref="Answer" /> encodes all three answer states without a sentinel:
+/// <c>null</c> clears the question back to unanswered (removes the <c>answer</c> key), an empty
+/// list records an explicit skip (<c>answer: null</c>), and a non-empty list is the answer itself —
+/// one entry for a single-select or free-text question, several when the question's
+/// <c>multiple</c> is <c>true</c>.
+/// <para>
+/// Merging this back into the block's YAML is the host's job: find the question by <c>id</c> and
+/// set or delete its <c>answer</c> key. The widget's <c>setAnswer</c> in <c>questionsSource.ts</c>
+/// is the reference implementation of that merge.
+/// </para>
+/// </summary>
+public sealed record QuestionAnswer(string QuestionId, IReadOnlyList<string>? Answer);
+
+/// <summary>
 /// Renders plan markdown in its own internal scroll container, alongside a
 /// <c>StickyContent</c> slot that is pinned in place and unaffected by the
 /// markdown scroll. Use the slot for interactive elements that should stay put
@@ -50,6 +65,13 @@ public record DraftMarkdown : WidgetBase<DraftMarkdown>
 
     /// <summary>Fired when annotations are added, edited, or removed.</summary>
     [Event] public EventHandler<Event<DraftMarkdown, List<MarkdownAnnotation>>>? OnAnnotationsChange { get; init; }
+
+    /// <summary>
+    /// Fired when the user answers, skips, or clears a question in a <c>questions</c> block.
+    /// Subscribing is also what switches those blocks from a read-only callout to an interactive
+    /// picker; a host that does not subscribe renders exactly as before.
+    /// </summary>
+    [Event] public EventHandler<Event<DraftMarkdown, QuestionAnswer>>? OnAnswersChange { get; init; }
 }
 
 public static class DraftMarkdownExtensions
@@ -99,6 +121,21 @@ public static class DraftMarkdownExtensions
             OnAnnotationsChange = new(e =>
             {
                 handler(e.Value.ToImmutableList());
+                return ValueTask.CompletedTask;
+            }),
+        };
+
+    public static DraftMarkdown OnAnswersChange(
+        this DraftMarkdown w,
+        Func<Event<DraftMarkdown, QuestionAnswer>, ValueTask> handler
+    ) => w with { OnAnswersChange = new(handler) };
+
+    public static DraftMarkdown OnAnswersChange(this DraftMarkdown w, Action<QuestionAnswer> handler) =>
+        w with
+        {
+            OnAnswersChange = new(e =>
+            {
+                handler(e.Value);
                 return ValueTask.CompletedTask;
             }),
         };
