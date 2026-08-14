@@ -79,7 +79,27 @@ public record JobItem
     public int Priority { get; init; }
     public List<string>? WaitForJobIds { get; init; }
     public decimal? Cost { get; set; }
+
+    /// <summary>
+    /// Input + output tokens. Deliberately excludes the cache buckets below — the Dashboard, the
+    /// <c>Costs</c> table and <c>costs.csv</c> all aggregate this value, so its meaning must not
+    /// change. The cost breakdown sheet spells the exclusion out.
+    /// </summary>
     public int? Tokens { get; set; }
+
+    // Per-bucket breakdown behind Tokens/Cost, populated when the job is costed. Null for jobs
+    // completed before migration 019 (no backfill) and for jobs that reported no usage at all.
+    public int? InputTokens { get; set; }
+    public int? OutputTokens { get; set; }
+    public int? CacheReadTokens { get; set; }
+    public int? CacheWriteTokens { get; set; }
+    public int? ReasoningTokens { get; set; }
+
+    /// <summary>
+    /// Provenance of <see cref="Cost"/>: <c>"agent"</c> when the agent CLI reported the charge
+    /// itself, <c>"computed"</c> when it was derived locally from the model price list.
+    /// </summary>
+    public string? CostSource { get; set; }
 
     // Soft-cleared from the Jobs app; still shown in plan Details history
     public bool Cleared { get; set; }

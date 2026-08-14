@@ -675,8 +675,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand, Cleared, ProcessId, ReportedPlanId, ReportedPlanTitle, ReportedFailureReason)
-                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand, @cleared, @processId, @reportedPlanId, @reportedPlanTitle, @reportedFailureReason)
+                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand, Cleared, ProcessId, ReportedPlanId, ReportedPlanTitle, ReportedFailureReason, Model, InputTokens, OutputTokens, CacheReadTokens, CacheWriteTokens, ReasoningTokens, CostSource)
+                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand, @cleared, @processId, @reportedPlanId, @reportedPlanTitle, @reportedFailureReason, @model, @inputTokens, @outputTokens, @cacheReadTokens, @cacheWriteTokens, @reasoningTokens, @costSource)
                               """;
             cmd.Parameters.AddWithValue("@id", job.Id);
             cmd.Parameters.AddWithValue("@type", job.Type);
@@ -705,6 +705,13 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.Parameters.AddWithValue("@reportedPlanTitle", (object?)job.ReportedPlanTitle ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@reportedFailureReason",
                 (object?)job.ReportedFailureReason ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@model", (object?)job.Model ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@inputTokens", (object?)job.InputTokens ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@outputTokens", (object?)job.OutputTokens ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@cacheReadTokens", (object?)job.CacheReadTokens ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@cacheWriteTokens", (object?)job.CacheWriteTokens ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@reasoningTokens", (object?)job.ReasoningTokens ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@costSource", (object?)job.CostSource ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
     }
@@ -800,7 +807,28 @@ public class PlanDatabaseService : IPlanDatabaseService
                 : reader.GetString(reader.GetOrdinal("ReportedPlanTitle")),
             ReportedFailureReason = reader.IsDBNull(reader.GetOrdinal("ReportedFailureReason"))
                 ? null
-                : reader.GetString(reader.GetOrdinal("ReportedFailureReason"))
+                : reader.GetString(reader.GetOrdinal("ReportedFailureReason")),
+            Model = reader.IsDBNull(reader.GetOrdinal("Model"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("Model")),
+            InputTokens = reader.IsDBNull(reader.GetOrdinal("InputTokens"))
+                ? null
+                : reader.GetInt32(reader.GetOrdinal("InputTokens")),
+            OutputTokens = reader.IsDBNull(reader.GetOrdinal("OutputTokens"))
+                ? null
+                : reader.GetInt32(reader.GetOrdinal("OutputTokens")),
+            CacheReadTokens = reader.IsDBNull(reader.GetOrdinal("CacheReadTokens"))
+                ? null
+                : reader.GetInt32(reader.GetOrdinal("CacheReadTokens")),
+            CacheWriteTokens = reader.IsDBNull(reader.GetOrdinal("CacheWriteTokens"))
+                ? null
+                : reader.GetInt32(reader.GetOrdinal("CacheWriteTokens")),
+            ReasoningTokens = reader.IsDBNull(reader.GetOrdinal("ReasoningTokens"))
+                ? null
+                : reader.GetInt32(reader.GetOrdinal("ReasoningTokens")),
+            CostSource = reader.IsDBNull(reader.GetOrdinal("CostSource"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("CostSource"))
         };
     }
 
