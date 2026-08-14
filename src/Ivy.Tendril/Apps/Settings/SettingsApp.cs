@@ -141,12 +141,12 @@ public class SettingsApp : ViewBase
                         else selected.Set(TagCodingAgent);
                         refreshToken.Refresh();
                         client.Toast($"Deleted project '{name}'", "Deleted");
-                    });
+                    }).Key($"project:{projects[projIdx].Name}");
             }
             else
             {
                 content = projects.Count > 0
-                    ? new ProjectDetailView(0, projects, config, client, refreshToken)
+                    ? new ProjectDetailView(0, projects, config, client, refreshToken).Key($"project:{projects[0].Name}")
                     : new CodingAgentSetupView();
             }
         }
@@ -163,7 +163,7 @@ public class SettingsApp : ViewBase
                 TagVerifications => new VerificationsSetupView(),
                 TagPromptwares => new PromptwaresSetupView(),
                 TagProjects => projects.Count > 0
-                    ? new ProjectDetailView(0, projects, config, client, refreshToken)
+                    ? new ProjectDetailView(0, projects, config, client, refreshToken).Key($"project:{projects[0].Name}")
                     : new CodingAgentSetupView(),
                 TagTunnel => new TunnelSetupView(),
                 TagAdvanced => new AdvancedSetupView(),

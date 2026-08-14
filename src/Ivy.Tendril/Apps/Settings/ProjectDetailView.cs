@@ -22,8 +22,6 @@ public class ProjectDetailView(
 {
     public override object? Build()
     {
-        var loadedProjectIndex = UseState(projectIndex);
-
         // Inline Name & Color Editing State
         var isEditingName = UseState(false);
         var editName = UseState(projectIndex >= 0 && projectIndex < projects.Count ? projects[projectIndex].Name : "");
@@ -72,7 +70,6 @@ public class ProjectDetailView(
         void SaveProjectChanges()
         {
             if (projectIndex < 0 || projectIndex >= projects.Count) return;
-            if (loadedProjectIndex.Value != projectIndex) return;
 
             var currentProj = projects[projectIndex];
             var changed = false;
@@ -128,31 +125,7 @@ public class ProjectDetailView(
             }
         }
 
-        UseEffect(() =>
-        {
-            if (projectIndex >= 0 && projectIndex < projects.Count)
-            {
-                var curProj = projects[projectIndex];
-
-                // If project selection switched, reload states from the newly selected project
-                if (loadedProjectIndex.Value != projectIndex)
-                {
-                    loadedProjectIndex.Set(projectIndex);
-                    editName.Set(curProj.Name);
-                    projectColor.Set(Enum.TryParse<Colors>(curProj.Color, true, out var col) ? col : Colors.Slate);
-                    autoImplement.Set(curProj.AutoImplementPlans == "Auto-Implement Plans" ? "Auto-Implement Plans" : "Always Ask Review");
-                    repos.Set(new List<RepoRef>(curProj.Repos));
-                    reviewActions.Set(new List<ReviewActionConfig>(curProj.ReviewActions));
-                    verifications.Set(new List<ProjectVerificationRef>(curProj.Verifications));
-                    mcpServers.Set(new List<ProjectMcpServerRef>(curProj.McpServers));
-                    skills.Set(new List<ProjectSkillRef>(curProj.Skills));
-                    isEditingName.Set(false);
-                    return;
-                }
-
-                SaveProjectChanges();
-            }
-        }, [loadedProjectIndex, projectColor, autoImplement, repos, reviewActions, verifications, mcpServers, skills]);
+        UseEffect(SaveProjectChanges, [projectColor, autoImplement, repos, reviewActions, verifications, mcpServers, skills]);
 
         if (projectIndex < 0 || projectIndex >= projects.Count)
         {
@@ -161,21 +134,6 @@ public class ProjectDetailView(
         }
 
         var project = projects[projectIndex];
-
-        // If projectIndex changed since initial state render, sync local states immediately for rendering
-        if (loadedProjectIndex.Value != projectIndex)
-        {
-            loadedProjectIndex.Set(projectIndex);
-            editName.Set(project.Name);
-            projectColor.Set(Enum.TryParse<Colors>(project.Color, true, out var col) ? col : Colors.Slate);
-            autoImplement.Set(project.AutoImplementPlans == "Auto-Implement Plans" ? "Auto-Implement Plans" : "Always Ask Review");
-            repos.Set(new List<RepoRef>(project.Repos));
-            reviewActions.Set(new List<ReviewActionConfig>(project.ReviewActions));
-            verifications.Set(new List<ProjectVerificationRef>(project.Verifications));
-            mcpServers.Set(new List<ProjectMcpServerRef>(project.McpServers));
-            skills.Set(new List<ProjectSkillRef>(project.Skills));
-            isEditingName.Set(false);
-        }
 
         // Color Picker Control at the top
         var colorInput = projectColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker);
