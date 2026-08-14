@@ -53,6 +53,12 @@ public static class QuestionValidationService
         // "block N:" is noise when there is only one block, and essential when there are several.
         var numbered = blocks.Count > 1;
 
+        // Question ids are addressed document-wide, not per block: an answer travels as an id and a
+        // value with no block alongside it, so two blocks reusing one id would leave it ambiguous
+        // which question was answered. This is the only component that sees every block at once, so
+        // the set spans them all instead of being reset per block.
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+
         for (var b = 0; b < blocks.Count; b++)
         {
             var block = blocks[b];
@@ -71,13 +77,13 @@ public static class QuestionValidationService
                 continue;
             }
 
-            ValidateBlock(block.Block!, block.Line, prefix, issues);
+            ValidateBlock(block.Block!, block.Line, prefix, ids, issues);
         }
 
         return issues;
     }
 
-    private static void ValidateBlock(QuestionsBlock block, int line, string prefix, List<QuestionIssue> issues)
+    private static void ValidateBlock(QuestionsBlock block, int line, string prefix, HashSet<string> ids, List<QuestionIssue> issues)
     {
         var questions = block.Questions;
 
@@ -91,11 +97,16 @@ public static class QuestionValidationService
             issues.Add(Error(line, prefix + $"{questions.Count} questions in one block; at most {MaxQuestionsPerBlock} are allowed"));
 
         for (var n = 0; n < questions.Count; n++)
-            ValidateQuestion(questions[n], line, $"{prefix}question {n + 1}: ", issues);
+            ValidateQuestion(questions[n], line, $"{prefix}question {n + 1}: ", ids, issues);
     }
 
-    private static void ValidateQuestion(PlanQuestion question, int line, string prefix, List<QuestionIssue> issues)
+    private static void ValidateQuestion(PlanQuestion question, int line, string prefix, HashSet<string> ids, List<QuestionIssue> issues)
     {
+        if (string.IsNullOrWhiteSpace(question.Id))
+            issues.Add(Error(line, prefix + "id is required"));
+        else if (!ids.Add(question.Id))
+            issues.Add(Error(line, prefix + $"duplicate question id '{question.Id}'"));
+
         if (string.IsNullOrWhiteSpace(question.Title))
             issues.Add(Error(line, prefix + "title is required"));
 

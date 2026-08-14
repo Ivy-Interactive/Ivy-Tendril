@@ -36,6 +36,14 @@ public record QuestionsBlock
 /// <summary>A single question inside a <see cref="QuestionsBlock" />.</summary>
 public record PlanQuestion
 {
+    /// <summary>
+    ///     Stable handle for this question. Required, and unique across the whole revision rather
+    ///     than just its own block: the UI reports an answer as an id and a value, with no block or
+    ///     position alongside it, so a collision anywhere in the document makes an answer ambiguous.
+    ///     Uniqueness is therefore checked by <c>QuestionValidationService</c>, which sees every block.
+    /// </summary>
+    public string Id { get; init; } = "";
+
     /// <summary>The question itself. Required.</summary>
     public string Title { get; init; } = "";
 

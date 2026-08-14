@@ -64,7 +64,8 @@ public class RevisionWriterTests : IDisposable
 
             ```questions
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 other: false
             ```
             """;
@@ -87,7 +88,8 @@ public class RevisionWriterTests : IDisposable
         const string invalid = """
             ```questions
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 options:
                   - title: First
                     value: jwt
@@ -110,7 +112,8 @@ public class RevisionWriterTests : IDisposable
         const string invalid = """
             ```questions
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 other: false
             ```
             """;
@@ -146,7 +149,8 @@ public class RevisionWriterTests : IDisposable
 
             ```questions
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 description: "{{bait}}"
                 options:
                   - title: First
@@ -173,7 +177,7 @@ public class RevisionWriterTests : IDisposable
     {
         // Splitting the document around the fence must not lose empty segments: a document that
         // opens with a blank line makes the first polished segment the empty string.
-        const string input = "\n\n```questions\nquestions:\n  - title: Which one?\n```\n\ntail\n";
+        const string input = "\n\n```questions\nquestions:\n  - id: q1\n    title: Which one?\n```\n\ntail\n";
 
         var written = File.ReadAllText(RevisionWriter.WriteNext(_planFolder, input, _config));
 
