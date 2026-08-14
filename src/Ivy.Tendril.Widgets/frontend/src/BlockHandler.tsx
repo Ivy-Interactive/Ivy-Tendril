@@ -1,7 +1,11 @@
-import React, { lazy, Suspense, useCallback, useState } from "react";
+import React, { lazy, Suspense, useCallback, useContext, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { prismTheme } from "./prismTheme";
 import { QuestionsCallout } from "./DraftMarkdown/QuestionsCallout";
+import { QuestionsAnswerContext } from "./DraftMarkdown/questionsContext";
+
+/** `questions`, or `questions_<n>` once `tagQuestionBlocks` has stamped the block's index on it. */
+const QUESTIONS_LANG = /^questions(?:_(\d+))?$/;
 
 const MermaidRenderer = lazy(() => import("./DraftMarkdown/MermaidRenderer").then((m) => ({ default: m.MermaidRenderer })));
 const GraphvizRenderer = lazy(() => import("./DraftMarkdown/GraphvizRenderer").then((m) => ({ default: m.GraphvizRenderer })));
@@ -34,6 +38,7 @@ export const BlockHandler: React.FC<React.HTMLAttributes<HTMLElement>> = ({ clas
   const match = /language-(\w+)/.exec(String(className || ""));
   const content = String(children).replace(/\n$/, "");
   const [copied, setCopied] = useState(false);
+  const onAnswer = useContext(QuestionsAnswerContext);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(content).then(() => {
@@ -61,8 +66,15 @@ export const BlockHandler: React.FC<React.HTMLAttributes<HTMLElement>> = ({ clas
       );
     }
 
-    if (lang === "questions") {
-      return <QuestionsCallout content={content} />;
+    const questions = QUESTIONS_LANG.exec(lang);
+    if (questions) {
+      return (
+        <QuestionsCallout
+          content={content}
+          blockIndex={questions[1] ? Number(questions[1]) : 0}
+          onAnswer={onAnswer}
+        />
+      );
     }
 
     const normalizedLang = lang === "xml" || lang === "html" || lang === "svg" ? "markup" : lang;

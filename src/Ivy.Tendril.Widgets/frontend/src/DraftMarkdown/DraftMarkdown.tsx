@@ -10,6 +10,9 @@ import { AlertBlockquote } from "./AlertBlockquote";
 import { ImageRenderer } from "./ImageRenderer";
 import { isLocalFileUrl, transformLocalFileUrl } from "./localFiles";
 import { getMarkdownPlugins } from "../math";
+import { tagQuestionBlocks } from "./questionsSource";
+import { QuestionsAnswerContext } from "./questionsContext";
+import type { AnswerCallback } from "./questionsContext";
 
 type IvyEventHandler = (eventName: string, widgetId: string, args: unknown[]) => void;
 
@@ -61,6 +64,26 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
   const [editPopover, setEditPopover] = useState<{ position: Position; annotation: MarkdownAnnotation } | null>(null);
 
   const annotationsEnabled = events.includes("OnAnnotationsChange");
+  const questionsEnabled = events.includes("OnAnswersChange");
+
+  // Reports one changed question. `Answer` carries all three states without a sentinel: null
+  // clears the question back to unanswered, an empty list is an explicit skip, and a non-empty
+  // list is the answer itself. The document is never merged here — the host decides how and
+  // whether to persist it.
+  const handleAnswer = useCallback<AnswerCallback>(
+    (questionId, answer) => {
+      if (!eventHandler) return;
+
+      const value =
+        answer === undefined ? null : answer === null ? [] : Array.isArray(answer) ? answer : [answer];
+
+      eventHandler("OnAnswersChange", id, [{ QuestionId: questionId, Answer: value }]);
+    },
+    [eventHandler, id],
+  );
+
+  // undefined puts every callout in read-only mode, mirroring how annotations gate on their event.
+  const answerCallback = questionsEnabled ? handleAnswer : undefined;
 
   const fireAnnotationsChange = useCallback(
     (newAnnotations: MarkdownAnnotation[]) => {
@@ -262,9 +285,30 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
     [dangerouslyAllowLocalFiles],
   );
 
+  // react-markdown wraps an overridden `code` element in a `pre`. A question form is flow content
+  // and does not belong inside one — inputs there inherit the monospace stack — so the wrapper is
+  // dropped for questions blocks only.
+  const pre = useCallback((props: React.HTMLAttributes<HTMLPreElement>) => {
+    const { children, ...rest } = props;
+    const only = React.Children.count(children) === 1 ? React.Children.toArray(children)[0] : null;
+
+    if (React.isValidElement<{ className?: string }>(only)) {
+      if (/(^|\s)language-questions(_\d+)?(\s|$)/.test(String(only.props.className ?? ""))) {
+        return <>{children}</>;
+      }
+    }
+
+    return <pre {...rest}>{children}</pre>;
+  }, []);
+
   // Math plugins are added only when the content actually contains math
   // delimiters, so plain plan markdown skips the extra KaTeX pass entirely.
   const plugins = useMemo(() => getMarkdownPlugins(content), [content]);
+
+  // Each top-level `questions` fence gets its index stamped onto its info line, which is how the
+  // renderer learns which block it is dispatching. The info line is never rendered, so annotation
+  // offsets — computed over rendered text — are unaffected.
+  const tagged = useMemo(() => tagQuestionBlocks(content), [content]);
 
   const fixed = slots?.StickyContent;
   const hasFixed = !!fixed && React.Children.count(fixed) > 0;
@@ -278,14 +322,16 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
     <div className="pmv-shell" style={shellStyle}>
       <div className="pmv-body">
         <div ref={contentRef} className={article ? "pmv-markdown pmv-article" : "pmv-markdown"}>
-          <Markdown
-            remarkPlugins={plugins.remarkPlugins}
-            rehypePlugins={plugins.rehypePlugins}
-            urlTransform={urlTransform}
-            components={{ a: anchor, code: BlockHandler, blockquote: AlertBlockquote, img: ImageRenderer }}
-          >
-            {content}
-          </Markdown>
+          <QuestionsAnswerContext.Provider value={answerCallback}>
+            <Markdown
+              remarkPlugins={plugins.remarkPlugins}
+              rehypePlugins={plugins.rehypePlugins}
+              urlTransform={urlTransform}
+              components={{ a: anchor, code: BlockHandler, pre, blockquote: AlertBlockquote, img: ImageRenderer }}
+            >
+              {tagged}
+            </Markdown>
+          </QuestionsAnswerContext.Provider>
         </div>
       </div>
       {hasFixed && <div className="pmv-sticky">{fixed}</div>}
