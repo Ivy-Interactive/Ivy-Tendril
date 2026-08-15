@@ -77,6 +77,10 @@ public class ChatApp : ViewBase
         }
 
         var activeSession = activeSessionId.Value != null ? chatService.GetSession(activeSessionId.Value) : null;
+        if (activeSession != null)
+        {
+            chatService.ClearSessionCompleted(activeSession.Id);
+        }
 
         if (activeSession != null && lastSyncedSessionId.Value != activeSession.Id)
         {

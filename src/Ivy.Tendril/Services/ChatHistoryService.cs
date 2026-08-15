@@ -12,6 +12,7 @@ public class ChatHistoryService : IChatHistoryService
     private readonly IConfigService _configService;
     private readonly ConcurrentDictionary<string, ChatSessionModel> _sessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _generatingSessions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, byte> _completedSessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _lock = new();
 
     public event EventHandler? SessionsChanged;
@@ -24,11 +25,13 @@ public class ChatHistoryService : IChatHistoryService
         bool changed;
         if (isGenerating)
         {
+            _completedSessions.TryRemove(sessionId, out _);
             changed = _generatingSessions.TryAdd(sessionId, 0);
         }
         else
         {
             changed = _generatingSessions.TryRemove(sessionId, out _);
+            _completedSessions.TryAdd(sessionId, 0);
         }
 
         if (changed)
@@ -40,6 +43,20 @@ public class ChatHistoryService : IChatHistoryService
     public IReadOnlySet<string> GetGeneratingSessionIds()
     {
         return _generatingSessions.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    public IReadOnlySet<string> GetCompletedSessionIds()
+    {
+        return _completedSessions.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    public void ClearSessionCompleted(string sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return;
+        if (_completedSessions.TryRemove(sessionId, out _))
+        {
+            GeneratingSessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
