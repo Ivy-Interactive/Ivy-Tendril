@@ -81,7 +81,7 @@ public class ContentView(
             selectedPlan?.FolderPath ?? "",
             async (folderPath, ct) => await Task.Run(() => LoadPlanContent(folderPath), ct),
             initialValue: new PlanContentData(null,
-                new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(), new Dictionary<string, bool>(), null)
+                new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(), new Dictionary<string, bool>(), null, new GitTabDataBuilder.GitTabData([], []))
         );
 
         // Authentication effects (was UseAuthenticationEffects)
@@ -233,7 +233,7 @@ public class ContentView(
         else
         {
             var planData = planContentQuery.Value;
-            var gitData = GitTabDataBuilder.BuildGitTabData(planData.CommitRows, selectedPlan!, config, gitService);
+            var gitData = planData.GitData ?? new GitTabDataBuilder.GitTabData([], []);
             var gitItemCount = GitTabDataBuilder.CountGitItems(gitData, selectedPlan!);
 
             var gitTabView = new GitTabView(
@@ -249,20 +249,24 @@ public class ContentView(
                 null,
                 null);
 
+            var isPlanSelected = selectedTab.Value == 0;
+            var isDetailsSelected = selectedTab.Value == 1;
+            var isGitSelected = selectedTab.Value == 2;
+
             var tabList = new List<Tab>
             {
                 // DraftMarkdown owns its own scroll and the pinned StickyContent slot,
                 // so it is not wrapped in Cap() (whose outer scroll would also scroll the
                 // pinned element). The widget reproduces Cap()'s left inset + max-width.
-                new Tab("Plan", planTabContent),
-                new Tab("Details", Cap(new DetailsTabView(selectedPlan!,
+                new Tab("Plan", isPlanSelected ? planTabContent : new Empty()),
+                new Tab("Details", isDetailsSelected ? Cap(new DetailsTabView(selectedPlan!,
                     jobService.GetJobsForPlan(selectedPlan!.FolderName),
                     showDebugJob, planService, selectedPlanState, refreshPlans,
-                    folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath))))),
+                    folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath)))) : new Empty()),
             };
 
             if (gitItemCount > 0)
-                tabList.Add(new Tab("Git", Cap(gitTabView)).Badge(gitItemCount.ToString()));
+                tabList.Add(new Tab("Git", isGitSelected ? Cap(gitTabView) : new Empty()).Badge(gitItemCount.ToString()));
 
             var tabs = Layout.Tabs(tabList.ToArray())
                 .OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).RemoveParentPadding();
@@ -364,7 +368,8 @@ public class ContentView(
         if (selectedPlan is null)
             return new PlanContentData(null,
                 new Dictionary<string, List<string>>(), [],
-                new Dictionary<string, bool>(), null);
+                new Dictionary<string, bool>(), null,
+                new GitTabDataBuilder.GitTabData([], []));
 
         var summaryPath = Path.Combine(folderPath, "Artifacts", "summary.md");
         var summaryMd = File.Exists(summaryPath) ? FileHelper.ReadAllText(summaryPath) : null;
@@ -373,13 +378,15 @@ public class ContentView(
 
         var commitRows = PlanContentHelpers.BuildCommitRows(selectedPlan, config, gitService);
 
+        var gitData = GitTabDataBuilder.BuildGitTabData(commitRows, selectedPlan, config, gitService);
+
         var allChanges = PlanContentHelpers.GetAllChangesData(selectedPlan, config, gitService);
 
         var verReports = selectedPlan.Verifications.ToDictionary(
             v => v.Name,
             v => File.Exists(Path.Combine(folderPath, "Verification", $"{v.Name}.md")));
 
-        return new PlanContentData(summaryMd, artifacts, commitRows, verReports, allChanges);
+        return new PlanContentData(summaryMd, artifacts, commitRows, verReports, allChanges, gitData);
     }
 
     private PendingAnnotationsDialog? BuildAnnotationsGuardDialog(
@@ -611,5 +618,6 @@ public class ContentView(
         Dictionary<string, List<string>> Artifacts,
         List<PlanContentHelpers.CommitRow> CommitRows,
         Dictionary<string, bool> VerificationReports,
-        PlanContentHelpers.AllChangesData? AllChanges);
+        PlanContentHelpers.AllChangesData? AllChanges,
+        GitTabDataBuilder.GitTabData? GitData);
 }

@@ -73,7 +73,7 @@ public class ChangesTabView(
                 "The plan may have been created in the wrong project.", "Wrong project?");
         }
 
-        var allFileDiffs = PlanContentHelpers.SplitDiffByFile(changesData);
+        var allFileDiffs = changesData.FileDiffs ?? PlanContentHelpers.SplitDiffByFile(changesData);
 
         if (allFileDiffs.Count == 0 && changesData.Files.Count == 0)
             return Text.Muted("No file changes.");
