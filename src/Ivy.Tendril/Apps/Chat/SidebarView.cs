@@ -59,11 +59,19 @@ public class SidebarView(
                 var formattedDate = sess.UpdatedAt.ToString("M/d, h:mm tt");
                 var displayTitle = string.IsNullOrWhiteSpace(sess.Title) ? "New Chat" : sess.Title;
 
-                var textStack = Layout.Vertical().Gap(1).AlignContent(Align.Left)
+                var textStack = Layout.Vertical().AlignContent(Align.Left)
                     | Text.Literal(displayTitle).Small()
                     | Text.Muted($"{formattedDate} • {sess.AgentId}").Small();
 
-                var actionButtons = Layout.Horizontal().Gap(1).AlignContent(Align.Center)
+                var sessionBtn = new Button()
+                    .Width(Size.Full())
+                    .Content(textStack)
+                    .OnClick(() => activeSessionId.Set(sess.Id))
+                    .BorderRadius(BorderRadius.None);
+
+                var sessionBtnStyled = isSelected ? sessionBtn.Secondary() : sessionBtn.Ghost();
+
+                var actionButtons = Layout.Horizontal().AlignContent(Align.Center)
                     | new Button()
                         .Icon(Icons.Pencil)
                         .Ghost()
@@ -89,20 +97,12 @@ public class SidebarView(
                             }
                         });
 
-                var rowLayout = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween)
-                    | textStack
+                return Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween)
+                    | sessionBtnStyled
                     | actionButtons;
-
-                var rowBtn = new Button()
-                    .Width(Size.Full())
-                    .Content(rowLayout)
-                    .OnClick(() => activeSessionId.Set(sess.Id))
-                    .BorderRadius(BorderRadius.None);
-
-                return isSelected ? rowBtn.Secondary() : rowBtn.Ghost();
             }));
         }
 
-        return new HeaderLayout(sidebarHeader, sidebarContent);
+        return new HeaderLayout(sidebarHeader, sidebarContent).Scroll(Scroll.None);
     }
 }
