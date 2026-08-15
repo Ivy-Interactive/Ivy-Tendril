@@ -66,8 +66,7 @@ public class SettingsApp : ViewBase
             ("Promptwares", TagPromptwares, Icons.Wand),
             ("Levels", TagLevels, Icons.ListOrdered),
             ("Notifications", TagNotifications, Icons.Bell),
-            ("Security", TagSecurity, Icons.Lock),
-            ("Tunnel", TagTunnel, Icons.Globe),
+            ("Security & Tunnel", TagSecurity, Icons.Lock),
             ("Advanced", TagAdvanced, Icons.Cog),
         };
 
@@ -110,8 +109,7 @@ public class SettingsApp : ViewBase
         rows.Add(SidebarListRow.Build("Promptwares", Icons.Wand, () => selected.Set(TagPromptwares), selectedTag == TagPromptwares));
         rows.Add(SidebarListRow.Build("Levels", Icons.ListOrdered, () => selected.Set(TagLevels), selectedTag == TagLevels));
         rows.Add(SidebarListRow.Build("Notifications", Icons.Bell, () => selected.Set(TagNotifications), selectedTag == TagNotifications));
-        rows.Add(SidebarListRow.Build("Security", Icons.Lock, () => selected.Set(TagSecurity), selectedTag == TagSecurity));
-        rows.Add(SidebarListRow.Build("Tunnel", Icons.Globe, () => selected.Set(TagTunnel), selectedTag == TagTunnel));
+        rows.Add(SidebarListRow.Build("Security & Tunnel", Icons.Lock, () => selected.Set(TagSecurity), selectedTag == TagSecurity || selectedTag == TagTunnel));
         rows.Add(SidebarListRow.Build("Advanced", Icons.Cog, () => selected.Set(TagAdvanced), selectedTag == TagAdvanced));
         rows.Add(SidebarListRow.Build("Open config.yaml", Icons.FileText, () => ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost), false));
 
@@ -156,12 +154,12 @@ public class SettingsApp : ViewBase
                 TagAppearance => new AppearanceSetupView(),
                 TagNotifications => new NotificationsSetupView(),
                 TagSecurity => new SecuritySetupView(),
+                TagTunnel => new SecuritySetupView(),
                 TagLevels => new LevelsSetupView(),
                 TagPromptwares => new PromptwaresSetupView(),
                 TagProjects => projects.Count > 0
                     ? new ProjectDetailView(0, projects, config, client, refreshToken).Key($"project:{projects[0].Name}")
                     : new CodingAgentSetupView(),
-                TagTunnel => new TunnelSetupView(),
                 TagAdvanced => new AdvancedSetupView(),
                 _ => new CodingAgentSetupView()
             };
