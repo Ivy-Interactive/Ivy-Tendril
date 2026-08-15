@@ -5,6 +5,7 @@ using Xunit;
 
 namespace Ivy.Tendril.Test;
 
+[Collection("TendrilHome")]
 public class PromptwareHelperTests : IDisposable
 {
     private readonly string? _originalTendrilHome;

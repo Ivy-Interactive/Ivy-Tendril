@@ -63,6 +63,13 @@ public class SidebarView(
                     | Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis)
                     | Text.Muted($"{formattedDate} • {sess.AgentId}").Small().NoWrap().Overflow(Overflow.Ellipsis);
 
+                var sessionBtn = new Button()
+                    .Width(Size.Grow())
+                    .Content(textStack)
+                    .OnClick(() => activeSessionId.Set(sess.Id))
+                    .BorderRadius(BorderRadius.None)
+                    .Ghost();
+
                 var actionButtons = Layout.Horizontal().AlignContent(Align.Center).Width(Size.Fit())
                     | new Button()
                         .Icon(Icons.Pencil)
@@ -90,16 +97,10 @@ public class SidebarView(
                         });
 
                 var rowLayout = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween)
-                    | textStack
+                    | sessionBtn
                     | actionButtons;
 
-                var rowBtn = new Button()
-                    .Width(Size.Full())
-                    .Content(rowLayout)
-                    .OnClick(() => activeSessionId.Set(sess.Id))
-                    .BorderRadius(BorderRadius.None);
-
-                return isSelected ? rowBtn.Secondary() : rowBtn.Ghost();
+                return isSelected ? rowLayout.Background(Colors.Secondary) : rowLayout;
             }));
         }
 
