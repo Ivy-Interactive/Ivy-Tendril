@@ -106,6 +106,7 @@ public class ChangesTabView(
             var path = fileDiff.FilePath;
             diffsLayout |= new PlanDiffView
             {
+                Key = $"{selectedPlan.Id}:{path}",
                 Diff = fileDiff.Diff,
                 FilePath = path,
                 Collapsible = true,

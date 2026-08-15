@@ -185,7 +185,7 @@ export function useIsNarrow(): [React.RefObject<HTMLDivElement | null>, boolean]
       setIsNarrow((prev) => (prev === next ? prev : next));
     };
 
-    update(element.clientWidth);
+    update(element.clientWidth || element.getBoundingClientRect?.().width || 0);
 
     const observer = new ResizeObserver((entries) => {
       if (entries.length === 0) return;
@@ -355,14 +355,22 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
     }
   }, [diff]);
 
-  const [collapsedState, setCollapsedState] = useState<Record<number, boolean>>({});
+  const [collapsedState, setCollapsedState] = useState<Record<string, boolean>>({});
   const [activeFormKeys, setActiveFormKeys] = useState<Record<string, boolean>>({});
   const [editingCommentKeys, setEditingCommentKeys] = useState<Record<string, string>>({});
   const [activeDropdownIndex, setActiveDropdownIndex] = useState<number | null>(null);
-  const [commentsHidden, setCommentsHidden] = useState<Record<number, boolean>>({});
+  const [commentsHidden, setCommentsHidden] = useState<Record<string, boolean>>({});
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const dropdownTriggerRef = useRef<HTMLButtonElement | null>(null);
   const dropdownMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setCollapsedState({});
+    setCommentsHidden({});
+    setActiveFormKeys({});
+    setEditingCommentKeys({});
+    setActiveDropdownIndex(null);
+  }, [id, diff, filePath]);
 
   const updateDropdownPosition = useCallback(() => {
     const trigger = dropdownTriggerRef.current;
@@ -604,14 +612,15 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       {files.map((file, fileIndex) => {
         const { oldName, newName, isRename, hasHeader, elementId } = fileMeta[fileIndex];
         const effectiveFilePath = filePath || newName || oldName;
+        const fileKey = effectiveFilePath || file.newPath || file.oldPath || `diff-${fileIndex}`;
 
-        const isCollapsed = collapsedState[fileIndex] ?? defaultCollapsed;
+        const isCollapsed = collapsedState[fileKey] ?? defaultCollapsed;
 
         const toggleCollapsed = () => {
           if (!collapsible) return;
           setCollapsedState((prev) => ({
             ...prev,
-            [fileIndex]: !isCollapsed,
+            [fileKey]: !isCollapsed,
           }));
         };
 
@@ -712,7 +721,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                       e.stopPropagation();
                       setCollapsedState((prev) => ({
                         ...prev,
-                        [fileIndex]: !isCollapsed,
+                        [fileKey]: !isCollapsed,
                       }));
                     }}
                     className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] cursor-pointer select-none font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)] rounded px-1 py-0.5"
@@ -736,7 +745,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                   {/* Comment count / visibility toggle */}
                   {(() => {
                     const fileCommentCount = comments.length;
-                    const hidden = commentsHidden[fileIndex] ?? false;
+                    const hidden = commentsHidden[fileKey] ?? false;
                     return (
                       <button
                         type="button"
@@ -754,7 +763,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                         onClick={(e) => {
                           e.stopPropagation();
                           if (fileCommentCount === 0) return;
-                          setCommentsHidden((prev) => ({ ...prev, [fileIndex]: !hidden }));
+                          setCommentsHidden((prev) => ({ ...prev, [fileKey]: !hidden }));
                         }}
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
@@ -844,7 +853,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                     hunks={file.hunks}
                     tokens={fileTokens}
                     renderToken={customRenderToken}
-                    widgets={getWidgets(file.hunks, commentsHidden[fileIndex] ?? false)}
+                    widgets={getWidgets(file.hunks, commentsHidden[fileKey] ?? false)}
                     gutterEvents={{
                       onClick: ({ change }) => {
                         if (change) {

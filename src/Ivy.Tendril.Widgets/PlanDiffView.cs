@@ -75,6 +75,12 @@ public record PlanDiffView : WidgetBase<PlanDiffView>
 
 public static class PlanDiffViewExtensions
 {
+    public static PlanDiffView Key(this PlanDiffView w, string key)
+    {
+        w.Key = key;
+        return w;
+    }
+
     public static PlanDiffView Diff(this PlanDiffView w, string? diff) =>
         w with { Diff = diff };
 
