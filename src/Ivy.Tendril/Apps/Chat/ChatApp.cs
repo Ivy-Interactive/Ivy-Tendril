@@ -50,8 +50,6 @@ public class ChatApp : ViewBase
         var initialHandled = UseRef(false);
 
         var searchState = UseState("");
-        var renamingSessionId = UseState<string?>(null);
-        var renameText = UseState("");
 
         UseEffect(() =>
         {
@@ -367,8 +365,6 @@ public class ChatApp : ViewBase
             sessionVersion,
             selectedAgent,
             selectedModel,
-            renamingSessionId,
-            renameText,
             searchState,
             chatService
         );
@@ -393,12 +389,7 @@ public class ChatApp : ViewBase
             SendMessage
         );
 
-        var layoutView = new SidebarLayout(content, sidebar).SidebarContentScroll(Scroll.None);
-
-        return new Fragment(
-            layoutView,
-            new RenameSessionDialog(renamingSessionId, renameText, chatService, sessionVersion)
-        );
+        return new SidebarLayout(content, sidebar).SidebarContentScroll(Scroll.None);
     }
 
     internal static List<(string Id, string DisplayName)> GetModelsForAgent(IAgentRunner runner, string agentId)

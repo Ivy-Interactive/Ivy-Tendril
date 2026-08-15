@@ -125,4 +125,38 @@ describe("ChatWidget Queued Messages UI", () => {
     );
     expect(screen.queryByText("Queued Messages")).not.toBeInTheDocument();
   });
+
+  it("renders delete button next to chat title and emits OnDeleteSession", () => {
+    const handleEvent = vi.fn();
+    const session = {
+      id: "sess-123",
+      title: "My Great Chat",
+      agentId: "antigravity",
+      modelId: "gemini-3.7-flash",
+      createdAt: "2026-08-15T12:00:00Z",
+      updatedAt: "2026-08-15T12:30:00Z",
+      messages: [],
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-123"
+        sessions={[session]}
+        events={["OnDeleteSession"]}
+        eventHandler={handleEvent}
+      />
+    );
+
+    const deleteBtn = screen.getByRole("button", { name: /Delete chat session/i });
+    expect(deleteBtn).toBeInTheDocument();
+
+    fireEvent.click(deleteBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnDeleteSession",
+      "test-chat",
+      ["sess-123"]
+    );
+  });
 });
