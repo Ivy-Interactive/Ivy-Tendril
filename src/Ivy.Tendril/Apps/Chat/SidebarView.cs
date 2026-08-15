@@ -52,6 +52,7 @@ public class SidebarView(
         else
         {
             var generatingSessionIds = chatService.GetGeneratingSessionIds();
+            var completedSessionIds = chatService.GetCompletedSessionIds();
 
             sidebarContent = new List(filteredSessions.Select(sess =>
             {
@@ -59,22 +60,21 @@ public class SidebarView(
                 var formattedDate = sess.UpdatedAt.ToString("M/d, h:mm tt");
                 var displayTitle = string.IsNullOrWhiteSpace(sess.Title) ? "New Chat" : sess.Title;
                 var isGenerating = generatingSessionIds.Contains(sess.Id);
-                var lastMessage = sess.Messages.LastOrDefault();
-                var isWaiting = !isGenerating && lastMessage != null && lastMessage.Role.Equals("assistant", StringComparison.OrdinalIgnoreCase);
+                var isCompleted = !isGenerating && completedSessionIds.Contains(sess.Id) && sess.Id != activeSessionId.Value;
 
                 object metaLine;
                 if (isGenerating)
                 {
                     metaLine = Layout.Horizontal().AlignContent(Align.Left)
-                        | new Icon(Icons.LoaderCircle, Colors.Green).Small()
+                        | new Icon(Icons.LoaderCircle, Colors.Green).Small().WithAnimation(AnimationType.Rotate).Duration(1)
                         | Text.Success("Generating").Small()
                         | Text.Muted($"• {sess.AgentId}").Small();
                 }
-                else if (isWaiting)
+                else if (isCompleted)
                 {
                     metaLine = Layout.Horizontal().AlignContent(Align.Left)
-                        | new Icon(Icons.Clock, Colors.Amber).Small()
-                        | Text.Warning("Waiting for input").Small()
+                        | new Icon(Icons.Check, Colors.Green).Small()
+                        | Text.Success("Completed").Small()
                         | Text.Muted($"• {sess.AgentId}").Small();
                 }
                 else
@@ -82,15 +82,11 @@ public class SidebarView(
                     metaLine = Text.Muted($"{formattedDate} • {sess.AgentId}").Small().NoWrap().Overflow(Overflow.Ellipsis);
                 }
 
-                object titleBlock = isGenerating
+                object titleBlock = (isGenerating || isCompleted)
                     ? (Layout.Horizontal().AlignContent(Align.Left)
                         | new Icon(Icons.CircleDot, Colors.Green).Small()
                         | Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis))
-                    : isWaiting
-                        ? (Layout.Horizontal().AlignContent(Align.Left)
-                            | new Icon(Icons.CircleDot, Colors.Amber).Small()
-                            | Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis))
-                        : Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis);
+                    : Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis);
 
                 var textStack = Layout.Vertical().AlignContent(Align.Left).Width(Size.Full())
                     | titleBlock
@@ -99,7 +95,11 @@ public class SidebarView(
                 var sessionBtn = new Button()
                     .Width(Size.Full())
                     .Content(textStack)
-                    .OnClick(() => activeSessionId.Set(sess.Id))
+                    .OnClick(() =>
+                    {
+                        chatService.ClearSessionCompleted(sess.Id);
+                        activeSessionId.Set(sess.Id);
+                    })
                     .BorderRadius(BorderRadius.None);
 
                 return isSelected ? sessionBtn.Secondary() : sessionBtn.Ghost();
