@@ -50,35 +50,6 @@ public class ContentView(
 
         var githubService = UseService<IGithubService>();
         var agentRunner = UseService<IAgentRunner>();
-        var assigneesError = UseState<string?>(null);
-        var assigneesQuery = UseQuery<string[], string>(
-            selectedPlanState.Value?.Project ?? "",
-            async (_, _) =>
-            {
-                if (selectedPlanState.Value is null)
-                {
-                    assigneesError.Set(null);
-                    return Array.Empty<string>();
-                }
-                var repos = selectedPlanState.Value.GetEffectiveRepoPaths(config);
-                var repoPath = repos.FirstOrDefault();
-                if (repoPath is null)
-                {
-                    assigneesError.Set(null);
-                    return Array.Empty<string>();
-                }
-                var repoConfig = githubService.GetRepoConfigFromPathCached(repoPath);
-                if (repoConfig is null)
-                {
-                    assigneesError.Set(null);
-                    return Array.Empty<string>();
-                }
-                var (assignees, error) = await githubService.GetAssigneesAsync(repoConfig.Owner, repoConfig.Name);
-                assigneesError.Set(error);
-                return assignees.ToArray();
-            },
-            initialValue: Array.Empty<string>()
-        );
 
         var (discardDialog, showDiscardDialog) = UseTrigger((isOpen) =>
         {
@@ -96,7 +67,7 @@ public class ContentView(
         {
             if (!isOpen.Value) return null;
             return new CreatePrDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans,
-                assigneesQuery, assigneesError);
+                config, githubService);
         });
 
         var resetToDraftLogger = UseService<ILogger<ResetToDraftDialog>>();
