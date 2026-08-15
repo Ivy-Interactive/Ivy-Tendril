@@ -17,7 +17,6 @@ public class SettingsApp : ViewBase
     private const string TagNotifications = "notifications";
     private const string TagSecurity = "security";
     private const string TagLevels = "levels";
-    private const string TagVerifications = "verifications";
     private const string TagPromptwares = "promptwares";
     internal const string TagProjects = "projects";
     private const string TagTunnel = "tunnel";
@@ -64,7 +63,6 @@ public class SettingsApp : ViewBase
             ("Plans", TagPlans, Icons.Feather),
             ("Appearance", TagAppearance, Icons.Sun),
             ("Projects", TagProjects, Icons.Folder),
-            ("Verifications", TagVerifications, Icons.CircleCheck),
             ("Promptwares", TagPromptwares, Icons.Wand),
             ("Levels", TagLevels, Icons.ListOrdered),
             ("Notifications", TagNotifications, Icons.Bell),
@@ -109,7 +107,6 @@ public class SettingsApp : ViewBase
             rows.Add(SidebarListRow.BuildSubItem("Add Project", Icons.Plus, () => openAddProjectDialog(), false));
         }
 
-        rows.Add(SidebarListRow.Build("Verifications", Icons.CircleCheck, () => selected.Set(TagVerifications), selectedTag == TagVerifications));
         rows.Add(SidebarListRow.Build("Promptwares", Icons.Wand, () => selected.Set(TagPromptwares), selectedTag == TagPromptwares));
         rows.Add(SidebarListRow.Build("Levels", Icons.ListOrdered, () => selected.Set(TagLevels), selectedTag == TagLevels));
         rows.Add(SidebarListRow.Build("Notifications", Icons.Bell, () => selected.Set(TagNotifications), selectedTag == TagNotifications));
@@ -160,7 +157,6 @@ public class SettingsApp : ViewBase
                 TagNotifications => new NotificationsSetupView(),
                 TagSecurity => new SecuritySetupView(),
                 TagLevels => new LevelsSetupView(),
-                TagVerifications => new VerificationsSetupView(),
                 TagPromptwares => new PromptwaresSetupView(),
                 TagProjects => projects.Count > 0
                     ? new ProjectDetailView(0, projects, config, client, refreshToken).Key($"project:{projects[0].Name}")
