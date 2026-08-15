@@ -45,7 +45,7 @@ public class ContentView(
                     sessionVersion.Set(v => v + 1);
                 });
 
-            return Layout.Vertical().Gap(3).AlignContent(Align.Center).Width(Size.Full()).Height(Size.Full()).Padding(6)
+            return Layout.Vertical().AlignContent(Align.Center).Width(Size.Full()).Height(Size.Full())
                 | Icons.MessageSquare.ToIcon().Size(Size.Px(48)).Color(Colors.Muted)
                 | Text.H3("No Chat Selected")
                 | Text.Muted("Select an existing chat session from history or start a new chat.")
