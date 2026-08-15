@@ -220,6 +220,7 @@ public class TendrilSettings
     public Tunnel.TunnelConfig? Tunnel { get; set; }
     public bool Telemetry { get; set; } = true;
     public bool DesktopNotifications { get; set; } = true;
+    public bool SidebarOpen { get; set; } = true;
     public bool Beta { get; set; } = false;
     public string? DismissedUpdateVersion { get; set; }
 
