@@ -4,6 +4,8 @@ import { Mic, Bot, Cpu, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X,
 import ReactMarkdown from "react-markdown";
 import { AgentViewer } from "../AgentViewer";
 import { getMarkdownPlugins } from "../math";
+import { CodeBlock } from "../CodeBlock";
+import { AlertBlockquote } from "../DraftMarkdown/AlertBlockquote";
 import "./chat-widget.css";
 
 export interface ChatMessageDto {
@@ -571,7 +573,10 @@ export function ChatWidget({
                   ) : (
                     msg.content && (
                       <div className="chat-markdown-body">
-                        <ReactMarkdown {...getMarkdownPlugins(msg.content)}>
+                        <ReactMarkdown
+                          {...getMarkdownPlugins(msg.content)}
+                          components={{ code: CodeBlock, blockquote: AlertBlockquote }}
+                        >
                           {msg.content}
                         </ReactMarkdown>
                       </div>

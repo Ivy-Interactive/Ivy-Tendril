@@ -268,8 +268,8 @@
   margin: 0.5rem 0;
   padding: 4px 12px;
   border-left: 3px solid var(--aov-border-strong);
-  color: var(--aov-fg-muted);
-  background-color: rgba(39, 39, 42, 0.4);
+  color: var(--aov-fg);
+  background-color: color-mix(in srgb, var(--muted-foreground) 8%, transparent);
   border-radius: 0 4px 4px 0;
 }
 
@@ -342,15 +342,15 @@
 }
 
 .aov-tool-status--success {
-  background: #22c55e;
+  background: var(--green, #22c55e);
 }
 
 .aov-tool-status--error {
-  background: #ef4444;
+  background: var(--destructive, #ef4444);
 }
 
 .aov-tool-status--running {
-  background: #3b82f6;
+  background: var(--primary, #3b82f6);
   animation: aov-pulse 1.5s ease-in-out infinite;
 }
 
