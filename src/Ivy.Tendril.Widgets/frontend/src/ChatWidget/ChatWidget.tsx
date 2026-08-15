@@ -516,34 +516,30 @@ export function ChatWidget({
                 autoFocus
               />
             ) : (
-              <div className="chat-header-title-row">
-                <div className="chat-header-title-clickable" onClick={startHeaderTitleEdit} title="Click to rename chat">
-                  <h1 className="chat-main-title">
-                    {(activeSession && pendingRenames[activeSession.id]) || activeSession?.title || "New Chat"}
-                  </h1>
-                  <Pencil size={13} className="chat-title-pencil" />
-                </div>
-                {activeSession && (
-                  <button
-                    type="button"
-                    className="chat-header-delete-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      emit("OnDeleteSession", activeSession.id);
-                    }}
-                    title="Delete chat session"
-                    aria-label="Delete chat session"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                )}
+              <div className="chat-header-title-clickable" onClick={startHeaderTitleEdit} title="Click to rename chat">
+                <h1 className="chat-main-title">
+                  {(activeSession && pendingRenames[activeSession.id]) || activeSession?.title || "New Chat"}
+                </h1>
+                <Pencil size={13} className="chat-title-pencil" />
               </div>
             )}
           </div>
-          <div className="chat-header-badges">
-            <span className="chat-badge">{selectedAgent}</span>
-            <span className="chat-badge">{selectedModel}</span>
-          </div>
+          {activeSession && (
+            <div className="chat-header-actions">
+              <button
+                type="button"
+                className="chat-header-delete-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  emit("OnDeleteSession", activeSession.id);
+                }}
+                title="Delete chat session"
+                aria-label="Delete chat session"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Message List Container */}
