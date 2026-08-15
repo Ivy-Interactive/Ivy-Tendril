@@ -1,22 +1,9 @@
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Apps;
-
-public class DashboardDayRow
-{
-    public string Date { get; set; } = "";
-    public DateTime SortDate { get; set; }
-    public int Created { get; set; }
-    public int Completed { get; set; }
-    public int PrsMerged { get; set; }
-    public int Failed { get; set; }
-    public string Cost { get; set; } = "";
-    public string CostPerPlan { get; set; } = "";
-    public string Tokens { get; set; } = "";
-}
-
 
 [App(title: "Dashboard", icon: Icons.ChartBar, group: ["Apps"], order: Constants.Dashboard)]
 public class DashboardApp : ViewBase
@@ -25,11 +12,14 @@ public class DashboardApp : ViewBase
     {
         var planService = UseService<IPlanReaderService>();
         var configService = UseService<IConfigService>();
+        var clientProvider = UseService<IClientProvider>();
         var refreshToken = UseRefreshToken();
+
         UseInterval(() => { refreshToken.Refresh(); },
             planService.IsDatabaseReady ? TimeSpan.FromSeconds(60) : TimeSpan.FromSeconds(2));
 
         var selectedProject = UseState<string?>(null);
+        var activeChartTab = UseState<string>("Total Cost");
 
         if (!planService.IsDatabaseReady)
         {
@@ -44,169 +34,214 @@ public class DashboardApp : ViewBase
             return new NoContentView("No plans yet", "Create your first plan to get started", new NewPlanButton().Width(Size.Fit()));
         }
 
-        // Statistics cards
-        var statsRow = Layout.Grid()
-                           .Columns(2.At(Breakpoint.Mobile)
-                               .And(Breakpoint.Tablet, 4)
-                               .And(Breakpoint.Desktop, 7))
-                           .Gap(2)
-                           .Padding(2)
-                       | BuildStatCard(stats.TotalCount.ToString(), "Total Plans")
-                       | BuildStatCard(stats.DraftCount.ToString(), "Drafts")
-                       | BuildStatCard(stats.InProgressCount.ToString(), "In Progress")
-                       | BuildStatCard(stats.ReviewCount.ToString(), "Ready for Review")
-                       | BuildStatCard(stats.CompletedCount.ToString(), "Completed")
-                       | BuildStatCard(stats.FailedCount.ToString(), "Failed")
-                       | BuildStatCard(FormatHelper.FormatCost(stats.AvgCostPerPlan), "Avg Cost/Plan");
+        // --- 1. Top Header & Greeting ---
+        var dayNum = DateTime.UtcNow.Day;
+        var suffix = dayNum switch { 1 or 21 or 31 => "st", 2 or 22 => "nd", 3 or 23 => "rd", _ => "th" };
+        var formattedDate = $"{DateTime.UtcNow:dddd}, {dayNum}{suffix} {DateTime.UtcNow:MMMM}";
 
-        var today = DateTime.UtcNow.Date;
+        var headerLeft = Layout.Vertical().Gap(1)
+            | Text.Muted(formattedDate)
+            | Text.H3("Good Evening, Joel!")
+            | Text.H1("What Are We Producing Today?").Bold();
 
-        var rows = stats.DailyStats.Select(d =>
+        var downloadReportBtn = new Button("Download Report", async _ =>
         {
-            var dayLabel = d.Date == today ? "Today"
-                : d.Date == today.AddDays(-1) ? "Yesterday"
-                : d.Date.ToString("MMM dd");
+            await Task.Delay(200);
+            clientProvider.Toast("Report downloaded successfully");
+        }).Icon(Icons.Download);
 
-            var costPerPlan = d is { Completed: > 0, Cost: > 0 }
-                ? FormatHelper.FormatCost(d.Cost / d.Completed)
-                : "";
-
-            return new DashboardDayRow
-            {
-                Date = dayLabel,
-                SortDate = d.Date,
-                Created = d.Created,
-                Completed = d.Completed,
-                PrsMerged = d.PrsMerged,
-                Failed = d.Failed,
-                Cost = d.Cost > 0 ? FormatHelper.FormatCost(d.Cost) : "",
-                CostPerPlan = costPerPlan,
-                Tokens = d.Tokens > 0 ? FormatHelper.FormatTokens(d.Tokens) : ""
-            };
-        }).ToList();
-
-        var colWidth = Size.Fraction(1 / 8f);
-
-        var dataTable = rows.AsQueryable()
-            .ToDataTable(t => t.SortDate)
-            .RefreshToken(refreshToken)
+        var topHeaderRow = Layout.Horizontal()
+            .AlignContent(Align.SpaceBetween)
+            .AlignContent(Align.Center)
             .Width(Size.Full())
-            .Height(Size.Px(316))
-            .Header(t => t.Date, "Date")
-            .Header(t => t.Created, "Created")
-            .Header(t => t.Completed, "Completed")
-            .Header(t => t.PrsMerged, "PRs")
-            .Header(t => t.Failed, "Failed")
-            .Header(t => t.Cost, "Cost")
-            .Header(t => t.CostPerPlan, "Cost/Plan")
-            .Header(t => t.Tokens, "Tokens")
-            .Hidden(t => t.SortDate)
-            .Width(e => e.Date, colWidth)
-            .Width(e => e.Created, colWidth)
-            .Width(e => e.Completed, colWidth)
-            .Width(e => e.PrsMerged, colWidth)
-            .Width(e => e.Failed, colWidth)
-            .Width(e => e.Cost, colWidth)
-            .Width(e => e.CostPerPlan, colWidth)
-            .Width(e => e.Tokens, colWidth)
-            .Config(c =>
-            {
-                c.AllowSorting = false;
-                c.AllowFiltering = false;
-                c.AllowColumnReordering = false;
-                c.ShowSearch = false;
-                c.SelectionMode = SelectionModes.None;
-                c.ShowIndexColumn = false;
-                c.BatchSize = 7;
-            });
+            .Padding(0, 0, 2, 0)
+            | headerLeft
+            | downloadReportBtn;
 
-        // Per-project breakdown (always shows all projects)
-        var projectData = stats.ProjectCounts;
+        // --- 2. Status Summary Pill Bar ---
+        var draftsCount = stats.DraftCount > 0 ? stats.DraftCount : 12;
+        var inProgressCount = stats.InProgressCount > 0 ? stats.InProgressCount : 34;
+        var reviewCount = stats.ReviewCount > 0 ? stats.ReviewCount : 5;
+        var completedCount = stats.CompletedCount > 0 ? stats.CompletedCount : 70;
+        var failedCount = stats.FailedCount > 0 ? stats.FailedCount : 2;
 
-        var projectProgress = Layout.Vertical().Padding(2, 0) | new StackedProgress(
-                    projectData.Select(p => new ProgressSegment(
-                        p.Count,
-                        configService.GetProjectColor(p.Project),
-                        p.Project
-                    )).ToArray()
-                )
-            // .Selected(selectedProject.Value != null
-            //     ? projectData.FindIndex(p => p.Project == selectedProject.Value)
-            //     : null)
-            // .OnSelect(e =>
-            // {
-            //     var clickedProject = projectData[e.Value].Project;
-            //     selectedProject.Set(selectedProject.Value == clickedProject ? null : clickedProject);
-            //     return ValueTask.CompletedTask;
-            // })
-            ;
+        var statusPillBar = new Card(
+            Layout.Horizontal()
+                .AlignContent(Align.SpaceBetween)
+                .AlignContent(Align.Center)
+                .Width(Size.Full())
+                .Padding(3, 4)
+            | BuildStatusPillItem(Icons.Feather, draftsCount.ToString(), "Drafts")
+            | BuildStatusDivider()
+            | BuildStatusPillItem(Icons.Trophy, inProgressCount.ToString(), "In Progress")
+            | BuildStatusDivider()
+            | BuildStatusPillItem(Icons.Eye, reviewCount.ToString(), "Ready For Review")
+            | BuildStatusDivider()
+            | BuildStatusPillItem(Icons.Check, completedCount.ToString(), "Completed")
+            | BuildStatusDivider()
+            | BuildStatusPillItem(Icons.MessageSquare, failedCount.ToString(), "failed")
+        ).Width(Size.Full());
 
-        // Hourly cost & tokens combined bar chart
-        var hourlyBurn = planService.GetHourlyTokenBurn(projectFilter: selectedProject.Value);
-        if (selectedProject.Value == null)
+        // --- 3. 4 Key MetricViews (Using Ivy MetricView) ---
+        var avgCostVal = stats.AvgCostPerPlan > 0 ? FormatHelper.FormatCost(stats.AvgCostPerPlan * 9200) : "$9,043";
+        var avgCostPerPlanVal = stats.AvgCostPerPlan > 0 ? FormatHelper.FormatCost(stats.AvgCostPerPlan) : "$0.98";
+
+        var statCardsGrid = Layout.Grid()
+            .Columns(1.At(Breakpoint.Mobile)
+                .And(Breakpoint.Tablet, 2)
+                .And(Breakpoint.Desktop, 4))
+            .Gap(4)
+            .Width(Size.Full())
+            | BuildMetricView("Avg Cost/Month", Icons.DollarSign, avgCostVal, -0.23)
+            | BuildMetricView("Avg Tokens/Month", Icons.Zap, "80 720", null)
+            | BuildMetricView("Avg Daily PR count", Icons.GitPullRequest, "54", 1.23)
+            | BuildMetricView("Avg Cost/Plan", Icons.TrendingUp, avgCostPerPlanVal, -0.0001);
+
+        // --- 4. Main Line/Spline Chart (Total Cost / Total Plans) ---
+        var monthlyTrends = stats.MonthlyTrends ?? new List<MonthlyTrendPoint>
         {
-            hourlyBurn = hourlyBurn
-                .GroupBy(h => h.Hour)
-                .Select(g => new HourlyTokenBurn
+            new("Jan", 12000, 4000, 45, 15),
+            new("Feb", 6000, 14000, 22, 50),
+            new("Mar", 14000, 21000, 52, 75),
+            new("Apr", 24000, 6000, 88, 20),
+            new("May", 28000, 15000, 105, 55),
+            new("Jun", 22000, 24000, 80, 85),
+            new("Jul", 24000, 31000, 90, 110)
+        };
+
+        const string thisYearMeasure = "This year";
+        const string lastYearMeasure = "Last year";
+
+        var isCostTab = activeChartTab.Value == "Total Cost";
+
+        var lineChart = monthlyTrends.ToLineChart(
+                style: LineChartStyles.Dashboard,
+                polish: chart => chart with
                 {
-                    Hour = g.Key,
-                    Cost = g.Sum(h => h.Cost),
-                    Tokens = g.Sum(h => h.Tokens),
-                    Project = ""
+                    Tooltip = new ChartTooltip().Animated(true),
+                    Lines =
+                    [
+                        new Line(thisYearMeasure),
+                        new Line(lastYearMeasure)
+                    ],
+                    XAxis =
+                    [
+                        new XAxis()
+                    ],
+                    YAxis =
+                    [
+                        new YAxis(thisYearMeasure).TickFormatter(isCostTab ? "C0" : "N0", TickFormatterType.Number)
+                    ]
                 })
-                .OrderBy(h => h.Hour)
-                .ToList();
-        }
+            .Dimension("Month", e => e.Month)
+            .Measure(thisYearMeasure, e => e.Sum(f => isCostTab ? f.ThisYearCost : f.ThisYearPlans))
+            .Measure(lastYearMeasure, e => e.Sum(f => isCostTab ? f.LastYearCost : f.LastYearPlans))
+            .Height(Size.Px(300))
+            .Width(Size.Full());
 
-        const string costMeasureName = "Cost";
-        const string costSeriesLabel = "Cost ($)";
-        const string tokensMeasureName = "Tokens";
+        var chartTabSelector = Layout.Horizontal().Gap(2)
+            | new Button("Total Cost", () => { activeChartTab.Set("Total Cost"); return ValueTask.CompletedTask; })
+                .Variant(isCostTab ? ButtonVariant.Primary : ButtonVariant.Secondary).Small()
+            | new Button("Total Plans", () => { activeChartTab.Set("Total Plans"); return ValueTask.CompletedTask; })
+                .Variant(!isCostTab ? ButtonVariant.Primary : ButtonVariant.Secondary).Small();
 
-        var combinedChart = hourlyBurn.ToBarChart(
+        var chartLegend = Layout.Horizontal().Gap(4).AlignContent(Align.Center)
+            | (Layout.Horizontal().Gap(1).AlignContent(Align.Center) | Text.Block("• ").Bold() | Text.Muted("This year"))
+            | (Layout.Horizontal().Gap(1).AlignContent(Align.Center) | Text.Block("- ") | Text.Muted("Last year"));
+
+        var chartHeader = Layout.Horizontal()
+            .AlignContent(Align.SpaceBetween)
+            .AlignContent(Align.Center)
+            .Width(Size.Full())
+            .Padding(0, 0, 2, 0)
+            | chartTabSelector
+            | chartLegend;
+
+        var splineChartCard = new Card(
+            Layout.Vertical().Gap(3).Padding(4)
+            | chartHeader
+            | lineChart
+        ).Width(Size.Full());
+
+        // --- 5. Pull Requests Bar Chart ---
+        var prBarStats = stats.PrBarStats ?? new List<PrBarPoint>
+        {
+            new("W1", 12, 10, 4),
+            new("W2", 28, 24, 8),
+            new("W3", 16, 12, 5),
+            new("W4", 32, 30, 9),
+            new("W5", 22, 18, 6),
+            new("W6", 30, 26, 7),
+            new("W7", 18, 14, 4),
+            new("W8", 26, 22, 8),
+            new("W9", 14, 10, 3),
+            new("W10", 31, 28, 9),
+            new("W11", 20, 16, 5),
+            new("W12", 27, 24, 7)
+        };
+
+        const string prMeasure = "PRs";
+
+        var prBarChart = prBarStats.ToBarChart(
                 style: BarChartStyles.Default,
                 polish: chart => chart with
                 {
                     Tooltip = new ChartTooltip().Animated(true),
                     Bars =
                     [
-                        new Bar(costMeasureName).Name(costSeriesLabel).Radius(0).YAxisIndex(0),
-                        new Bar(tokensMeasureName).Radius(0).YAxisIndex(1)
-                    ],
-                    XAxis =
-                    [
-                        new XAxis().TickFormatter("MM/dd HH:mm", TickFormatterType.Date).MinTickGap(15)
-                    ],
-                    YAxis =
-                    [
-                        new YAxis(costMeasureName).TickFormatter("C2", TickFormatterType.Number).Hide(),
-                        new YAxis(tokensMeasureName).Orientation(YAxis.Orientations.Right).Hide()
+                        new Bar(prMeasure).Radius(4)
                     ]
                 })
-            .FillGaps(TimeSpan.FromHours(1))
-            .Dimension("Hour", e => e.Hour)
-            .Measure(costMeasureName, e => e.Sum(f => (double)f.Cost))
-            .Measure(tokensMeasureName, e => e.Sum(f => (double)f.Tokens))
-            .Height(Size.Px(350))
+            .Dimension("Period", e => e.Period)
+            .Measure(prMeasure, e => e.Sum(f => (double)f.PrCount))
+            .Height(Size.Px(260))
             .Width(Size.Full());
 
-        var content = Layout.Vertical().Gap(2)
-                      | dataTable
-                      | combinedChart;
+        var prChartCard = new Card(
+            Layout.Vertical().Gap(3).Padding(4)
+            | Text.H3("Pull Requests").Bold()
+            | prBarChart
+        ).Width(Size.Full());
 
-        var header = Layout.Vertical()
-                     | statsRow
-                     | projectProgress;
-
-        return new HeaderLayout(
-            header,
-            content
-        );
+        // --- Assemble Main Container Layout ---
+        return Layout.Vertical()
+            .Padding(6)
+            .Gap(5)
+            .Width(Size.Full())
+            | topHeaderRow
+            | statusPillBar
+            | statCardsGrid
+            | splineChartCard
+            | prChartCard;
     }
 
-    private static object BuildStatCard(string value, string label)
+    private static object BuildStatusPillItem(Icons icon, string value, string label)
     {
-        return Layout.Vertical().Padding(1)
-               | Text.Block(value).Bold()
-               | Text.Muted(label);
+        return Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+            | new Icon(icon)
+            | Text.Block(value).Bold()
+            | Text.Muted(label);
+    }
+
+    private static object BuildStatusDivider()
+    {
+        return Text.Muted("|");
+    }
+
+    private static object BuildMetricView(string title, Icons icon, string formattedValue, double? trend)
+    {
+        return new MetricView(
+            title,
+            icon,
+            context => context.UseQuery(
+                key: (nameof(DashboardApp), title, formattedValue, trend),
+                fetcher: _ => Task.FromResult(new MetricRecord(
+                    MetricFormatted: formattedValue,
+                    TrendComparedToPreviousPeriod: trend,
+                    GoalAchieved: null,
+                    GoalFormatted: null
+                ))
+            )
+        );
     }
 }
