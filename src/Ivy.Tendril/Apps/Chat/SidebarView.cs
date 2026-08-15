@@ -62,31 +62,17 @@ public class SidebarView(
                 var isGenerating = generatingSessionIds.Contains(sess.Id);
                 var isCompleted = !isGenerating && completedSessionIds.Contains(sess.Id) && sess.Id != activeSessionId.Value;
 
-                object metaLine;
-                if (isGenerating)
-                {
-                    metaLine = Layout.Horizontal().AlignContent(Align.Left)
-                        | new Icon(Icons.LoaderCircle, Colors.Green).Small().WithAnimation(AnimationType.Rotate).Duration(1)
-                        | Text.Success("Generating").Small()
-                        | Text.Muted($"• {sess.AgentId}").Small();
-                }
-                else if (isCompleted)
-                {
-                    metaLine = Layout.Horizontal().AlignContent(Align.Left)
-                        | new Icon(Icons.Check, Colors.Green).Small()
-                        | Text.Success("Completed").Small()
-                        | Text.Muted($"• {sess.AgentId}").Small();
-                }
-                else
-                {
-                    metaLine = Text.Muted($"{formattedDate} • {sess.AgentId}").Small().NoWrap().Overflow(Overflow.Ellipsis);
-                }
+                var metaLine = Text.Muted($"{formattedDate} • {sess.AgentId}").Small().NoWrap().Overflow(Overflow.Ellipsis);
 
-                object titleBlock = (isGenerating || isCompleted)
+                object titleBlock = isGenerating
                     ? (Layout.Horizontal().AlignContent(Align.Left)
-                        | new Icon(Icons.CircleDot, Colors.Green).Small()
+                        | new Icon(Icons.LoaderCircle, Colors.Green).Small().WithAnimation(AnimationType.Rotate).Duration(1)
                         | Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis))
-                    : Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis);
+                    : isCompleted
+                        ? (Layout.Horizontal().AlignContent(Align.Left)
+                            | new Icon(Icons.CircleCheck, Colors.Green).Small()
+                            | Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis))
+                        : Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis);
 
                 var textStack = Layout.Vertical().AlignContent(Align.Left).Width(Size.Full())
                     | titleBlock
