@@ -10,12 +10,12 @@ public static class RepoPathValidator
     // git@<host>:<owner>/<repo>(.git)?
     private static readonly Regex SshPattern = new(
         @"^git@[\w.\-]+:[\w.\-]+/[\w.\-]+(?:\.git)?$",
-        RegexOptions.Compiled);
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     // http(s)://<host>/<path>(.git)?
     private static readonly Regex HttpPattern = new(
         @"^https?://[\w.\-]+(:\d+)?(/[\w.\-~%]+)+(?:\.git)?$",
-        RegexOptions.Compiled);
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public static RepoPathKind Classify(string input)
     {

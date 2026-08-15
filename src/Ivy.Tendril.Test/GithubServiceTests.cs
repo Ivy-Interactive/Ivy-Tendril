@@ -17,6 +17,20 @@ public class GithubServiceTests
     }
 
     [Fact]
+    public void Should_Parse_MixedCase_Https_Url()
+    {
+        var repo = GithubService.ParseRepoConfigFromUrl("Https://github.com/Ivy-Interactive/Ivy-Framework.git");
+        Assert.NotNull(repo);
+        Assert.Equal("Ivy-Interactive", repo.Owner);
+        Assert.Equal("Ivy-Framework", repo.Name);
+
+        var repo2 = GithubService.ParseRepoConfigFromUrl("HTTPS://github.com/Ivy-Interactive/Ivy-Framework.GIT");
+        Assert.NotNull(repo2);
+        Assert.Equal("Ivy-Interactive", repo2.Owner);
+        Assert.Equal("Ivy-Framework", repo2.Name);
+    }
+
+    [Fact]
     public void Should_Parse_Https_Url_Without_Git_Suffix()
     {
         var repo = GithubService.ParseRepoConfigFromUrl("https://github.com/Ivy-Interactive/Ivy-Framework");

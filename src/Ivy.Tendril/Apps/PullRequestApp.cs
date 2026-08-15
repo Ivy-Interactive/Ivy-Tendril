@@ -211,7 +211,7 @@ public class PullRequestApp : ViewBase
     ///     E.g. "https://github.com/owner/repo/pull/123" -> "owner/repo"
     /// </summary>
     private static readonly Regex GitHubPrPattern = new(
-        @"^https?://github\.com/[^/]+/[^/]+/pull/\d+", RegexOptions.Compiled);
+        @"^https?://github\.com/[^/]+/[^/]+/pull/\d+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     internal static bool IsValidUrl(string? value) =>
         value is not null && GitHubPrPattern.IsMatch(value);

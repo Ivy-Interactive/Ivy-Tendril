@@ -195,7 +195,7 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
 
     internal static RepoConfig? ParseRepoConfigFromUrl(string url)
     {
-        var match = Regex.Match(url, @"[/:](?<owner>[^/]+)/(?<name>[^/]+?)(?:\.git)?$");
+        var match = Regex.Match(url, @"[/:](?<owner>[^/]+)/(?<name>[^/]+?)(?:\.git)?$", RegexOptions.IgnoreCase);
         if (!match.Success) return null;
 
         return new RepoConfig
