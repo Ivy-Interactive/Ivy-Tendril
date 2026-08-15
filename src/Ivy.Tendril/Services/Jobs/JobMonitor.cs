@@ -150,6 +150,9 @@ internal class JobMonitor
                 if (!jobs.TryGetValue(id, out var job) || job.Status != JobStatus.Running)
                     return;
 
+                if (job.Process is { HasExited: true })
+                    return;
+
                 var currentTimeout = staleOutputTimeout();
                 if (currentTimeout <= TimeSpan.Zero)
                     continue;
