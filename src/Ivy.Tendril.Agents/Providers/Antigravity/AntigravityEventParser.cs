@@ -10,15 +10,17 @@ public sealed class AntigravityEventParser : IEventParser
     public string AgentId => Abstractions.AgentId.Antigravity;
 
     private static readonly IReadOnlyList<AgentEvent> Empty = Array.Empty<AgentEvent>();
+    private const string StderrPrefix = "[stderr] ";
 
     public IReadOnlyList<AgentEvent> ParseLine(string rawLine)
     {
         if (string.IsNullOrWhiteSpace(rawLine)) return Empty;
+
+        if (rawLine.StartsWith(StderrPrefix, StringComparison.Ordinal))
+            return Empty;
+
         var trimmed = rawLine.Trim();
-        if (trimmed.Length == 0 || trimmed[0] != '{')
-        {
-            return [new TextEvent { Kind = AgentEventKind.Text, Text = rawLine + "\n", RawLine = rawLine }];
-        }
+        if (trimmed.Length == 0 || trimmed[0] != '{') return Empty;
 
         try
         {
@@ -27,7 +29,7 @@ public sealed class AntigravityEventParser : IEventParser
 
             if (!root.TryGetProperty("event", out var evtProp))
             {
-                return [new TextEvent { Kind = AgentEventKind.Text, Text = rawLine + "\n", RawLine = rawLine }];
+                return [new UnknownEvent { Kind = AgentEventKind.Unknown, Content = rawLine, RawLine = rawLine }];
             }
 
             var evtType = evtProp.GetString();
@@ -41,7 +43,7 @@ public sealed class AntigravityEventParser : IEventParser
         }
         catch (JsonException)
         {
-            return [new TextEvent { Kind = AgentEventKind.Text, Text = rawLine + "\n", RawLine = rawLine }];
+            return [new UnknownEvent { Kind = AgentEventKind.Unknown, Content = rawLine, RawLine = rawLine }];
         }
     }
 

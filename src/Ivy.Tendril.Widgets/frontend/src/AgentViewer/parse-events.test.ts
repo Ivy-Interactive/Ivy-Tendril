@@ -81,4 +81,18 @@ describe("parseEventWireStream", () => {
     expect(events).toHaveLength(1);
     expect(events[0].kind).toBe("assistant-text");
   });
+
+  it("skips text events starting with [stderr]", () => {
+    const stream = [
+      '{"kind":"text","timestamp":"T","text":"[stderr] warning: conversation not found","delta":false}',
+      '{"kind":"text","timestamp":"T","text":"Valid assistant message","delta":false}',
+    ].join("\n");
+
+    const events = parseEventWireStream(stream);
+    expect(events).toHaveLength(1);
+    expect(events[0].kind).toBe("assistant-text");
+    if (events[0].kind === "assistant-text") {
+      expect(events[0].text).toBe("Valid assistant message");
+    }
+  });
 });
