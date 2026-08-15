@@ -66,7 +66,7 @@ public class SidebarView(
                 if (isGenerating)
                 {
                     metaLine = Layout.Horizontal().AlignContent(Align.Left)
-                        | new Icon(Icons.LoaderCircle, Colors.Green).Small()
+                        | new Icon(Icons.LoaderCircle, Colors.Green).Small().WithAnimation(AnimationType.Rotate).Duration(1)
                         | Text.Success("Generating").Small()
                         | Text.Muted($"• {sess.AgentId}").Small();
                 }
