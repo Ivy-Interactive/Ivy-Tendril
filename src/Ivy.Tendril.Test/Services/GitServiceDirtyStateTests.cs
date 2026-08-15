@@ -39,7 +39,9 @@ public class GitServiceDirtyStateTests : IDisposable
         Directory.CreateDirectory(_bareRepoPath);
         RunGitAt(_bareRepoPath, "init --bare");
 
-        RunGitAt(Path.GetTempPath(), $"clone \"{_bareRepoPath}\" \"{_testRepoPath}\"");
+        Directory.CreateDirectory(_testRepoPath);
+        RunGit("init");
+        RunGit($"remote add origin \"{_bareRepoPath}\"");
 
         RunGit("config user.email test@example.com");
         RunGit("config user.name TestUser");
@@ -48,7 +50,8 @@ public class GitServiceDirtyStateTests : IDisposable
         File.WriteAllText(Path.Combine(_testRepoPath, "file1.txt"), "Initial content");
         RunGit("add file1.txt");
         RunGit("commit -m \"Initial commit\"");
-        RunGit("push origin master");
+        RunGit("push -u origin master");
+        RunGit("branch --set-upstream-to=origin/master master");
     }
 
     private void RunGit(string args) => RunGitAt(_testRepoPath, args);

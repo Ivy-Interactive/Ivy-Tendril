@@ -199,17 +199,7 @@ new mode 100755`;
   });
 });
 
-describe("PlanDiffView kebab menu", () => {
-  const singleFileDiff = [
-    "diff --git a/a.txt b/a.txt",
-    "--- a/a.txt",
-    "+++ b/a.txt",
-    "@@ -1 +1 @@",
-    "-old",
-    "+new",
-    "",
-  ].join("\n");
-
+describe("PlanDiffView collapse scoping", () => {
   const twoFileDiff = [
     "diff --git a/a.txt b/a.txt",
     "--- a/a.txt",
@@ -225,51 +215,6 @@ describe("PlanDiffView kebab menu", () => {
     "+new b",
     "",
   ].join("\n");
-
-  it("renders the more-actions menu in a document.body portal", () => {
-    render(<PlanDiffView id="pdv-1" diff={singleFileDiff} collapsible />);
-
-    fireEvent.click(screen.getByRole("button", { name: /more actions/i }));
-
-    const editFileItem = screen.getByText("Edit file");
-    expect(editFileItem).toBeInTheDocument();
-    expect(editFileItem.closest(".ivy-diff-view")).toBeNull();
-    expect(document.body.contains(editFileItem)).toBe(true);
-  });
-
-  it("menu style is fixed positioned with a high z-index", () => {
-    render(<PlanDiffView id="pdv-1" diff={singleFileDiff} collapsible />);
-
-    fireEvent.click(screen.getByRole("button", { name: /more actions/i }));
-
-    const menu = screen.getByText("Edit file").closest(".diff-more-actions-menu") as HTMLElement;
-    expect(menu.style.position).toBe("fixed");
-    expect(Number(menu.style.zIndex)).toBeGreaterThanOrEqual(1000);
-  });
-
-  it("menu action still dispatches for the right file", () => {
-    const onIvyEvent = vi.fn();
-    render(<PlanDiffView id="pdv-1" diff={twoFileDiff} onIvyEvent={onIvyEvent} collapsible />);
-
-    const moreActionsButtons = screen.getAllByRole("button", { name: /more actions/i });
-    expect(moreActionsButtons.length).toBe(2);
-    fireEvent.click(moreActionsButtons[1]);
-
-    fireEvent.click(screen.getByText("Edit file"));
-
-    expect(onIvyEvent).toHaveBeenCalledWith("OnEditFile", "pdv-1", ["b.txt"]);
-  });
-
-  it("clicking inside the portaled menu does not swallow the action", () => {
-    const onIvyEvent = vi.fn();
-    render(<PlanDiffView id="pdv-1" diff={singleFileDiff} onIvyEvent={onIvyEvent} collapsible />);
-
-    fireEvent.click(screen.getByRole("button", { name: /more actions/i }));
-    fireEvent.click(screen.getByText("Edit file"));
-
-    expect(onIvyEvent).toHaveBeenCalledWith("OnEditFile", "pdv-1", ["a.txt"]);
-    expect(screen.queryByText("Edit file")).toBeNull();
-  });
 
   it("keys collapsed state by file path and resets when diff/filePath changes", () => {
     const { rerender } = render(

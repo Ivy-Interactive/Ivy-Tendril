@@ -14,11 +14,9 @@ public class CliOutputTests : IDisposable
         CliOutput.PlainOverride = null;
     }
 
-    private static readonly object ConsoleLock = new();
-
     private static string CaptureConsoleOut(Action action)
     {
-        lock (ConsoleLock)
+        lock (TestLocks.ConsoleLock)
         {
             var original = Console.Out;
             var writer = new StringWriter();

@@ -4,6 +4,7 @@ using Xunit;
 
 namespace Ivy.Tendril.Test.Commands;
 
+[Collection("TendrilHome")]
 public class PromptwareReadMemoryCommandTests : IDisposable
 {
     private readonly string _tempHome;
