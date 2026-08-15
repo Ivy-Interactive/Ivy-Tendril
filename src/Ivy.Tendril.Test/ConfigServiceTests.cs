@@ -1955,4 +1955,30 @@ beta: true
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void SidebarOpen_Setting_DefaultsAndPersists()
+    {
+        var yaml = @"
+sidebarOpen: false
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        PathHelper.DefaultTendrilHomeOverride = tempDir;
+        try
+        {
+            using var service = new ConfigService();
+            Assert.False(service.Settings.SidebarOpen);
+
+            service.Settings.SidebarOpen = true;
+            service.SaveSettings();
+
+            var yamlOnDisk = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
+            Assert.Contains("sidebarOpen: true", yamlOnDisk);
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+            Directory.Delete(tempDir, true);
+        }
+    }
 }

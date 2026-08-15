@@ -165,7 +165,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var agentRunner = UseService<IAgentRunner>();
         var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current, config, agentRunner));
         var status = UseState(() => statusService.Current);
-        var sidebarOpen = UseState(settings.SidebarOpen);
+        var sidebarOpen = UseState(config.Settings.SidebarOpen);
         var args = UseService<AppContext>();
         var serverArgs = UseService<ServerArgs>();
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
@@ -211,8 +211,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         // branded "Agent" item updates immediately without needing a reload.
         UseEffect(() =>
         {
-            void OnSettingsReloaded(object? sender, EventArgs e) =>
+            void OnSettingsReloaded(object? sender, EventArgs e)
+            {
                 menuItems.Set(BuildMenuItems(appRepository, status.Value, config, agentRunner));
+                sidebarOpen.Set(config.Settings.SidebarOpen);
+            }
             config.SettingsReloaded += OnSettingsReloaded;
             return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);
         });
