@@ -227,20 +227,13 @@ public class ChatApp : ViewBase
 
             try
             {
-                var systemPrompt = AgentPromptCompiler.Compile(configService);
-                var extraEnv = new Dictionary<string, string>();
-                AgentProcessHelper.ApplyTendrilEnvironment(extraEnv, configService);
-
-                var context = new AgentResolutionContext
-                {
-                    AgentId = selectedAgent.Value,
-                    Prompt = fullAgentPrompt,
-                    SystemPrompt = systemPrompt,
-                    ModelOverride = selectedModel.Value,
-                    WorkingDirectory = !string.IsNullOrEmpty(configService.TendrilHome) ? configService.TendrilHome : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                    PermissionMode = PermissionMode.FullAuto,
-                    ExtraEnvironment = extraEnv,
-                };
+                var context = AgentLaunchHelper.PrepareResolutionContext(
+                    configService,
+                    agentRunner,
+                    selectedAgent.Value,
+                    fullAgentPrompt,
+                    modelOverride: selectedModel.Value,
+                    permissionMode: PermissionMode.FullAuto);
 
                 var session = await agentRunner.LaunchAsync(context);
                 activeSessionRef.Value = session;
