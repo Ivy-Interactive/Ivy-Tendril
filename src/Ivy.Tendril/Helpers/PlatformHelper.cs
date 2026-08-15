@@ -10,9 +10,15 @@ public static class PlatformHelper
 {
     /// <summary>
     /// Returns true if condition evaluates to exit code 0, false otherwise.
+    /// Fast-paths simple Test-Path condition expressions natively in C# without spawning a pwsh process.
     /// </summary>
     public static bool EvaluatePowerShellCondition(string condition, string workingDirectory, int timeoutMs = 5000, ILogger? logger = null)
     {
+        if (TryEvaluateTestPathCondition(condition, workingDirectory, out var testPathResult))
+        {
+            return testPathResult;
+        }
+
         try
         {
             var sanitizedCondition = SanitizeConditionPath(condition);
@@ -38,6 +44,69 @@ public static class PlatformHelper
         catch (Exception ex)
         {
             logger?.LogWarning(ex, "Failed to evaluate PowerShell condition");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Attempts to evaluate simple Test-Path expressions natively in C# without launching PowerShell.
+    /// </summary>
+    public static bool TryEvaluateTestPathCondition(string? condition, string workingDirectory, out bool result)
+    {
+        result = false;
+        if (string.IsNullOrWhiteSpace(condition)) return false;
+
+        var sanitized = SanitizeConditionPath(condition).Trim();
+        var match = System.Text.RegularExpressions.Regex.Match(
+            sanitized,
+            @"^(?i)Test-Path\s+(?:[""']([^""']+)[""']|([^\s""']+))\s*$"
+        );
+        if (!match.Success) return false;
+
+        var rawPath = (match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value).Trim();
+        if (string.IsNullOrEmpty(rawPath)) return false;
+
+        string fullPath;
+        if (rawPath.StartsWith("~"))
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var remainder = rawPath.Length > 1 ? rawPath[1..].TrimStart('/', '\\') : "";
+            fullPath = Path.Combine(home, remainder);
+        }
+        else if (Path.IsPathRooted(rawPath))
+        {
+            fullPath = rawPath;
+        }
+        else
+        {
+            fullPath = Path.Combine(workingDirectory, rawPath);
+        }
+
+        fullPath = fullPath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+
+        try
+        {
+            if (fullPath.Contains('*') || fullPath.Contains('?'))
+            {
+                var dir = Path.GetDirectoryName(fullPath);
+                var pattern = Path.GetFileName(fullPath);
+                if (string.IsNullOrEmpty(dir)) dir = workingDirectory;
+
+                if (Directory.Exists(dir))
+                {
+                    result = Directory.EnumerateFileSystemEntries(dir, pattern, SearchOption.TopDirectoryOnly).Any();
+                    return true;
+                }
+
+                result = false;
+                return true;
+            }
+
+            result = File.Exists(fullPath) || Directory.Exists(fullPath);
+            return true;
+        }
+        catch
+        {
             return false;
         }
     }

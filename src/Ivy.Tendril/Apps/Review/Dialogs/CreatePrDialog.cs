@@ -9,8 +9,8 @@ public class CreatePrDialog(
     PlanFile selectedPlan,
     IJobService jobService,
     Action refreshPlans,
-    QueryResult<string[]> assigneesQuery,
-    IState<string?> assigneesError) : ViewBase
+    IConfigService config,
+    IGithubService githubService) : ViewBase
 {
     public override object? Build()
     {
@@ -22,6 +22,36 @@ public class CreatePrDialog(
         var createPrDraft = UseState(false);
         var createPrReviewers = UseState(Array.Empty<string>());
         var createPrComment = UseState("");
+        var assigneesError = UseState<string?>(null);
+
+        var assigneesQuery = UseQuery<string[], string>(
+            selectedPlan?.Project ?? "",
+            async (_, _) =>
+            {
+                if (selectedPlan is null)
+                {
+                    assigneesError.Set(null);
+                    return Array.Empty<string>();
+                }
+                var repos = selectedPlan.GetEffectiveRepoPaths(config);
+                var repoPath = repos.FirstOrDefault();
+                if (repoPath is null)
+                {
+                    assigneesError.Set(null);
+                    return Array.Empty<string>();
+                }
+                var repoConfig = githubService.GetRepoConfigFromPathCached(repoPath);
+                if (repoConfig is null)
+                {
+                    assigneesError.Set(null);
+                    return Array.Empty<string>();
+                }
+                var (assignees, error) = await githubService.GetAssigneesAsync(repoConfig.Owner, repoConfig.Name);
+                assigneesError.Set(error);
+                return assignees.ToArray();
+            },
+            initialValue: Array.Empty<string>()
+        );
         
         UseEffect(() =>
         {
