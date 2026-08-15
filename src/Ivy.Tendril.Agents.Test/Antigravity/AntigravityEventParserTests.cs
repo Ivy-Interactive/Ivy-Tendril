@@ -14,15 +14,52 @@ public class AntigravityEventParserTests
     }
 
     [Fact]
-    public void ParseLine_TextLine_ReturnsTextEvent()
+    public void ParseLine_EmptyString_ReturnsEmpty()
+    {
+        var events = _parser.ParseLine("");
+        Assert.Empty(events);
+    }
+
+    [Fact]
+    public void ParseLine_Whitespace_ReturnsEmpty()
+    {
+        var events = _parser.ParseLine("   ");
+        Assert.Empty(events);
+    }
+
+    [Fact]
+    public void ParseLine_NonJson_ReturnsEmpty()
     {
         var events = _parser.ParseLine("Line 1");
+        Assert.Empty(events);
+    }
+
+    [Fact]
+    public void ParseLine_StderrPrefix_ReturnsEmpty()
+    {
+        var events = _parser.ParseLine("[stderr] warning: conversation \"2c358e24-748c-4bc1-8df8-37b0f2648a4f\" not found");
+        Assert.Empty(events);
+    }
+
+    [Fact]
+    public void ParseLine_MalformedJson_ReturnsUnknownEvent()
+    {
+        var events = _parser.ParseLine("{not valid json!!");
+        Assert.Single(events);
+        Assert.IsType<UnknownEvent>(events[0]);
+    }
+
+    [Fact]
+    public void ParseLine_StepUpdate_AgentResponse_ReturnsTextEvent()
+    {
+        var json = "{\"event\":\"step_update\",\"step_update\":{\"step_type\":\"agent_response\",\"text_delta\":\"Hello world\"}}";
+        var events = _parser.ParseLine(json);
 
         Assert.Single(events);
         var textEvent = Assert.IsType<TextEvent>(events[0]);
         Assert.Equal(AgentEventKind.Text, textEvent.Kind);
-        Assert.Equal("Line 1\n", textEvent.Text);
-        Assert.False(textEvent.IsDelta);
+        Assert.Equal("Hello world", textEvent.Text);
+        Assert.True(textEvent.IsDelta);
     }
 
     [Fact]
