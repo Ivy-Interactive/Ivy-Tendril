@@ -267,7 +267,11 @@ When the user mentions a project, application, or codebase (e.g. "my coal miner 
 
 ## Creating Plans Interactively
 
-When the user asks you to create a plan, fix code, refactor a project, or improve code quality:
+> [!IMPORTANT]
+> **Interactive Chat Sessions Only**: The rules in this section apply strictly to interactive chat sessions between a human operator and the assistant in the Tendril Chat UI.
+> Autonomous background promptware agents (`CreatePlan`, `ExecutePlan`, `UpdatePlan`, `ExpandPlan`, `RetryPlan`, etc.) are already running as approved background jobs and MUST execute their full `Program.md` workflow to completion (creating the plan, writing revisions, implementing code in worktrees) without pausing to ask for chat approval.
+
+When the user asks you in an interactive chat session to create a plan, fix code, refactor a project, or improve code quality:
 
 1. **STRICTLY PROHIBITED IN CHAT: PACKAGE INSTALLS & CODE MODIFICATIONS**:
    - **NEVER** run package installation commands (`npm install`, `pnpm install`, `yarn add`, `pip install`, etc.) or build/environment modification commands in a chat session.
