@@ -129,7 +129,7 @@ public sealed class PlanTools : AuthenticatedToolBase
             }
 
             var filePath = Path.Combine(inboxDir, fileName);
-            File.WriteAllText(filePath, sb.ToString());
+            FileHelper.WriteAllText(filePath, sb.ToString());
 
             return $"Plan submitted to inbox: {fileName}\nThe InboxWatcher will pick it up and create a plan automatically.";
         });
@@ -736,7 +736,7 @@ public sealed class PlanTools : AuthenticatedToolBase
                 sb.AppendLine($"## Latest Revision ({Path.GetFileName(revFiles[0])})");
                 try
                 {
-                    var content = File.ReadAllText(revFiles[0]);
+                    var content = FileHelper.ReadAllText(revFiles[0]);
                     if (content.Length > 2000)
                         content = content[..2000] + "\n\n... (truncated)";
                     sb.AppendLine(content);

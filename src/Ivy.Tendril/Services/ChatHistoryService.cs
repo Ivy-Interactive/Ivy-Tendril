@@ -88,7 +88,7 @@ public class ChatHistoryService : IChatHistoryService
             {
                 try
                 {
-                    var json = File.ReadAllText(file);
+                    var json = Ivy.Tendril.Helpers.FileHelper.ReadAllText(file);
                     var session = JsonSerializer.Deserialize<ChatSessionModel>(json, JsonOptions);
                     if (session != null && !string.IsNullOrEmpty(session.Id))
                     {
@@ -247,7 +247,7 @@ public class ChatHistoryService : IChatHistoryService
         {
             var filePath = Path.Combine(GetStorageDir(), $"{session.Id}.json");
             var json = JsonSerializer.Serialize(session, JsonOptions);
-            File.WriteAllText(filePath, json);
+            Ivy.Tendril.Helpers.FileHelper.WriteAllText(filePath, json);
         }
         catch
         {

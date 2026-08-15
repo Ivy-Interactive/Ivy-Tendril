@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.AccessControl;
 using System.Security.Principal;
+using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
@@ -15,10 +16,79 @@ internal static class FileHelper
 {
     private const int MaxRetries = 5;
 
+    private static readonly Encoding Utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: false);
+
     private static readonly Regex CompletedTimestampRegex =
         new(@"\*\*Completed:\*\*\s*(.+)", RegexOptions.Compiled);
 
     private static readonly int[] RetryDelaysMs = [50, 150, 350, 750, 1500];
+
+    /// <summary>
+    ///     Sanitizes a string to ensure valid UTF-8 and safe text for Tendril:
+    ///     - Strips leading UTF-8 Byte Order Mark (\uFEFF)
+    ///     - Removes null bytes (\0)
+    ///     - Replaces unpaired Unicode surrogates (\uD800-\uDFFF) with \uFFFD
+    ///     - Strips non-whitespace control characters (\u0000-\u0008, \u000B, \u000C, \u000E-\u001F)
+    /// </summary>
+    public static string SanitizeUtf8(string? input)
+    {
+        if (string.IsNullOrEmpty(input))
+            return string.Empty;
+
+        // Strip leading UTF-8 BOM if present
+        if (input.StartsWith('\uFEFF'))
+            input = input.TrimStart('\uFEFF');
+
+        var needsSanitization = false;
+        for (var i = 0; i < input.Length; i++)
+        {
+            var c = input[i];
+            if (c == '\0' ||
+                (c < ' ' && c != '\r' && c != '\n' && c != '\t') ||
+                char.IsSurrogate(c))
+            {
+                needsSanitization = true;
+                break;
+            }
+        }
+
+        if (!needsSanitization)
+            return input;
+
+        var sb = new StringBuilder(input.Length);
+        for (var i = 0; i < input.Length; i++)
+        {
+            var c = input[i];
+
+            // Strip null bytes and non-whitespace control characters
+            if (c == '\0' || (c < ' ' && c != '\r' && c != '\n' && c != '\t'))
+                continue;
+
+            // Handle surrogate pairs properly
+            if (char.IsHighSurrogate(c))
+            {
+                if (i + 1 < input.Length && char.IsLowSurrogate(input[i + 1]))
+                {
+                    sb.Append(c);
+                    sb.Append(input[++i]);
+                }
+                else
+                {
+                    sb.Append('\uFFFD');
+                }
+            }
+            else if (char.IsLowSurrogate(c))
+            {
+                sb.Append('\uFFFD');
+            }
+            else
+            {
+                sb.Append(c);
+            }
+        }
+
+        return sb.ToString();
+    }
 
     /// <summary>
     ///     Checks if the given path is a symbolic link.
@@ -98,8 +168,9 @@ internal static class FileHelper
             try
             {
                 using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                using var reader = new StreamReader(stream);
-                return reader.ReadToEnd();
+                using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+                var text = reader.ReadToEnd();
+                return SanitizeUtf8(text);
             }
             catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < MaxRetries)
             {
@@ -114,10 +185,10 @@ internal static class FileHelper
             try
             {
                 using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                using var reader = new StreamReader(stream);
+                using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
                 var lines = new List<string>();
                 while (reader.ReadLine() is { } line)
-                    lines.Add(line);
+                    lines.Add(SanitizeUtf8(line));
                 return lines.ToArray();
             }
             catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < MaxRetries)
@@ -130,12 +201,13 @@ internal static class FileHelper
     {
         ValidatePath(path);
         ClearReadOnly(path);
+        var sanitized = SanitizeUtf8(contents);
         for (var attempt = 0; ; attempt++)
             try
             {
                 using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read);
-                using var writer = new StreamWriter(stream);
-                writer.Write(contents);
+                using var writer = new StreamWriter(stream, Utf8NoBom);
+                writer.Write(sanitized);
                 writer.Flush();
                 stream.Flush(flushToDisk: true);
                 return;
@@ -161,8 +233,9 @@ internal static class FileHelper
                 var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
                 await using (stream.ConfigureAwait(false))
                 {
-                    using var reader = new StreamReader(stream);
-                    return await reader.ReadToEndAsync().ConfigureAwait(false);
+                    using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+                    var text = await reader.ReadToEndAsync().ConfigureAwait(false);
+                    return SanitizeUtf8(text);
                 }
             }
             catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < MaxRetries)
@@ -175,14 +248,15 @@ internal static class FileHelper
     {
         ValidatePath(path);
         ClearReadOnly(path);
+        var sanitized = SanitizeUtf8(contents);
         for (var attempt = 0; ; attempt++)
             try
             {
                 var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read);
                 await using (stream.ConfigureAwait(false))
                 {
-                    await using var writer = new StreamWriter(stream);
-                    await writer.WriteAsync(contents).ConfigureAwait(false);
+                    await using var writer = new StreamWriter(stream, Utf8NoBom);
+                    await writer.WriteAsync(sanitized).ConfigureAwait(false);
                     return;
                 }
             }
@@ -217,10 +291,10 @@ internal static class FileHelper
             }
 
         using (stream)
-        using (var reader = new StreamReader(stream!))
+        using (var reader = new StreamReader(stream!, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
         {
             while (reader.ReadLine() is { } line)
-                yield return line;
+                yield return SanitizeUtf8(line);
         }
     }
 
@@ -228,12 +302,13 @@ internal static class FileHelper
     {
         ValidatePath(path);
         ClearReadOnly(path);
+        var sanitized = SanitizeUtf8(contents);
         for (var attempt = 0; ; attempt++)
             try
             {
                 using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
-                using var writer = new StreamWriter(stream);
-                writer.Write(contents);
+                using var writer = new StreamWriter(stream, Utf8NoBom);
+                writer.Write(sanitized);
                 return;
             }
             catch (UnauthorizedAccessException) when (attempt < MaxRetries)

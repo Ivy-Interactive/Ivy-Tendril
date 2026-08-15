@@ -48,7 +48,7 @@ public class TrashWriteCommand : Command<TrashWriteSettings>
         if (string.IsNullOrWhiteSpace(content))
             throw new ArgumentException("No content provided (use --file or --stdin)");
 
-        File.WriteAllText(filePath, content);
+        FileHelper.WriteAllText(filePath, content);
         Console.Write(filePath);
         return 0;
     }

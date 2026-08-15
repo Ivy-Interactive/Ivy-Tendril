@@ -522,7 +522,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         using (new WriteLockHandle(_lock))
         {
             ExecuteNonQuery("UPDATE Plans SET LatestRevisionContent = @content, RevisionCount = @count, Updated = @updated WHERE Id = @id",
-                new SqliteParameter("@content", latestRevisionContent),
+                new SqliteParameter("@content", FileHelper.SanitizeUtf8(latestRevisionContent)),
                 new SqliteParameter("@count", revisionCount),
                 new SqliteParameter("@updated", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)),
                 new SqliteParameter("@id", planId));
@@ -1328,19 +1328,19 @@ public class PlanDatabaseService : IPlanDatabaseService
                            """;
 
         cmd.Parameters.AddWithValue("@id", plan.Id);
-        cmd.Parameters.AddWithValue("@title", plan.Title);
-        cmd.Parameters.AddWithValue("@project", plan.Project);
-        cmd.Parameters.AddWithValue("@level", plan.Level);
+        cmd.Parameters.AddWithValue("@title", FileHelper.SanitizeUtf8(plan.Title));
+        cmd.Parameters.AddWithValue("@project", FileHelper.SanitizeUtf8(plan.Project));
+        cmd.Parameters.AddWithValue("@level", FileHelper.SanitizeUtf8(plan.Level));
         cmd.Parameters.AddWithValue("@state", plan.Status.ToString());
         cmd.Parameters.AddWithValue("@folderPath", plan.FolderPath);
         cmd.Parameters.AddWithValue("@folderName", plan.FolderName);
-        cmd.Parameters.AddWithValue("@yamlRaw", plan.PlanYamlRaw);
+        cmd.Parameters.AddWithValue("@yamlRaw", FileHelper.SanitizeUtf8(plan.PlanYamlRaw));
         cmd.Parameters.AddWithValue("@revisionCount", plan.RevisionCount);
-        cmd.Parameters.AddWithValue("@latestContent", plan.LatestRevisionContent);
+        cmd.Parameters.AddWithValue("@latestContent", FileHelper.SanitizeUtf8(plan.LatestRevisionContent));
         cmd.Parameters.AddWithValue("@created", plan.Created.ToString("O", CultureInfo.InvariantCulture));
         cmd.Parameters.AddWithValue("@updated", plan.Updated.ToString("O", CultureInfo.InvariantCulture));
-        cmd.Parameters.AddWithValue("@initialPrompt", plan.InitialPrompt ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@sourceUrl", plan.SourceUrl ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@initialPrompt", plan.InitialPrompt != null ? FileHelper.SanitizeUtf8(plan.InitialPrompt) : (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@sourceUrl", plan.SourceUrl != null ? FileHelper.SanitizeUtf8(plan.SourceUrl) : (object)DBNull.Value);
 
         cmd.ExecuteNonQuery();
 

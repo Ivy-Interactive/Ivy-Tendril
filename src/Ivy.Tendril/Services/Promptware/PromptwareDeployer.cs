@@ -118,7 +118,7 @@ internal static class PromptwareDeployer
             }
 
             // Stamp the deployed version
-            File.WriteAllText(Path.Combine(targetDir, VersionFileName), GetCurrentVersion());
+            Ivy.Tendril.Helpers.FileHelper.WriteAllText(Path.Combine(targetDir, VersionFileName), GetCurrentVersion());
         }
         finally
         {
@@ -169,7 +169,7 @@ internal static class PromptwareDeployer
         if (!File.Exists(versionFile))
             return true;
 
-        var deployed = File.ReadAllText(versionFile).Trim();
+        var deployed = Ivy.Tendril.Helpers.FileHelper.ReadAllText(versionFile).Trim();
         return deployed != GetCurrentVersion();
     }
 

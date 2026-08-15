@@ -4,25 +4,31 @@ using Spectre.Console.Testing;
 
 namespace Ivy.Tendril.Test.Commands;
 
+[Collection("TendrilHome")]
 public class AgentInstructionsCommandTests
 {
+    private static readonly object ConsoleLock = new();
+
     // Mirrors CliOutputTests.CaptureConsoleOut: the command writes via Console.Write, not
     // AnsiConsole, so we must swap Console.Out rather than the Spectre console.
     private static string CaptureConsoleOut(Action action)
     {
-        var original = Console.Out;
-        var writer = new StringWriter();
-        Console.SetOut(writer);
-        try
+        lock (ConsoleLock)
         {
-            action();
-        }
-        finally
-        {
-            Console.SetOut(original);
-        }
+            var original = Console.Out;
+            var writer = new StringWriter();
+            Console.SetOut(writer);
+            try
+            {
+                action();
+            }
+            finally
+            {
+                Console.SetOut(original);
+            }
 
-        return writer.ToString();
+            return writer.ToString();
+        }
     }
 
     private static (Spectre.Console.Cli.CommandApp App, string TendrilHome) BuildApp()

@@ -14,21 +14,26 @@ public class CliOutputTests : IDisposable
         CliOutput.PlainOverride = null;
     }
 
+    private static readonly object ConsoleLock = new();
+
     private static string CaptureConsoleOut(Action action)
     {
-        var original = Console.Out;
-        var writer = new StringWriter();
-        Console.SetOut(writer);
-        try
+        lock (ConsoleLock)
         {
-            action();
-        }
-        finally
-        {
-            Console.SetOut(original);
-        }
+            var original = Console.Out;
+            var writer = new StringWriter();
+            Console.SetOut(writer);
+            try
+            {
+                action();
+            }
+            finally
+            {
+                Console.SetOut(original);
+            }
 
-        return writer.ToString();
+            return writer.ToString();
+        }
     }
 
     // Mirrors PlanCliCommandTests.CaptureAnsiConsoleOutput: swaps AnsiConsole.Console (not

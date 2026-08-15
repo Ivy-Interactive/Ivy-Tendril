@@ -58,7 +58,7 @@ public class GitService : IGitService
         if (hashes.Count == 0)
             return GitResult<Dictionary<string, (string Title, int FileCount)>>.Success(new Dictionary<string, (string, int)>());
 
-        return ExecuteGitCommandWithStdin(repoPath, "log --stdin --no-walk --format=%H%x00%s --numstat", hashes,
+        return ExecuteGitCommandWithStdin(repoPath, "log --stdin --no-walk --format=%H%x09%s --numstat", hashes,
             output => ParseCommitSummaries(output, hashes));
     }
 
@@ -393,7 +393,7 @@ public class GitService : IGitService
                 return GitResult<T>.Failure(GitError.CommandFailed, $"Git command failed with exit code {process.ExitCode}");
             }
 
-            return GitResult<T>.Success(parseOutput(output));
+            return GitResult<T>.Success(parseOutput(FileHelper.SanitizeUtf8(output)));
         }
         catch (FileNotFoundException ex)
         {
@@ -422,7 +422,7 @@ public class GitService : IGitService
             return (-1, "");
         }
 
-        return (process.ExitCode, output);
+        return (process.ExitCode, FileHelper.SanitizeUtf8(output));
     }
 
     private string? FindGitDir(string repoPath)
@@ -431,7 +431,7 @@ public class GitService : IGitService
         if (Directory.Exists(dotGit)) return dotGit;
         if (File.Exists(dotGit))
         {
-            var content = File.ReadAllText(dotGit).Trim();
+            var content = FileHelper.ReadAllText(dotGit).Trim();
             if (content.StartsWith("gitdir: "))
                 return content.Substring(8).Trim();
         }
@@ -463,17 +463,20 @@ public class GitService : IGitService
 
         foreach (var line in output.Split('\n'))
         {
-            if (line.Contains('\0'))
+            var trimmed = line.Trim();
+            if (trimmed.Length == 0) continue;
+
+            if (trimmed.Length >= 40 && trimmed.Take(40).All(Uri.IsHexDigit) && (trimmed.Length == 40 || line.Contains('\t')))
             {
                 if (currentHash != null)
                     StoreCommitResult(result, inputHashSet, currentHash, currentTitle!, currentFileCount);
 
-                var parts = line.Split('\0', 2);
+                var parts = line.Split('\t', 2);
                 currentHash = parts[0].Trim();
                 currentTitle = parts.Length > 1 ? parts[1].Trim() : "";
                 currentFileCount = 0;
             }
-            else if (currentHash != null && line.Trim().Length > 0)
+            else if (currentHash != null)
             {
                 currentFileCount++;
             }
