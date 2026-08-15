@@ -23,7 +23,7 @@ public class EditProjectMemoryBladeView(
                 if (File.Exists(fullPath))
                 {
                     editFileName.Set(existingFileName);
-                    editContent.Set(File.ReadAllText(fullPath));
+                    editContent.Set(FileHelper.ReadAllText(fullPath));
                 }
             }
         }, EffectTrigger.OnMount());
@@ -47,7 +47,7 @@ public class EditProjectMemoryBladeView(
                         fileName += ".md";
 
                     var fullPath = Path.Combine(memoryDir, fileName);
-                    File.WriteAllText(fullPath, editContent.Value);
+                    FileHelper.WriteAllText(fullPath, editContent.Value);
 
                     refreshCounter.Set(refreshCounter.Value + 1);
                     bladeContext.Pop(this);

@@ -88,38 +88,46 @@ public class PlanCreateDuplicateCandidatesTests : IDisposable
         return planDir;
     }
 
+    private static readonly object ConsoleLock = new();
+
     private static string CaptureStdout(Action action)
     {
-        var original = Console.Out;
-        using var writer = new StringWriter();
-        Console.SetOut(writer);
-        try
+        lock (ConsoleLock)
         {
-            action();
-        }
-        finally
-        {
-            Console.SetOut(original);
-        }
+            var original = Console.Out;
+            var writer = new StringWriter();
+            Console.SetOut(writer);
+            try
+            {
+                action();
+            }
+            finally
+            {
+                Console.SetOut(original);
+            }
 
-        return writer.ToString();
+            return writer.ToString();
+        }
     }
 
     private static string CaptureStderr(Action action)
     {
-        var original = Console.Error;
-        using var writer = new StringWriter();
-        Console.SetError(writer);
-        try
+        lock (ConsoleLock)
         {
-            action();
-        }
-        finally
-        {
-            Console.SetError(original);
-        }
+            var original = Console.Error;
+            var writer = new StringWriter();
+            Console.SetError(writer);
+            try
+            {
+                action();
+            }
+            finally
+            {
+                Console.SetError(original);
+            }
 
-        return writer.ToString();
+            return writer.ToString();
+        }
     }
 
     [Fact]

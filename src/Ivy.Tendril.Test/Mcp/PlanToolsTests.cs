@@ -488,7 +488,8 @@ public class PlanToolsTests : IDisposable
     public void GetPlan_NoTendrilHome_ReturnsError()
     {
         Environment.SetEnvironmentVariable("TENDRIL_HOME", null);
-        var result = _planTools.GetPlan("00001");
+        Environment.SetEnvironmentVariable("TENDRIL_PLANS", Path.Combine(_tempDir, "EmptyPlans"));
+        var result = _planTools.GetPlan("99999");
         Assert.Contains("Error:", result);
     }
 

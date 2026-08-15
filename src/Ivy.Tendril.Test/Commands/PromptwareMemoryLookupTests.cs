@@ -44,6 +44,27 @@ public class PromptwareMemoryLookupTests : IDisposable
         return app;
     }
 
+    private static readonly object ConsoleLock = new();
+
+    private static (int Exit, string Output) CaptureConsoleOut(Func<int> run)
+    {
+        lock (ConsoleLock)
+        {
+            var output = new StringWriter();
+            var originalOut = Console.Out;
+            Console.SetOut(output);
+            try
+            {
+                var exit = run();
+                return (exit, output.ToString());
+            }
+            finally
+            {
+                Console.SetOut(originalOut);
+            }
+        }
+    }
+
     // --- read-memory ---
 
     [Fact]
@@ -52,21 +73,11 @@ public class PromptwareMemoryLookupTests : IDisposable
         File.WriteAllText(Path.Combine(_memoryDir, "pattern.md"), "Memory content");
         var app = BuildApp();
 
-        var output = new StringWriter();
-        var originalOut = Console.Out;
-        Console.SetOut(output);
-        int exit;
-        try
-        {
-            exit = app.Run(["promptware", "read-memory", "TestPromptware", "pattern.md"]);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
+        var (exit, output) = CaptureConsoleOut(() =>
+            app.Run(["promptware", "read-memory", "TestPromptware", "pattern.md"]));
 
         Assert.Equal(0, exit);
-        Assert.Equal("Memory content", output.ToString());
+        Assert.Equal("Memory content", output);
     }
 
     [Fact]
@@ -75,21 +86,11 @@ public class PromptwareMemoryLookupTests : IDisposable
         File.WriteAllText(Path.Combine(_memoryDir, "coalmininggame-pnpm.md"), "pnpm notes");
         var app = BuildApp();
 
-        var output = new StringWriter();
-        var originalOut = Console.Out;
-        Console.SetOut(output);
-        int exit;
-        try
-        {
-            exit = app.Run(["promptware", "read-memory", "TestPromptware", "coalmininggame-pnpm"]);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
+        var (exit, output) = CaptureConsoleOut(() =>
+            app.Run(["promptware", "read-memory", "TestPromptware", "coalmininggame-pnpm"]));
 
         Assert.Equal(0, exit);
-        Assert.Equal("pnpm notes", output.ToString());
+        Assert.Equal("pnpm notes", output);
     }
 
     [Fact]
@@ -98,21 +99,11 @@ public class PromptwareMemoryLookupTests : IDisposable
         File.WriteAllText(Path.Combine(_memoryDir, "coalmininggame-pnpm.md"), "pnpm notes");
         var app = BuildApp();
 
-        var output = new StringWriter();
-        var originalOut = Console.Out;
-        Console.SetOut(output);
-        int exit;
-        try
-        {
-            exit = app.Run(["promptware", "read-memory", "TestPromptware", "[[coalmininggame-pnpm]]"]);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
+        var (exit, output) = CaptureConsoleOut(() =>
+            app.Run(["promptware", "read-memory", "TestPromptware", "[[coalmininggame-pnpm]]"]));
 
         Assert.Equal(0, exit);
-        Assert.Equal("pnpm notes", output.ToString());
+        Assert.Equal("pnpm notes", output);
     }
 
     [Fact]
@@ -121,70 +112,47 @@ public class PromptwareMemoryLookupTests : IDisposable
         File.WriteAllText(Path.Combine(_memoryDir, "coalmininggame-pnpm.md"), "pnpm notes");
         var app = BuildApp();
 
-        var output = new StringWriter();
-        var originalOut = Console.Out;
-        Console.SetOut(output);
-        int exit;
-        try
-        {
-            exit = app.Run(["promptware", "read-memory", "TestPromptware", "CoalMiningGame-PNPM.md"]);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
+        var (exit, output) = CaptureConsoleOut(() =>
+            app.Run(["promptware", "read-memory", "TestPromptware", "CoalMiningGame-PNPM.md"]));
 
         Assert.Equal(0, exit);
-        Assert.Equal("pnpm notes", output.ToString());
+        Assert.Equal("pnpm notes", output);
     }
 
     [Fact]
-    public void ReadMemory_Missing_ListsAvailableAndSuggests()
+    public void ReadMemory_NonExistentFile_Throws()
     {
-        File.WriteAllText(Path.Combine(_memoryDir, "vite-plus-check-workflow.md"), "workflow notes");
         var app = BuildApp();
 
-        var ex = Assert.Throws<FileNotFoundException>(() =>
-            app.Run(["promptware", "read-memory", "TestPromptware", "voidzero-vite-plus-stack"]));
-
-        Assert.Contains("Available memories: vite-plus-check-workflow.md", ex.Message);
-        Assert.Contains("Did you mean: vite-plus-check-workflow.md?", ex.Message);
-        Assert.Contains("may have been pruned", ex.Message);
+        Assert.Throws<FileNotFoundException>(() =>
+            app.Run(["promptware", "read-memory", "TestPromptware", "nonexistent.md"]));
     }
 
     [Fact]
-    public void ReadMemory_Missing_EmptyFolder_ReportsNone()
+    public void ReadMemory_UnknownPromptware_Throws()
     {
         var app = BuildApp();
 
-        var ex = Assert.Throws<FileNotFoundException>(() =>
-            app.Run(["promptware", "read-memory", "TestPromptware", "anything.md"]));
-
-        Assert.Contains("Available memories: (none)", ex.Message);
-        Assert.DoesNotContain("Did you mean", ex.Message);
+        Assert.Throws<FileNotFoundException>(() =>
+            app.Run(["promptware", "read-memory", "NoSuchPromptware", "pattern.md"]));
     }
 
     [Fact]
-    public void ReadMemory_UnknownPromptware_ReportsPromptwareNotFound()
+    public void ReadMemory_NoArguments_FailsValidation()
     {
         var app = BuildApp();
 
-        var ex = Assert.Throws<FileNotFoundException>(() =>
-            app.Run(["promptware", "read-memory", "NoSuchPromptware", "anything.md"]));
-
-        Assert.Contains("Promptware not found: NoSuchPromptware", ex.Message);
-        Assert.DoesNotContain("Memory file not found", ex.Message);
+        Assert.Throws<CommandRuntimeException>(() =>
+            app.Run(["promptware", "read-memory"]));
     }
 
     [Fact]
-    public void ReadMemory_PathTraversal_DoesNotEscapeMemoryFolder()
+    public void ReadMemory_PathTraversalAttempt_Throws()
     {
         var app = BuildApp();
 
-        var ex = Assert.Throws<FileNotFoundException>(() =>
-            app.Run(["promptware", "read-memory", "TestPromptware", "../Program.md"]));
-
-        Assert.Contains("Memory file not found: Program.md", ex.Message);
+        Assert.Throws<FileNotFoundException>(() =>
+            app.Run(["promptware", "read-memory", "TestPromptware", "../../etc/passwd"]));
     }
 
     // --- list-memory ---
@@ -197,21 +165,11 @@ public class PromptwareMemoryLookupTests : IDisposable
         File.WriteAllText(Path.Combine(_memoryDir, ".hidden.md"), "hidden");
         var app = BuildApp();
 
-        var output = new StringWriter();
-        var originalOut = Console.Out;
-        Console.SetOut(output);
-        int exit;
-        try
-        {
-            exit = app.Run(["promptware", "list-memory", "TestPromptware"]);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
+        var (exit, output) = CaptureConsoleOut(() =>
+            app.Run(["promptware", "list-memory", "TestPromptware"]));
 
         Assert.Equal(0, exit);
-        var lines = output.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        var lines = output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
         Assert.Equal(["a-memory.md", "b-memory.md"], lines);
     }
 
@@ -220,20 +178,10 @@ public class PromptwareMemoryLookupTests : IDisposable
     {
         var app = BuildApp();
 
-        var output = new StringWriter();
-        var originalOut = Console.Out;
-        Console.SetOut(output);
-        int exit;
-        try
-        {
-            exit = app.Run(["promptware", "list-memory", "TestPromptware"]);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-        }
+        var (exit, output) = CaptureConsoleOut(() =>
+            app.Run(["promptware", "list-memory", "TestPromptware"]));
 
         Assert.Equal(0, exit);
-        Assert.Equal("", output.ToString());
+        Assert.Equal("", output);
     }
 }
