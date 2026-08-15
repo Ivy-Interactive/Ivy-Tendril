@@ -44,12 +44,11 @@ public class PromptwareMemoryLookupTests : IDisposable
         return app;
     }
 
-    private static readonly object ConsoleLock = new();
-
-    private static (int Exit, string Output) CaptureConsoleOut(Func<int> run)
+    private (int Exit, string Output) CaptureConsoleOut(Func<int> run)
     {
-        lock (ConsoleLock)
+        lock (TestLocks.ConsoleLock)
         {
+            Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempDir.Path);
             var output = new StringWriter();
             var originalOut = Console.Out;
             Console.SetOut(output);

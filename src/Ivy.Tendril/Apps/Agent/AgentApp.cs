@@ -34,10 +34,10 @@ public class AgentApp : ViewBase
 
         var ptyHandle = Context.UsePty(
             GetCommandLine(configService, agentRunner, args?.Prompt),
-            GetWorkDir(configService, agentRunner),
+            AgentLaunchHelper.GetWorkDir(configService, agentRunner),
             new PtyOptions
             {
-                Environment = GetEnvironment(configService),
+                Environment = AgentLaunchHelper.GetEnvironment(configService),
                 OnOutput = text =>
                 {
                     var (regex, accept) = trust.Value;
@@ -57,7 +57,7 @@ public class AgentApp : ViewBase
 
         // Wire the input sink + trust pattern now that the handle exists (OnOutput is supplied first).
         sendInput.Value = ptyHandle.HandleInput;
-        var patterns = GetActivityPatterns(configService, agentRunner);
+        var patterns = AgentLaunchHelper.GetActivityPatterns(configService, agentRunner);
         trust.Value = (
             patterns?.TrustPromptPattern is { Length: > 0 } trustPattern
                 ? new Regex(trustPattern, RegexOptions.IgnoreCase)
@@ -83,32 +83,12 @@ public class AgentApp : ViewBase
         var agentId = config.Settings.CodingAgent;
         var cli = runner.GetCli(agentId);
         var pty = runner.GetPty(agentId);
-        var workDir = GetDefaultWorkDir(config);
-        var systemPrompt = AgentPromptCompiler.Compile(config);
+        var workDir = AgentLaunchHelper.GetDefaultWorkDir(config);
+        var systemPrompt = AgentLaunchHelper.CompileSystemPrompt(config);
 
-        WriteAgentInstructionsIfNeeded(workDir, systemPrompt, pty);
+        AgentLaunchHelper.WriteAgentInstructionsIfNeeded(workDir, systemPrompt, pty);
 
-        // Claude takes "--model default" to explicitly select its configured default model.
-        var agentConfig = config.Settings.CodingAgents.FirstOrDefault(a =>
-            AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
-        var configuredModel = agentConfig?.Profiles.FirstOrDefault(p => p.Name.Equals("balanced", StringComparison.OrdinalIgnoreCase))?.Model;
-        if (string.IsNullOrEmpty(configuredModel) || configuredModel == "default")
-        {
-            configuredModel = agentConfig?.Profiles.FirstOrDefault(p => !string.IsNullOrEmpty(p.Model) && p.Model != "default")?.Model;
-        }
-
-        var isBergetAgent = agentId.Equals("berget", StringComparison.OrdinalIgnoreCase) ||
-            (agentConfig != null && agentConfig.EnvironmentVariables.TryGetValue("ANTHROPIC_BASE_URL", out var url) && url.Contains("api.berget.ai"));
-
-        if (isBergetAgent)
-        {
-            if (string.IsNullOrEmpty(configuredModel) || configuredModel == "default" || configuredModel.Equals("kimi-k3", StringComparison.OrdinalIgnoreCase) || !configuredModel.Contains('/'))
-            {
-                configuredModel = "moonshotai/Kimi-K3";
-            }
-        }
-
-        var model = pty?.Id == AgentId.Claude ? "default" : configuredModel;
+        var model = AgentLaunchHelper.ResolveModel(config, runner, agentId);
 
         var spec = pty?.BuildPtySpec(new AgentPtyConfig
         {
@@ -120,63 +100,5 @@ public class AgentApp : ViewBase
             InitialPrompt = initialPrompt,
         });
         return spec?.ResolveCommand().CommandLine.ToArray() ?? [cli.Id];
-    }
-
-    private static void WriteAgentInstructionsIfNeeded(string workDir, string? systemPrompt, IAgentPty? pty)
-    {
-        if (string.IsNullOrEmpty(systemPrompt) || string.IsNullOrEmpty(workDir))
-            return;
-
-        // Each agent declares the file it reads for project/system instructions (AGENTS.md,
-        // GEMINI.md, …). When ContextFileName is null the agent takes its system prompt via a
-        // command-line flag instead (Claude → --append-system-prompt-file) and needs no file.
-        var contextFile = pty?.ContextFileName;
-        if (string.IsNullOrEmpty(contextFile))
-            return;
-
-        File.WriteAllText(Path.Combine(workDir, contextFile), systemPrompt);
-    }
-
-    private static string GetWorkDir(IConfigService config, IAgentRunner runner)
-    {
-        var agentId = config.Settings.CodingAgent;
-        var pty = runner.GetPty(agentId);
-        var defaultDir = GetDefaultWorkDir(config);
-        var spec = pty?.BuildPtySpec(new AgentPtyConfig
-        {
-            WorkingDirectory = defaultDir,
-            PermissionMode = PermissionMode.Default,
-        });
-        return spec?.WorkingDirectory ?? defaultDir;
-    }
-
-    private static Dictionary<string, string>? GetEnvironment(IConfigService config)
-    {
-        var env = new Dictionary<string, string>();
-
-        var agentId = config.Settings.CodingAgent;
-        var agentConfig = config.Settings.CodingAgents.FirstOrDefault(a =>
-            AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
-        if (agentConfig?.EnvironmentVariables is { Count: > 0 } d)
-            foreach (var (key, value) in d)
-                env[key] = value;
-
-        // Expose the `tendril` CLI (via shim) and the active config/plans to the agent running in
-        // the PTY, so it can run `tendril ...` even when no tendril binary is installed (e.g. in dev).
-        AgentProcessHelper.ApplyTendrilEnvironment(env, config);
-
-        return env.Count > 0 ? env : null;
-    }
-
-    private static string GetDefaultWorkDir(IConfigService config) =>
-        !string.IsNullOrEmpty(config.TendrilHome)
-            ? config.TendrilHome
-            : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
-    private static AgentActivityPatterns? GetActivityPatterns(IConfigService config, IAgentRunner runner)
-    {
-        var agentId = config.Settings.CodingAgent;
-        var pty = runner.GetPty(agentId);
-        return pty?.GetActivityPatterns();
     }
 }
