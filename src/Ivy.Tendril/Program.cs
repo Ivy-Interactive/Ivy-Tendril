@@ -262,11 +262,10 @@ public class Program
                 .AddConsole(options => options.FormatterName = "clean")
                 .AddConsoleFormatter<CleanConsoleFormatter, ConsoleFormatterOptions>());
             cliServices.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
-            cliServices.AddAgentInfrastructure(opts => opts.IncludeBetaProviders = beta);
-
             var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
             cliServices.AddSingleton<IConfigService>(configService);
             cliServices.AddSingleton<ConfigService>(configService);
+            cliServices.AddAgentInfrastructure(opts => opts.IncludeBetaProviders = beta || configService.Settings.Beta || Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" || Environment.GetEnvironmentVariable("IVY_BETA") == "1");
 
             // Needed by `plan create` to validate that a source issue/PR URL belongs to the
             // chosen project (PlanSourceProjectGuard). Resolves git remotes of project repos.
