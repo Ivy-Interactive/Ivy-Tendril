@@ -15,8 +15,6 @@ public class SidebarView(
     IState<int> sessionVersion,
     IState<string> selectedAgent,
     IState<string> selectedModel,
-    IState<string?> renamingSessionId,
-    IState<string> renameText,
     IState<string> searchState,
     IChatHistoryService chatService) : ViewBase
 {
@@ -59,48 +57,17 @@ public class SidebarView(
                 var formattedDate = sess.UpdatedAt.ToString("M/d, h:mm tt");
                 var displayTitle = string.IsNullOrWhiteSpace(sess.Title) ? "New Chat" : sess.Title;
 
-                var textStack = Layout.Vertical().AlignContent(Align.Left).Width(Size.Grow())
+                var textStack = Layout.Vertical().AlignContent(Align.Left).Width(Size.Full())
                     | Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis)
                     | Text.Muted($"{formattedDate} • {sess.AgentId}").Small().NoWrap().Overflow(Overflow.Ellipsis);
 
                 var sessionBtn = new Button()
-                    .Width(Size.Grow())
+                    .Width(Size.Full())
                     .Content(textStack)
                     .OnClick(() => activeSessionId.Set(sess.Id))
-                    .BorderRadius(BorderRadius.None)
-                    .Ghost();
+                    .BorderRadius(BorderRadius.None);
 
-                var actionButtons = Layout.Horizontal().AlignContent(Align.Center).Width(Size.Fit())
-                    | new Button()
-                        .Icon(Icons.Pencil)
-                        .Ghost()
-                        .Small()
-                        .OnClick(() =>
-                        {
-                            renamingSessionId.Set(sess.Id);
-                            var cleanTitle = sess.Title.TrimEnd('.').TrimEnd('…').Trim();
-                            renameText.Set(cleanTitle);
-                        })
-                    | new Button()
-                        .Icon(Icons.Trash2)
-                        .Ghost()
-                        .Small()
-                        .OnClick(() =>
-                        {
-                            chatService.DeleteSession(sess.Id);
-                            sessionVersion.Set(v => v + 1);
-                            if (activeSessionId.Value == sess.Id)
-                            {
-                                var remaining = chatService.GetSessions();
-                                activeSessionId.Set(remaining.FirstOrDefault()?.Id);
-                            }
-                        });
-
-                var rowLayout = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween)
-                    | sessionBtn
-                    | actionButtons;
-
-                return isSelected ? rowLayout.Background(Colors.Secondary) : rowLayout;
+                return isSelected ? sessionBtn.Secondary() : sessionBtn.Ghost();
             }));
         }
 
