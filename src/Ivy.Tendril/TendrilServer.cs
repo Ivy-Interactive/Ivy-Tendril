@@ -90,6 +90,7 @@ public static class TendrilServer
         });
 
         var isBeta = tendrilArgs.Beta ||
+                     configService.Settings.Beta ||
                      Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
                      Environment.GetEnvironmentVariable("IVY_BETA") == "1";
 

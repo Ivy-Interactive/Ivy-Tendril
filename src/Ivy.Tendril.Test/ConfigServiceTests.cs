@@ -1924,4 +1924,35 @@ projects:
             PathHelper.DefaultTendrilHomeOverride = null;
         }
     }
+
+    [Fact]
+    public void Beta_Setting_PersistsAndSetsEnvironmentVariable()
+    {
+        var yaml = @"
+beta: true
+";
+        var originalEnv = Environment.GetEnvironmentVariable("TENDRIL_BETA");
+        var tempDir = CreateTempConfigFile(yaml);
+        PathHelper.DefaultTendrilHomeOverride = tempDir;
+        try
+        {
+            Environment.SetEnvironmentVariable("TENDRIL_BETA", null);
+            using var service = new ConfigService();
+            Assert.True(service.Settings.Beta);
+            Assert.Equal("1", Environment.GetEnvironmentVariable("TENDRIL_BETA"));
+
+            service.Settings.Beta = false;
+            Environment.SetEnvironmentVariable("TENDRIL_BETA", null);
+            service.SaveSettings();
+
+            var yamlOnDisk = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
+            Assert.Contains("beta: false", yamlOnDisk);
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+            Environment.SetEnvironmentVariable("TENDRIL_BETA", originalEnv);
+            Directory.Delete(tempDir, true);
+        }
+    }
 }

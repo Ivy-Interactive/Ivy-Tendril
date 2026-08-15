@@ -257,6 +257,7 @@ public class ConfigService : IConfigService, IDisposable
         ConfigPath = !string.IsNullOrEmpty(TendrilHome)
             ? Path.Combine(TendrilHome, "config.yaml")
             : PathHelper.GetResourcePath("config.yaml");
+        SyncBetaFromSettings();
     }
 
     public ConfigService(ILogger<ConfigService>? logger = null)
@@ -385,6 +386,15 @@ public class ConfigService : IConfigService, IDisposable
         ValidateProjectNames();
         CreateRequiredDirectories();
         SyncAuthFromEnvironmentAndPersistIfNeeded();
+        SyncBetaFromSettings();
+    }
+
+    private void SyncBetaFromSettings()
+    {
+        if (Settings.Beta)
+        {
+            Environment.SetEnvironmentVariable("TENDRIL_BETA", "1");
+        }
     }
 
     /// <summary>
@@ -634,6 +644,7 @@ public class ConfigService : IConfigService, IDisposable
             ExpandRepoPaths();
 
             SyncAuthFromEnvironmentAndPersistIfNeeded();
+            SyncBetaFromSettings();
             SettingsReloaded?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
