@@ -51,15 +51,50 @@ public class SidebarView(
         }
         else
         {
+            var generatingSessionIds = chatService.GetGeneratingSessionIds();
+
             sidebarContent = new List(filteredSessions.Select(sess =>
             {
                 var isSelected = sess.Id == activeSessionId.Value;
                 var formattedDate = sess.UpdatedAt.ToString("M/d, h:mm tt");
                 var displayTitle = string.IsNullOrWhiteSpace(sess.Title) ? "New Chat" : sess.Title;
+                var isGenerating = generatingSessionIds.Contains(sess.Id);
+                var lastMessage = sess.Messages.LastOrDefault();
+                var isWaiting = !isGenerating && lastMessage != null && lastMessage.Role.Equals("assistant", StringComparison.OrdinalIgnoreCase);
+
+                object metaLine;
+                if (isGenerating)
+                {
+                    metaLine = Layout.Horizontal().AlignContent(Align.Left)
+                        | new Icon(Icons.LoaderCircle, Colors.Green).Small()
+                        | Text.Success("Generating").Small()
+                        | Text.Muted($"• {sess.AgentId}").Small();
+                }
+                else if (isWaiting)
+                {
+                    metaLine = Layout.Horizontal().AlignContent(Align.Left)
+                        | new Icon(Icons.Clock, Colors.Amber).Small()
+                        | Text.Warning("Waiting for input").Small()
+                        | Text.Muted($"• {sess.AgentId}").Small();
+                }
+                else
+                {
+                    metaLine = Text.Muted($"{formattedDate} • {sess.AgentId}").Small().NoWrap().Overflow(Overflow.Ellipsis);
+                }
+
+                object titleBlock = isGenerating
+                    ? (Layout.Horizontal().AlignContent(Align.Left)
+                        | new Icon(Icons.CircleDot, Colors.Green).Small()
+                        | Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis))
+                    : isWaiting
+                        ? (Layout.Horizontal().AlignContent(Align.Left)
+                            | new Icon(Icons.CircleDot, Colors.Amber).Small()
+                            | Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis))
+                        : Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis);
 
                 var textStack = Layout.Vertical().AlignContent(Align.Left).Width(Size.Full())
-                    | Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis)
-                    | Text.Muted($"{formattedDate} • {sess.AgentId}").Small().NoWrap().Overflow(Overflow.Ellipsis);
+                    | titleBlock
+                    | metaLine;
 
                 var sessionBtn = new Button()
                     .Width(Size.Full())
