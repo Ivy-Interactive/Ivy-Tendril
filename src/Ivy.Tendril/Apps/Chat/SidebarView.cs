@@ -59,19 +59,11 @@ public class SidebarView(
                 var formattedDate = sess.UpdatedAt.ToString("M/d, h:mm tt");
                 var displayTitle = string.IsNullOrWhiteSpace(sess.Title) ? "New Chat" : sess.Title;
 
-                var textStack = Layout.Vertical().AlignContent(Align.Left)
-                    | Text.Literal(displayTitle).Small()
-                    | Text.Muted($"{formattedDate} • {sess.AgentId}").Small();
+                var textStack = Layout.Vertical().AlignContent(Align.Left).Width(Size.Grow())
+                    | Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis)
+                    | Text.Muted($"{formattedDate} • {sess.AgentId}").Small().NoWrap().Overflow(Overflow.Ellipsis);
 
-                var sessionBtn = new Button()
-                    .Width(Size.Full())
-                    .Content(textStack)
-                    .OnClick(() => activeSessionId.Set(sess.Id))
-                    .BorderRadius(BorderRadius.None);
-
-                var sessionBtnStyled = isSelected ? sessionBtn.Secondary() : sessionBtn.Ghost();
-
-                var actionButtons = Layout.Horizontal().AlignContent(Align.Center)
+                var actionButtons = Layout.Horizontal().AlignContent(Align.Center).Width(Size.Fit())
                     | new Button()
                         .Icon(Icons.Pencil)
                         .Ghost()
@@ -97,9 +89,17 @@ public class SidebarView(
                             }
                         });
 
-                return Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween)
-                    | sessionBtnStyled
+                var rowLayout = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween)
+                    | textStack
                     | actionButtons;
+
+                var rowBtn = new Button()
+                    .Width(Size.Full())
+                    .Content(rowLayout)
+                    .OnClick(() => activeSessionId.Set(sess.Id))
+                    .BorderRadius(BorderRadius.None);
+
+                return isSelected ? rowBtn.Secondary() : rowBtn.Ghost();
             }));
         }
 
