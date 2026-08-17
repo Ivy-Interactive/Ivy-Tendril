@@ -12,7 +12,7 @@ public class PlansSetupView : ViewBase
 
         var hasChanges = planTemplate.Value != config.Settings.PlanTemplate;
 
-        return Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        return Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
                | Text.Block("Plans").Bold()
                | Text.Muted("Configure the default plan template used when creating new plans.").Small()
                | planTemplate.ToCodeInput("Plan template...")
