@@ -17,6 +17,7 @@
   --aov-warn: var(--warning);
   --aov-mono: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
     Consolas, monospace;
+  --aov-tool-header-h: 26px;
 
   color: var(--aov-fg);
   font-size: 14px;
@@ -309,6 +310,11 @@
   background: color-mix(in srgb, var(--muted-foreground) 4%, var(--aov-bg-elev));
 }
 
+.aov-tool.open > .aov-tool-header,
+.aov-tool-group.open > .aov-tool-group-header {
+  background: color-mix(in srgb, var(--muted-foreground) 4%, var(--aov-bg-elev));
+}
+
 .aov-tool-header {
   display: flex;
   align-items: center;
@@ -320,6 +326,9 @@
   outline: none;
   white-space: nowrap;
   min-width: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .aov-tool-chevron {
@@ -418,11 +427,18 @@
   outline: none;
   white-space: nowrap;
   min-width: 0;
+  position: sticky;
+  top: 0;
+  z-index: 3;
 }
 
 .aov-tool-group-body {
   padding: 4px 0 4px 18px;
   animation: aov-tool-expand 0.2s ease-out both;
+}
+
+.aov-tool-group-body .aov-tool-header {
+  top: var(--aov-tool-header-h);
 }
 
 .aov-tool-section {
