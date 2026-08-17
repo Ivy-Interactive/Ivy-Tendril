@@ -21,7 +21,7 @@ public static class IvyBinaryResolver
         // 2. Check user profile directory ~/.ivy-agent/bin/ivy-agent
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var fallbackDir = Path.Combine(home, ".ivy-agent", "bin");
-        
+
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             string[] extensions = [".exe", ".cmd", ".bat"];

@@ -25,7 +25,7 @@ public class JobDebugSheet(
         var (reportBugDialog, showReportBugDialog) = UseTrigger((isOpen) =>
             !isOpen.Value ? null : new ReportBugDialog(isOpen, jobId));
 
-        #if DEBUG
+#if DEBUG
         var (debugAgentDialog, showDebugAgentDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
@@ -46,7 +46,7 @@ public class JobDebugSheet(
                 closeSheet();
             });
         });
-        #endif
+#endif
 
         var job = jobService.GetJob(jobId);
         if (job is null)
@@ -107,17 +107,17 @@ public class JobDebugSheet(
                      })
                      | new Button("Report Bug").Icon(Icons.Bug).OnClick(() => showReportBugDialog());
 
-        #if DEBUG
+#if DEBUG
         header |= new Button($"Debug with {agentBranding.Label}").Icon(agentBranding.Icon).Outline()
             .OnClick(() => showDebugAgentDialog());
-        #endif
+#endif
 
         return new Fragment(
             new HeaderLayout(header, detailsView).Size(Size.Full()),
             reportBugDialog
-            #if DEBUG
+#if DEBUG
             , debugAgentDialog
-            #endif
+#endif
         );
     }
 

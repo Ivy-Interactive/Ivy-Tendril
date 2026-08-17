@@ -36,7 +36,7 @@ internal static class ServiceRegistration
                                         configService.Settings.Beta ||
                                         Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
                                         Environment.GetEnvironmentVariable("IVY_BETA") == "1";
-            
+
             opts.IvyApiKeyProviderFactory = sp =>
             {
                 var config = sp.GetService<IConfigService>();
@@ -55,13 +55,13 @@ internal static class ServiceRegistration
                     return authTokenHandler?.GetCurrentToken()?.AccessToken;
                 };
             };
-            
+
             opts.IvyTokenProviderFactory = sp =>
             {
                 var authTokenHandler = sp.GetService<Ivy.IAuthTokenHandlerService>();
                 return () => authTokenHandler?.GetCurrentToken()?.AccessToken;
             };
-            
+
             opts.IvyEmailProviderFactory = sp =>
             {
                 var authTokenHandler = sp.GetService<Ivy.IAuthTokenHandlerService>();

@@ -132,12 +132,12 @@ public class ClaudeCliTests
         Assert.Contains("--permission-mode", spec.Arguments);
         Assert.Contains("dontAsk", spec.Arguments);
         Assert.Contains("--settings", spec.Arguments);
-        
+
         var settingsIdx = spec.Arguments.ToList().IndexOf("--settings");
         Assert.True(settingsIdx >= 0);
         Assert.Contains("permissions", spec.Arguments[settingsIdx + 1]);
         Assert.Contains("allow", spec.Arguments[settingsIdx + 1]);
-        
+
         Assert.Contains("-", spec.Arguments);
         Assert.Equal("Hello", spec.StdinContent);
         Assert.Equal("/tmp", spec.WorkingDirectory);
