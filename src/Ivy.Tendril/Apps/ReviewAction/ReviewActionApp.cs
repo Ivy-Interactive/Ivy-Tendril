@@ -75,7 +75,7 @@ public class ReviewActionApp : ViewBase
         var ptyHandle = Context.UsePty(
             GetCommandLine(plan, action),
             plan?.FolderPath);
-        ptyHandleRef.Value = ptyHandle;
+        // ptyHandleRef.Value = ptyHandle; // Commented out - ptyHandleRef not used
 
         if (plan is null)
         {
