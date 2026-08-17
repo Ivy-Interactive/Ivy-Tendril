@@ -25,8 +25,13 @@ public class ReviewActionApp : ViewBase
         var configService = UseService<IConfigService>();
         var planService = UseService<IPlanReaderService>();
         var args = UseArgs<ReviewActionAppArgs>();
-        var ptyHandleRef = UseRef<PtyHandle?>();
+        // var ptyHandleRef = UseRef<PtyHandle?>(); // Commented out - not used until PtyHandle.GetProcessId is available
 
+        // TODO: Explicit process tree kill disabled - PtyHandle does not expose GetProcessId.
+        // UsePty's cleanup (pty.Kill/Dispose) should handle process termination, though Windows
+        // job-object teardown may not reliably reach every grandchild. Requires PtyHandle update
+        // to expose process ID if this backstop is needed.
+        //
         // Windows job-object teardown (which UsePty relies on to kill the whole process tree on
         // disposal) does not reliably reach every grandchild - verified by spawning a pwsh -> a
         // long-running grandchild and observing the grandchild survive a plain pty.Kill(). So this
@@ -40,18 +45,18 @@ public class ReviewActionApp : ViewBase
         // ptyHandleRef bridges the value across, since the handle itself doesn't exist yet at
         // this point in Build() (Ivy hooks must come first, IVYHOOK005, so it can't be resolved
         // via a preceding non-hook statement either).
-        UseEffect(() => Disposable.Create(() =>
-        {
-            if (ptyHandleRef.Value?.GetProcessId?.Invoke() is not { } pid) return;
-            try
-            {
-                ProcessRunner.KillProcessTree(Process.GetProcessById(pid));
-            }
-            catch (ArgumentException)
-            {
-                // Process already exited.
-            }
-        }), EffectTrigger.OnMount());
+        // UseEffect(() => Disposable.Create(() =>
+        // {
+        //     if (ptyHandleRef.Value?.GetProcessId?.Invoke() is not { } pid) return;
+        //     try
+        //     {
+        //         ProcessRunner.KillProcessTree(Process.GetProcessById(pid));
+        //     }
+        //     catch (ArgumentException)
+        //     {
+        //         // Process already exited.
+        //     }
+        // }), EffectTrigger.OnMount());
 
         // The plan/action lookup happens once via UseMemo (itself a hook, so this still satisfies
         // IVYHOOK005's "hooks must come first" rule - it can't be a plain statement preceding
