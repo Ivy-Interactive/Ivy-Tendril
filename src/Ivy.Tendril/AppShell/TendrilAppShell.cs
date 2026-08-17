@@ -64,6 +64,19 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     internal static bool ShouldShowInAppToast(bool isDesktop, bool desktopNotificationsEnabled)
         => !isDesktop || !desktopNotificationsEnabled;
 
+    /// <summary>
+    ///     Whether Cmd+W / Ctrl+W should be wired up to close the active tab. Desktop shell only: in a
+    ///     browser the chord belongs to the browser (it closes the browser tab and cannot be cancelled),
+    ///     and <see cref="AppShellNavigation.Pages"/> has no tab strip at all.
+    /// </summary>
+    internal static bool ShouldEnableCloseTabShortcut(
+        bool isDesktop, AppShellNavigation navigation, int tabCount, int? selectedIndex)
+        => isDesktop
+           && navigation != AppShellNavigation.Pages
+           && selectedIndex is { } index
+           && index >= 0
+           && index < tabCount;
+
     private static async Task<SidebarNewsArticle[]> FetchNewsAsync()
     {
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TENDRIL_E2E")))
@@ -539,6 +552,22 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
         }
 
+        // Cmd+W (Ctrl+W on Windows) closes the active tab, matching desktop-app convention. ShortcutKey is
+        // the only shortcut API Ivy exposes, so the binding lives on a zero-width Ghost button that paints
+        // nothing, wrapped in a zero-height stack so it stays out of the layout (same trick as the
+        // SelectInput warm-up below).
+        object? closeTabShortcut = null;
+        if (ShouldEnableCloseTabShortcut(isDesktop, settings.Navigation, tabs.Value.Length, selectedIndex.Value)
+            && selectedIndex.Value is { } activeTabIndex)
+        {
+            closeTabShortcut = Layout.Vertical().Height(Size.Px(0)).Width(Size.Px(0))
+                | new Button()
+                    .Ghost()
+                    .Width(Size.Px(0))
+                    .ShortcutKey("Ctrl+W")
+                    .OnClick(() => OnTabClose(activeTabIndex));
+        }
+
         var sidebarMenu = new SidebarMenu(
             OnMenuSelect,
             menuItems.Value
@@ -675,7 +704,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                     | settingsMenuCollapsed
             ).Open(sidebarOpen.Value).MainAppSidebar(),
             importIssuesDialog,
-            updateDialog
+            updateDialog,
+            closeTabShortcut
         );
     }
 
