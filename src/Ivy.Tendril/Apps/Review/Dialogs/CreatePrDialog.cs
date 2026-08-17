@@ -52,7 +52,7 @@ public class CreatePrDialog(
             },
             initialValue: Array.Empty<string>()
         );
-        
+
         UseEffect(() =>
         {
             if (!createPrMerge.Value) createPrDeleteBranch.Set(false);

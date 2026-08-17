@@ -179,7 +179,7 @@ public class CodingAgentSetupView : ViewBase
             deepModel.Value != GetProfileModel(config, finalAgent, "deep") ||
             balancedModel.Value != GetProfileModel(config, finalAgent, "balanced") ||
             quickModel.Value != GetProfileModel(config, finalAgent, "quick");
-        
+
         var currentIvyKey = GetIvyApiKeyFromConfig(config);
         var currentOpenAiBaseUrl = GetOpenAiProxyBaseUrlFromConfig(config);
         var currentOpenAiKey = GetOpenAiProxyApiKeyFromConfig(config);
@@ -426,7 +426,7 @@ public class CodingAgentSetupView : ViewBase
                        var currentModels = new[] { deepModel.Value, balancedModel.Value, quickModel.Value };
                        var entries = new List<TestModelEntry>();
                        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
- 
+
                        foreach (var m in currentModels)
                        {
                            if (string.IsNullOrEmpty(m) || m.Equals("default", StringComparison.OrdinalIgnoreCase))
@@ -443,7 +443,7 @@ public class CodingAgentSetupView : ViewBase
                                }
                            }
                        }
- 
+
                        return entries;
                    },
                    runner);
@@ -592,20 +592,20 @@ public class CodingAgentSetupView : ViewBase
         string os = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "windows" :
                     RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "darwin" : "linux";
         string arch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x64";
-        
+
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var installDir = Path.Combine(home, ".ivy-agent", "bin");
         Directory.CreateDirectory(installDir);
-        
+
         var tempDir = Path.Combine(Path.GetTempPath(), "ivy-agent-install");
         if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
         Directory.CreateDirectory(tempDir);
-        
+
         try
         {
             using var httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("IvyTendril");
-            
+
             // 1. Get latest version from GitHub releases / CDN
             string version;
             try
@@ -616,13 +616,13 @@ public class CodingAgentSetupView : ViewBase
             {
                 throw new Exception($"Failed to fetch latest version metadata: {ex.Message}");
             }
-            
+
             // 2. Download the archive from CDN
             string extension = os == "windows" ? ".zip" : ".tar.gz";
             string archiveName = $"ivy-agent-cli-{os}-{arch}{extension}";
             string downloadUrl = $"https://cdn.ivy.app/ivy-agent-cli/releases/download/{version}/{archiveName}";
             string archivePath = Path.Combine(tempDir, archiveName);
-            
+
             try
             {
                 using var stream = await httpClient.GetStreamAsync(downloadUrl);
@@ -633,7 +633,7 @@ public class CodingAgentSetupView : ViewBase
             {
                 throw new Exception($"Failed to download release archive from CDN: {ex.Message}");
             }
-            
+
             if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
             {
                 ZipFile.ExtractToDirectory(archivePath, tempDir, true);
@@ -659,16 +659,16 @@ public class CodingAgentSetupView : ViewBase
                     }
                 }
             }
-            
+
             string binaryName = os == "windows" ? "ivy-agent.exe" : "ivy-agent";
             var files = Directory.GetFiles(tempDir, binaryName, SearchOption.AllDirectories);
             var binarySource = files.FirstOrDefault();
-            
+
             if (string.IsNullOrEmpty(binarySource))
             {
                 throw new Exception($"Binary '{binaryName}' not found in the downloaded archive.");
             }
-            
+
             // Kill any running ivy-agent processes before updating
             try
             {
@@ -711,7 +711,7 @@ public class CodingAgentSetupView : ViewBase
             }
 
             IvyBinaryResolver.ResetCache();
-            
+
             if (os != "windows")
             {
                 var chmodInfo = new ProcessStartInfo
@@ -724,7 +724,7 @@ public class CodingAgentSetupView : ViewBase
                 using var chmodProc = Process.Start(chmodInfo);
                 if (chmodProc != null) await chmodProc.WaitForExitAsync();
             }
-            
+
             if (os == "darwin")
             {
                 var codesignInfo = new ProcessStartInfo
@@ -737,7 +737,7 @@ public class CodingAgentSetupView : ViewBase
                 using var codesignProc = Process.Start(codesignInfo);
                 if (codesignProc != null) await codesignProc.WaitForExitAsync();
             }
-            
+
             return true;
         }
         finally
@@ -746,7 +746,7 @@ public class CodingAgentSetupView : ViewBase
             {
                 if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
             }
-            catch {}
+            catch { }
         }
     }
 
