@@ -360,7 +360,7 @@ public class ContentView(
         IAgentRunner agentRunner,
         IState<List<DraftComment>> draftComments)
     {
-        var (client, logger, nav, args, copyToClipboard) = context;
+        var (client, logger, nav, _, copyToClipboard) = context;
         var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner, config);
 
         // Standard overflow menu items
@@ -467,14 +467,10 @@ public class ContentView(
         }
 
         // Action bar without .Wrap() - single row with progressive collapse.
-        // Full (>=1024px): Previous, Next, Reset to Draft, Request Changes, Discard inline + overflow dropdown.
-        // Compact (768-1023px): Previous, Next, Reset to Draft, Request Changes inline; Discard in dropdown.
-        // Minimal (<768px): Previous, Next inline; everything else in dropdown.
+        // Full (>=1024px): Reset to Draft, Request Changes, Discard inline + overflow dropdown.
+        // Compact (768-1023px): Reset to Draft, Request Changes inline; Discard in dropdown.
+        // Minimal (<768px): everything in dropdown.
         return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
-                | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious(nav, args))
-                    .ShortcutKey("p").AlwaysVisible()
-                | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext(nav, args))
-                    .ShortcutKey("n").AlwaysVisible()
                 | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r")
                     .OnClick(showResetToDraftDialog).CompactUp()
                 | requestChangesBtn
@@ -760,22 +756,6 @@ public class ContentView(
         var verificationDir = Path.GetFullPath(Path.Combine(planFolderPath, "Verification"));
         var resolvedPath = Path.GetFullPath(Path.Combine(verificationDir, $"{name}.md"));
         return resolvedPath.StartsWith(verificationDir, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private void GoToNext(INavigator nav, ReviewAppArgs? args)
-    {
-        if (allPlans.Count == 0) return;
-        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlanState.Value?.FolderName);
-        var nextIndex = (currentIndex + 1) % allPlans.Count;
-        selectedPlanState.Set(allPlans[nextIndex]);
-    }
-
-    private void GoToPrevious(INavigator nav, ReviewAppArgs? args)
-    {
-        if (allPlans.Count == 0) return;
-        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlanState.Value?.FolderName);
-        var prevIndex = (currentIndex - 1 + allPlans.Count) % allPlans.Count;
-        selectedPlanState.Set(allPlans[prevIndex]);
     }
 
     private static async void SynchronizeWorktreeAsync(
