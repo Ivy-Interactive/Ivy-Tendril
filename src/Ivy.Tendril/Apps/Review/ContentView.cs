@@ -217,7 +217,7 @@ public class ContentView(
         var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, context, showCreatePrDialog);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
-            showCreatePrDialog, context, agentRunner, draftComments);
+            context, agentRunner, draftComments);
         var content = BuildContent(
             selectedPlanState.Value, planContentQuery, selectedTab, sheets,
             syncingWorktrees, selectedRecTitles, context, showDebugJob, draftComments, ImplementRecommendations);
@@ -355,7 +355,6 @@ public class ContentView(
         Action showResetToDraftDialog,
         Action showSuggestChangesDialog,
         Action showDiscardDialog,
-        Action showCreatePrDialog,
         ReviewViewContext context,
         IAgentRunner agentRunner,
         IState<List<DraftComment>> draftComments)
@@ -370,7 +369,6 @@ public class ContentView(
                 .OnSelect(() => nav.Navigate<AgentApp>(new AgentAppArgs(
                     $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode.",
                     $"#{TendrilAppShell.FormatPlanId(selectedPlan.FolderName)}"))),
-            new MenuItem("Create PR", Icon: Icons.GitPullRequest, Tag: "CreatePR").OnSelect(showCreatePrDialog),
             new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
             {
                 try
