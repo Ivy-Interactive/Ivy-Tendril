@@ -17,8 +17,7 @@ public sealed class AntigravityCli : IAgentCli
         AgentCapabilities.EffortControl |
         AgentCapabilities.DirectoryRestriction |
         AgentCapabilities.HealthCheck |
-        AgentCapabilities.ExtraArgPassthrough |
-        AgentCapabilities.SessionResume;
+        AgentCapabilities.ExtraArgPassthrough;
 
     public TransportKind SupportedTransports => TransportKind.CliSpawn;
     public PromptTransport PromptTransport => PromptTransport.Stdin;
@@ -67,11 +66,10 @@ public sealed class AntigravityCli : IAgentCli
             args.Add(effort);
         }
 
-        if (!string.IsNullOrEmpty(config.SessionId))
-        {
-            args.Add("--conversation");
-            args.Add(config.SessionId);
-        }
+        // Note: agy --conversation only accepts an existing conversation ID that agy already stored in
+        // ~/.gemini/antigravity-cli/conversations/*.pb. AgentLaunchConfig.SessionId is a per-job GUID
+        // minted by JobLauncher.PrepareJobForLaunch, so passing it would cause agy to print
+        // "warning: conversation <id> not found" on every run. See GitHub issue #2074.
 
         foreach (var dir in config.WritableDirectories)
         {
