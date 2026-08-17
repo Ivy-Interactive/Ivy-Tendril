@@ -41,13 +41,12 @@ public class NewsletterView : ViewBase
                         source = "tendril"
                     });
 
-                    if (!response.IsSuccessStatusCode)
+                    if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.Conflict)
                     {
                         subscribed.Value = false;
                         error.Value = response.StatusCode switch
                         {
                             System.Net.HttpStatusCode.TooManyRequests => "Too many attempts. Please try again later.",
-                            System.Net.HttpStatusCode.Conflict => "This email is already subscribed.",
                             _ => "Something went wrong. Please try again later."
                         };
                     }
