@@ -115,7 +115,7 @@ public sealed class IvyHealthCheck : IAgentHealthCheck
             {
                 Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", key);
             }
-            
+
             var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
                 binaryPath, ["run", "ping"],
                 TimeSpan.FromSeconds(30), ct);

@@ -21,7 +21,7 @@ internal static class OpenCodeBinaryResolver
         // 2. Check user profile directory ~/.opencode/bin/opencode
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         var fallbackDir = Path.Combine(home, ".opencode", "bin");
-        
+
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
             string[] extensions = [".cmd", ".exe", ".bat"];
