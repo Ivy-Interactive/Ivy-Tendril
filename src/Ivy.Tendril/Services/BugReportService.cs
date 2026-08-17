@@ -309,8 +309,8 @@ public sealed class BugReportService
     private void CollectJobFiles(IReadOnlyCollection<string> jobIds, List<BugReportFile> files)
     {
         foreach (var jobId in jobIds)
-        foreach (var file in JobLogPaths.AllForJobId(_config.TendrilHome, jobId))
-            files.Add(new BugReportFile(file, Path.Combine("Jobs", Path.GetFileName(file))));
+            foreach (var file in JobLogPaths.AllForJobId(_config.TendrilHome, jobId))
+                files.Add(new BugReportFile(file, Path.Combine("Jobs", Path.GetFileName(file))));
     }
 
     private static void CollectPlanFiles(string planFolder, List<BugReportFile> files)

@@ -181,7 +181,7 @@ public class SettingsApp : ViewBase
 
         var contentWithMobileHeader = Layout.Vertical().Height(Size.Full()).Gap(2)
                                       | mobileHeader
-                                      | (Layout.Vertical().Height(Size.Grow()) | content)
+                                      | (Layout.Vertical().Height(Size.Grow()).Padding(4) | content)
                                       | addProjectDialog;
 
         return new SidebarLayout(contentWithMobileHeader, sidebar);

@@ -148,12 +148,12 @@ public class DemoApp : ViewBase
         switch (e)
         {
             case ConsoleEvent c:
-            {
-                var text = Text.Block($"{c.Level}: {c.Text}");
-                if (c.Level == "error") text = text.Color(Colors.Red);
-                else if (c.Level == "warn") text = text.Color(Colors.Amber);
-                return text;
-            }
+                {
+                    var text = Text.Block($"{c.Level}: {c.Text}");
+                    if (c.Level == "error") text = text.Color(Colors.Red);
+                    else if (c.Level == "warn") text = text.Color(Colors.Amber);
+                    return text;
+                }
             case ClickEvent c:
                 return Text.Block($"🖱 {c.Tag} {(c.Text is { Length: > 0 } ? $"“{c.Text}” " : "")}· {c.Selector}").Color(Colors.Muted);
             case CommentEvent c:

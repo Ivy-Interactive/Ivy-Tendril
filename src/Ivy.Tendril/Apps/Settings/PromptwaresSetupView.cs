@@ -72,7 +72,7 @@ public class PromptwaresSetupView : ViewBase
             }))
             .Width(Size.Fit());
 
-        return Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(200)))
+        return Layout.Vertical().Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Promptware Configuration").Bold()
                | Text.Block("Configure agent profile and tool permissions for each promptware.")
                    .Muted().Small()

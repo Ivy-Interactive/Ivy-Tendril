@@ -104,7 +104,7 @@ public class UpdateCliCommand : AsyncCommand<UpdateCliCommand.Settings>
                 .StartAsync(async ctx =>
                 {
                     var task = ctx.AddTask("[green]Downloading installer[/]", autoStart: true, maxValue: 100);
-                    
+
                     await UpdateHelper.DownloadFileWithProgressAsync(downloadUrl, tempFilePath, (read, total) =>
                     {
                         if (total > 0)
@@ -116,7 +116,7 @@ public class UpdateCliCommand : AsyncCommand<UpdateCliCommand.Settings>
 
             AnsiConsole.MarkupLine($"[green]Download complete. Launching installer...[/]");
             UpdateHelper.LaunchInstaller(tempFilePath);
-            
+
             AnsiConsole.MarkupLine("[green]Exiting Tendril to allow installation.[/]");
             Environment.Exit(0);
             return 0;
