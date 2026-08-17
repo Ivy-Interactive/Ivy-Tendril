@@ -296,9 +296,7 @@ public class ContentView(
             refreshPlans,
             copyToClipboard,
             hasActiveExpandJob,
-            hasActiveSplitJob,
-            GoToNext,
-            GoToPrevious);
+            hasActiveSplitJob);
 
         var mainLayout = new HeaderLayout(
             header,
@@ -595,22 +593,6 @@ public class ContentView(
         }
 
         return sb.ToString().TrimEnd();
-    }
-
-    private void GoToNext()
-    {
-        if (allPlans.Count == 0) return;
-        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan?.FolderName);
-        var nextIndex = (currentIndex + 1) % allPlans.Count;
-        selectedPlanState.Set(allPlans[nextIndex]);
-    }
-
-    private void GoToPrevious()
-    {
-        if (allPlans.Count == 0) return;
-        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan?.FolderName);
-        var prevIndex = (currentIndex - 1 + allPlans.Count) % allPlans.Count;
-        selectedPlanState.Set(allPlans[prevIndex]);
     }
 
     private record PlanContentData(
