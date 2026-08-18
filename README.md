@@ -151,7 +151,9 @@ irm https://cdn.ivy.app/install-tendril.ps1 | iex
 
 ### Run
 
-Start the Tendril desktop application:
+Tendril is a desktop application, but can also be launched and controlled via the CLI:
+
+Start the desktop application:
 ```bash
 tendril
 ```
