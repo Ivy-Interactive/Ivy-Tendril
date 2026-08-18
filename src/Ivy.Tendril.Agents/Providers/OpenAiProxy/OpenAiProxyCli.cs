@@ -46,6 +46,15 @@ public sealed class OpenAiProxyCli : IAgentCli
                     new AgentProfileDefault(ProfileTier.Quick, "claude-haiku-5", "low"),
                 ];
             }
+            if (baseUrl != null && (baseUrl.Contains("generativelanguage.googleapis.com") || baseUrl.Contains("gemini") || baseUrl.Contains("google")))
+            {
+                return
+                [
+                    new AgentProfileDefault(ProfileTier.Deep, "gemini-3.1-pro", "high"),
+                    new AgentProfileDefault(ProfileTier.Balanced, "gemini-3.6-flash", "medium"),
+                    new AgentProfileDefault(ProfileTier.Quick, "gemini-3.7-flash", "low"),
+                ];
+            }
             if (baseUrl != null && baseUrl.Contains("api.berget.ai"))
             {
                 return
@@ -83,6 +92,10 @@ public sealed class OpenAiProxyCli : IAgentCli
             else if (baseUrl != null && baseUrl.Contains("api.anthropic.com"))
             {
                 model = "claude-sonnet-5";
+            }
+            else if (baseUrl != null && (baseUrl.Contains("generativelanguage.googleapis.com") || baseUrl.Contains("gemini") || baseUrl.Contains("google")))
+            {
+                model = "gemini-3.6-flash";
             }
             else if (baseUrl != null && baseUrl.Contains("api.berget.ai"))
             {

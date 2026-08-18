@@ -82,7 +82,15 @@ public class OpenAiProxyTests
 
         var anthropicModels = OpenAiProxyModelCatalog.GetModelsForBaseUrl("https://api.anthropic.com/v1");
         Assert.Contains(anthropicModels, m => m.Id == "claude-opus-5");
+        Assert.Contains(anthropicModels, m => m.Id == "claude-opus-4-8");
+        Assert.Contains(anthropicModels, m => m.Id == "claude-opus-4-7");
+        Assert.Contains(anthropicModels, m => m.Id == "claude-opus-4-6");
         Assert.Contains(anthropicModels, m => m.Id == "claude-sonnet-5");
+        Assert.Contains(anthropicModels, m => m.Id == "claude-sonnet-4-6");
+
+        var googleModels = OpenAiProxyModelCatalog.GetModelsForBaseUrl("https://generativelanguage.googleapis.com/v1beta");
+        Assert.Contains(googleModels, m => m.Id == "gemini-3.7-flash");
+        Assert.Contains(googleModels, m => m.Id == "gemini-3.6-flash");
 
         var openaiModels = OpenAiProxyModelCatalog.GetModelsForBaseUrl("https://api.openai.com");
         Assert.Contains(openaiModels, m => m.Id == "gpt-5.6-sol");
@@ -90,6 +98,13 @@ public class OpenAiProxyTests
 
         var bergetModels = OpenAiProxyModelCatalog.GetModelsForBaseUrl("https://api.berget.ai/v1");
         Assert.Contains(bergetModels, m => m.Id == "moonshotai/Kimi-K3");
+
+        var customModels = OpenAiProxyModelCatalog.GetModelsForBaseUrl("https://custom-proxy.internal");
+        Assert.Contains(customModels, m => m.Id == "claude-opus-4-8");
+        Assert.Contains(customModels, m => m.Id == "claude-opus-4-7");
+        Assert.Contains(customModels, m => m.Id == "claude-sonnet-4-6");
+        Assert.Contains(customModels, m => m.Id == "gemini-3.7-flash");
+        Assert.Contains(customModels, m => m.Id == "gpt-5.6-sol");
     }
 
     [Fact]
