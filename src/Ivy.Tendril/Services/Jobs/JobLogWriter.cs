@@ -95,9 +95,9 @@ public static class JobLogWriter
         if (!string.IsNullOrEmpty(job.SessionId))
             sb.AppendLine($"- **SessionId:** {job.SessionId}");
         if (job.Cost.HasValue)
-            sb.AppendLine($"- **Cost:** ${job.Cost:F4}");
+            sb.AppendLine($"- **Cost:** {FormatHelper.FormatCost(job.Cost.Value, decimals: 4)}");
         if (job.Tokens.HasValue)
-            sb.AppendLine($"- **Tokens:** {job.Tokens:N0}");
+            sb.AppendLine($"- **Tokens:** {FormatHelper.FormatCount(job.Tokens.Value)}");
         if (job.Status == JobStatus.Timeout && job.StatusMessage != null)
             sb.AppendLine($"- **Timeout Reason:** {job.StatusMessage}");
         sb.AppendLine();

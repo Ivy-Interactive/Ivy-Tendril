@@ -19,7 +19,7 @@ public class PlanJobsDataTableView(List<JobItem> jobs, Action<string> showDebug,
                     ? AnimatedStatusValue.Running(j.Status.ToString())
                     : AnimatedStatusValue.Idle(j.Status.ToString()),
                 Type = j.Type,
-                Cost = j.Cost.HasValue ? $"${j.Cost.Value:F2}" : "",
+                Cost = j.Cost.HasValue ? FormatHelper.FormatCost(j.Cost.Value) : "",
                 Tokens = j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : "",
                 StatusMessage = j.StatusMessage ?? ""
             })
