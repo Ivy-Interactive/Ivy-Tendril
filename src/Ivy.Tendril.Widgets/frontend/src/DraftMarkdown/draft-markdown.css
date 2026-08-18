@@ -605,6 +605,7 @@
   border: 1px solid;
   padding: 0.75rem 1rem;
   font-size: 0.875rem;
+  color: var(--foreground);
 }
 
 .pmv-alert-header {
@@ -625,6 +626,7 @@
 
 .pmv-alert-content {
   margin-top: 0.25rem;
+  color: var(--foreground);
 }
 
 .pmv-alert-content p {
@@ -636,43 +638,43 @@
 }
 
 .pmv-alert--note {
-  border-color: hsl(199 89% 48% / 0.3);
-  background: hsl(199 89% 48% / 0.08);
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 .pmv-alert--note .pmv-alert-header {
-  color: hsl(199 89% 48%);
+  color: var(--primary);
 }
 
 .pmv-alert--tip {
-  border-color: hsl(160 84% 39% / 0.3);
-  background: hsl(160 84% 39% / 0.08);
+  border-color: color-mix(in srgb, var(--green, #22c55e) 30%, var(--border));
+  background: color-mix(in srgb, var(--green, #22c55e) 8%, transparent);
 }
 .pmv-alert--tip .pmv-alert-header {
-  color: hsl(160 84% 39%);
+  color: var(--green, #22c55e);
 }
 
 .pmv-alert--important {
-  border-color: hsl(38 92% 50% / 0.3);
-  background: hsl(38 92% 50% / 0.08);
+  border-color: color-mix(in srgb, var(--amber, #f59e0b) 30%, var(--border));
+  background: color-mix(in srgb, var(--amber, #f59e0b) 8%, transparent);
 }
 .pmv-alert--important .pmv-alert-header {
-  color: hsl(38 92% 50%);
+  color: var(--amber, #f59e0b);
 }
 
 .pmv-alert--warning {
-  border-color: hsl(38 92% 50% / 0.3);
-  background: hsl(38 92% 50% / 0.08);
+  border-color: color-mix(in srgb, var(--warning, #f59e0b) 30%, var(--border));
+  background: color-mix(in srgb, var(--warning, #f59e0b) 8%, transparent);
 }
 .pmv-alert--warning .pmv-alert-header {
-  color: hsl(38 92% 50%);
+  color: var(--warning, #f59e0b);
 }
 
 .pmv-alert--caution {
-  border-color: hsl(0 84% 60% / 0.3);
-  background: hsl(0 84% 60% / 0.08);
+  border-color: color-mix(in srgb, var(--destructive, #ef4444) 30%, var(--border));
+  background: color-mix(in srgb, var(--destructive, #ef4444) 8%, transparent);
 }
 .pmv-alert--caution .pmv-alert-header {
-  color: hsl(0 84% 60%);
+  color: var(--destructive, #ef4444);
 }
 
 /* Image viewer */

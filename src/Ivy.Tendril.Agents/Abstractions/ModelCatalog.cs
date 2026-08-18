@@ -5,6 +5,7 @@ public sealed record ModelInfo
     public required string Id { get; init; }
     public required string DisplayName { get; init; }
     public ModelCapabilities Capabilities { get; init; }
+    public IReadOnlyList<EffortOption>? SupportedEfforts { get; init; }
     public int? ContextWindow { get; init; }
     public int? MaxOutputTokens { get; init; }
     public string? Provider { get; init; }
@@ -15,6 +16,23 @@ public sealed record ModelInfo
     public decimal CacheWritePerMillion { get; init; }
     public decimal CacheReadPerMillion { get; init; }
     public string? PricingSource { get; init; }
+}
+
+public static class EffortLevels
+{
+    public static readonly EffortOption None = new("none", "None");
+    public static readonly EffortOption Low = new("low", "Low");
+    public static readonly EffortOption Medium = new("medium", "Medium");
+    public static readonly EffortOption High = new("high", "High");
+    public static readonly EffortOption ExtraHigh = new("xhigh", "Extra High");
+    public static readonly EffortOption Max = new("max", "Max");
+
+    public static readonly IReadOnlyList<EffortOption> Claude = [Low, Medium, High, ExtraHigh, Max];
+    public static readonly IReadOnlyList<EffortOption> Codex = [None, Low, Medium, High, ExtraHigh];
+    public static readonly IReadOnlyList<EffortOption> Copilot = [Low, Medium, High, ExtraHigh];
+    public static readonly IReadOnlyList<EffortOption> Antigravity = [Low, Medium, High];
+    public static readonly IReadOnlyList<EffortOption> Gemini = [Low, Medium, High];
+    public static readonly IReadOnlyList<EffortOption> OpenCode = [Low, Medium, High, ExtraHigh, Max];
 }
 
 [Flags]

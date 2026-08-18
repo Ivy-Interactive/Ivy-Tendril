@@ -73,7 +73,7 @@ public class ChangesTabView(
                 "The plan may have been created in the wrong project.", "Wrong project?");
         }
 
-        var allFileDiffs = PlanContentHelpers.SplitDiffByFile(changesData);
+        var allFileDiffs = changesData.FileDiffs ?? PlanContentHelpers.SplitDiffByFile(changesData);
 
         if (allFileDiffs.Count == 0 && changesData.Files.Count == 0)
             return Text.Muted("No file changes.");
@@ -106,6 +106,7 @@ public class ChangesTabView(
             var path = fileDiff.FilePath;
             diffsLayout |= new PlanDiffView
             {
+                Key = $"{selectedPlan.Id}:{path}",
                 Diff = fileDiff.Diff,
                 FilePath = path,
                 Collapsible = true,
@@ -141,80 +142,6 @@ public class ChangesTabView(
                 OnDirectEdit = async e =>
                 {
                     await HandleDirectEdit(e.Value);
-                },
-                OnEditFile = e =>
-                {
-                    var relativeOrAbs = e.Value.TrimStart('/', '\\');
-                    var repoPath = changesData?.SourceRepoPath;
-                    if (string.IsNullOrEmpty(repoPath))
-                    {
-                        repoPath = selectedPlan.GetEffectiveRepoPaths(config).FirstOrDefault();
-                    }
-
-                    string fullPath;
-                    if (Path.IsPathRooted(e.Value))
-                    {
-                        fullPath = Path.GetFullPath(e.Value);
-                    }
-                    else if (!string.IsNullOrEmpty(repoPath))
-                    {
-                        fullPath = Path.GetFullPath(Path.Combine(repoPath, relativeOrAbs));
-                    }
-                    else
-                    {
-                        fullPath = Path.GetFullPath(Path.Combine(selectedPlan.FolderPath, relativeOrAbs));
-                    }
-
-                    try
-                    {
-                        config.OpenInEditor(fullPath);
-                    }
-                    catch (EditorNotAvailableException ex)
-                    {
-                        client.Toast(
-                            $"'{ex.Command}' not found in PATH. Install the shell command from {ex.Label} or update the editor command in Settings → Advanced.",
-                            "Editor Not Available",
-                            variant: ToastVariant.Destructive);
-                    }
-                    return ValueTask.CompletedTask;
-                },
-                OnDeleteFile = async e =>
-                {
-                    var relativeOrAbs = e.Value.TrimStart('/', '\\');
-                    var repoPath = changesData?.SourceRepoPath;
-                    if (string.IsNullOrEmpty(repoPath))
-                    {
-                        repoPath = selectedPlan.GetEffectiveRepoPaths(config).FirstOrDefault();
-                    }
-
-                    string absolutePath;
-                    if (Path.IsPathRooted(e.Value))
-                    {
-                        absolutePath = Path.GetFullPath(e.Value);
-                    }
-                    else if (!string.IsNullOrEmpty(repoPath))
-                    {
-                        absolutePath = Path.GetFullPath(Path.Combine(repoPath, relativeOrAbs));
-                    }
-                    else
-                    {
-                        absolutePath = Path.GetFullPath(Path.Combine(selectedPlan.FolderPath, relativeOrAbs));
-                    }
-
-                    try
-                    {
-                        if (File.Exists(absolutePath))
-                        {
-                            File.Delete(absolutePath);
-                        }
-                        client.Toast($"Deleted file: {e.Value}", "File Deleted");
-                        refreshPlans();
-                    }
-                    catch (Exception ex)
-                    {
-                        client.Toast($"Failed to delete file: {ex.Message}", "Delete Failed", variant: ToastVariant.Destructive);
-                    }
-                    await Task.CompletedTask;
                 }
             }.Width(Size.Full());
         }

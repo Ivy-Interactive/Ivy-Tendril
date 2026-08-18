@@ -1,5 +1,4 @@
-import React, { useMemo, useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
-import { createPortal } from "react-dom";
+import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { parseDiff, Diff, Hunk, getChangeKey, tokenize, type ChangeData, type HunkData } from "react-diff-view";
 import "react-diff-view/style/index.css";
 import "./plan-diff.css";
@@ -7,7 +6,7 @@ import Markdown from "react-markdown";
 type IvyEventHandler = (eventName: string, widgetId: string, args: any[]) => void;
 import { getWidth, getHeight } from "../styles";
 import { getMarkdownPlugins } from "../math";
-import { Pencil, Trash2, MoreHorizontal, MessageSquare } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import { refractor } from "refractor/all";
 import { prismTheme } from "../prismTheme";
 
@@ -124,10 +123,6 @@ export function getLanguageFromFilePath(filePath: string): string {
 /** Container width (px) below which the diff is too cramped for a side-by-side (split) view. */
 export const NARROW_BREAKPOINT = 768;
 
-const DROPDOWN_MENU_WIDTH = 144; // w-36
-const DROPDOWN_MENU_HEIGHT_ESTIMATE = 110;
-const DROPDOWN_MENU_GAP = 4;
-
 interface DraftComment {
   filePath: string;
   changeKey: string;
@@ -185,7 +180,7 @@ export function useIsNarrow(): [React.RefObject<HTMLDivElement | null>, boolean]
       setIsNarrow((prev) => (prev === next ? prev : next));
     };
 
-    update(element.clientWidth);
+    update(element.clientWidth || element.getBoundingClientRect?.().width || 0);
 
     const observer = new ResizeObserver((entries) => {
       if (entries.length === 0) return;
@@ -355,65 +350,17 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
     }
   }, [diff]);
 
-  const [collapsedState, setCollapsedState] = useState<Record<number, boolean>>({});
+  const [collapsedState, setCollapsedState] = useState<Record<string, boolean>>({});
   const [activeFormKeys, setActiveFormKeys] = useState<Record<string, boolean>>({});
   const [editingCommentKeys, setEditingCommentKeys] = useState<Record<string, string>>({});
-  const [activeDropdownIndex, setActiveDropdownIndex] = useState<number | null>(null);
-  const [commentsHidden, setCommentsHidden] = useState<Record<number, boolean>>({});
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
-  const dropdownTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const dropdownMenuRef = useRef<HTMLDivElement | null>(null);
-
-  const updateDropdownPosition = useCallback(() => {
-    const trigger = dropdownTriggerRef.current;
-    if (!trigger) return;
-    const rect = trigger.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom - DROPDOWN_MENU_GAP;
-    const spaceAbove = rect.top - DROPDOWN_MENU_GAP;
-    const flipUp = spaceBelow < DROPDOWN_MENU_HEIGHT_ESTIMATE && spaceAbove > spaceBelow;
-    const left = Math.max(
-      4,
-      Math.min(rect.right - DROPDOWN_MENU_WIDTH, window.innerWidth - DROPDOWN_MENU_WIDTH - 4)
-    );
-
-    setDropdownStyle({
-      position: "fixed",
-      left,
-      width: DROPDOWN_MENU_WIDTH,
-      top: flipUp ? undefined : rect.bottom + DROPDOWN_MENU_GAP,
-      bottom: flipUp ? window.innerHeight - rect.top + DROPDOWN_MENU_GAP : undefined,
-      zIndex: 1000,
-    });
-  }, []);
-
-  useLayoutEffect(() => {
-    if (activeDropdownIndex === null) return;
-    updateDropdownPosition();
-  }, [activeDropdownIndex, updateDropdownPosition]);
+  const [commentsHidden, setCommentsHidden] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    if (activeDropdownIndex === null) return;
-    const handleOutsideClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.closest(".diff-more-actions-container")) return;
-      if (dropdownMenuRef.current?.contains(target)) return;
-      setActiveDropdownIndex(null);
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setActiveDropdownIndex(null);
-    };
-    const onReposition = () => updateDropdownPosition();
-    document.addEventListener("click", handleOutsideClick);
-    document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", onReposition);
-    window.addEventListener("scroll", onReposition, true);
-    return () => {
-      document.removeEventListener("click", handleOutsideClick);
-      document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", onReposition);
-      window.removeEventListener("scroll", onReposition, true);
-    };
-  }, [activeDropdownIndex, updateDropdownPosition]);
+    setCollapsedState({});
+    setCommentsHidden({});
+    setActiveFormKeys({});
+    setEditingCommentKeys({});
+  }, [id, diff, filePath]);
 
   const [containerRef, isNarrow] = useIsNarrow();
   const diffViewType = viewType === "Split" ? "split" : "unified";
@@ -604,14 +551,15 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       {files.map((file, fileIndex) => {
         const { oldName, newName, isRename, hasHeader, elementId } = fileMeta[fileIndex];
         const effectiveFilePath = filePath || newName || oldName;
+        const fileKey = effectiveFilePath || file.newPath || file.oldPath || `diff-${fileIndex}`;
 
-        const isCollapsed = collapsedState[fileIndex] ?? defaultCollapsed;
+        const isCollapsed = collapsedState[fileKey] ?? defaultCollapsed;
 
         const toggleCollapsed = () => {
           if (!collapsible) return;
           setCollapsedState((prev) => ({
             ...prev,
-            [fileIndex]: !isCollapsed,
+            [fileKey]: !isCollapsed,
           }));
         };
 
@@ -712,7 +660,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                       e.stopPropagation();
                       setCollapsedState((prev) => ({
                         ...prev,
-                        [fileIndex]: !isCollapsed,
+                        [fileKey]: !isCollapsed,
                       }));
                     }}
                     className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] cursor-pointer select-none font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)] rounded px-1 py-0.5"
@@ -736,7 +684,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                   {/* Comment count / visibility toggle */}
                   {(() => {
                     const fileCommentCount = comments.length;
-                    const hidden = commentsHidden[fileIndex] ?? false;
+                    const hidden = commentsHidden[fileKey] ?? false;
                     return (
                       <button
                         type="button"
@@ -754,7 +702,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                         onClick={(e) => {
                           e.stopPropagation();
                           if (fileCommentCount === 0) return;
-                          setCommentsHidden((prev) => ({ ...prev, [fileIndex]: !hidden }));
+                          setCommentsHidden((prev) => ({ ...prev, [fileKey]: !hidden }));
                         }}
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
@@ -764,57 +712,6 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                       </button>
                     );
                   })()}
-
-                  {/* More actions button & dropdown */}
-                  <div className="diff-more-actions-container relative">
-                    <button
-                      type="button"
-                      aria-label="More actions"
-                      className="p-1 rounded hover:bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors flex items-center justify-center cursor-pointer"
-                      ref={(node) => {
-                        if (activeDropdownIndex === fileIndex) {
-                          dropdownTriggerRef.current = node;
-                        }
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveDropdownIndex(prev => prev === fileIndex ? null : fileIndex);
-                      }}
-                    >
-                      <MoreHorizontal className="w-3.5 h-3.5" />
-                    </button>
-                    {activeDropdownIndex === fileIndex && createPortal(
-                      <div
-                        ref={dropdownMenuRef}
-                        style={dropdownStyle}
-                        className="diff-more-actions-menu bg-[var(--background)] border border-[var(--border)] rounded-md shadow-lg py-1 text-xs"
-                      >
-                        <button
-                          type="button"
-                          className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--muted)] text-[var(--foreground)] text-left cursor-pointer"
-                          onClick={() => {
-                            setActiveDropdownIndex(null);
-                            dispatchEvent?.("OnEditFile", id, [effectiveFilePath]);
-                          }}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                          Edit file
-                        </button>
-                        <button
-                          type="button"
-                          className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-destructive/10 text-[var(--destructive)] text-left border-t border-[var(--border)] cursor-pointer"
-                          onClick={() => {
-                            setActiveDropdownIndex(null);
-                            dispatchEvent?.("OnDeleteFile", id, [effectiveFilePath]);
-                          }}
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-[var(--destructive)]" />
-                          Delete file
-                        </button>
-                      </div>,
-                      document.body
-                    )}
-                  </div>
                 </div>
               </div>
             )}
@@ -844,7 +741,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                     hunks={file.hunks}
                     tokens={fileTokens}
                     renderToken={customRenderToken}
-                    widgets={getWidgets(file.hunks, commentsHidden[fileIndex] ?? false)}
+                    widgets={getWidgets(file.hunks, commentsHidden[fileKey] ?? false)}
                     gutterEvents={{
                       onClick: ({ change }) => {
                         if (change) {

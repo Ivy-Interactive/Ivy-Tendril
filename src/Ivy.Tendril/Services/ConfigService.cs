@@ -220,6 +220,7 @@ public class TendrilSettings
     public Tunnel.TunnelConfig? Tunnel { get; set; }
     public bool Telemetry { get; set; } = true;
     public bool DesktopNotifications { get; set; } = true;
+    public bool SidebarOpen { get; set; } = true;
     public bool Beta { get; set; } = false;
     public string? DismissedUpdateVersion { get; set; }
 
@@ -257,6 +258,7 @@ public class ConfigService : IConfigService, IDisposable
         ConfigPath = !string.IsNullOrEmpty(TendrilHome)
             ? Path.Combine(TendrilHome, "config.yaml")
             : PathHelper.GetResourcePath("config.yaml");
+        SyncBetaFromSettings();
     }
 
     public ConfigService(ILogger<ConfigService>? logger = null)
@@ -385,6 +387,15 @@ public class ConfigService : IConfigService, IDisposable
         ValidateProjectNames();
         CreateRequiredDirectories();
         SyncAuthFromEnvironmentAndPersistIfNeeded();
+        SyncBetaFromSettings();
+    }
+
+    private void SyncBetaFromSettings()
+    {
+        if (Settings.Beta)
+        {
+            Environment.SetEnvironmentVariable("TENDRIL_BETA", "1");
+        }
     }
 
     /// <summary>
@@ -634,6 +645,7 @@ public class ConfigService : IConfigService, IDisposable
             ExpandRepoPaths();
 
             SyncAuthFromEnvironmentAndPersistIfNeeded();
+            SyncBetaFromSettings();
             SettingsReloaded?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)

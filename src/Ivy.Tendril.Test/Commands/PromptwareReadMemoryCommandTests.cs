@@ -4,6 +4,7 @@ using Xunit;
 
 namespace Ivy.Tendril.Test.Commands;
 
+[Collection("TendrilHome")]
 public class PromptwareReadMemoryCommandTests : IDisposable
 {
     private readonly string _tempHome;
@@ -26,6 +27,7 @@ public class PromptwareReadMemoryCommandTests : IDisposable
 
     private string CreateTestMemoryDir(string promptwareName)
     {
+        Environment.SetEnvironmentVariable("TENDRIL_HOME", _tempHome);
         var pwDir = Path.Combine(_tempHome, "Promptwares", promptwareName);
         Directory.CreateDirectory(pwDir);
         File.WriteAllText(Path.Combine(pwDir, "Program.md"), "# Test Program");

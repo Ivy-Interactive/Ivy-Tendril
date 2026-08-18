@@ -16,52 +16,52 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
         new()
         {
             Id = "moonshotai/Kimi-K3", DisplayName = "Kimi k3",
-            Capabilities = DefaultCaps, Provider = "moonshot", IsDefault = true,
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.OpenCode, Provider = "moonshot", IsDefault = true,
         },
         new()
         {
             Id = "kimi-k2", DisplayName = "Kimi k2",
-            Capabilities = DefaultCaps, Provider = "moonshot",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.OpenCode, Provider = "moonshot",
         },
         new()
         {
             Id = "deepseek-v3", DisplayName = "DeepSeek V3",
-            Capabilities = DefaultCaps, Provider = "deepseek",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.OpenCode, Provider = "deepseek",
         },
         new()
         {
             Id = "deepseek-r1", DisplayName = "DeepSeek R1",
-            Capabilities = DefaultCaps, Provider = "deepseek",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.OpenCode, Provider = "deepseek",
         },
         new()
         {
             Id = "claude-opus-5", DisplayName = "Claude Opus 5",
-            Capabilities = DefaultCaps, Provider = "anthropic",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
         },
         new()
         {
             Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5",
-            Capabilities = DefaultCaps, Provider = "anthropic",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
         },
         new()
         {
             Id = "claude-opus-4-7", DisplayName = "Claude Opus 4.7",
-            Capabilities = DefaultCaps, Provider = "anthropic",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
         },
         new()
         {
             Id = "claude-sonnet-4-6", DisplayName = "Claude Sonnet 4.6",
-            Capabilities = DefaultCaps, Provider = "anthropic",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
         },
         new()
         {
             Id = "gpt-5.5", DisplayName = "GPT-5.5",
-            Capabilities = DefaultCaps, Provider = "openai",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.OpenCode, Provider = "openai",
         },
         new()
         {
             Id = "default", DisplayName = "OpenCode Default",
-            Capabilities = DefaultCaps, Provider = "opencode",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.OpenCode, Provider = "opencode",
         },
     ];
 
@@ -96,6 +96,9 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
                 Id = id,
                 DisplayName = id,
                 Capabilities = DefaultCaps,
+                SupportedEfforts = provider == "anthropic" || id.Contains("claude", StringComparison.OrdinalIgnoreCase)
+                    ? EffortLevels.Claude
+                    : EffortLevels.OpenCode,
                 Provider = provider,
                 IsDefault = first,
                 ContextWindow = pricing?.ContextWindow,

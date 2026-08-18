@@ -15,14 +15,16 @@ public class AdvancedSetupView : ViewBase
         var maxConcurrentJobs = UseState(config.Settings.MaxConcurrentJobs);
         var editorCommand = UseState(config.Settings.Editor.Command);
         var editorLabel = UseState(config.Settings.Editor.Label);
+        var beta = UseState(config.Settings.Beta);
 
         var hasChanges = jobTimeout.Value != config.Settings.JobTimeout
                          || staleOutputTimeout.Value != config.Settings.StaleOutputTimeout
                          || maxConcurrentJobs.Value != config.Settings.MaxConcurrentJobs
                          || editorCommand.Value != config.Settings.Editor.Command
-                         || editorLabel.Value != config.Settings.Editor.Label;
+                         || editorLabel.Value != config.Settings.Editor.Label
+                         || beta.Value != config.Settings.Beta;
 
-        var form = Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        var form = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
                    | Text.Block("Advanced Settings").Bold()
                    | Text.Block("Configure timeouts, concurrency limits, and editor preferences.").Muted().Small()
                    | Text.Block("Timeouts").Bold()
@@ -40,6 +42,10 @@ public class AdvancedSetupView : ViewBase
                            : null)
                    | editorLabel.ToTextInput("e.g. VS Code, Vim")
                        .WithField().Label("Label")
+                   | Text.Block("Beta Features").Bold()
+                   | beta.ToSwitchInput()
+                       .WithField().Label("Opt-in to beta features")
+                   | Text.Muted("A Tendril restart is required for changes to take effect.").Small()
                    | new Button("Save").Primary()
                        .Disabled(!hasChanges)
                        .OnClick(() =>
@@ -49,6 +55,15 @@ public class AdvancedSetupView : ViewBase
                            config.Settings.MaxConcurrentJobs = maxConcurrentJobs.Value;
                            config.Settings.Editor.Command = editorCommand.Value;
                            config.Settings.Editor.Label = editorLabel.Value;
+                           config.Settings.Beta = beta.Value;
+                           if (beta.Value)
+                           {
+                               Environment.SetEnvironmentVariable("TENDRIL_BETA", "1");
+                           }
+                           else
+                           {
+                               Environment.SetEnvironmentVariable("TENDRIL_BETA", null);
+                           }
                            config.SaveSettings();
                            client.Toast("Settings saved and applied", "Saved");
                        });

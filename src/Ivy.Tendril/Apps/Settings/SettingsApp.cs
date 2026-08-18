@@ -17,11 +17,11 @@ public class SettingsApp : ViewBase
     private const string TagNotifications = "notifications";
     private const string TagSecurity = "security";
     private const string TagLevels = "levels";
-    private const string TagVerifications = "verifications";
     private const string TagPromptwares = "promptwares";
     internal const string TagProjects = "projects";
     private const string TagTunnel = "tunnel";
     private const string TagAdvanced = "advanced";
+    private const string TagNewsletter = "newsletter";
 
     public override object Build()
     {
@@ -64,13 +64,12 @@ public class SettingsApp : ViewBase
             ("Plans", TagPlans, Icons.Feather),
             ("Appearance", TagAppearance, Icons.Sun),
             ("Projects", TagProjects, Icons.Folder),
-            ("Verifications", TagVerifications, Icons.CircleCheck),
             ("Promptwares", TagPromptwares, Icons.Wand),
             ("Levels", TagLevels, Icons.ListOrdered),
             ("Notifications", TagNotifications, Icons.Bell),
-            ("Security", TagSecurity, Icons.Lock),
-            ("Tunnel", TagTunnel, Icons.Globe),
+            ("Security & Tunnel", TagSecurity, Icons.Lock),
             ("Advanced", TagAdvanced, Icons.Cog),
+            ("Newsletter", TagNewsletter, Icons.Mail),
         };
 
         var rows = new List<object>
@@ -109,13 +108,12 @@ public class SettingsApp : ViewBase
             rows.Add(SidebarListRow.BuildSubItem("Add Project", Icons.Plus, () => openAddProjectDialog(), false));
         }
 
-        rows.Add(SidebarListRow.Build("Verifications", Icons.CircleCheck, () => selected.Set(TagVerifications), selectedTag == TagVerifications));
         rows.Add(SidebarListRow.Build("Promptwares", Icons.Wand, () => selected.Set(TagPromptwares), selectedTag == TagPromptwares));
         rows.Add(SidebarListRow.Build("Levels", Icons.ListOrdered, () => selected.Set(TagLevels), selectedTag == TagLevels));
         rows.Add(SidebarListRow.Build("Notifications", Icons.Bell, () => selected.Set(TagNotifications), selectedTag == TagNotifications));
-        rows.Add(SidebarListRow.Build("Security", Icons.Lock, () => selected.Set(TagSecurity), selectedTag == TagSecurity));
-        rows.Add(SidebarListRow.Build("Tunnel", Icons.Globe, () => selected.Set(TagTunnel), selectedTag == TagTunnel));
+        rows.Add(SidebarListRow.Build("Security & Tunnel", Icons.Lock, () => selected.Set(TagSecurity), selectedTag == TagSecurity || selectedTag == TagTunnel));
         rows.Add(SidebarListRow.Build("Advanced", Icons.Cog, () => selected.Set(TagAdvanced), selectedTag == TagAdvanced));
+        rows.Add(SidebarListRow.Build("Newsletter", Icons.Mail, () => selected.Set(TagNewsletter), selectedTag == TagNewsletter));
         rows.Add(SidebarListRow.Build("Open config.yaml", Icons.FileText, () => ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost), false));
 
         var sidebar = Layout.Vertical(rows).Gap(1);
@@ -159,14 +157,14 @@ public class SettingsApp : ViewBase
                 TagAppearance => new AppearanceSetupView(),
                 TagNotifications => new NotificationsSetupView(),
                 TagSecurity => new SecuritySetupView(),
+                TagTunnel => new SecuritySetupView(),
                 TagLevels => new LevelsSetupView(),
-                TagVerifications => new VerificationsSetupView(),
                 TagPromptwares => new PromptwaresSetupView(),
                 TagProjects => projects.Count > 0
                     ? new ProjectDetailView(0, projects, config, client, refreshToken).Key($"project:{projects[0].Name}")
                     : new CodingAgentSetupView(),
-                TagTunnel => new TunnelSetupView(),
                 TagAdvanced => new AdvancedSetupView(),
+                TagNewsletter => new NewsletterSetupView(),
                 _ => new CodingAgentSetupView()
             };
         }
@@ -183,7 +181,7 @@ public class SettingsApp : ViewBase
 
         var contentWithMobileHeader = Layout.Vertical().Height(Size.Full()).Gap(2)
                                       | mobileHeader
-                                      | (Layout.Vertical().Height(Size.Grow()) | content)
+                                      | (Layout.Vertical().Height(Size.Grow()).Padding(4) | content)
                                       | addProjectDialog;
 
         return new SidebarLayout(contentWithMobileHeader, sidebar);

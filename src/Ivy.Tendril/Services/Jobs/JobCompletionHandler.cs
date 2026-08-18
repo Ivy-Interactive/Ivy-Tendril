@@ -771,7 +771,7 @@ internal class JobCompletionHandler
                 var ext = Path.GetExtension(file).ToLowerInvariant();
                 if (ext is ".md" or ".yaml" or ".yml")
                 {
-                    var content = File.ReadAllText(file);
+                    var content = FileHelper.ReadAllText(file);
                     var originalContent = content;
 
                     if (content.Contains(oldPath))
@@ -782,7 +782,7 @@ internal class JobCompletionHandler
 
                     if (content != originalContent)
                     {
-                        File.WriteAllText(file, content);
+                        FileHelper.WriteAllText(file, content);
                     }
                 }
             }

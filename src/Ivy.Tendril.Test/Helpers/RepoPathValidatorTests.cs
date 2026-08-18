@@ -9,6 +9,8 @@ public class RepoPathValidatorTests
     [InlineData("git@gitlab.com:org/repo", RepoPathKind.SshUrl)]
     [InlineData("git@bitbucket.org:team/repo.git", RepoPathKind.SshUrl)]
     [InlineData("git@custom-host.example.com:user/project.git", RepoPathKind.SshUrl)]
+    [InlineData("Git@github.com:owner/repo.git", RepoPathKind.SshUrl)]
+    [InlineData("GIT@github.com:owner/repo.git", RepoPathKind.SshUrl)]
     public void Classify_SshUrl_ReturnsCorrect(string input, RepoPathKind expected)
     {
         Assert.Equal(expected, RepoPathValidator.Classify(input));
@@ -19,6 +21,10 @@ public class RepoPathValidatorTests
     [InlineData("https://github.com/owner/repo", RepoPathKind.HttpUrl)]
     [InlineData("http://gitlab.com/org/repo", RepoPathKind.HttpUrl)]
     [InlineData("https://bitbucket.org/team/project.git", RepoPathKind.HttpUrl)]
+    [InlineData("Https://github.com/owner/repo.git", RepoPathKind.HttpUrl)]
+    [InlineData("HTTPS://github.com/owner/repo", RepoPathKind.HttpUrl)]
+    [InlineData("Http://gitlab.com/org/repo", RepoPathKind.HttpUrl)]
+    [InlineData("HTTPS://BITBUCKET.ORG/team/project.GIT", RepoPathKind.HttpUrl)]
     public void Classify_HttpUrl_ReturnsCorrect(string input, RepoPathKind expected)
     {
         Assert.Equal(expected, RepoPathValidator.Classify(input));
@@ -48,6 +54,8 @@ public class RepoPathValidatorTests
     [InlineData("git@gitlab.com:org/my-project", "my-project")]
     [InlineData("https://github.com/owner/repo.git", "repo")]
     [InlineData("https://github.com/owner/repo", "repo")]
+    [InlineData("Https://github.com/owner/repo.git", "repo")]
+    [InlineData("HTTPS://github.com/owner/repo", "repo")]
     [InlineData("http://gitlab.com/org/my-lib.git", "my-lib")]
     [InlineData("/home/user/repos/myapp", "myapp")]
     [InlineData("~/code/project", "project")]
@@ -68,6 +76,8 @@ public class RepoPathValidatorTests
     [Theory]
     [InlineData("git@github.com:owner/repo.git")]
     [InlineData("https://github.com/owner/repo")]
+    [InlineData("Https://github.com/owner/repo")]
+    [InlineData("HTTPS://github.com/owner/repo.git")]
     [InlineData("/home/user/repos/myapp")]
     [InlineData("~/code/project")]
     public void IsValid_ValidInputs_ReturnsTrue(string input)
@@ -88,6 +98,8 @@ public class RepoPathValidatorTests
     [Theory]
     [InlineData("git@github.com:owner/repo.git")]
     [InlineData("git@gitlab.com:org/repo")]
+    [InlineData("Git@github.com:owner/repo.git")]
+    [InlineData("GIT@github.com:owner/repo.git")]
     public void IsSshUrl_ValidSsh_ReturnsTrue(string input)
     {
         Assert.True(RepoPathValidator.IsSshUrl(input));
@@ -104,6 +116,9 @@ public class RepoPathValidatorTests
     [Theory]
     [InlineData("https://github.com/owner/repo.git")]
     [InlineData("http://gitlab.com/org/repo")]
+    [InlineData("Https://github.com/owner/repo.git")]
+    [InlineData("HTTPS://github.com/owner/repo")]
+    [InlineData("Http://gitlab.com/org/repo")]
     public void IsHttpUrl_ValidHttp_ReturnsTrue(string input)
     {
         Assert.True(RepoPathValidator.IsHttpUrl(input));

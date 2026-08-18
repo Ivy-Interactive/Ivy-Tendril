@@ -67,7 +67,7 @@ public class OpenAiProxyTests
         var models = catalog.GetStaticModels();
 
         Assert.Contains(models, m => m.Id == "ivy-stem" && m.DisplayName == "Ivy Stem");
-        Assert.Contains(models, m => m.Id == "ivy-branch" && m.DisplayName == "Ivy Branch");
+        Assert.Contains(models, m => m.Id == "ivy-root" && m.DisplayName == "Ivy Root");
         Assert.Contains(models, m => m.Id == "ivy-leaf" && m.DisplayName == "Ivy Leaf");
         Assert.All(models, m => Assert.True(m.Id.StartsWith("ivy") || m.Id == "default"));
     }

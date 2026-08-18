@@ -1426,21 +1426,26 @@ public class PlanCliCommandTests : IDisposable
         Assert.Single(result.DependsOn);
     }
 
+    private static readonly object ConsoleLock = new();
+
     private static string CaptureStdout(Action action)
     {
-        var original = Console.Out;
-        using var writer = new StringWriter();
-        Console.SetOut(writer);
-        try
+        lock (ConsoleLock)
         {
-            action();
-        }
-        finally
-        {
-            Console.SetOut(original);
-        }
+            var original = Console.Out;
+            var writer = new StringWriter();
+            Console.SetOut(writer);
+            try
+            {
+                action();
+            }
+            finally
+            {
+                Console.SetOut(original);
+            }
 
-        return writer.ToString();
+            return writer.ToString();
+        }
     }
 
     // ==================== PlanAddWorktreeCommand ====================

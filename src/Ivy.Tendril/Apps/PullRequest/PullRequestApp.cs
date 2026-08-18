@@ -1,13 +1,12 @@
 using System.Text.RegularExpressions;
-using Ivy.Tendril.Models;
-using Ivy.Tendril.Apps.PullRequest;
 using Ivy.Tendril.Apps.PullRequest.Dialogs;
 using Ivy.Tendril.Apps.Views.Sheets;
-using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging;
 
-namespace Ivy.Tendril.Apps;
+namespace Ivy.Tendril.Apps.PullRequest;
 
 [App(title: "Pull Requests", icon: Icons.GitPullRequest, group: ["Apps"], order: Constants.PullRequests)]
 public class PullRequestApp : ViewBase
@@ -108,7 +107,15 @@ public class PullRequestApp : ViewBase
             .RefreshToken(refreshToken)
             .Width(Size.Full())
             .Height(Size.Full())
-            .Order(e => e.Plan, e => e.Project, e => e.Status, e => e.Pr, e => e.Repository, e => e.Branch, e => e.Tokens, e => e.Cost)
+            .Order(
+                e => e.Plan, 
+                e => e.Project, 
+                e => e.Status, 
+                e => e.Pr, 
+                e => e.Tokens, 
+                e => e.Cost,
+                e => e.Repository, 
+                e => e.Branch)
             .Header(t => t.Project, "Project")
             .Header(t => t.Repository, "Repository")
             .Header(t => t.Status, "Status")
@@ -211,7 +218,7 @@ public class PullRequestApp : ViewBase
     ///     E.g. "https://github.com/owner/repo/pull/123" -> "owner/repo"
     /// </summary>
     private static readonly Regex GitHubPrPattern = new(
-        @"^https?://github\.com/[^/]+/[^/]+/pull/\d+", RegexOptions.Compiled);
+        @"^https?://github\.com/[^/]+/[^/]+/pull/\d+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     internal static bool IsValidUrl(string? value) =>
         value is not null && GitHubPrPattern.IsMatch(value);

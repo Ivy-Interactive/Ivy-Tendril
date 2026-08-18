@@ -269,6 +269,28 @@ public class JsonEventSerializerTests
     }
 
     [Fact]
+    public void RoundTrip_ResultEvent_WithError_PreservesData()
+    {
+        var original = new ResultEvent
+        {
+            Kind = AgentEventKind.Result,
+            Response = "Done execution",
+            Error = "Tool error occurred",
+            IsSuccess = false,
+            TurnCount = 2,
+        };
+
+        var json = _serializer.Serialize(original);
+        var deserialized = _serializer.Deserialize(json) as ResultEvent;
+
+        Assert.NotNull(deserialized);
+        Assert.False(deserialized.IsSuccess);
+        Assert.Equal("Done execution", deserialized.Response);
+        Assert.Equal("Tool error occurred", deserialized.Error);
+        Assert.Equal(2, deserialized.TurnCount);
+    }
+
+    [Fact]
     public void RoundTrip_ErrorEvent_PreservesData()
     {
         var original = new ErrorEvent

@@ -44,4 +44,45 @@ public class PlatformHelperTests
                 Directory.Delete(tempDir, recursive: true);
         }
     }
+
+    [Fact]
+    public void TryEvaluateTestPathCondition_MatchesFilesDirectoriesAndWildcards()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilTestPathTest_" + Guid.NewGuid().ToString("N"));
+        var artifactsDir = Path.Combine(tempDir, "artifacts", "sample");
+        Directory.CreateDirectory(artifactsDir);
+        File.WriteAllText(Path.Combine(artifactsDir, "test.csproj"), "<Project />");
+        File.WriteAllText(Path.Combine(tempDir, "package.json"), "{}");
+
+        try
+        {
+            // Directory exists
+            Assert.True(PlatformHelper.TryEvaluateTestPathCondition(@"Test-Path ""artifacts/sample""", tempDir, out var r1));
+            Assert.True(r1);
+
+            // File exists with wildcard
+            Assert.True(PlatformHelper.TryEvaluateTestPathCondition(@"Test-Path ""artifacts\sample\*.csproj""", tempDir, out var r2));
+            Assert.True(r2);
+
+            // Single quotes
+            Assert.True(PlatformHelper.TryEvaluateTestPathCondition(@"Test-Path 'package.json'", tempDir, out var r3));
+            Assert.True(r3);
+
+            // Non-existent wildcard
+            Assert.True(PlatformHelper.TryEvaluateTestPathCondition(@"Test-Path ""artifacts\sample\*.sln""", tempDir, out var r4));
+            Assert.False(r4);
+
+            // Non-existent path
+            Assert.True(PlatformHelper.TryEvaluateTestPathCondition(@"Test-Path ""nonexistent/dir""", tempDir, out var r5));
+            Assert.False(r5);
+
+            // Non Test-Path expression returns false for fast-path attempt
+            Assert.False(PlatformHelper.TryEvaluateTestPathCondition(@"Get-Process dotnet", tempDir, out _));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
 }

@@ -151,6 +151,57 @@ public static class PathHelper
         return null;
     }
 
+    public static string? GetBundledIvyAgentPath()
+    {
+        var baseDir = System.AppContext.BaseDirectory;
+        var exe = Path.Combine(baseDir, OperatingSystem.IsWindows() ? "ivy-agent.exe" : "ivy-agent");
+
+        if (!File.Exists(exe))
+        {
+            var binExe = Path.Combine(baseDir, "bin", OperatingSystem.IsWindows() ? "ivy-agent.exe" : "ivy-agent");
+            if (File.Exists(binExe)) exe = binExe;
+        }
+
+        // On macOS inside an app bundle, look in Contents/Resources
+        if (!File.Exists(exe) && OperatingSystem.IsMacOS() && baseDir.Contains(".app/Contents/MacOS"))
+        {
+            var macOsExe = Path.GetFullPath(Path.Combine(baseDir, "..", "Resources", OperatingSystem.IsWindows() ? "ivy-agent.exe" : "ivy-agent"));
+            if (File.Exists(macOsExe))
+            {
+                exe = macOsExe;
+            }
+            else
+            {
+                var macOsBinExe = Path.GetFullPath(Path.Combine(baseDir, "..", "Resources", "bin", OperatingSystem.IsWindows() ? "ivy-agent.exe" : "ivy-agent"));
+                if (File.Exists(macOsBinExe))
+                {
+                    exe = macOsBinExe;
+                }
+            }
+        }
+
+        if (File.Exists(exe))
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                try
+                {
+                    var mode = File.GetUnixFileMode(exe);
+                    if (!mode.HasFlag(UnixFileMode.UserExecute))
+                    {
+                        File.SetUnixFileMode(exe, mode | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
+                    }
+                }
+                catch
+                {
+                    // Best-effort permission repair
+                }
+            }
+            return exe;
+        }
+        return null;
+    }
+
     public static string GetDotnetPath()
     {
         return GetBundledDotnetPath() ?? "dotnet";
@@ -202,6 +253,16 @@ public static class PathHelper
 
             if (Directory.Exists(macOsDotnetDir)) bundledDotnetDir = macOsDotnetDir;
             if (Directory.Exists(macOsPwshDir)) bundledPwshDir = macOsPwshDir;
+        }
+
+        var bundledIvyAgentPath = GetBundledIvyAgentPath();
+        if (bundledIvyAgentPath != null)
+        {
+            var ivyAgentDir = Path.GetDirectoryName(bundledIvyAgentPath);
+            if (!string.IsNullOrEmpty(ivyAgentDir) && !dirs.Contains(ivyAgentDir))
+            {
+                pathList.Add(ivyAgentDir);
+            }
         }
 
         if (Directory.Exists(bundledDotnetDir))

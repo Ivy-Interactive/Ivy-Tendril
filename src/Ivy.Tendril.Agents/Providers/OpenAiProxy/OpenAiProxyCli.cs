@@ -41,6 +41,8 @@ public sealed class OpenAiProxyCli : IAgentCli
         }
     }
 
+    public IReadOnlyList<EffortOption> SupportedEfforts => _inner.SupportedEfforts;
+
     public string? TranslateToolName(string canonicalTool) => _inner.TranslateToolName(canonicalTool);
     public string? ReverseTranslateToolName(string nativeTool) => _inner.ReverseTranslateToolName(nativeTool);
     public IReadOnlyList<string> ExtractWritableDirectories(IReadOnlyList<string> allowedTools) => _inner.ExtractWritableDirectories(allowedTools);

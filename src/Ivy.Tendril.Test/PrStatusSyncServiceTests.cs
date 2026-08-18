@@ -1,4 +1,5 @@
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.PullRequest;
 using Ivy.Tendril.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -136,6 +137,8 @@ public class PrStatusSyncServiceTests : IDisposable
         Assert.True(PullRequestApp.IsValidUrl("https://github.com/owner/repo/pull/1"));
         Assert.True(PullRequestApp.IsValidUrl("https://github.com/owner/repo/pull/123"));
         Assert.True(PullRequestApp.IsValidUrl("http://github.com/owner/repo/pull/1"));
+        Assert.True(PullRequestApp.IsValidUrl("Https://github.com/owner/repo/pull/1"));
+        Assert.True(PullRequestApp.IsValidUrl("HTTPS://GITHUB.COM/owner/repo/pull/1"));
     }
 
     [Fact]

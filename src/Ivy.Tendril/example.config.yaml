@@ -40,7 +40,7 @@ codingAgents:
 - name: codex
   profiles:
   - name: deep
-    model: gpt-5.5
+    model: gpt-5.6-sol
     effort: high
   - name: balanced
     model: gpt-5.6-terra

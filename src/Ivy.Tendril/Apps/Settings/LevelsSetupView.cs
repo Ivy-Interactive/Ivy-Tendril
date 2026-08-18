@@ -67,7 +67,7 @@ public class LevelsSetupView : ViewBase
             ))
             .Width(Size.Fit());
 
-        return Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(200)))
+        return Layout.Vertical().Width(Size.Auto().Max(Size.Units(200)))
                | Text.Block("Priority Levels").Bold()
                | Text.Block("Define priority levels used to categorize plans.").Muted().Small()
                | table

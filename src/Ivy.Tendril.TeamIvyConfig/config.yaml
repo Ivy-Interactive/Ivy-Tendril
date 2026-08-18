@@ -41,6 +41,16 @@ projects:
     command: "& '.\\worktrees\\Ivy-Framework\\src\\IvySamples.ps1'"
   hooks: []
   buildDependencies: []
+  mcpServers: []
+  skills: []
+  securityPreset: Custom
+  outsideFileAccessPolicy: Allow
+  terminalAutoExecution: Always Proceed
+  sandboxMode: Inherit General
+  autoImplementPlans: Always Ask Review
+  filePermissions: []
+  networkAccessRules: []
+  allowedTerminalCommands: []
 - name: Tendril
   color: Emerald
   meta: {}
@@ -71,6 +81,16 @@ projects:
     command: "& '.\\worktrees\\Ivy-Tendril\\src\\Ivy.Tendril.Docs\\Run.ps1'"
   hooks: []
   buildDependencies: []
+  mcpServers: []
+  skills: []
+  securityPreset: Custom
+  outsideFileAccessPolicy: Allow
+  terminalAutoExecution: Always Proceed
+  sandboxMode: Inherit General
+  autoImplementPlans: Inherit General
+  filePermissions: []
+  networkAccessRules: []
+  allowedTerminalCommands: []
 - name: Rustino
   color: Orange
   meta: {}
@@ -100,6 +120,16 @@ projects:
     command: ''
   hooks: []
   buildDependencies: []
+  mcpServers: []
+  skills: []
+  securityPreset: Custom
+  outsideFileAccessPolicy: Allow
+  terminalAutoExecution: Always Proceed
+  sandboxMode: Inherit General
+  autoImplementPlans: Inherit General
+  filePermissions: []
+  networkAccessRules: []
+  allowedTerminalCommands: []
 - name: lots-of-dev-tools
   color: Green
   meta: {}
@@ -121,6 +151,16 @@ projects:
     command: cd Worktrees\lots-of-dev-tools && pnpm install && pnpm run dev
   hooks: []
   buildDependencies: []
+  mcpServers: []
+  skills: []
+  securityPreset: Custom
+  outsideFileAccessPolicy: Allow
+  terminalAutoExecution: Always Proceed
+  sandboxMode: Inherit General
+  autoImplementPlans: Inherit General
+  filePermissions: []
+  networkAccessRules: []
+  allowedTerminalCommands: []
 - name: Tendril-Services
   color: Green
   meta: {}
@@ -146,6 +186,16 @@ projects:
     command: dotnet run --project Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services.Admin --browse --find-available-port
   hooks: []
   buildDependencies: []
+  mcpServers: []
+  skills: []
+  securityPreset: Custom
+  outsideFileAccessPolicy: Allow
+  terminalAutoExecution: Always Proceed
+  sandboxMode: Inherit General
+  autoImplementPlans: Inherit General
+  filePermissions: []
+  networkAccessRules: []
+  allowedTerminalCommands: []
 - name: Tendril-EpicDraftQuestions
   color: Emerald
   meta: {}
@@ -175,15 +225,23 @@ projects:
     command: "& '.\\worktrees\\Ivy-Tendril\\src\\Ivy.Tendril.Docs\\Run.ps1'"
   hooks: []
   buildDependencies: []
+  mcpServers: []
+  skills: []
+  securityPreset: Custom
+  outsideFileAccessPolicy: Allow
+  terminalAutoExecution: Always Proceed
+  sandboxMode: Inherit General
+  autoImplementPlans: Inherit General
+  filePermissions: []
+  networkAccessRules: []
+  allowedTerminalCommands: []
 - name: Tendril-Widgets
   color: Cyan
   meta: {}
   repos:
   - path: D:/Repos/_Ivy/Ivy-Tendril
-    prRule: yolo
     baseBranch: development
   - path: D:/Repos/_Ivy/Ivy-Framework
-    prRule: yolo
     baseBranch: development
   verifications:
   - name: DotnetFormat
@@ -209,6 +267,16 @@ projects:
     command: dotnet run --project '.\worktrees\Ivy-Tendril\src\Ivy.Tendril.Widgets\.samples' --find-available-port --browse
   hooks: []
   buildDependencies: []
+  mcpServers: []
+  skills: []
+  securityPreset: Custom
+  outsideFileAccessPolicy: Allow
+  terminalAutoExecution: Always Proceed
+  sandboxMode: Inherit General
+  autoImplementPlans: Inherit General
+  filePermissions: []
+  networkAccessRules: []
+  allowedTerminalCommands: []
 verifications:
 - name: FrameworkDotnetBuild
   prompt: >
@@ -690,6 +758,7 @@ tunnel:
   maxRestarts: 10
 telemetry: true
 desktopNotifications: true
+sidebarOpen: true
 beta: false
 dismissedUpdateVersion: 1.1.10
 levels:

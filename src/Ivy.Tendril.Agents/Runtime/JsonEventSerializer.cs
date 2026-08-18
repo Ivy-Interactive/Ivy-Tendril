@@ -137,6 +137,7 @@ public sealed class JsonEventSerializer : IEventSerializer
             {
                 Timestamp = ts,
                 Response = e.Response,
+                Error = e.Error,
                 IsSuccess = e.IsSuccess,
                 DurationMs = e.Duration.HasValue ? (long)e.Duration.Value.TotalMilliseconds : null,
                 TurnCount = e.TurnCount,
@@ -285,6 +286,7 @@ public sealed class JsonEventSerializer : IEventSerializer
         Kind = AgentEventKind.Result,
         Timestamp = DateTimeOffset.Parse(timestamp),
         Response = root.TryGetProperty("response", out var resp) ? resp.GetString() : null,
+        Error = root.TryGetProperty("error", out var err) ? err.GetString() : null,
         IsSuccess = root.TryGetProperty("is_success", out var s) && s.GetBoolean(),
         Duration = root.TryGetProperty("duration_ms", out var dur)
             ? TimeSpan.FromMilliseconds(dur.GetInt64())

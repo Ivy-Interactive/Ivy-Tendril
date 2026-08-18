@@ -15,8 +15,6 @@ public class SidebarView(
     IState<int> sessionVersion,
     IState<string> selectedAgent,
     IState<string> selectedModel,
-    IState<string?> renamingSessionId,
-    IState<string> renameText,
     IState<string> searchState,
     IChatHistoryService chatService) : ViewBase
 {
@@ -53,56 +51,61 @@ public class SidebarView(
         }
         else
         {
+            var generatingSessionIds = chatService.GetGeneratingSessionIds();
+            var completedSessionIds = chatService.GetCompletedSessionIds();
+
             sidebarContent = new List(filteredSessions.Select(sess =>
             {
                 var isSelected = sess.Id == activeSessionId.Value;
                 var formattedDate = sess.UpdatedAt.ToString("M/d, h:mm tt");
                 var displayTitle = string.IsNullOrWhiteSpace(sess.Title) ? "New Chat" : sess.Title;
+                var isGenerating = generatingSessionIds.Contains(sess.Id);
+                var isCompleted = !isGenerating && completedSessionIds.Contains(sess.Id) && sess.Id != activeSessionId.Value;
 
-                var textStack = Layout.Vertical().Gap(1).AlignContent(Align.Left)
-                    | Text.Literal(displayTitle).Small()
-                    | Text.Muted($"{formattedDate} • {sess.AgentId}").Small();
+                object metaLine;
+                if (isGenerating)
+                {
+                    metaLine = Layout.Horizontal().AlignContent(Align.Left)
+                        | new Icon(Icons.LoaderCircle, Colors.Green).Small().WithAnimation(AnimationType.Rotate).Duration(1)
+                        | Text.Success("Generating").Small()
+                        | Text.Muted($"• {sess.AgentId}").Small();
+                }
+                else if (isCompleted)
+                {
+                    metaLine = Layout.Horizontal().AlignContent(Align.Left)
+                        | new Icon(Icons.Check, Colors.Green).Small()
+                        | Text.Success("Completed").Small()
+                        | Text.Muted($"• {sess.AgentId}").Small();
+                }
+                else
+                {
+                    metaLine = Text.Muted($"{formattedDate} • {sess.AgentId}").Small().NoWrap().Overflow(Overflow.Ellipsis);
+                }
 
-                var actionButtons = Layout.Horizontal().Gap(1).AlignContent(Align.Center)
-                    | new Button()
-                        .Icon(Icons.Pencil)
-                        .Ghost()
-                        .Small()
-                        .OnClick(() =>
-                        {
-                            renamingSessionId.Set(sess.Id);
-                            var cleanTitle = sess.Title.TrimEnd('.').TrimEnd('…').Trim();
-                            renameText.Set(cleanTitle);
-                        })
-                    | new Button()
-                        .Icon(Icons.Trash2)
-                        .Ghost()
-                        .Small()
-                        .OnClick(() =>
-                        {
-                            chatService.DeleteSession(sess.Id);
-                            sessionVersion.Set(v => v + 1);
-                            if (activeSessionId.Value == sess.Id)
-                            {
-                                var remaining = chatService.GetSessions();
-                                activeSessionId.Set(remaining.FirstOrDefault()?.Id);
-                            }
-                        });
+                object titleBlock = (isGenerating || isCompleted)
+                    ? (Layout.Horizontal().AlignContent(Align.Left)
+                        | new Icon(Icons.CircleDot, Colors.Green).Small()
+                        | Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis))
+                    : Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis);
 
-                var rowLayout = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.SpaceBetween)
-                    | textStack
-                    | actionButtons;
+                var textStack = Layout.Vertical().AlignContent(Align.Left).Width(Size.Full())
+                    | titleBlock
+                    | metaLine;
 
-                var rowBtn = new Button()
+                var sessionBtn = new Button()
                     .Width(Size.Full())
-                    .Content(rowLayout)
-                    .OnClick(() => activeSessionId.Set(sess.Id))
+                    .Content(textStack)
+                    .OnClick(() =>
+                    {
+                        chatService.ClearSessionCompleted(sess.Id);
+                        activeSessionId.Set(sess.Id);
+                    })
                     .BorderRadius(BorderRadius.None);
 
-                return isSelected ? rowBtn.Secondary() : rowBtn.Ghost();
+                return isSelected ? sessionBtn.Secondary() : sessionBtn.Ghost();
             }));
         }
 
-        return new HeaderLayout(sidebarHeader, sidebarContent);
+        return new HeaderLayout(sidebarHeader, sidebarContent).Scroll(Scroll.None);
     }
 }

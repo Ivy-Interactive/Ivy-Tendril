@@ -12,6 +12,7 @@ public class ChatHistoryService : IChatHistoryService
     private readonly IConfigService _configService;
     private readonly ConcurrentDictionary<string, ChatSessionModel> _sessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _generatingSessions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, byte> _completedSessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _lock = new();
 
     public event EventHandler? SessionsChanged;
@@ -24,11 +25,13 @@ public class ChatHistoryService : IChatHistoryService
         bool changed;
         if (isGenerating)
         {
+            _completedSessions.TryRemove(sessionId, out _);
             changed = _generatingSessions.TryAdd(sessionId, 0);
         }
         else
         {
             changed = _generatingSessions.TryRemove(sessionId, out _);
+            _completedSessions.TryAdd(sessionId, 0);
         }
 
         if (changed)
@@ -40,6 +43,20 @@ public class ChatHistoryService : IChatHistoryService
     public IReadOnlySet<string> GetGeneratingSessionIds()
     {
         return _generatingSessions.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    public IReadOnlySet<string> GetCompletedSessionIds()
+    {
+        return _completedSessions.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    public void ClearSessionCompleted(string sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return;
+        if (_completedSessions.TryRemove(sessionId, out _))
+        {
+            GeneratingSessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -88,7 +105,7 @@ public class ChatHistoryService : IChatHistoryService
             {
                 try
                 {
-                    var json = File.ReadAllText(file);
+                    var json = Ivy.Tendril.Helpers.FileHelper.ReadAllText(file);
                     var session = JsonSerializer.Deserialize<ChatSessionModel>(json, JsonOptions);
                     if (session != null && !string.IsNullOrEmpty(session.Id))
                     {
@@ -126,7 +143,7 @@ public class ChatHistoryService : IChatHistoryService
         return session;
     }
 
-    public ChatSessionModel CreateSession(string agentId, string modelId, string? title = null)
+    public ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null)
     {
         var now = DateTimeOffset.UtcNow;
         var id = Guid.NewGuid().ToString("N");
@@ -139,7 +156,8 @@ public class ChatHistoryService : IChatHistoryService
             UpdatedAt: now,
             AgentId: agentId,
             ModelId: modelId,
-            Messages: new List<ChatMessageModel>()
+            Messages: new List<ChatMessageModel>(),
+            Effort: effort
         );
 
         _sessions[id] = session;
@@ -194,14 +212,14 @@ public class ChatHistoryService : IChatHistoryService
         }
     }
 
-    public ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null)
+    public ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null, string? effort = null)
     {
         lock (_lock)
         {
             var session = GetSession(sessionId);
             if (session == null)
             {
-                session = CreateSession(agentId ?? "claude", modelId ?? "opus");
+                session = CreateSession(agentId ?? "claude", modelId ?? "opus", effort: effort);
             }
 
             var msg = new ChatMessageModel(
@@ -211,7 +229,8 @@ public class ChatHistoryService : IChatHistoryService
                 Timestamp: DateTimeOffset.UtcNow,
                 AgentId: agentId ?? session.AgentId,
                 ModelId: modelId ?? session.ModelId,
-                RawStream: rawStream
+                RawStream: rawStream,
+                Effort: effort ?? session.Effort
             );
 
             var updatedMessages = new List<ChatMessageModel>(session.Messages) { msg };
@@ -231,6 +250,7 @@ public class ChatHistoryService : IChatHistoryService
                 UpdatedAt = DateTimeOffset.UtcNow,
                 AgentId = agentId ?? session.AgentId,
                 ModelId = modelId ?? session.ModelId,
+                Effort = effort ?? session.Effort,
                 Messages = updatedMessages
             };
 
@@ -247,7 +267,7 @@ public class ChatHistoryService : IChatHistoryService
         {
             var filePath = Path.Combine(GetStorageDir(), $"{session.Id}.json");
             var json = JsonSerializer.Serialize(session, JsonOptions);
-            File.WriteAllText(filePath, json);
+            Ivy.Tendril.Helpers.FileHelper.WriteAllText(filePath, json);
         }
         catch
         {

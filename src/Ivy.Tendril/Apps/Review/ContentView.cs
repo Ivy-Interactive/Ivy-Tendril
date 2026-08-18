@@ -50,35 +50,6 @@ public class ContentView(
 
         var githubService = UseService<IGithubService>();
         var agentRunner = UseService<IAgentRunner>();
-        var assigneesError = UseState<string?>(null);
-        var assigneesQuery = UseQuery<string[], string>(
-            selectedPlanState.Value?.Project ?? "",
-            async (_, _) =>
-            {
-                if (selectedPlanState.Value is null)
-                {
-                    assigneesError.Set(null);
-                    return Array.Empty<string>();
-                }
-                var repos = selectedPlanState.Value.GetEffectiveRepoPaths(config);
-                var repoPath = repos.FirstOrDefault();
-                if (repoPath is null)
-                {
-                    assigneesError.Set(null);
-                    return Array.Empty<string>();
-                }
-                var repoConfig = githubService.GetRepoConfigFromPathCached(repoPath);
-                if (repoConfig is null)
-                {
-                    assigneesError.Set(null);
-                    return Array.Empty<string>();
-                }
-                var (assignees, error) = await githubService.GetAssigneesAsync(repoConfig.Owner, repoConfig.Name);
-                assigneesError.Set(error);
-                return assignees.ToArray();
-            },
-            initialValue: Array.Empty<string>()
-        );
 
         var (discardDialog, showDiscardDialog) = UseTrigger((isOpen) =>
         {
@@ -96,7 +67,7 @@ public class ContentView(
         {
             if (!isOpen.Value) return null;
             return new CreatePrDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans,
-                assigneesQuery, assigneesError);
+                config, githubService);
         });
 
         var resetToDraftLogger = UseService<ILogger<ResetToDraftDialog>>();
@@ -152,7 +123,8 @@ public class ContentView(
                     if (selectedPlanState.Value is null)
                         return new PlanContentData(new List<RecommendationYaml>(), null,
                             new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(),
-                            new Dictionary<string, bool>(), new List<(string Name, bool ConditionMet)>(), null);
+                            new Dictionary<string, bool>(), new List<(string Name, bool ConditionMet)>(), null,
+                            new GitTabDataBuilder.GitTabData([], []));
 
                     // Recommendations from database (or plan.yaml fallback)
                     List<RecommendationYaml> recs;
@@ -175,6 +147,9 @@ public class ContentView(
 
                     // Commit rows
                     var commitRows = PlanContentHelpers.BuildCommitRows(selectedPlanState.Value!, config, gitService);
+
+                    // Git tab data (computed asynchronously in background)
+                    var gitData = GitTabDataBuilder.BuildGitTabData(commitRows, selectedPlanState.Value!, config, gitService);
 
                     // All changes data
                     var allChanges = PlanContentHelpers.GetAllChangesData(selectedPlanState.Value!, config, gitService);
@@ -199,13 +174,13 @@ public class ContentView(
                         actionStates[i] = (action.Name, PlatformHelper.EvaluatePowerShellCondition(action.Condition, folderPath, logger: logger));
                     });
 
-                    return new PlanContentData(recs, summaryMd, artifacts, commitRows, verReports, actionStates.ToList(), allChanges);
+                    return new PlanContentData(recs, summaryMd, artifacts, commitRows, verReports, actionStates.ToList(), allChanges, gitData);
                 }, ct);
             },
             options: QueryScope.View,
             initialValue: new PlanContentData(new List<RecommendationYaml>(), null,
                 new Dictionary<string, List<string>>(), new List<PlanContentHelpers.CommitRow>(), new Dictionary<string, bool>(),
-                new List<(string Name, bool ConditionMet)>(), null)
+                new List<(string Name, bool ConditionMet)>(), null, new GitTabDataBuilder.GitTabData([], []))
         );
 
         var planWatcher = UseService<IPlanWatcherService>();
@@ -252,7 +227,7 @@ public class ContentView(
         var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, context, showCreatePrDialog);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
-            showCreatePrDialog, context, agentRunner, draftComments);
+            context, agentRunner, draftComments);
         var content = BuildContent(
             selectedPlanState.Value, planContentQuery, selectedTab, sheets,
             syncingWorktrees, selectedRecTitles, context, showDebugJob, showCostJob, draftComments,
@@ -392,12 +367,11 @@ public class ContentView(
         Action showResetToDraftDialog,
         Action showSuggestChangesDialog,
         Action showDiscardDialog,
-        Action showCreatePrDialog,
         ReviewViewContext context,
         IAgentRunner agentRunner,
         IState<List<DraftComment>> draftComments)
     {
-        var (client, logger, nav, args, copyToClipboard) = context;
+        var (client, logger, nav, _, copyToClipboard) = context;
         var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner, config);
 
         // Standard overflow menu items
@@ -407,7 +381,6 @@ public class ContentView(
                 .OnSelect(() => nav.Navigate<AgentApp>(new AgentAppArgs(
                     $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode.",
                     $"#{TendrilAppShell.FormatPlanId(selectedPlan.FolderName)}"))),
-            new MenuItem("Create PR", Icon: Icons.GitPullRequest, Tag: "CreatePR").OnSelect(showCreatePrDialog),
             new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
             {
                 try
@@ -504,14 +477,10 @@ public class ContentView(
         }
 
         // Action bar without .Wrap() - single row with progressive collapse.
-        // Full (>=1024px): Previous, Next, Reset to Draft, Request Changes, Discard inline + overflow dropdown.
-        // Compact (768-1023px): Previous, Next, Reset to Draft, Request Changes inline; Discard in dropdown.
-        // Minimal (<768px): Previous, Next inline; everything else in dropdown.
+        // Full (>=1024px): Reset to Draft, Request Changes, Discard inline + overflow dropdown.
+        // Compact (768-1023px): Reset to Draft, Request Changes inline; Discard in dropdown.
+        // Minimal (<768px): everything in dropdown.
         return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
-                | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious(nav, args))
-                    .ShortcutKey("p").AlwaysVisible()
-                | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext(nav, args))
-                    .ShortcutKey("n").AlwaysVisible()
                 | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r")
                     .OnClick(showResetToDraftDialog).CompactUp()
                 | requestChangesBtn
@@ -582,7 +551,7 @@ public class ContentView(
         }
         else
         {
-            var gitData = GitTabDataBuilder.BuildGitTabData(planData.CommitRows, selectedPlan!, config, gitService);
+            var gitData = planData.GitData ?? new GitTabDataBuilder.GitTabData([], []);
             var gitTabView = new GitTabView(
                 gitData,
                 selectedPlan!,
@@ -618,42 +587,58 @@ public class ContentView(
                     $"#{TendrilAppShell.FormatPlanId(selectedPlan.FolderName)}")));
 
             var tabNamesList = new List<string> { "summary", "plan", "details", "git" };
+            var isSummarySelected = selectedTab.Value == 0;
+            var isPlanSelected = selectedTab.Value == 1;
+            var isDetailsSelected = selectedTab.Value == 2;
+            var isGitSelected = selectedTab.Value == 3;
+
             var tabList = new List<Tab>
             {
                 // Summary is rendered via DraftMarkdown with a pinned Verifications sidebar, so it is
                 // NOT wrapped in Cap() (whose outer scroll would also scroll the sticky box). The widget
                 // reproduces Cap()'s left inset + max-width.
-                new Tab("Summary", new SummaryTabView(
+                new Tab("Summary", isSummarySelected ? new SummaryTabView(
                     config, planData.SummaryMarkdown, selectedPlan.Verifications,
                     planData.VerificationReports, v => openVerification.Set(v), onLinkClick,
-                    planContentQuery.Loading)),
-                new Tab("Plan", Cap(planTabContent)),
-                new Tab("Details", Cap(new DetailsTabView(selectedPlan,
+                    planContentQuery.Loading) : new Empty()),
+                new Tab("Plan", isPlanSelected ? Cap(planTabContent) : new Empty()),
+                new Tab("Details", isDetailsSelected ? Cap(new DetailsTabView(selectedPlan,
                     jobService.GetJobsForPlan(selectedPlan.FolderName),
                     showDebugJob, showCostJob, planService, selectedPlanState, refreshPlans,
-                    folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath))))),
-                new Tab("Git", Cap(gitTabView)).Badge(GitTabDataBuilder.CountGitItems(gitData, selectedPlan).ToString()),
+                    folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath)))) : new Empty()),
+                new Tab("Git", isGitSelected ? Cap(gitTabView) : new Empty())
+                    .Badge(GitTabDataBuilder.CountGitItems(gitData, selectedPlan).ToString()),
             };
 
             // Only surface the Changes tab once there are actual file changes — no point showing
             // an empty "No commits yet." tab before any work has landed.
-            if (changesTabView.FileCount > 0)
+            var changesCount = planData.AllChanges?.Files.Count ?? 0;
+            if (changesCount > 0)
             {
-                tabList.Add(new Tab("Changes",
-                        Layout.Vertical().Width(Size.Full()).Height(Size.Full().Min(Size.Px(0))) | changesTabView)
-                    .Badge(changesTabView.FileCount.ToString()));
+                var changesTabIndex = tabList.Count;
+                var isChangesSelected = selectedTab.Value == changesTabIndex;
+                tabList.Add(new Tab("Changes", isChangesSelected
+                    ? (Layout.Vertical().Width(Size.Full()).Height(Size.Full().Min(Size.Px(0))) | changesTabView)
+                    : new Empty())
+                    .Badge(changesCount.ToString()));
                 tabNamesList.Add("changes");
             }
 
             if (totalArtifacts > 0)
             {
-                tabList.Add(new Tab("Artifacts", Cap(new ArtifactsTabView(planData.Artifacts))).Badge(totalArtifacts.ToString()));
+                var artifactsTabIndex = tabList.Count;
+                var isArtifactsSelected = selectedTab.Value == artifactsTabIndex;
+                tabList.Add(new Tab("Artifacts", isArtifactsSelected ? Cap(new ArtifactsTabView(planData.Artifacts)) : new Empty())
+                    .Badge(totalArtifacts.ToString()));
                 tabNamesList.Add("Artifacts");
             }
 
             if (pendingRecs.Count > 0)
             {
-                tabList.Add(new Tab("Recommendations", Cap(recommendationsTab)).Badge(pendingRecs.Count.ToString()));
+                var recsTabIndex = tabList.Count;
+                var isRecsSelected = selectedTab.Value == recsTabIndex;
+                tabList.Add(new Tab("Recommendations", isRecsSelected ? Cap(recommendationsTab) : new Empty())
+                    .Badge(pendingRecs.Count.ToString()));
                 tabNamesList.Add("recommendations");
             }
 
@@ -784,22 +769,6 @@ public class ContentView(
         return resolvedPath.StartsWith(verificationDir, StringComparison.OrdinalIgnoreCase);
     }
 
-    private void GoToNext(INavigator nav, ReviewAppArgs? args)
-    {
-        if (allPlans.Count == 0) return;
-        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlanState.Value?.FolderName);
-        var nextIndex = (currentIndex + 1) % allPlans.Count;
-        selectedPlanState.Set(allPlans[nextIndex]);
-    }
-
-    private void GoToPrevious(INavigator nav, ReviewAppArgs? args)
-    {
-        if (allPlans.Count == 0) return;
-        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlanState.Value?.FolderName);
-        var prevIndex = (currentIndex - 1 + allPlans.Count) % allPlans.Count;
-        selectedPlanState.Set(allPlans[prevIndex]);
-    }
-
     private static async void SynchronizeWorktreeAsync(
         string worktreePath,
         IState<HashSet<string>> syncingState,
@@ -861,7 +830,8 @@ public class ContentView(
         List<PlanContentHelpers.CommitRow> CommitRows,
         Dictionary<string, bool> VerificationReports,
         List<(string Name, bool ConditionMet)> ReviewActionStates,
-        PlanContentHelpers.AllChangesData? AllChanges);
+        PlanContentHelpers.AllChangesData? AllChanges,
+        GitTabDataBuilder.GitTabData? GitData);
 
     // Groups the request-scoped services and navigation state shared by BuildHeader, BuildActionBar
     // and BuildContent, so a new piece of shared infrastructure only needs to be added here instead

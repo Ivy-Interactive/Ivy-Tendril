@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using Ivy.Tendril.Helpers;
@@ -10,6 +11,14 @@ public class GitService : IGitService
     private readonly int _timeoutMs;
     private readonly ILogger<GitService> _logger;
 
+    private readonly ConcurrentDictionary<string, GitResult<string>> _commitTitleCache = new();
+    private readonly ConcurrentDictionary<string, GitResult<string>> _commitDiffCache = new();
+    private readonly ConcurrentDictionary<string, GitResult<int>> _commitFileCountCache = new();
+    private readonly ConcurrentDictionary<string, GitResult<List<(string Status, string FilePath)>>> _commitFilesCache = new();
+    private readonly ConcurrentDictionary<string, GitResult<string>> _combinedDiffCache = new();
+    private readonly ConcurrentDictionary<string, GitResult<List<(string Status, string FilePath)>>> _combinedChangedFilesCache = new();
+    private readonly ConcurrentDictionary<string, (string Title, int FileCount)> _commitSummaryCache = new();
+
     public GitService(IConfigService config, ILogger<GitService> logger)
     {
         _timeoutMs = config.Settings.GitTimeout * 1000;
@@ -18,38 +27,92 @@ public class GitService : IGitService
 
     public GitResult<string> GetCommitTitle(string repoPath, string commitHash)
     {
-        return ExecuteGitCommand(repoPath, $"log -1 --format=%s {commitHash}",
+        var key = $"{repoPath}|{commitHash}";
+        if (_commitTitleCache.TryGetValue(key, out var cached))
+            return cached;
+
+        var res = ExecuteGitCommand(repoPath, $"log -1 --format=%s {commitHash}",
             output => output.Split('\n', 2)[0]);
+
+        if (res.IsSuccess)
+            _commitTitleCache[key] = res;
+
+        return res;
     }
 
     public GitResult<string> GetCommitDiff(string repoPath, string commitHash)
     {
-        return ExecuteGitCommand(repoPath, $"show --format=\"\" --patch {commitHash}",
+        var key = $"{repoPath}|{commitHash}";
+        if (_commitDiffCache.TryGetValue(key, out var cached))
+            return cached;
+
+        var res = ExecuteGitCommand(repoPath, $"show --format=\"\" --patch {commitHash}",
             output => output);
+
+        if (res.IsSuccess)
+            _commitDiffCache[key] = res;
+
+        return res;
     }
 
     public GitResult<int> GetCommitFileCount(string repoPath, string commitHash)
     {
-        return ExecuteGitCommand(repoPath, $"diff-tree --no-commit-id --name-only -r {commitHash}",
+        var key = $"{repoPath}|{commitHash}";
+        if (_commitFileCountCache.TryGetValue(key, out var cached))
+            return cached;
+
+        var res = ExecuteGitCommand(repoPath, $"diff-tree --no-commit-id --name-only -r {commitHash}",
             output => output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length);
+
+        if (res.IsSuccess)
+            _commitFileCountCache[key] = res;
+
+        return res;
     }
 
     public GitResult<List<(string Status, string FilePath)>> GetCommitFiles(string repoPath, string commitHash)
     {
-        return ExecuteGitCommand(repoPath, $"diff-tree --no-commit-id --name-status -r {commitHash}",
+        var key = $"{repoPath}|{commitHash}";
+        if (_commitFilesCache.TryGetValue(key, out var cached))
+            return cached;
+
+        var res = ExecuteGitCommand(repoPath, $"diff-tree --no-commit-id --name-status -r {commitHash}",
             ParseNameStatusOutput);
+
+        if (res.IsSuccess)
+            _commitFilesCache[key] = res;
+
+        return res;
     }
 
     public GitResult<string> GetCombinedDiff(string repoPath, string firstCommit, string lastCommit)
     {
-        return ExecuteGitCommand(repoPath, $"diff {firstCommit}^..{lastCommit}",
+        var key = $"{repoPath}|{firstCommit}|{lastCommit}";
+        if (_combinedDiffCache.TryGetValue(key, out var cached))
+            return cached;
+
+        var res = ExecuteGitCommand(repoPath, $"diff {firstCommit}^..{lastCommit}",
             output => output);
+
+        if (res.IsSuccess)
+            _combinedDiffCache[key] = res;
+
+        return res;
     }
 
     public GitResult<List<(string Status, string FilePath)>> GetCombinedChangedFiles(string repoPath, string firstCommit, string lastCommit)
     {
-        return ExecuteGitCommand(repoPath, $"diff --name-status {firstCommit}^..{lastCommit}",
+        var key = $"{repoPath}|{firstCommit}|{lastCommit}";
+        if (_combinedChangedFilesCache.TryGetValue(key, out var cached))
+            return cached;
+
+        var res = ExecuteGitCommand(repoPath, $"diff --name-status {firstCommit}^..{lastCommit}",
             ParseNameStatusOutput);
+
+        if (res.IsSuccess)
+            _combinedChangedFilesCache[key] = res;
+
+        return res;
     }
 
     public GitResult<Dictionary<string, (string Title, int FileCount)>> GetCommitSummaries(string repoPath, IEnumerable<string> commitHashes)
@@ -58,8 +121,41 @@ public class GitService : IGitService
         if (hashes.Count == 0)
             return GitResult<Dictionary<string, (string Title, int FileCount)>>.Success(new Dictionary<string, (string, int)>());
 
-        return ExecuteGitCommandWithStdin(repoPath, "log --stdin --no-walk --format=%H%x00%s --numstat", hashes,
-            output => ParseCommitSummaries(output, hashes));
+        var result = new Dictionary<string, (string Title, int FileCount)>();
+        var missingHashes = new List<string>();
+
+        foreach (var hash in hashes)
+        {
+            var key = $"{repoPath}|{hash}";
+            if (_commitSummaryCache.TryGetValue(key, out var summary))
+            {
+                result[hash] = summary;
+            }
+            else
+            {
+                missingHashes.Add(hash);
+            }
+        }
+
+        if (missingHashes.Count == 0)
+        {
+            return GitResult<Dictionary<string, (string Title, int FileCount)>>.Success(result);
+        }
+
+        var fetchResult = ExecuteGitCommandWithStdin(repoPath, "log --stdin --no-walk --format=%H%x09%s --numstat", missingHashes,
+            output => ParseCommitSummaries(output, missingHashes));
+
+        if (fetchResult.IsSuccess && fetchResult.Value != null)
+        {
+            foreach (var (hash, summary) in fetchResult.Value)
+            {
+                _commitSummaryCache[$"{repoPath}|{hash}"] = summary;
+                result[hash] = summary;
+            }
+            return GitResult<Dictionary<string, (string Title, int FileCount)>>.Success(result);
+        }
+
+        return fetchResult;
     }
 
     public GitResult<List<WorktreeInfo>> GetWorktrees(string repoPath)
@@ -393,7 +489,7 @@ public class GitService : IGitService
                 return GitResult<T>.Failure(GitError.CommandFailed, $"Git command failed with exit code {process.ExitCode}");
             }
 
-            return GitResult<T>.Success(parseOutput(output));
+            return GitResult<T>.Success(parseOutput(FileHelper.SanitizeUtf8(output)));
         }
         catch (FileNotFoundException ex)
         {
@@ -422,7 +518,7 @@ public class GitService : IGitService
             return (-1, "");
         }
 
-        return (process.ExitCode, output);
+        return (process.ExitCode, FileHelper.SanitizeUtf8(output));
     }
 
     private string? FindGitDir(string repoPath)
@@ -431,7 +527,7 @@ public class GitService : IGitService
         if (Directory.Exists(dotGit)) return dotGit;
         if (File.Exists(dotGit))
         {
-            var content = File.ReadAllText(dotGit).Trim();
+            var content = FileHelper.ReadAllText(dotGit).Trim();
             if (content.StartsWith("gitdir: "))
                 return content.Substring(8).Trim();
         }
@@ -463,17 +559,20 @@ public class GitService : IGitService
 
         foreach (var line in output.Split('\n'))
         {
-            if (line.Contains('\0'))
+            var trimmed = line.Trim();
+            if (trimmed.Length == 0) continue;
+
+            if (trimmed.Length >= 40 && trimmed.Take(40).All(Uri.IsHexDigit) && (trimmed.Length == 40 || line.Contains('\t')))
             {
                 if (currentHash != null)
                     StoreCommitResult(result, inputHashSet, currentHash, currentTitle!, currentFileCount);
 
-                var parts = line.Split('\0', 2);
+                var parts = line.Split('\t', 2);
                 currentHash = parts[0].Trim();
                 currentTitle = parts.Length > 1 ? parts[1].Trim() : "";
                 currentFileCount = 0;
             }
-            else if (currentHash != null && line.Trim().Length > 0)
+            else if (currentHash != null)
             {
                 currentFileCount++;
             }

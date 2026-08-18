@@ -100,11 +100,10 @@ public class CodingAgentStepView(
 
         var registeredAgents = agentRunner.RegisteredAgents;
         var visibleAgents = Agents.Where(a => registeredAgents.Contains(a.Key)).ToArray();
-        var hasByoSupport = registeredAgents.Contains("openaiproxy") || registeredAgents.Contains("ivy");
 
         if (selectedAgent.Value is null)
         {
-            return BuildPicker(visibleAgents, hasByoSupport, agentKey =>
+            return BuildPicker(visibleAgents, agentKey =>
             {
                 selectedAgent.Set(agentKey);
                 error.Set(null);
@@ -317,48 +316,39 @@ public class CodingAgentStepView(
 
     private static object BuildPicker(
         AgentInfo[] agents,
-        bool hasByoSupport,
         Action<string> onSelect,
         string? errorMessage)
     {
-        var grid = Layout.Grid().Columns(3).Gap(2);
+        var grid = Layout.Grid().Columns(3);
 
         grid = agents.Aggregate(grid, (current, a) =>
             current | new Card(
                 Layout.Horizontal()
-                    .Gap(2)
                     .AlignContent(Align.Center)
-                    .Padding(0)
                 | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))
                 | Text.Block(a.Label)
             ).OnClick(() => onSelect(a.Key)));
 
-        object? byoSection = null;
-        if (hasByoSupport)
-        {
-            var byoGrid = Layout.Grid().Columns(3).Gap(2);
-            byoGrid = ByoAgents.Aggregate(byoGrid, (current, a) =>
-                current | new Card(
-                    Layout.Horizontal()
-                        .Gap(2)
-                        .AlignContent(Align.Center)
-                        .Padding(0)
-                    | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))
-                    | Text.Block(a.Label)
-                ).OnClick(() => onSelect(a.Key)));
+        var byoGrid = Layout.Grid().Columns(3);
+        byoGrid = ByoAgents.Aggregate(byoGrid, (current, a) =>
+            current | new Card(
+                Layout.Horizontal()
+                    .AlignContent(Align.Center)
+                | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))
+                | Text.Block(a.Label)
+            ).OnClick(() => onSelect(a.Key)));
 
-            byoSection = Layout.Vertical().Margin(2, 0, 0, 0)
-                | Text.Block("Bring your own LLM").Bold()
-                | byoGrid;
-        }
+        var byoSection = Layout.Vertical()
+            | Text.Block("Bring your own LLM").Bold()
+            | byoGrid;
 
-        return Layout.Vertical().Margin(0, 0, 0, 2)
+        return Layout.Vertical()
                | Text.H3("What is your coding agent?")
                | Text.Muted(
                    "Tendril is a coding orchestrator that runs on top of your own coding agent. Pick the agent you'd like to use:")
                | (errorMessage != null ? Text.Danger(errorMessage) : null!)
                | grid
-               | (byoSection ?? null!);
+               | byoSection;
     }
 
     private static List<SoftwareCheck> BuildChecks(IAgentRunner runner, string agentKey)

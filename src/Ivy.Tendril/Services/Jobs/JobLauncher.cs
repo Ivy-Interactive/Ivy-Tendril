@@ -765,6 +765,12 @@ internal class JobLauncher
         // Deliberately no TENDRIL_JOB_ID: process env does not reach the agent's nested `tendril` calls
         // (see AGENTS.md). The job id travels as the TendrilJobId firmware header and is passed as an argument.
 
+        // Disable MSBuild node reuse and dotnet CLI build servers so background worker daemons do not
+        // outlive the agent process and hold redirected stdout/stderr pipes open (#2044).
+        psi.Environment["MSBUILDDISABLENODEREUSE"] = "1";
+        psi.Environment["DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER"] = "1";
+        psi.Environment["DOTNET_NOLOGO"] = "1";
+
         EnsureTendrilOnPath(psi);
     }
 

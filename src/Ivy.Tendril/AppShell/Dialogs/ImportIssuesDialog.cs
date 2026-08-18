@@ -253,7 +253,7 @@ public class ImportIssuesDialog(IState<bool> dialogOpen, IConfigService config) 
                                    {issue.Body}
                                    """;
 
-                    await File.WriteAllTextAsync(filePath, content);
+                    await FileHelper.WriteAllTextAsync(filePath, content);
                     importedCount++;
                 }
 

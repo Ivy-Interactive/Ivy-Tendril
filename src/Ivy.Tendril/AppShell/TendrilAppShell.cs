@@ -64,6 +64,19 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     internal static bool ShouldShowInAppToast(bool isDesktop, bool desktopNotificationsEnabled)
         => !isDesktop || !desktopNotificationsEnabled;
 
+    /// <summary>
+    ///     Whether Cmd+W / Ctrl+W should be wired up to close the active tab. Desktop shell only: in a
+    ///     browser the chord belongs to the browser (it closes the browser tab and cannot be cancelled),
+    ///     and <see cref="AppShellNavigation.Pages"/> has no tab strip at all.
+    /// </summary>
+    internal static bool ShouldEnableCloseTabShortcut(
+        bool isDesktop, AppShellNavigation navigation, int tabCount, int? selectedIndex)
+        => isDesktop
+           && navigation != AppShellNavigation.Pages
+           && selectedIndex is { } index
+           && index >= 0
+           && index < tabCount;
+
     private static async Task<SidebarNewsArticle[]> FetchNewsAsync()
     {
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TENDRIL_E2E")))
@@ -165,7 +178,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var agentRunner = UseService<IAgentRunner>();
         var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current, config, agentRunner));
         var status = UseState(() => statusService.Current);
-        var sidebarOpen = UseState(settings.SidebarOpen);
+        var sidebarOpen = UseState(config.Settings.SidebarOpen);
         var args = UseService<AppContext>();
         var serverArgs = UseService<ServerArgs>();
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
@@ -183,6 +196,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             if (!isOpen.Value || info == null) return null;
             return new UpdateTendrilDialog(isOpen, info);
         });
+
+
 
         UseEffect(async () =>
         {
@@ -211,8 +226,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         // branded "Agent" item updates immediately without needing a reload.
         UseEffect(() =>
         {
-            void OnSettingsReloaded(object? sender, EventArgs e) =>
+            void OnSettingsReloaded(object? sender, EventArgs e)
+            {
                 menuItems.Set(BuildMenuItems(appRepository, status.Value, config, agentRunner));
+                sidebarOpen.Set(config.Settings.SidebarOpen);
+            }
             config.SettingsReloaded += OnSettingsReloaded;
             return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);
         });
@@ -536,6 +554,22 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
         }
 
+        // Cmd+W (Ctrl+W on Windows) closes the active tab, matching desktop-app convention. ShortcutKey is
+        // the only shortcut API Ivy exposes, so the binding lives on a zero-width Ghost button that paints
+        // nothing, wrapped in a zero-height stack so it stays out of the layout (same trick as the
+        // SelectInput warm-up below).
+        object? closeTabShortcut = null;
+        if (ShouldEnableCloseTabShortcut(isDesktop, settings.Navigation, tabs.Value.Length, selectedIndex.Value)
+            && selectedIndex.Value is { } activeTabIndex)
+        {
+            closeTabShortcut = Layout.Vertical().Height(Size.Px(0)).Width(Size.Px(0))
+                | new Button()
+                    .Ghost()
+                    .Width(Size.Px(0))
+                    .ShortcutKey("Ctrl+W")
+                    .OnClick(() => OnTabClose(activeTabIndex));
+        }
+
         var sidebarMenu = new SidebarMenu(
             OnMenuSelect,
             menuItems.Value
@@ -590,15 +624,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                         }
                     });
                 }),
-            MenuItem.Default("Theme")
-                .Tag("$theme")
-                .Icon(Icons.SunMoon)
-                .Children(
-                    MenuItem.Checkbox("Light").Icon(Icons.Sun).OnSelect(() => client.SetThemeMode(ThemeMode.Light)),
-                    MenuItem.Checkbox("Dark").Icon(Icons.Moon).OnSelect(() => client.SetThemeMode(ThemeMode.Dark)),
-                    MenuItem.Checkbox("System").Icon(Icons.SunMoon)
-                        .OnSelect(() => client.SetThemeMode(ThemeMode.System))
-                ),
+
 #if DEBUG
             MenuItem.Default("Debug")
                 .Tag("$debug")
@@ -609,6 +635,15 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                         .OnSelect(() => navigator.Navigate<OnboardingApp>())
                 ),
 #endif
+            MenuItem.Default("Help")
+                .Tag("$help")
+                .Icon(Icons.CircleQuestionMark)
+                .Children(
+                    MenuItem.Default("Documentation").Icon(Icons.ExternalLink).OnSelect(() => client.OpenUrl(Constants.DocsUrl)),
+                    MenuItem.Default("Discord").Icon(Icons.Discord).OnSelect(() => client.OpenUrl(Constants.DiscordUrl)),
+                    MenuItem.Default("Report Issue").Icon(Icons.Bug).OnSelect(() => client.OpenUrl(Constants.IssuesUrl)),
+                    MenuItem.Default("About").Icon(Icons.Info).OnSelect(() => navigator.Navigate<AboutApp>())
+                ),
         };
 
         var settingsTrigger = new Button("Settings")
@@ -633,6 +668,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var settingsMenuCollapsed = new DropDownMenu(
                 DropDownMenu.DefaultSelectHandler(),
                 settingsTriggerCollapsed)
+            .Width(Size.Full())
             .Top()
             .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
 
@@ -656,7 +692,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             new SidebarLayout(
                 body ?? null!,
                 sidebarMenu,
-                sidebarHeader: Layout.Vertical().Gap(2)
+                sidebarHeader: Layout.Vertical()
                     | settings.Header
                     | new NewPlanButton(collapsed: false),
                 sidebarFooter: Layout.Vertical(
@@ -665,12 +701,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                     footer
                 ),
                 width: settings.Width,
-                sidebarHeaderCollapsed: Layout.Vertical().Gap(2)
+                sidebarHeaderCollapsed: Layout.Vertical()
                     | new NewPlanButton(collapsed: true),
-                sidebarFooterCollapsed: settingsMenuCollapsed
+                sidebarFooterCollapsed: Layout.Vertical().Width(Size.Full())
+                    | settingsMenuCollapsed
             ).Open(sidebarOpen.Value).MainAppSidebar(),
             importIssuesDialog,
-            updateDialog
+            updateDialog,
+            closeTabShortcut
         );
     }
 
