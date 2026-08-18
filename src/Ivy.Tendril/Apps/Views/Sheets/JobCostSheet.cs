@@ -167,11 +167,7 @@ public class JobCostSheet(string jobId, IJobService jobService) : ViewBase
         if (job.Tokens is > 0) totals.Add($"{Count(job.Tokens.Value)} tokens (input + output)");
         if (job.Cost is not null) totals.Add(Usd(job.Cost.Value));
 
-        return Layout.Vertical().Gap(2)
-               | Text.Block(string.Join(" · ", totals))
-               | Text.Muted(
-                   "No per-token breakdown was recorded for this job — only the totals above. Jobs "
-                   + "that completed before the breakdown was persisted have no bucket detail.");
+        return Text.Block(string.Join(" · ", totals));
     }
 
     /// <summary>
