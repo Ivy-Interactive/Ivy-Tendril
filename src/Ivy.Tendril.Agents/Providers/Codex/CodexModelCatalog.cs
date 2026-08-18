@@ -19,6 +19,16 @@ public sealed class CodexModelCatalog : CachedModelCatalogProvider
     [
         new()
         {
+            Id = "gpt-5.6-sol", DisplayName = "GPT-5.6-Sol",
+            Capabilities = DefaultCaps,
+            SupportedEfforts = EffortLevels.Codex,
+            ContextWindow = 400_000, MaxOutputTokens = 32_000,
+            Provider = "openai",
+            InputPerMillion = 10.00m, OutputPerMillion = 40.00m,
+            CacheReadPerMillion = 2.50m, CacheWritePerMillion = 12.50m,
+        },
+        new()
+        {
             Id = "gpt-5.6-terra", DisplayName = "GPT-5.6-Terra",
             Capabilities = DefaultCaps,
             SupportedEfforts = EffortLevels.Codex,
