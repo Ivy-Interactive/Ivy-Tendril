@@ -197,6 +197,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             return new UpdateTendrilDialog(isOpen, info);
         });
 
+
+
         UseEffect(async () =>
         {
             newsArticles.Set(await FetchNewsAsync());
@@ -622,15 +624,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                         }
                     });
                 }),
-            MenuItem.Default("Theme")
-                .Tag("$theme")
-                .Icon(Icons.SunMoon)
-                .Children(
-                    MenuItem.Checkbox("Light").Icon(Icons.Sun).OnSelect(() => client.SetThemeMode(ThemeMode.Light)),
-                    MenuItem.Checkbox("Dark").Icon(Icons.Moon).OnSelect(() => client.SetThemeMode(ThemeMode.Dark)),
-                    MenuItem.Checkbox("System").Icon(Icons.SunMoon)
-                        .OnSelect(() => client.SetThemeMode(ThemeMode.System))
-                ),
+
 #if DEBUG
             MenuItem.Default("Debug")
                 .Tag("$debug")
@@ -647,7 +641,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Children(
                     MenuItem.Default("Documentation").Icon(Icons.ExternalLink).OnSelect(() => client.OpenUrl(Constants.DocsUrl)),
                     MenuItem.Default("Discord").Icon(Icons.Discord).OnSelect(() => client.OpenUrl(Constants.DiscordUrl)),
-                    MenuItem.Default("Report Issue").Icon(Icons.Bug).OnSelect(() => client.OpenUrl(Constants.IssuesUrl))
+                    MenuItem.Default("Report Issue").Icon(Icons.Bug).OnSelect(() => client.OpenUrl(Constants.IssuesUrl)),
+                    MenuItem.Default("About").Icon(Icons.Info).OnSelect(() => navigator.Navigate<AboutApp>())
                 ),
         };
 
