@@ -46,11 +46,15 @@ public sealed class IvyCli : IAgentCli
 
         var env = new Dictionary<string, string>(spec.Environment);
         env["ANTHROPIC_BASE_URL"] = "https://llmproxy.ivy.app";
+        env["OPENAI_BASE_URL"] = "https://llmproxy.ivy.app/v1";
+        env["IVY_BASE_URL"] = "https://llmproxy.ivy.app";
 
         var apiKey = _apiKeyProvider();
         if (!string.IsNullOrEmpty(apiKey))
         {
             env["ANTHROPIC_API_KEY"] = apiKey;
+            env["OPENAI_API_KEY"] = apiKey;
+            env["IVY_API_KEY"] = apiKey;
         }
 
         return new AgentProcessSpec
@@ -72,6 +76,8 @@ public sealed class IvyCli : IAgentCli
     {
         var env = new Dictionary<string, string>(_inner.GetDefaultEnvironment());
         env["ANTHROPIC_BASE_URL"] = "https://llmproxy.ivy.app";
+        env["OPENAI_BASE_URL"] = "https://llmproxy.ivy.app/v1";
+        env["IVY_BASE_URL"] = "https://llmproxy.ivy.app";
         return env;
     }
 }
