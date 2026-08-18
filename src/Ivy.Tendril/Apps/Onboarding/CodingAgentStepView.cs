@@ -137,7 +137,41 @@ public class CodingAgentStepView(
                 testSuccessMessage.Set(null);
                 generalError.Set(null);
                 error.Set(null);
-                if (agentKey != "openaiproxy_card" && agentKey != "anthropic_card" && agentKey != "berget_card")
+
+                if (agentKey == "berget_card")
+                {
+                    openAiProxyBaseUrl.Set("https://api.berget.ai/v1");
+                    lastDetectedProvider.Set("berget");
+                    deepModel.Set("moonshotai/Kimi-K3");
+                    balancedModel.Set("moonshotai/Kimi-K3");
+                    quickModel.Set("moonshotai/Kimi-K3");
+                }
+                else if (agentKey == "anthropic_card")
+                {
+                    openAiProxyBaseUrl.Set("https://api.anthropic.com/v1");
+                    lastDetectedProvider.Set("anthropic");
+                    deepModel.Set("claude-opus-5");
+                    balancedModel.Set("claude-sonnet-5");
+                    quickModel.Set("claude-haiku-5");
+                }
+                else if (agentKey == "openaiproxy_card")
+                {
+                    var existingUrl = GetOpenAiProxyBaseUrlFromConfig(config);
+                    if (!string.IsNullOrEmpty(existingUrl) && !existingUrl.Contains("api.berget.ai") && !existingUrl.Contains("api.anthropic.com"))
+                    {
+                        openAiProxyBaseUrl.Set(existingUrl);
+                    }
+                    else
+                    {
+                        openAiProxyBaseUrl.Set("https://api.openai.com");
+                    }
+                    var isIvyUrl = openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app");
+                    lastDetectedProvider.Set(isIvyUrl ? "ivy" : "openai");
+                    deepModel.Set(isIvyUrl ? "claude-opus-5" : "gpt-5.6-sol");
+                    balancedModel.Set(isIvyUrl ? "gemini-3.7-flash" : "gpt-5.6-terra");
+                    quickModel.Set(isIvyUrl ? "gemini-3.7-flash" : "gpt-5.6-luna");
+                }
+                else
                 {
                     _ = RunFlowAsync(agentKey);
                 }
@@ -146,9 +180,9 @@ public class CodingAgentStepView(
 
         if (progressMessage.Value is null && (selectedAgent.Value == "openaiproxy_card" || selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card"))
         {
-            var isIvy = openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app") || openAiProxyBaseUrl.Value.Contains("ivy.app");
-            var isAnthropicCard = !isIvy && (selectedAgent.Value == "anthropic_card" || openAiProxyBaseUrl.Value.Contains("api.anthropic.com"));
-            var isBergetCard = !isIvy && (selectedAgent.Value == "berget_card" || openAiProxyBaseUrl.Value.Contains("api.berget.ai"));
+            var isBergetCard = selectedAgent.Value == "berget_card";
+            var isAnthropicCard = selectedAgent.Value == "anthropic_card";
+            var isIvy = !isBergetCard && !isAnthropicCard && (openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app") || openAiProxyBaseUrl.Value.Contains("ivy.app"));
 
             var cardTitle = isIvy
                 ? "Setup Ivy Proxy"
@@ -165,14 +199,6 @@ public class CodingAgentStepView(
                     : (isAnthropicCard
                         ? "https://api.anthropic.com/v1"
                         : "https://api.openai.com"));
-
-            if (string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value) ||
-                (isBergetCard && !openAiProxyBaseUrl.Value.Contains("api.berget.ai")) ||
-                (isAnthropicCard && (openAiProxyBaseUrl.Value == "https://api.openai.com" || openAiProxyBaseUrl.Value.Contains("api.berget.ai"))) ||
-                (!isAnthropicCard && !isBergetCard && !isIvy && (openAiProxyBaseUrl.Value.Contains("api.anthropic.com") || openAiProxyBaseUrl.Value.Contains("api.berget.ai"))))
-            {
-                openAiProxyBaseUrl.Set(defaultUrl);
-            }
 
             var isGoogle = !isIvy && !isAnthropicCard && !isBergetCard && (openAiProxyBaseUrl.Value.Contains("generativelanguage.googleapis.com") || openAiProxyBaseUrl.Value.Contains("gemini") || openAiProxyBaseUrl.Value.Contains("google"));
             var currentProviderKey = isIvy ? "ivy" : (isAnthropicCard ? "anthropic" : (isBergetCard ? "berget" : (isGoogle ? "google" : "openai")));
