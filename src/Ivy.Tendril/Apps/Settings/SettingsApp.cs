@@ -21,6 +21,7 @@ public class SettingsApp : ViewBase
     internal const string TagProjects = "projects";
     private const string TagTunnel = "tunnel";
     private const string TagAdvanced = "advanced";
+    private const string TagAbout = "about";
 
     public override object Build()
     {
@@ -68,6 +69,7 @@ public class SettingsApp : ViewBase
             ("Notifications", TagNotifications, Icons.Bell),
             ("Security & Tunnel", TagSecurity, Icons.Lock),
             ("Advanced", TagAdvanced, Icons.Cog),
+            ("About", TagAbout, Icons.Info),
         };
 
         var rows = new List<object>
@@ -112,6 +114,7 @@ public class SettingsApp : ViewBase
         rows.Add(SidebarListRow.Build("Security & Tunnel", Icons.Lock, () => selected.Set(TagSecurity), selectedTag == TagSecurity || selectedTag == TagTunnel));
         rows.Add(SidebarListRow.Build("Advanced", Icons.Cog, () => selected.Set(TagAdvanced), selectedTag == TagAdvanced));
         rows.Add(SidebarListRow.Build("Open config.yaml", Icons.FileText, () => ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost), false));
+        rows.Add(SidebarListRow.Build("About", Icons.Info, () => selected.Set(TagAbout), selectedTag == TagAbout));
 
         var sidebar = Layout.Vertical(rows).Gap(1);
 
@@ -161,6 +164,7 @@ public class SettingsApp : ViewBase
                     ? new ProjectDetailView(0, projects, config, client, refreshToken).Key($"project:{projects[0].Name}")
                     : new CodingAgentSetupView(),
                 TagAdvanced => new AdvancedSetupView(),
+                TagAbout => new AboutSetupView(),
                 _ => new CodingAgentSetupView()
             };
         }
