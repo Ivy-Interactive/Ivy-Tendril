@@ -281,4 +281,136 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
             .DistinctBy(m => m.Id, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
+
+    public static async Task<(bool Success, string? ErrorMessage)> TestModelEndpointAsync(
+        string? baseUrl,
+        string? apiKey,
+        string model,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(model) || model == "__custom__" || model == "default")
+        {
+            return (false, "Please specify a valid model name.");
+        }
+
+        var url = baseUrl?.Trim().TrimEnd('/') ?? "";
+        if (string.IsNullOrEmpty(url))
+        {
+            url = "https://api.openai.com";
+        }
+
+        var isAnthropic = url.Contains("api.anthropic.com");
+        var isIvy = url.Contains("llmproxy.ivy.app") || url.Contains("ivy.app");
+
+        var endpointsToTry = new List<(string Url, bool IsAnthropic)>();
+        if (isAnthropic)
+        {
+            endpointsToTry.Add(("https://api.anthropic.com/v1/messages", true));
+        }
+        else if (isIvy)
+        {
+            endpointsToTry.Add(($"{url}/v1/chat/completions", false));
+            endpointsToTry.Add(($"{url}/chat/completions", false));
+            endpointsToTry.Add(($"{url}/v1/messages", true));
+        }
+        else
+        {
+            if (url.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
+            {
+                endpointsToTry.Add(($"{url}/chat/completions", false));
+            }
+            else
+            {
+                endpointsToTry.Add(($"{url}/v1/chat/completions", false));
+                endpointsToTry.Add(($"{url}/chat/completions", false));
+            }
+        }
+
+        string? lastError = null;
+
+        foreach (var (endpointUrl, useAnthropicFormat) in endpointsToTry)
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Post, endpointUrl);
+                if (!string.IsNullOrWhiteSpace(apiKey))
+                {
+                    if (useAnthropicFormat)
+                    {
+                        request.Headers.Add("x-api-key", apiKey);
+                        request.Headers.Add("anthropic-version", "2023-06-01");
+                    }
+                    else
+                    {
+                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                    }
+                }
+
+                object payload = useAnthropicFormat
+                    ? new
+                    {
+                        model,
+                        max_tokens = 5,
+                        messages = new[] { new { role = "user", content = "hi" } }
+                    }
+                    : new
+                    {
+                        model,
+                        max_tokens = 5,
+                        messages = new[] { new { role = "user", content = "hi" } }
+                    };
+
+                var jsonPayload = JsonSerializer.Serialize(payload);
+                request.Content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
+
+                using var response = await HttpClient.SendAsync(request, ct);
+                if (response.IsSuccessStatusCode)
+                {
+                    return (true, null);
+                }
+
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                lastError = ExtractErrorMessage(response.StatusCode, errorBody);
+            }
+            catch (Exception ex)
+            {
+                lastError = ex.Message;
+            }
+        }
+
+        return (false, lastError ?? "Failed to connect to endpoint.");
+    }
+
+    private static string ExtractErrorMessage(System.Net.HttpStatusCode statusCode, string responseBody)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(responseBody);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("error", out var errorEl))
+            {
+                if (errorEl.ValueKind == JsonValueKind.String)
+                {
+                    return errorEl.GetString() ?? $"HTTP {(int)statusCode}";
+                }
+                if (errorEl.TryGetProperty("message", out var msgEl))
+                {
+                    return msgEl.GetString() ?? $"HTTP {(int)statusCode}";
+                }
+            }
+            if (root.TryGetProperty("message", out var directMsgEl))
+            {
+                return directMsgEl.GetString() ?? $"HTTP {(int)statusCode}";
+            }
+        }
+        catch
+        {
+            if (!string.IsNullOrWhiteSpace(responseBody) && responseBody.Length < 200)
+            {
+                return $"{statusCode}: {responseBody.Trim()}";
+            }
+        }
+
+        return $"HTTP {(int)statusCode} ({statusCode})";
+    }
 }

@@ -150,4 +150,16 @@ public class OpenAiProxyTests
         Assert.NotEmpty(models);
         Assert.Contains(models, m => m.Id == "gpt-5.6-sol");
     }
+
+    [Fact]
+    public async Task OpenAiProxyModelCatalog_TestModelEndpointAsync_RejectsInvalidModelName()
+    {
+        var (okEmpty, errEmpty) = await OpenAiProxyModelCatalog.TestModelEndpointAsync("https://api.openai.com", "sk-test", "");
+        var (okCustom, errCustom) = await OpenAiProxyModelCatalog.TestModelEndpointAsync("https://api.openai.com", "sk-test", "__custom__");
+
+        Assert.False(okEmpty);
+        Assert.False(okCustom);
+        Assert.Contains("valid", errEmpty, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("valid", errCustom, StringComparison.OrdinalIgnoreCase);
+    }
 }
