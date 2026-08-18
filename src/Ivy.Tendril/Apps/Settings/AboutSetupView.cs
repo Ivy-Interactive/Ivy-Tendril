@@ -132,7 +132,7 @@ public class AboutSetupView : ViewBase
             .AppendLine($"Tendril Home: {tendrilHome}")
             .ToString();
 
-        var header = Layout.Vertical()
+        var header = Layout.Vertical().Width(Size.Full().Max(Size.Units(200)))
             | (Layout.Horizontal()
                 | Text.H2("About Tendril")
                 | new Spacer()
@@ -181,7 +181,7 @@ public class AboutSetupView : ViewBase
                     }))
             | Text.Muted("Application details, environment diagnostics, and bundled toolchain.");
 
-        var content = Layout.Vertical()
+        var content = Layout.Vertical().Width(Size.Full().Max(Size.Units(200)))
             | systemDetailsCard
             | toolsTableCard;
 
