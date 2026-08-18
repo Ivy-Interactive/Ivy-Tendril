@@ -99,33 +99,30 @@ public static class AgentServiceCollectionExtensions
                 new OpenCodePty(),
                 new OpenCodeModelCatalog());
 
-            if (options.IncludeBetaProviders)
-            {
-                Func<string?> apiKeyProvider = options.IvyApiKeyProviderFactory?.Invoke(sp) ?? (() => null);
-                Func<string?> tokenProvider = options.IvyTokenProviderFactory?.Invoke(sp) ?? (() => null);
-                Func<CancellationToken, Task<string?>> emailProvider = options.IvyEmailProviderFactory?.Invoke(sp) ?? ((_) => Task.FromResult<string?>(null));
+            Func<string?> apiKeyProvider = options.IvyApiKeyProviderFactory?.Invoke(sp) ?? (() => null);
+            Func<string?> tokenProvider = options.IvyTokenProviderFactory?.Invoke(sp) ?? (() => null);
+            Func<CancellationToken, Task<string?>> emailProvider = options.IvyEmailProviderFactory?.Invoke(sp) ?? ((_) => Task.FromResult<string?>(null));
 
-                runner.Register(
-                    new Providers.Ivy.IvyCli(apiKeyProvider),
-                    new Providers.Ivy.IvyEventParser(),
-                    new Providers.Ivy.IvyHealthCheck(apiKeyProvider, tokenProvider, emailProvider),
-                    new Providers.Ivy.IvyFailureAnalyzer(),
-                    new Providers.Ivy.IvySessionCostParser(),
-                    new Providers.Ivy.IvyPty(apiKeyProvider),
-                    new Providers.Ivy.IvyModelCatalog());
+            runner.Register(
+                new Providers.Ivy.IvyCli(apiKeyProvider),
+                new Providers.Ivy.IvyEventParser(),
+                new Providers.Ivy.IvyHealthCheck(apiKeyProvider, tokenProvider, emailProvider),
+                new Providers.Ivy.IvyFailureAnalyzer(),
+                new Providers.Ivy.IvySessionCostParser(),
+                new Providers.Ivy.IvyPty(apiKeyProvider),
+                new Providers.Ivy.IvyModelCatalog());
 
-                Func<string?> openAiProxyApiKeyProvider = options.OpenAiProxyApiKeyProviderFactory?.Invoke(sp) ?? (() => null);
-                Func<string?> openAiProxyBaseUrlProvider = options.OpenAiProxyBaseUrlProviderFactory?.Invoke(sp) ?? (() => null);
+            Func<string?> openAiProxyApiKeyProvider = options.OpenAiProxyApiKeyProviderFactory?.Invoke(sp) ?? (() => null);
+            Func<string?> openAiProxyBaseUrlProvider = options.OpenAiProxyBaseUrlProviderFactory?.Invoke(sp) ?? (() => null);
 
-                runner.Register(
-                    new Providers.OpenAiProxy.OpenAiProxyCli(openAiProxyApiKeyProvider, openAiProxyBaseUrlProvider),
-                    new Providers.OpenAiProxy.OpenAiProxyEventParser(),
-                    new Providers.OpenAiProxy.OpenAiProxyHealthCheck(openAiProxyApiKeyProvider, openAiProxyBaseUrlProvider),
-                    new Providers.OpenAiProxy.OpenAiProxyFailureAnalyzer(),
-                    new Providers.OpenAiProxy.OpenAiProxySessionCostParser(),
-                    new Providers.OpenAiProxy.OpenAiProxyPty(openAiProxyApiKeyProvider, openAiProxyBaseUrlProvider),
-                    new Providers.OpenAiProxy.OpenAiProxyModelCatalog(openAiProxyBaseUrlProvider));
-            }
+            runner.Register(
+                new Providers.OpenAiProxy.OpenAiProxyCli(openAiProxyApiKeyProvider, openAiProxyBaseUrlProvider),
+                new Providers.OpenAiProxy.OpenAiProxyEventParser(),
+                new Providers.OpenAiProxy.OpenAiProxyHealthCheck(openAiProxyApiKeyProvider, openAiProxyBaseUrlProvider),
+                new Providers.OpenAiProxy.OpenAiProxyFailureAnalyzer(),
+                new Providers.OpenAiProxy.OpenAiProxySessionCostParser(),
+                new Providers.OpenAiProxy.OpenAiProxyPty(openAiProxyApiKeyProvider, openAiProxyBaseUrlProvider),
+                new Providers.OpenAiProxy.OpenAiProxyModelCatalog(openAiProxyBaseUrlProvider));
 
             return runner;
         });

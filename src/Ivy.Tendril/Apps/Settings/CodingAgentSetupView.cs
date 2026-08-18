@@ -223,8 +223,6 @@ public class CodingAgentSetupView : ViewBase
                 selectedAgent.Set(a.Key);
             }));
 
-        var hasByoSupport = registeredAgents.Contains("openaiproxy") || registeredAgents.Contains("ivy");
-
         var byoAgents = new[]
         {
             new ByoAgentInfo("openaiproxy_card", "OpenAI", Icons.OpenAI),
@@ -324,13 +322,11 @@ public class CodingAgentSetupView : ViewBase
                | (Layout.Vertical()
                    .Width(Size.Full().At(Breakpoint.Mobile).And(Breakpoint.Desktop, Size.Units(170)))
                    | topGrid.Width(Size.Full()))
-               | (hasByoSupport
-                   ? (object)(Layout.Vertical()
-                       | Text.Block("Bring your own LLM").Bold()
-                       | (Layout.Vertical()
-                           .Width(Size.Full().At(Breakpoint.Mobile).And(Breakpoint.Desktop, Size.Units(170)))
-                           | byoGrid.Width(Size.Full())))
-                   : null!)
+               | (Layout.Vertical()
+                   | Text.Block("Bring your own LLM").Bold()
+                   | (Layout.Vertical()
+                       .Width(Size.Full().At(Breakpoint.Mobile).And(Breakpoint.Desktop, Size.Units(170)))
+                       | byoGrid.Width(Size.Full())))
                | agentInputs
                | profileModels
                | new Spacer()
