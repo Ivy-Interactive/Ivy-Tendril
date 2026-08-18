@@ -159,4 +159,39 @@ describe("ChatWidget Queued Messages UI", () => {
       ["sess-123"]
     );
   });
+
+  it("renders effort picker and emits OnEffortChanged when changed", () => {
+    const handleEvent = vi.fn();
+    const efforts = [
+      { id: "default", displayName: "Default" },
+      { id: "low", displayName: "Low" },
+      { id: "high", displayName: "High" },
+      { id: "max", displayName: "Max" },
+    ];
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        efforts={efforts}
+        selectedEffort="high"
+        supportsEffort={true}
+        events={["OnEffortChanged"]}
+        eventHandler={handleEvent}
+      />
+    );
+
+    const effortTrigger = screen.getByTitle("Effort Level");
+    expect(effortTrigger).toBeInTheDocument();
+    expect(screen.getByText("High")).toBeInTheDocument();
+
+    fireEvent.click(effortTrigger.querySelector("button")!);
+    const maxOption = screen.getByRole("button", { name: /Max/i });
+    fireEvent.click(maxOption);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnEffortChanged",
+      "test-chat",
+      ["max"]
+    );
+  });
 });

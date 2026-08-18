@@ -143,7 +143,7 @@ public class ChatHistoryService : IChatHistoryService
         return session;
     }
 
-    public ChatSessionModel CreateSession(string agentId, string modelId, string? title = null)
+    public ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null)
     {
         var now = DateTimeOffset.UtcNow;
         var id = Guid.NewGuid().ToString("N");
@@ -156,7 +156,8 @@ public class ChatHistoryService : IChatHistoryService
             UpdatedAt: now,
             AgentId: agentId,
             ModelId: modelId,
-            Messages: new List<ChatMessageModel>()
+            Messages: new List<ChatMessageModel>(),
+            Effort: effort
         );
 
         _sessions[id] = session;
@@ -211,14 +212,14 @@ public class ChatHistoryService : IChatHistoryService
         }
     }
 
-    public ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null)
+    public ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null, string? effort = null)
     {
         lock (_lock)
         {
             var session = GetSession(sessionId);
             if (session == null)
             {
-                session = CreateSession(agentId ?? "claude", modelId ?? "opus");
+                session = CreateSession(agentId ?? "claude", modelId ?? "opus", effort: effort);
             }
 
             var msg = new ChatMessageModel(
@@ -228,7 +229,8 @@ public class ChatHistoryService : IChatHistoryService
                 Timestamp: DateTimeOffset.UtcNow,
                 AgentId: agentId ?? session.AgentId,
                 ModelId: modelId ?? session.ModelId,
-                RawStream: rawStream
+                RawStream: rawStream,
+                Effort: effort ?? session.Effort
             );
 
             var updatedMessages = new List<ChatMessageModel>(session.Messages) { msg };
@@ -248,6 +250,7 @@ public class ChatHistoryService : IChatHistoryService
                 UpdatedAt = DateTimeOffset.UtcNow,
                 AgentId = agentId ?? session.AgentId,
                 ModelId = modelId ?? session.ModelId,
+                Effort = effort ?? session.Effort,
                 Messages = updatedMessages
             };
 

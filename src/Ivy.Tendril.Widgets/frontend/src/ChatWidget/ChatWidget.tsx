@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Mic, Bot, Cpu, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square, ArrowRight, Trash2 } from "lucide-react";
+import { Mic, Bot, Cpu, Zap, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square, ArrowRight, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { AgentViewer } from "../AgentViewer";
 import { getMarkdownPlugins } from "../math";
@@ -16,6 +16,7 @@ export interface ChatMessageDto {
   agentId?: string;
   modelId?: string;
   rawStream?: string;
+  effort?: string;
 }
 
 export interface ChatSessionDto {
@@ -27,6 +28,7 @@ export interface ChatSessionDto {
   updatedAt: string;
   messages: ChatMessageDto[];
   status?: "generating" | "waiting" | "done";
+  effort?: string;
 }
 
 export interface AgentOptionDto {
@@ -35,6 +37,11 @@ export interface AgentOptionDto {
 }
 
 export interface ModelOptionDto {
+  id: string;
+  displayName: string;
+}
+
+export interface EffortOptionDto {
   id: string;
   displayName: string;
 }
@@ -56,8 +63,11 @@ export interface ChatWidgetProps {
   sessions?: ChatSessionDto[];
   agents?: AgentOptionDto[];
   models?: ModelOptionDto[];
+  efforts?: EffortOptionDto[];
   selectedAgent?: string;
   selectedModel?: string;
+  selectedEffort?: string;
+  supportsEffort?: boolean;
   isStreaming?: boolean;
   streamingText?: string;
   streamingStream?: { id: string };
@@ -189,8 +199,11 @@ export function ChatWidget({
   sessions = [],
   agents = [],
   models = [],
+  efforts = [],
   selectedAgent = "claude",
   selectedModel = "opus",
+  selectedEffort = "default",
+  supportsEffort = true,
   isStreaming = false,
   streamingText = "",
   streamingStream: _streamingStream,
@@ -437,14 +450,6 @@ export function ChatWidget({
     }
   };
 
-  const handleAgentChange = (val: string) => {
-    emit("OnAgentChanged", val);
-  };
-
-  const handleModelChange = (val: string) => {
-    emit("OnModelChanged", val);
-  };
-
   const toggleVoiceRecording = () => {
     if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
       alert("Speech recognition is not supported in this browser.");
@@ -488,6 +493,19 @@ export function ChatWidget({
 
   const agentSelectOptions = agents.map((a) => ({ value: a.id, label: a.label }));
   const modelSelectOptions = models.map((m) => ({ value: m.id, label: m.displayName }));
+  const effortSelectOptions = (efforts || []).map((e) => ({ value: e.id, label: e.displayName }));
+
+  const handleAgentChange = (agentId: string) => {
+    emit("OnAgentChanged", agentId);
+  };
+
+  const handleModelChange = (modelId: string) => {
+    emit("OnModelChanged", modelId);
+  };
+
+  const handleEffortChange = (effortId: string) => {
+    emit("OnEffortChanged", effortId);
+  };
 
   return (
     <div className="chat-widget-root">
@@ -774,6 +792,16 @@ export function ChatWidget({
                   onChange={handleModelChange}
                   title="Model"
                 />
+
+                {supportsEffort && effortSelectOptions.length > 0 && (
+                  <InlineSelect
+                    icon={<Zap size={13} />}
+                    value={selectedEffort}
+                    options={effortSelectOptions}
+                    onChange={handleEffortChange}
+                    title="Effort Level"
+                  />
+                )}
 
                 <button
                   type="button"

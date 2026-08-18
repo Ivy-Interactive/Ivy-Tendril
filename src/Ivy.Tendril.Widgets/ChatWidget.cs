@@ -12,7 +12,8 @@ public record ChatMessageDto(
     string Timestamp,
     string? AgentId = null,
     string? ModelId = null,
-    string? RawStream = null
+    string? RawStream = null,
+    string? Effort = null
 );
 
 public record ChatSessionDto(
@@ -23,11 +24,13 @@ public record ChatSessionDto(
     string CreatedAt,
     string UpdatedAt,
     List<ChatMessageDto> Messages,
-    string Status = "done"
+    string Status = "done",
+    string? Effort = null
 );
 
 public record AgentOptionDto(string Id, string Label);
 public record ModelOptionDto(string Id, string DisplayName);
+public record EffortOptionDto(string Id, string DisplayName);
 
 public record ChatAttachmentDto(
     string Name,
@@ -56,8 +59,11 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Prop] public List<ChatSessionDto> Sessions { get; init; } = new();
     [Prop] public List<AgentOptionDto> Agents { get; init; } = new();
     [Prop] public List<ModelOptionDto> Models { get; init; } = new();
+    [Prop] public List<EffortOptionDto> Efforts { get; init; } = new();
     [Prop] public string SelectedAgent { get; init; } = "claude";
     [Prop] public string SelectedModel { get; init; } = "opus";
+    [Prop] public string SelectedEffort { get; init; } = "default";
+    [Prop] public bool SupportsEffort { get; init; } = true;
     [Prop] public bool IsStreaming { get; init; } = false;
     [Prop] public string? StreamingText { get; init; }
     [Prop] public IWriteStream<string>? StreamingStream { get; init; }
@@ -70,4 +76,5 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Event] public Func<Event<ChatWidget, object>, ValueTask>? OnCancelStream { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnAgentChanged { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnModelChanged { get; init; }
+    [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnEffortChanged { get; init; }
 }

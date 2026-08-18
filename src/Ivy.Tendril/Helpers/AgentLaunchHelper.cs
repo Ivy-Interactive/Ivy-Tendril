@@ -128,6 +128,7 @@ public static class AgentLaunchHelper
         string agentId,
         string prompt,
         string? modelOverride = null,
+        EffortLevel? effortOverride = null,
         PermissionMode permissionMode = PermissionMode.FullAuto)
     {
         var workDir = GetWorkDir(config, runner, agentId);
@@ -135,7 +136,7 @@ public static class AgentLaunchHelper
         WriteAgentInstructionsIfNeeded(workDir, systemPrompt, runner, agentId);
 
         var resolvedModel = ResolveModel(config, runner, agentId, modelOverride);
-        var resolvedEffort = ResolveEffort(config, runner, agentId);
+        var resolvedEffort = effortOverride ?? ResolveEffort(config, runner, agentId);
         var env = GetEnvironment(config, agentId);
 
         return new AgentResolutionContext
