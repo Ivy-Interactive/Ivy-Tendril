@@ -40,6 +40,10 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
         var baseUrl = _baseUrlProvider?.Invoke();
         var apiKey = _apiKeyProvider?.Invoke();
         var models = await FetchModelsFromEndpointAsync(baseUrl, apiKey, ct);
+        if (models.Count == 0)
+        {
+            models = GetStaticModels();
+        }
         return new ModelCatalogResult
         {
             AgentId = AgentId,
@@ -51,12 +55,11 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
 
     public static async Task<IReadOnlyList<ModelInfo>> FetchModelsFromEndpointAsync(string? baseUrl, string? apiKey, CancellationToken ct = default)
     {
-        var staticModels = GetModelsForBaseUrl(baseUrl);
         var url = baseUrl?.Trim().TrimEnd('/') ?? "";
 
         if (string.IsNullOrEmpty(url))
         {
-            return staticModels;
+            return Array.Empty<ModelInfo>();
         }
 
         try
@@ -89,15 +92,6 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
                     }
                 }
 
-                // Add any remaining static models from the provider that were not in the fetched list
-                foreach (var sm in staticModels)
-                {
-                    if (!result.Any(r => r.Id.Equals(sm.Id, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        result.Add(sm);
-                    }
-                }
-
                 return result
                     .DistinctBy(m => m.Id, StringComparer.OrdinalIgnoreCase)
                     .ToList();
@@ -105,10 +99,10 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
         }
         catch
         {
-            // Fallback to static models on error
+            // Fallback to empty on error
         }
 
-        return staticModels;
+        return Array.Empty<ModelInfo>();
     }
 
     private static async Task<List<(string Id, string? Name)>?> TryFetchModelsHttpAsync(string baseUrl, string? apiKey, CancellationToken ct)
@@ -148,6 +142,10 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
                     else
                     {
                         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                        if (baseUrl.Contains("ivy.app") || baseUrl.Contains("llmproxy"))
+                        {
+                            request.Headers.Add("x-api-key", apiKey);
+                        }
                     }
                 }
 

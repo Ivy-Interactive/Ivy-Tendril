@@ -70,6 +70,7 @@ public class CodingAgentSetupView : ViewBase
         var deepEffort = UseState(GetProfileEffort(config, config.Settings.CodingAgent, "deep"));
         var balancedEffort = UseState(GetProfileEffort(config, config.Settings.CodingAgent, "balanced"));
         var quickEffort = UseState(GetProfileEffort(config, config.Settings.CodingAgent, "quick"));
+        var useCustomModelNames = UseState(false);
         var lastRealAgent = UseState(config.Settings.CodingAgent);
         var showTestDialog = UseState(false);
         var testAgentId = UseState(config.Settings.CodingAgent);
@@ -138,10 +139,21 @@ public class CodingAgentSetupView : ViewBase
         }
 
         var models = modelsQuery.Value ?? [];
+        var knownModelIds = new HashSet<string>(models.Select(m => m.Id), StringComparer.OrdinalIgnoreCase);
+        var extraOptions = new List<Option<string>>();
+        foreach (var m in new[] { deepModel.Value, balancedModel.Value, quickModel.Value })
+        {
+            if (!string.IsNullOrEmpty(m) && m != "default" && !knownModelIds.Contains(m) && extraOptions.All(o => (string?)o.Value != m))
+            {
+                extraOptions.Add(new Option<string>(m, m));
+            }
+        }
+
         var modelOptions = new[] { new Option<string>("Default", "default") }
             .Concat(models
                 .Where(m => m.Id != "default")
                 .Select(m => new Option<string>(m.DisplayName, m.Id)))
+            .Concat(extraOptions)
             .ToArray<IAnyOption>();
 
         var isIvy = selectedAgent.Value == "openaiproxy_card" && openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app");
@@ -333,24 +345,43 @@ public class CodingAgentSetupView : ViewBase
                     .Label("Ollama Host");
         }
 
+        var isByo = isIvy || isBerget || isAnthropic || isOpenAi;
+        var hasFetchedModels = models.Length > 0;
+        var isCustomMode = isByo && (useCustomModelNames.Value || !hasFetchedModels);
+
         var profileModels = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+            | (isByo && hasFetchedModels ? useCustomModelNames.ToSwitchInput(label: "Custom model names") : null!)
             | Text.Block("Profile Models").Bold()
-            | Text.Muted("Promptwares are configured to use different profiles depending on the complexity of the task. You can specify what model and effort level to use for each profile.").Small()
+            | Text.Muted(isCustomMode
+                ? "Specify custom model names and effort level to use for each profile."
+                : "Promptwares are configured to use different profiles depending on the complexity of the task. You can specify what model and effort level to use for each profile.").Small()
             | (supportsEffort
                 ? (object)(Layout.Vertical()
                     | (Layout.Horizontal()
-                        | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep").Width(Size.Fraction(0.65f))
+                        | (isCustomMode
+                            ? deepModel.ToTextInput("e.g. gpt-4o").WithField().Label("Deep").Width(Size.Fraction(0.65f))
+                            : deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep").Width(Size.Fraction(0.65f)))
                         | deepEffort.ToSelectInput(GetEffortOptions(deepModel.Value)).WithField().Label("Effort").Width(Size.Fraction(0.35f)))
                     | (Layout.Horizontal()
-                        | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced").Width(Size.Fraction(0.65f))
+                        | (isCustomMode
+                            ? balancedModel.ToTextInput("e.g. gpt-4o-mini").WithField().Label("Balanced").Width(Size.Fraction(0.65f))
+                            : balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced").Width(Size.Fraction(0.65f)))
                         | balancedEffort.ToSelectInput(GetEffortOptions(balancedModel.Value)).WithField().Label("Effort").Width(Size.Fraction(0.35f)))
                     | (Layout.Horizontal()
-                        | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick").Width(Size.Fraction(0.65f))
+                        | (isCustomMode
+                            ? quickModel.ToTextInput("e.g. gpt-4o-mini").WithField().Label("Quick").Width(Size.Fraction(0.65f))
+                            : quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick").Width(Size.Fraction(0.65f)))
                         | quickEffort.ToSelectInput(GetEffortOptions(quickModel.Value)).WithField().Label("Effort").Width(Size.Fraction(0.35f))))
                 : (Layout.Vertical()
-                    | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep")
-                    | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced")
-                    | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick")));
+                    | (isCustomMode
+                        ? deepModel.ToTextInput("e.g. gpt-4o").WithField().Label("Deep")
+                        : deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep"))
+                    | (isCustomMode
+                        ? balancedModel.ToTextInput("e.g. gpt-4o-mini").WithField().Label("Balanced")
+                        : balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced"))
+                    | (isCustomMode
+                        ? quickModel.ToTextInput("e.g. gpt-4o-mini").WithField().Label("Quick")
+                        : quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick"))));
 
         return Layout.Vertical()
                | Text.Block("Coding Agent").Bold()

@@ -159,11 +159,19 @@ public class OpenAiProxyTests
     }
 
     [Fact]
-    public async Task OpenAiProxyModelCatalog_FetchModelsFromEndpointAsync_ReturnsStaticFallbackWhenOffline()
+    public async Task OpenAiProxyModelCatalog_FetchModelsFromEndpointAsync_ReturnsEmptyWhenOffline()
     {
         var models = await OpenAiProxyModelCatalog.FetchModelsFromEndpointAsync("http://127.0.0.1:54321/v1", "sk-test");
-        Assert.NotEmpty(models);
-        Assert.Contains(models, m => m.Id == "gpt-5.6-sol");
+        Assert.Empty(models);
+    }
+
+    [Fact]
+    public async Task OpenAiProxyModelCatalog_GetModelsAsync_ReturnsStaticFallbackWhenOffline()
+    {
+        var catalog = new OpenAiProxyModelCatalog(() => "http://127.0.0.1:54321/v1", () => "sk-test");
+        var result = await catalog.GetModelsAsync();
+        Assert.NotEmpty(result.Models);
+        Assert.Contains(result.Models, m => m.Id == "gpt-5.6-sol");
     }
 
     [Fact]

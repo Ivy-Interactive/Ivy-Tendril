@@ -105,6 +105,7 @@ public class CodingAgentStepView(
         var isFetchingModels = UseState(false);
         var fetchedModels = UseState<IReadOnlyList<ModelInfo>?>(null);
         var isTestingModels = UseState(false);
+        var useCustomModelNames = UseState(false);
         var apiKeyError = UseState<string?>(null);
         var baseUrlError = UseState<string?>(null);
         var deepModelError = UseState<string?>(null);
@@ -129,6 +130,7 @@ public class CodingAgentStepView(
                 selectedAgent.Set(agentKey);
                 byoSubStep.Set(0);
                 fetchedModels.Set(null);
+                useCustomModelNames.Set(false);
                 apiKeyError.Set(null);
                 baseUrlError.Set(null);
                 deepModelError.Set(null);
@@ -145,6 +147,9 @@ public class CodingAgentStepView(
                     deepModel.Set("moonshotai/Kimi-K3");
                     balancedModel.Set("moonshotai/Kimi-K3");
                     quickModel.Set("moonshotai/Kimi-K3");
+                    customDeepText.Set("moonshotai/Kimi-K3");
+                    customBalancedText.Set("moonshotai/Kimi-K3");
+                    customQuickText.Set("moonshotai/Kimi-K3");
                 }
                 else if (agentKey == "anthropic_card")
                 {
@@ -153,6 +158,9 @@ public class CodingAgentStepView(
                     deepModel.Set("claude-opus-5");
                     balancedModel.Set("claude-sonnet-5");
                     quickModel.Set("claude-haiku-5");
+                    customDeepText.Set("claude-opus-5");
+                    customBalancedText.Set("claude-sonnet-5");
+                    customQuickText.Set("claude-haiku-5");
                 }
                 else if (agentKey == "openaiproxy_card")
                 {
@@ -167,9 +175,15 @@ public class CodingAgentStepView(
                     }
                     var isIvyUrl = openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app");
                     lastDetectedProvider.Set(isIvyUrl ? "ivy" : "openai");
-                    deepModel.Set(isIvyUrl ? "claude-opus-5" : "gpt-5.6-sol");
-                    balancedModel.Set(isIvyUrl ? "gemini-3.7-flash" : "gpt-5.6-terra");
-                    quickModel.Set(isIvyUrl ? "gemini-3.7-flash" : "gpt-5.6-luna");
+                    var deepDefault = isIvyUrl ? "claude-opus-5" : "gpt-5.6-sol";
+                    var balancedDefault = isIvyUrl ? "gemini-3.7-flash" : "gpt-5.6-terra";
+                    var quickDefault = isIvyUrl ? "gemini-3.7-flash" : "gpt-5.6-luna";
+                    deepModel.Set(deepDefault);
+                    balancedModel.Set(balancedDefault);
+                    quickModel.Set(quickDefault);
+                    customDeepText.Set(deepDefault);
+                    customBalancedText.Set(balancedDefault);
+                    customQuickText.Set(quickDefault);
                 }
                 else
                 {
@@ -210,30 +224,45 @@ public class CodingAgentStepView(
                     deepModel.Set("claude-opus-5");
                     balancedModel.Set("gemini-3.7-flash");
                     quickModel.Set("gemini-3.7-flash");
+                    customDeepText.Set("claude-opus-5");
+                    customBalancedText.Set("gemini-3.7-flash");
+                    customQuickText.Set("gemini-3.7-flash");
                 }
                 else if (isAnthropicCard)
                 {
                     deepModel.Set("claude-opus-5");
                     balancedModel.Set("claude-sonnet-5");
                     quickModel.Set("claude-haiku-5");
+                    customDeepText.Set("claude-opus-5");
+                    customBalancedText.Set("claude-sonnet-5");
+                    customQuickText.Set("claude-haiku-5");
                 }
                 else if (isBergetCard)
                 {
                     deepModel.Set("moonshotai/Kimi-K3");
                     balancedModel.Set("moonshotai/Kimi-K3");
                     quickModel.Set("moonshotai/Kimi-K3");
+                    customDeepText.Set("moonshotai/Kimi-K3");
+                    customBalancedText.Set("moonshotai/Kimi-K3");
+                    customQuickText.Set("moonshotai/Kimi-K3");
                 }
                 else if (isGoogle)
                 {
                     deepModel.Set("gemini-3.7-flash");
                     balancedModel.Set("gemini-3.7-flash");
                     quickModel.Set("gemini-3.7-flash");
+                    customDeepText.Set("gemini-3.7-flash");
+                    customBalancedText.Set("gemini-3.7-flash");
+                    customQuickText.Set("gemini-3.7-flash");
                 }
                 else
                 {
                     deepModel.Set("gpt-5.6-sol");
                     balancedModel.Set("gpt-5.6-terra");
                     quickModel.Set("gpt-5.6-luna");
+                    customDeepText.Set("gpt-5.6-sol");
+                    customBalancedText.Set("gpt-5.6-terra");
+                    customQuickText.Set("gpt-5.6-luna");
                 }
             }
 
@@ -302,36 +331,62 @@ public class CodingAgentStepView(
                                        var models = await OpenAiProxyModelCatalog.FetchModelsFromEndpointAsync(baseUrl, openAiProxyApiKey.Value);
                                        fetchedModels.Set(models);
 
-                                       // Set default profile models appropriately
-                                       if (isIvy)
+                                       if (models is { Count: > 0 })
                                        {
-                                           deepModel.Set(models.Any(m => m.Id == "claude-opus-5") ? "claude-opus-5" : (models.FirstOrDefault()?.Id ?? "claude-opus-5"));
-                                           balancedModel.Set(models.Any(m => m.Id == "gemini-3.7-flash") ? "gemini-3.7-flash" : (models.ElementAtOrDefault(1)?.Id ?? models.FirstOrDefault()?.Id ?? "gemini-3.7-flash"));
-                                           quickModel.Set(models.Any(m => m.Id == "gemini-3.7-flash") ? "gemini-3.7-flash" : (models.ElementAtOrDefault(2)?.Id ?? models.FirstOrDefault()?.Id ?? "gemini-3.7-flash"));
-                                       }
-                                       else if (isAnthropicCard)
-                                       {
-                                           deepModel.Set(models.Any(m => m.Id == "claude-opus-5") ? "claude-opus-5" : (models.FirstOrDefault()?.Id ?? "claude-opus-5"));
-                                           balancedModel.Set(models.Any(m => m.Id == "claude-sonnet-5") ? "claude-sonnet-5" : (models.ElementAtOrDefault(1)?.Id ?? models.FirstOrDefault()?.Id ?? "claude-sonnet-5"));
-                                           quickModel.Set(models.Any(m => m.Id == "claude-haiku-5") ? "claude-haiku-5" : (models.ElementAtOrDefault(2)?.Id ?? models.FirstOrDefault()?.Id ?? "claude-haiku-5"));
-                                       }
-                                       else if (isBergetCard)
-                                       {
-                                           deepModel.Set("moonshotai/Kimi-K3");
-                                           balancedModel.Set("moonshotai/Kimi-K3");
-                                           quickModel.Set("moonshotai/Kimi-K3");
-                                       }
-                                       else if (isGoogle)
-                                       {
-                                           deepModel.Set("gemini-3.7-flash");
-                                           balancedModel.Set("gemini-3.7-flash");
-                                           quickModel.Set("gemini-3.7-flash");
+                                           useCustomModelNames.Set(false);
+
+                                           var deep = isIvy
+                                               ? (models.FirstOrDefault(m => m.Id.Contains("opus", StringComparison.OrdinalIgnoreCase))?.Id ?? models.FirstOrDefault()?.Id ?? "")
+                                               : (isAnthropicCard
+                                                   ? (models.FirstOrDefault(m => m.Id.Contains("opus", StringComparison.OrdinalIgnoreCase))?.Id ?? models.FirstOrDefault()?.Id ?? "")
+                                                   : (isBergetCard
+                                                       ? (models.FirstOrDefault(m => m.Id.Contains("kimi", StringComparison.OrdinalIgnoreCase))?.Id ?? models.FirstOrDefault()?.Id ?? "")
+                                                       : (models.FirstOrDefault(m => m.Id.Contains("sol", StringComparison.OrdinalIgnoreCase))?.Id
+                                                          ?? models.FirstOrDefault(m => m.Id.Contains("gpt-4o", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("mini", StringComparison.OrdinalIgnoreCase))?.Id
+                                                          ?? models.FirstOrDefault()?.Id ?? "")));
+
+                                           var balanced = isIvy
+                                               ? (models.FirstOrDefault(m => m.Id.Contains("flash", StringComparison.OrdinalIgnoreCase))?.Id ?? models.ElementAtOrDefault(1)?.Id ?? models.FirstOrDefault()?.Id ?? "")
+                                               : (isAnthropicCard
+                                                   ? (models.FirstOrDefault(m => m.Id.Contains("sonnet", StringComparison.OrdinalIgnoreCase))?.Id ?? models.ElementAtOrDefault(1)?.Id ?? models.FirstOrDefault()?.Id ?? "")
+                                                   : (isBergetCard
+                                                       ? (models.FirstOrDefault(m => m.Id.Contains("kimi", StringComparison.OrdinalIgnoreCase))?.Id ?? models.FirstOrDefault()?.Id ?? "")
+                                                       : (models.FirstOrDefault(m => m.Id.Contains("terra", StringComparison.OrdinalIgnoreCase))?.Id
+                                                          ?? models.FirstOrDefault(m => m.Id.Contains("gpt-4o", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("mini", StringComparison.OrdinalIgnoreCase))?.Id
+                                                          ?? models.ElementAtOrDefault(1)?.Id ?? models.FirstOrDefault()?.Id ?? "")));
+
+                                           var quick = isIvy
+                                               ? (models.FirstOrDefault(m => m.Id.Contains("flash", StringComparison.OrdinalIgnoreCase))?.Id ?? models.ElementAtOrDefault(2)?.Id ?? models.ElementAtOrDefault(1)?.Id ?? models.FirstOrDefault()?.Id ?? "")
+                                               : (isAnthropicCard
+                                                   ? (models.FirstOrDefault(m => m.Id.Contains("haiku", StringComparison.OrdinalIgnoreCase))?.Id ?? models.ElementAtOrDefault(2)?.Id ?? models.ElementAtOrDefault(1)?.Id ?? models.FirstOrDefault()?.Id ?? "")
+                                                   : (isBergetCard
+                                                       ? (models.FirstOrDefault(m => m.Id.Contains("kimi", StringComparison.OrdinalIgnoreCase))?.Id ?? models.FirstOrDefault()?.Id ?? "")
+                                                       : (models.FirstOrDefault(m => m.Id.Contains("luna", StringComparison.OrdinalIgnoreCase))?.Id
+                                                          ?? models.FirstOrDefault(m => m.Id.Contains("mini", StringComparison.OrdinalIgnoreCase))?.Id
+                                                          ?? models.ElementAtOrDefault(2)?.Id ?? models.ElementAtOrDefault(1)?.Id ?? models.FirstOrDefault()?.Id ?? "")));
+
+                                           deepModel.Set(deep);
+                                           balancedModel.Set(balanced);
+                                           quickModel.Set(quick);
+                                           customDeepText.Set(deep);
+                                           customBalancedText.Set(balanced);
+                                           customQuickText.Set(quick);
                                        }
                                        else
                                        {
-                                           deepModel.Set(models.Any(m => m.Id == "gpt-5.6-sol") ? "gpt-5.6-sol" : (models.FirstOrDefault()?.Id ?? "gpt-5.6-sol"));
-                                           balancedModel.Set(models.Any(m => m.Id == "gpt-5.6-terra") ? "gpt-5.6-terra" : (models.ElementAtOrDefault(1)?.Id ?? models.FirstOrDefault()?.Id ?? "gpt-5.6-terra"));
-                                           quickModel.Set(models.Any(m => m.Id == "gpt-5.6-luna") ? "gpt-5.6-luna" : (models.ElementAtOrDefault(2)?.Id ?? models.FirstOrDefault()?.Id ?? "gpt-5.6-luna"));
+                                           useCustomModelNames.Set(true);
+                                           if (string.IsNullOrWhiteSpace(customDeepText.Value))
+                                           {
+                                               customDeepText.Set(isIvy || isAnthropicCard ? "claude-opus-5" : (isBergetCard ? "moonshotai/Kimi-K3" : "gpt-5.6-sol"));
+                                           }
+                                           if (string.IsNullOrWhiteSpace(customBalancedText.Value))
+                                           {
+                                               customBalancedText.Set(isIvy || isAnthropicCard ? "claude-sonnet-5" : (isBergetCard ? "moonshotai/Kimi-K3" : "gpt-5.6-terra"));
+                                           }
+                                           if (string.IsNullOrWhiteSpace(customQuickText.Value))
+                                           {
+                                               customQuickText.Set(isIvy || isAnthropicCard ? "claude-haiku-5" : (isBergetCard ? "moonshotai/Kimi-K3" : "gpt-5.6-luna"));
+                                           }
                                        }
 
                                        byoSubStep.Set(1);
@@ -349,62 +404,71 @@ public class CodingAgentStepView(
             }
 
             // SubStep 1: Model Selection
-            var modelsList = fetchedModels.Value ?? OpenAiProxyModelCatalog.GetModelsForBaseUrl(openAiProxyBaseUrl.Value);
-            var modelOptions = modelsList
+            var availableModels = fetchedModels.Value ?? Array.Empty<ModelInfo>();
+            var hasAvailableModels = availableModels.Count > 0;
+            var isCustomMode = useCustomModelNames.Value || !hasAvailableModels;
+
+            var modelOptions = availableModels
                 .Select(m => new Option<string>(m.DisplayName, m.Id))
-                .Concat([new Option<string>("+ Custom Model Name...", "__custom__")])
                 .ToArray<IAnyOption>();
 
-            // Ensure valid selected values
-            if (deepModel.Value == "default" || (!modelsList.Any(m => m.Id.Equals(deepModel.Value, StringComparison.OrdinalIgnoreCase)) && deepModel.Value != "__custom__"))
+            // Ensure valid selected values if in dropdown mode
+            if (!isCustomMode && hasAvailableModels)
             {
-                deepModel.Set(modelsList.FirstOrDefault()?.Id ?? "__custom__");
-            }
-            if (balancedModel.Value == "default" || (!modelsList.Any(m => m.Id.Equals(balancedModel.Value, StringComparison.OrdinalIgnoreCase)) && balancedModel.Value != "__custom__"))
-            {
-                balancedModel.Set(modelsList.ElementAtOrDefault(1)?.Id ?? modelsList.FirstOrDefault()?.Id ?? "__custom__");
-            }
-            if (quickModel.Value == "default" || (!modelsList.Any(m => m.Id.Equals(quickModel.Value, StringComparison.OrdinalIgnoreCase)) && quickModel.Value != "__custom__"))
-            {
-                quickModel.Set(modelsList.ElementAtOrDefault(2)?.Id ?? modelsList.FirstOrDefault()?.Id ?? "__custom__");
+                if (string.IsNullOrEmpty(deepModel.Value) || !availableModels.Any(m => m.Id.Equals(deepModel.Value, StringComparison.OrdinalIgnoreCase)))
+                {
+                    deepModel.Set(availableModels.FirstOrDefault()?.Id ?? "");
+                }
+                if (string.IsNullOrEmpty(balancedModel.Value) || !availableModels.Any(m => m.Id.Equals(balancedModel.Value, StringComparison.OrdinalIgnoreCase)))
+                {
+                    balancedModel.Set(availableModels.ElementAtOrDefault(1)?.Id ?? availableModels.FirstOrDefault()?.Id ?? "");
+                }
+                if (string.IsNullOrEmpty(quickModel.Value) || !availableModels.Any(m => m.Id.Equals(quickModel.Value, StringComparison.OrdinalIgnoreCase)))
+                {
+                    quickModel.Set(availableModels.ElementAtOrDefault(2)?.Id ?? availableModels.FirstOrDefault()?.Id ?? "");
+                }
             }
 
-            object profileModels = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
-                | Text.Block("Profile Models").Bold()
-                | Text.Muted("Select models from your endpoint or type in a custom model name.").Small()
-                | (Layout.Vertical()
+            object profileModels;
+
+            if (isCustomMode)
+            {
+                profileModels = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                    | (hasAvailableModels ? useCustomModelNames.ToSwitchInput(label: "Custom model names") : null!)
+                    | Text.Block("Profile Models").Bold()
+                    | Text.Muted("Enter the model names to use for each profile level.").Small()
+                    | customDeepText.ToTextInput("e.g. gpt-4o")
+                        .Invalid(deepModelError.Value)
+                        .WithField()
+                        .Label("Deep Profile Model Name")
+                    | customBalancedText.ToTextInput("e.g. gpt-4o-mini")
+                        .Invalid(balancedModelError.Value)
+                        .WithField()
+                        .Label("Balanced Profile Model Name")
+                    | customQuickText.ToTextInput("e.g. gpt-4o-mini")
+                        .Invalid(quickModelError.Value)
+                        .WithField()
+                        .Label("Quick Profile Model Name");
+            }
+            else
+            {
+                profileModels = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                    | useCustomModelNames.ToSwitchInput(label: "Custom model names")
+                    | Text.Block("Profile Models").Bold()
+                    | Text.Muted("Select models from your endpoint for each profile level.").Small()
                     | deepModel.ToSelectInput(modelOptions)
                         .Invalid(deepModelError.Value)
                         .WithField()
                         .Label("Deep Profile")
-                    | (deepModel.Value == "__custom__"
-                        ? customDeepText.ToTextInput("e.g. gpt-4-turbo")
-                            .Invalid(deepModelError.Value)
-                            .WithField()
-                            .Label("Custom Deep Model Name")
-                        : null))
-                | (Layout.Vertical()
                     | balancedModel.ToSelectInput(modelOptions)
                         .Invalid(balancedModelError.Value)
                         .WithField()
                         .Label("Balanced Profile")
-                    | (balancedModel.Value == "__custom__"
-                        ? customBalancedText.ToTextInput("e.g. gpt-4-turbo")
-                            .Invalid(balancedModelError.Value)
-                            .WithField()
-                            .Label("Custom Balanced Model Name")
-                        : null))
-                | (Layout.Vertical()
                     | quickModel.ToSelectInput(modelOptions)
                         .Invalid(quickModelError.Value)
                         .WithField()
-                        .Label("Quick Profile")
-                    | (quickModel.Value == "__custom__"
-                        ? customQuickText.ToTextInput("e.g. gpt-4-mini")
-                            .Invalid(quickModelError.Value)
-                            .WithField()
-                            .Label("Custom Quick Model Name")
-                        : null));
+                        .Label("Quick Profile");
+            }
 
             return Layout.Vertical()
                    | Text.H3($"{cardTitle} — Select Models")
@@ -436,28 +500,28 @@ public class CodingAgentStepView(
                                testSuccessMessage.Set(null);
                                generalError.Set(null);
 
-                               var dm = deepModel.Value == "__custom__"
+                               var dm = isCustomMode
                                    ? customDeepText.Value.Trim()
                                    : deepModel.Value;
-                               var bm = balancedModel.Value == "__custom__"
+                               var bm = isCustomMode
                                    ? customBalancedText.Value.Trim()
                                    : balancedModel.Value;
-                               var qm = quickModel.Value == "__custom__"
+                               var qm = isCustomMode
                                    ? customQuickText.Value.Trim()
                                    : quickModel.Value;
 
                                var hasValidationErr = false;
-                               if (string.IsNullOrWhiteSpace(dm) || dm == "__custom__")
+                               if (string.IsNullOrWhiteSpace(dm))
                                {
                                    deepModelError.Set("Please specify a valid model for Deep profile.");
                                    hasValidationErr = true;
                                }
-                               if (string.IsNullOrWhiteSpace(bm) || bm == "__custom__")
+                               if (string.IsNullOrWhiteSpace(bm))
                                {
                                    balancedModelError.Set("Please specify a valid model for Balanced profile.");
                                    hasValidationErr = true;
                                }
-                               if (string.IsNullOrWhiteSpace(qm) || qm == "__custom__")
+                               if (string.IsNullOrWhiteSpace(qm))
                                {
                                    quickModelError.Set("Please specify a valid model for Quick profile.");
                                    hasValidationErr = true;
@@ -515,28 +579,28 @@ public class CodingAgentStepView(
                                generalError.Set(null);
                                testSuccessMessage.Set(null);
 
-                               var dm = deepModel.Value == "__custom__"
+                               var dm = isCustomMode
                                    ? customDeepText.Value.Trim()
                                    : deepModel.Value;
-                               var bm = balancedModel.Value == "__custom__"
+                               var bm = isCustomMode
                                    ? customBalancedText.Value.Trim()
                                    : balancedModel.Value;
-                               var qm = quickModel.Value == "__custom__"
+                               var qm = isCustomMode
                                    ? customQuickText.Value.Trim()
                                    : quickModel.Value;
 
                                var hasValidationErr = false;
-                               if (string.IsNullOrWhiteSpace(dm) || dm == "__custom__")
+                               if (string.IsNullOrWhiteSpace(dm))
                                {
                                    deepModelError.Set("Please specify a valid model for Deep profile.");
                                    hasValidationErr = true;
                                }
-                               if (string.IsNullOrWhiteSpace(bm) || bm == "__custom__")
+                               if (string.IsNullOrWhiteSpace(bm))
                                {
                                    balancedModelError.Set("Please specify a valid model for Balanced profile.");
                                    hasValidationErr = true;
                                }
-                               if (string.IsNullOrWhiteSpace(qm) || qm == "__custom__")
+                               if (string.IsNullOrWhiteSpace(qm))
                                {
                                    quickModelError.Set("Please specify a valid model for Quick profile.");
                                    hasValidationErr = true;
