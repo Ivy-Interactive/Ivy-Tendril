@@ -321,7 +321,7 @@ public class CodingAgentSetupView : ViewBase
         else if (selectedAgent.Value == "berget_card")
         {
             agentInputs = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
-                | openAiProxyApiKey.ToPasswordInput("...")
+                | openAiProxyApiKey.ToPasswordInput("sk-...")
                     .WithField()
                     .Label("API Key");
         }

@@ -101,6 +101,13 @@ public class CodingAgentStepView(
         var quickModel = UseState("default");
         var lastDetectedProvider = UseState<string?>(null);
 
+        var byoSubStep = UseState(0);
+        var isFetchingModels = UseState(false);
+        var fetchedModels = UseState<IReadOnlyList<ModelInfo>?>(null);
+        var customDeepText = UseState("");
+        var customBalancedText = UseState("");
+        var customQuickText = UseState("");
+
         var (installDialog, showInstallDialog) = UseTrigger<InstallDialogArgs>((isOpen, args) =>
             new InstallMissingDialog(isOpen, args));
 
@@ -112,6 +119,8 @@ public class CodingAgentStepView(
             return BuildPicker(visibleAgents, agentKey =>
             {
                 selectedAgent.Set(agentKey);
+                byoSubStep.Set(0);
+                fetchedModels.Set(null);
                 error.Set(null);
                 if (agentKey != "openaiproxy_card" && agentKey != "anthropic_card" && agentKey != "berget_card")
                 {
@@ -187,50 +196,151 @@ public class CodingAgentStepView(
                 }
             }
 
-            var availableModels = OpenAiProxyModelCatalog.GetModelsForBaseUrl(openAiProxyBaseUrl.Value);
-            var modelOptions = availableModels
-                .Select(m => new Option<string>(m.DisplayName, m.Id))
-                .ToArray<IAnyOption>();
+            if (byoSubStep.Value == 0)
+            {
+                object agentInputs = isBergetCard
+                    ? (Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                        | openAiProxyApiKey.ToPasswordInput("sk-...")
+                            .WithField()
+                            .Label("API Key"))
+                    : (Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                        | openAiProxyBaseUrl.ToTextInput(defaultUrl)
+                            .WithField()
+                            .Label("API Base URL")
+                        | openAiProxyApiKey.ToPasswordInput("sk-...")
+                            .WithField()
+                            .Label("API Key"));
 
-            object agentInputs = isBergetCard
-                ? (Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
-                    | openAiProxyApiKey.ToPasswordInput("...")
-                        .WithField()
-                        .Label("API Key"))
-                : (Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
-                    | openAiProxyBaseUrl.ToTextInput(defaultUrl)
-                        .WithField()
-                        .Label("API Base URL")
-                    | openAiProxyApiKey.ToPasswordInput("sk-...")
-                        .WithField()
-                        .Label("API Key"));
+                return Layout.Vertical()
+                       | Text.H3(cardTitle)
+                       | (error.Value != null ? Text.Danger(error.Value) : null!)
+                       | agentInputs
+                       | (Layout.Horizontal()
+                           | new Button("Back")
+                               .Ghost()
+                               .OnClick(() =>
+                               {
+                                   selectedAgent.Set(null);
+                                   error.Set(null);
+                               })
+                           | new Button("Continue")
+                               .Primary()
+                               .Loading(isFetchingModels.Value)
+                               .OnClick(async () =>
+                               {
+                                   if (string.IsNullOrWhiteSpace(openAiProxyApiKey.Value))
+                                   {
+                                       error.Set("API Key is required.");
+                                       return;
+                                   }
+
+                                   error.Set(null);
+                                   isFetchingModels.Set(true);
+
+                                   var baseUrl = isBergetCard || string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value)
+                                       ? defaultUrl
+                                       : openAiProxyBaseUrl.Value;
+
+                                   try
+                                   {
+                                       var models = await OpenAiProxyModelCatalog.FetchModelsFromEndpointAsync(baseUrl, openAiProxyApiKey.Value);
+                                       fetchedModels.Set(models);
+
+                                       if (models.Count > 0)
+                                       {
+                                           if (!models.Any(m => m.Id.Equals(deepModel.Value, StringComparison.OrdinalIgnoreCase)) && deepModel.Value != "__custom__")
+                                           {
+                                               deepModel.Set(models[0].Id);
+                                           }
+                                           if (!models.Any(m => m.Id.Equals(balancedModel.Value, StringComparison.OrdinalIgnoreCase)) && balancedModel.Value != "__custom__")
+                                           {
+                                               balancedModel.Set(models.Count > 1 ? models[1].Id : models[0].Id);
+                                           }
+                                           if (!models.Any(m => m.Id.Equals(quickModel.Value, StringComparison.OrdinalIgnoreCase)) && quickModel.Value != "__custom__")
+                                           {
+                                               quickModel.Set(models.Count > 2 ? models[2].Id : models[0].Id);
+                                           }
+                                       }
+
+                                       byoSubStep.Set(1);
+                                   }
+                                   catch (Exception ex)
+                                   {
+                                       error.Set($"Failed to fetch models: {ex.Message}");
+                                   }
+                                   finally
+                                   {
+                                       isFetchingModels.Set(false);
+                                   }
+                               })
+                       );
+            }
+
+            // SubStep 1: Model Selection
+            var modelsList = fetchedModels.Value ?? OpenAiProxyModelCatalog.GetModelsForBaseUrl(openAiProxyBaseUrl.Value);
+            var modelOptions = modelsList
+                .Select(m => new Option<string>(m.DisplayName, m.Id))
+                .Concat([new Option<string>("+ Custom Model Name...", "__custom__")])
+                .ToArray<IAnyOption>();
 
             object profileModels = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
                 | Text.Block("Profile Models").Bold()
-                | deepModel.ToSelectInput(modelOptions).WithField().Label("Deep")
-                | balancedModel.ToSelectInput(modelOptions).WithField().Label("Balanced")
-                | quickModel.ToSelectInput(modelOptions).WithField().Label("Quick");
+                | Text.Muted("Select models from your endpoint or type in a custom model name.").Small()
+                | (Layout.Vertical()
+                    | deepModel.ToSelectInput(modelOptions).WithField().Label("Deep Profile")
+                    | (deepModel.Value == "__custom__"
+                        ? customDeepText.ToTextInput("e.g. gpt-4-turbo").WithField().Label("Custom Deep Model Name")
+                        : null))
+                | (Layout.Vertical()
+                    | balancedModel.ToSelectInput(modelOptions).WithField().Label("Balanced Profile")
+                    | (balancedModel.Value == "__custom__"
+                        ? customBalancedText.ToTextInput("e.g. gpt-4-turbo").WithField().Label("Custom Balanced Model Name")
+                        : null))
+                | (Layout.Vertical()
+                    | quickModel.ToSelectInput(modelOptions).WithField().Label("Quick Profile")
+                    | (quickModel.Value == "__custom__"
+                        ? customQuickText.ToTextInput("e.g. gpt-4-mini").WithField().Label("Custom Quick Model Name")
+                        : null));
 
             return Layout.Vertical()
-                   | Text.H3(cardTitle)
+                   | Text.H3($"{cardTitle} — Select Models")
                    | (error.Value != null ? Text.Danger(error.Value) : null!)
-                   | agentInputs
                    | profileModels
                    | (Layout.Horizontal()
                        | new Button("Back")
                            .Ghost()
                            .OnClick(() =>
                            {
-                               selectedAgent.Set(null);
+                               byoSubStep.Set(0);
                                error.Set(null);
                            })
                        | new Button("Continue")
                            .Primary()
                            .OnClick(() =>
                            {
-                               if (string.IsNullOrWhiteSpace(openAiProxyApiKey.Value))
+                               var dm = deepModel.Value == "__custom__"
+                                   ? customDeepText.Value.Trim()
+                                   : deepModel.Value;
+                               var bm = balancedModel.Value == "__custom__"
+                                   ? customBalancedText.Value.Trim()
+                                   : balancedModel.Value;
+                               var qm = quickModel.Value == "__custom__"
+                                   ? customQuickText.Value.Trim()
+                                   : quickModel.Value;
+
+                               if (string.IsNullOrWhiteSpace(dm) || dm == "__custom__")
                                {
-                                   error.Set("API Key is required.");
+                                   error.Set("Please specify a valid model for Deep profile.");
+                                   return;
+                               }
+                               if (string.IsNullOrWhiteSpace(bm) || bm == "__custom__")
+                               {
+                                   error.Set("Please specify a valid model for Balanced profile.");
+                                   return;
+                               }
+                               if (string.IsNullOrWhiteSpace(qm) || qm == "__custom__")
+                               {
+                                   error.Set("Please specify a valid model for Quick profile.");
                                    return;
                                }
 
@@ -239,9 +349,6 @@ public class CodingAgentStepView(
                                    : openAiProxyBaseUrl.Value;
 
                                var targetAgent = isIvy ? "ivy" : "openaiproxy";
-                               var dm = deepModel.Value;
-                               var bm = balancedModel.Value;
-                               var qm = quickModel.Value;
 
                                if (isIvy)
                                {

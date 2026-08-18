@@ -142,4 +142,12 @@ public class OpenAiProxyTests
         Assert.Equal("gemini-3.7-flash", googleQuick.Model);
         Assert.Equal("medium", googleQuick.Effort);
     }
+
+    [Fact]
+    public async Task OpenAiProxyModelCatalog_FetchModelsFromEndpointAsync_ReturnsStaticFallbackWhenOffline()
+    {
+        var models = await OpenAiProxyModelCatalog.FetchModelsFromEndpointAsync("http://127.0.0.1:54321/v1", "sk-test");
+        Assert.NotEmpty(models);
+        Assert.Contains(models, m => m.Id == "gpt-5.6-sol");
+    }
 }
