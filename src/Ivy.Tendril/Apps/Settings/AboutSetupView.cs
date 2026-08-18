@@ -132,56 +132,60 @@ public class AboutSetupView : ViewBase
             .AppendLine($"Tendril Home: {tendrilHome}")
             .ToString();
 
-        return Layout.Vertical()
-               | (Layout.Horizontal()
-                  | Text.H2("About Tendril")
-                  | new Spacer()
-                  | new Button("Copy System Report")
-                      .Variant(ButtonVariant.Outline)
-                      .Icon(Icons.ClipboardCopy)
-                      .OnClick(() =>
-                      {
-                          copyToClipboard(systemReport);
-                          client.Toast("System report copied to clipboard", "Copied");
-                      })
-                  | new Button("Check for Updates")
-                      .Variant(ButtonVariant.Primary)
-                      .Icon(Icons.CircleArrowUp)
-                      .Disabled(isCheckingUpdates.Value)
-                      .OnClick(() =>
-                      {
-                          isCheckingUpdates.Set(true);
-                          _ = Task.Run(async () =>
-                          {
-                              try
-                              {
-                                  var info = await versionService.CheckForUpdatesAsync(forceRefresh: true);
-                                  if (info.HasUpdate)
-                                  {
-                                      client.Toast($"A new version (v{info.LatestVersion}) is available!", "Update Available");
-                                  }
-                                  else if (info.LatestVersion == null)
-                                  {
-                                      client.Toast("Couldn't check for updates. Please try again later.", "Update check failed").Destructive();
-                                  }
-                                  else
-                                  {
-                                      client.Toast($"You're running the latest version (v{info.CurrentVersion}).", "Up to date").Success();
-                                  }
-                              }
-                              catch (Exception ex)
-                              {
-                                  client.Toast($"Couldn't check for updates: {ex.Message}", "Update check failed").Destructive();
-                              }
-                              finally
-                              {
-                                  isCheckingUpdates.Set(false);
-                              }
-                          });
-                      }))
-               | Text.Muted("Application details, environment diagnostics, and bundled toolchain.")
-               | systemDetailsCard
-               | toolsTableCard;
+        var header = Layout.Vertical()
+            | (Layout.Horizontal()
+                | Text.H2("About Tendril")
+                | new Spacer()
+                | new Button("Copy System Report")
+                    .Variant(ButtonVariant.Outline)
+                    .Icon(Icons.ClipboardCopy)
+                    .OnClick(() =>
+                    {
+                        copyToClipboard(systemReport);
+                        client.Toast("System report copied to clipboard", "Copied");
+                    })
+                | new Button("Check for Updates")
+                    .Variant(ButtonVariant.Primary)
+                    .Icon(Icons.CircleArrowUp)
+                    .Disabled(isCheckingUpdates.Value)
+                    .OnClick(() =>
+                    {
+                        isCheckingUpdates.Set(true);
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var info = await versionService.CheckForUpdatesAsync(forceRefresh: true);
+                                if (info.HasUpdate)
+                                {
+                                    client.Toast($"A new version (v{info.LatestVersion}) is available!", "Update Available");
+                                }
+                                else if (info.LatestVersion == null)
+                                {
+                                    client.Toast("Couldn't check for updates. Please try again later.", "Update check failed").Destructive();
+                                }
+                                else
+                                {
+                                    client.Toast($"You're running the latest version (v{info.CurrentVersion}).", "Up to date").Success();
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                client.Toast($"Couldn't check for updates: {ex.Message}", "Update check failed").Destructive();
+                            }
+                            finally
+                            {
+                                isCheckingUpdates.Set(false);
+                            }
+                        });
+                    }))
+            | Text.Muted("Application details, environment diagnostics, and bundled toolchain.");
+
+        var content = Layout.Vertical()
+            | systemDetailsCard
+            | toolsTableCard;
+
+        return new HeaderLayout(header, content);
     }
 
     private static async Task<string> QueryCommandVersionAsync(string? executablePath, string arguments)
