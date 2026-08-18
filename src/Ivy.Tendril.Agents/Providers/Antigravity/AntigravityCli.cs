@@ -87,16 +87,23 @@ public sealed class AntigravityCli : IAgentCli
         foreach (var arg in config.ExtraArguments)
             args.Add(arg);
 
-        const string antigravityToolRule = "IMPORTANT: When calling write_to_file to create or edit repository/worktree files (source code, tests, configs, markdown docs), NEVER pass ArtifactMetadata. ArtifactMetadata is ONLY valid for internal agent brain artifacts.";
         var finalPrompt = !string.IsNullOrEmpty(config.SystemPrompt)
-            ? config.SystemPrompt + "\n\n" + antigravityToolRule + "\n\n---\n\n" + config.Prompt
-            : antigravityToolRule + "\n\n" + config.Prompt;
+            ? config.SystemPrompt + "\n\n---\n\n" + config.Prompt
+            : config.Prompt;
 
         args.Add("--print");
-        var tempFile = Path.Combine(Path.GetTempPath(), $"tendril-agy-prompt-{Guid.NewGuid():N}.md");
-        File.WriteAllText(tempFile, finalPrompt);
-        var normalizedTemp = tempFile.Replace('\\', '/');
-        args.Add($"@{normalizedTemp}");
+        if (!string.IsNullOrEmpty(config.PromptFilePath) && string.IsNullOrEmpty(config.SystemPrompt))
+        {
+            var normalizedPath = config.PromptFilePath.Replace('\\', '/');
+            args.Add($"@{normalizedPath}");
+        }
+        else
+        {
+            var tempFile = Path.Combine(Path.GetTempPath(), $"tendril-agy-prompt-{Guid.NewGuid():N}.md");
+            File.WriteAllText(tempFile, finalPrompt);
+            var normalizedTemp = tempFile.Replace('\\', '/');
+            args.Add($"@{normalizedTemp}");
+        }
 
         var env = new Dictionary<string, string>(GetDefaultEnvironment());
         if (config.EnvironmentVariables is not null)
