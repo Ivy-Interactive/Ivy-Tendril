@@ -132,56 +132,54 @@ public class AboutSetupView : ViewBase
             .AppendLine($"Tendril Home: {tendrilHome}")
             .ToString();
 
-        return Layout.Vertical().Width(Size.Auto().Max(Size.Units(140)))
+        return Layout.Vertical()
                | (Layout.Horizontal()
-                  | (Layout.Vertical()
-                      | Text.H2("About Tendril")
-                      | Text.Muted("Application details, environment diagnostics, and bundled toolchain."))
+                  | Text.H2("About Tendril")
                   | new Spacer()
-                  | (Layout.Horizontal()
-                      | new Button("Copy System Report")
-                          .Variant(ButtonVariant.Outline)
-                          .Icon(Icons.ClipboardCopy)
-                          .OnClick(() =>
+                  | new Button("Copy System Report")
+                      .Variant(ButtonVariant.Outline)
+                      .Icon(Icons.ClipboardCopy)
+                      .OnClick(() =>
+                      {
+                          copyToClipboard(systemReport);
+                          client.Toast("System report copied to clipboard", "Copied");
+                      })
+                  | new Button("Check for Updates")
+                      .Variant(ButtonVariant.Primary)
+                      .Icon(Icons.CircleArrowUp)
+                      .Disabled(isCheckingUpdates.Value)
+                      .OnClick(() =>
+                      {
+                          isCheckingUpdates.Set(true);
+                          _ = Task.Run(async () =>
                           {
-                              copyToClipboard(systemReport);
-                              client.Toast("System report copied to clipboard", "Copied");
-                          })
-                      | new Button("Check for Updates")
-                          .Variant(ButtonVariant.Primary)
-                          .Icon(Icons.CircleArrowUp)
-                          .Disabled(isCheckingUpdates.Value)
-                          .OnClick(() =>
-                          {
-                              isCheckingUpdates.Set(true);
-                              _ = Task.Run(async () =>
+                              try
                               {
-                                  try
+                                  var info = await versionService.CheckForUpdatesAsync(forceRefresh: true);
+                                  if (info.HasUpdate)
                                   {
-                                      var info = await versionService.CheckForUpdatesAsync(forceRefresh: true);
-                                      if (info.HasUpdate)
-                                      {
-                                          client.Toast($"A new version (v{info.LatestVersion}) is available!", "Update Available");
-                                      }
-                                      else if (info.LatestVersion == null)
-                                      {
-                                          client.Toast("Couldn't check for updates. Please try again later.", "Update check failed").Destructive();
-                                      }
-                                      else
-                                      {
-                                          client.Toast($"You're running the latest version (v{info.CurrentVersion}).", "Up to date").Success();
-                                      }
+                                      client.Toast($"A new version (v{info.LatestVersion}) is available!", "Update Available");
                                   }
-                                  catch (Exception ex)
+                                  else if (info.LatestVersion == null)
                                   {
-                                      client.Toast($"Couldn't check for updates: {ex.Message}", "Update check failed").Destructive();
+                                      client.Toast("Couldn't check for updates. Please try again later.", "Update check failed").Destructive();
                                   }
-                                  finally
+                                  else
                                   {
-                                      isCheckingUpdates.Set(false);
+                                      client.Toast($"You're running the latest version (v{info.CurrentVersion}).", "Up to date").Success();
                                   }
-                              });
-                          })))
+                              }
+                              catch (Exception ex)
+                              {
+                                  client.Toast($"Couldn't check for updates: {ex.Message}", "Update check failed").Destructive();
+                              }
+                              finally
+                              {
+                                  isCheckingUpdates.Set(false);
+                              }
+                          });
+                      }))
+               | Text.Muted("Application details, environment diagnostics, and bundled toolchain.")
                | systemDetailsCard
                | toolsTableCard;
     }
