@@ -26,6 +26,11 @@ public sealed class IvyHealthCheck : IAgentHealthCheck
     {
         var path = IvyBinaryResolver.Resolve();
         if (!File.Exists(path))
+        {
+            path = await IvyBinaryResolver.EnsureInstalledAsync(ct) ?? path;
+        }
+
+        if (!File.Exists(path))
             return new AgentInstallStatus { IsInstalled = false, Error = "ivy-agent not found" };
 
         var version = await GetVersionAsync(ct);
