@@ -197,6 +197,12 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             return new UpdateTendrilDialog(isOpen, info);
         });
 
+        var (aboutDialog, showAboutDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new AboutTendrilDialog(isOpen);
+        });
+
         UseEffect(async () =>
         {
             newsArticles.Set(await FetchNewsAsync());
@@ -647,7 +653,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Children(
                     MenuItem.Default("Documentation").Icon(Icons.ExternalLink).OnSelect(() => client.OpenUrl(Constants.DocsUrl)),
                     MenuItem.Default("Discord").Icon(Icons.Discord).OnSelect(() => client.OpenUrl(Constants.DiscordUrl)),
-                    MenuItem.Default("Report Issue").Icon(Icons.Bug).OnSelect(() => client.OpenUrl(Constants.IssuesUrl))
+                    MenuItem.Default("Report Issue").Icon(Icons.Bug).OnSelect(() => client.OpenUrl(Constants.IssuesUrl)),
+                    MenuItem.Default("About").Icon(Icons.Info).OnSelect(showAboutDialog)
                 ),
         };
 
@@ -713,6 +720,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             ).Open(sidebarOpen.Value).MainAppSidebar(),
             importIssuesDialog,
             updateDialog,
+            aboutDialog,
             closeTabShortcut
         );
     }
