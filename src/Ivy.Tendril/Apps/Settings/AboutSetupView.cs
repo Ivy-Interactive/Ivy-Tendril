@@ -91,7 +91,7 @@ public class AboutSetupView : ViewBase
                 .Label(x => x.TendrilHome, "Tendril Home")
                 .Builder(x => x.Version, f => f.CopyToClipboard())
                 .Builder(x => x.TendrilHome, f => f.CopyToClipboard())
-        ).Header("System & Environment", "Application runtime and workspace specifications", Icons.Cpu);
+        ).Header("System & Environment", icon: Icons.Cpu);
 
         var toolsList = new[]
         {
@@ -117,7 +117,7 @@ public class AboutSetupView : ViewBase
                 }))
                 .Builder(x => x.Version, f => f.CopyToClipboard())
                 .Builder(x => x.Location, f => f.CopyToClipboard())
-        ).Header("Software Toolchain", "Bundled binaries, SDKs, and CLI tools", Icons.Package);
+        ).Header("Software Toolchain", icon: Icons.Package);
 
         var systemReport = new StringBuilder()
             .AppendLine($"Tendril: v{tendrilVersion}")
