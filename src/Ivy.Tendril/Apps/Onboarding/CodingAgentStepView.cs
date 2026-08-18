@@ -105,8 +105,13 @@ public class CodingAgentStepView(
         var isFetchingModels = UseState(false);
         var fetchedModels = UseState<IReadOnlyList<ModelInfo>?>(null);
         var isTestingModels = UseState(false);
-        var testFeedback = UseState<string?>(null);
-        var isTestSuccess = UseState<bool?>(null);
+        var apiKeyError = UseState<string?>(null);
+        var baseUrlError = UseState<string?>(null);
+        var deepModelError = UseState<string?>(null);
+        var balancedModelError = UseState<string?>(null);
+        var quickModelError = UseState<string?>(null);
+        var testSuccessMessage = UseState<string?>(null);
+        var generalError = UseState<string?>(null);
         var customDeepText = UseState("");
         var customBalancedText = UseState("");
         var customQuickText = UseState("");
@@ -124,8 +129,13 @@ public class CodingAgentStepView(
                 selectedAgent.Set(agentKey);
                 byoSubStep.Set(0);
                 fetchedModels.Set(null);
-                testFeedback.Set(null);
-                isTestSuccess.Set(null);
+                apiKeyError.Set(null);
+                baseUrlError.Set(null);
+                deepModelError.Set(null);
+                balancedModelError.Set(null);
+                quickModelError.Set(null);
+                testSuccessMessage.Set(null);
+                generalError.Set(null);
                 error.Set(null);
                 if (agentKey != "openaiproxy_card" && agentKey != "anthropic_card" && agentKey != "berget_card")
                 {
@@ -206,19 +216,22 @@ public class CodingAgentStepView(
                 object agentInputs = isBergetCard
                     ? (Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
                         | openAiProxyApiKey.ToPasswordInput("sk-...")
+                            .Invalid(apiKeyError.Value)
                             .WithField()
                             .Label("API Key"))
                     : (Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
                         | openAiProxyBaseUrl.ToTextInput(defaultUrl)
+                            .Invalid(baseUrlError.Value)
                             .WithField()
                             .Label("API Base URL")
                         | openAiProxyApiKey.ToPasswordInput("sk-...")
+                            .Invalid(apiKeyError.Value)
                             .WithField()
                             .Label("API Key"));
 
                 return Layout.Vertical()
                        | Text.H3(cardTitle)
-                       | (error.Value != null ? Text.Danger(error.Value) : null!)
+                       | (generalError.Value != null ? Callout.Error(generalError.Value) : null!)
                        | agentInputs
                        | (Layout.Horizontal()
                            | new Button("Back")
@@ -227,24 +240,36 @@ public class CodingAgentStepView(
                                {
                                    selectedAgent.Set(null);
                                    error.Set(null);
+                                   generalError.Set(null);
+                                   apiKeyError.Set(null);
+                                   baseUrlError.Set(null);
                                })
                            | new Button("Continue")
                                .Primary()
                                .Loading(isFetchingModels.Value)
                                .OnClick(async () =>
                                {
+                                   apiKeyError.Set(null);
+                                   baseUrlError.Set(null);
+                                   generalError.Set(null);
+
                                    if (string.IsNullOrWhiteSpace(openAiProxyApiKey.Value))
                                    {
-                                       error.Set("API Key is required.");
+                                       apiKeyError.Set("API Key is required.");
                                        return;
                                    }
-
-                                   error.Set(null);
-                                   isFetchingModels.Set(true);
 
                                    var baseUrl = isBergetCard || string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value)
                                        ? defaultUrl
                                        : openAiProxyBaseUrl.Value;
+
+                                   if (!isBergetCard && string.IsNullOrWhiteSpace(baseUrl))
+                                   {
+                                       baseUrlError.Set("API Base URL is required.");
+                                       return;
+                                   }
+
+                                   isFetchingModels.Set(true);
 
                                    try
                                    {
@@ -254,9 +279,9 @@ public class CodingAgentStepView(
                                        // Set default profile models appropriately
                                        if (isIvy)
                                        {
-                                           deepModel.Set("claude-opus-5");
-                                           balancedModel.Set("gemini-3.7-flash");
-                                           quickModel.Set("gemini-3.7-flash");
+                                           deepModel.Set(models.Any(m => m.Id == "claude-opus-5") ? "claude-opus-5" : (models.FirstOrDefault()?.Id ?? "claude-opus-5"));
+                                           balancedModel.Set(models.Any(m => m.Id == "gemini-3.7-flash") ? "gemini-3.7-flash" : (models.ElementAtOrDefault(1)?.Id ?? models.FirstOrDefault()?.Id ?? "gemini-3.7-flash"));
+                                           quickModel.Set(models.Any(m => m.Id == "gemini-3.7-flash") ? "gemini-3.7-flash" : (models.ElementAtOrDefault(2)?.Id ?? models.FirstOrDefault()?.Id ?? "gemini-3.7-flash"));
                                        }
                                        else if (isAnthropicCard)
                                        {
@@ -287,7 +312,7 @@ public class CodingAgentStepView(
                                    }
                                    catch (Exception ex)
                                    {
-                                       error.Set($"Failed to fetch models: {ex.Message}");
+                                       generalError.Set($"Failed to fetch models: {ex.Message}");
                                    }
                                    finally
                                    {
@@ -322,29 +347,45 @@ public class CodingAgentStepView(
                 | Text.Block("Profile Models").Bold()
                 | Text.Muted("Select models from your endpoint or type in a custom model name.").Small()
                 | (Layout.Vertical()
-                    | deepModel.ToSelectInput(modelOptions).WithField().Label("Deep Profile")
+                    | deepModel.ToSelectInput(modelOptions)
+                        .Invalid(deepModelError.Value)
+                        .WithField()
+                        .Label("Deep Profile")
                     | (deepModel.Value == "__custom__"
-                        ? customDeepText.ToTextInput("e.g. gpt-4-turbo").WithField().Label("Custom Deep Model Name")
+                        ? customDeepText.ToTextInput("e.g. gpt-4-turbo")
+                            .Invalid(deepModelError.Value)
+                            .WithField()
+                            .Label("Custom Deep Model Name")
                         : null))
                 | (Layout.Vertical()
-                    | balancedModel.ToSelectInput(modelOptions).WithField().Label("Balanced Profile")
+                    | balancedModel.ToSelectInput(modelOptions)
+                        .Invalid(balancedModelError.Value)
+                        .WithField()
+                        .Label("Balanced Profile")
                     | (balancedModel.Value == "__custom__"
-                        ? customBalancedText.ToTextInput("e.g. gpt-4-turbo").WithField().Label("Custom Balanced Model Name")
+                        ? customBalancedText.ToTextInput("e.g. gpt-4-turbo")
+                            .Invalid(balancedModelError.Value)
+                            .WithField()
+                            .Label("Custom Balanced Model Name")
                         : null))
                 | (Layout.Vertical()
-                    | quickModel.ToSelectInput(modelOptions).WithField().Label("Quick Profile")
+                    | quickModel.ToSelectInput(modelOptions)
+                        .Invalid(quickModelError.Value)
+                        .WithField()
+                        .Label("Quick Profile")
                     | (quickModel.Value == "__custom__"
-                        ? customQuickText.ToTextInput("e.g. gpt-4-mini").WithField().Label("Custom Quick Model Name")
+                        ? customQuickText.ToTextInput("e.g. gpt-4-mini")
+                            .Invalid(quickModelError.Value)
+                            .WithField()
+                            .Label("Custom Quick Model Name")
                         : null));
 
             return Layout.Vertical()
                    | Text.H3($"{cardTitle} — Select Models")
-                   | (error.Value != null ? Text.Danger(error.Value) : null!)
+                   | (generalError.Value != null ? Callout.Error(generalError.Value) : null!)
                    | profileModels
-                   | (testFeedback.Value != null
-                       ? (isTestSuccess.Value == true
-                           ? Text.Success($"✓ {testFeedback.Value}")
-                           : Text.Danger($"✗ {testFeedback.Value}"))
+                   | (testSuccessMessage.Value != null
+                       ? Callout.Success(testSuccessMessage.Value)
                        : null!)
                    | (Layout.Horizontal()
                        | new Button("Back")
@@ -352,18 +393,22 @@ public class CodingAgentStepView(
                            .OnClick(() =>
                            {
                                byoSubStep.Set(0);
-                               error.Set(null);
-                               testFeedback.Set(null);
-                               isTestSuccess.Set(null);
+                               deepModelError.Set(null);
+                               balancedModelError.Set(null);
+                               quickModelError.Set(null);
+                               testSuccessMessage.Set(null);
+                               generalError.Set(null);
                            })
                        | new Button("Test Endpoint")
                            .Outline()
                            .Loading(isTestingModels.Value)
                            .OnClick(async () =>
                            {
-                               testFeedback.Set(null);
-                               isTestSuccess.Set(null);
-                               error.Set(null);
+                               deepModelError.Set(null);
+                               balancedModelError.Set(null);
+                               quickModelError.Set(null);
+                               testSuccessMessage.Set(null);
+                               generalError.Set(null);
 
                                var dm = deepModel.Value == "__custom__"
                                    ? customDeepText.Value.Trim()
@@ -375,24 +420,24 @@ public class CodingAgentStepView(
                                    ? customQuickText.Value.Trim()
                                    : quickModel.Value;
 
+                               var hasValidationErr = false;
                                if (string.IsNullOrWhiteSpace(dm) || dm == "__custom__")
                                {
-                                   testFeedback.Set("Please specify a valid model for Deep profile.");
-                                   isTestSuccess.Set(false);
-                                   return;
+                                   deepModelError.Set("Please specify a valid model for Deep profile.");
+                                   hasValidationErr = true;
                                }
                                if (string.IsNullOrWhiteSpace(bm) || bm == "__custom__")
                                {
-                                   testFeedback.Set("Please specify a valid model for Balanced profile.");
-                                   isTestSuccess.Set(false);
-                                   return;
+                                   balancedModelError.Set("Please specify a valid model for Balanced profile.");
+                                   hasValidationErr = true;
                                }
                                if (string.IsNullOrWhiteSpace(qm) || qm == "__custom__")
                                {
-                                   testFeedback.Set("Please specify a valid model for Quick profile.");
-                                   isTestSuccess.Set(false);
-                                   return;
+                                   quickModelError.Set("Please specify a valid model for Quick profile.");
+                                   hasValidationErr = true;
                                }
+
+                               if (hasValidationErr) return;
 
                                var baseUrl = isBergetCard || string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value)
                                    ? defaultUrl
@@ -401,36 +446,33 @@ public class CodingAgentStepView(
                                isTestingModels.Set(true);
                                try
                                {
-                                   var modelsToTest = new (string Tier, string Model)[]
-                                   {
-                                       ("Deep", dm),
-                                       ("Balanced", bm),
-                                       ("Quick", qm)
-                                   };
+                                   var tested = new Dictionary<string, (bool Ok, string? Err)>(StringComparer.OrdinalIgnoreCase);
 
-                                   var uniqueModels = modelsToTest
-                                       .GroupBy(m => m.Model, StringComparer.OrdinalIgnoreCase)
-                                       .Select(g => (Tiers: string.Join("/", g.Select(x => x.Tier)), Model: g.Key))
-                                       .ToList();
-
-                                   foreach (var (tier, modelId) in uniqueModels)
+                                   async Task<(bool Ok, string? Err)> TestOnceAsync(string modelId)
                                    {
-                                       var (ok, err) = await OpenAiProxyModelCatalog.TestModelEndpointAsync(baseUrl, openAiProxyApiKey.Value, modelId);
-                                       if (!ok)
-                                       {
-                                           testFeedback.Set($"{tier} model '{modelId}' failed: {err}");
-                                           isTestSuccess.Set(false);
-                                           return;
-                                       }
+                                       if (tested.TryGetValue(modelId, out var existing)) return existing;
+                                       var res = await OpenAiProxyModelCatalog.TestModelEndpointAsync(baseUrl, openAiProxyApiKey.Value, modelId);
+                                       tested[modelId] = res;
+                                       return res;
                                    }
 
-                                   testFeedback.Set("All profile models responded successfully!");
-                                   isTestSuccess.Set(true);
+                                   var deepRes = await TestOnceAsync(dm);
+                                   if (!deepRes.Ok) deepModelError.Set(deepRes.Err);
+
+                                   var balancedRes = await TestOnceAsync(bm);
+                                   if (!balancedRes.Ok) balancedModelError.Set(balancedRes.Err);
+
+                                   var quickRes = await TestOnceAsync(qm);
+                                   if (!quickRes.Ok) quickModelError.Set(quickRes.Err);
+
+                                   if (deepRes.Ok && balancedRes.Ok && quickRes.Ok)
+                                   {
+                                       testSuccessMessage.Set("All profile models responded successfully!");
+                                   }
                                }
                                catch (Exception ex)
                                {
-                                   testFeedback.Set($"Test error: {ex.Message}");
-                                   isTestSuccess.Set(false);
+                                   generalError.Set($"Test error: {ex.Message}");
                                }
                                finally
                                {
@@ -441,6 +483,12 @@ public class CodingAgentStepView(
                            .Primary()
                            .OnClick(() =>
                            {
+                               deepModelError.Set(null);
+                               balancedModelError.Set(null);
+                               quickModelError.Set(null);
+                               generalError.Set(null);
+                               testSuccessMessage.Set(null);
+
                                var dm = deepModel.Value == "__custom__"
                                    ? customDeepText.Value.Trim()
                                    : deepModel.Value;
@@ -451,21 +499,24 @@ public class CodingAgentStepView(
                                    ? customQuickText.Value.Trim()
                                    : quickModel.Value;
 
+                               var hasValidationErr = false;
                                if (string.IsNullOrWhiteSpace(dm) || dm == "__custom__")
                                {
-                                   error.Set("Please specify a valid model for Deep profile.");
-                                   return;
+                                   deepModelError.Set("Please specify a valid model for Deep profile.");
+                                   hasValidationErr = true;
                                }
                                if (string.IsNullOrWhiteSpace(bm) || bm == "__custom__")
                                {
-                                   error.Set("Please specify a valid model for Balanced profile.");
-                                   return;
+                                   balancedModelError.Set("Please specify a valid model for Balanced profile.");
+                                   hasValidationErr = true;
                                }
                                if (string.IsNullOrWhiteSpace(qm) || qm == "__custom__")
                                {
-                                   error.Set("Please specify a valid model for Quick profile.");
-                                   return;
+                                   quickModelError.Set("Please specify a valid model for Quick profile.");
+                                   hasValidationErr = true;
                                }
+
+                               if (hasValidationErr) return;
 
                                var baseUrl = isBergetCard || string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value)
                                    ? defaultUrl

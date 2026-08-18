@@ -54,7 +54,7 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
         var staticModels = GetModelsForBaseUrl(baseUrl);
         var url = baseUrl?.Trim().TrimEnd('/') ?? "";
 
-        if (string.IsNullOrEmpty(url) || url.Contains("llmproxy.ivy.app") || url.Contains("ivy.app"))
+        if (string.IsNullOrEmpty(url))
         {
             return staticModels;
         }
@@ -383,6 +383,11 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
 
     private static string ExtractErrorMessage(System.Net.HttpStatusCode statusCode, string responseBody)
     {
+        if (string.IsNullOrWhiteSpace(responseBody))
+        {
+            return $"HTTP {(int)statusCode} ({statusCode})";
+        }
+
         try
         {
             using var doc = JsonDocument.Parse(responseBody);
@@ -405,9 +410,16 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
         }
         catch
         {
-            if (!string.IsNullOrWhiteSpace(responseBody) && responseBody.Length < 200)
+            var trimmed = responseBody.Trim();
+            var match = System.Text.RegularExpressions.Regex.Match(trimmed, @"['""](?:error|message)['""]\s*:\s*['""]([^'""]+)['""]");
+            if (match.Success)
             {
-                return $"{statusCode}: {responseBody.Trim()}";
+                return match.Groups[1].Value;
+            }
+
+            if (trimmed.Length < 200)
+            {
+                return trimmed;
             }
         }
 
