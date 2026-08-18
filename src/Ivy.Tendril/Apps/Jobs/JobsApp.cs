@@ -69,6 +69,16 @@ public partial class JobsApp : ViewBase
             ).Width(UxHelper.SheetWidth).Resizable();
         });
 
+        var (costSheet, showCost) = UseTrigger<string>((isOpen, jobId) =>
+        {
+            if (!isOpen.Value) return null;
+            return new Sheet(
+                () => isOpen.Set(false),
+                new JobCostSheet(jobId, jobService),
+                "Cost & Tokens"
+            ).Width(UxHelper.SheetWidth).Resizable();
+        });
+
         var (rerunDialog, showRerun) = UseTrigger<string>((isOpen, jobId) =>
         {
             if (!isOpen.Value) return null;
@@ -98,11 +108,11 @@ public partial class JobsApp : ViewBase
         var jobsProgress = jobs.Count > 0 ? BuildStatusProgress(jobs, config) : null;
 
         var dataTable = JobsApp.BuildDataTable(nav, rows, refreshToken, updateStream, config, planService,
-            jobService, client, showPlan, showOutput, showPrompt, showDebug, showRerun, jobs, projectColors, jobsProgress,
-            confirmDeleteOpen, deleteJobId, confirmStopQueuedOpen, confirmStopAllOpen);
+            jobService, client, showPlan, showOutput, showPrompt, showDebug, showCost, showRerun, jobs, projectColors,
+            jobsProgress, confirmDeleteOpen, deleteJobId, confirmStopQueuedOpen, confirmStopAllOpen);
 
         var layout = Layout.Vertical().Height(Size.Full());
 
-        return layout | new Fragment(dataTable, planSheet, outputSheet, promptSheet, debugSheet, rerunDialog);
+        return layout | new Fragment(dataTable, planSheet, outputSheet, promptSheet, debugSheet, costSheet, rerunDialog);
     }
 }

@@ -79,7 +79,7 @@ public class PullRequestApp : ViewBase
         var rows = plans.SelectMany(plan =>
         {
             var costValue = planService.GetPlanTotalCost(plan.FolderPath);
-            var cost = costValue > 0 ? $"${costValue:F2}" : "";
+            var cost = costValue > 0 ? FormatHelper.FormatCost(costValue) : "";
             var tokenValue = planService.GetPlanTotalTokens(plan.FolderPath);
             var tokens = tokenValue > 0 ? FormatHelper.FormatTokens(tokenValue) : "";
             return plan.Prs.Where(IsValidUrl).Reverse().Select((pr, i) =>

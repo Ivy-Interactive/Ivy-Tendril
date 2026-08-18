@@ -127,13 +127,17 @@ public static class AgentServiceCollectionExtensions
             return runner;
         });
 
-        services.AddSingleton<IModelPricingProvider>(sp =>
+        // One instance behind both interfaces: the refresher must warm up the very provider that
+        // GetPricing reads from.
+        services.AddSingleton<ModelPricingProvider>(sp =>
         {
             var runner = sp.GetRequiredService<IAgentRunner>();
             var provider = new ModelPricingProvider(runner.ModelCatalogs);
             provider.AddPricing(options.AdditionalPricing);
             return provider;
         });
+        services.AddSingleton<IModelPricingProvider>(sp => sp.GetRequiredService<ModelPricingProvider>());
+        services.AddSingleton<IModelPricingRefresher>(sp => sp.GetRequiredService<ModelPricingProvider>());
 
         return services;
     }

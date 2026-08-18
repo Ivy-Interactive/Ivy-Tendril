@@ -265,5 +265,9 @@ internal static class ServiceRegistration
             sp.GetRequiredService<Services.Tunnel.CloudflaredService>());
         server.Services.AddSingleton<IStartable>(sp =>
             sp.GetRequiredService<Services.Tunnel.CloudflaredService>());
+
+        server.Services.AddSingleton<Services.Telemetry.ModelPricingWarmupService>();
+        server.Services.AddSingleton<IStartable>(sp =>
+            sp.GetRequiredService<Services.Telemetry.ModelPricingWarmupService>());
     }
 }

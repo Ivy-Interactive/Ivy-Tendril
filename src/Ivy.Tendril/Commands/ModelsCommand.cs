@@ -132,5 +132,5 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
     }
 
     private static string FormatPrice(decimal price) =>
-        price == 0m ? "[dim]-[/]" : $"${price:F2}";
+        price == 0m ? "[dim]-[/]" : FormatHelper.FormatCost(price);
 }

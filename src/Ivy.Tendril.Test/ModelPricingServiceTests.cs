@@ -66,6 +66,122 @@ public class ModelPricingServiceTests
         }
     }
 
+    [Fact]
+    public void CalculateSessionCost_MatchingFile_SurfacesTokenBucketsAndModel()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"session-{Guid.NewGuid():N}.jsonl");
+        File.WriteAllText(tempFile, "");
+
+        try
+        {
+            var costResult = new SessionCostResult
+            {
+                SessionId = "abc123",
+                AgentId = "claude",
+                Model = "claude-opus-5",
+                InputTokens = 1000,
+                OutputTokens = 500,
+                CacheReadTokens = 90_000,
+                CacheWriteTokens = 300,
+                TotalCostUsd = 0.025m,
+            };
+            var parser = new FakeCostParser(files: [tempFile], parseResult: costResult);
+            var service = new ModelPricingService(
+                NullLogger<ModelPricingService>.Instance,
+                new FakeAgentRunner(costParser: parser),
+                new FakePricingProvider());
+
+            var result = service.CalculateSessionCost(
+                Path.GetFileNameWithoutExtension(tempFile), "claude");
+
+            Assert.Equal(1000, result.InputTokens);
+            Assert.Equal(500, result.OutputTokens);
+            Assert.Equal(90_000, result.CacheReadTokens);
+            Assert.Equal(300, result.CacheWriteTokens);
+            Assert.Equal("claude-opus-5", result.Model);
+            // TotalTokens stays input + output — cache traffic is reported but not counted here.
+            Assert.Equal(1500, result.TotalTokens);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public void CalculateSessionCost_ClaudeSubagents_SumsBucketsAcrossFiles()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"tendril-cost-{Guid.NewGuid():N}");
+        var sessionName = "session-subagents";
+        var sessionFile = Path.Combine(root, $"{sessionName}.jsonl");
+        var subagentDir = Path.Combine(root, sessionName, "subagents");
+        Directory.CreateDirectory(subagentDir);
+        File.WriteAllText(sessionFile, "");
+
+        var sub1 = Path.Combine(subagentDir, "sub-1.jsonl");
+        var sub2 = Path.Combine(subagentDir, "sub-2.jsonl");
+        File.WriteAllText(sub1, "");
+        File.WriteAllText(sub2, "");
+
+        try
+        {
+            var perFile = new Dictionary<string, SessionCostResult>
+            {
+                [$"{sessionName}.jsonl"] = new()
+                {
+                    SessionId = sessionName,
+                    AgentId = "claude",
+                    Model = "claude-opus-5",
+                    InputTokens = 1000,
+                    OutputTokens = 500,
+                    CacheReadTokens = 10_000,
+                    CacheWriteTokens = 100,
+                    TotalCostUsd = 0.02m,
+                },
+                ["sub-1.jsonl"] = new()
+                {
+                    SessionId = "sub-1",
+                    AgentId = "claude",
+                    InputTokens = 200,
+                    OutputTokens = 50,
+                    CacheReadTokens = 5_000,
+                    CacheWriteTokens = 20,
+                    TotalCostUsd = 0.005m,
+                },
+                ["sub-2.jsonl"] = new()
+                {
+                    SessionId = "sub-2",
+                    AgentId = "claude",
+                    InputTokens = 300,
+                    OutputTokens = 70,
+                    CacheReadTokens = 7_000,
+                    CacheWriteTokens = 30,
+                    TotalCostUsd = 0.007m,
+                },
+            };
+
+            var parser = new FakeCostParser(files: [sessionFile], perFile: perFile);
+            var service = new ModelPricingService(
+                NullLogger<ModelPricingService>.Instance,
+                new FakeAgentRunner(costParser: parser),
+                new FakePricingProvider());
+
+            var result = service.CalculateSessionCost(sessionName, "claude");
+
+            Assert.Equal(1500, result.InputTokens);
+            Assert.Equal(620, result.OutputTokens);
+            Assert.Equal(22_000, result.CacheReadTokens);
+            Assert.Equal(150, result.CacheWriteTokens);
+            Assert.Equal(2120, result.TotalTokens);
+            Assert.Equal(0.032, result.TotalCost, 6);
+            Assert.Equal("claude-opus-5", result.Model);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private class FakeAgentRunner(ISessionCostParser? costParser) : IAgentRunner
     {
         public IReadOnlyList<string> RegisteredAgents => [];
@@ -89,7 +205,10 @@ public class ModelPricingServiceTests
             => Task.CompletedTask;
     }
 
-    private class FakeCostParser(IReadOnlyList<string>? files = null, SessionCostResult? parseResult = null) : ISessionCostParser
+    private class FakeCostParser(
+        IReadOnlyList<string>? files = null,
+        SessionCostResult? parseResult = null,
+        IReadOnlyDictionary<string, SessionCostResult>? perFile = null) : ISessionCostParser
     {
         public string AgentId => "claude";
 
@@ -97,7 +216,9 @@ public class ModelPricingServiceTests
             => files ?? [];
 
         public SessionCostResult Parse(string filePath, IModelPricingProvider pricing)
-            => parseResult ?? new SessionCostResult { SessionId = "", AgentId = "claude" };
+            => perFile is not null && perFile.TryGetValue(Path.GetFileName(filePath), out var result)
+                ? result
+                : parseResult ?? new SessionCostResult { SessionId = "", AgentId = "claude" };
     }
 
     private class FakePricingProvider : IModelPricingProvider
