@@ -10,12 +10,20 @@ namespace Ivy.Tendril.Apps.Settings;
 
 public class AboutSetupView : ViewBase
 {
-    private record SoftwareItem(
-        string Name,
+    private record SystemEnvironmentInfo(
+        string Application,
         string Version,
+        string Framework,
+        string OperatingSystem,
+        string Architecture,
+        string Runtime,
+        string TendrilHome);
+
+    private record BundledToolInfo(
+        string Tool,
         string Status,
-        string? Path,
-        Icons Icon);
+        string Version,
+        string Location);
 
     public override object Build()
     {
@@ -63,31 +71,55 @@ public class AboutSetupView : ViewBase
             gitVersionState.Set(FormatVersionOutput(results[3]));
         });
 
-        var softwareList = new List<SoftwareItem>
+        var systemInfo = new SystemEnvironmentInfo(
+            Application: "Tendril",
+            Version: $"v{tendrilVersion}",
+            Framework: $"Ivy Framework v{ivyVersion}",
+            OperatingSystem: osDescription,
+            Architecture: $"{processArch} (OS: {osArch})",
+            Runtime: frameworkDesc,
+            TendrilHome: tendrilHome);
+
+        var systemDetailsCard = new Card(
+            systemInfo.ToDetails()
+                .Label(x => x.Application, "Application")
+                .Label(x => x.Version, "Tendril Version")
+                .Label(x => x.Framework, "UI Framework")
+                .Label(x => x.OperatingSystem, "Operating System")
+                .Label(x => x.Architecture, "Architecture")
+                .Label(x => x.Runtime, ".NET Runtime")
+                .Label(x => x.TendrilHome, "Tendril Home")
+                .Builder(x => x.Version, f => f.CopyToClipboard())
+                .Builder(x => x.TendrilHome, f => f.CopyToClipboard())
+        ).Header("System & Environment", "Application runtime and workspace specifications", Icons.Cpu);
+
+        var toolsList = new[]
         {
-            new("Tendril", $"v{tendrilVersion}", "Application", System.AppContext.BaseDirectory, Icons.Rocket),
-            new("Ivy Framework", $"v{ivyVersion}", "Framework", null, Icons.Component),
-            new("Ivy Agent CLI", ivyAgentVersionState.Value, isIvyAgentBundled ? "Bundled" : File.Exists(ivyAgentPath) ? "Installed" : "Not Found", ivyAgentPath, Icons.Bot),
-            new(".NET SDK / Runtime", dotnetVersionState.Value, isDotnetBundled ? "Bundled SDK" : "Runtime", dotnetPath, Icons.Cpu),
-            new("PowerShell", pwshVersionState.Value, isPwshBundled ? "Bundled" : File.Exists(pwshPath) ? "System" : "Not Found", pwshPath, Icons.Terminal),
-            new("Git", gitVersionState.Value, "System Tool", "git", Icons.GitBranch),
+            new BundledToolInfo("Ivy Agent CLI", isIvyAgentBundled ? "Bundled" : File.Exists(ivyAgentPath) ? "Installed" : "Not Found", ivyAgentVersionState.Value, ivyAgentPath),
+            new BundledToolInfo(".NET SDK / Runtime", isDotnetBundled ? "Bundled SDK" : "Runtime", dotnetVersionState.Value, dotnetPath),
+            new BundledToolInfo("PowerShell", isPwshBundled ? "Bundled" : File.Exists(pwshPath) ? "System" : "Not Found", pwshVersionState.Value, pwshPath),
+            new BundledToolInfo("Git", "System Tool", gitVersionState.Value, "git"),
         };
 
-        var softwareRows = softwareList.Select(item =>
-            (Layout.Horizontal()
-                | item.Icon.ToIcon()
-                | (Layout.Vertical()
-                    | (Layout.Horizontal()
-                        | Text.Block(item.Name).Bold()
-                        | (item.Status == "Bundled" || item.Status == "Bundled SDK" || item.Status == "Application"
-                            ? new Badge(item.Status).Variant(BadgeVariant.Primary).Small()
-                            : new Badge(item.Status).Variant(BadgeVariant.Secondary).Small()))
-                    | (Layout.Horizontal()
-                        | Text.Muted($"Version: {item.Version}").Small()
-                        | (item.Path != null ? Text.Muted($"• Path: {item.Path}").Small() : null))))
-        ).ToArray();
+        var toolsTableCard = new Card(
+            toolsList.ToTable()
+                .Width(Size.Full())
+                .Header(x => x.Tool, "Software Tool")
+                .Header(x => x.Status, "Status")
+                .Header(x => x.Version, "Version")
+                .Header(x => x.Location, "Binary Path")
+                .Builder(x => x.Status, f => f.Func((string status) => status switch
+                {
+                    "Bundled" or "Bundled SDK" => new Badge(status).Variant(BadgeVariant.Primary).Small(),
+                    "Installed" => new Badge(status).Variant(BadgeVariant.Secondary).Small(),
+                    "System Tool" or "Runtime" => new Badge(status).Variant(BadgeVariant.Outline).Small(),
+                    _ => new Badge(status).Variant(BadgeVariant.Destructive).Small()
+                }))
+                .Builder(x => x.Version, f => f.CopyToClipboard())
+                .Builder(x => x.Location, f => f.CopyToClipboard())
+        ).Header("Software Toolchain", "Bundled binaries, SDKs, and CLI tools", Icons.Package);
 
-        var systemInfoText = new StringBuilder()
+        var systemReport = new StringBuilder()
             .AppendLine($"Tendril: v{tendrilVersion}")
             .AppendLine($"Ivy Framework: v{ivyVersion}")
             .AppendLine($"Ivy Agent CLI: {ivyAgentVersionState.Value} ({ivyAgentPath})")
@@ -96,68 +128,62 @@ public class AboutSetupView : ViewBase
             .AppendLine($"Git: {gitVersionState.Value}")
             .AppendLine($"OS: {osDescription} ({osArch})")
             .AppendLine($"Process Architecture: {processArch}")
-            .AppendLine($".NET Framework: {frameworkDesc}")
+            .AppendLine($".NET Runtime: {frameworkDesc}")
             .AppendLine($"Tendril Home: {tendrilHome}")
             .ToString();
 
-        return Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
-               | Text.Block("About Tendril").Bold()
-               | Text.Block("Software versions and bundled environment details.").Muted().Small()
+        return Layout.Vertical().Width(Size.Auto().Max(Size.Units(140)))
                | (Layout.Horizontal()
-                  | new Button("Copy System Info")
-                      .Variant(ButtonVariant.Outline)
-                      .Icon(Icons.ClipboardCopy)
-                      .OnClick(() =>
-                      {
-                          copyToClipboard(systemInfoText);
-                          client.Toast("System and software information copied to clipboard", "Copied");
-                      })
-                  | new Button("Check for Updates")
-                      .Variant(ButtonVariant.Outline)
-                      .Icon(Icons.CircleArrowUp)
-                      .Disabled(isCheckingUpdates.Value)
-                      .OnClick(() =>
-                      {
-                          isCheckingUpdates.Set(true);
-                          _ = Task.Run(async () =>
+                  | (Layout.Vertical()
+                      | Text.H2("About Tendril")
+                      | Text.Muted("Application details, environment diagnostics, and bundled toolchain."))
+                  | new Spacer()
+                  | (Layout.Horizontal()
+                      | new Button("Copy System Report")
+                          .Variant(ButtonVariant.Outline)
+                          .Icon(Icons.ClipboardCopy)
+                          .OnClick(() =>
                           {
-                              try
+                              copyToClipboard(systemReport);
+                              client.Toast("System report copied to clipboard", "Copied");
+                          })
+                      | new Button("Check for Updates")
+                          .Variant(ButtonVariant.Primary)
+                          .Icon(Icons.CircleArrowUp)
+                          .Disabled(isCheckingUpdates.Value)
+                          .OnClick(() =>
+                          {
+                              isCheckingUpdates.Set(true);
+                              _ = Task.Run(async () =>
                               {
-                                  var info = await versionService.CheckForUpdatesAsync(forceRefresh: true);
-                                  if (info.HasUpdate)
+                                  try
                                   {
-                                      client.Toast($"A new version (v{info.LatestVersion}) is available!", "Update Available");
+                                      var info = await versionService.CheckForUpdatesAsync(forceRefresh: true);
+                                      if (info.HasUpdate)
+                                      {
+                                          client.Toast($"A new version (v{info.LatestVersion}) is available!", "Update Available");
+                                      }
+                                      else if (info.LatestVersion == null)
+                                      {
+                                          client.Toast("Couldn't check for updates. Please try again later.", "Update check failed").Destructive();
+                                      }
+                                      else
+                                      {
+                                          client.Toast($"You're running the latest version (v{info.CurrentVersion}).", "Up to date").Success();
+                                      }
                                   }
-                                  else if (info.LatestVersion == null)
+                                  catch (Exception ex)
                                   {
-                                      client.Toast("Couldn't check for updates. Please try again later.", "Update check failed").Destructive();
+                                      client.Toast($"Couldn't check for updates: {ex.Message}", "Update check failed").Destructive();
                                   }
-                                  else
+                                  finally
                                   {
-                                      client.Toast($"You're running the latest version (v{info.CurrentVersion}).", "Up to date").Success();
+                                      isCheckingUpdates.Set(false);
                                   }
-                              }
-                              catch (Exception ex)
-                              {
-                                  client.Toast($"Couldn't check for updates: {ex.Message}", "Update check failed").Destructive();
-                              }
-                              finally
-                              {
-                                  isCheckingUpdates.Set(false);
-                              }
-                          });
-                      }))
-               | new Separator()
-               | Text.Block("Software & Bundled Components").Bold()
-               | Layout.Vertical(softwareRows)
-               | new Separator()
-               | Text.Block("Environment").Bold()
-               | (Layout.Vertical()
-                  | (Layout.Horizontal() | Text.Muted("Operating System:").Small() | Text.Block(osDescription).Small())
-                  | (Layout.Horizontal() | Text.Muted("OS Architecture:").Small() | Text.Block(osArch).Small())
-                  | (Layout.Horizontal() | Text.Muted("Process Architecture:").Small() | Text.Block(processArch).Small())
-                  | (Layout.Horizontal() | Text.Muted(".NET Framework:").Small() | Text.Block(frameworkDesc).Small())
-                  | (Layout.Horizontal() | Text.Muted("Tendril Home:").Small() | Text.Block(tendrilHome).Small()));
+                              });
+                          })))
+               | systemDetailsCard
+               | toolsTableCard;
     }
 
     private static async Task<string> QueryCommandVersionAsync(string? executablePath, string arguments)
