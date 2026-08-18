@@ -142,23 +142,24 @@ public class CodingAgentSetupView : ViewBase
 
         var supportsEffort = descriptor != null && descriptor.Capabilities.HasFlag(AgentCapabilities.EffortControl);
 
-        IAnyOption[] GetEffortOptions(string? model)
+        IAnyOption[] GetEffortOptions(string? modelId)
         {
-            if (descriptor == null) return [new Option<string>("Default", "default")];
-            var efforts = descriptor.GetSupportedEfforts(model);
-            if (efforts.Count == 0)
-                efforts = descriptor.SupportedEfforts;
-            if (efforts.Count == 0)
+            var modelInfo = !string.IsNullOrEmpty(modelId)
+                ? models.FirstOrDefault(m => m.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase))
+                : null;
+
+            var efforts = modelInfo?.SupportedEfforts;
+            if (efforts == null || efforts.Count == 0)
             {
-                return
-                [
-                    new Option<string>("Default", "default"),
-                    new Option<string>("Low", "low"),
-                    new Option<string>("Medium", "medium"),
-                    new Option<string>("High", "high"),
-                    new Option<string>("Extra High", "xhigh"),
-                    new Option<string>("Max", "max")
-                ];
+                efforts = descriptor?.GetSupportedEfforts(modelId);
+            }
+            if (efforts == null || efforts.Count == 0)
+            {
+                efforts = descriptor?.SupportedEfforts;
+            }
+            if (efforts == null || efforts.Count == 0)
+            {
+                efforts = EffortLevels.Claude;
             }
 
             return new[] { new Option<string>("Default", "default") }

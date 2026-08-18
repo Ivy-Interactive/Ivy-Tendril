@@ -21,6 +21,7 @@ public sealed class CodexModelCatalog : CachedModelCatalogProvider
         {
             Id = "gpt-5.6-terra", DisplayName = "GPT-5.6-Terra",
             Capabilities = DefaultCaps,
+            SupportedEfforts = EffortLevels.Codex,
             ContextWindow = 272_000, MaxOutputTokens = 16_000,
             Provider = "openai", IsDefault = true,
             InputPerMillion = 1.10m, OutputPerMillion = 4.40m,
@@ -30,6 +31,7 @@ public sealed class CodexModelCatalog : CachedModelCatalogProvider
         {
             Id = "gpt-5.6-luna", DisplayName = "GPT-5.6-Luna",
             Capabilities = DefaultCaps,
+            SupportedEfforts = EffortLevels.Codex,
             ContextWindow = 272_000, MaxOutputTokens = 16_000,
             Provider = "openai",
             InputPerMillion = 1.50m, OutputPerMillion = 6.00m,
@@ -39,6 +41,7 @@ public sealed class CodexModelCatalog : CachedModelCatalogProvider
         {
             Id = "gpt-5.5", DisplayName = "GPT-5.5",
             Capabilities = DefaultCaps,
+            SupportedEfforts = EffortLevels.Codex,
             ContextWindow = 400_000, MaxOutputTokens = 32_000,
             Provider = "openai",
             InputPerMillion = 10.00m, OutputPerMillion = 40.00m,
@@ -48,6 +51,7 @@ public sealed class CodexModelCatalog : CachedModelCatalogProvider
         {
             Id = "gpt-5.4", DisplayName = "GPT-5.4",
             Capabilities = DefaultCaps,
+            SupportedEfforts = EffortLevels.Codex,
             ContextWindow = 400_000, MaxOutputTokens = 32_000,
             Provider = "openai",
             InputPerMillion = 10.00m, OutputPerMillion = 40.00m,
@@ -57,61 +61,61 @@ public sealed class CodexModelCatalog : CachedModelCatalogProvider
         {
             Id = "gpt-5.4-mini", DisplayName = "GPT-5.4 Mini",
             Capabilities = DefaultCaps,
+            SupportedEfforts = EffortLevels.Codex,
             ContextWindow = 400_000, MaxOutputTokens = 16_000,
             Provider = "openai",
             InputPerMillion = 1.10m, OutputPerMillion = 4.40m,
             CacheReadPerMillion = 0.275m, CacheWritePerMillion = 1.375m,
-
         },
         new()
         {
             Id = "gpt-5.3-codex", DisplayName = "GPT-5.3 Codex",
             Capabilities = DefaultCaps,
+            SupportedEfforts = EffortLevels.Codex,
             ContextWindow = 400_000, MaxOutputTokens = 16_000,
             Provider = "openai",
             InputPerMillion = 1.50m, OutputPerMillion = 6.00m,
             CacheReadPerMillion = 0.375m, CacheWritePerMillion = 1.875m,
-
         },
         new()
         {
             Id = "o3", DisplayName = "O3",
             Capabilities = DefaultCaps | ModelCapabilities.ExtendedThinking,
+            SupportedEfforts = EffortLevels.Codex,
             ContextWindow = 200_000, MaxOutputTokens = 100_000,
             Provider = "openai",
             InputPerMillion = 10.00m, OutputPerMillion = 40.00m,
             CacheReadPerMillion = 2.50m, CacheWritePerMillion = 12.50m,
-
         },
         new()
         {
             Id = "o4-mini", DisplayName = "O4 Mini",
             Capabilities = DefaultCaps | ModelCapabilities.ExtendedThinking,
+            SupportedEfforts = EffortLevels.Codex,
             ContextWindow = 200_000, MaxOutputTokens = 100_000,
             Provider = "openai",
             InputPerMillion = 1.10m, OutputPerMillion = 4.40m,
             CacheReadPerMillion = 0.275m, CacheWritePerMillion = 1.375m,
-
         },
         new()
         {
             Id = "gpt-4.1", DisplayName = "GPT-4.1",
             Capabilities = DefaultCaps,
+            SupportedEfforts = EffortLevels.Codex,
             ContextWindow = 1_047_576, MaxOutputTokens = 32_000,
             Provider = "openai",
             InputPerMillion = 2.00m, OutputPerMillion = 8.00m,
             CacheReadPerMillion = 0.50m, CacheWritePerMillion = 2.50m,
-
         },
         new()
         {
             Id = "codex-mini", DisplayName = "Codex Mini",
             Capabilities = DefaultCaps,
+            SupportedEfforts = EffortLevels.Codex,
             ContextWindow = 400_000, MaxOutputTokens = 16_000,
             Provider = "openai",
             InputPerMillion = 1.50m, OutputPerMillion = 6.00m,
             CacheReadPerMillion = 0.375m, CacheWritePerMillion = 1.875m,
-
         },
     ];
 
@@ -169,6 +173,7 @@ public sealed class CodexModelCatalog : CachedModelCatalogProvider
                         Id = slug,
                         DisplayName = displayName ?? slug,
                         Capabilities = DefaultCaps,
+                        SupportedEfforts = EffortLevels.Codex,
                         Provider = "openai",
                     });
                 }

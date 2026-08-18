@@ -30,12 +30,7 @@ public sealed class AntigravityCli : IAgentCli
         new(ProfileTier.Quick, "gemini-3.6-flash", "medium"),
     ];
 
-    public IReadOnlyList<EffortOption> SupportedEfforts { get; } =
-    [
-        new("low", "Low"),
-        new("medium", "Medium"),
-        new("high", "High"),
-    ];
+    public IReadOnlyList<EffortOption> SupportedEfforts => EffortLevels.Antigravity;
 
     public string? TranslateToolName(string canonicalTool) => null;
 
