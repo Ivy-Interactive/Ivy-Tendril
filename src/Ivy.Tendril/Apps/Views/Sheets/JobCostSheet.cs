@@ -1,5 +1,7 @@
 using System.Globalization;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Jobs;
@@ -18,14 +20,15 @@ public class JobCostSheet(string jobId, IJobService jobService) : ViewBase
 
     /// <summary>
     /// Every number here is presented as US dollars or a raw token count, so it is formatted with
-    /// the invariant culture. Current-culture formatting would render a cost as "$1,2500" wherever
-    /// the decimal separator is a comma.
+    /// the invariant culture — see <see cref="FormatHelper" />, which is where the Jobs UI's dollar
+    /// formatting lives.
     /// </summary>
-    private static string Usd(decimal value) => "$" + value.ToString("F4", CultureInfo.InvariantCulture);
+    private static string Usd(decimal value) => FormatHelper.FormatCost(value, decimals: 4);
 
+    /// <summary>A per-million rate, grouped: "$1,234.56".</summary>
     private static string Rate(decimal value) => "$" + value.ToString("N2", CultureInfo.InvariantCulture);
 
-    private static string Count(int value) => value.ToString("N0", CultureInfo.InvariantCulture);
+    private static string Count(int value) => FormatHelper.FormatCount(value);
 
     /// <summary>Folder + type-name prefix of each provider's hardcoded catalog, keyed by agent id.</summary>
     private static readonly Dictionary<string, string> CatalogFolders = new(StringComparer.OrdinalIgnoreCase)
@@ -41,6 +44,10 @@ public class JobCostSheet(string jobId, IJobService jobService) : ViewBase
     public override object Build()
     {
         var pricingProvider = UseService<IModelPricingProvider>();
+
+        // Cost lands about 30 seconds after the job finishes, so a sheet opened on a just-completed
+        // job must pick it up rather than stay on the empty state until it is reopened.
+        Context.UseJobUpdates(jobService, jobId, BuildSignature);
 
         var job = jobService.GetJob(jobId);
         if (job is null)
@@ -108,6 +115,13 @@ public class JobCostSheet(string jobId, IJobService jobService) : ViewBase
                       + "information and excluded from the totals above to avoid double-counting "
                       + "output."));
     }
+
+    /// <summary>
+    /// The job fields this sheet renders, joined so <see cref="Hooks.UseJobUpdatesExtensions.UseJobUpdates" />
+    /// can re-render only when one of them actually changes.
+    /// </summary>
+    internal static string BuildSignature(JobItem job) => string.Create(CultureInfo.InvariantCulture,
+        $"{job.Status};{job.Model};{job.Provider};{job.Type};{job.DurationSeconds};{job.Cost};{job.CostSource};{job.Tokens};{job.InputTokens};{job.OutputTokens};{job.CacheReadTokens};{job.CacheWriteTokens};{job.ReasoningTokens}");
 
     /// <summary>
     /// One row of the breakdown, in raw (unformatted) form so the footer totals can be summed

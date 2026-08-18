@@ -361,4 +361,69 @@ public class JobCostResolutionTests
     {
         Assert.Equal(expected, JobCostSheet.ResolveCatalogFile(source));
     }
+
+    // A sheet opened on a just-completed job renders the empty state; the cost lands ~30s later on a
+    // background task. UseJobUpdates re-renders on that, but only when the signature changes.
+    [Fact]
+    public void Sheet_Signature_ChangesWhenTheDelayedCostLands()
+    {
+        var job = UncostedJob();
+        var before = JobCostSheet.BuildSignature(job);
+
+        job.Cost = 1.25m;
+        job.CostSource = JobCostSources.Agent;
+        job.Tokens = 1500;
+        job.InputTokens = 1000;
+        job.OutputTokens = 500;
+
+        Assert.NotEqual(before, JobCostSheet.BuildSignature(job));
+    }
+
+    [Fact]
+    public void Sheet_Signature_IgnoresFieldsItDoesNotRender()
+    {
+        var job = CostedJob(JobCostSources.Agent);
+        var before = JobCostSheet.BuildSignature(job);
+
+        // JobPropertyChanged also fires on every status report from every running job; the cost
+        // sheet shows none of this, so it must not rebuild for it.
+        job.StatusMessage = "Verifying: DotnetBuild";
+        job.LastOutputAt = DateTime.UtcNow;
+
+        Assert.Equal(before, JobCostSheet.BuildSignature(job));
+    }
+
+    [Fact]
+    public void DebugSheet_Signature_ChangesWhenTheDelayedCostLands()
+    {
+        var job = UncostedJob();
+        var before = JobDebugSheet.BuildSignature(job);
+
+        job.Cost = 1.25m;
+        job.Tokens = 1500;
+
+        Assert.NotEqual(before, JobDebugSheet.BuildSignature(job));
+    }
+
+    [Fact]
+    public void DebugSheet_Signature_TracksTheStatusMessageItRenders()
+    {
+        var job = CostedJob(JobCostSources.Agent);
+        var before = JobDebugSheet.BuildSignature(job);
+
+        job.StatusMessage = "Verifying: DotnetBuild";
+
+        Assert.NotEqual(before, JobDebugSheet.BuildSignature(job));
+    }
+
+    private static JobItem UncostedJob() => new()
+    {
+        Id = "j1",
+        Type = "ExecutePlan",
+        PlanFile = "p",
+        Project = "Tendril",
+        Provider = "claude",
+        Model = "claude-opus-5",
+        Status = JobStatus.Completed,
+    };
 }
