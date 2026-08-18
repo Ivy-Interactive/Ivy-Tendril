@@ -29,6 +29,7 @@ projects:
     required: true
   context: >
     Ivy Framework is the core UI framework. Key folders: - src\Ivy\Widgets\ — backend widget classes - src\frontend\src\widgets\ — React widget components - src\Ivy.Docs.Shared\Docs\ — documentation - src\Ivy.Samples.Shared\ — sample apps Instructions: See AGENTS.md in repo root
+  stackHash: fe.ts:react+vite+tailwind/be.cs:aspnetcore+efcore/fs.cs:ivyframework/db:sqlite/infra:docker/test:nunit+playwright+vitest+xunit
   reviewActions:
   - name: Sample
     condition: Test-Path "artifacts\sample\*.csproj"
@@ -72,6 +73,7 @@ projects:
     required: true
   context: >
     Plan management TUI. Key folders: - src\Ivy.Tendril\Services\ — ConfigService, PlanReaderService, JobService - src\Ivy.Tendril\Apps\ — DraftsApp, JobsApp UI - src\Ivy.Tendril\Promptwares\ — CreatePlan, UpdatePlan, SplitPlan, ExpandPlan This project uses the Ivy Framework - there's CLI helper methods you can use:  ivy docs AGENTS.md  ivy question "How do I make a button in Ivy?"
+  stackHash: fe.ts:react+vite+tailwind/fs.cs:ivyframework/db:sqlite/infra:docker/test:playwright+vitest+xunit
   reviewActions:
   - name: Tendril
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril"
@@ -114,6 +116,7 @@ projects:
     required: true
   context: >
     Rustino — cross-platform native desktop windows with embedded web views (Rust + .NET). Key folders: - src\Rustino.Native\ — Rust cdylib (wry + tao for webview\window) - src\Rustino.NET\ — C# P\Invoke wrapper - src\Rustino.NET.Reactive\ — IObservable extensions - src\Rustino.Samples\ — demo applications Build: `cd src\Rustino.Native && cargo build --release`, then `dotnet build`
+  stackHash: desktop.rs:tao+wry/lib.cs
   reviewActions:
   - name: Samples
     condition: Test-Path "worktrees\Rustino\src\Rustino.Samples"
@@ -145,6 +148,7 @@ projects:
   - name: CheckResult
     required: true
   context: ''
+  stackHash: fe.ts:react+vite+tailwind/test:vitest
   reviewActions:
   - name: App
     condition: Test-Path 'Worktrees\lots-of-dev-tools\package.json'
@@ -177,6 +181,7 @@ projects:
   - name: CheckResult
     required: true
   context: ''
+  stackHash: be.cs:aspnetcore+efcore/fs.cs:ivyframework/db:mssql/infra:docker/test:xunit
   reviewActions:
   - name: API
     condition: Test-Path "Worktrees\Ivy-Tendril-Services\Ivy.Tendril.Services"
@@ -216,6 +221,7 @@ projects:
   - name: CheckResult
     required: true
   context: "Plan management TUI. Key folders: - src\\Ivy.Tendril\\Services\\ — ConfigService, PlanReaderService, JobService - src\\Ivy.Tendril\\Apps\\ — DraftsApp, JobsApp UI - src\\Ivy.Tendril\\Promptwares\\ — CreatePlan, UpdatePlan, SplitPlan, ExpandPlan This project uses the Ivy Framework - there's CLI helper methods you can use:  ivy docs AGENTS.md  ivy question \"How do I make a button in Ivy?\""
+  stackHash: fe.ts:react+vite+tailwind/fs.cs:ivyframework/db:sqlite/infra:docker/test:playwright+vitest+xunit
   reviewActions:
   - name: Tendril
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril"
@@ -261,6 +267,7 @@ projects:
   - name: CheckResult
     required: true
   context: "Focused on the external widget library at src\\Ivy.Tendril.Widgets in the Ivy-Tendril repo - do NOT change other parts of the repo unless the plan explicitly requires it. Layout (relative to src\\Ivy.Tendril.Widgets): <Widget>.cs - widget records with [Prop]/[Event]/[Slot] exposed on window.IvyTendrilWidgets (DraftMarkdown, AgentViewer, PlanDiffView, ChatWidget, ContentInput, BadgeSelect, SortableVerificationList, TendrilProcessViewer, WebViewer); frontend\\ - React + Vite+ bundle, vp build produces dist\\ivy-tendril-widgets.{js,css} which MSBuild embeds into the DLL, unit tests run under vitest; frontend\\src\\index.ts - registers every widget on window.IvyTendrilWidgets and re-exports it; .samples\\ - standalone Ivy app hosting all widgets (namespace path maps to kebab-case URL), both dev playground and E2E target; .tests\\ - Playwright E2E specs, fixtures (console capture, step screenshots) and server helpers. Build: dotnet build src\\Ivy.Tendril.Widgets\\.samples (MSBuild runs pnpm install + vp build for the frontend). Run: cd src\\Ivy.Tendril.Widgets\\.samples then dotnet run -- --port 5100. Read src\\Ivy.Tendril.Widgets\\AGENTS.md for the widget/framework contract before adding or changing a widget. .samples sets IvySource=true, so Ivy.Tendril.Widgets references ..\\..\\..\\Ivy-Framework\\src\\Ivy\\Ivy.csproj - the Ivy-Framework worktree must sit next to the Ivy-Tendril worktree, which is why both repos belong to this project. Frontend dependency gotcha: the vite-plus native binding needs Node ^20.19.0 || ^22.18.0 || >=24.11.0; if the system Node is older, install frontend deps with vite-plus bundled Node first on PATH (prepend C:\\Users\\niels\\.vite-plus\\bin) or the build fails with 'Cannot find native binding'. This project uses the Ivy Framework - CLI helpers are available: ivy docs AGENTS.md, and ivy question 'How do I make a button in Ivy?'"
+  stackHash: fe.ts:react+vite+tailwind/fs.cs:ivyframework/test:playwright+vitest
   reviewActions:
   - name: Widget Samples
     condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril.Widgets\.samples"
