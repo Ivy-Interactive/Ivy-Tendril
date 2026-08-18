@@ -13,7 +13,8 @@ public class QuestionBlockParserTests
 
             ```questions
             questions:
-              - title: Which auth scheme?
+              - id: auth-scheme
+                title: Which auth scheme?
                 header: Auth
                 other: false
                 options:
@@ -29,6 +30,7 @@ public class QuestionBlockParserTests
         var blocks = QuestionBlockParser.Parse(markdown);
 
         var question = Assert.Single(Assert.Single(blocks).Block!.Questions);
+        Assert.Equal("auth-scheme", question.Id);
         Assert.Equal("Which auth scheme?", question.Title);
         Assert.Equal("Auth", question.Header);
         Assert.False(question.Other);
@@ -46,7 +48,8 @@ public class QuestionBlockParserTests
         const string markdown = """
             ```questions
             questions:
-              - title: Which platforms ship first?
+              - id: q1
+                title: Which platforms ship first?
                 multiple: true
                 options:
                   - title: Windows
@@ -71,7 +74,8 @@ public class QuestionBlockParserTests
         const string markdown = """
             ```questions
             questions:
-              - title: What should the feature be called?
+              - id: q1
+                title: What should the feature be called?
                 description: Anything is fine as long as it is not "Manager".
             ```
             """;
@@ -93,7 +97,8 @@ public class QuestionBlockParserTests
 
             ```questions
             questions:
-              - title: Really?
+              - id: q1
+                title: Really?
             ```
             """;
 
@@ -110,7 +115,8 @@ public class QuestionBlockParserTests
             ````
             ```questions
             questions:
-              - title: An example, not a real question.
+              - id: q1
+                title: An example, not a real question.
             ```
             ````
             """";
@@ -126,7 +132,8 @@ public class QuestionBlockParserTests
 
             ```questions
             questions:
-              - title: First scope question?
+              - id: q1
+                title: First scope question?
             ```
 
             ## Solution
@@ -137,7 +144,8 @@ public class QuestionBlockParserTests
 
             ```questions
             questions:
-              - title: Second design question?
+              - id: q1
+                title: Second design question?
             ```
             """;
 
@@ -188,7 +196,8 @@ public class QuestionBlockParserTests
         const string markdown = """
             ```questions
             questions:
-              - title: Broken
+              - id: q1
+                title: Broken
                 options: [unclosed
             ```
             """;
@@ -218,9 +227,11 @@ public class QuestionBlockParserTests
         const string markdown = """
             ```questions
             questions:
-              - title: Scalar?
+              - id: q1
+                title: Scalar?
                 answer: jwt
-              - title: List?
+              - id: q2
+                title: List?
                 multiple: true
                 answer: [jwt, sessions]
             ```
@@ -241,7 +252,8 @@ public class QuestionBlockParserTests
         const string markdown = """
             ```questions
             questions:
-              - title: Which auth scheme?
+              - id: q1
+                title: Which auth scheme?
                 options:
                   - title: JSON Web Tokens
                     value: jwt
@@ -263,7 +275,8 @@ public class QuestionBlockParserTests
         const string markdown = """
             ```questions
             questions:
-              - title: Never closed?
+              - id: q1
+                title: Never closed?
             """;
 
         var block = Assert.Single(QuestionBlockParser.Parse(markdown));
@@ -277,7 +290,8 @@ public class QuestionBlockParserTests
         const string markdown = """
             ```yaml
             questions:
-              - title: Documentation, not a question.
+              - id: q1
+                title: Documentation, not a question.
             ```
             """;
 
@@ -292,7 +306,8 @@ public class QuestionBlockParserTests
 
             ```questions
             questions:
-              - title: Really?
+              - id: q1
+                title: Really?
             ```
 
             Trailing prose.
@@ -301,6 +316,6 @@ public class QuestionBlockParserTests
         var range = Assert.Single(QuestionBlockParser.FindFenceRanges(markdown));
 
         Assert.Equal(3, range.StartLine);
-        Assert.Equal(6, range.EndLine);
+        Assert.Equal(7, range.EndLine);
     }
 }

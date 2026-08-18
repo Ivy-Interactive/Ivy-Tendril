@@ -209,7 +209,8 @@ A revision can carry questions for the user in fenced `questions` blocks. Prompt
 ````
 ```questions
 questions:                    # 1-4 items
-  - title:       string       # required, the question
+  - id:          string       # required, stable, unique across the whole revision
+    title:       string       # required, the question
     header:      string       # optional, <=12 char chip label
     description: markdown     # optional, context shown under the question
     multiple:    bool         # optional, default false; true = multi-select
@@ -223,7 +224,7 @@ questions:                    # 1-4 items
 ```
 ````
 
-A block may appear anywhere in the document, and a revision may contain any number of them. No `answer` key means unanswered; `answer: null` means the user deliberately skipped the question and left the decision to the agent.
+A block may appear anywhere in the document, and a revision may contain any number of them. No `answer` key means unanswered; `answer: null` means the user deliberately skipped the question and left the decision to the agent. An answer is addressed by its question's `id` alone, so an `id` has to be unique across the whole revision rather than just within its own block.
 
 `write-revision` validates every block and refuses the write if any is malformed, printing each problem prefixed with the line of its opening fence. Nothing is written on rejection, so a rejected revision does not consume a revision number. A block whose body predates the schema (plain prose rather than a `questions` mapping) is reported as a warning and written unchanged.
 

@@ -289,7 +289,8 @@ decision.
 ````
 ```questions
 questions:                    # 1-4 items
-  - title:       string       # required, the question
+  - id:          string       # required, stable, unique across the whole revision
+    title:       string       # required, the question
     header:      string       # optional, <=12 char chip label; derived from title if absent
     description: markdown     # optional, context shown under the question
     multiple:    bool         # optional, default false; true = multi-select
@@ -302,6 +303,12 @@ questions:                    # 1-4 items
     answer:      value | [values] | string   # filled in on response
 ```
 ````
+
+Every question carries an `id` — a short, stable handle such as `retry-scope`. It is how an answer is
+addressed: the UI reports an answer as that id and a value, with no block or position alongside it.
+So an `id` must be unique across the **whole revision**, not merely within its own block, and must
+keep its meaning across revisions — rewording a question is fine, renaming its `id` orphans an answer
+already given for it.
 
 Three shapes fall out of `multiple` / `other` / the presence of `options`:
 
@@ -329,6 +336,8 @@ revision does not consume a revision number. Fix the reported lines and retry.
 
 | Rule | Message |
 |---|---|
+| Every question has a non-empty `id` | `question N: id is required` |
+| `id` unique across the whole revision, blocks included | `question N: duplicate question id '<id>'` |
 | At most one `recommended: true` per question | `question N: more than one option is recommended` |
 | No hand-authored option titled "Other", "Something else", "Custom" | `question N: option '<title>' duplicates what other: true provides` |
 | `other: false` with no options | `question N: other: false with no options is unanswerable` |
@@ -336,7 +345,7 @@ revision does not consume a revision number. Fix the reported lines and retry.
 | `value` unique within a question | `question N: duplicate option value '<value>'` |
 | `other: false` and an answer entry matches no option value | `question N: answer '<entry>' matches no option and other is false` |
 
-Schema bounds are enforced too: 1-4 questions, a required `title`, a `header` of at most 12
+Schema bounds are enforced too: 1-4 questions, a required `id` and `title`, a `header` of at most 12
 characters, 2-4 options when `options` is present, a required `title` and slug `value` on each
 option, and no unknown keys anywhere.
 

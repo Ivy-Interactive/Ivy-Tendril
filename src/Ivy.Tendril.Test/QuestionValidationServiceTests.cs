@@ -24,7 +24,8 @@ public class QuestionValidationServiceTests
 
             ```questions
             questions:
-              - title: Which auth scheme?
+              - id: q1
+                title: Which auth scheme?
                 header: Auth
                 other: false
                 options:
@@ -34,7 +35,8 @@ public class QuestionValidationServiceTests
                   - title: Server sessions
                     value: sessions
                 answer: jwt
-              - title: What should it be called?
+              - id: q2
+                title: What should it be called?
             ```
 
             ## Solution
@@ -58,7 +60,8 @@ public class QuestionValidationServiceTests
             ````
             ```questions
             questions:
-              - title: Documentation, with five options and every rule broken.
+              - id: q1
+                title: Documentation, with five options and every rule broken.
                 options:
                   - title: Other
                     value: NOPE
@@ -76,7 +79,8 @@ public class QuestionValidationServiceTests
     {
         var message = SingleError("""
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 options:
                   - title: First
                     value: first
@@ -97,7 +101,8 @@ public class QuestionValidationServiceTests
     {
         var message = SingleError($"""
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 options:
                   - title: First
                     value: first
@@ -113,7 +118,8 @@ public class QuestionValidationServiceTests
     {
         var message = SingleError("""
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 other: false
             """);
 
@@ -125,7 +131,8 @@ public class QuestionValidationServiceTests
     {
         var message = SingleError("""
             questions:
-              - title: Which ones?
+              - id: q1
+                title: Which ones?
                 multiple: true
                 answer: first
             """);
@@ -138,7 +145,8 @@ public class QuestionValidationServiceTests
     {
         var message = SingleError("""
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 answer: [first, second]
             """);
 
@@ -150,7 +158,8 @@ public class QuestionValidationServiceTests
     {
         var message = SingleError("""
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 options:
                   - title: First
                     value: jwt
@@ -166,7 +175,8 @@ public class QuestionValidationServiceTests
     {
         var message = SingleError("""
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 other: false
                 options:
                   - title: First
@@ -184,7 +194,8 @@ public class QuestionValidationServiceTests
     {
         Assert.Empty(Validate("""
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 options:
                   - title: First
                     value: first
@@ -208,7 +219,7 @@ public class QuestionValidationServiceTests
     public void Validate_RejectsMoreThanFourQuestions()
     {
         var body = "questions:\n" + string.Join("\n",
-            Enumerable.Range(1, 5).Select(i => $"  - title: Question {i}?"));
+            Enumerable.Range(1, 5).Select(i => $"  - id: q{i}\n    title: Question {i}?"));
 
         Assert.Equal("5 questions in one block; at most 4 are allowed", SingleError(body));
     }
@@ -217,7 +228,7 @@ public class QuestionValidationServiceTests
     public void Validate_AcceptsFourQuestions()
     {
         var body = "questions:\n" + string.Join("\n",
-            Enumerable.Range(1, 4).Select(i => $"  - title: Question {i}?"));
+            Enumerable.Range(1, 4).Select(i => $"  - id: q{i}\n    title: Question {i}?"));
 
         Assert.Empty(Validate(body));
     }
@@ -227,7 +238,8 @@ public class QuestionValidationServiceTests
     {
         var message = SingleError("""
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 options:
                   - title: Only
                     value: only
@@ -239,7 +251,7 @@ public class QuestionValidationServiceTests
     [Fact]
     public void Validate_RejectsMoreThanFourOptions()
     {
-        var body = "questions:\n  - title: Which one?\n    options:\n" + string.Join("\n",
+        var body = "questions:\n  - id: q1\n    title: Which one?\n    options:\n" + string.Join("\n",
             Enumerable.Range(1, 5).Select(i => $"      - title: Option {i}\n        value: option-{i}"));
 
         Assert.Equal("question 1: 5 options; at most 4 are allowed", SingleError(body));
@@ -250,7 +262,8 @@ public class QuestionValidationServiceTests
     {
         var message = SingleError("""
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 header: ThirteenChars
             """);
 
@@ -262,7 +275,8 @@ public class QuestionValidationServiceTests
     {
         Assert.Empty(Validate("""
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 header: TwelveChars!
             """));
     }
@@ -272,10 +286,48 @@ public class QuestionValidationServiceTests
     {
         var message = SingleError("""
             questions:
-              - header: Auth
+              - id: q1
+                header: Auth
             """);
 
         Assert.Equal("question 1: title is required", message);
+    }
+
+    [Fact]
+    public void Validate_RejectsMissingId()
+    {
+        var message = SingleError("""
+            questions:
+              - title: Which one?
+            """);
+
+        Assert.Equal("question 1: id is required", message);
+    }
+
+    [Fact]
+    public void Validate_RejectsBlankId()
+    {
+        var message = SingleError("""
+            questions:
+              - id: "   "
+                title: Which one?
+            """);
+
+        Assert.Equal("question 1: id is required", message);
+    }
+
+    [Fact]
+    public void Validate_RejectsDuplicateIdWithinOneBlock()
+    {
+        var message = SingleError("""
+            questions:
+              - id: scope
+                title: Which one?
+              - id: scope
+                title: And which one?
+            """);
+
+        Assert.Equal("question 2: duplicate question id 'scope'", message);
     }
 
     [Theory]
@@ -287,7 +339,8 @@ public class QuestionValidationServiceTests
     {
         var message = SingleError($"""
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 options:
                   - title: First
                     value: {value}
@@ -303,7 +356,8 @@ public class QuestionValidationServiceTests
     {
         Assert.Empty(Validate("""
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 options:
                   - title: First
                     value: json-web-tokens
@@ -317,7 +371,8 @@ public class QuestionValidationServiceTests
     {
         var message = SingleError("""
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 requird: true
             """);
 
@@ -330,7 +385,8 @@ public class QuestionValidationServiceTests
     {
         var message = SingleError("""
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 options:
                   - title: First
                     value: first
@@ -372,18 +428,47 @@ public class QuestionValidationServiceTests
 
             ```questions
             questions:
-              - title: A scope question?
+              - id: q1
+                title: A scope question?
             ```
 
             ## Solution
 
             ```questions
             questions:
-              - title: A design question?
+              - id: q2
+                title: A design question?
             ```
             """;
 
         Assert.Empty(QuestionValidationService.Validate(markdown));
+    }
+
+    [Fact]
+    public void Validate_RejectsAnIdReusedByAnotherBlock()
+    {
+        // An answer travels as an id and nothing else, so the same id in two blocks would leave it
+        // ambiguous which question was answered. Only this service sees the whole document.
+        const string markdown = """
+            ```questions
+            questions:
+              - id: scope
+                title: A scope question?
+            ```
+
+            ## Solution
+
+            ```questions
+            questions:
+              - id: scope
+                title: A design question?
+            ```
+            """;
+
+        var issue = Assert.Single(QuestionValidationService.Validate(markdown));
+
+        Assert.Equal("block 2: question 1: duplicate question id 'scope'", issue.Message);
+        Assert.Equal(9, issue.Line);
     }
 
     [Fact]
@@ -392,14 +477,17 @@ public class QuestionValidationServiceTests
         const string markdown = """
             ```questions
             questions:
-              - title: Fine?
-              - title: Also fine?
+              - id: q1
+                title: Fine?
+              - id: q2
+                title: Also fine?
                 other: false
             ```
 
             ```questions
             questions:
-              - title: Broken?
+              - id: q3
+                title: Broken?
                 header: WayTooLongHeader
             ```
             """;
@@ -410,7 +498,7 @@ public class QuestionValidationServiceTests
         Assert.Equal("block 1: question 2: other: false with no options is unanswerable", issues[0].Message);
         Assert.StartsWith("block 2: question 1: header 'WayTooLongHeader'", issues[1].Message);
         Assert.Equal(1, issues[0].Line);
-        Assert.Equal(8, issues[1].Line);
+        Assert.Equal(10, issues[1].Line);
     }
 
     [Fact]
@@ -418,7 +506,8 @@ public class QuestionValidationServiceTests
     {
         Assert.DoesNotContain("block 1", SingleError("""
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 other: false
             """));
     }
@@ -436,7 +525,8 @@ public class QuestionValidationServiceTests
     {
         var issues = Validate("""
             questions:
-              - title: Which one?
+              - id: q1
+                title: Which one?
                 header: FarTooLongToFit
                 options:
                   - title: First
