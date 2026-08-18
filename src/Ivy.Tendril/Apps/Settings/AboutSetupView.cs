@@ -178,8 +178,7 @@ public class AboutSetupView : ViewBase
                                 isCheckingUpdates.Set(false);
                             }
                         });
-                    }))
-            | Text.Muted("Application details, environment diagnostics, and bundled toolchain.");
+                    }));
 
         var content = Layout.Vertical().Width(Size.Full().Max(Size.Units(200)))
             | systemDetailsCard
