@@ -85,59 +85,7 @@ public class CodingAgentSetupView : ViewBase
             initialValue: []
         );
 
-        var tendrilArgs = UseService<TendrilArgs>();
-        var installedIvyVersion = UseState<string?>(null);
-        var latestIvyVersion = UseState<string?>(null);
-        var isCheckingIvyUpdate = UseState(false);
-        var isIvyUpdating = UseState(false);
-        var ivyUpdateError = UseState<string?>(null);
-        var isIvyInstalled = UseState(false);
-        var isInstalling = UseState(false);
-        var installError = UseState<string?>(null);
 
-        var checkIvyInstall = async () =>
-        {
-            var hc = runner.GetHealthCheck("ivy") ?? runner.GetHealthCheck("openaiproxy") ?? runner.GetHealthCheck("opencode");
-            if (hc != null)
-            {
-                var status = await hc.CheckInstallAsync();
-                isIvyInstalled.Set(status.IsInstalled);
-                installedIvyVersion.Set(status.Version);
-            }
-            else
-            {
-                isIvyInstalled.Set(false);
-                installedIvyVersion.Set(null);
-            }
-
-            if (tendrilArgs.Beta && (selectedAgent.Value == "openaiproxy_card" || selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card" || selectedAgent.Value == "ivy_card" || selectedAgent.Value == "opencode"))
-            {
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        isCheckingIvyUpdate.Set(true);
-                        using var http = new HttpClient();
-                        http.DefaultRequestHeaders.UserAgent.ParseAdd("IvyTendril");
-                        var latest = await FetchLatestIvyVersionAsync(http);
-                        latestIvyVersion.Set(latest);
-                    }
-                    catch
-                    {
-                        // Ignore quiet errors for background check
-                    }
-                    finally
-                    {
-                        isCheckingIvyUpdate.Set(false);
-                    }
-                });
-            }
-        };
-
-        UseEffect(async () =>
-        {
-            await checkIvyInstall();
-        }, selectedAgent);
 
         var isBerget = selectedAgent.Value == "berget_card";
         var realAgentId = selectedAgent.Value == "openaiproxy_card"
@@ -309,54 +257,6 @@ public class CodingAgentSetupView : ViewBase
             | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced")
             | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick");
 
-        object? ivyAgentUpdateCard = null;
-        if (tendrilArgs.Beta && (selectedAgent.Value == "openaiproxy_card" || selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card" || selectedAgent.Value == "ivy_card" || selectedAgent.Value == "opencode"))
-        {
-            var hasUpdate = !string.IsNullOrEmpty(latestIvyVersion.Value) &&
-                !string.Equals(NormalizeVersion(installedIvyVersion.Value), NormalizeVersion(latestIvyVersion.Value), StringComparison.OrdinalIgnoreCase);
-
-            if (hasUpdate)
-            {
-                ivyAgentUpdateCard = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
-                    | new Card(
-                        Layout.Vertical()
-                        | (Layout.Horizontal()
-                            | Text.Block("Update Client").Bold()
-                            | new Spacer()
-                            | new Badge($"Update Available: {installedIvyVersion.Value ?? "Not Installed"} → {latestIvyVersion.Value}", BadgeVariant.Warning))
-                        | (ivyUpdateError.Value != null ? Text.Danger(ivyUpdateError.Value).Small() : null!)
-                        | new Button(isIvyUpdating.Value ? "Updating Ivy Agent CLI..." : "Update Ivy Agent CLI")
-                            .Primary()
-                            .Disabled(isIvyUpdating.Value)
-                            .OnClick(async () =>
-                            {
-                                isIvyUpdating.Set(true);
-                                ivyUpdateError.Set(null);
-                                try
-                                {
-                                    var success = await InstallIvyAgentAsync(client);
-                                    if (success)
-                                    {
-                                        await checkIvyInstall();
-                                    }
-                                    else
-                                    {
-                                        ivyUpdateError.Set("Installation failed.");
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    ivyUpdateError.Set(ex.Message);
-                                }
-                                finally
-                                {
-                                    isIvyUpdating.Set(false);
-                                }
-                            })
-                    );
-            }
-        }
-
         return Layout.Vertical()
                | Text.Block("Coding Agent").Bold()
                | (Layout.Vertical()
@@ -370,7 +270,6 @@ public class CodingAgentSetupView : ViewBase
                            | byoGrid.Width(Size.Full())))
                    : null!)
                | agentInputs
-               | ivyAgentUpdateCard
                | profileModels
                | new Spacer()
                | (Layout.Horizontal()
@@ -587,168 +486,7 @@ public class CodingAgentSetupView : ViewBase
     }
 
 
-    private static async Task<bool> InstallIvyAgentAsync(IClientProvider client)
-    {
-        string os = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "windows" :
-                    RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "darwin" : "linux";
-        string arch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x64";
 
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var installDir = Path.Combine(home, ".ivy-agent", "bin");
-        Directory.CreateDirectory(installDir);
-
-        var tempDir = Path.Combine(Path.GetTempPath(), "ivy-agent-install");
-        if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
-        Directory.CreateDirectory(tempDir);
-
-        try
-        {
-            using var httpClient = new HttpClient();
-            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("IvyTendril");
-
-            // 1. Get latest version from GitHub releases / CDN
-            string version;
-            try
-            {
-                version = await FetchLatestIvyVersionAsync(httpClient);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Failed to fetch latest version metadata: {ex.Message}");
-            }
-
-            // 2. Download the archive from CDN
-            string extension = os == "windows" ? ".zip" : ".tar.gz";
-            string archiveName = $"ivy-agent-cli-{os}-{arch}{extension}";
-            string downloadUrl = $"https://cdn.ivy.app/ivy-agent-cli/releases/download/{version}/{archiveName}";
-            string archivePath = Path.Combine(tempDir, archiveName);
-
-            try
-            {
-                using var stream = await httpClient.GetStreamAsync(downloadUrl);
-                using var fileStream = new FileStream(archivePath, FileMode.Create, FileAccess.Write, FileShare.None);
-                await stream.CopyToAsync(fileStream);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Failed to download release archive from CDN: {ex.Message}");
-            }
-
-            if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-            {
-                ZipFile.ExtractToDirectory(archivePath, tempDir, true);
-            }
-            else if (archivePath.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
-            {
-                var tarInfo = new ProcessStartInfo
-                {
-                    FileName = "tar",
-                    Arguments = $"-xzf \"{archivePath}\" -C \"{tempDir}\"",
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using var tarProc = Process.Start(tarInfo);
-                if (tarProc != null)
-                {
-                    await tarProc.WaitForExitAsync();
-                    if (tarProc.ExitCode != 0)
-                    {
-                        var tarErr = await tarProc.StandardError.ReadToEndAsync();
-                        throw new Exception($"tar extraction failed: {tarErr.Trim()}");
-                    }
-                }
-            }
-
-            string binaryName = os == "windows" ? "ivy-agent.exe" : "ivy-agent";
-            var files = Directory.GetFiles(tempDir, binaryName, SearchOption.AllDirectories);
-            var binarySource = files.FirstOrDefault();
-
-            if (string.IsNullOrEmpty(binarySource))
-            {
-                throw new Exception($"Binary '{binaryName}' not found in the downloaded archive.");
-            }
-
-            // Kill any running ivy-agent processes before updating
-            try
-            {
-                foreach (var proc in Process.GetProcessesByName("ivy-agent"))
-                {
-                    try { proc.Kill(true); } catch { }
-                }
-            }
-            catch { }
-
-            string destPath = Path.Combine(installDir, binaryName);
-            try
-            {
-                if (File.Exists(destPath)) File.Delete(destPath);
-            }
-            catch
-            {
-                // On Windows, if file is locked, rename it to .old first
-                var oldPath = destPath + ".old." + DateTime.UtcNow.Ticks;
-                try { File.Move(destPath, oldPath); } catch { }
-            }
-
-            if (File.Exists(binarySource))
-            {
-                File.Copy(binarySource, destPath, overwrite: true);
-                File.Delete(binarySource);
-            }
-
-            var localBin = Path.Combine(home, ".local", "bin", binaryName);
-            if (File.Exists(localBin))
-            {
-                try
-                {
-                    File.Copy(destPath, localBin, overwrite: true);
-                }
-                catch
-                {
-                    // Ignore quiet copy issues to localBin if locked
-                }
-            }
-
-            IvyBinaryResolver.ResetCache();
-
-            if (os != "windows")
-            {
-                var chmodInfo = new ProcessStartInfo
-                {
-                    FileName = "chmod",
-                    Arguments = $"+x \"{destPath}\"",
-                    CreateNoWindow = true,
-                    UseShellExecute = false
-                };
-                using var chmodProc = Process.Start(chmodInfo);
-                if (chmodProc != null) await chmodProc.WaitForExitAsync();
-            }
-
-            if (os == "darwin")
-            {
-                var codesignInfo = new ProcessStartInfo
-                {
-                    FileName = "codesign",
-                    Arguments = $"-s - --force \"{destPath}\"",
-                    CreateNoWindow = true,
-                    UseShellExecute = false
-                };
-                using var codesignProc = Process.Start(codesignInfo);
-                if (codesignProc != null) await codesignProc.WaitForExitAsync();
-            }
-
-            return true;
-        }
-        finally
-        {
-            try
-            {
-                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
-            }
-            catch { }
-        }
-    }
 
     private static string GetOpenAiProxyApiKeyFromConfig(IConfigService config)
     {
@@ -808,26 +546,5 @@ public class CodingAgentSetupView : ViewBase
         {
             ac.EnvironmentVariables["ANTHROPIC_BASE_URL"] = url;
         }
-    }
-
-    private static async Task<string> FetchLatestIvyVersionAsync(HttpClient httpClient)
-    {
-        try
-        {
-            var url = $"https://cdn.ivy.app/ivy-agent-cli/releases/latest.txt?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-            return (await httpClient.GetStringAsync(url)).Trim();
-        }
-        catch
-        {
-            return "v0.1.0";
-        }
-    }
-
-    private static string NormalizeVersion(string? v)
-    {
-        if (string.IsNullOrWhiteSpace(v)) return "";
-        v = v.Trim();
-        if (v.StartsWith("v", StringComparison.OrdinalIgnoreCase)) v = v.Substring(1);
-        return v;
     }
 }

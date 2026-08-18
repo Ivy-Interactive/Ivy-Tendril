@@ -343,6 +343,62 @@ jobs:
           fi
           echo ".NET SDK bundled successfully!"
 
+      - name: Bundle Ivy Agent CLI
+        shell: bash
+        run: |
+          IVY_AGENT_VERSION="v0.1.5"
+          RID="${{ matrix.rid }}"
+          PUBLISH_DIR="./publish/desktop/$RID"
+          
+          echo "Bundling Ivy Agent CLI $IVY_AGENT_VERSION for $RID into $PUBLISH_DIR..."
+          
+          if [[ "$RID" == win-x64 ]]; then
+            URL="https://cdn.ivy.app/ivy-agent-cli/releases/download/$IVY_AGENT_VERSION/ivy-agent-cli-windows-x64.zip"
+            curl -L -o ivy-agent.zip "$URL"
+            unzip -q -o ivy-agent.zip -d "$PUBLISH_DIR"
+            rm ivy-agent.zip
+          elif [[ "$RID" == win-arm64 ]]; then
+            URL="https://cdn.ivy.app/ivy-agent-cli/releases/download/$IVY_AGENT_VERSION/ivy-agent-cli-windows-arm64.zip"
+            curl -L -o ivy-agent.zip "$URL"
+            unzip -q -o ivy-agent.zip -d "$PUBLISH_DIR"
+            rm ivy-agent.zip
+          elif [[ "$RID" == osx-x64 ]]; then
+            URL="https://cdn.ivy.app/ivy-agent-cli/releases/download/$IVY_AGENT_VERSION/ivy-agent-cli-darwin-x64.tar.gz"
+            curl -L -o ivy-agent.tar.gz "$URL"
+            tar -xzf ivy-agent.tar.gz -C "$PUBLISH_DIR"
+            rm ivy-agent.tar.gz
+          elif [[ "$RID" == osx-arm64 ]]; then
+            URL="https://cdn.ivy.app/ivy-agent-cli/releases/download/$IVY_AGENT_VERSION/ivy-agent-cli-darwin-arm64.tar.gz"
+            curl -L -o ivy-agent.tar.gz "$URL"
+            tar -xzf ivy-agent.tar.gz -C "$PUBLISH_DIR"
+            rm ivy-agent.tar.gz
+          elif [[ "$RID" == linux-x64 ]]; then
+            URL="https://cdn.ivy.app/ivy-agent-cli/releases/download/$IVY_AGENT_VERSION/ivy-agent-cli-linux-x64.tar.gz"
+            curl -L -o ivy-agent.tar.gz "$URL"
+            tar -xzf ivy-agent.tar.gz -C "$PUBLISH_DIR"
+            rm ivy-agent.tar.gz
+          elif [[ "$RID" == linux-arm64 ]]; then
+            URL="https://cdn.ivy.app/ivy-agent-cli/releases/download/$IVY_AGENT_VERSION/ivy-agent-cli-linux-arm64.tar.gz"
+            curl -L -o ivy-agent.tar.gz "$URL"
+            tar -xzf ivy-agent.tar.gz -C "$PUBLISH_DIR"
+            rm ivy-agent.tar.gz
+          fi
+          
+          # Verify ivy-agent executable exists and is executable
+          if [[ "$RID" == win-* ]]; then
+            if [[ ! -f "$PUBLISH_DIR/ivy-agent.exe" ]]; then
+              echo "Error: ivy-agent.exe not found after extraction!"
+              exit 1
+            fi
+          else
+            if [[ ! -f "$PUBLISH_DIR/ivy-agent" ]]; then
+              echo "Error: ivy-agent not found after extraction!"
+              exit 1
+            fi
+            chmod +x "$PUBLISH_DIR/ivy-agent"
+          fi
+          echo "Ivy Agent CLI bundled successfully!"
+
       - name: Import Apple Certificates (macOS)
         if: startsWith(matrix.rid, 'osx-')
         env:
