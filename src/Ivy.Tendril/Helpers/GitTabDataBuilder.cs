@@ -7,7 +7,12 @@ public static class GitTabDataBuilder
 {
     public record GitTabData(
         List<WorktreeSection> WorktreeSections,
-        List<PlanContentHelpers.CommitRow> UnassociatedCommitRows
+        List<PlanContentHelpers.CommitRow> UnassociatedCommitRows,
+        // Ref status for the unassociated commits only. Commits listed under a worktree section are
+        // ancestors of that worktree's HEAD and so reachable by definition; the unassociated ones
+        // are those no surviving worktree accounts for, which is exactly where a commit can turn
+        // out to be reachable from nothing at all.
+        Dictionary<string, CommitRefStatus>? UnassociatedCommitRefStatus = null
     );
 
     public record WorktreeSection(
@@ -71,7 +76,42 @@ public static class GitTabDataBuilder
             .Where(r => !assignedCommitHashes.Contains(r.Hash))
             .ToList();
 
-        return new GitTabData(sections, unassigned);
+        return new GitTabData(sections, unassigned, ResolveRefStatus(plan, config, gitService, unassigned));
+    }
+
+    /// <summary>
+    ///     Asks each of the plan's repos whether it still holds the given commits, and keeps the best
+    ///     answer per commit: a commit lives in exactly one of a multi-repo plan's repos, so a repo
+    ///     that has never heard of it must not mask the repo that has.
+    /// </summary>
+    private static Dictionary<string, CommitRefStatus> ResolveRefStatus(
+        PlanFile plan, IConfigService config, IGitService gitService, List<PlanContentHelpers.CommitRow> rows)
+    {
+        var statuses = new Dictionary<string, CommitRefStatus>(StringComparer.OrdinalIgnoreCase);
+        if (rows.Count == 0) return statuses;
+
+        var hashes = rows.Select(r => r.Hash).ToList();
+        foreach (var repo in plan.GetEffectiveRepoPaths(config))
+        {
+            var result = gitService.GetCommitRefStatus(repo, hashes);
+            if (!result.IsSuccess || result.Value == null) continue;
+
+            foreach (var (hash, status) in result.Value)
+            {
+                if (!statuses.TryGetValue(hash, out var current) || Rank(status) < Rank(current))
+                    statuses[hash] = status;
+            }
+        }
+
+        return statuses;
+
+        // Reachable is the most informative answer, Missing the least.
+        static int Rank(CommitRefStatus status) => status switch
+        {
+            CommitRefStatus.Reachable => 0,
+            CommitRefStatus.Unreachable => 1,
+            _ => 2
+        };
     }
 
     private static WorktreeSection? BuildSectionForWorktree(

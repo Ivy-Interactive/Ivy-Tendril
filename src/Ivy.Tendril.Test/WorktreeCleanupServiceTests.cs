@@ -1,3 +1,4 @@
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -21,8 +22,19 @@ public class WorktreeCleanupServiceTests : IDisposable
     public void Dispose()
     {
         _service.Dispose();
-        if (Directory.Exists(_tempDir))
+        if (!Directory.Exists(_tempDir)) return;
+
+        try
+        {
+            // Tests that build a real git repo leave read-only files under .git/objects, which plain
+            // Directory.Delete refuses with UnauthorizedAccessException.
+            WorktreeCleanupService.ClearReadOnlyAttributes(_tempDir);
             Directory.Delete(_tempDir, true);
+        }
+        catch
+        {
+            // Best-effort temp cleanup.
+        }
     }
 
     private string CreatePlan(string folderName, string state, DateTime? updated = null)
@@ -51,8 +63,9 @@ public class WorktreeCleanupServiceTests : IDisposable
     [Fact]
     public void RunCleanup_Skips_Active_State_Plans()
     {
-        // Truly active/transient states are never reaped, regardless of age. (Draft and
-        // Review are handled by the stale-reaper tests — they ARE reaped once idle.)
+        // Truly active/transient states are never reaped, regardless of age. (Draft is handled by
+        // the stale-reaper tests — it IS reaped once idle. Review is never reaped either, but for a
+        // different reason; see RunCleanup_NeverReaps_UnreapableStates_EvenWhenOld.)
         var activeStates = new[] { "Creating", "Executing", "Updating", "Blocked" };
         foreach (var state in activeStates)
         {
@@ -537,9 +550,10 @@ public class WorktreeCleanupServiceTests : IDisposable
     [Fact]
     public void RunCleanup_Reaps_StaleRecoveryStates_PastReaperWindow()
     {
-        // Failed/Draft/Review keep their worktree for recovery/resume, but once the
-        // plan has been idle past the reaper window the worktree is reclaimed.
-        var states = new[] { "Failed", "Draft", "Review" };
+        // Failed/Draft hold disposable work that re-executing recreates, so once the plan has been
+        // idle past the reaper window the worktree is reclaimed. (Review is excluded — see
+        // CleanupPlanWorktrees_NeverReapsReview_EvenFarPastTheStaleWindow.)
+        var states = new[] { "Failed", "Draft" };
         foreach (var state in states)
         {
             var dir = CreatePlan($"15{Array.IndexOf(states, state):D3}-{state}Stale", state, DateTime.UtcNow.AddDays(-8));
@@ -558,7 +572,7 @@ public class WorktreeCleanupServiceTests : IDisposable
     [Fact]
     public void RunCleanup_Keeps_StaleRecoveryStates_WithinReaperWindow()
     {
-        var states = new[] { "Failed", "Draft", "Review" };
+        var states = new[] { "Failed", "Draft" };
         foreach (var state in states)
         {
             var dir = CreatePlan($"16{Array.IndexOf(states, state):D3}-{state}Fresh", state, DateTime.UtcNow.AddHours(-2));
@@ -575,9 +589,13 @@ public class WorktreeCleanupServiceTests : IDisposable
     }
 
     [Fact]
-    public void RunCleanup_NeverReaps_ActiveStates_EvenWhenOld()
+    public void RunCleanup_NeverReaps_UnreapableStates_EvenWhenOld()
     {
-        var states = new[] { "Creating", "Executing", "Updating", "Blocked" };
+        // These states are exempt for two different reasons, which is why the set is named for what
+        // it does (never reaped) rather than for "active": Creating/Executing/Updating/Blocked are
+        // transient, while Review has finished and produced commits, and reaping would force-delete
+        // the only branch holding them. What they share is that no idle age makes them reapable.
+        var states = new[] { "Creating", "Executing", "Updating", "Blocked", "Review" };
         foreach (var state in states)
         {
             var dir = CreatePlan($"17{Array.IndexOf(states, state):D3}-{state}Old", state, DateTime.UtcNow.AddDays(-30));
@@ -589,8 +607,22 @@ public class WorktreeCleanupServiceTests : IDisposable
         foreach (var state in states)
         {
             var worktreesDir = Path.Combine(_plansDir, $"17{Array.IndexOf(states, state):D3}-{state}Old", "Worktrees");
-            Assert.True(Directory.Exists(worktreesDir), $"Active {state} plan should never be reaped regardless of age");
+            Assert.True(Directory.Exists(worktreesDir), $"{state} plan should never be reaped regardless of age");
         }
+    }
+
+    [Fact]
+    public void CleanupPlanWorktrees_NeverReapsReview_EvenFarPastTheStaleWindow()
+    {
+        // A Review plan waits on a human, and its branch is the only ref holding the commits
+        // execution produced. No idle window makes it eligible for the automatic reaper.
+        var dir = CreatePlan("21000-ReviewLongIdle", "Review", DateTime.UtcNow.AddDays(-60));
+        CreateWorktreeDir(dir, "Repo");
+
+        WorktreeCleanupService.CleanupPlanWorktrees(dir);
+
+        Assert.True(Directory.Exists(Path.Combine(dir, "Worktrees")),
+            "Review plan idle 60 days should still keep its worktree");
     }
 
     [Fact]
@@ -636,11 +668,19 @@ public class WorktreeCleanupServiceTests : IDisposable
         Assert.Equal(terminal, WorktreeCleanupService.ResolveGrace("Icebox", terminal, stale));
         Assert.Equal(stale, WorktreeCleanupService.ResolveGrace("Failed", terminal, stale));
         Assert.Equal(stale, WorktreeCleanupService.ResolveGrace("Draft", terminal, stale));
-        Assert.Equal(stale, WorktreeCleanupService.ResolveGrace("Review", terminal, stale));
         Assert.Null(WorktreeCleanupService.ResolveGrace("Creating", terminal, stale));
         Assert.Null(WorktreeCleanupService.ResolveGrace("Executing", terminal, stale));
         Assert.Null(WorktreeCleanupService.ResolveGrace("Updating", terminal, stale));
         Assert.Null(WorktreeCleanupService.ResolveGrace("Blocked", terminal, stale));
+    }
+
+    [Fact]
+    public void ResolveGrace_ReturnsNull_ForReview()
+    {
+        var terminal = TimeSpan.FromMinutes(10);
+        var stale = TimeSpan.FromDays(7);
+
+        Assert.Null(WorktreeCleanupService.ResolveGrace("Review", terminal, stale));
     }
 
     [Fact]
@@ -660,6 +700,107 @@ public class WorktreeCleanupServiceTests : IDisposable
         WorktreeCleanupService.RemoveWorktrees(dir, logger);
 
         Assert.False(Directory.Exists(worktreeDir), "Worktree should be cleaned up even if daemon stop fails");
+    }
+
+    [Fact]
+    public void RemoveWorktrees_PreserveUnpushed_KeepsBranchHoldingUnpushedCommits()
+    {
+        // The plan-00070 hazard: the plan branch is the only ref holding the commits execution
+        // produced. The worktree directory is still reclaimed — only the ref survives.
+        var (planDir, repo, branch) = CreatePlanWithRealWorktree("22000-UnpushedWork", "Failed", withOwnCommit: true);
+
+        var logEntries = new List<string>();
+        WorktreeCleanupService.RemoveWorktrees(planDir, new CapturingLogger(logEntries), null,
+            BranchDeleteMode.PreserveUnpushed);
+
+        Assert.False(Directory.Exists(Path.Combine(planDir, "Worktrees", "Repo")), "Worktree directory should still be reclaimed");
+        Assert.True(BranchExists(repo, branch), "Branch holding unpushed commits must not be deleted");
+        Assert.Contains(logEntries, e => e.Contains("Kept branch") && e.Contains(branch));
+    }
+
+    [Fact]
+    public void RemoveWorktrees_PreserveUnpushed_DeletesBranchWithNothingToLose()
+    {
+        // Safe delete succeeds when the branch is fully merged into its base, so a plan branch that
+        // produced no commits of its own is still cleaned up rather than accumulating.
+        var (planDir, repo, branch) = CreatePlanWithRealWorktree("22001-NoOwnCommits", "Failed", withOwnCommit: false);
+
+        WorktreeCleanupService.RemoveWorktrees(planDir, NullLogger<WorktreeCleanupService>.Instance, null,
+            BranchDeleteMode.PreserveUnpushed);
+
+        Assert.False(BranchExists(repo, branch), "A branch merged into its base holds nothing to lose and should be deleted");
+    }
+
+    [Fact]
+    public void RemoveWorktrees_Force_StillDeletesBranchHoldingUnpushedCommits()
+    {
+        // Explicit user actions (Complete, Discard, Reset to Draft, deleting the plan) keep the old
+        // behavior: the user asked for this work to go away and is present to notice.
+        var (planDir, repo, branch) = CreatePlanWithRealWorktree("22002-ForcedAway", "Failed", withOwnCommit: true);
+
+        WorktreeCleanupService.RemoveWorktrees(planDir, NullLogger<WorktreeCleanupService>.Instance);
+
+        Assert.False(BranchExists(repo, branch), "Force mode should delete the branch regardless of what it holds");
+    }
+
+    [Fact]
+    public void CleanupPlanWorktrees_ReapsWorktree_ButKeepsBranch_ForStalePlanWithUnpushedCommits()
+    {
+        // End to end through the unattended reaper: an idle Failed plan past the stale window still
+        // loses its worktree, but its commits stay reachable.
+        var (planDir, repo, branch) = CreatePlanWithRealWorktree("22003-StaleFailed", "Failed",
+            withOwnCommit: true, updated: DateTime.UtcNow.AddDays(-8));
+
+        WorktreeCleanupService.CleanupPlanWorktrees(planDir);
+
+        Assert.False(Directory.Exists(Path.Combine(planDir, "Worktrees")), "Stale Failed plan should still have its worktree reaped");
+        Assert.True(BranchExists(repo, branch), "Reaping must not orphan the commits the branch is the only ref for");
+    }
+
+    /// <summary>
+    ///     Builds a plan folder whose <c>Worktrees/Repo</c> is a real git worktree of a real
+    ///     throwaway repo, on the branch name <see cref="WorktreeCleanupService.RemoveWorktrees" />
+    ///     derives from the folder name. Returns the plan folder, the parent repo, and the branch.
+    /// </summary>
+    private (string PlanDir, string RepoPath, string Branch) CreatePlanWithRealWorktree(
+        string folderName, string state, bool withOwnCommit, DateTime? updated = null)
+    {
+        var planDir = CreatePlan(folderName, state, updated);
+
+        var repoPath = Path.Combine(_tempDir, $"repo-{folderName}");
+        Directory.CreateDirectory(repoPath);
+        RunGit(repoPath, "init");
+        RunGit(repoPath, "config user.email test@example.com");
+        RunGit(repoPath, "config user.name TestUser");
+        File.WriteAllText(Path.Combine(repoPath, "base.txt"), "base");
+        RunGit(repoPath, "add base.txt");
+        RunGit(repoPath, "commit -m \"Initial commit\"");
+
+        var branch = $"tendril/{folderName}";
+        var worktreePath = Path.Combine(planDir, "Worktrees", "Repo");
+        RunGit(repoPath, $"worktree add -b \"{branch}\" \"{worktreePath}\"");
+
+        if (withOwnCommit)
+        {
+            File.WriteAllText(Path.Combine(worktreePath, "work.txt"), "unpushed work");
+            RunGit(worktreePath, "add work.txt");
+            RunGit(worktreePath, "commit -m \"Plan work that exists nowhere else\"");
+        }
+
+        return (planDir, repoPath, branch);
+    }
+
+    private static bool BranchExists(string repoPath, string branch)
+    {
+        var (exitCode, _, _) = GitHelper.RunGit($"rev-parse --verify --quiet \"refs/heads/{branch}\"", repoPath, 10000);
+        return exitCode == 0;
+    }
+
+    private static void RunGit(string workingDir, string args)
+    {
+        var (exitCode, _, stdErr) = GitHelper.RunGit(args, workingDir, 30000);
+        if (exitCode != 0)
+            throw new InvalidOperationException($"git {args} failed in {workingDir}: {stdErr}");
     }
 
     private class LoggerAdapter(ILogger inner) : ILogger<WorktreeCleanupService>

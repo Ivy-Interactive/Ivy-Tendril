@@ -476,6 +476,12 @@ public class PlanContentHelpersTests
             return GitResult<List<string>>.Success(candidateHashes.ToList());
         }
 
+        public GitResult<Dictionary<string, CommitRefStatus>> GetCommitRefStatus(string repoPath, IEnumerable<string> commitHashes)
+        {
+            return GitResult<Dictionary<string, CommitRefStatus>>.Success(
+                commitHashes.ToDictionary(h => h, _ => CommitRefStatus.Reachable));
+        }
+
         public GitResult<DirtyRepoResult> GetRepoDirtyState(string repoPath, string expectedBaseBranch)
         {
             return GitResult<DirtyRepoResult>.Success(new DirtyRepoResult());

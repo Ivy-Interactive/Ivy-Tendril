@@ -305,4 +305,39 @@ public class GitServiceTests : IDisposable
 
         Assert.False(result.IsSuccess);
     }
+
+    [Fact]
+    public void GetCommitRefStatus_SeparatesReachableFromOrphanedAndAbsentCommits()
+    {
+        // Reproduces what the reaper used to leave behind: a commit made on a branch that was then
+        // deleted still exists as an object, but nothing reaches it.
+        var service = CreateService();
+        var reachable = GetCommitHash();
+
+        RunGit("checkout -b doomed");
+        File.WriteAllText(Path.Combine(_testRepoPath, "orphan.txt"), "work with no ref");
+        RunGit("add orphan.txt");
+        RunGit("commit -m \"Work that outlives its branch\"");
+        var orphaned = GetCommitHash();
+        RunGit("checkout -");
+        RunGit("branch -D doomed");
+
+        var result = service.GetCommitRefStatus(_testRepoPath, [reachable, orphaned, "0123456789abcdef0123456789abcdef01234567"]);
+
+        Assert.True(result.IsSuccess);
+        var statuses = result.Value!;
+        Assert.Equal(CommitRefStatus.Reachable, statuses[reachable]);
+        Assert.Equal(CommitRefStatus.Unreachable, statuses[orphaned]);
+        Assert.Equal(CommitRefStatus.Missing, statuses["0123456789abcdef0123456789abcdef01234567"]);
+    }
+
+    [Fact]
+    public void GetCommitRefStatus_ReturnsFailureForInvalidRepo()
+    {
+        var service = CreateService();
+
+        var result = service.GetCommitRefStatus("/nonexistent/path", ["abc1234"]);
+
+        Assert.False(result.IsSuccess);
+    }
 }

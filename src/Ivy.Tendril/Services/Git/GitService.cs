@@ -379,6 +379,53 @@ public class GitService : IGitService
         }
     }
 
+    /// <summary>
+    ///     Classifies each commit as reachable from a ref, unreachable (a loose object the next
+    ///     <c>git gc</c> prunes), or absent from this repo. Unlike
+    ///     <see cref="GetReachableCommits" />, which asks whether a commit is an ancestor of one
+    ///     worktree's HEAD, this asks whether <em>anything at all</em> still holds the commit.
+    /// </summary>
+    public GitResult<Dictionary<string, CommitRefStatus>> GetCommitRefStatus(string repoPath, IEnumerable<string> commitHashes)
+    {
+        try
+        {
+            if (!Directory.Exists(repoPath))
+                return GitResult<Dictionary<string, CommitRefStatus>>.Failure(GitError.InvalidRepoPath, $"Repository path does not exist: {repoPath}");
+
+            var statuses = new Dictionary<string, CommitRefStatus>(StringComparer.OrdinalIgnoreCase);
+            foreach (var hash in commitHashes.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                var (existsExit, _) = RunGitCommand(repoPath, $"cat-file -e {hash}^{{commit}}");
+                if (existsExit != 0)
+                {
+                    statuses[hash] = CommitRefStatus.Missing;
+                    continue;
+                }
+
+                var (refsExit, refsOutput) = RunGitCommand(repoPath, $"for-each-ref --count=1 --contains={hash} --format=%(refname)");
+
+                // A non-zero exit means the question could not be answered (an old git without
+                // --contains, a timeout). Report Reachable rather than raise a false alarm about
+                // work being one `git gc` from destruction.
+                statuses[hash] = refsExit != 0 || !string.IsNullOrWhiteSpace(refsOutput)
+                    ? CommitRefStatus.Reachable
+                    : CommitRefStatus.Unreachable;
+            }
+
+            return GitResult<Dictionary<string, CommitRefStatus>>.Success(statuses);
+        }
+        catch (FileNotFoundException ex)
+        {
+            _logger.LogWarning(ex, "Git executable not found");
+            return GitResult<Dictionary<string, CommitRefStatus>>.Failure(GitError.GitNotFound, "Git executable not found");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Unknown error executing git command");
+            return GitResult<Dictionary<string, CommitRefStatus>>.Failure(GitError.UnknownError, ex.Message);
+        }
+    }
+
     public GitResult<WorktreeBaseInfo?> GetWorktreeBase(string repoPath)
     {
         try
