@@ -22,6 +22,7 @@ public sealed class IvyCli : IAgentCli
     public PromptTransport PromptTransport => _inner.PromptTransport;
     public OutputFormat PreferredOutputFormat => _inner.PreferredOutputFormat;
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles => _inner.DefaultProfiles;
+    public IReadOnlyList<EffortOption> SupportedEfforts => _inner.SupportedEfforts;
 
     public string? TranslateToolName(string canonicalTool) => _inner.TranslateToolName(canonicalTool);
     public string? ReverseTranslateToolName(string nativeTool) => _inner.ReverseTranslateToolName(nativeTool);

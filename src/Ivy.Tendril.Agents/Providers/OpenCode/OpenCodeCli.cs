@@ -29,6 +29,15 @@ public sealed class OpenCodeCli : IAgentCli
         new(ProfileTier.Quick, "default", "low"),
     ];
 
+    public IReadOnlyList<EffortOption> SupportedEfforts { get; } =
+    [
+        new("low", "Low"),
+        new("medium", "Medium"),
+        new("high", "High"),
+        new("xhigh", "Extra High"),
+        new("max", "Max"),
+    ];
+
     private static readonly FrozenDictionary<string, string> ToolMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         [CanonicalTools.Read] = "read",

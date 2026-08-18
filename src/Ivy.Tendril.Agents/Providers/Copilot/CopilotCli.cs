@@ -30,6 +30,14 @@ public sealed class CopilotCli : IAgentCli
         new(ProfileTier.Quick, null, "low"),
     ];
 
+    public IReadOnlyList<EffortOption> SupportedEfforts { get; } =
+    [
+        new("low", "Low"),
+        new("medium", "Medium"),
+        new("high", "High"),
+        new("xhigh", "Extra High"),
+    ];
+
     private static readonly string ShellToolName =
         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "powershell" : "bash";
 

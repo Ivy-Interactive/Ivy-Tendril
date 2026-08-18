@@ -32,6 +32,15 @@ public sealed class ClaudeCli : IAgentCli
         new(ProfileTier.Quick, "haiku", "low"),
     ];
 
+    public IReadOnlyList<EffortOption> SupportedEfforts { get; } =
+    [
+        new("low", "Low"),
+        new("medium", "Medium"),
+        new("high", "High"),
+        new("xhigh", "Extra High"),
+        new("max", "Max"),
+    ];
+
     private static readonly FrozenDictionary<string, string> ToolNameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         [CanonicalTools.Read] = "Read",
@@ -182,7 +191,7 @@ public sealed class ClaudeCli : IAgentCli
                 EffortLevel.Low => "low",
                 EffortLevel.Medium => "medium",
                 EffortLevel.High => "high",
-                EffortLevel.XHigh => "max",
+                EffortLevel.XHigh => "xhigh",
                 EffortLevel.Max => "max",
                 _ => "medium"
             });

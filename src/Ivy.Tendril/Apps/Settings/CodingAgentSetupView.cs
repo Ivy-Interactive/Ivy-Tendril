@@ -131,25 +131,40 @@ public class CodingAgentSetupView : ViewBase
         else if (isBerget || isAnthropic || isOpenAi) finalAgent = "openaiproxy";
         else finalAgent = selectedAgent.Value;
 
-        bool supportsEffort;
+        IAgentDescriptor? descriptor = null;
         try
         {
-            var descriptor = runner.GetDescriptor(finalAgent);
-            supportsEffort = descriptor.Capabilities.HasFlag(AgentCapabilities.EffortControl);
+            descriptor = runner.GetDescriptor(finalAgent);
         }
         catch
         {
-            supportsEffort = false;
         }
 
-        var effortOptions = new IAnyOption[]
+        var supportsEffort = descriptor != null && descriptor.Capabilities.HasFlag(AgentCapabilities.EffortControl);
+
+        IAnyOption[] GetEffortOptions(string? model)
         {
-            new Option<string>("Default", "default"),
-            new Option<string>("Low", "low"),
-            new Option<string>("Medium", "medium"),
-            new Option<string>("High", "high"),
-            new Option<string>("Max", "max")
-        };
+            if (descriptor == null) return [new Option<string>("Default", "default")];
+            var efforts = descriptor.GetSupportedEfforts(model);
+            if (efforts.Count == 0)
+                efforts = descriptor.SupportedEfforts;
+            if (efforts.Count == 0)
+            {
+                return
+                [
+                    new Option<string>("Default", "default"),
+                    new Option<string>("Low", "low"),
+                    new Option<string>("Medium", "medium"),
+                    new Option<string>("High", "high"),
+                    new Option<string>("Extra High", "xhigh"),
+                    new Option<string>("Max", "max")
+                ];
+            }
+
+            return new[] { new Option<string>("Default", "default") }
+                .Concat(efforts.Select(e => new Option<string>(e.DisplayName, e.Id)))
+                .ToArray<IAnyOption>();
+        }
 
         var hasAgentChanges = finalAgent != config.Settings.CodingAgent;
         var hasProfileChanges =
@@ -291,13 +306,13 @@ public class CodingAgentSetupView : ViewBase
                 ? (object)(Layout.Vertical()
                     | (Layout.Horizontal()
                         | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep").Width(Size.Fraction(0.65f))
-                        | deepEffort.ToSelectInput(effortOptions).WithField().Label("Effort").Width(Size.Fraction(0.35f)))
+                        | deepEffort.ToSelectInput(GetEffortOptions(deepModel.Value)).WithField().Label("Effort").Width(Size.Fraction(0.35f)))
                     | (Layout.Horizontal()
                         | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced").Width(Size.Fraction(0.65f))
-                        | balancedEffort.ToSelectInput(effortOptions).WithField().Label("Effort").Width(Size.Fraction(0.35f)))
+                        | balancedEffort.ToSelectInput(GetEffortOptions(balancedModel.Value)).WithField().Label("Effort").Width(Size.Fraction(0.35f)))
                     | (Layout.Horizontal()
                         | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick").Width(Size.Fraction(0.65f))
-                        | quickEffort.ToSelectInput(effortOptions).WithField().Label("Effort").Width(Size.Fraction(0.35f))))
+                        | quickEffort.ToSelectInput(GetEffortOptions(quickModel.Value)).WithField().Label("Effort").Width(Size.Fraction(0.35f))))
                 : (Layout.Vertical()
                     | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep")
                     | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced")
@@ -412,12 +427,7 @@ public class CodingAgentSetupView : ViewBase
             AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
         var profile = ac?.Profiles.FirstOrDefault(p => p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
         var value = profile?.Effort;
-        if (string.IsNullOrWhiteSpace(value)) return "default";
-        return value.ToLowerInvariant() switch
-        {
-            "xhigh" => "max",
-            _ => value.ToLowerInvariant()
-        };
+        return string.IsNullOrWhiteSpace(value) ? "default" : value.ToLowerInvariant();
     }
 
     private static void SaveProfiles(IConfigService config, string agentId,
