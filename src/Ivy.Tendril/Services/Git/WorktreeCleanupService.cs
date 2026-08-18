@@ -10,6 +10,30 @@ using YamlDotNet.Serialization.NamingConventions;
 
 namespace Ivy.Tendril.Services.Git;
 
+/// <summary>
+///     How a plan's branch is disposed of once its worktree has been removed. The branch is often the
+///     only ref holding the commits execution produced, so who asked for the removal decides whether
+///     destroying it is acceptable.
+/// </summary>
+internal enum BranchDeleteMode
+{
+    /// <summary>
+    ///     <c>git branch -D</c>: deletes the branch whatever it holds. Used by explicit user actions
+    ///     — Complete, Discard, Reset to Draft, deleting the plan or its ExecutePlan job — where the
+    ///     user has asked for this work to go away and is present to notice.
+    /// </summary>
+    Force,
+
+    /// <summary>
+    ///     <c>git branch -d</c>: git refuses to delete a branch holding commits that are not merged
+    ///     into its base or upstream, and those branches are kept and logged instead. Used by the
+    ///     unattended reaper, which runs on a timer with nobody watching and so must never silently
+    ///     orphan commits. The worktree directory is reclaimed either way — only the 41-byte ref
+    ///     survives.
+    /// </summary>
+    PreserveUnpushed
+}
+
 public class WorktreeCleanupService : IStartable, IDisposable
 {
     private static readonly Regex SafeTitleRegex = new(@"^\d{5}-(.+)", RegexOptions.Compiled);
@@ -139,7 +163,10 @@ public class WorktreeCleanupService : IStartable, IDisposable
         logger?.LogInformation("Cleaning up worktrees for plan {PlanFolder} (state: {State}, updated: {Updated})",
             Path.GetFileName(planFolderPath), planYaml.State, planYaml.Updated.ToString("o", CultureInfo.InvariantCulture));
 
-        RemoveWorktrees(planFolderPath, logger, lifecycleLogger);
+        // The reaper runs unattended on a timer, so it never force-deletes a branch: a Failed or
+        // Draft plan can hold good commits its verifications never got to, and nothing would warn
+        // before they became unreachable.
+        RemoveWorktrees(planFolderPath, logger, lifecycleLogger, BranchDeleteMode.PreserveUnpushed);
 
         // Safety net: RemoveWorktrees should have removed all directories
         foreach (var wtDir in Directory.GetDirectories(worktreesDir))
@@ -427,7 +454,14 @@ public class WorktreeCleanupService : IStartable, IDisposable
         });
     }
 
-    internal static void RemoveWorktrees(string planFolderPath, ILogger? logger = null, IWorktreeLifecycleLogger? lifecycleLogger = null)
+    /// <summary>
+    ///     Removes every git worktree under a plan's <c>Worktrees</c> directory and disposes of the
+    ///     plan's branch according to <paramref name="branchDeleteMode" />. Defaults to
+    ///     <see cref="BranchDeleteMode.Force" /> so explicit user actions keep behaving as before;
+    ///     the automatic reaper passes <see cref="BranchDeleteMode.PreserveUnpushed" />.
+    /// </summary>
+    internal static void RemoveWorktrees(string planFolderPath, ILogger? logger = null, IWorktreeLifecycleLogger? lifecycleLogger = null,
+        BranchDeleteMode branchDeleteMode = BranchDeleteMode.Force)
     {
         var worktreesDir = Path.Combine(planFolderPath, "Worktrees");
         if (!Directory.Exists(worktreesDir)) return;
@@ -490,17 +524,7 @@ public class WorktreeCleanupService : IStartable, IDisposable
                 process.WaitForExitOrKill(10000);
                 lifecycleLogger?.LogCleanupSuccess(planId, wtDir);
 
-                try
-                {
-                    var branchPsi = GitHelper.MakeGitStartInfo($"branch -D \"{branchName}\"", repoRoot);
-                    using var branchProcess = Process.Start(branchPsi);
-                    branchProcess.WaitForExitOrKill(10000);
-                    logger?.LogInformation("Deleted branch {BranchName} for worktree {WorktreeDir}", branchName, Path.GetFileName(wtDir));
-                }
-                catch (Exception branchEx)
-                {
-                    logger?.LogWarning(branchEx, "Failed to delete branch {BranchName} for worktree {WorktreeDir}", branchName, Path.GetFileName(wtDir));
-                }
+                DeletePlanBranch(repoRoot, branchName, branchDeleteMode, Path.GetFileName(wtDir), logger);
             }
             catch (Exception ex)
             {
@@ -508,6 +532,78 @@ public class WorktreeCleanupService : IStartable, IDisposable
             }
         }
     }
+
+    /// <summary>
+    ///     Deletes a plan's branch once its worktree has been removed.
+    /// </summary>
+    /// <remarks>
+    ///     Under <see cref="BranchDeleteMode.PreserveUnpushed" /> this prefers git's safe delete
+    ///     (<c>branch -d</c>), which refuses when the branch still holds commits that are not merged
+    ///     into its base or upstream. Safe delete also refuses a branch whose commits were pushed but
+    ///     which has no upstream configured, so a refusal is followed by an explicit check for a
+    ///     remote-tracking ref containing the tip: if one exists the commits outlive the branch and
+    ///     <c>branch -D</c> is safe. Otherwise the branch is kept and logged — a 41-byte ref costs far
+    ///     less than the commits it is the only ref for.
+    /// </remarks>
+    internal static void DeletePlanBranch(string repoRoot, string branchName, BranchDeleteMode mode,
+        string? worktreeName = null, ILogger? logger = null)
+    {
+        try
+        {
+            if (mode == BranchDeleteMode.Force)
+            {
+                ForceDeleteBranch(repoRoot, branchName, worktreeName, logger);
+                return;
+            }
+
+            var (safeExit, _, safeErr) = GitHelper.RunGit($"branch -d \"{branchName}\"", repoRoot, 10000);
+            if (safeExit == 0)
+            {
+                logger?.LogInformation("Deleted branch {BranchName} for worktree {WorktreeDir} (fully merged)",
+                    branchName, worktreeName);
+                return;
+            }
+
+            // No such branch — already deleted by a previous pass, or never created. Nothing to keep.
+            var (tipExit, tipOut, _) = GitHelper.RunGit($"rev-parse --verify --quiet \"refs/heads/{branchName}\"", repoRoot, 10000);
+            var tip = tipOut.Trim();
+            if (tipExit != 0 || string.IsNullOrEmpty(tip))
+            {
+                logger?.LogDebug("Branch {BranchName} does not exist in {RepoRoot}; nothing to delete", branchName, repoRoot);
+                return;
+            }
+
+            var (remotesExit, remotes, _) = GitHelper.RunGit($"branch -r --contains {tip}", repoRoot, 10000);
+            if (remotesExit == 0 && !string.IsNullOrWhiteSpace(remotes))
+            {
+                ForceDeleteBranch(repoRoot, branchName, worktreeName, logger);
+                return;
+            }
+
+            logger?.LogWarning(
+                "Kept branch {BranchName} ({Tip}) in {RepoRoot}: it holds commits that are on no remote and are not merged " +
+                "into its base or upstream, so deleting it would leave them reachable from nothing and the next `git gc` " +
+                "would destroy them. Its worktree was still reclaimed; push the branch, or delete it manually with " +
+                "`git branch -D`, once the work is no longer needed. git said: {Reason}",
+                branchName, Shorten(tip), repoRoot, safeErr.Trim());
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "Failed to delete branch {BranchName} for worktree {WorktreeDir}", branchName, worktreeName);
+        }
+    }
+
+    private static void ForceDeleteBranch(string repoRoot, string branchName, string? worktreeName, ILogger? logger)
+    {
+        var (exitCode, _, stdErr) = GitHelper.RunGit($"branch -D \"{branchName}\"", repoRoot, 10000);
+        if (exitCode == 0)
+            logger?.LogInformation("Deleted branch {BranchName} for worktree {WorktreeDir}", branchName, worktreeName);
+        else
+            logger?.LogWarning("Failed to delete branch {BranchName} for worktree {WorktreeDir}: {Error}",
+                branchName, worktreeName, stdErr.Trim());
+    }
+
+    private static string Shorten(string hash) => hash.Length > 7 ? hash[..7] : hash;
 
     internal static string ExtractSafeTitle(string planFolderPath)
     {
