@@ -552,6 +552,64 @@ public class DatabaseMigratorTests : IDisposable
         Assert.Contains("Branch", columns);
     }
 
+    [Fact]
+    public void Migration_019_JobsTokenBreakdown_AddsColumns()
+    {
+        new Migration_001_InitialSchema().Apply(_connection);
+        new Migration_002_Fts5Search().Apply(_connection);
+        new Migration_003_JobsTable().Apply(_connection);
+        new Migration_004_SourceUrl().Apply(_connection);
+        new Migration_005_CostsLogTimestampIndex().Apply(_connection);
+        new Migration_006_CostsCompositeIndex().Apply(_connection);
+        new Migration_007_FtsSourceUrl().Apply(_connection);
+        new Migration_008_PrStatusTable().Apply(_connection);
+        new Migration_009_JobsArgs().Apply(_connection);
+        new Migration_010_RecommendationImpactRisk().Apply(_connection);
+        new Migration_011_JobsTypedArgs().Apply(_connection);
+        new Migration_012_JobsPlanFileIndex().Apply(_connection);
+        new Migration_013_JobsWorkingDirAndCliCommand().Apply(_connection);
+        new Migration_014_JobsCleared().Apply(_connection);
+        new Migration_015_RenamePlanStates().Apply(_connection);
+        new Migration_016_DropRecommendationRisk().Apply(_connection);
+        new Migration_017_JobsInFlightFields().Apply(_connection);
+        new Migration_018_PrStatusBranch().Apply(_connection);
+
+        Assert.Equal(18, GetUserVersion());
+
+        new Migration_019_JobsTokenBreakdown().Apply(_connection);
+
+        Assert.Equal(19, GetUserVersion());
+
+        var columns = new List<string>();
+        using (var pragmaCmd = _connection.CreateCommand())
+        {
+            pragmaCmd.CommandText = "PRAGMA table_info(Jobs);";
+            using var reader = pragmaCmd.ExecuteReader();
+            while (reader.Read())
+                columns.Add(reader.GetString(reader.GetOrdinal("name")));
+        }
+
+        Assert.Contains("Model", columns);
+        Assert.Contains("InputTokens", columns);
+        Assert.Contains("OutputTokens", columns);
+        Assert.Contains("CacheReadTokens", columns);
+        Assert.Contains("CacheWriteTokens", columns);
+        Assert.Contains("ReasoningTokens", columns);
+        Assert.Contains("CostSource", columns);
+
+        using var insertCmd = _connection.CreateCommand();
+        insertCmd.CommandText = """
+                                INSERT INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, Model, InputTokens, OutputTokens, CacheReadTokens, CacheWriteTokens, ReasoningTokens, CostSource)
+                                VALUES ('job-1', 'ExecutePlan', 'Plan', 'Proj', 'Completed', 'claude', 'claude-opus-5', 1000, 500, 90000, 300, 42, 'agent')
+                                """;
+        insertCmd.ExecuteNonQuery();
+
+        using var selectCmd = _connection.CreateCommand();
+        selectCmd.CommandText =
+            "SELECT Model || '|' || InputTokens || '|' || OutputTokens || '|' || CacheReadTokens || '|' || CacheWriteTokens || '|' || ReasoningTokens || '|' || CostSource FROM Jobs WHERE Id = 'job-1';";
+        Assert.Equal("claude-opus-5|1000|500|90000|300|42|agent", selectCmd.ExecuteScalar()?.ToString());
+    }
+
     private class FakeMigration : IMigration
     {
         private readonly List<int>? _tracker;

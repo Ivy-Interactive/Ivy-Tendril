@@ -40,6 +40,7 @@ public partial class JobsApp
         Action<string> showOutput,
         Action<string> showPrompt,
         Action<string>? showDebug,
+        Action<string> showCost,
         Action<string> showRerun,
         List<JobItem> jobs,
         Dictionary<string, string> projectColors,
@@ -170,6 +171,20 @@ public partial class JobsApp
                 var id = e.Value.RowId?.ToString();
                 if (!string.IsNullOrEmpty(id))
                     showOutput(id);
+                return ValueTask.CompletedTask;
+            })
+            .OnCellAction(t => t.Cost, e =>
+            {
+                var id = e.Value.RowId?.ToString();
+                if (!string.IsNullOrEmpty(id))
+                    showCost(id);
+                return ValueTask.CompletedTask;
+            })
+            .OnCellAction(t => t.Tokens, e =>
+            {
+                var id = e.Value.RowId?.ToString();
+                if (!string.IsNullOrEmpty(id))
+                    showCost(id);
                 return ValueTask.CompletedTask;
             })
             /*

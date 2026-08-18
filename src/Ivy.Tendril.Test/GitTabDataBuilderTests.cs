@@ -14,11 +14,11 @@ public class GitTabDataBuilderTests : IDisposable
             Directory.Delete(_tempDir, recursive: true);
     }
 
-    private static PlanFile CreatePlan(string folderPath, List<string> commits, List<string> prs)
+    private static PlanFile CreatePlan(string folderPath, List<string> commits, List<string> prs, List<string>? repos = null)
     {
         var metadata = new PlanMetadata(
             1, "Test", "Bug", "Test Plan", PlanStatus.Draft,
-            [], commits, prs, [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
+            repos ?? [], commits, prs, [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
         return new PlanFile(metadata, "", folderPath, "");
     }
 
@@ -147,11 +147,80 @@ public class GitTabDataBuilderTests : IDisposable
         Assert.Equal("upstream/main", Assert.Single(data2.WorktreeSections).BaseBranch);
     }
 
+    [Fact]
+    public void BuildGitTabData_ReportsRefStatus_ForCommitsNoWorktreeAccountsFor()
+    {
+        var planFolder = Path.Combine(_tempDir, "plan-refstatus");
+        Directory.CreateDirectory(planFolder);
+        var plan = CreatePlan(planFolder, ["aaaaaaa1", "bbbbbbb2"], [], repos: ["/tmp/repo-a"]);
+
+        var gitService = new StubGitService
+        {
+            RefStatusByRepo =
+            {
+                ["/tmp/repo-a"] = new Dictionary<string, CommitRefStatus>
+                {
+                    ["aaaaaaa1"] = CommitRefStatus.Reachable,
+                    ["bbbbbbb2"] = CommitRefStatus.Unreachable
+                }
+            }
+        };
+
+        var data = GitTabDataBuilder.BuildGitTabData(CommitRows("aaaaaaa1", "bbbbbbb2"), plan, null!, gitService);
+
+        Assert.Equal(2, data.UnassociatedCommitRows.Count);
+        Assert.NotNull(data.UnassociatedCommitRefStatus);
+        Assert.Equal(CommitRefStatus.Reachable, data.UnassociatedCommitRefStatus!["aaaaaaa1"]);
+        Assert.Equal(CommitRefStatus.Unreachable, data.UnassociatedCommitRefStatus["bbbbbbb2"]);
+    }
+
+    [Fact]
+    public void BuildGitTabData_RefStatus_KeepsTheAnswerFromTheRepoThatHasTheCommit()
+    {
+        // A commit lives in one repo of a multi-repo plan. The other repo has never heard of it, and
+        // that must not be mistaken for the commit being gone.
+        var planFolder = Path.Combine(_tempDir, "plan-multirepo");
+        Directory.CreateDirectory(planFolder);
+        var plan = CreatePlan(planFolder, ["aaaaaaa1"], [], repos: ["/tmp/repo-a", "/tmp/repo-b"]);
+
+        var gitService = new StubGitService
+        {
+            RefStatusByRepo =
+            {
+                ["/tmp/repo-a"] = new Dictionary<string, CommitRefStatus> { ["aaaaaaa1"] = CommitRefStatus.Missing },
+                ["/tmp/repo-b"] = new Dictionary<string, CommitRefStatus> { ["aaaaaaa1"] = CommitRefStatus.Unreachable }
+            }
+        };
+
+        var data = GitTabDataBuilder.BuildGitTabData(CommitRows("aaaaaaa1"), plan, null!, gitService);
+
+        Assert.Equal(CommitRefStatus.Unreachable, data.UnassociatedCommitRefStatus!["aaaaaaa1"]);
+    }
+
+    [Fact]
+    public void BuildGitTabData_RefStatus_IsEmpty_WhenNoRepoCanAnswer()
+    {
+        // Nothing is claimed about a commit the plan's repos could not be queried for, so the Git tab
+        // shows it exactly as it does today rather than badging it as at risk.
+        var planFolder = Path.Combine(_tempDir, "plan-norepo");
+        Directory.CreateDirectory(planFolder);
+        var plan = CreatePlan(planFolder, ["aaaaaaa1"], [], repos: ["/tmp/repo-missing"]);
+
+        var data = GitTabDataBuilder.BuildGitTabData(CommitRows("aaaaaaa1"), plan, null!, new StubGitService());
+
+        Assert.NotNull(data.UnassociatedCommitRefStatus);
+        Assert.Empty(data.UnassociatedCommitRefStatus!);
+    }
+
+    private static List<PlanContentHelpers.CommitRow> CommitRows(params string[] hashes) =>
+        hashes.Select(h => new PlanContentHelpers.CommitRow(h, h[..7], $"Commit {h}", 1)).ToList();
+
     private class StubGitService : IGitService
     {
         public List<WorktreeInfo> Worktrees { get; set; } = [];
         public WorktreeBaseInfo? WorktreeBase { get; set; }
         public bool WorktreeBaseFails { get; set; }
+        public Dictionary<string, Dictionary<string, CommitRefStatus>> RefStatusByRepo { get; } = new();
 
         public GitResult<string> GetCommitTitle(string repoPath, string commitHash) =>
             GitResult<string>.Failure(GitError.CommandFailed, "Not implemented in stub");
@@ -182,6 +251,15 @@ public class GitTabDataBuilderTests : IDisposable
 
         public GitResult<List<string>> GetReachableCommits(string repoPath, IEnumerable<string> candidateHashes) =>
             GitResult<List<string>>.Success([]);
+
+        public GitResult<Dictionary<string, CommitRefStatus>> GetCommitRefStatus(string repoPath, IEnumerable<string> commitHashes)
+        {
+            if (!RefStatusByRepo.TryGetValue(repoPath, out var known))
+                return GitResult<Dictionary<string, CommitRefStatus>>.Failure(GitError.InvalidRepoPath, $"Unknown repo: {repoPath}");
+
+            return GitResult<Dictionary<string, CommitRefStatus>>.Success(
+                commitHashes.ToDictionary(h => h, h => known.TryGetValue(h, out var status) ? status : CommitRefStatus.Missing));
+        }
 
         public GitResult<DirtyRepoResult> GetRepoDirtyState(string repoPath, string expectedBaseBranch) =>
             GitResult<DirtyRepoResult>.Failure(GitError.CommandFailed, "Not implemented in stub");

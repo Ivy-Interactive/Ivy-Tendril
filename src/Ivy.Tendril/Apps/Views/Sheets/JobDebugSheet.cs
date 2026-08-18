@@ -1,8 +1,10 @@
+using System.Globalization;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Jobs.Dialogs;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -21,6 +23,10 @@ public class JobDebugSheet(
         var client = UseService<IClientProvider>();
         var nav = UseNavigation();
         var agentRunner = UseService<IAgentRunner>();
+
+        // Cost and tokens land about 30 seconds after the job finishes, on a background task —
+        // without this the sheet keeps the snapshot it read when it was opened.
+        Context.UseJobUpdates(jobService, jobId, BuildSignature);
 
         var (reportBugDialog, showReportBugDialog) = UseTrigger((isOpen) =>
             !isOpen.Value ? null : new ReportBugDialog(isOpen, jobId));
@@ -121,6 +127,15 @@ public class JobDebugSheet(
         );
     }
 
+    /// <summary>
+    /// The job fields this sheet renders, joined so <see cref="UseJobUpdatesExtensions.UseJobUpdates" />
+    /// can re-render only when one of them actually changes. Deliberately excludes the output lines
+    /// behind the Permission Denials row: they stream in continuously while a job runs, and
+    /// re-parsing them on every arrival would be far more expensive than the row is worth.
+    /// </summary>
+    internal static string BuildSignature(JobItem job) => string.Create(CultureInfo.InvariantCulture,
+        $"{job.Status};{job.StatusMessage};{job.Model};{job.SessionId};{job.StartedAt:O};{job.CompletedAt:O};{job.DurationSeconds};{job.Cost};{job.Tokens};{job.ExitCode};{job.WorkingDirectory};{job.CliCommand}");
+
     // Master model for the sheet: the details view renders it, and FormatCopyDetails projects it
     // to text. Property order here is the details-view display order.
     private sealed record JobDebugData
@@ -164,8 +179,8 @@ public class JobDebugSheet(
         Started = job.StartedAt?.ToString("u") ?? "",
         Completed = job.CompletedAt?.ToString("u") ?? "",
         Duration = job.DurationSeconds.HasValue ? $"{job.DurationSeconds}s" : "",
-        Cost = job.Cost.HasValue ? $"${job.Cost:F4}" : "",
-        Tokens = job.Tokens.HasValue ? $"{job.Tokens:N0}" : "",
+        Cost = job.Cost.HasValue ? FormatHelper.FormatCost(job.Cost.Value, decimals: 4) : "",
+        Tokens = job.Tokens.HasValue ? FormatHelper.FormatCount(job.Tokens.Value) : "",
         PermissionDenials = FormatPermissionDenials(job),
         PlanFolder = GetPlanFolderPath(job) ?? "",
         JobLog = GetJobLogPath(job) ?? "",

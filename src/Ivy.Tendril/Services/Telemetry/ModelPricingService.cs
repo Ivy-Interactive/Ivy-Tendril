@@ -5,8 +5,19 @@ namespace Ivy.Tendril.Services.Telemetry;
 
 public record CostCalculation
 {
+    /// <summary>
+    /// Input + output tokens only — deliberately excludes the cache buckets, because this is the
+    /// value persisted as <c>JobItem.Tokens</c> and aggregated by the Dashboard, the <c>Costs</c>
+    /// table and <c>costs.csv</c>. The cache buckets are carried separately below so the cost
+    /// breakdown sheet can show what the total leaves out.
+    /// </summary>
     public int TotalTokens { get; init; }
     public double TotalCost { get; init; }
+    public int InputTokens { get; init; }
+    public int OutputTokens { get; init; }
+    public int CacheReadTokens { get; init; }
+    public int CacheWriteTokens { get; init; }
+    public string? Model { get; init; }
 }
 
 public class ModelPricingService(
@@ -65,6 +76,11 @@ public class ModelPricingService(
         {
             TotalTokens = result.InputTokens + result.OutputTokens,
             TotalCost = (double)result.TotalCostUsd,
+            InputTokens = result.InputTokens,
+            OutputTokens = result.OutputTokens,
+            CacheReadTokens = result.CacheReadTokens,
+            CacheWriteTokens = result.CacheWriteTokens,
+            Model = result.Model,
         };
     }
 }

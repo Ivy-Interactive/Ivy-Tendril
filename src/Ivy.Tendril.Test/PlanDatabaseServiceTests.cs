@@ -885,6 +885,73 @@ public class PlanDatabaseServiceTests : IDisposable
     }
 
     [Fact]
+    public void UpsertJob_RoundTripsTokenBreakdown()
+    {
+        _db.UpsertJob(new JobItem
+        {
+            Id = "job-breakdown",
+            Type = "ExecutePlan",
+            PlanFile = "01500-TestPlan",
+            Project = "Tendril",
+            Status = JobStatus.Completed,
+            Provider = "claude",
+            Model = "claude-opus-5",
+            Cost = 1.2345m,
+            Tokens = 1500,
+            InputTokens = 1000,
+            OutputTokens = 500,
+            CacheReadTokens = 90_000,
+            CacheWriteTokens = 300,
+            ReasoningTokens = 42,
+            CostSource = "agent"
+        });
+
+        var result = _db.GetJobById("job-breakdown");
+
+        Assert.NotNull(result);
+        Assert.Equal("claude-opus-5", result!.Model);
+        Assert.Equal(1.2345m, result.Cost);
+        Assert.Equal(1500, result.Tokens);
+        Assert.Equal(1000, result.InputTokens);
+        Assert.Equal(500, result.OutputTokens);
+        Assert.Equal(90_000, result.CacheReadTokens);
+        Assert.Equal(300, result.CacheWriteTokens);
+        Assert.Equal(42, result.ReasoningTokens);
+        Assert.Equal("agent", result.CostSource);
+    }
+
+    [Fact]
+    public void UpsertJob_NullTokenBreakdown_RoundTripsAsNull()
+    {
+        // Migration 019 does not backfill, so jobs that completed earlier keep NULL breakdown
+        // columns and must still map — carrying their Cost/Tokens totals through unharmed.
+        _db.UpsertJob(new JobItem
+        {
+            Id = "job-no-breakdown",
+            Type = "ExecutePlan",
+            PlanFile = "01500-TestPlan",
+            Project = "Tendril",
+            Status = JobStatus.Completed,
+            Provider = "claude",
+            Cost = 0.5m,
+            Tokens = 1200
+        });
+
+        var result = _db.GetJobById("job-no-breakdown");
+
+        Assert.NotNull(result);
+        Assert.Equal(0.5m, result!.Cost);
+        Assert.Equal(1200, result.Tokens);
+        Assert.Null(result.Model);
+        Assert.Null(result.InputTokens);
+        Assert.Null(result.OutputTokens);
+        Assert.Null(result.CacheReadTokens);
+        Assert.Null(result.CacheWriteTokens);
+        Assert.Null(result.ReasoningTokens);
+        Assert.Null(result.CostSource);
+    }
+
+    [Fact]
     public void UpsertJob_NullInFlightFields_RoundTripAsNull()
     {
         _db.UpsertJob(new JobItem

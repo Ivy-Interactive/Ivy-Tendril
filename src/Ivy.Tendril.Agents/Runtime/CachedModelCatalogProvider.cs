@@ -4,8 +4,6 @@ namespace Ivy.Tendril.Agents.Runtime;
 
 public abstract class CachedModelCatalogProvider : IModelCatalogProvider
 {
-    private const string ModelsDevSource = "https://models.dev/api.json";
-
     private volatile ModelCatalogResult? _cached;
     private readonly TimeSpan _cacheDuration;
 
@@ -78,7 +76,7 @@ public abstract class CachedModelCatalogProvider : IModelCatalogProvider
         var enriched = new List<ModelInfo>(models.Count);
         foreach (var model in models)
         {
-            var entry = FindInCache(model.Id, cache);
+            var entry = ModelsDevPricingSource.Find(cache, model.Id);
             if (entry is not null)
             {
                 enriched.Add(model with
@@ -88,7 +86,7 @@ public abstract class CachedModelCatalogProvider : IModelCatalogProvider
                     CacheReadPerMillion = entry.CacheReadPerMillion,
                     CacheWritePerMillion = entry.CacheWritePerMillion,
                     ContextWindow = entry.ContextWindow ?? model.ContextWindow,
-                    PricingSource = ModelsDevSource,
+                    PricingSource = ModelsDevPricingSource.SourceUrl,
                 });
             }
             else
@@ -98,29 +96,5 @@ public abstract class CachedModelCatalogProvider : IModelCatalogProvider
         }
 
         return enriched;
-    }
-
-    private static ModelsDevPricingSource.ModelPricingEntry? FindInCache(
-        string modelId, Dictionary<string, ModelsDevPricingSource.ModelPricingEntry> cache)
-    {
-        if (cache.TryGetValue(modelId, out var entry))
-            return entry;
-
-        var slash = modelId.IndexOf('/');
-        if (slash > 0)
-        {
-            var nameOnly = modelId[(slash + 1)..];
-            if (cache.TryGetValue(nameOnly, out entry))
-                return entry;
-        }
-
-        foreach (var (key, value) in cache)
-        {
-            if (key.Contains(modelId, StringComparison.OrdinalIgnoreCase) ||
-                modelId.Contains(key, StringComparison.OrdinalIgnoreCase))
-                return value;
-        }
-
-        return null;
     }
 }

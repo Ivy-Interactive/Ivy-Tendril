@@ -3,7 +3,7 @@ using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Apps.Views;
 
-public class PlanJobsDataTableView(List<JobItem> jobs, Action<string> showDebug) : ViewBase
+public class PlanJobsDataTableView(List<JobItem> jobs, Action<string> showDebug, Action<string> showCost) : ViewBase
 {
     public override object Build()
     {
@@ -19,7 +19,7 @@ public class PlanJobsDataTableView(List<JobItem> jobs, Action<string> showDebug)
                     ? AnimatedStatusValue.Running(j.Status.ToString())
                     : AnimatedStatusValue.Idle(j.Status.ToString()),
                 Type = j.Type,
-                Cost = j.Cost.HasValue ? $"${j.Cost.Value:F2}" : "",
+                Cost = j.Cost.HasValue ? FormatHelper.FormatCost(j.Cost.Value) : "",
                 Tokens = j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : "",
                 StatusMessage = j.StatusMessage ?? ""
             })
@@ -73,6 +73,20 @@ public class PlanJobsDataTableView(List<JobItem> jobs, Action<string> showDebug)
                 var id = e.Value.Id?.ToString();
                 if (!string.IsNullOrEmpty(id))
                     showDebug(id);
+                return ValueTask.CompletedTask;
+            })
+            .OnCellAction(t => t.Cost, e =>
+            {
+                var id = e.Value.RowId?.ToString();
+                if (!string.IsNullOrEmpty(id))
+                    showCost(id);
+                return ValueTask.CompletedTask;
+            })
+            .OnCellAction(t => t.Tokens, e =>
+            {
+                var id = e.Value.RowId?.ToString();
+                if (!string.IsNullOrEmpty(id))
+                    showCost(id);
                 return ValueTask.CompletedTask;
             });
     }
