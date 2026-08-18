@@ -1,4 +1,5 @@
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Providers.OpenAiProxy;
 using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -95,6 +96,11 @@ public class CodingAgentStepView(
             GetOpenAiProxyApiKeyFromConfig(config)
         );
 
+        var deepModel = UseState("default");
+        var balancedModel = UseState("default");
+        var quickModel = UseState("default");
+        var lastDetectedProvider = UseState<string?>(null);
+
         var (installDialog, showInstallDialog) = UseTrigger<InstallDialogArgs>((isOpen, args) =>
             new InstallMissingDialog(isOpen, args));
 
@@ -116,18 +122,68 @@ public class CodingAgentStepView(
 
         if (progressMessage.Value is null && (selectedAgent.Value == "openaiproxy_card" || selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card"))
         {
-            var isAnthropicCard = selectedAgent.Value == "anthropic_card";
-            var isBergetCard = selectedAgent.Value == "berget_card";
-            var cardTitle = isBergetCard ? "Setup Berget AI" : (isAnthropicCard ? "Setup Anthropic" : "Setup OpenAI");
-            var defaultUrl = isBergetCard ? "https://api.berget.ai/v1" : (isAnthropicCard ? "https://api.anthropic.com/v1" : "https://api.openai.com");
+            var isIvy = openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app") || openAiProxyBaseUrl.Value.Contains("ivy.app");
+            var isAnthropicCard = !isIvy && (selectedAgent.Value == "anthropic_card" || openAiProxyBaseUrl.Value.Contains("api.anthropic.com"));
+            var isBergetCard = !isIvy && (selectedAgent.Value == "berget_card" || openAiProxyBaseUrl.Value.Contains("api.berget.ai"));
+
+            var cardTitle = isIvy
+                ? "Setup Ivy Proxy"
+                : (isBergetCard
+                    ? "Setup Berget AI"
+                    : (isAnthropicCard
+                        ? "Setup Anthropic"
+                        : "Setup OpenAI"));
+
+            var defaultUrl = isIvy
+                ? "https://llmproxy.ivy.app"
+                : (isBergetCard
+                    ? "https://api.berget.ai/v1"
+                    : (isAnthropicCard
+                        ? "https://api.anthropic.com/v1"
+                        : "https://api.openai.com"));
 
             if (string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value) ||
                 (isBergetCard && !openAiProxyBaseUrl.Value.Contains("api.berget.ai")) ||
                 (isAnthropicCard && (openAiProxyBaseUrl.Value == "https://api.openai.com" || openAiProxyBaseUrl.Value.Contains("api.berget.ai"))) ||
-                (!isAnthropicCard && !isBergetCard && (openAiProxyBaseUrl.Value.Contains("api.anthropic.com") || openAiProxyBaseUrl.Value.Contains("api.berget.ai"))))
+                (!isAnthropicCard && !isBergetCard && !isIvy && (openAiProxyBaseUrl.Value.Contains("api.anthropic.com") || openAiProxyBaseUrl.Value.Contains("api.berget.ai"))))
             {
                 openAiProxyBaseUrl.Set(defaultUrl);
             }
+
+            var currentProviderKey = isIvy ? "ivy" : (isAnthropicCard ? "anthropic" : (isBergetCard ? "berget" : "openai"));
+            if (lastDetectedProvider.Value != currentProviderKey)
+            {
+                lastDetectedProvider.Set(currentProviderKey);
+                if (isIvy)
+                {
+                    deepModel.Set("ivy-stem");
+                    balancedModel.Set("ivy-root");
+                    quickModel.Set("ivy-leaf");
+                }
+                else if (isAnthropicCard)
+                {
+                    deepModel.Set("claude-opus-5");
+                    balancedModel.Set("claude-sonnet-5");
+                    quickModel.Set("claude-haiku-5");
+                }
+                else if (isBergetCard)
+                {
+                    deepModel.Set("moonshotai/Kimi-K3");
+                    balancedModel.Set("moonshotai/Kimi-K3");
+                    quickModel.Set("moonshotai/Kimi-K3");
+                }
+                else
+                {
+                    deepModel.Set("gpt-5.6-sol");
+                    balancedModel.Set("gpt-5.6-terra");
+                    quickModel.Set("gpt-5.6-luna");
+                }
+            }
+
+            var availableModels = OpenAiProxyModelCatalog.GetModelsForBaseUrl(openAiProxyBaseUrl.Value);
+            var modelOptions = availableModels
+                .Select(m => new Option<string>(m.DisplayName, m.Id))
+                .ToArray<IAnyOption>();
 
             object agentInputs = isBergetCard
                 ? (Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
@@ -142,11 +198,18 @@ public class CodingAgentStepView(
                         .WithField()
                         .Label("API Key"));
 
-            return Layout.Vertical().Margin(0, 0, 0, 2)
+            object profileModels = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                | Text.Block("Profile Models").Bold()
+                | deepModel.ToSelectInput(modelOptions).WithField().Label("Deep")
+                | balancedModel.ToSelectInput(modelOptions).WithField().Label("Balanced")
+                | quickModel.ToSelectInput(modelOptions).WithField().Label("Quick");
+
+            return Layout.Vertical()
                    | Text.H3(cardTitle)
                    | (error.Value != null ? Text.Danger(error.Value) : null!)
                    | agentInputs
-                   | (Layout.Horizontal().Margin(2, 0, 0, 0)
+                   | profileModels
+                   | (Layout.Horizontal()
                        | new Button("Back")
                            .Ghost()
                            .OnClick(() =>
@@ -168,15 +231,29 @@ public class CodingAgentStepView(
                                    ? defaultUrl
                                    : openAiProxyBaseUrl.Value;
 
-                               SaveOpenAiProxyBaseUrl(config, baseUrl);
-                               SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
-                               if (isBergetCard)
+                               var targetAgent = isIvy ? "ivy" : "openaiproxy";
+                               var dm = deepModel.Value;
+                               var bm = balancedModel.Value;
+                               var qm = quickModel.Value;
+
+                               if (isIvy)
                                {
-                                   SaveProfiles(config, "openaiproxy", "moonshotai/Kimi-K3", "moonshotai/Kimi-K3", "moonshotai/Kimi-K3");
+                                   SaveProfiles(config, "ivy", dm, bm, qm);
+                                   SaveIvyApiKey(config, openAiProxyApiKey.Value);
+                                   SaveOpenAiProxyApiKey(config, "");
+                                   SaveOpenAiProxyBaseUrl(config, "");
+                               }
+                               else
+                               {
+                                   SaveProfiles(config, "openaiproxy", dm, bm, qm);
+                                   SaveOpenAiProxyBaseUrl(config, baseUrl);
+                                   SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
+                                   SaveIvyApiKey(config, "");
                                }
 
+                               config.Settings.CodingAgent = targetAgent;
                                config.SaveSettings();
-                               _ = RunFlowAsync("openaiproxy");
+                               _ = RunFlowAsync(targetAgent);
                            })
                    );
         }
@@ -429,6 +506,27 @@ public class CodingAgentStepView(
         if (ac == null)
         {
             ac = new AgentConfig { Name = "openaiproxy" };
+            config.Settings.CodingAgents.Add(ac);
+        }
+
+        if (string.IsNullOrEmpty(apiKey))
+        {
+            ac.EnvironmentVariables.Remove("ANTHROPIC_API_KEY");
+        }
+        else
+        {
+            ac.EnvironmentVariables["ANTHROPIC_API_KEY"] = apiKey;
+        }
+    }
+
+    private static void SaveIvyApiKey(IConfigService config, string apiKey)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals("ivy", StringComparison.OrdinalIgnoreCase));
+
+        if (ac == null)
+        {
+            ac = new AgentConfig { Name = "ivy" };
             config.Settings.CodingAgents.Add(ac);
         }
 

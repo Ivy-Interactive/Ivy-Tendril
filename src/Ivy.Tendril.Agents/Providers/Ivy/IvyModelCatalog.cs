@@ -17,17 +17,17 @@ public sealed class IvyModelCatalog : IModelCatalogProvider
         new()
         {
             Id = "ivy-stem", DisplayName = "Ivy Stem",
-            Capabilities = DefaultCaps, Provider = "ivy", IsDefault = true,
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Ivy, Provider = "ivy", IsDefault = true,
         },
         new()
         {
             Id = "ivy-root", DisplayName = "Ivy Root",
-            Capabilities = DefaultCaps, Provider = "ivy",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Ivy, Provider = "ivy",
         },
         new()
         {
             Id = "ivy-leaf", DisplayName = "Ivy Leaf",
-            Capabilities = DefaultCaps, Provider = "ivy",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Ivy, Provider = "ivy",
         },
     ];
 
@@ -45,6 +45,7 @@ public sealed class IvyModelCatalog : IModelCatalogProvider
                     Id = m.Id,
                     DisplayName = FormatIvyDisplayName(m.Id, m.DisplayName),
                     Capabilities = m.Capabilities,
+                    SupportedEfforts = EffortLevels.Ivy,
                     Provider = "ivy",
                     IsDefault = m.IsDefault,
                     ContextWindow = m.ContextWindow,

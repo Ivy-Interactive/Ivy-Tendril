@@ -28,16 +28,39 @@ public sealed class OpenAiProxyCli : IAgentCli
         get
         {
             var baseUrl = _baseUrlProvider();
+            if (baseUrl != null && baseUrl.Contains("llmproxy.ivy.app"))
+            {
+                return
+                [
+                    new AgentProfileDefault(ProfileTier.Deep, "ivy-stem", "max"),
+                    new AgentProfileDefault(ProfileTier.Balanced, "ivy-root", "high"),
+                    new AgentProfileDefault(ProfileTier.Quick, "ivy-leaf", "low"),
+                ];
+            }
+            if (baseUrl != null && baseUrl.Contains("api.anthropic.com"))
+            {
+                return
+                [
+                    new AgentProfileDefault(ProfileTier.Deep, "claude-opus-5", "max"),
+                    new AgentProfileDefault(ProfileTier.Balanced, "claude-sonnet-5", "high"),
+                    new AgentProfileDefault(ProfileTier.Quick, "claude-haiku-5", "low"),
+                ];
+            }
             if (baseUrl != null && baseUrl.Contains("api.berget.ai"))
             {
                 return
                 [
-                    new AgentProfileDefault(ProfileTier.Deep, "moonshotai/Kimi-K3", null),
-                    new AgentProfileDefault(ProfileTier.Balanced, "moonshotai/Kimi-K3", null),
-                    new AgentProfileDefault(ProfileTier.Quick, "moonshotai/Kimi-K3", null),
+                    new AgentProfileDefault(ProfileTier.Deep, "moonshotai/Kimi-K3", "max"),
+                    new AgentProfileDefault(ProfileTier.Balanced, "moonshotai/Kimi-K3", "high"),
+                    new AgentProfileDefault(ProfileTier.Quick, "moonshotai/Kimi-K3", "low"),
                 ];
             }
-            return _inner.DefaultProfiles;
+            return
+            [
+                new AgentProfileDefault(ProfileTier.Deep, "gpt-5.6-sol", "high"),
+                new AgentProfileDefault(ProfileTier.Balanced, "gpt-5.6-terra", "medium"),
+                new AgentProfileDefault(ProfileTier.Quick, "gpt-5.6-luna", "low"),
+            ];
         }
     }
 
@@ -50,15 +73,25 @@ public sealed class OpenAiProxyCli : IAgentCli
     public AgentProcessSpec BuildProcessSpec(AgentLaunchConfig config)
     {
         var baseUrl = _baseUrlProvider();
-        var isBerget = baseUrl?.Contains("api.berget.ai") ?? false;
         var model = config.Model;
-        if (isBerget && (string.IsNullOrEmpty(model) || model == "default" || model.Equals("kimi-k3", StringComparison.OrdinalIgnoreCase)))
+        if (string.IsNullOrEmpty(model) || model == "default")
         {
-            model = "moonshotai/Kimi-K3";
-        }
-        else if (string.IsNullOrEmpty(model))
-        {
-            model = "moonshotai/Kimi-K3";
+            if (baseUrl != null && baseUrl.Contains("llmproxy.ivy.app"))
+            {
+                model = "ivy-stem";
+            }
+            else if (baseUrl != null && baseUrl.Contains("api.anthropic.com"))
+            {
+                model = "claude-sonnet-5";
+            }
+            else if (baseUrl != null && baseUrl.Contains("api.berget.ai"))
+            {
+                model = "moonshotai/Kimi-K3";
+            }
+            else
+            {
+                model = "gpt-5.6-terra";
+            }
         }
 
         config = config with { Model = model };

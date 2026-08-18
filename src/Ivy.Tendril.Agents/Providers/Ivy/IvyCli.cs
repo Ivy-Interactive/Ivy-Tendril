@@ -21,7 +21,12 @@ public sealed class IvyCli : IAgentCli
     public TransportKind SupportedTransports => _inner.SupportedTransports;
     public PromptTransport PromptTransport => _inner.PromptTransport;
     public OutputFormat PreferredOutputFormat => _inner.PreferredOutputFormat;
-    public IReadOnlyList<AgentProfileDefault> DefaultProfiles => _inner.DefaultProfiles;
+    public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
+    [
+        new(ProfileTier.Deep, "ivy-stem", "max"),
+        new(ProfileTier.Balanced, "ivy-root", "high"),
+        new(ProfileTier.Quick, "ivy-leaf", "low"),
+    ];
     public IReadOnlyList<EffortOption> SupportedEfforts => _inner.SupportedEfforts;
 
     public string? TranslateToolName(string canonicalTool) => _inner.TranslateToolName(canonicalTool);
@@ -30,6 +35,13 @@ public sealed class IvyCli : IAgentCli
 
     public AgentProcessSpec BuildProcessSpec(AgentLaunchConfig config)
     {
+        var model = config.Model;
+        if (string.IsNullOrEmpty(model) || model == "default")
+        {
+            model = "ivy-stem";
+        }
+        config = config with { Model = model };
+
         var spec = _inner.BuildProcessSpec(config);
 
         var env = new Dictionary<string, string>(spec.Environment);

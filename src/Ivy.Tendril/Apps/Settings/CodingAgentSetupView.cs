@@ -95,7 +95,7 @@ public class CodingAgentSetupView : ViewBase
             ? (openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app") ? "ivy" : "openaiproxy")
             : (selectedAgent.Value == "anthropic_card" || isBerget ? "openaiproxy" : selectedAgent.Value);
 
-        if (lastRealAgent.Value != realAgentId || (isBerget && deepModel.Value == "default"))
+        if (lastRealAgent.Value != realAgentId || deepModel.Value == "default")
         {
             var deep = GetProfileModel(config, realAgentId, "deep");
             var balanced = GetProfileModel(config, realAgentId, "balanced");
@@ -104,9 +104,31 @@ public class CodingAgentSetupView : ViewBase
             var balancedEff = GetProfileEffort(config, realAgentId, "balanced");
             var quickEff = GetProfileEffort(config, realAgentId, "quick");
 
-            deepModel.Set(deep == "default" && isBerget ? "moonshotai/Kimi-K3" : deep);
-            balancedModel.Set(balanced == "default" && isBerget ? "moonshotai/Kimi-K3" : balanced);
-            quickModel.Set(quick == "default" && isBerget ? "moonshotai/Kimi-K3" : quick);
+            if (deep == "default")
+            {
+                if (realAgentId == "ivy") deep = "ivy-stem";
+                else if (selectedAgent.Value == "anthropic_card") deep = "claude-opus-5";
+                else if (isBerget) deep = "moonshotai/Kimi-K3";
+                else if (selectedAgent.Value == "openaiproxy_card") deep = "gpt-5.6-sol";
+            }
+            if (balanced == "default")
+            {
+                if (realAgentId == "ivy") balanced = "ivy-root";
+                else if (selectedAgent.Value == "anthropic_card") balanced = "claude-sonnet-5";
+                else if (isBerget) balanced = "moonshotai/Kimi-K3";
+                else if (selectedAgent.Value == "openaiproxy_card") balanced = "gpt-5.6-terra";
+            }
+            if (quick == "default")
+            {
+                if (realAgentId == "ivy") quick = "ivy-leaf";
+                else if (selectedAgent.Value == "anthropic_card") quick = "claude-haiku-5";
+                else if (isBerget) quick = "moonshotai/Kimi-K3";
+                else if (selectedAgent.Value == "openaiproxy_card") quick = "gpt-5.6-luna";
+            }
+
+            deepModel.Set(deep);
+            balancedModel.Set(balanced);
+            quickModel.Set(quick);
             deepEffort.Set(deepEff);
             balancedEffort.Set(balancedEff);
             quickEffort.Set(quickEff);
@@ -242,23 +264,36 @@ public class CodingAgentSetupView : ViewBase
             ).Width(Size.Full()).Height(Size.Full()).OnClick(() =>
             {
                 selectedAgent.Set(a.Key);
-                if (a.Key == "openaiproxy_card" && (openAiProxyBaseUrl.Value.Contains("api.anthropic.com") || openAiProxyBaseUrl.Value.Contains("api.berget.ai")))
+                if (a.Key == "openaiproxy_card")
                 {
-                    openAiProxyBaseUrl.Set("https://api.openai.com");
+                    if (openAiProxyBaseUrl.Value.Contains("api.anthropic.com") || openAiProxyBaseUrl.Value.Contains("api.berget.ai"))
+                    {
+                        openAiProxyBaseUrl.Set("https://api.openai.com");
+                    }
+                    var isIvyUrl = openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app");
+                    deepModel.Set(isIvyUrl ? "ivy-stem" : "gpt-5.6-sol");
+                    balancedModel.Set(isIvyUrl ? "ivy-root" : "gpt-5.6-terra");
+                    quickModel.Set(isIvyUrl ? "ivy-leaf" : "gpt-5.6-luna");
                 }
-                else if (a.Key == "anthropic_card" && (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com") || openAiProxyBaseUrl.Value.Contains("api.berget.ai")))
+                else if (a.Key == "anthropic_card")
                 {
-                    openAiProxyBaseUrl.Set("https://api.anthropic.com/v1");
+                    if (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com") || openAiProxyBaseUrl.Value.Contains("api.berget.ai") || openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app"))
+                    {
+                        openAiProxyBaseUrl.Set("https://api.anthropic.com/v1");
+                    }
+                    deepModel.Set("claude-opus-5");
+                    balancedModel.Set("claude-sonnet-5");
+                    quickModel.Set("claude-haiku-5");
                 }
                 else if (a.Key == "berget_card")
                 {
-                    if (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com") || openAiProxyBaseUrl.Value.Contains("api.anthropic.com"))
+                    if (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com") || openAiProxyBaseUrl.Value.Contains("api.anthropic.com") || openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app"))
                     {
                         openAiProxyBaseUrl.Set("https://api.berget.ai/v1");
                     }
-                    if (deepModel.Value == "default") deepModel.Set("moonshotai/Kimi-K3");
-                    if (balancedModel.Value == "default") balancedModel.Set("moonshotai/Kimi-K3");
-                    if (quickModel.Value == "default") quickModel.Set("moonshotai/Kimi-K3");
+                    deepModel.Set("moonshotai/Kimi-K3");
+                    balancedModel.Set("moonshotai/Kimi-K3");
+                    quickModel.Set("moonshotai/Kimi-K3");
                 }
             }));
 

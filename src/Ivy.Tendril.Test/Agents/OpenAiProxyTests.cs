@@ -71,4 +71,48 @@ public class OpenAiProxyTests
         Assert.Contains(models, m => m.Id == "ivy-leaf" && m.DisplayName == "Ivy Leaf");
         Assert.All(models, m => Assert.True(m.Id.StartsWith("ivy") || m.Id == "default"));
     }
+
+    [Fact]
+    public void OpenAiProxyModelCatalog_GetModelsForBaseUrl_ReturnsProviderSpecificModels()
+    {
+        var ivyModels = OpenAiProxyModelCatalog.GetModelsForBaseUrl("https://llmproxy.ivy.app");
+        Assert.Contains(ivyModels, m => m.Id == "ivy-stem");
+        Assert.Contains(ivyModels, m => m.Id == "ivy-root");
+        Assert.Contains(ivyModels, m => m.Id == "ivy-leaf");
+
+        var anthropicModels = OpenAiProxyModelCatalog.GetModelsForBaseUrl("https://api.anthropic.com/v1");
+        Assert.Contains(anthropicModels, m => m.Id == "claude-opus-5");
+        Assert.Contains(anthropicModels, m => m.Id == "claude-sonnet-5");
+
+        var openaiModels = OpenAiProxyModelCatalog.GetModelsForBaseUrl("https://api.openai.com");
+        Assert.Contains(openaiModels, m => m.Id == "gpt-5.6-sol");
+        Assert.Contains(openaiModels, m => m.Id == "gpt-5.6-terra");
+
+        var bergetModels = OpenAiProxyModelCatalog.GetModelsForBaseUrl("https://api.berget.ai/v1");
+        Assert.Contains(bergetModels, m => m.Id == "moonshotai/Kimi-K3");
+    }
+
+    [Fact]
+    public void IvyCli_DefaultProfiles_ReturnsIvyModels()
+    {
+        var cli = new IvyCli();
+        var defaults = cli.DefaultProfiles;
+
+        Assert.Equal("ivy-stem", defaults.First(p => p.Tier == ProfileTier.Deep).Model);
+        Assert.Equal("ivy-root", defaults.First(p => p.Tier == ProfileTier.Balanced).Model);
+        Assert.Equal("ivy-leaf", defaults.First(p => p.Tier == ProfileTier.Quick).Model);
+    }
+
+    [Fact]
+    public void OpenAiProxyCli_DefaultProfiles_FollowsBaseUrl()
+    {
+        var ivyCli = new OpenAiProxyCli(baseUrlProvider: () => "https://llmproxy.ivy.app");
+        Assert.Equal("ivy-stem", ivyCli.DefaultProfiles.First(p => p.Tier == ProfileTier.Deep).Model);
+
+        var anthropicCli = new OpenAiProxyCli(baseUrlProvider: () => "https://api.anthropic.com/v1");
+        Assert.Equal("claude-opus-5", anthropicCli.DefaultProfiles.First(p => p.Tier == ProfileTier.Deep).Model);
+
+        var openaiCli = new OpenAiProxyCli(baseUrlProvider: () => "https://api.openai.com");
+        Assert.Equal("gpt-5.6-sol", openaiCli.DefaultProfiles.First(p => p.Tier == ProfileTier.Deep).Model);
+    }
 }
