@@ -1,5 +1,5 @@
 using Ivy.Tendril.Apps.Onboarding.Models;
-using Ivy.Tendril.Apps.Settings.Dialogs;
+using Ivy.Tendril.Apps.Settings.Blades;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Onboarding;
@@ -26,7 +26,7 @@ public class ProjectCrudStepView(
             return new List<ReviewActionConfig>(p?.ReviewActions ?? []);
         });
         var (reviewActionTriggerView, showReviewActionTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
-            new EditReviewActionDialogContent(isOpen, existingIndex, reviewActions));
+            new OnboardingEditReviewActionDialog(isOpen, existingIndex, reviewActions));
         var (reviewActionAlertView, showReviewActionAlert) = UseAlert();
         var (verificationTriggerView, showVerificationTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
             new OnboardingEditVerificationDialog(isOpen, existingIndex, config, client, refreshToken, projectName.Value));
@@ -104,7 +104,7 @@ public class ProjectCrudStepView(
                | (Layout.Vertical()
                   | Text.Block("Review Actions").Bold()
                   | Text.Muted("Commands that makes it easy to start you project for manual testing.")
-                  | new ReviewActionsTableView(reviewActions, showReviewActionTrigger, showReviewActionAlert)
+                  | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx))
                   | new Button("Add Review Action").Icon(Icons.Plus).Outline()
                       .OnClick(() => showReviewActionTrigger(null)))
                | new Separator()
@@ -116,6 +116,60 @@ public class ProjectCrudStepView(
     }
 
     private record VerificationRow(string Name, int Index);
+}
+
+internal class OnboardingEditReviewActionDialog(
+    IState<bool> isOpen,
+    int? existingIndex,
+    IState<List<ReviewActionConfig>> reviewActions) : ViewBase
+{
+    public override object? Build()
+    {
+        var editName = UseState("");
+        var editCondition = UseState("");
+        var editCommand = UseState("");
+
+        UseEffect(() =>
+        {
+            var actions = reviewActions.Value;
+            if (existingIndex is >= 0 && existingIndex < actions.Count)
+            {
+                editName.Set(actions[existingIndex.Value].Name);
+                editCondition.Set(actions[existingIndex.Value].Condition);
+                editCommand.Set(actions[existingIndex.Value].Command);
+            }
+        }, EffectTrigger.OnMount());
+
+        var isNew = existingIndex == null;
+
+        return new Dialog(
+            _ => isOpen.Set(false),
+            new DialogHeader(isNew ? "Add Review Action" : "Edit Review Action"),
+            new DialogBody(
+                Layout.Vertical()
+                | editName.ToTextInput("Action name...").WithField().Label("Name").Required()
+                | editCommand.ToTextareaInput("e.g. dotnet test").Rows(2).WithField().Label("Command").Required()
+                | editCondition.ToTextareaInput("e.g. ${hasChanges}").Rows(2).WithField().Label("Condition")
+            ),
+            new DialogFooter(
+                new Button("Cancel").Outline().OnClick(() => isOpen.Set(false)),
+                new Button(isNew ? "Add" : "Save").Primary().OnClick(() =>
+                {
+                    if (string.IsNullOrWhiteSpace(editName.Value)) return;
+                    if (string.IsNullOrWhiteSpace(editCommand.Value)) return;
+
+                    var list = new List<ReviewActionConfig>(reviewActions.Value);
+                    if (isNew)
+                        list.Add(new ReviewActionConfig { Name = editName.Value.Trim(), Condition = editCondition.Value, Command = editCommand.Value });
+                    else
+                        list[existingIndex!.Value] = new ReviewActionConfig { Name = editName.Value.Trim(), Condition = editCondition.Value, Command = editCommand.Value };
+
+                    reviewActions.Set(list);
+                    isOpen.Set(false);
+                })
+            )
+        ).Width(Size.Rem(30));
+    }
 }
 
 internal class OnboardingEditVerificationDialog(

@@ -95,10 +95,6 @@ public class ProjectAddRepoSettings : CommandSettings
     [CommandArgument(1, "<repo-path>")]
     public string RepoPath { get; set; } = "";
 
-    [CommandOption("--pr-rule")]
-    [Description("PR rule: default, yolo")]
-    public string? PrRule { get; set; }
-
     [CommandOption("--base-branch")]
     [Description("Base branch name")]
     public string? BaseBranch { get; set; }
@@ -107,8 +103,7 @@ public class ProjectAddRepoSettings : CommandSettings
     {
         return CliValidation.Combine(
             CliValidation.RequireNonEmpty(ProjectName, "project-name"),
-            CliValidation.RequireNonEmpty(RepoPath, "repo-path"),
-            CliValidation.ValidateOneOf(PrRule, "--pr-rule", CliValidation.ValidPrRules)
+            CliValidation.RequireNonEmpty(RepoPath, "repo-path")
         );
     }
 }
@@ -285,6 +280,201 @@ public class ProjectRemoveReviewActionSettings : CommandSettings
     }
 }
 
+public class ProjectListMcpSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(ProjectName, "project-name");
+    }
+}
+
+public class ProjectAddMcpSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    [Description("MCP server name")]
+    [CommandArgument(1, "<name>")]
+    public string Name { get; set; } = "";
+
+    [Description("Command executable (e.g. npx)")]
+    [CommandArgument(2, "<command>")]
+    public string Command { get; set; } = "";
+
+    [CommandOption("--arg <argument>")]
+    [Description("Command argument (can be specified multiple times)")]
+    public string[]? Arguments { get; set; }
+
+    [CommandOption("--env <key=value>")]
+    [Description("Environment variable in KEY=VALUE format (can be specified multiple times)")]
+    public string[]? Environment { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Name, "name"),
+            CliValidation.RequireNonEmpty(Command, "command"));
+    }
+}
+
+public class ProjectRemoveMcpSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    [Description("MCP server name")]
+    [CommandArgument(1, "<name>")]
+    public string Name { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Name, "name"));
+    }
+}
+
+public class ProjectListSkillsSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(ProjectName, "project-name");
+    }
+}
+
+public class ProjectAddSkillSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    [Description("Skill name")]
+    [CommandArgument(1, "<name>")]
+    public string Name { get; set; } = "";
+
+    [CommandOption("--description <description>")]
+    [Description("Skill description")]
+    public string? Description { get; set; }
+
+    [CommandOption("--path <path>")]
+    [Description("Path to skill folder/file")]
+    public string? Path { get; set; }
+
+    [CommandOption("--instructions <instructions>")]
+    [Description("Inline skill instructions")]
+    public string? Instructions { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Name, "name"));
+    }
+}
+
+public class ProjectRemoveSkillSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    [Description("Skill name")]
+    [CommandArgument(1, "<name>")]
+    public string Name { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Name, "name"));
+    }
+}
+
+public class ProjectImportSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    [Description("Repository path or repository name in project")]
+    [CommandArgument(1, "<repo>")]
+    public string Repo { get; set; } = "";
+
+    [CommandOption("--mcp-only")]
+    [Description("Only import MCP servers")]
+    public bool McpOnly { get; set; }
+
+    [CommandOption("--skills-only")]
+    [Description("Only import custom skills")]
+    public bool SkillsOnly { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Repo, "repo"));
+    }
+}
+
+public class ProjectImportMcpSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    [Description("Repository path or repository name in project")]
+    [CommandArgument(1, "<repo>")]
+    public string Repo { get; set; } = "";
+
+    [CommandOption("--name <name>")]
+    [Description("Specific MCP server name to import")]
+    public string? Name { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Repo, "repo"));
+    }
+}
+
+public class ProjectImportSkillsSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    [Description("Repository path or repository name in project")]
+    [CommandArgument(1, "<repo>")]
+    public string Repo { get; set; } = "";
+
+    [CommandOption("--name <name>")]
+    [Description("Specific skill name to import")]
+    public string? Name { get; set; }
+
+    [CommandOption("--no-copy")]
+    [Description("Do not copy skill directory files into project Skills/ folder")]
+    public bool NoCopy { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Repo, "repo"));
+    }
+}
+
 // --- Commands ---
 
 public class ProjectListCommand : Command<ProjectListSettings>
@@ -331,10 +521,9 @@ public class ProjectGetCommand : Command<ProjectGetSettings>
             var repoRows = project.Repos.Select(r => (IReadOnlyList<string>)new[]
             {
                 r.Path,
-                r.PrRule,
                 r.BaseBranch ?? "-"
             });
-            CliOutput.WriteTable(["Path", "PR Rule", "Base Branch"], repoRows);
+            CliOutput.WriteTable(["Path", "Base Branch"], repoRows);
         }
 
         if (project.Verifications.Count > 0)
@@ -474,10 +663,11 @@ public class ProjectAddRepoCommand : Command<ProjectAddRepoSettings>
         if (kind != RepoPathKind.LocalPath)
         {
             var tendrilHome = config.TendrilHome;
-            var reposDir = Path.Combine(tendrilHome, "Repos");
-            Directory.CreateDirectory(reposDir);
+            var owner = RepoPathValidator.ExtractOwnerName(repoPath) ?? "default";
             var repoName = RepoPathValidator.ExtractRepoName(repoPath) ?? Guid.NewGuid().ToString();
-            var destPath = Path.Combine(reposDir, repoName);
+            var destPath = ProjectPathHelper.GetRepoPath(tendrilHome, settings.ProjectName, owner, repoName);
+            Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+
             if (!Directory.Exists(destPath))
             {
                 var success = ProcessCheckHelper.CloneRepositoryAsync(repoPath, destPath).GetAwaiter().GetResult();
@@ -515,7 +705,6 @@ public class ProjectAddRepoCommand : Command<ProjectAddRepoSettings>
             project.Repos.Add(new RepoRef
             {
                 Path = repoPath,
-                PrRule = settings.PrRule ?? "default",
                 BaseBranch = baseBranch
             });
         });
@@ -786,6 +975,397 @@ public class ProjectRemoveReviewActionCommand : Command<ProjectRemoveReviewActio
         });
 
         Console.WriteLine($"Removed review action: {settings.Name}");
+        return 0;
+    }
+}
+
+internal static class ProjectRepoResolver
+{
+    public static string ResolveRepoPath(ProjectConfig project, string repoArg, string tendrilHome)
+    {
+        var matchingRepo = project.Repos.FirstOrDefault(r =>
+            r.Path.Equals(repoArg, StringComparison.OrdinalIgnoreCase) ||
+            Path.GetFileName(r.Path).Equals(repoArg, StringComparison.OrdinalIgnoreCase) ||
+            r.Path.EndsWith("/" + repoArg, StringComparison.OrdinalIgnoreCase) ||
+            r.Path.EndsWith("\\" + repoArg, StringComparison.OrdinalIgnoreCase));
+
+        var target = matchingRepo != null ? matchingRepo.Path : repoArg;
+        var (path, error) = RepoAssetScanner.ResolveAndPrepareRepoPath(target, tendrilHome);
+        if (error != null || string.IsNullOrEmpty(path))
+            throw new InvalidOperationException(error ?? $"Failed to resolve repository: {repoArg}");
+
+        return path;
+    }
+}
+
+public class ProjectListMcpCommand : Command<ProjectListMcpSettings>
+{
+    protected override int Execute(CommandContext context, ProjectListMcpSettings settings, CancellationToken cancellationToken)
+    {
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+        if (project == null)
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
+
+        if (project.McpServers.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[dim]No MCP servers configured for this project.[/]");
+            return 0;
+        }
+
+        foreach (var server in project.McpServers)
+        {
+            var argsStr = server.Arguments.Count > 0 ? " " + string.Join(" ", server.Arguments) : "";
+            AnsiConsole.MarkupLine($"[bold]{server.Name.EscapeMarkup()}[/]: {server.Command.EscapeMarkup()}{argsStr.EscapeMarkup()}");
+        }
+
+        return 0;
+    }
+}
+
+public class ProjectAddMcpCommand : Command<ProjectAddMcpSettings>
+{
+    protected override int Execute(CommandContext context, ProjectAddMcpSettings settings, CancellationToken cancellationToken)
+    {
+        var config = new ConfigService();
+
+        config.MutateAndSave(s =>
+        {
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
+
+            if (project.McpServers.Any(m => m.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException($"MCP server already exists: {settings.Name}");
+
+            var envDict = new Dictionary<string, string>();
+            if (settings.Environment != null)
+            {
+                foreach (var envItem in settings.Environment)
+                {
+                    var parts = envItem.Split('=', 2);
+                    if (parts.Length == 2 && !string.IsNullOrWhiteSpace(parts[0]))
+                        envDict[parts[0].Trim()] = parts[1].Trim();
+                }
+            }
+
+            project.McpServers.Add(new ProjectMcpServerRef
+            {
+                Name = settings.Name,
+                Command = settings.Command,
+                Arguments = settings.Arguments != null ? settings.Arguments.ToList() : new List<string>(),
+                Environment = envDict,
+                Disabled = false
+            });
+        });
+
+        Console.WriteLine($"Added MCP server: {settings.Name}");
+        return 0;
+    }
+}
+
+public class ProjectRemoveMcpCommand : Command<ProjectRemoveMcpSettings>
+{
+    protected override int Execute(CommandContext context, ProjectRemoveMcpSettings settings, CancellationToken cancellationToken)
+    {
+        var config = new ConfigService();
+
+        config.MutateAndSave(s =>
+        {
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
+
+            var match = project.McpServers
+                .FirstOrDefault(m => m.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
+
+            if (match == null)
+                throw new InvalidOperationException($"MCP server not found: {settings.Name}");
+
+            project.McpServers.Remove(match);
+        });
+
+        Console.WriteLine($"Removed MCP server: {settings.Name}");
+        return 0;
+    }
+}
+
+public class ProjectListSkillsCommand : Command<ProjectListSkillsSettings>
+{
+    protected override int Execute(CommandContext context, ProjectListSkillsSettings settings, CancellationToken cancellationToken)
+    {
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+        if (project == null)
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
+
+        if (project.Skills.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[dim]No custom skills configured for this project.[/]");
+            return 0;
+        }
+
+        foreach (var skill in project.Skills)
+        {
+            var desc = !string.IsNullOrEmpty(skill.Description) ? $" - {skill.Description}" : "";
+            AnsiConsole.MarkupLine($"[bold]{skill.Name.EscapeMarkup()}[/]{desc.EscapeMarkup()}");
+        }
+
+        return 0;
+    }
+}
+
+public class ProjectAddSkillCommand : Command<ProjectAddSkillSettings>
+{
+    protected override int Execute(CommandContext context, ProjectAddSkillSettings settings, CancellationToken cancellationToken)
+    {
+        var config = new ConfigService();
+
+        config.MutateAndSave(s =>
+        {
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
+
+            if (project.Skills.Any(sk => sk.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException($"Skill already exists: {settings.Name}");
+
+            project.Skills.Add(new ProjectSkillRef
+            {
+                Name = settings.Name,
+                Description = settings.Description ?? "",
+                Path = string.IsNullOrWhiteSpace(settings.Path) ? null : settings.Path,
+                Instructions = string.IsNullOrWhiteSpace(settings.Instructions) ? null : settings.Instructions,
+                Disabled = false
+            });
+        });
+
+        Console.WriteLine($"Added custom skill: {settings.Name}");
+        return 0;
+    }
+}
+
+public class ProjectRemoveSkillCommand : Command<ProjectRemoveSkillSettings>
+{
+    protected override int Execute(CommandContext context, ProjectRemoveSkillSettings settings, CancellationToken cancellationToken)
+    {
+        var config = new ConfigService();
+
+        config.MutateAndSave(s =>
+        {
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
+
+            var match = project.Skills
+                .FirstOrDefault(sk => sk.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase));
+
+            if (match == null)
+                throw new InvalidOperationException($"Skill not found: {settings.Name}");
+
+            project.Skills.Remove(match);
+        });
+
+        Console.WriteLine($"Removed custom skill: {settings.Name}");
+        return 0;
+    }
+}
+
+public class ProjectImportCommand : Command<ProjectImportSettings>
+{
+    protected override int Execute(CommandContext context, ProjectImportSettings settings, CancellationToken cancellationToken)
+    {
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+        if (project == null)
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
+
+        var repoPath = ProjectRepoResolver.ResolveRepoPath(project, settings.Repo, config.TendrilHome);
+        if (!Directory.Exists(repoPath))
+            throw new DirectoryNotFoundException($"Repository path not found: {repoPath}");
+
+        var importMcp = !settings.SkillsOnly;
+        var importSkills = !settings.McpOnly;
+
+        var importedMcpCount = 0;
+        var importedSkillCount = 0;
+
+        config.MutateAndSave(s =>
+        {
+            var proj = s.Projects
+                .First(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            if (importMcp)
+            {
+                var discoveredServers = RepoAssetScanner.ScanMcpServers(repoPath);
+                foreach (var srv in discoveredServers)
+                {
+                    var existing = proj.McpServers.FirstOrDefault(m => m.Name.Equals(srv.Name, StringComparison.OrdinalIgnoreCase));
+                    var mcpRef = RepoAssetScanner.ImportMcpServer(srv);
+                    if (existing != null)
+                    {
+                        proj.McpServers[proj.McpServers.IndexOf(existing)] = mcpRef;
+                    }
+                    else
+                    {
+                        proj.McpServers.Add(mcpRef);
+                    }
+                    importedMcpCount++;
+                }
+            }
+
+            if (importSkills)
+            {
+                var discoveredSkills = RepoAssetScanner.ScanSkills(repoPath);
+                foreach (var sk in discoveredSkills)
+                {
+                    var existing = proj.Skills.FirstOrDefault(k => k.Name.Equals(sk.Name, StringComparison.OrdinalIgnoreCase));
+                    var skillRef = RepoAssetScanner.ImportSkillToProject(config.TendrilHome, proj.Name, sk, copyFiles: true);
+                    if (existing != null)
+                    {
+                        proj.Skills[proj.Skills.IndexOf(existing)] = skillRef;
+                    }
+                    else
+                    {
+                        proj.Skills.Add(skillRef);
+                    }
+                    importedSkillCount++;
+                }
+            }
+        });
+
+        AnsiConsole.MarkupLine($"[green]Import complete from:[/] {repoPath.EscapeMarkup()}");
+        if (importMcp)
+            AnsiConsole.MarkupLine($"  MCP servers imported/updated: [bold]{importedMcpCount}[/]");
+        if (importSkills)
+            AnsiConsole.MarkupLine($"  Custom skills imported/updated: [bold]{importedSkillCount}[/]");
+
+        return 0;
+    }
+}
+
+public class ProjectImportMcpCommand : Command<ProjectImportMcpSettings>
+{
+    protected override int Execute(CommandContext context, ProjectImportMcpSettings settings, CancellationToken cancellationToken)
+    {
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+        if (project == null)
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
+
+        var repoPath = ProjectRepoResolver.ResolveRepoPath(project, settings.Repo, config.TendrilHome);
+        if (!Directory.Exists(repoPath))
+            throw new DirectoryNotFoundException($"Repository path not found: {repoPath}");
+
+        var discoveredServers = RepoAssetScanner.ScanMcpServers(repoPath);
+        if (!string.IsNullOrWhiteSpace(settings.Name))
+        {
+            discoveredServers = discoveredServers
+                .Where(s => s.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        if (discoveredServers.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]No matching MCP servers found in repository.[/]");
+            return 0;
+        }
+
+        config.MutateAndSave(s =>
+        {
+            var proj = s.Projects
+                .First(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            foreach (var srv in discoveredServers)
+            {
+                var existing = proj.McpServers.FirstOrDefault(m => m.Name.Equals(srv.Name, StringComparison.OrdinalIgnoreCase));
+                var mcpRef = RepoAssetScanner.ImportMcpServer(srv);
+                if (existing != null)
+                {
+                    proj.McpServers[proj.McpServers.IndexOf(existing)] = mcpRef;
+                }
+                else
+                {
+                    proj.McpServers.Add(mcpRef);
+                }
+            }
+        });
+
+        foreach (var srv in discoveredServers)
+            AnsiConsole.MarkupLine($"[green]Imported MCP server:[/] [bold]{srv.Name.EscapeMarkup()}[/] ({srv.Command.EscapeMarkup()})");
+
+        return 0;
+    }
+}
+
+public class ProjectImportSkillsCommand : Command<ProjectImportSkillsSettings>
+{
+    protected override int Execute(CommandContext context, ProjectImportSkillsSettings settings, CancellationToken cancellationToken)
+    {
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+        if (project == null)
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
+
+        var repoPath = ProjectRepoResolver.ResolveRepoPath(project, settings.Repo, config.TendrilHome);
+        if (!Directory.Exists(repoPath))
+            throw new DirectoryNotFoundException($"Repository path not found: {repoPath}");
+
+        var discoveredSkills = RepoAssetScanner.ScanSkills(repoPath);
+        if (!string.IsNullOrWhiteSpace(settings.Name))
+        {
+            discoveredSkills = discoveredSkills
+                .Where(s => s.Name.Equals(settings.Name, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+
+        if (discoveredSkills.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]No matching skills found in repository.[/]");
+            return 0;
+        }
+
+        config.MutateAndSave(s =>
+        {
+            var proj = s.Projects
+                .First(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            foreach (var sk in discoveredSkills)
+            {
+                var existing = proj.Skills.FirstOrDefault(k => k.Name.Equals(sk.Name, StringComparison.OrdinalIgnoreCase));
+                var skillRef = RepoAssetScanner.ImportSkillToProject(config.TendrilHome, proj.Name, sk, copyFiles: !settings.NoCopy);
+                if (existing != null)
+                {
+                    proj.Skills[proj.Skills.IndexOf(existing)] = skillRef;
+                }
+                else
+                {
+                    proj.Skills.Add(skillRef);
+                }
+            }
+        });
+
+        foreach (var sk in discoveredSkills)
+            AnsiConsole.MarkupLine($"[green]Imported skill:[/] [bold]{sk.Name.EscapeMarkup()}[/] - {sk.Description.EscapeMarkup()}");
+
         return 0;
     }
 }

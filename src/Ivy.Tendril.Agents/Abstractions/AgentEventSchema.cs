@@ -84,6 +84,7 @@ public sealed record ResultWire : EventWire
 {
     public override string Kind => "result";
     public string? Response { get; init; }
+    public string? Error { get; init; }
     public bool IsSuccess { get; init; }
     public long? DurationMs { get; init; }
     public int? TurnCount { get; init; }

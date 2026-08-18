@@ -262,11 +262,10 @@ public class Program
                 .AddConsole(options => options.FormatterName = "clean")
                 .AddConsoleFormatter<CleanConsoleFormatter, ConsoleFormatterOptions>());
             cliServices.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
-            cliServices.AddAgentInfrastructure(opts => opts.IncludeBetaProviders = beta);
-
             var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
             cliServices.AddSingleton<IConfigService>(configService);
             cliServices.AddSingleton<ConfigService>(configService);
+            cliServices.AddAgentInfrastructure(opts => opts.IncludeBetaProviders = beta || configService.Settings.Beta || Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" || Environment.GetEnvironmentVariable("IVY_BETA") == "1");
 
             // Needed by `plan create` to validate that a source issue/PR URL belongs to the
             // chosen project (PlanSourceProjectGuard). Resolves git remotes of project repos.
@@ -832,6 +831,24 @@ public class Program
                     .WithDescription("Add a review action to a project");
                 project.AddCommand<ProjectRemoveReviewActionCommand>("remove-review-action")
                     .WithDescription("Remove a review action from a project");
+                project.AddCommand<ProjectListMcpCommand>("list-mcp")
+                    .WithDescription("List MCP servers in a project");
+                project.AddCommand<ProjectAddMcpCommand>("add-mcp")
+                    .WithDescription("Add an MCP server to a project");
+                project.AddCommand<ProjectRemoveMcpCommand>("remove-mcp")
+                    .WithDescription("Remove an MCP server from a project");
+                project.AddCommand<ProjectListSkillsCommand>("list-skills")
+                    .WithDescription("List custom skills in a project");
+                project.AddCommand<ProjectAddSkillCommand>("add-skill")
+                    .WithDescription("Add a custom skill to a project");
+                project.AddCommand<ProjectRemoveSkillCommand>("remove-skill")
+                    .WithDescription("Remove a custom skill from a project");
+                project.AddCommand<ProjectImportCommand>("import")
+                    .WithDescription("Import MCP servers and custom skills from a repository into a project");
+                project.AddCommand<ProjectImportMcpCommand>("import-mcp")
+                    .WithDescription("Import MCP servers from a repository into a project");
+                project.AddCommand<ProjectImportSkillsCommand>("import-skills")
+                    .WithDescription("Import custom skills from a repository into a project");
             });
 
             config.AddBranch("config", cfg =>

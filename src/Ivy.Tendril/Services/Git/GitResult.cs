@@ -9,6 +9,23 @@ public enum GitError
     UnknownError
 }
 
+/// <summary>
+///     Whether a commit a plan recorded is still held alive by a ref in the repo it was made in.
+///     Once a plan's worktree and branch are gone, its commits can survive as nothing but loose
+///     objects, which the next <c>git gc</c> in that repo prunes.
+/// </summary>
+public enum CommitRefStatus
+{
+    /// <summary>Some ref — a branch, a remote-tracking branch or a tag — contains the commit.</summary>
+    Reachable,
+
+    /// <summary>The commit object exists, but no ref reaches it. It is one <c>git gc</c> from gone.</summary>
+    Unreachable,
+
+    /// <summary>The commit object is not in the repo at all.</summary>
+    Missing
+}
+
 public enum DirtyReason
 {
     NotOnExpectedBranch,

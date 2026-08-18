@@ -6,13 +6,8 @@ namespace Ivy.Tendril.Apps.Jobs;
 
 public partial class JobsApp
 {
-    private Dictionary<string, string> BuildProjectColorMapping(IConfigService config)
-    {
-        return config.Projects
-            .Select(p => new { p.Name, Color = config.GetProjectColor(p.Name) })
-            .Where(x => x.Color.HasValue)
-            .ToDictionary(x => x.Name, x => x.Color!.Value.ToString());
-    }
+    private Dictionary<string, string> BuildProjectColorMapping(IConfigService config) =>
+        ProjectHelper.BuildColorMapping(config);
 
     private List<JobItemRow> BuildJobRows(List<JobItem> jobs, IPlanReaderService planService)
     {
@@ -31,7 +26,7 @@ public partial class JobsApp
                 Type = j.Type,
                 Project = string.Join(", ", ProjectHelper.ParseProjects(j.Project)),
                 Timer = JobsApp.FormatTimer(j),
-                Cost = j.Cost.HasValue ? $"${j.Cost.Value:F2}" : "",
+                Cost = j.Cost.HasValue ? FormatHelper.FormatCost(j.Cost.Value) : "",
                 Tokens = j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : "",
                 AgentOutput = JobsApp.FormatAgentOutput(j),
                 LastOutputTimestamp = j.LastOutputAt,
@@ -93,7 +88,7 @@ public partial class JobsApp
             .SelectMany(j => new[]
             {
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.Timer), JobsApp.FormatTimer(j)),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Cost), j.Cost.HasValue ? $"${j.Cost.Value:F2}" : ""),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Cost), j.Cost.HasValue ? FormatHelper.FormatCost(j.Cost.Value) : ""),
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.Tokens), j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : ""),
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.AgentOutput), JobsApp.FormatAgentOutput(j)),
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.Status), JobsApp.FormatStatusBadge(j.Status)),

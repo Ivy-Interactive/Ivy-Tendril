@@ -1,4 +1,4 @@
-using Ivy.Tendril.Apps.Settings.Dialogs;
+using Ivy.Tendril.Apps.Settings.Blades;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
@@ -18,7 +18,7 @@ public class EditProjectDialogTests
         var all = Defs("Build", "Test", "Lint", "Format");
         var project = Project("Lint", "Build");
 
-        var ordered = EditProjectDialog.OrderForDisplay(project, all);
+        var ordered = EditProjectBladeView.OrderForDisplay(project, all);
 
         // Enabled (project) ones first, in project order; then the rest in global order.
         Assert.Equal(new[] { "Lint", "Build", "Test", "Format" }, ordered.Select(v => v.Name));
@@ -29,7 +29,7 @@ public class EditProjectDialogTests
     {
         var all = Defs("Build", "Test", "Lint");
 
-        var ordered = EditProjectDialog.OrderForDisplay(Project(), all);
+        var ordered = EditProjectBladeView.OrderForDisplay(Project(), all);
 
         Assert.Equal(new[] { "Build", "Test", "Lint" }, ordered.Select(v => v.Name));
     }
@@ -40,7 +40,7 @@ public class EditProjectDialogTests
         var all = Defs("Build", "Test");
         var project = Project("Stale", "Test");
 
-        var ordered = EditProjectDialog.OrderForDisplay(project, all);
+        var ordered = EditProjectBladeView.OrderForDisplay(project, all);
 
         Assert.Equal(new[] { "Test", "Build" }, ordered.Select(v => v.Name));
     }
@@ -55,27 +55,27 @@ public class EditProjectDialogTests
         // User drags Build above Lint -> new order of displayed indices.
         var newIndices = new[] { 1, 0, 2, 3 };
 
-        var result = EditProjectDialog.ReorderProjectVerifications(newIndices, displayed, project);
+        var result = EditProjectBladeView.ReorderProjectVerifications(newIndices, displayed, project);
 
         // Only enabled items, in their new relative order.
-        Assert.Equal(new[] { "Build", "Lint" }, result.Select(pv => pv.Name));
+        Assert.Equal(new[] { "Build", "Lint" }, result.Select(v => v.Name));
     }
 
     [Fact]
-    public void ReorderProjectVerifications_PreservesRequiredFlag()
+    public void ReorderProjectVerifications_PreservesRequiredFlags()
     {
-        var displayed = Defs("Build", "Test");
+        var displayed = Defs("Lint", "Build");
         var project = new List<ProjectVerificationRef>
         {
-            new() { Name = "Build", Required = true },
-            new() { Name = "Test", Required = false }
+            new() { Name = "Lint", Required = true },
+            new() { Name = "Build", Required = false }
         };
 
-        var result = EditProjectDialog.ReorderProjectVerifications(new[] { 1, 0 }, displayed, project);
+        var result = EditProjectBladeView.ReorderProjectVerifications(new[] { 1, 0 }, displayed, project);
 
-        Assert.Equal(new[] { "Test", "Build" }, result.Select(pv => pv.Name));
-        Assert.True(result.Single(pv => pv.Name == "Build").Required);
-        Assert.False(result.Single(pv => pv.Name == "Test").Required);
+        Assert.Collection(result,
+            r => { Assert.Equal("Build", r.Name); Assert.False(r.Required); },
+            r => { Assert.Equal("Lint", r.Name); Assert.True(r.Required); });
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public class EditProjectDialogTests
         var project = Project("Build", "Lint");
 
         // Move the disabled "Test" (index 1) to the front.
-        var result = EditProjectDialog.ReorderProjectVerifications(new[] { 1, 0, 2 }, displayed, project);
+        var result = EditProjectBladeView.ReorderProjectVerifications(new[] { 1, 0, 2 }, displayed, project);
 
         Assert.Equal(new[] { "Build", "Lint" }, result.Select(pv => pv.Name));
         Assert.DoesNotContain(result, pv => pv.Name == "Test");
@@ -99,7 +99,7 @@ public class EditProjectDialogTests
         var project = Project("Build", "Test");
 
         // Indices only reference one displayed item; the other enabled item must survive.
-        var result = EditProjectDialog.ReorderProjectVerifications(new[] { 1 }, displayed, project);
+        var result = EditProjectBladeView.ReorderProjectVerifications(new[] { 1 }, displayed, project);
 
         Assert.Equal(new[] { "Test", "Build" }, result.Select(pv => pv.Name));
     }
@@ -107,19 +107,19 @@ public class EditProjectDialogTests
     [Fact]
     public void ReorderThenDisplay_RoundTrip_PreservesNewOrderOnReopen()
     {
-        // Simulates: reorder via drag -> save to project -> reopen dialog.
+        // Simulates: reorder via drag -> save to project -> reopen blade.
         var all = Defs("Build", "Test", "Lint");
         var project = Project("Build", "Test", "Lint");
 
-        var displayed = EditProjectDialog.OrderForDisplay(project, all);
+        var displayed = EditProjectBladeView.OrderForDisplay(project, all);
         Assert.Equal(new[] { "Build", "Test", "Lint" }, displayed.Select(v => v.Name));
 
         // Drag Lint to the top.
-        var afterReorder = EditProjectDialog.ReorderProjectVerifications(new[] { 2, 0, 1 }, displayed, project);
+        var afterReorder = EditProjectBladeView.ReorderProjectVerifications(new[] { 2, 0, 1 }, displayed, project);
         Assert.Equal(new[] { "Lint", "Build", "Test" }, afterReorder.Select(pv => pv.Name));
 
         // The Save button persists afterReorder into project.Verifications; reopening loads it back.
-        var displayedOnReopen = EditProjectDialog.OrderForDisplay(afterReorder, all);
+        var displayedOnReopen = EditProjectBladeView.OrderForDisplay(afterReorder, all);
         Assert.Equal(new[] { "Lint", "Build", "Test" }, displayedOnReopen.Select(v => v.Name));
     }
 
@@ -131,7 +131,7 @@ public class EditProjectDialogTests
             new() { Name = "DotnetTest", Required = false }
         };
 
-        var result = EditProjectDialog.ApplyVerificationChange(
+        var result = EditProjectBladeView.ApplyVerificationChange(
             """{"name":"DotnetTest","enabled":true,"required":true}""", current);
 
         Assert.True(result.Single(v => v.Name == "DotnetTest").Required);
@@ -140,7 +140,7 @@ public class EditProjectDialogTests
     [Fact]
     public void ApplyVerificationChange_EnablingVerification_AddsToProject()
     {
-        var result = EditProjectDialog.ApplyVerificationChange(
+        var result = EditProjectBladeView.ApplyVerificationChange(
             """{"name":"Build","enabled":true,"required":false}""", new List<ProjectVerificationRef>());
 
         Assert.Contains(result, v => v.Name == "Build");
@@ -151,7 +151,7 @@ public class EditProjectDialogTests
     {
         var current = Project("Build");
 
-        var result = EditProjectDialog.ApplyVerificationChange(
+        var result = EditProjectBladeView.ApplyVerificationChange(
             """{"name":"Build","enabled":false,"required":false}""", current);
 
         Assert.DoesNotContain(result, v => v.Name == "Build");
@@ -162,7 +162,7 @@ public class EditProjectDialogTests
     {
         var current = Project("Build");
 
-        var result = EditProjectDialog.ApplyVerificationChange(
+        var result = EditProjectBladeView.ApplyVerificationChange(
             """{"name":"Build","enabled":true,"required":true}""", current);
 
         Assert.True(result.Single(v => v.Name == "Build").Required);

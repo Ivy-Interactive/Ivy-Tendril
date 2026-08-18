@@ -122,23 +122,28 @@ public class DatabaseCommandsTests : IDisposable
         Assert.Equal(0, DatabaseCommands.DbResetInternal(_dbPath, true, _logger));
     }
 
+    private static readonly object ConsoleLock = new();
+
     private static string CaptureConsoleOutputWithInput(string input, Action action)
     {
-        var originalOut = Console.Out;
-        var originalIn = Console.In;
-        using var writer = new StringWriter();
-        using var reader = new StringReader(input);
-        Console.SetOut(writer);
-        Console.SetIn(reader);
-        try
+        lock (ConsoleLock)
         {
-            action();
-            return writer.ToString();
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
-            Console.SetIn(originalIn);
+            var originalOut = Console.Out;
+            var originalIn = Console.In;
+            var writer = new StringWriter();
+            var reader = new StringReader(input);
+            Console.SetOut(writer);
+            Console.SetIn(reader);
+            try
+            {
+                action();
+                return writer.ToString();
+            }
+            finally
+            {
+                Console.SetOut(originalOut);
+                Console.SetIn(originalIn);
+            }
         }
     }
 

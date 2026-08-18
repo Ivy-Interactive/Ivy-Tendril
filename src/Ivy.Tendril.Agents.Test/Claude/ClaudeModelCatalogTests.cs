@@ -58,6 +58,18 @@ public class ClaudeModelCatalogTests
     }
 
     [Fact]
+    public void GetStaticModels_ContainsSonnet5()
+    {
+        var models = _catalog.GetStaticModels();
+        var sonnet5 = Assert.Single(models, m => m.Id == "claude-sonnet-5");
+
+        Assert.Equal(1_000_000, sonnet5.ContextWindow);
+        Assert.Equal(128_000, sonnet5.MaxOutputTokens);
+        Assert.Equal(3.00m, sonnet5.InputPerMillion);
+        Assert.Equal(15.00m, sonnet5.OutputPerMillion);
+    }
+
+    [Fact]
     public async Task GetModelsAsync_ReturnsModels()
     {
         var result = await _catalog.GetModelsAsync();

@@ -18,8 +18,37 @@ public record RepoConfig
 public record RepoRef
 {
     public string Path { get; set; } = "";
-    public string PrRule { get; set; } = "default";
     public string? BaseBranch { get; set; }
+}
+
+public record ProjectMcpServerRef
+{
+    public string Name { get; set; } = "";
+    public string Command { get; set; } = "";
+    public List<string> Arguments { get; set; } = new();
+    public Dictionary<string, string> Environment { get; set; } = new();
+    public bool Disabled { get; set; } = false;
+}
+
+public record ProjectSkillRef
+{
+    public string Name { get; set; } = "";
+    public string Description { get; set; } = "";
+    public string? Path { get; set; }
+    public string? Instructions { get; set; }
+    public bool Disabled { get; set; } = false;
+}
+
+public record FileAccessRuleConfig
+{
+    public string Path { get; set; } = "";
+    public string Mode { get; set; } = "Allow"; // Allow, Ask, Deny
+}
+
+public record NetworkAccessRuleConfig
+{
+    public string UrlPattern { get; set; } = "";
+    public string Mode { get; set; } = "Allow"; // Allow, Deny
 }
 
 public record ProjectConfig
@@ -34,6 +63,19 @@ public record ProjectConfig
     public List<ReviewActionConfig> ReviewActions { get; set; } = new();
     public List<PromptwareHookConfig> Hooks { get; set; } = new();
     public List<string> BuildDependencies { get; set; } = new();
+    public List<ProjectMcpServerRef> McpServers { get; set; } = new();
+    public List<ProjectSkillRef> Skills { get; set; } = new();
+
+    public string SecurityPreset { get; set; } = "Custom";
+    public string OutsideFileAccessPolicy { get; set; } = "Allow";
+    public string TerminalAutoExecution { get; set; } = "Always Proceed";
+    public string SandboxMode { get; set; } = "Inherit General";
+    public string AutoImplementPlans { get; set; } = "Inherit General";
+
+    public List<FileAccessRuleConfig> FilePermissions { get; set; } = new();
+    public List<NetworkAccessRuleConfig> NetworkAccessRules { get; set; } = new();
+    public List<string> AllowedTerminalCommands { get; set; } = new();
+
     [YamlIgnore]
     public List<string> RepoPaths => Repos.Select(r => r.Path).ToList();
 
@@ -178,6 +220,7 @@ public class TendrilSettings
     public Tunnel.TunnelConfig? Tunnel { get; set; }
     public bool Telemetry { get; set; } = true;
     public bool DesktopNotifications { get; set; } = true;
+    public bool SidebarOpen { get; set; } = true;
     public bool Beta { get; set; } = false;
     public string? DismissedUpdateVersion { get; set; }
 
@@ -215,6 +258,7 @@ public class ConfigService : IConfigService, IDisposable
         ConfigPath = !string.IsNullOrEmpty(TendrilHome)
             ? Path.Combine(TendrilHome, "config.yaml")
             : PathHelper.GetResourcePath("config.yaml");
+        SyncBetaFromSettings();
     }
 
     public ConfigService(ILogger<ConfigService>? logger = null)
@@ -343,6 +387,15 @@ public class ConfigService : IConfigService, IDisposable
         ValidateProjectNames();
         CreateRequiredDirectories();
         SyncAuthFromEnvironmentAndPersistIfNeeded();
+        SyncBetaFromSettings();
+    }
+
+    private void SyncBetaFromSettings()
+    {
+        if (Settings.Beta)
+        {
+            Environment.SetEnvironmentVariable("TENDRIL_BETA", "1");
+        }
     }
 
     /// <summary>
@@ -500,13 +553,13 @@ public class ConfigService : IConfigService, IDisposable
     public Colors? GetLevelColor(string level)
     {
         var colorStr = Settings.Levels.FirstOrDefault(l => l.Name == level)?.Color;
-        return !string.IsNullOrEmpty(colorStr) && Enum.TryParse<Colors>(colorStr, out var c) ? c : null;
+        return !string.IsNullOrEmpty(colorStr) && Enum.TryParse<Colors>(colorStr, ignoreCase: true, out var c) ? c : null;
     }
 
     public Colors? GetProjectColor(string projectName)
     {
         var colorStr = GetProject(projectName)?.Color;
-        return !string.IsNullOrEmpty(colorStr) && Enum.TryParse<Colors>(colorStr, out var c) ? c : null;
+        return !string.IsNullOrEmpty(colorStr) && Enum.TryParse<Colors>(colorStr, ignoreCase: true, out var c) ? c : null;
     }
 
     public event EventHandler? SettingsReloaded;
@@ -592,6 +645,7 @@ public class ConfigService : IConfigService, IDisposable
             ExpandRepoPaths();
 
             SyncAuthFromEnvironmentAndPersistIfNeeded();
+            SyncBetaFromSettings();
             SettingsReloaded?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
@@ -1059,9 +1113,46 @@ public class ConfigService : IConfigService, IDisposable
         if (Settings.Projects == null) return;
         foreach (var project in Settings.Projects)
         {
+            if (!string.IsNullOrWhiteSpace(project.Name) && !string.IsNullOrWhiteSpace(TendrilHome))
+                ProjectPathHelper.EnsureProjectDirectories(TendrilHome, project.Name);
+
             project.Context = ExpandProse(project.Context);
             ExpandReviewActions(project.ReviewActions);
             ExpandHooks(project.Hooks);
+            ExpandMcpServers(project.McpServers);
+            ExpandSkills(project.Skills);
+        }
+    }
+
+    private void ExpandMcpServers(List<ProjectMcpServerRef>? servers)
+    {
+        if (servers == null) return;
+        foreach (var server in servers)
+        {
+            server.Command = ExpandVar(server.Command);
+            if (server.Arguments != null)
+            {
+                for (var i = 0; i < server.Arguments.Count; i++)
+                    server.Arguments[i] = ExpandVar(server.Arguments[i]);
+            }
+            if (server.Environment != null)
+            {
+                var keys = server.Environment.Keys.ToList();
+                foreach (var k in keys)
+                    server.Environment[k] = ExpandVar(server.Environment[k]);
+            }
+        }
+    }
+
+    private void ExpandSkills(List<ProjectSkillRef>? skills)
+    {
+        if (skills == null) return;
+        foreach (var skill in skills)
+        {
+            if (!string.IsNullOrEmpty(skill.Path))
+                skill.Path = ExpandVar(skill.Path);
+            if (!string.IsNullOrEmpty(skill.Instructions))
+                skill.Instructions = ExpandProse(skill.Instructions);
         }
     }
 

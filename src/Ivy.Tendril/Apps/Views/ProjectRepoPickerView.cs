@@ -1,3 +1,9 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using Ivy.Core.Hooks;
 using Ivy.Desktop;
 using Ivy.Tendril.Helpers;
@@ -46,7 +52,7 @@ public class ProjectRepoPickerView(
                 return;
             }
 
-            var draft = new RepoRef { Path = path, PrRule = "default" };
+            var draft = new RepoRef { Path = path };
             var suggestedName = RepoPathValidator.ExtractRepoName(path) ?? path;
 
             addingError.Set(null);
@@ -117,7 +123,7 @@ public class ProjectRepoPickerView(
             var isLocal = itemKind == RepoPathKind.LocalPath;
 
             object? validityIcon = null;
-            object pathLabel = Text.Block(GetDisplayLabel(item)).Color(Colors.Primary);
+            object pathLabel = Text.Block(GetDisplayLabel(item, tendrilHome)).Color(Colors.Primary);
             if (isLocal)
             {
                 var expanded = VariableExpansion.ExpandVariables(item.Path, tendrilHome);
@@ -177,34 +183,74 @@ public class ProjectRepoPickerView(
         return bridge.ToTextInput("Base branch").Width(Size.Units(40)).WithTooltip("Default branch for this repository");
     }
 
-    private static string GetDisplayLabel(RepoRef repo)
+    private static string GetDisplayLabel(RepoRef repo, string? tendrilHome = null)
     {
-        var name = RepoPathValidator.ExtractRepoName(repo.Path);
-        if (name != null)
+        var path = repo.Path;
+        if (string.IsNullOrWhiteSpace(path)) return "";
+
+        var expanded = VariableExpansion.ExpandVariables(path, tendrilHome);
+        var kind = RepoPathValidator.Classify(expanded);
+
+        if (kind == RepoPathKind.LocalPath)
         {
-            var kind = RepoPathValidator.Classify(repo.Path);
-            if (kind == RepoPathKind.HttpUrl || kind == RepoPathKind.SshUrl)
+            try
             {
-                // Show owner/repo for remote URLs
-                var trimmed = repo.Path;
-                if (trimmed.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
-                    trimmed = trimmed[..^4];
-                if (kind == RepoPathKind.SshUrl)
+                var gitDir = Path.Combine(expanded, ".git");
+                string? configPath = null;
+                if (Directory.Exists(gitDir))
                 {
-                    var colonIdx = trimmed.IndexOf(':');
-                    if (colonIdx >= 0)
-                        return trimmed[(colonIdx + 1)..];
+                    configPath = Path.Combine(gitDir, "config");
                 }
-                else
+                else if (File.Exists(gitDir))
                 {
-                    var parts = trimmed.Split('/');
-                    if (parts.Length >= 2)
-                        return $"{parts[^2]}/{parts[^1]}";
+                    var gitContent = FileHelper.ReadAllText(gitDir).Trim();
+                    var match = Regex.Match(gitContent, @"gitdir:\s*(.+)");
+                    if (match.Success)
+                    {
+                        var realGitDir = Path.GetFullPath(Path.Combine(expanded, match.Groups[1].Value.Trim()));
+                        configPath = Path.Combine(realGitDir, "config");
+                    }
+                }
+
+                if (configPath != null && File.Exists(configPath))
+                {
+                    var configText = FileHelper.ReadAllText(configPath);
+                    var originMatch = Regex.Match(configText, @"(?ms)\[remote\s+""(?:origin|upstream)""\][^\[]*?url\s*=\s*([^\r\n]+)");
+                    if (!originMatch.Success)
+                    {
+                        originMatch = Regex.Match(configText, @"(?ms)\[remote\s+""[^""]+""\][^\[]*?url\s*=\s*([^\r\n]+)");
+                    }
+
+                    if (originMatch.Success)
+                    {
+                        var remoteUrl = originMatch.Groups[1].Value.Trim();
+                        var remoteOwner = RepoPathValidator.ExtractOwnerName(remoteUrl);
+                        var remoteName = RepoPathValidator.ExtractRepoName(remoteUrl);
+                        if (!string.IsNullOrEmpty(remoteOwner) && !string.IsNullOrEmpty(remoteName))
+                        {
+                            return $"{remoteOwner}/{remoteName}";
+                        }
+                    }
                 }
             }
-            return name;
-        }
-        return repo.Path;
-    }
+            catch { }
 
+            var owner = RepoPathValidator.ExtractOwnerName(expanded);
+            var name = RepoPathValidator.ExtractRepoName(expanded);
+            if (!string.IsNullOrEmpty(owner) && !string.IsNullOrEmpty(name))
+            {
+                return $"{owner}/{name}";
+            }
+            return name ?? path;
+        }
+
+        var directOwner = RepoPathValidator.ExtractOwnerName(path);
+        var directName = RepoPathValidator.ExtractRepoName(path);
+        if (!string.IsNullOrEmpty(directOwner) && !string.IsNullOrEmpty(directName))
+        {
+            return $"{directOwner}/{directName}";
+        }
+
+        return RepoPathValidator.ExtractRepoName(path) ?? path;
+    }
 }

@@ -47,7 +47,7 @@ public static class JobLogWriter
     {
         JobLogPaths.EnsureJobsDir(tendrilHome);
         var logFile = JobLogPaths.Log(tendrilHome, job);
-        File.WriteAllText(logFile, "*Execution in progress...*\n");
+        FileHelper.WriteAllText(logFile, "*Execution in progress...*\n");
         return logFile;
     }
 
@@ -60,7 +60,7 @@ public static class JobLogWriter
         if (string.IsNullOrEmpty(job.CompiledPrompt)) return null;
         JobLogPaths.EnsureJobsDir(tendrilHome);
         var promptFile = JobLogPaths.Prompt(tendrilHome, job);
-        File.WriteAllText(promptFile, job.CompiledPrompt);
+        FileHelper.WriteAllText(promptFile, job.CompiledPrompt);
         return promptFile;
     }
 
@@ -95,9 +95,9 @@ public static class JobLogWriter
         if (!string.IsNullOrEmpty(job.SessionId))
             sb.AppendLine($"- **SessionId:** {job.SessionId}");
         if (job.Cost.HasValue)
-            sb.AppendLine($"- **Cost:** ${job.Cost:F4}");
+            sb.AppendLine($"- **Cost:** {FormatHelper.FormatCost(job.Cost.Value, decimals: 4)}");
         if (job.Tokens.HasValue)
-            sb.AppendLine($"- **Tokens:** {job.Tokens:N0}");
+            sb.AppendLine($"- **Tokens:** {FormatHelper.FormatCount(job.Tokens.Value)}");
         if (job.Status == JobStatus.Timeout && job.StatusMessage != null)
             sb.AppendLine($"- **Timeout Reason:** {job.StatusMessage}");
         sb.AppendLine();
@@ -131,7 +131,7 @@ public static class JobLogWriter
         if (!string.IsNullOrEmpty(agentSections))
             sb.Append(agentSections);
 
-        File.WriteAllText(logFilePath, sb.ToString());
+        FileHelper.WriteAllText(logFilePath, sb.ToString());
     }
 
     /// <summary>
@@ -143,7 +143,7 @@ public static class JobLogWriter
         try
         {
             if (!File.Exists(logFilePath)) return null;
-            var text = File.ReadAllText(logFilePath);
+            var text = FileHelper.ReadAllText(logFilePath);
             var idx = text.IndexOf(AgentLogMarker, StringComparison.Ordinal);
             return idx < 0 ? null : text[idx..];
         }

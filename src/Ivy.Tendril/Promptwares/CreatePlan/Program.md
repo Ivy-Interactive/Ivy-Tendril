@@ -183,7 +183,10 @@ Report status: `tendril job status TendrilJobId --message="Researching codebase.
   EOF
   ```
 
-- Read relevant source files to understand the codebase areas involved (READ ONLY — do not write, edit, or create any source files)
+- Read relevant source files to understand the codebase areas involved (READ ONLY — do not write, edit, or create any source files).
+- **Safe Codebase Search Guidelines**:
+  - When using `grep_search` or CLI search tools, **ALWAYS** target specific source subdirectories (e.g. `src/`) and provide specific `Includes` file patterns (e.g. `*.cs`, `*.tsx`, `*.ts`, `*.rs`, `*.py`, `*.md`).
+  - **NEVER** run broad unconstrained grep searches across entire repository roots without file filters. Searching unconstrained roots encounters generated bundles and build artifacts (`dist/`, `bin/`, `obj/`, `node_modules/`) whose minified lines trigger tool buffer limits (`bufio.Scanner: token too long`).
 - For each repo in the plan's repo list, check for and read these context files in the repo root:
   - `AGENTS.md`
   - `CLAUDE.md`

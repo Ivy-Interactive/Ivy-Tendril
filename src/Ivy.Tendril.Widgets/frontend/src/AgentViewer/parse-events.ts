@@ -36,6 +36,9 @@ export function parseEventWireStream(jsonStream: string): PresentationEvent[] {
         break;
 
       case "text":
+        if (evt.text?.startsWith("[stderr]")) {
+          break;
+        }
         if (evt.delta) {
           pendingText = (pendingText ?? "") + evt.text;
         } else {

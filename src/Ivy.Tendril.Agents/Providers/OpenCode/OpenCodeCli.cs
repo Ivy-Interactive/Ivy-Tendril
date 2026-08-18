@@ -29,6 +29,8 @@ public sealed class OpenCodeCli : IAgentCli
         new(ProfileTier.Quick, "default", "low"),
     ];
 
+    public IReadOnlyList<EffortOption> SupportedEfforts => EffortLevels.OpenCode;
+
     private static readonly FrozenDictionary<string, string> ToolMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         [CanonicalTools.Read] = "read",
@@ -84,6 +86,13 @@ public sealed class OpenCodeCli : IAgentCli
 
         // OpenCode's --session resumes an existing session; it does not accept
         // caller-assigned IDs for new sessions (unlike Claude's --session-id).
+
+        var mcpConfigFile = global::Ivy.Tendril.Agents.Helpers.McpConfigWriter.WriteConfigFile(config.McpServers);
+        if (!string.IsNullOrEmpty(mcpConfigFile))
+        {
+            args.Add("--mcp-config");
+            args.Add(mcpConfigFile);
+        }
 
         foreach (var arg in config.ExtraArguments)
             args.Add(arg);

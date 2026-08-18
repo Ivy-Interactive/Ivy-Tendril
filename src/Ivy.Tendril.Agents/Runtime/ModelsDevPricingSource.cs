@@ -5,7 +5,10 @@ namespace Ivy.Tendril.Agents.Runtime;
 
 public sealed class ModelsDevPricingSource
 {
-    private static readonly Uri ApiUrl = new("https://models.dev/api.json");
+    /// <summary>Label used as <see cref="ModelPricing.Source" /> for rates taken from here.</summary>
+    public const string SourceUrl = "https://models.dev/api.json";
+
+    private static readonly Uri ApiUrl = new(SourceUrl);
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(20) };
     private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(24);
 
@@ -45,6 +48,37 @@ public sealed class ModelsDevPricingSource
         {
             _lock.Release();
         }
+    }
+
+    /// <summary>
+    /// Resolves a catalog model id against the cache: exact id, then the id with its
+    /// <c>provider/</c> prefix stripped, then a last-resort substring match either way.
+    /// Shared by the catalog enrichment (which feeds the model picker) and
+    /// <see cref="ModelPricingProvider.RefreshFromModelsDevAsync" /> (which feeds cost math), so
+    /// both attribute a model to the same models.dev entry.
+    /// </summary>
+    public static ModelPricingEntry? Find(
+        IReadOnlyDictionary<string, ModelPricingEntry> cache, string modelId)
+    {
+        if (cache.TryGetValue(modelId, out var entry))
+            return entry;
+
+        var slash = modelId.IndexOf('/');
+        if (slash > 0)
+        {
+            var nameOnly = modelId[(slash + 1)..];
+            if (cache.TryGetValue(nameOnly, out entry))
+                return entry;
+        }
+
+        foreach (var (key, value) in cache)
+        {
+            if (key.Contains(modelId, StringComparison.OrdinalIgnoreCase) ||
+                modelId.Contains(key, StringComparison.OrdinalIgnoreCase))
+                return value;
+        }
+
+        return null;
     }
 
     private static Dictionary<string, ModelPricingEntry>? ParseApiJson(string json)

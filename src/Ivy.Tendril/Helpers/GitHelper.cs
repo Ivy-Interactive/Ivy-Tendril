@@ -125,7 +125,7 @@ public static class GitHelper
             return (-1, outTask.IsCompletedSuccessfully ? outTask.Result : "", combinedErr);
         }
 
-        return (process.ExitCode, outTask.GetAwaiter().GetResult(), errTask.GetAwaiter().GetResult());
+        return (process.ExitCode, FileHelper.SanitizeUtf8(outTask.GetAwaiter().GetResult()), FileHelper.SanitizeUtf8(errTask.GetAwaiter().GetResult()));
     }
 
     internal static string? RunGitCapture(string? workingDir, string args, int timeoutMs)
@@ -148,7 +148,7 @@ public static class GitHelper
             var output = outTask.GetAwaiter().GetResult();
             _ = errTask.GetAwaiter().GetResult();
 
-            return process.ExitCode == 0 ? output : null;
+            return process.ExitCode == 0 ? FileHelper.SanitizeUtf8(output) : null;
         }
         catch
         {

@@ -51,7 +51,9 @@ public static class ConfigYamlUiHelper
             }
         }
         else
+        {
             navigator.Navigate<ConfigEditorApp>();
+        }
     }
 
     /// <summary>

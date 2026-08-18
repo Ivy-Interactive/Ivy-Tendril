@@ -1,22 +1,21 @@
-<h1 align="center">
+<h1>
   <a href="https://tendril.ivy.app"><img src="src/logo.png" alt="Tendril Logo" width="64" valign="middle" /></a> Ivy Tendril
 </h1>
 
-<p align="center">
+<p>
   <a href="https://github.com/Ivy-Interactive/Ivy-Tendril/stargazers"><img src="https://badgen.net/github/stars/Ivy-Interactive/Ivy-Tendril?label=%E2%98%85" alt="GitHub stars" /></a>
-  <a href="https://www.nuget.org/packages/Ivy.Tendril"><img src="https://img.shields.io/nuget/v/Ivy.Tendril?style=flat" alt="NuGet version" /></a>
-  <a href="https://www.nuget.org/packages/Ivy.Tendril"><img src="https://img.shields.io/nuget/dt/Ivy.Tendril?style=flat" alt="NuGet downloads" /></a>
+  <a href="https://github.com/Ivy-Interactive/Ivy-Tendril/releases/latest"><img src="https://img.shields.io/github/v/release/Ivy-Interactive/Ivy-Tendril?style=flat&label=release" alt="Latest Release" /></a>
   <a href="https://github.com/Ivy-Interactive/Ivy-Tendril/actions/workflows/publish-tendril.yml"><img src="https://img.shields.io/github/actions/workflow/status/Ivy-Interactive/Ivy-Tendril/publish-tendril.yml?style=flat&label=CI" alt="CI Status" /></a>
   <a href="https://tendril.ivy.app"><img src="https://img.shields.io/badge/docs-tendril.ivy.app-blue?style=flat" alt="Documentation" /></a>
   <img src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux-4493F8?style=flat-square" alt="Supported platforms: macOS, Windows, and Linux" />
 </p>
 
-<p align="center">
+<p>
   <strong>The AI Orchestrator for 100x builders.</strong><br/>
   Orchestrate coding agents side-by-side, manage coding plans end-to-end, and track execution and costs in one place.
 </p>
 
-<p align="center">
+<p>
   <img src="src/main.gif" alt="Tendril desktop app running agents and tracking jobs" width="960" />
 </p>
 
@@ -28,7 +27,7 @@
 
 ### Parallel Worktrees
 
-Run agents in isolated git worktrees. Keep your main branch clean until you review, approve, and merge the changes.
+Run agents in isolated git worktrees. Keep your main branch clean until you review, approve, and merge changes.
 
 [Docs &rarr;](https://tendril.ivy.app/docs/gettingstarted/introduction)
 
@@ -42,7 +41,7 @@ Run agents in isolated git worktrees. Keep your main branch clean until you revi
 
 ### Tunneling (Remote & Mobile Coding)
 
-Expose your server securely using Cloudflare Quick Tunnels. Control, monitor, and steer your agent runs from anywhere, complete with a QR code in Settings for quick mobile access.
+Expose your server securely using Cloudflare Quick Tunnels to monitor and steer agent runs from anywhere.
 
 [Docs &rarr;](https://tendril.ivy.app/docs/gettingstarted/introduction)
 
@@ -56,7 +55,7 @@ Expose your server securely using Cloudflare Quick Tunnels. Control, monitor, an
 
 ### Voice & Rich Input
 
-Dictate prompts using voice input (integrated Whisper WebSockets) and attach text files, logs, or project documents with drag-and-drop support.
+Dictate prompts using built-in Whisper voice input and attach text files, logs, or documents with drag-and-drop.
 
 [Docs &rarr;](https://tendril.ivy.app/docs/gettingstarted/introduction)
 
@@ -84,7 +83,7 @@ Annotate drafts inline to automatically update plans with revised agent goals.
 
 ### Powerful Code Reviews
 
-Review and verify agent changes, inspect diffs, and approve code with verification gates.
+Review agent changes, inspect diffs, and approve code with automated verification gates.
 
 [Docs &rarr;](https://tendril.ivy.app/docs/gettingstarted/introduction)
 
@@ -98,7 +97,7 @@ Review and verify agent changes, inspect diffs, and approve code with verificati
 
 ### GitHub Integration & Automated Inbox
 
-Watch your GitHub Issues or ingest bug reports from jam.dev via webhooks. The automated Inbox folder monitors markdown plans and turns them into active jobs.
+Ingest GitHub Issues or jam.dev bug reports via webhooks to turn markdown plans into active jobs automatically.
 
 [Docs &rarr;](https://tendril.ivy.app/docs/integrations/jamdev)
 
@@ -111,13 +110,13 @@ Watch your GitHub Issues or ingest bug reports from jam.dev via webhooks. The au
 
 **Also in the box:**
 
-- **Modular Promptwares:** Deploy self-improving agents (CreatePlan, ExecutePlan, ExpandPlan, CreatePr) with their own prompts, tools, memory, and hooks.
-- **Verification Gates:** Wire up build, test, lint, and format checks. Plans only advance when all checks pass, guaranteeing production-ready code.
-- **Chat with Agent (PTY):** Directly chat with running coding agents in a beta terminal-style split with system prompt injection.
-- **Activity Heatmap:** View your 90-day PR contribution history on the wallpaper interface.
-- **Rerun with Feedback:** Rerun plan steps with custom instructions to steer agents on failures.
-- **Diagnostics & Testing:** Run one-click agent diagnostics to check installation, path, and model availability.
-- **Plan state versioning:** Revert plan revisions, rename states, and migrate plan files with schema guards.
+- **Modular Promptwares:** Custom agent workflows (CreatePlan, ExecutePlan, ExpandPlan, CreatePr) with dedicated prompts, tools, and hooks.
+- **Verification Gates:** Enforce build, test, lint, and format checks before advancing plans.
+- **Chat with Agent (PTY):** Direct terminal-style split interaction with running coding agents.
+- **Activity Heatmap:** View your 90-day PR contribution history.
+- **Rerun with Feedback:** Re-steer agents on failed plan steps with custom feedback.
+- **Diagnostics:** Built-in checks for agent installation, PATH, and model availability.
+- **Plan State Versioning:** Revert plan revisions and migrate plan schemas safely.
 
 ---
 
@@ -125,7 +124,7 @@ Watch your GitHub Issues or ingest bug reports from jam.dev via webhooks. The au
 
 Works with **any CLI agent**: if it runs in a terminal, it runs in Tendril.
 
-<p align="center">
+<p>
   <a href="https://docs.anthropic.com/claude/docs/claude-code"><kbd><img src="https://www.google.com/s2/favicons?domain=anthropic.com&sz=64" alt="Claude Code logo" width="16" valign="middle" /> Claude Code</kbd></a> &nbsp;
   <a href="https://github.com/openai/codex"><kbd><img src="https://www.google.com/s2/favicons?domain=openai.com&sz=64" alt="Codex logo" width="16" valign="middle" /> Codex</kbd></a> &nbsp;
   <a href="https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli"><kbd><img src="https://www.google.com/s2/favicons?domain=github.com&sz=64" alt="GitHub Copilot logo" width="16" valign="middle" /> GitHub Copilot</kbd></a> &nbsp;
@@ -136,9 +135,7 @@ Works with **any CLI agent**: if it runs in a terminal, it runs in Tendril.
 
 ## Install
 
-### One-Liner Install
-
-Get up and running instantly with the standalone desktop app:
+Download standalone desktop installers (`.pkg`, `.AppImage`, `.exe`) directly from [GitHub Releases](https://github.com/Ivy-Interactive/Ivy-Tendril/releases/latest) or run one of the quick install commands below:
 
 **macOS / Linux:**
 ```bash
@@ -150,16 +147,19 @@ curl -sSf https://cdn.ivy.app/install-tendril.sh | sh
 irm https://cdn.ivy.app/install-tendril.ps1 | iex
 ```
 
-> **Note:** The `dotnet tool` install and the Quick Install above are separate installs that can both end up on `PATH`. If you move from the .NET tool to the installer, run `dotnet tool uninstall --global Ivy.Tendril` so `tendril` on `PATH` cannot resolve to the older, frozen tool copy. Run `tendril doctor` to check for a conflicting install.
-
 ### Run
 
-Start the Tendril server/application:
+Tendril is a desktop application, but can also be launched and controlled via the CLI:
+
+Start the desktop application:
 ```bash
 tendril
 ```
 
-> **Tip:** The desktop app supports automated background self-updates. You can also rerun the installer command above at any time to upgrade to the latest release.
+Start in headless mode (web server without desktop UI):
+```bash
+tendril --web
+```
 
 ---
 
@@ -170,23 +170,6 @@ tendril
 - **Show Support:** [Star](https://github.com/Ivy-Interactive/Ivy-Tendril) this repo to follow along with our development.
 
 ---
-
-## Developing
-
-Want to contribute or run locally?
-
-1. **Clone the repo:**
-   ```bash
-   git clone https://github.com/Ivy-Interactive/Ivy-Tendril.git
-   cd Ivy-Tendril
-   ```
-
-2. **Run locally:**
-   ```bash
-   dotnet run --project src/Ivy.Tendril/Ivy.Tendril.csproj
-   ```
-
-See our [plugin developer guide](docs/plugin-developer-guide.md) to build custom integrations.
 
 ## License
 

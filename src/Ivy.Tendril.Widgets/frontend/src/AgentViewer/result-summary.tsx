@@ -3,6 +3,7 @@ import Markdown from "react-markdown";
 import type { ResultWire } from "./types";
 import { BlockHandler } from "../BlockHandler";
 import { getMarkdownPlugins } from "../math";
+import { AlertBlockquote } from "../DraftMarkdown/AlertBlockquote";
 
 interface ResultSummaryProps {
   wire: ResultWire;
@@ -57,7 +58,7 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({ wire }) => {
           <Markdown
             remarkPlugins={plugins.remarkPlugins}
             rehypePlugins={plugins.rehypePlugins}
-            components={{ code: BlockHandler }}
+            components={{ code: BlockHandler, blockquote: AlertBlockquote }}
           >
             {wire.response}
           </Markdown>

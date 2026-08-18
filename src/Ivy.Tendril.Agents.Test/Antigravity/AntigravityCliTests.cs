@@ -28,8 +28,7 @@ public class AntigravityCliTests
                        AgentCapabilities.EffortControl |
                        AgentCapabilities.DirectoryRestriction |
                        AgentCapabilities.HealthCheck |
-                       AgentCapabilities.ExtraArgPassthrough |
-                       AgentCapabilities.SessionResume;
+                       AgentCapabilities.ExtraArgPassthrough;
 
         Assert.Equal(expected, _cli.Capabilities);
     }
@@ -95,7 +94,7 @@ public class AntigravityCliTests
     }
 
     [Fact]
-    public void BuildProcessSpec_IncludesSessionId()
+    public void BuildProcessSpec_DoesNotPassConversationForNewSession()
     {
         var config = new AgentLaunchConfig
         {
@@ -107,9 +106,8 @@ public class AntigravityCliTests
         var spec = _cli.BuildProcessSpec(config);
         var args = spec.Arguments.ToList();
 
-        var idx = args.IndexOf("--conversation");
-        Assert.True(idx >= 0);
-        Assert.Equal("sess-123", args[idx + 1]);
+        Assert.DoesNotContain("--conversation", args);
+        Assert.DoesNotContain("sess-123", args);
     }
 
     [Fact]

@@ -30,6 +30,13 @@ public sealed record ModelPricing
     public required decimal OutputPerMillion { get; init; }
     public decimal CacheWritePerMillion { get; init; }
     public decimal CacheReadPerMillion { get; init; }
+
+    /// <summary>
+    /// Where these rates came from — e.g. <c>"Static catalog (claude)"</c> for the hardcoded
+    /// per-provider catalogs, or the models.dev URL when the entry was enriched from there.
+    /// Surfaced in the cost breakdown sheet so the price list is attributable.
+    /// </summary>
+    public string? Source { get; init; }
 }
 
 public sealed record SessionCostResult

@@ -10,12 +10,12 @@ public static class RepoPathValidator
     // git@<host>:<owner>/<repo>(.git)?
     private static readonly Regex SshPattern = new(
         @"^git@[\w.\-]+:[\w.\-]+/[\w.\-]+(?:\.git)?$",
-        RegexOptions.Compiled);
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     // http(s)://<host>/<path>(.git)?
     private static readonly Regex HttpPattern = new(
         @"^https?://[\w.\-]+(:\d+)?(/[\w.\-~%]+)+(?:\.git)?$",
-        RegexOptions.Compiled);
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public static RepoPathKind Classify(string input)
     {
@@ -111,6 +111,44 @@ public static class RepoPathValidator
                 {
                     var trimmed = input.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                     return Path.GetFileName(trimmed);
+                }
+            default:
+                return null;
+        }
+    }
+
+    public static string? ExtractOwnerName(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return null;
+        input = input.Trim();
+
+        var kind = Classify(input);
+
+        switch (kind)
+        {
+            case RepoPathKind.SshUrl:
+                {
+                    var colonIdx = input.IndexOf(':');
+                    if (colonIdx < 0) return null;
+                    var path = input[(colonIdx + 1)..];
+                    if (path.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+                        path = path[..^4];
+                    var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                    return parts.Length >= 2 ? parts[^2] : null;
+                }
+            case RepoPathKind.HttpUrl:
+                {
+                    var trimmed = input;
+                    if (trimmed.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+                        trimmed = trimmed[..^4];
+                    var parts = trimmed.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                    return parts.Length >= 2 ? parts[^2] : null;
+                }
+            case RepoPathKind.LocalPath:
+                {
+                    var trimmed = input.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                    var parent = Path.GetDirectoryName(trimmed);
+                    return !string.IsNullOrEmpty(parent) ? Path.GetFileName(parent) : null;
                 }
             default:
                 return null;

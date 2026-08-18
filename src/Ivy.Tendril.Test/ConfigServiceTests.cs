@@ -498,14 +498,14 @@ levels:
             Name = "Test",
             Repos =
             [
-                new RepoRef { Path = @"D:\Repos\Foo", PrRule = "yolo" },
-                new RepoRef { Path = @"D:\Repos\Bar", PrRule = "default" }
+                new RepoRef { Path = @"D:\Repos\Foo" },
+                new RepoRef { Path = @"D:\Repos\Bar" }
             ]
         };
 
         var result = project.GetRepoRef(@"D:\Repos\Foo");
         Assert.NotNull(result);
-        Assert.Equal("yolo", result.PrRule);
+        Assert.Equal(@"D:\Repos\Foo", result.Path);
     }
 
     [Fact]
@@ -526,12 +526,12 @@ levels:
         var project = new ProjectConfig
         {
             Name = "Test",
-            Repos = [new RepoRef { Path = @"D:\Repos\Foo", PrRule = "yolo" }]
+            Repos = [new RepoRef { Path = @"D:\Repos\Foo" }]
         };
 
         var result = project.GetRepoRef(@"d:\repos\foo");
         Assert.NotNull(result);
-        Assert.Equal("yolo", result.PrRule);
+        Assert.Equal(@"D:\Repos\Foo", result.Path);
     }
 
     [Fact]
@@ -540,12 +540,12 @@ levels:
         var project = new ProjectConfig
         {
             Name = "Test",
-            Repos = [new RepoRef { Path = @"D:\Repos\Foo", PrRule = "yolo" }]
+            Repos = [new RepoRef { Path = @"D:\Repos\Foo" }]
         };
 
         var result = project.GetRepoRef("D:/Repos/Foo");
         Assert.NotNull(result);
-        Assert.Equal("yolo", result.PrRule);
+        Assert.Equal(@"D:\Repos\Foo", result.Path);
     }
 
     [Fact]
@@ -1167,6 +1167,8 @@ jobTimeout: 30
     [Fact]
     public void Should_Deserialize_RepoRef_With_BaseBranch()
     {
+        // prRule is a legacy key with no corresponding model property anymore; it must still
+        // parse without error (IgnoreUnmatchedProperties) instead of throwing.
         var yaml = @"
 projects:
   - name: TestProject
@@ -1185,7 +1187,6 @@ projects:
 
             var repo = service.Settings.Projects[0].Repos[0];
             Assert.Equal(@"D:\Repos\Test", repo.Path);
-            Assert.Equal("yolo", repo.PrRule);
             Assert.Equal("develop", repo.BaseBranch);
         }
         finally
@@ -1197,6 +1198,8 @@ projects:
     [Fact]
     public void Should_Deserialize_RepoRef_Without_BaseBranch_BackwardCompatible()
     {
+        // prRule is a legacy key with no corresponding model property anymore; it must still
+        // parse without error (IgnoreUnmatchedProperties) instead of throwing.
         var yaml = @"
 projects:
   - name: TestProject
@@ -1214,7 +1217,6 @@ projects:
 
             var repo = service.Settings.Projects[0].Repos[0];
             Assert.Equal(@"D:\Repos\Test", repo.Path);
-            Assert.Equal("default", repo.PrRule);
             Assert.Null(repo.BaseBranch);
         }
         finally
@@ -1226,6 +1228,8 @@ projects:
     [Fact]
     public void Should_Roundtrip_RepoRef_With_BaseBranch()
     {
+        // prRule is a legacy key with no corresponding model property anymore; it must still
+        // parse without error (IgnoreUnmatchedProperties), and must not be re-emitted on save.
         var yaml = @"
 projects:
   - name: TestProject
@@ -1248,6 +1252,9 @@ projects:
 
             var repo = reloaded.Settings.Projects[0].Repos[0];
             Assert.Equal("develop", repo.BaseBranch);
+
+            var savedYaml = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
+            Assert.DoesNotContain("prRule", savedYaml);
         }
         finally
         {
@@ -1490,13 +1497,13 @@ maxConcurrentJobs: 10
         {
             Repos = new List<RepoRef>
             {
-                new RepoRef { Path = @"D:\Repos\MyRepo", PrRule = "yolo" }
+                new RepoRef { Path = @"D:\Repos\MyRepo" }
             }
         };
 
         var result = project.GetRepoRef(@"D:\Repos\MyRepo\");
         Assert.NotNull(result);
-        Assert.Equal("yolo", result.PrRule);
+        Assert.Equal(@"D:\Repos\MyRepo", result.Path);
     }
 
     [Fact]
@@ -1508,13 +1515,13 @@ maxConcurrentJobs: 10
         {
             Repos = new List<RepoRef>
             {
-                new RepoRef { Path = @"D:\Repos\MyRepo", PrRule = "yolo" }
+                new RepoRef { Path = @"D:\Repos\MyRepo" }
             }
         };
 
         var result = project.GetRepoRef(@"D:/Repos/MyRepo");
         Assert.NotNull(result);
-        Assert.Equal("yolo", result.PrRule);
+        Assert.Equal(@"D:\Repos\MyRepo", result.Path);
     }
 
     [Fact]
@@ -1526,7 +1533,7 @@ maxConcurrentJobs: 10
         {
             Repos = new List<RepoRef>
             {
-                new RepoRef { Path = absolutePath, PrRule = "yolo" }
+                new RepoRef { Path = absolutePath }
             }
         };
 
@@ -1535,7 +1542,7 @@ maxConcurrentJobs: 10
 
         // Assert
         Assert.NotNull(result);
-        Assert.Equal("yolo", result.PrRule);
+        Assert.Equal(absolutePath, result.Path);
     }
 
     [Fact]
@@ -1915,6 +1922,63 @@ projects:
         finally
         {
             PathHelper.DefaultTendrilHomeOverride = null;
+        }
+    }
+
+    [Fact]
+    public void Beta_Setting_PersistsAndSetsEnvironmentVariable()
+    {
+        var yaml = @"
+beta: true
+";
+        var originalEnv = Environment.GetEnvironmentVariable("TENDRIL_BETA");
+        var tempDir = CreateTempConfigFile(yaml);
+        PathHelper.DefaultTendrilHomeOverride = tempDir;
+        try
+        {
+            Environment.SetEnvironmentVariable("TENDRIL_BETA", null);
+            using var service = new ConfigService();
+            Assert.True(service.Settings.Beta);
+            Assert.Equal("1", Environment.GetEnvironmentVariable("TENDRIL_BETA"));
+
+            service.Settings.Beta = false;
+            Environment.SetEnvironmentVariable("TENDRIL_BETA", null);
+            service.SaveSettings();
+
+            var yamlOnDisk = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
+            Assert.Contains("beta: false", yamlOnDisk);
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+            Environment.SetEnvironmentVariable("TENDRIL_BETA", originalEnv);
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void SidebarOpen_Setting_DefaultsAndPersists()
+    {
+        var yaml = @"
+sidebarOpen: false
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        PathHelper.DefaultTendrilHomeOverride = tempDir;
+        try
+        {
+            using var service = new ConfigService();
+            Assert.False(service.Settings.SidebarOpen);
+
+            service.Settings.SidebarOpen = true;
+            service.SaveSettings();
+
+            var yamlOnDisk = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
+            Assert.Contains("sidebarOpen: true", yamlOnDisk);
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+            Directory.Delete(tempDir, true);
         }
     }
 }

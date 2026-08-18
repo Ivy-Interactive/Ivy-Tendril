@@ -17,6 +17,20 @@ public class GithubServiceTests
     }
 
     [Fact]
+    public void Should_Parse_MixedCase_Https_Url()
+    {
+        var repo = GithubService.ParseRepoConfigFromUrl("Https://github.com/Ivy-Interactive/Ivy-Framework.git");
+        Assert.NotNull(repo);
+        Assert.Equal("Ivy-Interactive", repo.Owner);
+        Assert.Equal("Ivy-Framework", repo.Name);
+
+        var repo2 = GithubService.ParseRepoConfigFromUrl("HTTPS://github.com/Ivy-Interactive/Ivy-Framework.GIT");
+        Assert.NotNull(repo2);
+        Assert.Equal("Ivy-Interactive", repo2.Owner);
+        Assert.Equal("Ivy-Framework", repo2.Name);
+    }
+
+    [Fact]
     public void Should_Parse_Https_Url_Without_Git_Suffix()
     {
         var repo = GithubService.ParseRepoConfigFromUrl("https://github.com/Ivy-Interactive/Ivy-Framework");
@@ -259,6 +273,41 @@ public class GithubServiceTests
 
         Assert.Empty(statuses);
         Assert.NotNull(error);
+    }
+
+    [Fact]
+    public void ParsePrStatuses_ParsesStatusAndBranch()
+    {
+        var json = """
+                   [
+                     {"url": "https://github.com/owner/repo/pull/1", "state": "OPEN", "headRefName": "feature/foo"},
+                     {"url": "https://github.com/owner/repo/pull/2", "state": "MERGED", "headRefName": "feature/bar"}
+                   ]
+                   """;
+
+        var statuses = GithubService.ParsePrStatuses(json);
+
+        Assert.Equal(2, statuses.Count);
+        Assert.Equal("Open", statuses["https://github.com/owner/repo/pull/1"].Status);
+        Assert.Equal("feature/foo", statuses["https://github.com/owner/repo/pull/1"].Branch);
+        Assert.Equal("Merged", statuses["https://github.com/owner/repo/pull/2"].Status);
+        Assert.Equal("feature/bar", statuses["https://github.com/owner/repo/pull/2"].Branch);
+    }
+
+    [Fact]
+    public void ParsePrStatuses_TreatsMissingHeadRefNameAsEmpty()
+    {
+        var json = """
+                   [
+                     {"url": "https://github.com/owner/repo/pull/1", "state": "OPEN"}
+                   ]
+                   """;
+
+        var statuses = GithubService.ParsePrStatuses(json);
+
+        Assert.Single(statuses);
+        Assert.Equal("Open", statuses["https://github.com/owner/repo/pull/1"].Status);
+        Assert.Equal("", statuses["https://github.com/owner/repo/pull/1"].Branch);
     }
 
     [Fact]

@@ -17,10 +17,6 @@ public class MarkdownLinkPolisher
         @"file:///.*?/Plans/(\d{5})-[^/]+/revisions/\d{3}\.md$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    private static readonly Regex BarePlanNumberRegex = new(
-        @"(?<!\[)(?<!\d)(\d{5})(?!\d)(?!\]\()(?![^[]*\])(?!\))",
-        RegexOptions.Compiled);
-
     private static readonly Regex PlanContextRegex = new(
         @"\bPlans?\s+((?:\d{5})(?:\s*,\s*\d{5})*)",
         RegexOptions.Compiled);
@@ -28,6 +24,33 @@ public class MarkdownLinkPolisher
     private static readonly Regex BacktickLinkTextRegex = new(
         @"\[`([^`\]]+)`\]\((file:///[^)]+)\)",
         RegexOptions.Compiled);
+
+    // Fenced/inline code patterns, shared by both protected-span regexes below — the sample must
+    // survive verbatim wherever it appears.
+    private const string ProtectedCodeSpanPattern =
+        @"```[\s\S]*?```" +          // fenced code (```)
+        @"|~~~[\s\S]*?~~~" +         // fenced code (~~~)
+        @"|``[^\n]*?``" +            // double-backtick inline code
+        @"|`[^`\n]*`";               // single-backtick inline code
+
+    // Spans the nested-link-collapse pass must not rewrite: code only. It deliberately does NOT
+    // reuse ProtectedSpanRegex's link alternative below — that pass's own target *is* a link, and the
+    // non-recursive "whole link" alternative would greedily consume the inner link and misreport the
+    // nested match's start as already protected.
+    private static readonly Regex ProtectedCodeSpanRegex = new(
+        ProtectedCodeSpanPattern,
+        RegexOptions.Compiled);
+
+    // Spans the bare-number pass must not rewrite: code (above) plus existing markdown links/images
+    // (the link text is where the corruption happens — protecting only the URL is not enough).
+    private static readonly Regex ProtectedSpanRegex = new(
+        ProtectedCodeSpanPattern +
+        @"|!?\[[^\]]*\]\([^)]*\)",   // markdown link or image: link text AND url
+        RegexOptions.Compiled);
+
+    private static readonly Regex NestedPlanLinkRegex = new(
+        @"\[([^\[\]]*)\[([^\[\]]*)\]\(plan://\d{1,5}\)([^\[\]]*)\]\((plan://\d{1,5})\)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public string PolishLinks(string markdownContent, string plansDirectory)
     {
@@ -97,6 +120,7 @@ public class MarkdownLinkPolisher
     {
         var result = RemoveBackticksFromFileLinkText(content);
         result = PolishMarkdownLinks(result);
+        result = CollapseNestedPlanLinks(result);
         result = ConvertBarePlanNumbers(result, plansDirectory);
 
         return result;
@@ -179,8 +203,13 @@ public class MarkdownLinkPolisher
         if (string.IsNullOrEmpty(plansDirectory) || !Directory.Exists(plansDirectory))
             return content;
 
+        var protectedSpans = GetProtectedSpans(content, ProtectedSpanRegex);
+
         return PlanContextRegex.Replace(content, match =>
         {
+            if (IsWithinProtectedSpan(match.Index, protectedSpans))
+                return match.Value;
+
             var prefix = match.Value.StartsWith("Plans", StringComparison.Ordinal) ? "Plans " : "Plan ";
             var numbersText = match.Groups[1].Value;
             var numbers = Regex.Split(numbersText, @"\s*,\s*");
@@ -194,6 +223,50 @@ public class MarkdownLinkPolisher
 
             return prefix + string.Join(", ", converted);
         });
+    }
+
+    // Rewrites a plan link whose text was corrupted into containing a second nested plan link
+    // (e.g. `[Plan [00050](plan://00050)](plan://00050)`) back to the authored form
+    // (`[Plan 00050](plan://00050)`), keeping the outer URL since that's the one the author wrote.
+    // Loops until the string stops changing so doubly nested content also settles.
+    private string CollapseNestedPlanLinks(string content)
+    {
+        string previous;
+        do
+        {
+            previous = content;
+            var protectedSpans = GetProtectedSpans(content, ProtectedCodeSpanRegex);
+
+            content = NestedPlanLinkRegex.Replace(content, match =>
+            {
+                if (IsWithinProtectedSpan(match.Index, protectedSpans))
+                    return match.Value;
+
+                var text = match.Groups[1].Value + match.Groups[2].Value + match.Groups[3].Value;
+                var url = match.Groups[4].Value;
+                return $"[{text}]({url})";
+            });
+        } while (content != previous);
+
+        return content;
+    }
+
+    private static (int Start, int End)[] GetProtectedSpans(string content, Regex protectedSpanRegex)
+    {
+        return protectedSpanRegex.Matches(content)
+            .Select(m => (Start: m.Index, End: m.Index + m.Length))
+            .ToArray();
+    }
+
+    private static bool IsWithinProtectedSpan(int index, (int Start, int End)[] protectedSpans)
+    {
+        foreach (var span in protectedSpans)
+        {
+            if (index >= span.Start && index < span.End)
+                return true;
+        }
+
+        return false;
     }
 
     internal static string NormalizePath(string path)

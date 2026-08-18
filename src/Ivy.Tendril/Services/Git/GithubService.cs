@@ -56,7 +56,7 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
     public async Task<(List<string> labels, string? error)> GetLabelsAsync(string owner, string repo)
         => await GetCachedListAsync(_labelCache, owner, repo, FetchLabelsFromGhCliAsync);
 
-    public async Task<(Dictionary<string, string> statuses, string? error)> GetPrStatusesAsync(string owner, string repo)
+    public async Task<(Dictionary<string, PrInfo> statuses, string? error)> GetPrStatusesAsync(string owner, string repo)
     {
         return await FetchPrStatusesFromGhCliAsync(owner, repo);
     }
@@ -195,7 +195,7 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
 
     internal static RepoConfig? ParseRepoConfigFromUrl(string url)
     {
-        var match = Regex.Match(url, @"[/:](?<owner>[^/]+)/(?<name>[^/]+?)(?:\.git)?$");
+        var match = Regex.Match(url, @"[/:](?<owner>[^/]+)/(?<name>[^/]+?)(?:\.git)?$", RegexOptions.IgnoreCase);
         if (!match.Success) return null;
 
         return new RepoConfig
@@ -318,9 +318,9 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
         return (items, error);
     }
 
-    private Dictionary<string, string> ParsePrStatuses(string json)
+    internal static Dictionary<string, PrInfo> ParsePrStatuses(string json)
     {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, PrInfo>(StringComparer.OrdinalIgnoreCase);
         using var doc = JsonDocument.Parse(json);
 
         foreach (var element in doc.RootElement.EnumerateArray())
@@ -330,13 +330,20 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
 
             if (url is not null && state is not null)
             {
-                result[url] = state switch
+                var status = state switch
                 {
                     "OPEN" => "Open",
                     "CLOSED" => "Closed",
                     "MERGED" => "Merged",
                     _ => state
                 };
+
+                var branch = element.TryGetProperty("headRefName", out var headRefProp) &&
+                             headRefProp.ValueKind == JsonValueKind.String
+                    ? headRefProp.GetString() ?? ""
+                    : "";
+
+                result[url] = new PrInfo(status, branch);
             }
         }
 
@@ -359,12 +366,12 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
         return (labels, error);
     }
 
-    private async Task<(Dictionary<string, string> statuses, string? error)> FetchPrStatusesFromGhCliAsync(string owner, string repo)
+    private async Task<(Dictionary<string, PrInfo> statuses, string? error)> FetchPrStatusesFromGhCliAsync(string owner, string repo)
     {
         var (statuses, error) = await ExecuteGhCliAsync(
-            $"pr list --repo {owner}/{repo} --limit 100 --state all --json url,state",
+            $"pr list --repo {owner}/{repo} --limit 100 --state all --json url,state,headRefName",
             ParsePrStatuses,
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+            new Dictionary<string, PrInfo>(StringComparer.OrdinalIgnoreCase));
 
         if (error is not null)
             _logger.LogWarning("gh pr list failed for {Owner}/{Repo}", owner, repo);

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Ivy.Helpers;
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.PullRequest;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 

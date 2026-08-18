@@ -13,6 +13,7 @@ import { ResultSummary } from "./result-summary";
 import { groupToolUseEvents } from "./group-events";
 import { ToolUseGroup } from "./tool-use-group";
 import { getMarkdownPlugins } from "../math";
+import { AlertBlockquote } from "../DraftMarkdown/AlertBlockquote";
 
 function buildSuppressIndices(events: PresentationEvent[]): Set<number> {
   const indices = new Set<number>();
@@ -188,7 +189,10 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
             case "assistant-text":
               return (
                 <div key={idx} className="aov-markdown aov-assistant">
-                  <Markdown {...getMarkdownPlugins(event.text)} components={{ code: BlockHandler }}>
+                  <Markdown
+                    {...getMarkdownPlugins(event.text)}
+                    components={{ code: BlockHandler, blockquote: AlertBlockquote }}
+                  >
                     {event.text}
                   </Markdown>
                 </div>

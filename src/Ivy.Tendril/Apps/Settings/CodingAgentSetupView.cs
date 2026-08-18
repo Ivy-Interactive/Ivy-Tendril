@@ -67,6 +67,9 @@ public class CodingAgentSetupView : ViewBase
         var deepModel = UseState(GetProfileModel(config, config.Settings.CodingAgent, "deep"));
         var balancedModel = UseState(GetProfileModel(config, config.Settings.CodingAgent, "balanced"));
         var quickModel = UseState(GetProfileModel(config, config.Settings.CodingAgent, "quick"));
+        var deepEffort = UseState(GetProfileEffort(config, config.Settings.CodingAgent, "deep"));
+        var balancedEffort = UseState(GetProfileEffort(config, config.Settings.CodingAgent, "balanced"));
+        var quickEffort = UseState(GetProfileEffort(config, config.Settings.CodingAgent, "quick"));
         var lastRealAgent = UseState(config.Settings.CodingAgent);
         var showTestDialog = UseState(false);
         var testAgentId = UseState(config.Settings.CodingAgent);
@@ -85,59 +88,7 @@ public class CodingAgentSetupView : ViewBase
             initialValue: []
         );
 
-        var tendrilArgs = UseService<TendrilArgs>();
-        var installedIvyVersion = UseState<string?>(null);
-        var latestIvyVersion = UseState<string?>(null);
-        var isCheckingIvyUpdate = UseState(false);
-        var isIvyUpdating = UseState(false);
-        var ivyUpdateError = UseState<string?>(null);
-        var isIvyInstalled = UseState(false);
-        var isInstalling = UseState(false);
-        var installError = UseState<string?>(null);
 
-        var checkIvyInstall = async () =>
-        {
-            var hc = runner.GetHealthCheck("ivy") ?? runner.GetHealthCheck("openaiproxy") ?? runner.GetHealthCheck("opencode");
-            if (hc != null)
-            {
-                var status = await hc.CheckInstallAsync();
-                isIvyInstalled.Set(status.IsInstalled);
-                installedIvyVersion.Set(status.Version);
-            }
-            else
-            {
-                isIvyInstalled.Set(false);
-                installedIvyVersion.Set(null);
-            }
-
-            if (tendrilArgs.Beta && (selectedAgent.Value == "openaiproxy_card" || selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card" || selectedAgent.Value == "ivy_card" || selectedAgent.Value == "opencode"))
-            {
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        isCheckingIvyUpdate.Set(true);
-                        using var http = new HttpClient();
-                        http.DefaultRequestHeaders.UserAgent.ParseAdd("IvyTendril");
-                        var latest = await FetchLatestIvyVersionAsync(http);
-                        latestIvyVersion.Set(latest);
-                    }
-                    catch
-                    {
-                        // Ignore quiet errors for background check
-                    }
-                    finally
-                    {
-                        isCheckingIvyUpdate.Set(false);
-                    }
-                });
-            }
-        };
-
-        UseEffect(async () =>
-        {
-            await checkIvyInstall();
-        }, selectedAgent);
 
         var isBerget = selectedAgent.Value == "berget_card";
         var realAgentId = selectedAgent.Value == "openaiproxy_card"
@@ -149,10 +100,16 @@ public class CodingAgentSetupView : ViewBase
             var deep = GetProfileModel(config, realAgentId, "deep");
             var balanced = GetProfileModel(config, realAgentId, "balanced");
             var quick = GetProfileModel(config, realAgentId, "quick");
+            var deepEff = GetProfileEffort(config, realAgentId, "deep");
+            var balancedEff = GetProfileEffort(config, realAgentId, "balanced");
+            var quickEff = GetProfileEffort(config, realAgentId, "quick");
 
             deepModel.Set(deep == "default" && isBerget ? "moonshotai/Kimi-K3" : deep);
             balancedModel.Set(balanced == "default" && isBerget ? "moonshotai/Kimi-K3" : balanced);
             quickModel.Set(quick == "default" && isBerget ? "moonshotai/Kimi-K3" : quick);
+            deepEffort.Set(deepEff);
+            balancedEffort.Set(balancedEff);
+            quickEffort.Set(quickEff);
             ollamaUrl.Set(GetOllamaUrlFromConfig(config, realAgentId));
             lastRealAgent.Set(realAgentId);
             testAgentId.Set(realAgentId);
@@ -174,12 +131,53 @@ public class CodingAgentSetupView : ViewBase
         else if (isBerget || isAnthropic || isOpenAi) finalAgent = "openaiproxy";
         else finalAgent = selectedAgent.Value;
 
+        IAgentDescriptor? descriptor = null;
+        try
+        {
+            descriptor = runner.GetDescriptor(finalAgent);
+        }
+        catch
+        {
+        }
+
+        var supportsEffort = descriptor != null && descriptor.Capabilities.HasFlag(AgentCapabilities.EffortControl);
+
+        IAnyOption[] GetEffortOptions(string? modelId)
+        {
+            var modelInfo = !string.IsNullOrEmpty(modelId)
+                ? models.FirstOrDefault(m => m.Id.Equals(modelId, StringComparison.OrdinalIgnoreCase))
+                : null;
+
+            var efforts = modelInfo?.SupportedEfforts;
+            if (efforts == null || efforts.Count == 0)
+            {
+                efforts = descriptor?.GetSupportedEfforts(modelId);
+            }
+            if (efforts == null || efforts.Count == 0)
+            {
+                efforts = descriptor?.SupportedEfforts;
+            }
+            if (efforts == null || efforts.Count == 0)
+            {
+                efforts = EffortLevels.Claude;
+            }
+
+            return new[] { new Option<string>("Default", "default") }
+                .Concat(efforts.Select(e => new Option<string>(e.DisplayName, e.Id)))
+                .ToArray<IAnyOption>();
+        }
+
         var hasAgentChanges = finalAgent != config.Settings.CodingAgent;
         var hasProfileChanges =
             deepModel.Value != GetProfileModel(config, finalAgent, "deep") ||
             balancedModel.Value != GetProfileModel(config, finalAgent, "balanced") ||
-            quickModel.Value != GetProfileModel(config, finalAgent, "quick");
-        
+            quickModel.Value != GetProfileModel(config, finalAgent, "quick") ||
+            (supportsEffort && (
+                deepEffort.Value != GetProfileEffort(config, finalAgent, "deep") ||
+                balancedEffort.Value != GetProfileEffort(config, finalAgent, "balanced") ||
+                quickEffort.Value != GetProfileEffort(config, finalAgent, "quick")
+            ));
+
         var currentIvyKey = GetIvyApiKeyFromConfig(config);
         var currentOpenAiBaseUrl = GetOpenAiProxyBaseUrlFromConfig(config);
         var currentOpenAiKey = GetOpenAiProxyApiKeyFromConfig(config);
@@ -224,8 +222,6 @@ public class CodingAgentSetupView : ViewBase
             {
                 selectedAgent.Set(a.Key);
             }));
-
-        var hasByoSupport = registeredAgents.Contains("openaiproxy") || registeredAgents.Contains("ivy");
 
         var byoAgents = new[]
         {
@@ -304,73 +300,34 @@ public class CodingAgentSetupView : ViewBase
 
         var profileModels = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
             | Text.Block("Profile Models").Bold()
-            | Text.Muted("Promptwares are configured to use different profiles depending on the complexity of the task. You can specify what model to use for each profile.").Small()
-            | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep")
-            | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced")
-            | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick");
-
-        object? ivyAgentUpdateCard = null;
-        if (tendrilArgs.Beta && (selectedAgent.Value == "openaiproxy_card" || selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card" || selectedAgent.Value == "ivy_card" || selectedAgent.Value == "opencode"))
-        {
-            var hasUpdate = !string.IsNullOrEmpty(latestIvyVersion.Value) &&
-                !string.Equals(NormalizeVersion(installedIvyVersion.Value), NormalizeVersion(latestIvyVersion.Value), StringComparison.OrdinalIgnoreCase);
-
-            if (hasUpdate)
-            {
-                ivyAgentUpdateCard = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
-                    | new Card(
-                        Layout.Vertical()
-                        | (Layout.Horizontal()
-                            | Text.Block("Update Client").Bold()
-                            | new Spacer()
-                            | new Badge($"Update Available: {installedIvyVersion.Value ?? "Not Installed"} → {latestIvyVersion.Value}", BadgeVariant.Warning))
-                        | (ivyUpdateError.Value != null ? Text.Danger(ivyUpdateError.Value).Small() : null!)
-                        | new Button(isIvyUpdating.Value ? "Updating Ivy Agent CLI..." : "Update Ivy Agent CLI")
-                            .Primary()
-                            .Disabled(isIvyUpdating.Value)
-                            .OnClick(async () =>
-                            {
-                                isIvyUpdating.Set(true);
-                                ivyUpdateError.Set(null);
-                                try
-                                {
-                                    var success = await InstallIvyAgentAsync(client);
-                                    if (success)
-                                    {
-                                        await checkIvyInstall();
-                                    }
-                                    else
-                                    {
-                                        ivyUpdateError.Set("Installation failed.");
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    ivyUpdateError.Set(ex.Message);
-                                }
-                                finally
-                                {
-                                    isIvyUpdating.Set(false);
-                                }
-                            })
-                    );
-            }
-        }
+            | Text.Muted("Promptwares are configured to use different profiles depending on the complexity of the task. You can specify what model and effort level to use for each profile.").Small()
+            | (supportsEffort
+                ? (object)(Layout.Vertical()
+                    | (Layout.Horizontal()
+                        | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep").Width(Size.Fraction(0.65f))
+                        | deepEffort.ToSelectInput(GetEffortOptions(deepModel.Value)).WithField().Label("Effort").Width(Size.Fraction(0.35f)))
+                    | (Layout.Horizontal()
+                        | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced").Width(Size.Fraction(0.65f))
+                        | balancedEffort.ToSelectInput(GetEffortOptions(balancedModel.Value)).WithField().Label("Effort").Width(Size.Fraction(0.35f)))
+                    | (Layout.Horizontal()
+                        | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick").Width(Size.Fraction(0.65f))
+                        | quickEffort.ToSelectInput(GetEffortOptions(quickModel.Value)).WithField().Label("Effort").Width(Size.Fraction(0.35f))))
+                : (Layout.Vertical()
+                    | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep")
+                    | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced")
+                    | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick")));
 
         return Layout.Vertical()
                | Text.Block("Coding Agent").Bold()
                | (Layout.Vertical()
                    .Width(Size.Full().At(Breakpoint.Mobile).And(Breakpoint.Desktop, Size.Units(170)))
                    | topGrid.Width(Size.Full()))
-               | (hasByoSupport
-                   ? (object)(Layout.Vertical()
-                       | Text.Block("Bring your own LLM").Bold()
-                       | (Layout.Vertical()
-                           .Width(Size.Full().At(Breakpoint.Mobile).And(Breakpoint.Desktop, Size.Units(170)))
-                           | byoGrid.Width(Size.Full())))
-                   : null!)
+               | (Layout.Vertical()
+                   | Text.Block("Bring your own LLM").Bold()
+                   | (Layout.Vertical()
+                       .Width(Size.Full().At(Breakpoint.Mobile).And(Breakpoint.Desktop, Size.Units(170)))
+                       | byoGrid.Width(Size.Full())))
                | agentInputs
-               | ivyAgentUpdateCard
                | profileModels
                | new Spacer()
                | (Layout.Horizontal()
@@ -382,7 +339,10 @@ public class CodingAgentSetupView : ViewBase
                        .OnClick(() =>
                        {
                            config.Settings.CodingAgent = finalAgent;
-                           SaveProfiles(config, finalAgent, deepModel.Value, balancedModel.Value, quickModel.Value);
+                           SaveProfiles(config, finalAgent,
+                               deepModel.Value, deepEffort.Value,
+                               balancedModel.Value, balancedEffort.Value,
+                               quickModel.Value, quickEffort.Value);
                            if (isIvy)
                            {
                                SaveIvyApiKey(config, openAiProxyApiKey.Value);
@@ -426,7 +386,7 @@ public class CodingAgentSetupView : ViewBase
                        var currentModels = new[] { deepModel.Value, balancedModel.Value, quickModel.Value };
                        var entries = new List<TestModelEntry>();
                        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
- 
+
                        foreach (var m in currentModels)
                        {
                            if (string.IsNullOrEmpty(m) || m.Equals("default", StringComparison.OrdinalIgnoreCase))
@@ -443,7 +403,7 @@ public class CodingAgentSetupView : ViewBase
                                }
                            }
                        }
- 
+
                        return entries;
                    },
                    runner);
@@ -458,7 +418,19 @@ public class CodingAgentSetupView : ViewBase
         return string.IsNullOrEmpty(value) ? "default" : value;
     }
 
-    private static void SaveProfiles(IConfigService config, string agentId, string deep, string balanced, string quick)
+    private static string GetProfileEffort(IConfigService config, string agentId, string profileName)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
+        var profile = ac?.Profiles.FirstOrDefault(p => p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
+        var value = profile?.Effort;
+        return string.IsNullOrWhiteSpace(value) ? "default" : value.ToLowerInvariant();
+    }
+
+    private static void SaveProfiles(IConfigService config, string agentId,
+        string deepModel, string deepEffort,
+        string balancedModel, string balancedEffort,
+        string quickModel, string quickEffort)
     {
         var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
             AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
@@ -469,12 +441,12 @@ public class CodingAgentSetupView : ViewBase
             config.Settings.CodingAgents.Add(ac);
         }
 
-        SetProfileModel(ac, "deep", deep);
-        SetProfileModel(ac, "balanced", balanced);
-        SetProfileModel(ac, "quick", quick);
+        SetProfile(ac, "deep", deepModel, deepEffort);
+        SetProfile(ac, "balanced", balancedModel, balancedEffort);
+        SetProfile(ac, "quick", quickModel, quickEffort);
     }
 
-    private static void SetProfileModel(AgentConfig ac, string profileName, string model)
+    private static void SetProfile(AgentConfig ac, string profileName, string model, string effort)
     {
         var profile = ac.Profiles.FirstOrDefault(p =>
             p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
@@ -486,6 +458,7 @@ public class CodingAgentSetupView : ViewBase
         }
 
         profile.Model = model;
+        profile.Effort = string.IsNullOrWhiteSpace(effort) || effort.Equals("default", StringComparison.OrdinalIgnoreCase) ? "" : effort;
     }
 
     private static string GetIvyApiKeyFromConfig(IConfigService config)
@@ -587,168 +560,7 @@ public class CodingAgentSetupView : ViewBase
     }
 
 
-    private static async Task<bool> InstallIvyAgentAsync(IClientProvider client)
-    {
-        string os = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "windows" :
-                    RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "darwin" : "linux";
-        string arch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x64";
-        
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var installDir = Path.Combine(home, ".ivy-agent", "bin");
-        Directory.CreateDirectory(installDir);
-        
-        var tempDir = Path.Combine(Path.GetTempPath(), "ivy-agent-install");
-        if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
-        Directory.CreateDirectory(tempDir);
-        
-        try
-        {
-            using var httpClient = new HttpClient();
-            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("IvyTendril");
-            
-            // 1. Get latest version from GitHub releases / CDN
-            string version;
-            try
-            {
-                version = await FetchLatestIvyVersionAsync(httpClient);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Failed to fetch latest version metadata: {ex.Message}");
-            }
-            
-            // 2. Download the archive from CDN
-            string extension = os == "windows" ? ".zip" : ".tar.gz";
-            string archiveName = $"ivy-agent-cli-{os}-{arch}{extension}";
-            string downloadUrl = $"https://cdn.ivy.app/ivy-agent-cli/releases/download/{version}/{archiveName}";
-            string archivePath = Path.Combine(tempDir, archiveName);
-            
-            try
-            {
-                using var stream = await httpClient.GetStreamAsync(downloadUrl);
-                using var fileStream = new FileStream(archivePath, FileMode.Create, FileAccess.Write, FileShare.None);
-                await stream.CopyToAsync(fileStream);
-            }
-            catch (Exception ex)
-            {
-                throw new Exception($"Failed to download release archive from CDN: {ex.Message}");
-            }
-            
-            if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-            {
-                ZipFile.ExtractToDirectory(archivePath, tempDir, true);
-            }
-            else if (archivePath.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
-            {
-                var tarInfo = new ProcessStartInfo
-                {
-                    FileName = "tar",
-                    Arguments = $"-xzf \"{archivePath}\" -C \"{tempDir}\"",
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using var tarProc = Process.Start(tarInfo);
-                if (tarProc != null)
-                {
-                    await tarProc.WaitForExitAsync();
-                    if (tarProc.ExitCode != 0)
-                    {
-                        var tarErr = await tarProc.StandardError.ReadToEndAsync();
-                        throw new Exception($"tar extraction failed: {tarErr.Trim()}");
-                    }
-                }
-            }
-            
-            string binaryName = os == "windows" ? "ivy-agent.exe" : "ivy-agent";
-            var files = Directory.GetFiles(tempDir, binaryName, SearchOption.AllDirectories);
-            var binarySource = files.FirstOrDefault();
-            
-            if (string.IsNullOrEmpty(binarySource))
-            {
-                throw new Exception($"Binary '{binaryName}' not found in the downloaded archive.");
-            }
-            
-            // Kill any running ivy-agent processes before updating
-            try
-            {
-                foreach (var proc in Process.GetProcessesByName("ivy-agent"))
-                {
-                    try { proc.Kill(true); } catch { }
-                }
-            }
-            catch { }
 
-            string destPath = Path.Combine(installDir, binaryName);
-            try
-            {
-                if (File.Exists(destPath)) File.Delete(destPath);
-            }
-            catch
-            {
-                // On Windows, if file is locked, rename it to .old first
-                var oldPath = destPath + ".old." + DateTime.UtcNow.Ticks;
-                try { File.Move(destPath, oldPath); } catch { }
-            }
-
-            if (File.Exists(binarySource))
-            {
-                File.Copy(binarySource, destPath, overwrite: true);
-                File.Delete(binarySource);
-            }
-
-            var localBin = Path.Combine(home, ".local", "bin", binaryName);
-            if (File.Exists(localBin))
-            {
-                try
-                {
-                    File.Copy(destPath, localBin, overwrite: true);
-                }
-                catch
-                {
-                    // Ignore quiet copy issues to localBin if locked
-                }
-            }
-
-            IvyBinaryResolver.ResetCache();
-            
-            if (os != "windows")
-            {
-                var chmodInfo = new ProcessStartInfo
-                {
-                    FileName = "chmod",
-                    Arguments = $"+x \"{destPath}\"",
-                    CreateNoWindow = true,
-                    UseShellExecute = false
-                };
-                using var chmodProc = Process.Start(chmodInfo);
-                if (chmodProc != null) await chmodProc.WaitForExitAsync();
-            }
-            
-            if (os == "darwin")
-            {
-                var codesignInfo = new ProcessStartInfo
-                {
-                    FileName = "codesign",
-                    Arguments = $"-s - --force \"{destPath}\"",
-                    CreateNoWindow = true,
-                    UseShellExecute = false
-                };
-                using var codesignProc = Process.Start(codesignInfo);
-                if (codesignProc != null) await codesignProc.WaitForExitAsync();
-            }
-            
-            return true;
-        }
-        finally
-        {
-            try
-            {
-                if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
-            }
-            catch {}
-        }
-    }
 
     private static string GetOpenAiProxyApiKeyFromConfig(IConfigService config)
     {
@@ -808,26 +620,5 @@ public class CodingAgentSetupView : ViewBase
         {
             ac.EnvironmentVariables["ANTHROPIC_BASE_URL"] = url;
         }
-    }
-
-    private static async Task<string> FetchLatestIvyVersionAsync(HttpClient httpClient)
-    {
-        try
-        {
-            var url = $"https://cdn.ivy.app/ivy-agent-cli/releases/latest.txt?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
-            return (await httpClient.GetStringAsync(url)).Trim();
-        }
-        catch
-        {
-            return "v0.1.0";
-        }
-    }
-
-    private static string NormalizeVersion(string? v)
-    {
-        if (string.IsNullOrWhiteSpace(v)) return "";
-        v = v.Trim();
-        if (v.StartsWith("v", StringComparison.OrdinalIgnoreCase)) v = v.Substring(1);
-        return v;
     }
 }

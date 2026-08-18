@@ -44,8 +44,6 @@ public static class CliValidation
 
     public static readonly string[] ValidImpactLevels = ["Small", "Medium", "High"];
 
-    public static readonly string[] ValidPrRules = ["default", "yolo"];
-
     public static SpectreValidation RequireNonEmpty(string? value, string argumentName)
     {
         if (string.IsNullOrWhiteSpace(value))

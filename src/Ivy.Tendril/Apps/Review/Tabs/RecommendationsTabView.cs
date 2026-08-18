@@ -5,32 +5,43 @@ using Ivy.Tendril.Services;
 namespace Ivy.Tendril.Apps.Review.Tabs;
 
 /// <summary>
-///     The "Recommendations" tab in the Review app: the list of pending recommendation rows.
-///     The "Implement Recommendations" call-to-action lives in the header controls (it acts on
-///     the shared selection set), not here. Each row owns its own checkbox via
+///     The "Recommendations" tab in the Review app: a toolbar row with the "Implement
+///     Recommendations" call-to-action, above the list of pending recommendation rows. It acts on
+///     the shared selection set. Each row owns its own checkbox via
 ///     <see cref="RecommendationRowView"/>.
 /// </summary>
 public class RecommendationsTabView(
     List<RecommendationYaml> pendingRecs,
     IState<HashSet<string>> selectedRecTitles,
-    IConfigService config) : ViewBase
+    IConfigService config,
+    Action onImplement,
+    Action<string> onLinkClick) : ViewBase
 {
     public override object Build()
     {
         var layout = Layout.Vertical().Padding(2);
 
         if (pendingRecs.Count == 0)
+            return layout | Text.Muted("No recommendations.");
+
+        var count = selectedRecTitles.Value.Count;
+        var implement = new Button(count == 1 ? "Implement Recommendation" : "Implement Recommendations")
+            .Icon(Icons.Rocket)
+            .Primary()
+            .Disabled(count == 0)
+            .OnClick(onImplement);
+
+        if (count > 0)
+            implement = implement.Badge(count.ToString());
+
+        layout |= Layout.Horizontal().Gap(2).AlignContent(Align.Left) | implement;
+
+        for (var i = 0; i < pendingRecs.Count; i++)
         {
-            layout |= Text.Muted("No recommendations.");
-        }
-        else
-        {
-            for (var i = 0; i < pendingRecs.Count; i++)
-            {
-                layout |= new RecommendationRowView(pendingRecs[i], selectedRecTitles, config);
-                if (i < pendingRecs.Count - 1)
-                    layout |= new Separator();
-            }
+            layout |= new RecommendationRowView(pendingRecs[i], selectedRecTitles, config, onLinkClick)
+                .Key(pendingRecs[i].Title);
+            if (i < pendingRecs.Count - 1)
+                layout |= new Separator();
         }
 
         return layout;
@@ -45,7 +56,8 @@ public class RecommendationsTabView(
 public class RecommendationRowView(
     RecommendationYaml rec,
     IState<HashSet<string>> selectedTitles,
-    IConfigService config) : ViewBase
+    IConfigService config,
+    Action<string> onLinkClick) : ViewBase
 {
     public override object Build()
     {
@@ -85,6 +97,7 @@ public class RecommendationRowView(
         return content
                | new Markdown(MarkdownHelper.PrepareForDisplay(rec.Description, config))
                    .DangerouslyAllowLocalFiles()
-                   .Article();
+                   .Article()
+                   .OnLinkClick(onLinkClick);
     }
 }

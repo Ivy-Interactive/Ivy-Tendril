@@ -483,6 +483,16 @@ tendril plan rec add <plan-id> "Short descriptive title" -d "Markdown descriptio
 
 `--impact` is optional (Small, Medium, or High) and indicates the value of implementing it.
 
+The description is rendered as markdown in the Recommendations app and the Review tab, so write it
+as displayable markdown, not a bare sentence:
+
+- Use short paragraphs, bullets, and fenced code blocks for snippets.
+- Link every file the reader needs with a markdown link whose URL is an absolute `file:///` path
+  written with forward slashes. Put the line number in the display text only, never in the URL (no
+  `:42` suffix, no `#L123`) — see the plan link rules in the Reference Documents.
+- Only link files that exist; write paths of files that do not exist yet in inline code instead.
+- Reference other plans as bare `Plan NNNNN` in prose and let the link polisher convert them.
+
 Do NOT include items that are part of the current plan's scope. Do NOT include recommendations about code formatting, linting, or style issues — those are handled by verifications.
 
 **After registering any recommendations via the CLI**, create `<TendrilPlanFolder>/Artifacts/recommendations.md`. Having zero recommendations is fine — but the file must still be created:

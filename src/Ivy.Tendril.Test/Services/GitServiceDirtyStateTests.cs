@@ -39,7 +39,9 @@ public class GitServiceDirtyStateTests : IDisposable
         Directory.CreateDirectory(_bareRepoPath);
         RunGitAt(_bareRepoPath, "init --bare");
 
-        RunGitAt(Path.GetTempPath(), $"clone \"{_bareRepoPath}\" \"{_testRepoPath}\"");
+        Directory.CreateDirectory(_testRepoPath);
+        RunGit("init");
+        RunGit($"remote add origin \"{_bareRepoPath}\"");
 
         RunGit("config user.email test@example.com");
         RunGit("config user.name TestUser");
@@ -48,7 +50,8 @@ public class GitServiceDirtyStateTests : IDisposable
         File.WriteAllText(Path.Combine(_testRepoPath, "file1.txt"), "Initial content");
         RunGit("add file1.txt");
         RunGit("commit -m \"Initial commit\"");
-        RunGit("push origin master");
+        RunGit("push -u origin master");
+        RunGit("branch --set-upstream-to=origin/master master");
     }
 
     private void RunGit(string args) => RunGitAt(_testRepoPath, args);
@@ -312,6 +315,24 @@ public class GitServiceDirtyStateTests : IDisposable
         Assert.Contains(result.Value!.Reasons, r => r.Reason == DirtyReason.InProgressOperation);
 
         Directory.Delete(gitDir, true);
+    }
+
+    [Fact]
+    public void StaleRebaseHead_WithoutRebaseStateDir_IsNotDirty()
+    {
+        // Git leaves REBASE_HEAD behind after a rebase completes or is aborted, so its
+        // presence alone must not be reported as a rebase in progress.
+        var rebaseHead = Path.Combine(_testRepoPath, ".git", "REBASE_HEAD");
+        File.WriteAllText(rebaseHead, "0123456789abcdef0123456789abcdef01234567\n");
+        var service = CreateService();
+
+        var result = service.GetRepoDirtyState(_testRepoPath, "master");
+
+        Assert.True(result.IsSuccess);
+        Assert.DoesNotContain(result.Value!.Reasons, r => r.Reason == DirtyReason.InProgressOperation);
+        Assert.False(result.Value!.IsDirty);
+
+        File.Delete(rebaseHead);
     }
 
     // --- No remote ---

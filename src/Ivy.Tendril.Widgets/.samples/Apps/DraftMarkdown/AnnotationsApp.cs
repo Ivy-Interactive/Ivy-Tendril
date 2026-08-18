@@ -69,6 +69,49 @@ class AnnotationsApp : ViewBase
             Should the retry budget be per-request or per-session?
             What is the retention policy for read notifications?
             ```
+
+            ## Appendix: Rollout Plan
+
+            The rollout proceeds in four phases, each gated on the previous phase's
+            success metrics before the next one begins. This section is intentionally
+            long so the document overflows the widget's viewport and can be scrolled,
+            which end-to-end tests rely on to verify that floating annotation UI stays
+            anchored to the underlying text while scrolling.
+
+            1. **Internal dogfood** — the platform team enables notifications for its
+               own accounts and monitors delivery latency and error rates for one week.
+            2. **Limited beta** — a small, opted-in cohort of external users receives
+               notifications, with a kill switch ready in case of unexpected volume.
+            3. **Staged rollout** — the feature is enabled for an increasing percentage
+               of accounts (5%, 25%, 50%, 100%) over two weeks, with rollback criteria
+               defined for each stage.
+            4. **General availability** — notifications are enabled by default for all
+               accounts, with the settings page exposed for per-channel opt-out.
+
+            Each phase has a dedicated on-call rotation and a rollback runbook. Metrics
+            reviewed at each gate include delivery latency (p50/p95/p99), delivery
+            failure rate per channel, and unsubscribe rate. Any regression beyond the
+            agreed thresholds pauses the rollout until root-caused.
+
+            ### Risks and Mitigations
+
+            - **Provider outages**: email and push both depend on third-party
+              providers; the fan-out consumers retry with exponential backoff and
+              fall back to in-app delivery when a channel is degraded.
+            - **Notification fatigue**: batching and per-channel preferences reduce
+              the chance that users disable notifications outright.
+            - **Data consistency**: the topic is the single source of truth for
+              delivery status, so a consumer crash cannot silently drop a
+              notification — it re-reads from the last committed offset on restart.
+
+            ### Appendix Glossary
+
+            - **Fan-out**: publishing a single event to multiple independent
+              consumers, one per delivery channel.
+            - **Dead-letter queue**: where events land after exhausting their retry
+              budget, for manual inspection.
+            - **Kill switch**: an operator-controlled flag that disables a channel
+              immediately, independent of the staged rollout percentage.
             """;
 
         object sidePanel;

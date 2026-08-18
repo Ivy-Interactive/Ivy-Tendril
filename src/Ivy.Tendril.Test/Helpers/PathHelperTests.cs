@@ -2,6 +2,7 @@ using Ivy.Tendril.Helpers;
 
 namespace Ivy.Tendril.Test.Helpers;
 
+[Collection("TendrilHome")]
 public class PathHelperTests
 {
     [Fact]
@@ -138,27 +139,30 @@ public class PathHelperTests
         // never adds the missing one and the ordering assertion below would be vacuous.
         if (!Directory.Exists(dotnetTools) || !Directory.Exists(localBin)) return;
 
-        var originalPath = Environment.GetEnvironmentVariable("PATH");
-
-        try
+        lock (TestLocks.ConsoleLock)
         {
-            Environment.SetEnvironmentVariable("PATH", string.Empty);
+            var originalPath = Environment.GetEnvironmentVariable("PATH");
 
-            PathHelper.AugmentPath(forceShellPath: false);
+            try
+            {
+                Environment.SetEnvironmentVariable("PATH", string.Empty);
 
-            var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-            var dirs = path.Split(':', StringSplitOptions.RemoveEmptyEntries);
+                PathHelper.AugmentPath(forceShellPath: false);
 
-            var localBinIndex = Array.IndexOf(dirs, localBin);
-            var dotnetToolsIndex = Array.IndexOf(dirs, dotnetTools);
+                var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+                var dirs = path.Split(':', StringSplitOptions.RemoveEmptyEntries);
 
-            Assert.True(localBinIndex >= 0, "~/.local/bin should be present in PATH");
-            Assert.True(dotnetToolsIndex >= 0, "~/.dotnet/tools should be present in PATH");
-            Assert.True(localBinIndex < dotnetToolsIndex, "~/.local/bin should come before ~/.dotnet/tools");
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("PATH", originalPath);
+                var localBinIndex = Array.IndexOf(dirs, localBin);
+                var dotnetToolsIndex = Array.IndexOf(dirs, dotnetTools);
+
+                Assert.True(localBinIndex >= 0, "~/.local/bin should be present in PATH");
+                Assert.True(dotnetToolsIndex >= 0, "~/.dotnet/tools should be present in PATH");
+                Assert.True(localBinIndex < dotnetToolsIndex, "~/.local/bin should come before ~/.dotnet/tools");
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("PATH", originalPath);
+            }
         }
     }
 

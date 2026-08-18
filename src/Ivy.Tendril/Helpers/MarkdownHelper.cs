@@ -80,7 +80,8 @@ public static partial class MarkdownHelper
         if (string.IsNullOrEmpty(markdownContent))
             return markdownContent;
 
-        return AnnotateAllBrokenLinks(config.PolishMarkdown(markdownContent), config.PlanFolder);
+        var sanitized = FileHelper.SanitizeUtf8(markdownContent);
+        return AnnotateAllBrokenLinks(config.PolishMarkdown(sanitized), config.PlanFolder);
     }
 
     [GeneratedRegex(@"\[([^\]]*)\]\((file:///[^)]+)\)", RegexOptions.IgnoreCase | RegexOptions.Compiled, "en-US")]

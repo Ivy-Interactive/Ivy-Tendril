@@ -115,4 +115,38 @@ public class ChatHistoryServiceTests
                 Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void SetSessionGenerating_TracksGeneratingAndCompletedState()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "sonnet", "Test");
+            var eventCount = 0;
+            service.GeneratingSessionsChanged += (sender, args) => eventCount++;
+
+            // Start generating
+            service.SetSessionGenerating(session.Id, true);
+            Assert.Contains(session.Id, service.GetGeneratingSessionIds());
+            Assert.DoesNotContain(session.Id, service.GetCompletedSessionIds());
+            Assert.Equal(1, eventCount);
+
+            // Finish generating -> becomes completed
+            service.SetSessionGenerating(session.Id, false);
+            Assert.DoesNotContain(session.Id, service.GetGeneratingSessionIds());
+            Assert.Contains(session.Id, service.GetCompletedSessionIds());
+            Assert.Equal(2, eventCount);
+
+            // Clear completed
+            service.ClearSessionCompleted(session.Id);
+            Assert.DoesNotContain(session.Id, service.GetCompletedSessionIds());
+            Assert.Equal(3, eventCount);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
 }

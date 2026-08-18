@@ -16,7 +16,6 @@ public class ReviewApp : ViewBase
         var configService = UseService<IConfigService>();
         var gitService = UseService<IGitService>();
         var args = UseArgs<ReviewAppArgs>();
-        var nav = UseNavigation();
         var selectedPlanState = UseState<PlanFile?>(null);
         var projectFilter = UseState<string?>(null);
         var levelFilter = UseState<string?>(null);
@@ -35,15 +34,6 @@ public class ReviewApp : ViewBase
                 {
                     selectedPlanState.Set(p);
                 }
-            }
-            return Disposable.Empty;
-        });
-
-        UseEffect(() =>
-        {
-            if (selectedPlanState.Value != null && selectedPlanState.Value.FolderName != args?.PlanId)
-            {
-                nav.Navigate<ReviewApp>(new ReviewAppArgs(selectedPlanState.Value.FolderName, args?.Tab ?? "summary"));
             }
             return Disposable.Empty;
         });

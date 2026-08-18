@@ -394,6 +394,64 @@ internal class JobLauncher
         var promptPath = JobLogWriter.WritePrompt(_configService.TendrilHome, job);
         var promptFilePath = resolution.UsesStdinPrompt ? null : promptPath;
 
+        var projectConfigForJob = _configService?.GetProject(job.Project);
+        var mcpServersForJob = new List<McpServerConfig>();
+        if (projectConfigForJob?.McpServers is { Count: > 0 })
+        {
+            foreach (var server in projectConfigForJob.McpServers.Where(s => !s.Disabled))
+            {
+                var cmd = VariableExpansion.ExpandVariables(server.Command, _configService?.TendrilHome ?? "");
+                var args = server.Arguments?.Select(a => VariableExpansion.ExpandVariables(a, _configService?.TendrilHome ?? "")).ToList() ?? new List<string>();
+                var env = server.Environment?.ToDictionary(
+                    kv => kv.Key,
+                    kv => VariableExpansion.ExpandVariables(kv.Value, _configService?.TendrilHome ?? "")) ?? new Dictionary<string, string>();
+                mcpServersForJob.Add(new McpServerConfig(server.Name, cmd, args, env));
+            }
+        }
+
+        if (!string.IsNullOrEmpty(_configService?.TendrilHome) && !string.IsNullOrEmpty(job.Project))
+        {
+            var mcpDir = ProjectPathHelper.GetMcpDir(_configService.TendrilHome, job.Project);
+            if (Directory.Exists(mcpDir))
+            {
+                var mcpFile = Path.Combine(mcpDir, "mcp.json");
+                if (File.Exists(mcpFile))
+                {
+                    try
+                    {
+                        var text = File.ReadAllText(mcpFile);
+                        using var doc = System.Text.Json.JsonDocument.Parse(text);
+                        if (doc.RootElement.TryGetProperty("mcpServers", out var serversElem) && serversElem.ValueKind == System.Text.Json.JsonValueKind.Object)
+                        {
+                            foreach (var prop in serversElem.EnumerateObject())
+                            {
+                                var sName = prop.Name;
+                                if (mcpServersForJob.Any(s => s.Name.Equals(sName, StringComparison.OrdinalIgnoreCase))) continue;
+                                var sCmd = prop.Value.TryGetProperty("command", out var cElem) ? cElem.GetString() ?? "" : "";
+                                var sArgs = new List<string>();
+                                if (prop.Value.TryGetProperty("args", out var aElem) && aElem.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                {
+                                    foreach (var arg in aElem.EnumerateArray())
+                                        if (arg.GetString() is { } aStr) sArgs.Add(aStr);
+                                }
+                                var sEnv = new Dictionary<string, string>();
+                                if (prop.Value.TryGetProperty("env", out var eElem) && eElem.ValueKind == System.Text.Json.JsonValueKind.Object)
+                                {
+                                    foreach (var envProp in eElem.EnumerateObject())
+                                        if (envProp.Value.GetString() is { } eVal) sEnv[envProp.Name] = eVal;
+                                }
+                                mcpServersForJob.Add(new McpServerConfig(sName, sCmd, sArgs, sEnv));
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to parse mcp.json in {McpDir}", mcpDir);
+                    }
+                }
+            }
+        }
+
         var launchConfig = new AgentLaunchConfig
         {
             Prompt = prompt,
@@ -408,6 +466,7 @@ internal class JobLauncher
             PromptFilePath = promptFilePath,
             EnvironmentVariables = resolution.EnvironmentVariables,
             Timeout = ctx.JobTimeout(),
+            McpServers = mcpServersForJob,
         };
 
         job.Model = launchConfig.Model;
@@ -706,6 +765,12 @@ internal class JobLauncher
         // Deliberately no TENDRIL_JOB_ID: process env does not reach the agent's nested `tendril` calls
         // (see AGENTS.md). The job id travels as the TendrilJobId firmware header and is passed as an argument.
 
+        // Disable MSBuild node reuse and dotnet CLI build servers so background worker daemons do not
+        // outlive the agent process and hold redirected stdout/stderr pipes open (#2044).
+        psi.Environment["MSBUILDDISABLENODEREUSE"] = "1";
+        psi.Environment["DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER"] = "1";
+        psi.Environment["DOTNET_NOLOGO"] = "1";
+
         EnsureTendrilOnPath(psi);
     }
 
@@ -849,6 +914,71 @@ internal class JobLauncher
             return new ProjectVerificationInfo(v.Name, v.Required, delegated);
         }).ToList();
 
-        return new ProjectInfo(config.Name, config.Context, repos, verifications);
+        var skills = config.Skills
+            .Where(s => !s.Disabled)
+            .Select(s =>
+            {
+                var instructions = s.Instructions ?? "";
+                if (!string.IsNullOrWhiteSpace(s.Path))
+                {
+                    var path = VariableExpansion.ExpandVariables(s.Path, _configService.TendrilHome);
+                    if (File.Exists(path))
+                    {
+                        instructions = File.ReadAllText(path);
+                    }
+                    else if (Directory.Exists(path))
+                    {
+                        var skillFile = Path.Combine(path, "SKILL.md");
+                        if (File.Exists(skillFile))
+                            instructions = File.ReadAllText(skillFile);
+                    }
+                }
+                return new ProjectSkillInfo(s.Name, s.Description, instructions);
+            }).ToList();
+
+        // Auto-discover disk-based skills from ~/Projects/project-name/Skills/
+        var skillsDir = ProjectPathHelper.GetSkillsDir(_configService.TendrilHome, config.Name);
+        if (Directory.Exists(skillsDir))
+        {
+            var seenNames = new HashSet<string>(skills.Select(s => s.Name), StringComparer.OrdinalIgnoreCase);
+            foreach (var subDir in Directory.GetDirectories(skillsDir))
+            {
+                var skillName = Path.GetFileName(subDir);
+                if (seenNames.Contains(skillName)) continue;
+
+                var skillFile = Path.Combine(subDir, "SKILL.md");
+                if (File.Exists(skillFile))
+                {
+                    var instructions = File.ReadAllText(skillFile);
+                    skills.Add(new ProjectSkillInfo(skillName, "Disk skill", instructions));
+                    seenNames.Add(skillName);
+                }
+            }
+
+            foreach (var file in Directory.GetFiles(skillsDir, "*.md"))
+            {
+                var skillName = Path.GetFileNameWithoutExtension(file);
+                if (seenNames.Contains(skillName)) continue;
+
+                var instructions = File.ReadAllText(file);
+                skills.Add(new ProjectSkillInfo(skillName, "Disk skill", instructions));
+                seenNames.Add(skillName);
+            }
+        }
+
+        // Auto-discover project memories from ~/Projects/project-name/Memory/
+        var memories = new List<ProjectMemoryInfo>();
+        var memoryDir = ProjectPathHelper.GetMemoryDir(_configService.TendrilHome, config.Name);
+        if (Directory.Exists(memoryDir))
+        {
+            foreach (var file in Directory.GetFiles(memoryDir, "*.md"))
+            {
+                var name = Path.GetFileName(file);
+                var content = File.ReadAllText(file);
+                memories.Add(new ProjectMemoryInfo(name, content));
+            }
+        }
+
+        return new ProjectInfo(config.Name, config.Context, repos, verifications, skills, memories);
     }
 }

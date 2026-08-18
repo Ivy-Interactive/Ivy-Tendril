@@ -329,12 +329,12 @@ public class JobServiceDeletionTests
             return new List<string>();
         }
 
-        public Dictionary<string, string> GetAllPrStatuses()
+        public Dictionary<string, PrInfo> GetAllPrStatuses()
         {
-            return new Dictionary<string, string>();
+            return new Dictionary<string, PrInfo>();
         }
 
-        public void UpsertPrStatus(string prUrl, string owner, string repo, string status, DateTime lastChecked)
+        public void UpsertPrStatus(string prUrl, string owner, string repo, string status, string branch, DateTime lastChecked)
         {
         }
 

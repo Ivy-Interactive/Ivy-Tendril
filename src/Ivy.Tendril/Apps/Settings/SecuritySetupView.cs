@@ -24,12 +24,12 @@ public class SecuritySetupView : ViewBase
             && !string.IsNullOrWhiteSpace(newPassword.Value)
             && passwordsMatch;
 
-        var form = Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        var form = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
                    | Text.Block("Session Protection").Bold()
                    | Text.Block("Require a password to access the Tendril interface.").Muted().Small()
                    | isEnabled.ToBoolInput("Enable Password Protection")
                    | (isEnabled.Value
-                       ? Layout.Vertical().Gap(3)
+                       ? Layout.Vertical()
                          | (hasAuthConfigured
                              ? currentPassword.ToPasswordInput("Current password...")
                                  .WithField().Label("Current Password")
@@ -106,7 +106,8 @@ public class SecuritySetupView : ViewBase
                            currentPassword.Set("");
                            newPassword.Set("");
                            confirmPassword.Set("");
-                       });
+                       })
+                   | new TunnelSetupView();
 
         return form;
     }
