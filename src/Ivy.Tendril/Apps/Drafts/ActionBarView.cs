@@ -9,7 +9,6 @@ namespace Ivy.Tendril.Apps.Drafts;
 
 public class ActionBarView(
     PlanFile selectedPlan,
-    List<PlanFile> allPlans,
     IState<PlanFile?> selectedPlanState,
     IState<bool> isEditingState,
     IState<string> editContentState,
