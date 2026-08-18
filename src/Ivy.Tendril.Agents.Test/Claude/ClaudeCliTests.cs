@@ -182,7 +182,7 @@ public class ClaudeCliTests
     [InlineData(EffortLevel.Low, "low")]
     [InlineData(EffortLevel.Medium, "medium")]
     [InlineData(EffortLevel.High, "high")]
-    [InlineData(EffortLevel.XHigh, "max")]
+    [InlineData(EffortLevel.XHigh, "xhigh")]
     [InlineData(EffortLevel.Max, "max")]
     public void BuildProcessSpec_AllEffortLevels_MapCorrectly(EffortLevel level, string expected)
     {
