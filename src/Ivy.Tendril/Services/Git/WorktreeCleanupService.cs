@@ -18,11 +18,18 @@ public class WorktreeCleanupService : IStartable, IDisposable
     private static readonly HashSet<string> TerminalStates = new(StringComparer.OrdinalIgnoreCase)
         { nameof(PlanStatus.Completed), nameof(PlanStatus.Skipped), nameof(PlanStatus.Icebox) };
 
-    // Non-terminal states that keep their worktree for recovery/resume (Failed = verifications
-    // failed; Draft/Review = a stopped or reverted execution). The worktree is reaped
-    // only once the plan has been idle past the stale-reaper window. Re-executing recreates it.
+    // Non-terminal states holding disposable work: Failed = a broken execution attempt, Draft = an
+    // unstarted or reverted one. Re-executing recreates whatever they hold, so their worktree is
+    // reclaimed once the plan has been idle past the stale-reaper window.
+    //
+    // Review is deliberately NOT in this set. It means execution finished, produced commits, and a
+    // human is the blocker — there is no equivalent fallback, and reaping runs `git branch -D` on the
+    // only ref holding those commits. A Review plan's worktree and branch must survive until the
+    // human acts, so it is never reaped automatically (ResolveGrace returns null for it). Explicit
+    // user actions — Create PR, Discard, Reset to Draft, deleting the ExecutePlan job or the plan,
+    // and `tendril plan cleanup --force` — call RemoveWorktrees directly and are unaffected.
     private static readonly HashSet<string> StaleReapStates = new(StringComparer.OrdinalIgnoreCase)
-        { nameof(PlanStatus.Failed), nameof(PlanStatus.Draft), nameof(PlanStatus.Review) };
+        { nameof(PlanStatus.Failed), nameof(PlanStatus.Draft) };
 
     private static readonly TimeSpan DefaultTerminalGrace = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan DefaultStaleReaperPeriod = TimeSpan.FromDays(7);
@@ -55,8 +62,9 @@ public class WorktreeCleanupService : IStartable, IDisposable
 
     /// <summary>
     ///     Resolves how long a plan in the given state must be idle before its worktree is reaped,
-    ///     or <c>null</c> for active/transient states (Creating/Executing/Updating/Blocked) whose
-    ///     worktrees are never reaped.
+    ///     or <c>null</c> for states whose worktrees are never reaped automatically: the
+    ///     active/transient ones (Creating/Executing/Updating/Blocked) and Review, which holds
+    ///     finished, unpushed work while it waits on a human.
     /// </summary>
     internal static TimeSpan? ResolveGrace(string state, TimeSpan terminalGrace, TimeSpan staleReaperPeriod)
     {

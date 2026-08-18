@@ -51,8 +51,9 @@ public class WorktreeCleanupServiceTests : IDisposable
     [Fact]
     public void RunCleanup_Skips_Active_State_Plans()
     {
-        // Truly active/transient states are never reaped, regardless of age. (Draft and
-        // Review are handled by the stale-reaper tests — they ARE reaped once idle.)
+        // Truly active/transient states are never reaped, regardless of age. (Draft is handled by
+        // the stale-reaper tests — it IS reaped once idle. Review is never reaped either, but for a
+        // different reason; see RunCleanup_NeverReaps_ActiveStates_EvenWhenOld.)
         var activeStates = new[] { "Creating", "Executing", "Updating", "Blocked" };
         foreach (var state in activeStates)
         {
@@ -537,9 +538,10 @@ public class WorktreeCleanupServiceTests : IDisposable
     [Fact]
     public void RunCleanup_Reaps_StaleRecoveryStates_PastReaperWindow()
     {
-        // Failed/Draft/Review keep their worktree for recovery/resume, but once the
-        // plan has been idle past the reaper window the worktree is reclaimed.
-        var states = new[] { "Failed", "Draft", "Review" };
+        // Failed/Draft hold disposable work that re-executing recreates, so once the plan has been
+        // idle past the reaper window the worktree is reclaimed. (Review is excluded — see
+        // CleanupPlanWorktrees_NeverReapsReview_EvenFarPastTheStaleWindow.)
+        var states = new[] { "Failed", "Draft" };
         foreach (var state in states)
         {
             var dir = CreatePlan($"15{Array.IndexOf(states, state):D3}-{state}Stale", state, DateTime.UtcNow.AddDays(-8));
@@ -558,7 +560,7 @@ public class WorktreeCleanupServiceTests : IDisposable
     [Fact]
     public void RunCleanup_Keeps_StaleRecoveryStates_WithinReaperWindow()
     {
-        var states = new[] { "Failed", "Draft", "Review" };
+        var states = new[] { "Failed", "Draft" };
         foreach (var state in states)
         {
             var dir = CreatePlan($"16{Array.IndexOf(states, state):D3}-{state}Fresh", state, DateTime.UtcNow.AddHours(-2));
@@ -577,7 +579,10 @@ public class WorktreeCleanupServiceTests : IDisposable
     [Fact]
     public void RunCleanup_NeverReaps_ActiveStates_EvenWhenOld()
     {
-        var states = new[] { "Creating", "Executing", "Updating", "Blocked" };
+        // Review is in this list for a different reason than the active/transient states: execution
+        // has finished and produced commits, and reaping would force-delete the only branch holding
+        // them. Like the active states, it is never reaped regardless of age.
+        var states = new[] { "Creating", "Executing", "Updating", "Blocked", "Review" };
         foreach (var state in states)
         {
             var dir = CreatePlan($"17{Array.IndexOf(states, state):D3}-{state}Old", state, DateTime.UtcNow.AddDays(-30));
@@ -589,8 +594,22 @@ public class WorktreeCleanupServiceTests : IDisposable
         foreach (var state in states)
         {
             var worktreesDir = Path.Combine(_plansDir, $"17{Array.IndexOf(states, state):D3}-{state}Old", "Worktrees");
-            Assert.True(Directory.Exists(worktreesDir), $"Active {state} plan should never be reaped regardless of age");
+            Assert.True(Directory.Exists(worktreesDir), $"{state} plan should never be reaped regardless of age");
         }
+    }
+
+    [Fact]
+    public void CleanupPlanWorktrees_NeverReapsReview_EvenFarPastTheStaleWindow()
+    {
+        // A Review plan waits on a human, and its branch is the only ref holding the commits
+        // execution produced. No idle window makes it eligible for the automatic reaper.
+        var dir = CreatePlan("21000-ReviewLongIdle", "Review", DateTime.UtcNow.AddDays(-60));
+        CreateWorktreeDir(dir, "Repo");
+
+        WorktreeCleanupService.CleanupPlanWorktrees(dir);
+
+        Assert.True(Directory.Exists(Path.Combine(dir, "Worktrees")),
+            "Review plan idle 60 days should still keep its worktree");
     }
 
     [Fact]
@@ -636,11 +655,19 @@ public class WorktreeCleanupServiceTests : IDisposable
         Assert.Equal(terminal, WorktreeCleanupService.ResolveGrace("Icebox", terminal, stale));
         Assert.Equal(stale, WorktreeCleanupService.ResolveGrace("Failed", terminal, stale));
         Assert.Equal(stale, WorktreeCleanupService.ResolveGrace("Draft", terminal, stale));
-        Assert.Equal(stale, WorktreeCleanupService.ResolveGrace("Review", terminal, stale));
         Assert.Null(WorktreeCleanupService.ResolveGrace("Creating", terminal, stale));
         Assert.Null(WorktreeCleanupService.ResolveGrace("Executing", terminal, stale));
         Assert.Null(WorktreeCleanupService.ResolveGrace("Updating", terminal, stale));
         Assert.Null(WorktreeCleanupService.ResolveGrace("Blocked", terminal, stale));
+    }
+
+    [Fact]
+    public void ResolveGrace_ReturnsNull_ForReview()
+    {
+        var terminal = TimeSpan.FromMinutes(10);
+        var stale = TimeSpan.FromDays(7);
+
+        Assert.Null(WorktreeCleanupService.ResolveGrace("Review", terminal, stale));
     }
 
     [Fact]
