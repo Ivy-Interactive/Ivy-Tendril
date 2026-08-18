@@ -135,7 +135,7 @@ Works with **any CLI agent**: if it runs in a terminal, it runs in Tendril.
 
 ## Install
 
-Download installer binaries directly from [GitHub Releases](https://github.com/Ivy-Interactive/Ivy-Tendril/releases/latest) or run one of the quick install commands below:
+Download standalone desktop installers (`.pkg`, `.AppImage`, `.exe`) directly from [GitHub Releases](https://github.com/Ivy-Interactive/Ivy-Tendril/releases/latest) or run one of the quick install commands below:
 
 **macOS / Linux:**
 ```bash
@@ -146,8 +146,6 @@ curl -sSf https://cdn.ivy.app/install-tendril.sh | sh
 ```powershell
 irm https://cdn.ivy.app/install-tendril.ps1 | iex
 ```
-
-> Standalone desktop installers (`.pkg`, `.AppImage`, `.exe`) are attached to the [latest GitHub Release](https://github.com/Ivy-Interactive/Ivy-Tendril/releases/latest).
 
 ### Run
 
