@@ -35,7 +35,7 @@ internal static class ServiceRegistration
             opts.IncludeBetaProviders = (tendrilArgs?.Beta ?? false) ||
                                         Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
                                         Environment.GetEnvironmentVariable("IVY_BETA") == "1";
-            
+
             opts.IvyApiKeyProviderFactory = sp =>
             {
                 var config = sp.GetService<IConfigService>();
@@ -54,13 +54,13 @@ internal static class ServiceRegistration
                     return authTokenHandler?.GetCurrentToken()?.AccessToken;
                 };
             };
-            
+
             opts.IvyTokenProviderFactory = sp =>
             {
                 var authTokenHandler = sp.GetService<Ivy.IAuthTokenHandlerService>();
                 return () => authTokenHandler?.GetCurrentToken()?.AccessToken;
             };
-            
+
             opts.IvyEmailProviderFactory = sp =>
             {
                 var authTokenHandler = sp.GetService<Ivy.IAuthTokenHandlerService>();
@@ -264,5 +264,9 @@ internal static class ServiceRegistration
             sp.GetRequiredService<Services.Tunnel.CloudflaredService>());
         server.Services.AddSingleton<IStartable>(sp =>
             sp.GetRequiredService<Services.Tunnel.CloudflaredService>());
+
+        server.Services.AddSingleton<Services.Telemetry.ModelPricingWarmupService>();
+        server.Services.AddSingleton<IStartable>(sp =>
+            sp.GetRequiredService<Services.Telemetry.ModelPricingWarmupService>());
     }
 }

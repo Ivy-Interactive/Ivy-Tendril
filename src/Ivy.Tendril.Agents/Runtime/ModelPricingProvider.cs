@@ -2,10 +2,18 @@ using Ivy.Tendril.Agents.Abstractions;
 
 namespace Ivy.Tendril.Agents.Runtime;
 
-public sealed class ModelPricingProvider : IModelPricingProvider
+public sealed class ModelPricingProvider : IModelPricingProvider, IModelPricingRefresher
 {
-    private readonly Dictionary<string, ModelPricing> _pricing;
-    private string[] _sortedKeys;
+    /// <summary>
+    /// The lookup table and the length-ordered keys that index it, replaced as one unit.
+    /// <see cref="RefreshFromModelsDevAsync" /> can run on a background thread while the UI and the
+    /// cost calculation read rates, so readers take a snapshot rather than observe a half-updated
+    /// dictionary.
+    /// </summary>
+    private sealed record Snapshot(Dictionary<string, ModelPricing> Pricing, string[] SortedKeys);
+
+    private Snapshot _state;
+    private readonly Lock _writeLock = new();
 
     public ModelPricingProvider()
         : this(DefaultCatalogs())
@@ -15,22 +23,18 @@ public sealed class ModelPricingProvider : IModelPricingProvider
     public ModelPricingProvider(IEnumerable<ModelPricing> additionalPricing)
         : this(DefaultCatalogs())
     {
-        foreach (var p in additionalPricing)
-        {
-            _pricing[p.Model] = p;
-        }
-        _sortedKeys = _pricing.Keys.OrderByDescending(k => k.Length).ToArray();
+        AddPricing(additionalPricing);
     }
 
     public ModelPricingProvider(IEnumerable<IModelCatalogProvider> catalogs)
     {
-        _pricing = new Dictionary<string, ModelPricing>(StringComparer.OrdinalIgnoreCase);
+        var pricing = new Dictionary<string, ModelPricing>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var catalog in catalogs)
         {
             foreach (var model in catalog.GetStaticModels())
             {
-                var pricing = new ModelPricing
+                var entry = new ModelPricing
                 {
                     Model = model.Id,
                     InputPerMillion = model.InputPerMillion,
@@ -39,31 +43,34 @@ public sealed class ModelPricingProvider : IModelPricingProvider
                     CacheReadPerMillion = model.CacheReadPerMillion,
                     // GetStaticModels() never carries a PricingSource (only the async
                     // GetModelsAsync path enriches from models.dev), so in practice this labels the
-                    // hardcoded catalog. That is the truth, and the cost sheet says so.
+                    // hardcoded catalog. That is the truth, and the cost sheet says so — until
+                    // RefreshFromModelsDevAsync relabels the entries it can price from models.dev.
                     Source = model.PricingSource ?? $"Static catalog ({catalog.AgentId})",
                 };
 
                 var hasPricing = model.InputPerMillion > 0 || model.OutputPerMillion > 0;
                 if (hasPricing)
-                    _pricing[model.Id] = pricing;
+                    pricing[model.Id] = entry;
                 else
-                    _pricing.TryAdd(model.Id, pricing);
+                    pricing.TryAdd(model.Id, entry);
 
             }
         }
 
-        _sortedKeys = _pricing.Keys.OrderByDescending(k => k.Length).ToArray();
+        _state = Build(pricing);
     }
 
     public ModelPricing? GetPricing(string modelName)
     {
-        if (_pricing.TryGetValue(modelName, out var pricing))
+        var state = Volatile.Read(ref _state);
+
+        if (state.Pricing.TryGetValue(modelName, out var pricing))
             return pricing;
 
-        foreach (var key in _sortedKeys)
+        foreach (var key in state.SortedKeys)
         {
             if (modelName.Contains(key, StringComparison.OrdinalIgnoreCase))
-                return _pricing[key];
+                return state.Pricing[key];
         }
 
         return null;
@@ -82,15 +89,69 @@ public sealed class ModelPricingProvider : IModelPricingProvider
 
     public void AddPricing(IEnumerable<ModelPricing> additional)
     {
-        var changed = false;
-        foreach (var p in additional)
+        lock (_writeLock)
         {
-            _pricing[p.Model] = p;
-            changed = true;
+            var current = _state;
+            Dictionary<string, ModelPricing>? updated = null;
+
+            foreach (var p in additional)
+            {
+                updated ??= new Dictionary<string, ModelPricing>(current.Pricing, StringComparer.OrdinalIgnoreCase);
+                updated[p.Model] = p;
+            }
+
+            if (updated is not null)
+                Volatile.Write(ref _state, Build(updated));
         }
-        if (changed)
-            _sortedKeys = _pricing.Keys.OrderByDescending(k => k.Length).ToArray();
     }
+
+    /// <summary>
+    /// Replaces the rates of every model this provider knows with the models.dev entry that matches
+    /// it, relabelling <see cref="ModelPricing.Source" /> accordingly. The constructor is
+    /// deliberately synchronous and must never make a network call, so this is the async warm-up
+    /// that lets computed costs track real prices instead of the hardcoded catalogs; see
+    /// <c>ModelPricingWarmupService</c>, which calls it at startup and periodically thereafter.
+    /// Cheap to call repeatedly: <see cref="ModelsDevPricingSource" /> caches the API response for
+    /// 24 hours and returns the stale (or no) cache rather than throwing when it cannot reach the
+    /// network.
+    /// </summary>
+    /// <returns>How many entries actually changed.</returns>
+    public async Task<int> RefreshFromModelsDevAsync(CancellationToken ct = default)
+    {
+        var cache = await ModelsDevPricingSource.GetCacheAsync(ct);
+        if (cache is null || cache.Count == 0)
+            return 0;
+
+        var current = Volatile.Read(ref _state);
+        var updates = new List<ModelPricing>();
+
+        foreach (var pricing in current.Pricing.Values)
+        {
+            var entry = ModelsDevPricingSource.Find(cache, pricing.Model);
+            if (entry is null)
+                continue;
+
+            // Overwrites all four rates from the one source, exactly as the catalog enrichment that
+            // feeds the model picker does — so the picker and the cost sheet never disagree.
+            var updated = pricing with
+            {
+                InputPerMillion = entry.InputPerMillion,
+                OutputPerMillion = entry.OutputPerMillion,
+                CacheReadPerMillion = entry.CacheReadPerMillion,
+                CacheWritePerMillion = entry.CacheWritePerMillion,
+                Source = ModelsDevPricingSource.SourceUrl,
+            };
+
+            if (updated != pricing)
+                updates.Add(updated);
+        }
+
+        AddPricing(updates);
+        return updates.Count;
+    }
+
+    private static Snapshot Build(Dictionary<string, ModelPricing> pricing) =>
+        new(pricing, pricing.Keys.OrderByDescending(k => k.Length).ToArray());
 
     private static IModelCatalogProvider[] DefaultCatalogs() =>
     [

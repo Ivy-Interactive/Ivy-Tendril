@@ -176,4 +176,59 @@ public class ModelPricingProviderTests
         Assert.NotNull(pricing);
         Assert.Contains("opus", pricing.Model);
     }
+
+    [Fact]
+    public void GetPricing_StaticCatalog_IsLabelledAsSuch()
+    {
+        // The cost sheet shows this label, so it has to say where the rates really came from until
+        // RefreshFromModelsDevAsync has run.
+        Assert.Equal("Static catalog (claude)", _provider.GetPricing("opus")!.Source);
+    }
+
+    // The models.dev warm-up writes through AddPricing on a background thread. Fetching is a live
+    // HTTP call and is not exercised here; this covers what the refresh does to the provider.
+    [Fact]
+    public void AddPricing_OverwritesRatesAndRelabelsTheSource()
+    {
+        var provider = new ModelPricingProvider();
+        var refreshed = provider.GetPricing("opus")! with
+        {
+            InputPerMillion = 7m,
+            OutputPerMillion = 35m,
+            Source = ModelsDevPricingSource.SourceUrl,
+        };
+
+        provider.AddPricing([refreshed]);
+
+        var pricing = provider.GetPricing("opus")!;
+        Assert.Equal(7m, pricing.InputPerMillion);
+        Assert.Equal(35m, pricing.OutputPerMillion);
+        Assert.Equal(ModelsDevPricingSource.SourceUrl, pricing.Source);
+        // The refreshed rates are what cost math must now use.
+        Assert.Equal(7m, provider.CalculateCost("opus", inputTokens: 1_000_000, outputTokens: 0));
+    }
+
+    [Fact]
+    public void AddPricing_Empty_LeavesTheTableIntact()
+    {
+        var provider = new ModelPricingProvider();
+
+        provider.AddPricing([]);
+
+        Assert.NotNull(provider.GetPricing("opus"));
+        Assert.NotNull(provider.GetPricing("claude-opus-4-7-20250219"));
+    }
+
+    [Fact]
+    public void AddPricing_NewModel_IsFoundByTheSubstringFallback()
+    {
+        var provider = new ModelPricingProvider();
+
+        provider.AddPricing([
+            new ModelPricing { Model = "brand-new-model", InputPerMillion = 1m, OutputPerMillion = 2m }
+        ]);
+
+        // Proves the key index was rebuilt, not just the dictionary.
+        Assert.Equal("brand-new-model", provider.GetPricing("vendor/brand-new-model-20260101")?.Model);
+    }
 }
