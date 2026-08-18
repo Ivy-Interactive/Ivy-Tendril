@@ -109,12 +109,26 @@ public static class AgentLaunchHelper
         return string.IsNullOrEmpty(configuredModel) ? (requestedModel ?? "default") : configuredModel;
     }
 
+    public static EffortLevel? ResolveEffort(IConfigService config, IAgentRunner runner, string agentId, string? profileName = "balanced")
+    {
+        var agentConfig = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
+        var configuredEffort = agentConfig?.Profiles.FirstOrDefault(p => p.Name.Equals(profileName ?? "balanced", StringComparison.OrdinalIgnoreCase))?.Effort;
+        if (string.IsNullOrEmpty(configuredEffort) || configuredEffort == "default")
+        {
+            configuredEffort = agentConfig?.Profiles.FirstOrDefault(p => !string.IsNullOrEmpty(p.Effort) && p.Effort != "default")?.Effort;
+        }
+
+        return string.IsNullOrEmpty(configuredEffort) ? null : AgentProviderFactory.ParseEffort(configuredEffort);
+    }
+
     public static AgentResolutionContext PrepareResolutionContext(
         IConfigService config,
         IAgentRunner runner,
         string agentId,
         string prompt,
         string? modelOverride = null,
+        EffortLevel? effortOverride = null,
         PermissionMode permissionMode = PermissionMode.FullAuto)
     {
         var workDir = GetWorkDir(config, runner, agentId);
@@ -122,6 +136,7 @@ public static class AgentLaunchHelper
         WriteAgentInstructionsIfNeeded(workDir, systemPrompt, runner, agentId);
 
         var resolvedModel = ResolveModel(config, runner, agentId, modelOverride);
+        var resolvedEffort = effortOverride ?? ResolveEffort(config, runner, agentId);
         var env = GetEnvironment(config, agentId);
 
         return new AgentResolutionContext
@@ -130,6 +145,7 @@ public static class AgentLaunchHelper
             Prompt = prompt,
             SystemPrompt = systemPrompt,
             ModelOverride = resolvedModel,
+            EffortOverride = resolvedEffort,
             WorkingDirectory = workDir,
             PermissionMode = permissionMode,
             ExtraEnvironment = env,

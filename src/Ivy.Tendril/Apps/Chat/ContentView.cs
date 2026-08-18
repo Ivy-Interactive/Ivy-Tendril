@@ -18,6 +18,7 @@ public class ContentView(
     IState<int> sessionVersion,
     IState<string> selectedAgent,
     IState<string> selectedModel,
+    IState<string> selectedEffort,
     IState<bool> isStreaming,
     IState<string?> streamingSessionId,
     IState<HashSet<string>> runningSessionIds,
@@ -27,6 +28,8 @@ public class ContentView(
     List<ChatSessionDto> sessionDtos,
     List<AgentOptionDto> agentDtos,
     List<ModelOptionDto> modelDtos,
+    List<EffortOptionDto> effortDtos,
+    bool supportsEffort,
     IChatHistoryService chatService,
     IAgentRunner agentRunner,
     Action<ChatSendMessageDto> sendMessage) : ViewBase
@@ -40,7 +43,7 @@ public class ContentView(
                 .Primary()
                 .OnClick(() =>
                 {
-                    var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value);
+                    var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
                     activeSessionId.Set(newSess.Id);
                     sessionVersion.Set(v => v + 1);
                 });
@@ -63,8 +66,11 @@ public class ContentView(
             Sessions = sessionDtos,
             Agents = agentDtos,
             Models = modelDtos,
+            Efforts = effortDtos,
             SelectedAgent = selectedAgent.Value,
             SelectedModel = selectedModel.Value,
+            SelectedEffort = selectedEffort.Value,
+            SupportsEffort = supportsEffort,
             IsStreaming = activeSessionId.Value != null && runningSessionIds.Value.Contains(activeSessionId.Value),
             StreamingText = activeSessionLiveStream,
 
@@ -95,7 +101,7 @@ public class ContentView(
             },
             OnCreateSession = _ =>
             {
-                var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value);
+                var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
                 activeSessionId.Set(newSess.Id);
                 return ValueTask.CompletedTask;
             },
@@ -131,11 +137,18 @@ public class ContentView(
                 {
                     selectedModel.Set(newModels[0].Id);
                 }
+                selectedEffort.Set("default");
                 return ValueTask.CompletedTask;
             },
             OnModelChanged = e =>
             {
                 selectedModel.Set(e.Value);
+                selectedEffort.Set("default");
+                return ValueTask.CompletedTask;
+            },
+            OnEffortChanged = e =>
+            {
+                selectedEffort.Set(e.Value);
                 return ValueTask.CompletedTask;
             }
         }

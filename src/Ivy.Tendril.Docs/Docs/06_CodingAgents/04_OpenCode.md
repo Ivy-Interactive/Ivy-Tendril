@@ -34,11 +34,11 @@ For more details on `config.yaml` structure and settings, see [Setup & Settings]
 
 Tendril maps effort levels to OpenCode models:
 
-| Profile | Model | Use Case |
-|---------|-------|----------|
-| `deep` | default | Complex multi-file changes |
-| `balanced` | default | Standard plan execution |
-| `quick` | default | Simple fixes and small edits |
+| Profile | Model | Effort | Use Case |
+|---------|-------|--------|----------|
+| `deep` | default | high | Complex multi-file changes |
+| `balanced` | default | medium | Standard plan execution |
+| `quick` | default | low | Simple fixes and small edits |
 
 OpenCode supports multiple backend providers (Anthropic, OpenAI, Google, etc.) and manages model selection internally. Use `tendril models` to see discovered models.
 
