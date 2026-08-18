@@ -641,6 +641,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                         .OnSelect(() => navigator.Navigate<OnboardingApp>())
                 ),
 #endif
+            MenuItem.Default("Help")
+                .Tag("$help")
+                .Icon(Icons.CircleQuestionMark)
+                .Children(
+                    MenuItem.Default("Documentation").Icon(Icons.ExternalLink).OnSelect(() => client.OpenUrl(Constants.DocsUrl)),
+                    MenuItem.Default("Discord").Icon(Icons.Discord).OnSelect(() => client.OpenUrl(Constants.DiscordUrl)),
+                    MenuItem.Default("Report Issue").Icon(Icons.Bug).OnSelect(() => client.OpenUrl(Constants.IssuesUrl))
+                ),
         };
 
         var settingsTrigger = new Button("Settings")
