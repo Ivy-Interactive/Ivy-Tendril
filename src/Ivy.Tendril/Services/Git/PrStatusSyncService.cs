@@ -1,5 +1,6 @@
 using System.Globalization;
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.PullRequest;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Git;

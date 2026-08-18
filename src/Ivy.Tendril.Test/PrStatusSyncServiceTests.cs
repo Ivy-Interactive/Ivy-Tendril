@@ -1,4 +1,5 @@
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.PullRequest;
 using Ivy.Tendril.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
