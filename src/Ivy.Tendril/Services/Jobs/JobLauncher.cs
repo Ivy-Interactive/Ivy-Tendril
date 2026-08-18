@@ -201,7 +201,10 @@ internal class JobLauncher
         ctx.RunHooks("before", type, planFolderForHooks, job.Project, job);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
+        {
             EnsurePlanFolderWritable(job.TypedArgs!.PlanFolder!);
+            EnsurePlanVerificationsSeeded(job.TypedArgs!.PlanFolder!, job.Project);
+        }
 
         job.SessionId = Guid.NewGuid().ToString();
     }
@@ -712,6 +715,30 @@ internal class JobLauncher
         finally
         {
             try { if (File.Exists(testFile)) File.Delete(testFile); } catch { /* best-effort cleanup */ }
+        }
+    }
+
+    private void EnsurePlanVerificationsSeeded(string planFolder, string? projectName)
+    {
+        if (string.IsNullOrEmpty(projectName) || !Directory.Exists(planFolder)) return;
+
+        var project = _configService?.GetProject(projectName);
+        if (project == null || project.Verifications.Count == 0) return;
+
+        try
+        {
+            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            if (plan.Verifications == null || plan.Verifications.Count == 0)
+            {
+                PlanCommandHelpers.ApplyProjectVerifications(plan, project, new Dictionary<string, VerificationStatus>());
+                PlanCommandHelpers.WritePlan(planFolder, plan);
+                _logger.LogInformation("Seeded {Count} project verifications for plan in {Folder}",
+                    plan.Verifications.Count, Path.GetFileName(planFolder));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to seed verifications for plan in {Folder}", Path.GetFileName(planFolder));
         }
     }
 

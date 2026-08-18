@@ -24,8 +24,36 @@ public class VerificationsCardView(
         var projectVerifications = config.GetProject(selectedPlan.Project)?.Verifications
                                    ?? new List<ProjectVerificationRef>();
 
+        var storedVerifications = selectedPlan.Verifications;
+        if (editable && projectVerifications.Count > 0)
+        {
+            var existingMap = storedVerifications.ToDictionary(v => v.Name, v => v.Status, StringComparer.OrdinalIgnoreCase);
+            var merged = new List<PlanVerificationEntry>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var pv in projectVerifications)
+            {
+                var status = existingMap.TryGetValue(pv.Name, out var existingStatus)
+                    ? existingStatus
+                    : pv.Required ? VerificationStatus.Pending : VerificationStatus.Skipped;
+                merged.Add(new PlanVerificationEntry { Name = pv.Name, Status = status });
+                seen.Add(pv.Name);
+            }
+
+            foreach (var v in storedVerifications)
+            {
+                if (!seen.Contains(v.Name))
+                {
+                    merged.Add(v);
+                    seen.Add(v.Name);
+                }
+            }
+
+            storedVerifications = merged;
+        }
+
         // Always present in project-config order, regardless of plan.yaml storage order.
-        var verifications = PlanCommandHelpers.OrderByProjectConfig(selectedPlan.Verifications, projectVerifications);
+        var verifications = PlanCommandHelpers.OrderByProjectConfig(storedVerifications, projectVerifications);
 
         bool IsRequired(string name) => projectVerifications
             .Any(pv => pv.Name.Equals(name, StringComparison.OrdinalIgnoreCase) && pv.Required);
