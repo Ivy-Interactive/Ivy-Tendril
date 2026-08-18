@@ -131,17 +131,7 @@ public sealed class ModelPricingProvider : IModelPricingProvider, IModelPricingR
             if (entry is null)
                 continue;
 
-            // Overwrites all four rates from the one source, exactly as the catalog enrichment that
-            // feeds the model picker does — so the picker and the cost sheet never disagree.
-            var updated = pricing with
-            {
-                InputPerMillion = entry.InputPerMillion,
-                OutputPerMillion = entry.OutputPerMillion,
-                CacheReadPerMillion = entry.CacheReadPerMillion,
-                CacheWritePerMillion = entry.CacheWritePerMillion,
-                Source = ModelsDevPricingSource.SourceUrl,
-            };
-
+            var updated = Merge(pricing, entry);
             if (updated != pricing)
                 updates.Add(updated);
         }
@@ -149,6 +139,29 @@ public sealed class ModelPricingProvider : IModelPricingProvider, IModelPricingR
         AddPricing(updates);
         return updates.Count;
     }
+
+    /// <summary>
+    /// Applies a models.dev entry to a catalog entry. Input and output always come from models.dev,
+    /// which is the point of the refresh. A cache rate does not: models.dev omits cache pricing for
+    /// many models and the parser reports an absent rate as 0, so zeroing a rate the catalog does
+    /// know would understate a cache-heavy run — a run is routinely 90% cache reads. An absent
+    /// models.dev cache rate therefore leaves the catalog's in place.
+    /// (The catalog enrichment that feeds the model picker overwrites unconditionally; there a 0 is
+    /// a display nit rather than a wrong charge.)
+    /// </summary>
+    internal static ModelPricing Merge(ModelPricing existing, ModelsDevPricingSource.ModelPricingEntry entry) =>
+        existing with
+        {
+            InputPerMillion = entry.InputPerMillion,
+            OutputPerMillion = entry.OutputPerMillion,
+            CacheReadPerMillion = entry.CacheReadPerMillion > 0
+                ? entry.CacheReadPerMillion
+                : existing.CacheReadPerMillion,
+            CacheWritePerMillion = entry.CacheWritePerMillion > 0
+                ? entry.CacheWritePerMillion
+                : existing.CacheWritePerMillion,
+            Source = ModelsDevPricingSource.SourceUrl,
+        };
 
     private static Snapshot Build(Dictionary<string, ModelPricing> pricing) =>
         new(pricing, pricing.Keys.OrderByDescending(k => k.Length).ToArray());

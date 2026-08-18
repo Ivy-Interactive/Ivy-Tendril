@@ -209,6 +209,34 @@ public class ModelPricingProviderTests
     }
 
     [Fact]
+    public void Merge_TakesInputAndOutputFromModelsDev()
+    {
+        var merged = ModelPricingProvider.Merge(
+            new ModelPricing { Model = "opus", InputPerMillion = 5m, OutputPerMillion = 25m, CacheReadPerMillion = 0.5m, CacheWritePerMillion = 6.25m, Source = "Static catalog (claude)" },
+            new ModelsDevPricingSource.ModelPricingEntry(7m, 35m, 0.7m, 8.75m, null, null));
+
+        Assert.Equal(7m, merged.InputPerMillion);
+        Assert.Equal(35m, merged.OutputPerMillion);
+        Assert.Equal(0.7m, merged.CacheReadPerMillion);
+        Assert.Equal(8.75m, merged.CacheWritePerMillion);
+        Assert.Equal(ModelsDevPricingSource.SourceUrl, merged.Source);
+    }
+
+    [Fact]
+    public void Merge_AbsentCacheRates_KeepsTheCatalogs()
+    {
+        // models.dev omits cache pricing for many models and the parser reports that as 0. Zeroing a
+        // rate the catalog knows would understate a run that is mostly cache reads.
+        var merged = ModelPricingProvider.Merge(
+            new ModelPricing { Model = "opus", InputPerMillion = 5m, OutputPerMillion = 25m, CacheReadPerMillion = 0.5m, CacheWritePerMillion = 6.25m },
+            new ModelsDevPricingSource.ModelPricingEntry(7m, 35m, 0m, 0m, null, null));
+
+        Assert.Equal(7m, merged.InputPerMillion);
+        Assert.Equal(0.5m, merged.CacheReadPerMillion);
+        Assert.Equal(6.25m, merged.CacheWritePerMillion);
+    }
+
+    [Fact]
     public void AddPricing_Empty_LeavesTheTableIntact()
     {
         var provider = new ModelPricingProvider();
