@@ -67,6 +67,9 @@ public class CodingAgentSetupView : ViewBase
         var deepModel = UseState(GetProfileModel(config, config.Settings.CodingAgent, "deep"));
         var balancedModel = UseState(GetProfileModel(config, config.Settings.CodingAgent, "balanced"));
         var quickModel = UseState(GetProfileModel(config, config.Settings.CodingAgent, "quick"));
+        var deepEffort = UseState(GetProfileEffort(config, config.Settings.CodingAgent, "deep"));
+        var balancedEffort = UseState(GetProfileEffort(config, config.Settings.CodingAgent, "balanced"));
+        var quickEffort = UseState(GetProfileEffort(config, config.Settings.CodingAgent, "quick"));
         var lastRealAgent = UseState(config.Settings.CodingAgent);
         var showTestDialog = UseState(false);
         var testAgentId = UseState(config.Settings.CodingAgent);
@@ -97,10 +100,16 @@ public class CodingAgentSetupView : ViewBase
             var deep = GetProfileModel(config, realAgentId, "deep");
             var balanced = GetProfileModel(config, realAgentId, "balanced");
             var quick = GetProfileModel(config, realAgentId, "quick");
+            var deepEff = GetProfileEffort(config, realAgentId, "deep");
+            var balancedEff = GetProfileEffort(config, realAgentId, "balanced");
+            var quickEff = GetProfileEffort(config, realAgentId, "quick");
 
             deepModel.Set(deep == "default" && isBerget ? "moonshotai/Kimi-K3" : deep);
             balancedModel.Set(balanced == "default" && isBerget ? "moonshotai/Kimi-K3" : balanced);
             quickModel.Set(quick == "default" && isBerget ? "moonshotai/Kimi-K3" : quick);
+            deepEffort.Set(deepEff);
+            balancedEffort.Set(balancedEff);
+            quickEffort.Set(quickEff);
             ollamaUrl.Set(GetOllamaUrlFromConfig(config, realAgentId));
             lastRealAgent.Set(realAgentId);
             testAgentId.Set(realAgentId);
@@ -122,11 +131,36 @@ public class CodingAgentSetupView : ViewBase
         else if (isBerget || isAnthropic || isOpenAi) finalAgent = "openaiproxy";
         else finalAgent = selectedAgent.Value;
 
+        bool supportsEffort;
+        try
+        {
+            var descriptor = runner.GetDescriptor(finalAgent);
+            supportsEffort = descriptor.Capabilities.HasFlag(AgentCapabilities.EffortControl);
+        }
+        catch
+        {
+            supportsEffort = false;
+        }
+
+        var effortOptions = new IAnyOption[]
+        {
+            new Option<string>("Default", "default"),
+            new Option<string>("Low", "low"),
+            new Option<string>("Medium", "medium"),
+            new Option<string>("High", "high"),
+            new Option<string>("Max", "max")
+        };
+
         var hasAgentChanges = finalAgent != config.Settings.CodingAgent;
         var hasProfileChanges =
             deepModel.Value != GetProfileModel(config, finalAgent, "deep") ||
             balancedModel.Value != GetProfileModel(config, finalAgent, "balanced") ||
-            quickModel.Value != GetProfileModel(config, finalAgent, "quick");
+            quickModel.Value != GetProfileModel(config, finalAgent, "quick") ||
+            (supportsEffort && (
+                deepEffort.Value != GetProfileEffort(config, finalAgent, "deep") ||
+                balancedEffort.Value != GetProfileEffort(config, finalAgent, "balanced") ||
+                quickEffort.Value != GetProfileEffort(config, finalAgent, "quick")
+            ));
 
         var currentIvyKey = GetIvyApiKeyFromConfig(config);
         var currentOpenAiBaseUrl = GetOpenAiProxyBaseUrlFromConfig(config);
@@ -252,10 +286,22 @@ public class CodingAgentSetupView : ViewBase
 
         var profileModels = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
             | Text.Block("Profile Models").Bold()
-            | Text.Muted("Promptwares are configured to use different profiles depending on the complexity of the task. You can specify what model to use for each profile.").Small()
-            | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep")
-            | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced")
-            | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick");
+            | Text.Muted("Promptwares are configured to use different profiles depending on the complexity of the task. You can specify what model and effort level to use for each profile.").Small()
+            | (supportsEffort
+                ? (object)(Layout.Vertical()
+                    | (Layout.Horizontal()
+                        | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep").Width(Size.Fraction(0.65f))
+                        | deepEffort.ToSelectInput(effortOptions).WithField().Label("Effort").Width(Size.Fraction(0.35f)))
+                    | (Layout.Horizontal()
+                        | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced").Width(Size.Fraction(0.65f))
+                        | balancedEffort.ToSelectInput(effortOptions).WithField().Label("Effort").Width(Size.Fraction(0.35f)))
+                    | (Layout.Horizontal()
+                        | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick").Width(Size.Fraction(0.65f))
+                        | quickEffort.ToSelectInput(effortOptions).WithField().Label("Effort").Width(Size.Fraction(0.35f))))
+                : (Layout.Vertical()
+                    | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep")
+                    | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced")
+                    | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick")));
 
         return Layout.Vertical()
                | Text.Block("Coding Agent").Bold()
@@ -281,7 +327,10 @@ public class CodingAgentSetupView : ViewBase
                        .OnClick(() =>
                        {
                            config.Settings.CodingAgent = finalAgent;
-                           SaveProfiles(config, finalAgent, deepModel.Value, balancedModel.Value, quickModel.Value);
+                           SaveProfiles(config, finalAgent,
+                               deepModel.Value, deepEffort.Value,
+                               balancedModel.Value, balancedEffort.Value,
+                               quickModel.Value, quickEffort.Value);
                            if (isIvy)
                            {
                                SaveIvyApiKey(config, openAiProxyApiKey.Value);
@@ -357,7 +406,24 @@ public class CodingAgentSetupView : ViewBase
         return string.IsNullOrEmpty(value) ? "default" : value;
     }
 
-    private static void SaveProfiles(IConfigService config, string agentId, string deep, string balanced, string quick)
+    private static string GetProfileEffort(IConfigService config, string agentId, string profileName)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
+        var profile = ac?.Profiles.FirstOrDefault(p => p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
+        var value = profile?.Effort;
+        if (string.IsNullOrWhiteSpace(value)) return "default";
+        return value.ToLowerInvariant() switch
+        {
+            "xhigh" => "max",
+            _ => value.ToLowerInvariant()
+        };
+    }
+
+    private static void SaveProfiles(IConfigService config, string agentId,
+        string deepModel, string deepEffort,
+        string balancedModel, string balancedEffort,
+        string quickModel, string quickEffort)
     {
         var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
             AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
@@ -368,12 +434,12 @@ public class CodingAgentSetupView : ViewBase
             config.Settings.CodingAgents.Add(ac);
         }
 
-        SetProfileModel(ac, "deep", deep);
-        SetProfileModel(ac, "balanced", balanced);
-        SetProfileModel(ac, "quick", quick);
+        SetProfile(ac, "deep", deepModel, deepEffort);
+        SetProfile(ac, "balanced", balancedModel, balancedEffort);
+        SetProfile(ac, "quick", quickModel, quickEffort);
     }
 
-    private static void SetProfileModel(AgentConfig ac, string profileName, string model)
+    private static void SetProfile(AgentConfig ac, string profileName, string model, string effort)
     {
         var profile = ac.Profiles.FirstOrDefault(p =>
             p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
@@ -385,6 +451,7 @@ public class CodingAgentSetupView : ViewBase
         }
 
         profile.Model = model;
+        profile.Effort = string.IsNullOrWhiteSpace(effort) || effort.Equals("default", StringComparison.OrdinalIgnoreCase) ? "" : effort;
     }
 
     private static string GetIvyApiKeyFromConfig(IConfigService config)
