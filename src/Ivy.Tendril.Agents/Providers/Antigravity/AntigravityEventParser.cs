@@ -202,6 +202,7 @@ public sealed class AntigravityEventParser : IEventParser
         var status = res.TryGetProperty("status", out var sp) ? sp.GetString() : "SUCCESS";
         var isSuccess = !string.Equals(status, "ERROR", StringComparison.OrdinalIgnoreCase);
         var responseText = res.TryGetProperty("response", out var rp) ? rp.GetString() : null;
+        var errorText = res.TryGetProperty("error", out var ep) ? ep.GetString() : null;
         var durationSec = res.TryGetProperty("duration_seconds", out var dp) ? dp.GetDouble() : 0;
 
         AgentUsage? usage = null;
@@ -219,6 +220,7 @@ public sealed class AntigravityEventParser : IEventParser
         {
             Kind = AgentEventKind.Result,
             Response = responseText,
+            Error = errorText,
             IsSuccess = isSuccess,
             Duration = durationSec > 0 ? TimeSpan.FromSeconds(durationSec) : null,
             Usage = usage,

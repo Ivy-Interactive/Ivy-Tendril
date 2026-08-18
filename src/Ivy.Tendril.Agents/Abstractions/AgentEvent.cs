@@ -149,6 +149,7 @@ public sealed record ErrorEvent : AgentEvent
 public sealed record ResultEvent : AgentEvent
 {
     public string? Response { get; init; }
+    public string? Error { get; init; }
     public AgentUsage? Usage { get; init; }
     public TimeSpan? Duration { get; init; }
     public int? TurnCount { get; init; }

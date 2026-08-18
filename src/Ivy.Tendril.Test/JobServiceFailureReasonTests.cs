@@ -375,6 +375,19 @@ public class JobServiceFailureReasonTests : IDisposable
     }
 
     [Fact]
+    public void ExtractFailureReason_FailedResultEvent_WithError_PrefersErrorOverResponse()
+    {
+        var lines = new List<string>
+        {
+            """{"kind":"result","error":"declaring permissions: cortex tool write_to_file: path is not a valid artifact path","response":"I have completed the execution of Plan #123.\nAll steps succeeded.","is_success":false}"""
+        };
+
+        var result = JobService.ExtractFailureReason(lines, "test");
+
+        Assert.Equal("declaring permissions: cortex tool write_to_file: path is not a valid artifact path", result);
+    }
+
+    [Fact]
     public void CompleteJob_NonZeroExit_SessionLimitResult_MarksFailedWithCleanMessage()
     {
         // Regression for CreatePlan job 00292, which failed with the raw serialized

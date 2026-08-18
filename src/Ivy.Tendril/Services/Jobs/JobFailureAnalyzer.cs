@@ -188,8 +188,13 @@ internal static class JobFailureAnalyzer
             var evt = serializer.Deserialize(line);
             if (evt is ErrorEvent { Message.Length: > 0 } e)
                 return SanitizeForDisplay(e.Message);
-            if (evt is ResultEvent { IsSuccess: false } r && !string.IsNullOrWhiteSpace(r.Response))
-                return FormatFailedResultMessage(r.Response);
+            if (evt is ResultEvent { IsSuccess: false } r)
+            {
+                if (!string.IsNullOrWhiteSpace(r.Error))
+                    return FormatFailedResultMessage(r.Error);
+                if (!string.IsNullOrWhiteSpace(r.Response))
+                    return FormatFailedResultMessage(r.Response);
+            }
         }
         return null;
     }
