@@ -106,21 +106,21 @@ public class CodingAgentSetupView : ViewBase
 
             if (deep == "default")
             {
-                if (realAgentId == "ivy") deep = "ivy-stem";
+                if (realAgentId == "ivy") deep = "claude-opus-5";
                 else if (selectedAgent.Value == "anthropic_card") deep = "claude-opus-5";
                 else if (isBerget) deep = "moonshotai/Kimi-K3";
                 else if (selectedAgent.Value == "openaiproxy_card") deep = "gpt-5.6-sol";
             }
             if (balanced == "default")
             {
-                if (realAgentId == "ivy") balanced = "ivy-root";
+                if (realAgentId == "ivy") balanced = "gemini-3.7-flash";
                 else if (selectedAgent.Value == "anthropic_card") balanced = "claude-sonnet-5";
                 else if (isBerget) balanced = "moonshotai/Kimi-K3";
                 else if (selectedAgent.Value == "openaiproxy_card") balanced = "gpt-5.6-terra";
             }
             if (quick == "default")
             {
-                if (realAgentId == "ivy") quick = "ivy-leaf";
+                if (realAgentId == "ivy") quick = "gemini-3.7-flash";
                 else if (selectedAgent.Value == "anthropic_card") quick = "claude-haiku-5";
                 else if (isBerget) quick = "moonshotai/Kimi-K3";
                 else if (selectedAgent.Value == "openaiproxy_card") quick = "gpt-5.6-luna";
@@ -271,9 +271,9 @@ public class CodingAgentSetupView : ViewBase
                         openAiProxyBaseUrl.Set("https://api.openai.com");
                     }
                     var isIvyUrl = openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app");
-                    deepModel.Set(isIvyUrl ? "ivy-stem" : "gpt-5.6-sol");
-                    balancedModel.Set(isIvyUrl ? "ivy-root" : "gpt-5.6-terra");
-                    quickModel.Set(isIvyUrl ? "ivy-leaf" : "gpt-5.6-luna");
+                    deepModel.Set(isIvyUrl ? "claude-opus-5" : "gpt-5.6-sol");
+                    balancedModel.Set(isIvyUrl ? "gemini-3.7-flash" : "gpt-5.6-terra");
+                    quickModel.Set(isIvyUrl ? "gemini-3.7-flash" : "gpt-5.6-luna");
                 }
                 else if (a.Key == "anthropic_card")
                 {

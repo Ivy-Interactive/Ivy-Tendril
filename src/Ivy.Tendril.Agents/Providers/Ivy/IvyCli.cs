@@ -23,9 +23,9 @@ public sealed class IvyCli : IAgentCli
     public OutputFormat PreferredOutputFormat => _inner.PreferredOutputFormat;
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
     [
-        new(ProfileTier.Deep, "ivy-stem", "max"),
-        new(ProfileTier.Balanced, "ivy-root", "high"),
-        new(ProfileTier.Quick, "ivy-leaf", "low"),
+        new(ProfileTier.Deep, "claude-opus-5", "max"),
+        new(ProfileTier.Balanced, "gemini-3.7-flash", "medium"),
+        new(ProfileTier.Quick, "gemini-3.7-flash", "low"),
     ];
     public IReadOnlyList<EffortOption> SupportedEfforts => _inner.SupportedEfforts;
 
@@ -38,7 +38,7 @@ public sealed class IvyCli : IAgentCli
         var model = config.Model;
         if (string.IsNullOrEmpty(model) || model == "default")
         {
-            model = "ivy-stem";
+            model = "claude-opus-5";
         }
         config = config with { Model = model };
 

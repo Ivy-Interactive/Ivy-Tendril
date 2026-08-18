@@ -171,9 +171,9 @@ public class CodingAgentStepView(
                 lastDetectedProvider.Set(currentProviderKey);
                 if (isIvy)
                 {
-                    deepModel.Set("ivy-stem");
-                    balancedModel.Set("ivy-root");
-                    quickModel.Set("ivy-leaf");
+                    deepModel.Set("claude-opus-5");
+                    balancedModel.Set("gemini-3.7-flash");
+                    quickModel.Set("gemini-3.7-flash");
                 }
                 else if (isAnthropicCard)
                 {
@@ -254,9 +254,9 @@ public class CodingAgentStepView(
                                        // Set default profile models appropriately
                                        if (isIvy)
                                        {
-                                           deepModel.Set("ivy-stem");
-                                           balancedModel.Set("ivy-root");
-                                           quickModel.Set("ivy-leaf");
+                                           deepModel.Set("claude-opus-5");
+                                           balancedModel.Set("gemini-3.7-flash");
+                                           quickModel.Set("gemini-3.7-flash");
                                        }
                                        else if (isAnthropicCard)
                                        {

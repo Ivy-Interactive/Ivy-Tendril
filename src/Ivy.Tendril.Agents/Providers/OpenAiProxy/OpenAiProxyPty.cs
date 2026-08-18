@@ -30,9 +30,9 @@ public sealed class OpenAiProxyPty : IAgentPty
             {
                 return
                 [
-                    new AgentProfileDefault(ProfileTier.Deep, "ivy-stem", "max"),
-                    new AgentProfileDefault(ProfileTier.Balanced, "ivy-root", "high"),
-                    new AgentProfileDefault(ProfileTier.Quick, "ivy-leaf", "low"),
+                    new AgentProfileDefault(ProfileTier.Deep, "claude-opus-5", "max"),
+                    new AgentProfileDefault(ProfileTier.Balanced, "gemini-3.7-flash", "medium"),
+                    new AgentProfileDefault(ProfileTier.Quick, "gemini-3.7-flash", "low"),
                 ];
             }
             if (baseUrl != null && baseUrl.Contains("api.anthropic.com"))
@@ -84,7 +84,7 @@ public sealed class OpenAiProxyPty : IAgentPty
         {
             if (baseUrl != null && baseUrl.Contains("llmproxy.ivy.app"))
             {
-                config = config with { Model = "ivy-stem" };
+                config = config with { Model = "claude-opus-5" };
             }
             else if (baseUrl != null && baseUrl.Contains("api.anthropic.com"))
             {
@@ -92,7 +92,7 @@ public sealed class OpenAiProxyPty : IAgentPty
             }
             else if (baseUrl != null && (baseUrl.Contains("generativelanguage.googleapis.com") || baseUrl.Contains("gemini") || baseUrl.Contains("google")))
             {
-                config = config with { Model = "gemini-3.6-flash" };
+                config = config with { Model = "gemini-3.7-flash" };
             }
             else if (baseUrl != null && baseUrl.Contains("api.berget.ai"))
             {

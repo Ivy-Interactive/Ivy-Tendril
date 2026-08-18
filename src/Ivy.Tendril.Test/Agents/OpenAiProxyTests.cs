@@ -61,24 +61,23 @@ public class OpenAiProxyTests
     }
 
     [Fact]
-    public void IvyModelCatalog_GetStaticModels_ReturnsIvyModelsOnly()
+    public void IvyModelCatalog_GetStaticModels_ReturnsStandardModels()
     {
         var catalog = new IvyModelCatalog();
         var models = catalog.GetStaticModels();
 
-        Assert.Contains(models, m => m.Id == "ivy-stem" && m.DisplayName == "Ivy Stem");
-        Assert.Contains(models, m => m.Id == "ivy-root" && m.DisplayName == "Ivy Root");
-        Assert.Contains(models, m => m.Id == "ivy-leaf" && m.DisplayName == "Ivy Leaf");
-        Assert.All(models, m => Assert.True(m.Id.StartsWith("ivy") || m.Id == "default"));
+        Assert.Contains(models, m => m.Id == "claude-opus-5");
+        Assert.Contains(models, m => m.Id == "gemini-3.7-flash");
+        Assert.Contains(models, m => m.Id == "gpt-5.6-sol");
     }
 
     [Fact]
     public void OpenAiProxyModelCatalog_GetModelsForBaseUrl_ReturnsProviderSpecificModels()
     {
         var ivyModels = OpenAiProxyModelCatalog.GetModelsForBaseUrl("https://llmproxy.ivy.app");
-        Assert.Contains(ivyModels, m => m.Id == "ivy-stem");
-        Assert.Contains(ivyModels, m => m.Id == "ivy-root");
-        Assert.Contains(ivyModels, m => m.Id == "ivy-leaf");
+        Assert.Contains(ivyModels, m => m.Id == "claude-opus-5");
+        Assert.Contains(ivyModels, m => m.Id == "gemini-3.7-flash");
+        Assert.Contains(ivyModels, m => m.Id == "gpt-5.6-sol");
 
         var anthropicModels = OpenAiProxyModelCatalog.GetModelsForBaseUrl("https://api.anthropic.com/v1");
         Assert.Contains(anthropicModels, m => m.Id == "claude-opus-5");
@@ -113,16 +112,32 @@ public class OpenAiProxyTests
         var cli = new IvyCli();
         var defaults = cli.DefaultProfiles;
 
-        Assert.Equal("ivy-stem", defaults.First(p => p.Tier == ProfileTier.Deep).Model);
-        Assert.Equal("ivy-root", defaults.First(p => p.Tier == ProfileTier.Balanced).Model);
-        Assert.Equal("ivy-leaf", defaults.First(p => p.Tier == ProfileTier.Quick).Model);
+        var deep = defaults.First(p => p.Tier == ProfileTier.Deep);
+        var balanced = defaults.First(p => p.Tier == ProfileTier.Balanced);
+        var quick = defaults.First(p => p.Tier == ProfileTier.Quick);
+
+        Assert.Equal("claude-opus-5", deep.Model);
+        Assert.Equal("max", deep.Effort);
+        Assert.Equal("gemini-3.7-flash", balanced.Model);
+        Assert.Equal("medium", balanced.Effort);
+        Assert.Equal("gemini-3.7-flash", quick.Model);
+        Assert.Equal("low", quick.Effort);
     }
 
     [Fact]
     public void OpenAiProxyCli_DefaultProfiles_FollowsBaseUrl()
     {
         var ivyCli = new OpenAiProxyCli(baseUrlProvider: () => "https://llmproxy.ivy.app");
-        Assert.Equal("ivy-stem", ivyCli.DefaultProfiles.First(p => p.Tier == ProfileTier.Deep).Model);
+        var ivyDeep = ivyCli.DefaultProfiles.First(p => p.Tier == ProfileTier.Deep);
+        var ivyBalanced = ivyCli.DefaultProfiles.First(p => p.Tier == ProfileTier.Balanced);
+        var ivyQuick = ivyCli.DefaultProfiles.First(p => p.Tier == ProfileTier.Quick);
+
+        Assert.Equal("claude-opus-5", ivyDeep.Model);
+        Assert.Equal("max", ivyDeep.Effort);
+        Assert.Equal("gemini-3.7-flash", ivyBalanced.Model);
+        Assert.Equal("medium", ivyBalanced.Effort);
+        Assert.Equal("gemini-3.7-flash", ivyQuick.Model);
+        Assert.Equal("low", ivyQuick.Effort);
 
         var anthropicCli = new OpenAiProxyCli(baseUrlProvider: () => "https://api.anthropic.com/v1");
         Assert.Equal("claude-opus-5", anthropicCli.DefaultProfiles.First(p => p.Tier == ProfileTier.Deep).Model);
