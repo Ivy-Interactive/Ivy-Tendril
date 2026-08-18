@@ -85,7 +85,21 @@ public class AntigravityEventParserTests
         var resultEvent = Assert.IsType<ResultEvent>(events[0]);
         Assert.True(resultEvent.IsSuccess);
         Assert.Equal("Done", resultEvent.Response);
+        Assert.Null(resultEvent.Error);
         Assert.Equal(100, resultEvent.Usage?.InputTokens);
+    }
+
+    [Fact]
+    public void ParseLine_ResultJson_WithError_SetsErrorAndIsSuccessFalse()
+    {
+        var json = "{\"event\":\"result\",\"result\":{\"conversation_id\":\"c-123\",\"status\":\"ERROR\",\"error\":\"declaring permissions: cortex tool write_to_file: path is not valid\",\"response\":\"I have finished the plan execution\",\"duration_seconds\":15.2}}";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var resultEvent = Assert.IsType<ResultEvent>(events[0]);
+        Assert.False(resultEvent.IsSuccess);
+        Assert.Equal("declaring permissions: cortex tool write_to_file: path is not valid", resultEvent.Error);
+        Assert.Equal("I have finished the plan execution", resultEvent.Response);
     }
 
     [Fact]

@@ -167,8 +167,17 @@ public class JobService : IJobService
                 var errorMessage = JobFailureAnalyzer.TryExtractErrorEvent(job.OutputLines);
                 if (errorMessage != null)
                 {
-                    success = false;
-                    job.StatusMessage = errorMessage;
+                    if (IsRecoveredExecutionJob(job))
+                    {
+                        _logger.LogInformation(
+                            "Job {JobId}: Agent encountered a recoverable error ({ErrorMessage}) but completed execution, recorded commits, and passed verifications.",
+                            job.Id, errorMessage);
+                    }
+                    else
+                    {
+                        success = false;
+                        job.StatusMessage = errorMessage;
+                    }
                 }
             }
             else if (!string.IsNullOrEmpty(job.ReportedFailureReason))
@@ -1335,4 +1344,26 @@ public class JobService : IJobService
 
     internal static void LogCostToCsv(string planFolder, string jobType, int tokens, double cost)
         => PlanYamlHelper.LogCostToCsv(planFolder, jobType, tokens, cost);
+
+    internal static bool IsRecoveredExecutionJob(JobItem job)
+    {
+        if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs)
+        {
+            var planFolder = job.TypedArgs.PlanFolder;
+            if (!string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
+            {
+                var planYaml = PlanYamlHelper.ReadPlanYaml(planFolder);
+                if (planYaml != null)
+                {
+                    var preExecution = PlanYamlHelper.ReadPreExecutionResult(planFolder);
+                    var hasIncompleteVerifications = planYaml.Verifications?
+                        .Any(v => v.Status is VerificationStatus.Pending or VerificationStatus.Fail) ?? false;
+                    var hasCommits = planYaml.Commits?.Count > 0;
+
+                    return preExecution != VerificationStatus.Fail && !hasIncompleteVerifications && hasCommits;
+                }
+            }
+        }
+        return false;
+    }
 }

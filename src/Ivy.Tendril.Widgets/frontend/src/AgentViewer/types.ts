@@ -45,6 +45,7 @@ export interface ResultWire {
   kind: "result";
   timestamp: string;
   response?: string;
+  error?: string;
   is_success: boolean;
   duration_ms?: number;
   turn_count?: number;
