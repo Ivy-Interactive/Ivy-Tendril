@@ -150,7 +150,8 @@ public class CodingAgentStepView(
                 openAiProxyBaseUrl.Set(defaultUrl);
             }
 
-            var currentProviderKey = isIvy ? "ivy" : (isAnthropicCard ? "anthropic" : (isBergetCard ? "berget" : "openai"));
+            var isGoogle = !isIvy && !isAnthropicCard && !isBergetCard && (openAiProxyBaseUrl.Value.Contains("generativelanguage.googleapis.com") || openAiProxyBaseUrl.Value.Contains("gemini") || openAiProxyBaseUrl.Value.Contains("google"));
+            var currentProviderKey = isIvy ? "ivy" : (isAnthropicCard ? "anthropic" : (isBergetCard ? "berget" : (isGoogle ? "google" : "openai")));
             if (lastDetectedProvider.Value != currentProviderKey)
             {
                 lastDetectedProvider.Set(currentProviderKey);
@@ -171,6 +172,12 @@ public class CodingAgentStepView(
                     deepModel.Set("moonshotai/Kimi-K3");
                     balancedModel.Set("moonshotai/Kimi-K3");
                     quickModel.Set("moonshotai/Kimi-K3");
+                }
+                else if (isGoogle)
+                {
+                    deepModel.Set("gemini-3.7-flash");
+                    balancedModel.Set("gemini-3.7-flash");
+                    quickModel.Set("gemini-3.7-flash");
                 }
                 else
                 {

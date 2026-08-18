@@ -129,5 +129,17 @@ public class OpenAiProxyTests
 
         var openaiCli = new OpenAiProxyCli(baseUrlProvider: () => "https://api.openai.com");
         Assert.Equal("gpt-5.6-sol", openaiCli.DefaultProfiles.First(p => p.Tier == ProfileTier.Deep).Model);
+
+        var googleCli = new OpenAiProxyCli(baseUrlProvider: () => "https://generativelanguage.googleapis.com/v1beta");
+        var googleDeep = googleCli.DefaultProfiles.First(p => p.Tier == ProfileTier.Deep);
+        var googleBalanced = googleCli.DefaultProfiles.First(p => p.Tier == ProfileTier.Balanced);
+        var googleQuick = googleCli.DefaultProfiles.First(p => p.Tier == ProfileTier.Quick);
+
+        Assert.Equal("gemini-3.7-flash", googleDeep.Model);
+        Assert.Equal("high", googleDeep.Effort);
+        Assert.Equal("gemini-3.7-flash", googleBalanced.Model);
+        Assert.Equal("medium", googleBalanced.Effort);
+        Assert.Equal("gemini-3.7-flash", googleQuick.Model);
+        Assert.Equal("medium", googleQuick.Effort);
     }
 }

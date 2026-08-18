@@ -48,9 +48,9 @@ public sealed class OpenAiProxyPty : IAgentPty
             {
                 return
                 [
-                    new AgentProfileDefault(ProfileTier.Deep, "gemini-3.1-pro", "high"),
-                    new AgentProfileDefault(ProfileTier.Balanced, "gemini-3.6-flash", "medium"),
-                    new AgentProfileDefault(ProfileTier.Quick, "gemini-3.7-flash", "low"),
+                    new AgentProfileDefault(ProfileTier.Deep, "gemini-3.7-flash", "high"),
+                    new AgentProfileDefault(ProfileTier.Balanced, "gemini-3.7-flash", "medium"),
+                    new AgentProfileDefault(ProfileTier.Quick, "gemini-3.7-flash", "medium"),
                 ];
             }
             if (baseUrl != null && baseUrl.Contains("api.berget.ai"))
