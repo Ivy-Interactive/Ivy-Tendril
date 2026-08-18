@@ -53,7 +53,7 @@ public class WorktreeCleanupServiceTests : IDisposable
     {
         // Truly active/transient states are never reaped, regardless of age. (Draft is handled by
         // the stale-reaper tests — it IS reaped once idle. Review is never reaped either, but for a
-        // different reason; see RunCleanup_NeverReaps_ActiveStates_EvenWhenOld.)
+        // different reason; see RunCleanup_NeverReaps_UnreapableStates_EvenWhenOld.)
         var activeStates = new[] { "Creating", "Executing", "Updating", "Blocked" };
         foreach (var state in activeStates)
         {
@@ -577,11 +577,12 @@ public class WorktreeCleanupServiceTests : IDisposable
     }
 
     [Fact]
-    public void RunCleanup_NeverReaps_ActiveStates_EvenWhenOld()
+    public void RunCleanup_NeverReaps_UnreapableStates_EvenWhenOld()
     {
-        // Review is in this list for a different reason than the active/transient states: execution
-        // has finished and produced commits, and reaping would force-delete the only branch holding
-        // them. Like the active states, it is never reaped regardless of age.
+        // These states are exempt for two different reasons, which is why the set is named for what
+        // it does (never reaped) rather than for "active": Creating/Executing/Updating/Blocked are
+        // transient, while Review has finished and produced commits, and reaping would force-delete
+        // the only branch holding them. What they share is that no idle age makes them reapable.
         var states = new[] { "Creating", "Executing", "Updating", "Blocked", "Review" };
         foreach (var state in states)
         {
