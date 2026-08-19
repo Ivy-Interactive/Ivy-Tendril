@@ -41,4 +41,21 @@ public static class FormatHelper
     {
         return value.ToString("N0", CultureInfo.InvariantCulture);
     }
+
+    /// <summary>
+    ///     Formats a byte count into a human-readable string (B, KB, MB, GB, TB, PB).
+    /// </summary>
+    public static string FormatBytes(long bytes, int decimals = 1)
+    {
+        if (bytes <= 0) return "0 B";
+        string[] suffixes = ["B", "KB", "MB", "GB", "TB", "PB"];
+        int i = 0;
+        double dblBytes = bytes;
+        while (dblBytes >= 1024 && i < suffixes.Length - 1)
+        {
+            dblBytes /= 1024;
+            i++;
+        }
+        return $"{dblBytes.ToString($"F{decimals}", CultureInfo.InvariantCulture)} {suffixes[i]}";
+    }
 }

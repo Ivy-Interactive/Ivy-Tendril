@@ -3,6 +3,7 @@ using Ivy.Core.Exceptions;
 using Ivy.Tendril.Agents;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.SystemResources;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -20,6 +21,7 @@ internal static class ServiceRegistration
 
         server.Services.AddSingleton<IConfigService>(configService);
         server.Services.AddSingleton<ConfigService>(configService);
+        server.Services.AddSingleton<ISystemResourceService, SystemResourceService>();
         server.Services.AddSingleton<IChatHistoryService, ChatHistoryService>();
         server.Services.AddSingleton<ICreatePlanPreferences, CreatePlanPreferences>();
 
