@@ -65,7 +65,7 @@ public class ProjectMemoryTableView(
                 | Text.Inline(fileName).Bold().Small()
                 | new Badge("Memory").Color(Colors.Blue).Variant(BadgeVariant.Secondary).Small();
 
-            var rightGroup = Layout.Horizontal().AlignContent(Align.Right).Width(Size.Fit())
+            var rightGroup = Layout.Horizontal().AlignContent(Align.Right).Width(Size.Fit()).Gap(1)
                 | new Button().Icon(Icons.Copy).Outline().Small().Tooltip("Copy file path").OnClick(() =>
                 {
                     copyToClipboard(fullPath);
@@ -166,7 +166,7 @@ public class McpServersTableView : ViewBase
                 | Text.Inline(srv.Name).Bold().Small()
                 | new Badge("MCP").Color(Colors.Green).Variant(BadgeVariant.Secondary).Small();
 
-            var rightGroup = Layout.Horizontal().AlignContent(Align.Right).Width(Size.Fit())
+            var rightGroup = Layout.Horizontal().AlignContent(Align.Right).Width(Size.Fit()).Gap(1)
                 | new Button().Icon(Icons.Copy).Outline().Small().Tooltip("Copy command").OnClick(() =>
                 {
                     copyToClipboard(fullCmd);
@@ -297,7 +297,7 @@ public class SkillsTableView : ViewBase
                 leftGroup |= new Badge("Project").Color(Colors.Blue).Variant(BadgeVariant.Secondary).Small();
             }
 
-            var rightGroup = Layout.Horizontal().AlignContent(Align.Right).Width(Size.Fit())
+            var rightGroup = Layout.Horizontal().AlignContent(Align.Right).Width(Size.Fit()).Gap(1)
                 | new Button().Icon(Icons.Copy).Outline().Small().Tooltip("Copy skill path").OnClick(() =>
                 {
                     if (!string.IsNullOrWhiteSpace(skill.Path))
@@ -384,7 +384,7 @@ public class ReviewActionsTableView(
             ))
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<ReviewActionRow, int>(idx =>
-                Layout.Horizontal()
+                Layout.Horizontal().Gap(1)
                 | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
                 {
@@ -417,7 +417,7 @@ public class ProjectVerificationsTableView(
             ))
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<VerificationRow, int>(idx =>
-                Layout.Horizontal()
+                Layout.Horizontal().Gap(1)
                 | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
                 {
