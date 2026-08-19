@@ -104,7 +104,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         }
     }
 
-    private static bool ShouldShowBadge(MenuItem item, Dictionary<string, int> badges, out string badgeText)
+    internal static bool ShouldShowBadge(MenuItem item, Dictionary<string, int> badges, out string badgeText)
     {
         badgeText = string.Empty;
         if (item.Tag is string tag && badges.TryGetValue(tag, out var count) && count > 0)
@@ -115,7 +115,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         return false;
     }
 
-    private static MenuItem AddBadge(MenuItem item, Dictionary<string, int> badges)
+    internal static MenuItem AddBadge(MenuItem item, Dictionary<string, int> badges)
     {
         if (ShouldShowBadge(item, badges, out var badgeText))
             item = item.Badge(badgeText);
@@ -125,11 +125,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     }
 
     // The Agent app id (and its menu-item Tag) collapses to "agent" via AppHelpers.GetApp.
-    private const string AgentAppId = "agent";
+    internal const string AgentAppId = "agent";
 
     // Re-brand the generic "Agent" menu item to the configured coding agent (e.g. "Claude Code"
     // with the Claude icon), so the sidebar matches what actually launches.
-    private static MenuItem BrandAgentItem(MenuItem item, string agentId, IAgentRunner runner, IConfigService config)
+    internal static MenuItem BrandAgentItem(MenuItem item, string agentId, IAgentRunner runner, IConfigService config)
     {
         if (item.Tag is string tag && tag == AgentAppId)
         {
@@ -141,7 +141,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         return item;
     }
 
-    private static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status,
+    internal static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status,
         IConfigService config, IAgentRunner runner)
     {
         var nonChatAgentCount = Math.Max(0, runner.ActiveSessions.Count - status.GeneratingChatSessionsCount);
@@ -648,9 +648,9 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         var settingsTrigger = new Button("Settings")
             .Content(
-                Layout.Horizontal().AlignContent(Align.Left)
+                Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                 | Icons.Settings.ToIcon()
-                | Text.P("Settings").Small().Muted()
+                | Text.Inline("Settings")
             )
             .Variant(ButtonVariant.Ghost).Width(Size.Full());
 
@@ -692,18 +692,18 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             new SidebarLayout(
                 body ?? null!,
                 sidebarMenu,
-                sidebarHeader: Layout.Vertical()
+                sidebarHeader: Layout.Vertical().Gap(2)
                     | settings.Header
                     | new NewPlanButton(collapsed: false),
                 sidebarFooter: Layout.Vertical(
                     new SidebarNews(newsArticles.Value),
                     settings.Footer,
                     footer
-                ),
+                ).Gap(2),
                 width: settings.Width,
-                sidebarHeaderCollapsed: Layout.Vertical()
+                sidebarHeaderCollapsed: Layout.Vertical().Gap(2).Width(Size.Full())
                     | new NewPlanButton(collapsed: true),
-                sidebarFooterCollapsed: Layout.Vertical().Width(Size.Full())
+                sidebarFooterCollapsed: Layout.Vertical().Gap(2).Width(Size.Full())
                     | settingsMenuCollapsed
             ).Open(sidebarOpen.Value).MainAppSidebar(),
             importIssuesDialog,
