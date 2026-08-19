@@ -14,6 +14,7 @@ public static class Constants
     public const int Review = 40;
     public const int Jobs = 50;
     public const int PullRequests = 60;
+    public const int Issues = 65;
     public const int Icebox = 70;
     public const int Chat = 75;
     public const int Agent = 80;
