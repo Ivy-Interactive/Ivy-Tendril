@@ -196,7 +196,7 @@ public class ProjectDetailView(
             ? (Layout.Horizontal().AlignContent(Align.Left)
                | colorInput
                | editName.ToTextInput("Project name...").Small()
-               | new Button().Icon(Icons.Check).Ghost().OnClick(() =>
+               | new Button().Icon(Icons.Check).Outline().Small().OnClick(() =>
                {
                    var newName = editName.Value.Trim();
                    if (!string.IsNullOrWhiteSpace(newName) && !string.Equals(project.Name, newName, StringComparison.OrdinalIgnoreCase))
@@ -210,7 +210,7 @@ public class ProjectDetailView(
                    }
                    isEditingName.Set(false);
                })
-               | new Button().Icon(Icons.X).Ghost().OnClick(() =>
+               | new Button().Icon(Icons.X).Outline().Small().OnClick(() =>
                {
                    editName.Set(project.Name);
                    isEditingName.Set(false);
@@ -218,7 +218,7 @@ public class ProjectDetailView(
             : (Layout.Horizontal().AlignContent(Align.Left)
                | colorInput
                | Text.H2(project.Name).Bold()
-               | new Button().Icon(Icons.Pencil).Ghost().Tooltip("Rename Project").OnClick(() => isEditingName.Set(true)));
+               | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Rename Project").OnClick(() => isEditingName.Set(true)));
 
         // Agent Behavior Dropdown
         var autoImplementSelect = autoImplement.ToSelectInput(new[] { "Auto-Implement Plans", "Always Ask Review" })
@@ -257,12 +257,12 @@ public class ProjectDetailView(
             // Section 3: Review Actions
             | Text.H4("Review Actions").Bold()
             | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx))
-            | new Button("Add Review Action").Icon(Icons.Plus).OnClick(() => showReviewActionTrigger(null))
+            | new Button("Add Review Action").Icon(Icons.Plus).Outline().OnClick(() => showReviewActionTrigger(null))
 
             // Section 4: Verifications
             | Text.H4("Verifications").Bold()
             | new ProjectVerificationsTableView(verifications, idx => showVerificationTrigger(idx))
-            | new Button("Add Verification").Icon(Icons.Plus).OnClick(() => showVerificationTrigger(null))
+            | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() => showVerificationTrigger(null))
 
             // Section 5: Agent Behavior
             | (isBeta

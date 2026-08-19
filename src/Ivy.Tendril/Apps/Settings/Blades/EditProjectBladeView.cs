@@ -161,7 +161,7 @@ public class EditProjectBladeView(
                 {
                     bladeContext.Push(this, new EditProjectMemoryBladeView(config.TendrilHome, editName.Value, fileName, memoryRefresh), title: fileName == null ? "Add Memory" : $"Edit Memory: {fileName}");
                 })
-                | new Button("Add Project Memory").Icon(Icons.Plus).OnClick(() =>
+                | new Button("Add Project Memory").Icon(Icons.Plus).Outline().OnClick(() =>
                 {
                     bladeContext.Push(this, new EditProjectMemoryBladeView(config.TendrilHome, editName.Value, null, memoryRefresh), title: "Add Project Memory");
                 })
@@ -173,7 +173,7 @@ public class EditProjectBladeView(
                 {
                     bladeContext.Push(this, new EditMcpServerBladeView(idx, editMcpServers), title: idx == null ? "Add MCP Server" : "Edit MCP Server");
                 })
-                | new Button("Add MCP Server").Icon(Icons.Plus).OnClick(() =>
+                | new Button("Add MCP Server").Icon(Icons.Plus).Outline().OnClick(() =>
                 {
                     bladeContext.Push(this, new EditMcpServerBladeView(null, editMcpServers), title: "Add MCP Server");
                 })
@@ -185,7 +185,7 @@ public class EditProjectBladeView(
                 {
                     bladeContext.Push(this, new EditSkillBladeView(idx, editSkills), title: idx == null ? "Add Custom Skill" : "Edit Custom Skill");
                 })
-                | new Button("Add Custom Skill").Icon(Icons.Plus).OnClick(() =>
+                | new Button("Add Custom Skill").Icon(Icons.Plus).Outline().OnClick(() =>
                 {
                     bladeContext.Push(this, new EditSkillBladeView(null, editSkills), title: "Add Custom Skill");
                 })
@@ -199,7 +199,7 @@ public class EditProjectBladeView(
             {
                 bladeContext.Push(this, new EditReviewActionBladeView(idx, editReviewActions), title: idx == null ? "Add Review Action" : "Edit Review Action");
             })
-            | new Button("Add Review Action").Icon(Icons.Plus).OnClick(() =>
+            | new Button("Add Review Action").Icon(Icons.Plus).Outline().OnClick(() =>
             {
                 bladeContext.Push(this, new EditReviewActionBladeView(null, editReviewActions), title: "Add Review Action");
             })
@@ -207,7 +207,7 @@ public class EditProjectBladeView(
         tabs.Add(new Tab("Verifications",
             Layout.Vertical()
             | Text.Block("Quality checks required before plans are marked complete.").Muted().Small()
-            | new Button("Add Verification").Icon(Icons.Plus).OnClick(() =>
+            | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() =>
             {
                 bladeContext.Push(this, new EditVerificationBladeView(config, client, refreshToken, editVerifications), title: "Add Verification");
             })
