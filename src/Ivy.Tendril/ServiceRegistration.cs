@@ -2,6 +2,7 @@ using System.ClientModel;
 using Ivy.Core.Exceptions;
 using Ivy.Tendril.Agents;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,10 +33,7 @@ internal static class ServiceRegistration
 
         server.Services.AddAgentInfrastructure(opts =>
         {
-            opts.IncludeBetaProviders = (tendrilArgs?.Beta ?? false) ||
-                                        configService.Settings.Beta ||
-                                        Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
-                                        Environment.GetEnvironmentVariable("IVY_BETA") == "1";
+            opts.IncludeBetaProviders = BetaHelper.IsBeta(tendrilArgs, configService);
 
             opts.IvyApiKeyProviderFactory = sp =>
             {
