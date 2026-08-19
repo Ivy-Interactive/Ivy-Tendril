@@ -350,12 +350,14 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
     }
   }, [diff]);
 
+  const [viewedState, setViewedState] = useState<Record<string, boolean>>({});
   const [collapsedState, setCollapsedState] = useState<Record<string, boolean>>({});
   const [activeFormKeys, setActiveFormKeys] = useState<Record<string, boolean>>({});
   const [editingCommentKeys, setEditingCommentKeys] = useState<Record<string, string>>({});
   const [commentsHidden, setCommentsHidden] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
+    setViewedState({});
     setCollapsedState({});
     setCommentsHidden({});
     setActiveFormKeys({});
@@ -553,7 +555,8 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
         const effectiveFilePath = filePath || newName || oldName;
         const fileKey = effectiveFilePath || file.newPath || file.oldPath || `diff-${fileIndex}`;
 
-        const isCollapsed = collapsedState[fileKey] ?? defaultCollapsed;
+        const isViewed = viewedState[fileKey] ?? false;
+        const isCollapsed = collapsedState[fileKey] ?? (isViewed ? true : defaultCollapsed);
 
         const toggleCollapsed = () => {
           if (!collapsible) return;
@@ -655,24 +658,29 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                   <button
                     type="button"
                     role="checkbox"
-                    aria-checked={isCollapsed}
+                    aria-checked={isViewed}
                     onClick={(e) => {
                       e.stopPropagation();
+                      const nextViewed = !isViewed;
+                      setViewedState((prev) => ({
+                        ...prev,
+                        [fileKey]: nextViewed,
+                      }));
                       setCollapsedState((prev) => ({
                         ...prev,
-                        [fileKey]: !isCollapsed,
+                        [fileKey]: nextViewed,
                       }));
                     }}
                     className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] cursor-pointer select-none font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)] rounded px-1 py-0.5"
                   >
                     <span
                       className={`size-3.5 shrink-0 rounded-sm border transition-colors flex items-center justify-center ${
-                        isCollapsed
+                        isViewed
                           ? "bg-[var(--primary)] text-[var(--primary-foreground)] border-[var(--primary)]"
                           : "border-[var(--border)] bg-[var(--background)] hover:bg-[var(--accent)]"
                       }`}
                     >
-                      {isCollapsed && (
+                      {isViewed && (
                         <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="2 6 5 9 10 3" />
                         </svg>

@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Net.Http;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Agents.Providers.Ivy;
 using Ivy.Tendril.Apps.Settings.Dialogs;
 using Ivy.Tendril.Helpers;
@@ -70,6 +71,7 @@ public class CodingAgentSetupView : ViewBase
         var deepEffort = UseState(GetProfileEffort(config, config.Settings.CodingAgent, "deep"));
         var balancedEffort = UseState(GetProfileEffort(config, config.Settings.CodingAgent, "balanced"));
         var quickEffort = UseState(GetProfileEffort(config, config.Settings.CodingAgent, "quick"));
+        var useCustomModelNames = UseState(false);
         var lastRealAgent = UseState(config.Settings.CodingAgent);
         var showTestDialog = UseState(false);
         var testAgentId = UseState(config.Settings.CodingAgent);
@@ -95,7 +97,7 @@ public class CodingAgentSetupView : ViewBase
             ? (openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app") ? "ivy" : "openaiproxy")
             : (selectedAgent.Value == "anthropic_card" || isBerget ? "openaiproxy" : selectedAgent.Value);
 
-        if (lastRealAgent.Value != realAgentId || (isBerget && deepModel.Value == "default"))
+        if (lastRealAgent.Value != realAgentId || deepModel.Value == "default")
         {
             var deep = GetProfileModel(config, realAgentId, "deep");
             var balanced = GetProfileModel(config, realAgentId, "balanced");
@@ -104,9 +106,28 @@ public class CodingAgentSetupView : ViewBase
             var balancedEff = GetProfileEffort(config, realAgentId, "balanced");
             var quickEff = GetProfileEffort(config, realAgentId, "quick");
 
-            deepModel.Set(deep == "default" && isBerget ? "moonshotai/Kimi-K3" : deep);
-            balancedModel.Set(balanced == "default" && isBerget ? "moonshotai/Kimi-K3" : balanced);
-            quickModel.Set(quick == "default" && isBerget ? "moonshotai/Kimi-K3" : quick);
+            if (deep == "default" || balanced == "default" || quick == "default")
+            {
+                var isIvyAgent = realAgentId == "ivy" || openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app");
+                var isAnthropicAgent = selectedAgent.Value == "anthropic_card" || openAiProxyBaseUrl.Value.Contains("api.anthropic.com");
+                var isGoogleAgent = openAiProxyBaseUrl.Value.Contains("generativelanguage.googleapis.com") || openAiProxyBaseUrl.Value.Contains("gemini") || openAiProxyBaseUrl.Value.Contains("google");
+
+                var (defDeep, defBalanced, defQuick) = ModelProfileSelector.SelectDefaults(
+                    null,
+                    isIvy: isIvyAgent,
+                    isAnthropic: isAnthropicAgent,
+                    isBerget: isBerget,
+                    isGoogle: isGoogleAgent,
+                    isOpenAi: !isIvyAgent && !isAnthropicAgent && !isBerget && !isGoogleAgent);
+
+                if (deep == "default") deep = defDeep;
+                if (balanced == "default") balanced = defBalanced;
+                if (quick == "default") quick = defQuick;
+            }
+
+            deepModel.Set(deep);
+            balancedModel.Set(balanced);
+            quickModel.Set(quick);
             deepEffort.Set(deepEff);
             balancedEffort.Set(balancedEff);
             quickEffort.Set(quickEff);
@@ -116,10 +137,21 @@ public class CodingAgentSetupView : ViewBase
         }
 
         var models = modelsQuery.Value ?? [];
+        var knownModelIds = new HashSet<string>(models.Select(m => m.Id), StringComparer.OrdinalIgnoreCase);
+        var extraOptions = new List<Option<string>>();
+        foreach (var m in new[] { deepModel.Value, balancedModel.Value, quickModel.Value })
+        {
+            if (!string.IsNullOrEmpty(m) && m != "default" && !knownModelIds.Contains(m) && extraOptions.All(o => (string?)o.Value != m))
+            {
+                extraOptions.Add(new Option<string>(m, m));
+            }
+        }
+
         var modelOptions = new[] { new Option<string>("Default", "default") }
             .Concat(models
                 .Where(m => m.Id != "default")
                 .Select(m => new Option<string>(m.DisplayName, m.Id)))
+            .Concat(extraOptions)
             .ToArray<IAnyOption>();
 
         var isIvy = selectedAgent.Value == "openaiproxy_card" && openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app");
@@ -215,7 +247,9 @@ public class CodingAgentSetupView : ViewBase
             current | new Card(
                 Layout.Horizontal()
                 | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))
-                | Text.Block(a.Label)
+                | (Layout.Vertical()
+                    | Text.Block(a.Label)
+                    | (a.Key == "opencode" ? Text.Muted("Open Source (MIT)").Small() : null!))
                 | new Spacer()
                 | (a.Key == selectedAgent.Value ? Icons.Check.ToIcon() : null)
             ).Width(Size.Full()).Height(Size.Full()).OnClick(() =>
@@ -242,23 +276,36 @@ public class CodingAgentSetupView : ViewBase
             ).Width(Size.Full()).Height(Size.Full()).OnClick(() =>
             {
                 selectedAgent.Set(a.Key);
-                if (a.Key == "openaiproxy_card" && (openAiProxyBaseUrl.Value.Contains("api.anthropic.com") || openAiProxyBaseUrl.Value.Contains("api.berget.ai")))
+                if (a.Key == "openaiproxy_card")
                 {
-                    openAiProxyBaseUrl.Set("https://api.openai.com");
+                    if (openAiProxyBaseUrl.Value.Contains("api.anthropic.com") || openAiProxyBaseUrl.Value.Contains("api.berget.ai"))
+                    {
+                        openAiProxyBaseUrl.Set("https://api.openai.com");
+                    }
+                    var isIvyUrl = openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app");
+                    deepModel.Set(isIvyUrl ? "claude-opus-5" : "gpt-5.6-sol");
+                    balancedModel.Set(isIvyUrl ? "gemini-3.7-flash" : "gpt-5.6-terra");
+                    quickModel.Set(isIvyUrl ? "gemini-3.7-flash" : "gpt-5.6-luna");
                 }
-                else if (a.Key == "anthropic_card" && (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com") || openAiProxyBaseUrl.Value.Contains("api.berget.ai")))
+                else if (a.Key == "anthropic_card")
                 {
-                    openAiProxyBaseUrl.Set("https://api.anthropic.com/v1");
+                    if (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com") || openAiProxyBaseUrl.Value.Contains("api.berget.ai") || openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app"))
+                    {
+                        openAiProxyBaseUrl.Set("https://api.anthropic.com/v1");
+                    }
+                    deepModel.Set("claude-opus-5");
+                    balancedModel.Set("claude-sonnet-5");
+                    quickModel.Set("claude-haiku-5");
                 }
                 else if (a.Key == "berget_card")
                 {
-                    if (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com") || openAiProxyBaseUrl.Value.Contains("api.anthropic.com"))
+                    if (string.IsNullOrEmpty(openAiProxyBaseUrl.Value) || openAiProxyBaseUrl.Value.Contains("api.openai.com") || openAiProxyBaseUrl.Value.Contains("api.anthropic.com") || openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app"))
                     {
                         openAiProxyBaseUrl.Set("https://api.berget.ai/v1");
                     }
-                    if (deepModel.Value == "default") deepModel.Set("moonshotai/Kimi-K3");
-                    if (balancedModel.Value == "default") balancedModel.Set("moonshotai/Kimi-K3");
-                    if (quickModel.Value == "default") quickModel.Set("moonshotai/Kimi-K3");
+                    deepModel.Set("moonshotai/Kimi-K3");
+                    balancedModel.Set("moonshotai/Kimi-K3");
+                    quickModel.Set("moonshotai/Kimi-K3");
                 }
             }));
 
@@ -286,39 +333,60 @@ public class CodingAgentSetupView : ViewBase
         else if (selectedAgent.Value == "berget_card")
         {
             agentInputs = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
-                | openAiProxyApiKey.ToPasswordInput("...")
+                | openAiProxyApiKey.ToPasswordInput("sk-...")
                     .WithField()
                     .Label("API Key");
         }
         else if (selectedAgent.Value == "opencode")
         {
             agentInputs = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                | Text.Muted("OpenCode is an open source AI coding agent. Tendril integrates and bundles OpenCode runtime components under the MIT license.").Small()
                 | ollamaUrl.ToTextInput("http://localhost:11434")
                     .WithField()
                     .Label("Ollama Host");
         }
 
+        var isByo = isIvy || isBerget || isAnthropic || isOpenAi;
+        var hasFetchedModels = models.Length > 0;
+        var isCustomMode = isByo && (useCustomModelNames.Value || !hasFetchedModels);
+
         var profileModels = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+            | (isByo && hasFetchedModels ? useCustomModelNames.ToSwitchInput(label: "Custom model names") : null!)
             | Text.Block("Profile Models").Bold()
-            | Text.Muted("Promptwares are configured to use different profiles depending on the complexity of the task. You can specify what model and effort level to use for each profile.").Small()
+            | Text.Muted(isCustomMode
+                ? "Specify custom model names and effort level to use for each profile."
+                : "Promptwares are configured to use different profiles depending on the complexity of the task. You can specify what model and effort level to use for each profile.").Small()
             | (supportsEffort
                 ? (object)(Layout.Vertical()
                     | (Layout.Horizontal()
-                        | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep").Width(Size.Fraction(0.65f))
+                        | (isCustomMode
+                            ? deepModel.ToTextInput("e.g. gpt-4o").WithField().Label("Deep").Width(Size.Fraction(0.65f))
+                            : deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep").Width(Size.Fraction(0.65f)))
                         | deepEffort.ToSelectInput(GetEffortOptions(deepModel.Value)).WithField().Label("Effort").Width(Size.Fraction(0.35f)))
                     | (Layout.Horizontal()
-                        | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced").Width(Size.Fraction(0.65f))
+                        | (isCustomMode
+                            ? balancedModel.ToTextInput("e.g. gpt-4o-mini").WithField().Label("Balanced").Width(Size.Fraction(0.65f))
+                            : balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced").Width(Size.Fraction(0.65f)))
                         | balancedEffort.ToSelectInput(GetEffortOptions(balancedModel.Value)).WithField().Label("Effort").Width(Size.Fraction(0.35f)))
                     | (Layout.Horizontal()
-                        | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick").Width(Size.Fraction(0.65f))
+                        | (isCustomMode
+                            ? quickModel.ToTextInput("e.g. gpt-4o-mini").WithField().Label("Quick").Width(Size.Fraction(0.65f))
+                            : quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick").Width(Size.Fraction(0.65f)))
                         | quickEffort.ToSelectInput(GetEffortOptions(quickModel.Value)).WithField().Label("Effort").Width(Size.Fraction(0.35f))))
                 : (Layout.Vertical()
-                    | deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep")
-                    | balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced")
-                    | quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick")));
+                    | (isCustomMode
+                        ? deepModel.ToTextInput("e.g. gpt-4o").WithField().Label("Deep")
+                        : deepModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Deep"))
+                    | (isCustomMode
+                        ? balancedModel.ToTextInput("e.g. gpt-4o-mini").WithField().Label("Balanced")
+                        : balancedModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Balanced"))
+                    | (isCustomMode
+                        ? quickModel.ToTextInput("e.g. gpt-4o-mini").WithField().Label("Quick")
+                        : quickModel.ToSelectInput(modelOptions).Loading(modelsQuery.Loading).WithField().Label("Quick"))));
 
         return Layout.Vertical()
                | Text.Block("Coding Agent").Bold()
+               | Text.Muted("Tendril connects to your configured AI coding agent or bundled open source engines like OpenCode.").Small()
                | (Layout.Vertical()
                    .Width(Size.Full().At(Breakpoint.Mobile).And(Breakpoint.Desktop, Size.Units(170)))
                    | topGrid.Width(Size.Full()))

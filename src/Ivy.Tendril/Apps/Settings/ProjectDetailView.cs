@@ -68,10 +68,7 @@ public class ProjectDetailView(
         var (importSkillsDialog, openImportSkillsDialog) = UseTrigger((IState<bool> isOpen) =>
             new ImportRepoAssetsDialog(isOpen, ImportAssetKind.Skills, projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : "", repos.Value, config, client, skills: skills));
 
-        var isBeta = (tendrilArgs?.Beta ?? false) ||
-                     (config?.Settings?.Beta ?? false) ||
-                     Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
-                     Environment.GetEnvironmentVariable("IVY_BETA") == "1";
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
 
         // Auto-save settings on state changes
         void SaveProjectChanges()

@@ -19,11 +19,33 @@ public class AboutSetupView : ViewBase
         string Runtime,
         string TendrilHome);
 
-    private record BundledToolInfo(
+    public record BundledToolInfo(
         string Tool,
         string Status,
+        string License,
         string Version,
         string Location);
+
+    public static BundledToolInfo[] GetDefaultToolchain(
+        bool isIvyAgentBundled,
+        string ivyAgentPath,
+        string ivyAgentVersion,
+        bool isDotnetBundled,
+        string dotnetPath,
+        string dotnetVersion,
+        bool isPwshBundled,
+        string pwshPath,
+        string pwshVersion,
+        string gitVersion)
+    {
+        return
+        [
+            new BundledToolInfo("OpenCode CLI", isIvyAgentBundled ? "Bundled" : File.Exists(ivyAgentPath) ? "Installed" : "Not Found", "MIT License", ivyAgentVersion, ivyAgentPath),
+            new BundledToolInfo(".NET SDK / Runtime", isDotnetBundled ? "Bundled SDK" : "Runtime", "MIT License", dotnetVersion, dotnetPath),
+            new BundledToolInfo("PowerShell", isPwshBundled ? "Bundled" : File.Exists(pwshPath) ? "System" : "Not Found", "MIT License", pwshVersion, pwshPath),
+            new BundledToolInfo("Git", "System Tool", "GPL v2", gitVersion, "git")
+        ];
+    }
 
     public override object Build()
     {
@@ -71,6 +93,40 @@ public class AboutSetupView : ViewBase
             gitVersionState.Set(FormatVersionOutput(results[3]));
         });
 
+        var ossAttributionCard = new Card(
+            Layout.Vertical().Gap(3)
+                | Text.Block("Tendril is built on open source technologies and bundles open source software (OSS) runtimes to power its autonomous planning and execution engine.")
+                | (Layout.Vertical().Gap(2)
+                    | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                        | Icons.OpenCode.ToIcon().Width(Size.Px(20)).Height(Size.Px(20))
+                        | Text.Block("OpenCode CLI").Bold()
+                        | new Badge("MIT License").Variant(BadgeVariant.Outline).Small()
+                        | Text.Muted("Bundled open-source coding engine (https://github.com/anomalyco/opencode)").Small())
+                    | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                        | Icons.Cpu.ToIcon().Width(Size.Px(20)).Height(Size.Px(20))
+                        | Text.Block(".NET SDK / Runtime").Bold()
+                        | new Badge("MIT License").Variant(BadgeVariant.Outline).Small()
+                        | Text.Muted("Application foundation (https://github.com/dotnet/core)").Small())
+                    | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)
+                        | Icons.Terminal.ToIcon().Width(Size.Px(20)).Height(Size.Px(20))
+                        | Text.Block("PowerShell Core").Bold()
+                        | new Badge("MIT License").Variant(BadgeVariant.Outline).Small()
+                        | Text.Muted("Automation runtime (https://github.com/PowerShell/PowerShell)").Small()))
+                | (Layout.Horizontal().Gap(2)
+                    | new Button("OpenCode Repository")
+                        .Variant(ButtonVariant.Outline)
+                        .Icon(Icons.ExternalLink, Align.Right)
+                        .OnClick(() => client.OpenUrl("https://github.com/anomalyco/opencode"))
+                    | new Button(".NET Repository")
+                        .Variant(ButtonVariant.Outline)
+                        .Icon(Icons.ExternalLink, Align.Right)
+                        .OnClick(() => client.OpenUrl("https://github.com/dotnet/core"))
+                    | new Button("PowerShell Repository")
+                        .Variant(ButtonVariant.Outline)
+                        .Icon(Icons.ExternalLink, Align.Right)
+                        .OnClick(() => client.OpenUrl("https://github.com/PowerShell/PowerShell")))
+        ).Header("Open Source Software & Attribution", icon: Icons.OpenCode);
+
         var systemInfo = new SystemEnvironmentInfo(
             Application: "Tendril",
             Version: $"v{tendrilVersion}",
@@ -93,19 +149,24 @@ public class AboutSetupView : ViewBase
                 .Builder(x => x.TendrilHome, f => f.CopyToClipboard())
         ).Header("System & Environment", icon: Icons.Cpu);
 
-        var toolsList = new[]
-        {
-            new BundledToolInfo("Ivy Agent CLI", isIvyAgentBundled ? "Bundled" : File.Exists(ivyAgentPath) ? "Installed" : "Not Found", ivyAgentVersionState.Value, ivyAgentPath),
-            new BundledToolInfo(".NET SDK / Runtime", isDotnetBundled ? "Bundled SDK" : "Runtime", dotnetVersionState.Value, dotnetPath),
-            new BundledToolInfo("PowerShell", isPwshBundled ? "Bundled" : File.Exists(pwshPath) ? "System" : "Not Found", pwshVersionState.Value, pwshPath),
-            new BundledToolInfo("Git", "System Tool", gitVersionState.Value, "git"),
-        };
+        var toolsList = GetDefaultToolchain(
+            isIvyAgentBundled,
+            ivyAgentPath,
+            ivyAgentVersionState.Value,
+            isDotnetBundled,
+            dotnetPath,
+            dotnetVersionState.Value,
+            isPwshBundled,
+            pwshPath,
+            pwshVersionState.Value,
+            gitVersionState.Value);
 
         var toolsTableCard = new Card(
             toolsList.ToTable()
                 .Width(Size.Full())
                 .Header(x => x.Tool, "Software Tool")
                 .Header(x => x.Status, "Status")
+                .Header(x => x.License, "License")
                 .Header(x => x.Version, "Version")
                 .Header(x => x.Location, "Binary Path")
                 .Builder(x => x.Status, f => f.Func((string status) => status switch
@@ -115,6 +176,7 @@ public class AboutSetupView : ViewBase
                     "System Tool" or "Runtime" => new Badge(status).Variant(BadgeVariant.Outline).Small(),
                     _ => new Badge(status).Variant(BadgeVariant.Destructive).Small()
                 }))
+                .Builder(x => x.License, f => f.Func((string license) => new Badge(license).Variant(BadgeVariant.Outline).Small()))
                 .Builder(x => x.Version, f => f.CopyToClipboard())
                 .Builder(x => x.Location, f => f.CopyToClipboard())
         ).Header("Software Toolchain", icon: Icons.Package);
@@ -122,7 +184,7 @@ public class AboutSetupView : ViewBase
         var systemReport = new StringBuilder()
             .AppendLine($"Tendril: v{tendrilVersion}")
             .AppendLine($"Ivy Framework: v{ivyVersion}")
-            .AppendLine($"Ivy Agent CLI: {ivyAgentVersionState.Value} ({ivyAgentPath})")
+            .AppendLine($"OpenCode / Ivy Agent CLI: {ivyAgentVersionState.Value} ({ivyAgentPath})")
             .AppendLine($".NET SDK: {dotnetVersionState.Value} ({dotnetPath})")
             .AppendLine($"PowerShell: {pwshVersionState.Value} ({pwshPath})")
             .AppendLine($"Git: {gitVersionState.Value}")
@@ -134,7 +196,9 @@ public class AboutSetupView : ViewBase
 
         var header = Layout.Vertical().Width(Size.Full().Max(Size.Units(200)))
             | (Layout.Horizontal()
-                | Text.H2("About Tendril")
+                | (Layout.Vertical()
+                    | Text.H2("About Tendril")
+                    | Text.Muted("Tendril is an open source AI coding orchestrator built on open source technologies.").Small())
                 | new Spacer()
                 | new Button("Copy System Report")
                     .Variant(ButtonVariant.Outline)
@@ -181,6 +245,7 @@ public class AboutSetupView : ViewBase
                     }));
 
         var content = Layout.Vertical().Width(Size.Full().Max(Size.Units(200)))
+            | ossAttributionCard
             | systemDetailsCard
             | toolsTableCard;
 
