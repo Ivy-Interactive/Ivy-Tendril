@@ -139,7 +139,10 @@ public class AddProjectView(
                 {
                     step.Set(2);
                 },
-                onSkip: null,
+                onSkip: () =>
+                {
+                    step.Set(2);
+                },
                 skipAgent: skipAgent.Value,
                 showHeader: true,
                 setupTrigger: setupTriggered),
