@@ -95,7 +95,7 @@ public class ProjectRepoPickerView(
         {
             pickerControls = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center)
                              | repoInput
-                             | new Button("Browse").Icon(Icons.FolderOpen)
+                             | new Button("Browse").Icon(Icons.FolderOpen).Outline()
                                  .OnClick(() =>
                                  {
                                      var picked = desktop!.ShowSelectFolderDialog("Select repository folder");
@@ -108,7 +108,7 @@ public class ProjectRepoPickerView(
             pickerControls = repoInput;
         }
 
-        var addButton = new Button("Add Repository").Icon(Icons.Plus)
+        var addButton = new Button("Add Repository").Icon(Icons.Plus).Outline()
             .Disabled(string.IsNullOrWhiteSpace(inputValue.Value) || isAdding.Value)
             .Loading(isAdding.Value)
             .OnClick(() => { _ = AddAsync(); });
@@ -146,7 +146,7 @@ public class ProjectRepoPickerView(
                          | (showBaseBranchPicker
                              ? (object)BuildBaseBranchSelector(repos, idx)
                              : null!)
-                         | new Button().Icon(Icons.X).Ghost().OnClick(() =>
+                         | new Button().Icon(Icons.X).Outline().Small().OnClick(() =>
                          {
                              var list = new List<RepoRef>(repos.Value);
                              if (idx < list.Count) list.RemoveAt(idx);
