@@ -1,3 +1,5 @@
+using System.Reactive.Linq;
+using Ivy.Core.Hooks;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
@@ -6,6 +8,13 @@ namespace Ivy.Tendril.Test;
 
 public class JobsAppRefreshGatingTests
 {
+    private static (RefreshToken Token, Func<int> RefreshCount) CreateRefreshToken()
+    {
+        var state = new State<(Guid, object?, bool)>((Guid.NewGuid(), null, false));
+        var count = 0;
+        state.Skip(1).Subscribe(_ => count++);
+        return (new RefreshToken(state), () => count);
+    }
     private static JobItem MakeJob(string id, JobStatus status, DateTime? completedAt = null) => new()
     {
         Id = id,
@@ -124,9 +133,48 @@ public class JobsAppRefreshGatingTests
         Assert.Empty(cache);
     }
 
+    [Fact]
+    public void JobChangeHookDisposable_SubscribesOnlyToJobsStructureChanged()
+    {
+        var jobService = new FakeJobService();
+        var (token, refreshCount) = CreateRefreshToken();
+
+        using var hook = JobsApp.JobChangeHookDisposable(jobService, token);
+
+        // JobPropertyChanged should not trigger a refresh
+        jobService.FireJobPropertyChanged();
+        Assert.Equal(0, refreshCount());
+
+        // JobsStructureChanged should trigger a refresh
+        jobService.FireJobsStructureChanged();
+        Assert.Equal(1, refreshCount());
+
+        // Multiple structure changes trigger multiple refreshes
+        jobService.FireJobsStructureChanged();
+        Assert.Equal(2, refreshCount());
+    }
+
+    [Fact]
+    public void JobChangeHookDisposable_Dispose_UnhooksJobsStructureChanged()
+    {
+        var jobService = new FakeJobService();
+        var (token, refreshCount) = CreateRefreshToken();
+
+        var hook = JobsApp.JobChangeHookDisposable(jobService, token);
+        jobService.FireJobsStructureChanged();
+        Assert.Equal(1, refreshCount());
+
+        hook.Dispose();
+        jobService.FireJobsStructureChanged();
+        Assert.Equal(1, refreshCount());
+    }
+
     private class FakeJobService : IJobService
     {
         public List<JobItem> Jobs { get; } = new();
+
+        public void FireJobsStructureChanged() => JobsStructureChanged?.Invoke();
+        public void FireJobPropertyChanged() => JobPropertyChanged?.Invoke();
 
         public string StartJob(JobArgsBase args, string? inboxFilePath = null) => throw new NotSupportedException();
         public void ForceStartJob(string id) => throw new NotSupportedException();

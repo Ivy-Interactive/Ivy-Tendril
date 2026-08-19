@@ -5,7 +5,7 @@ namespace Ivy.Tendril.Apps.Jobs;
 
 public partial class JobsApp
 {
-    private static IDisposable JobChangeHookDisposable(IJobService jobService, RefreshToken refreshToken)
+    internal static IDisposable JobChangeHookDisposable(IJobService jobService, RefreshToken refreshToken)
     {
         void OnJobsChanged()
         {
@@ -13,11 +13,9 @@ public partial class JobsApp
         }
 
         jobService.JobsStructureChanged += OnJobsChanged;
-        jobService.JobPropertyChanged += OnJobsChanged;
         return Disposable.Create(() =>
         {
             jobService.JobsStructureChanged -= OnJobsChanged;
-            jobService.JobPropertyChanged -= OnJobsChanged;
         });
     }
 

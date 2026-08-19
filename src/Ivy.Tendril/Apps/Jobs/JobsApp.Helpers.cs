@@ -9,12 +9,35 @@ public partial class JobsApp
 
     internal static string? GetFullPrompt(JobItem job, IPlanReaderService? planService = null)
     {
-        if (job.TypedArgs is CreatePlanArgs cp)
-            return cp.Description;
-
-        if (planService != null && !string.IsNullOrEmpty(job.PlanFile))
+        switch (job.TypedArgs)
         {
-            var fullPath = Path.Combine(planService.PlansDirectory, job.PlanFile);
+            case CreatePlanArgs cp:
+                return cp.Description;
+            case RetryPlanArgs rp when !string.IsNullOrWhiteSpace(rp.ChangeRequest):
+                return rp.ChangeRequest;
+            case UpdatePlanArgs up when !string.IsNullOrWhiteSpace(up.Instructions):
+                return up.Instructions;
+            case ExecutePlanArgs ep when !string.IsNullOrWhiteSpace(ep.Note):
+                return ep.Note;
+            case CreatePrArgs cpr when !string.IsNullOrWhiteSpace(cpr.Comment):
+                return cpr.Comment;
+            case CreateIssueArgs ci when !string.IsNullOrWhiteSpace(ci.Comment):
+                return ci.Comment;
+            case SyncRepoArgs sr:
+                return sr.RepoPath;
+            case AddProjectArgs ap:
+                return ap.ProjectName;
+            case SetupProjectArgs sp:
+                return sp.FolderPath;
+        }
+
+        var planFolder = !string.IsNullOrEmpty(job.PlanFile)
+            ? job.PlanFile
+            : job.TypedArgs?.PlanFolder;
+
+        if (planService != null && !string.IsNullOrEmpty(planFolder))
+        {
+            var fullPath = Path.Combine(planService.PlansDirectory, planFolder);
             var plan = planService.GetPlanByFolder(fullPath);
             if (plan != null)
             {
@@ -25,7 +48,7 @@ public partial class JobsApp
             }
         }
 
-        return job.PlanFile;
+        return !string.IsNullOrEmpty(job.PlanFile) ? job.PlanFile : string.Empty;
     }
 
     internal static string ExtractPlanId(string planFile)
@@ -106,7 +129,7 @@ public partial class JobsApp
     internal static string GetPromptDisplay(JobItem j, IPlanReaderService planService)
     {
         // Try loading plan title from service
-        if (TryGetPlanTitle(j.PlanFile, planService, out var planTitle))
+        if (TryGetPlanTitle(j, planService, out var planTitle))
             return TruncatePrompt(planTitle);
 
         // Try reported title
@@ -121,16 +144,25 @@ public partial class JobsApp
         if (j.TypedArgs is SyncRepoArgs syncArgs)
             return TruncatePrompt(syncArgs.RepoPath);
 
+        // Try AddProject name
+        if (j.TypedArgs is AddProjectArgs addProjArgs)
+            return TruncatePrompt(addProjArgs.ProjectName);
+
+        // Try SetupProject path
+        if (j.TypedArgs is SetupProjectArgs setupProjArgs)
+            return TruncatePrompt(setupProjArgs.FolderPath);
+
         // Fallback to full prompt (resolves InitialPrompt/Title from plan.yaml) or plan file
         return TruncatePrompt(GetFullPrompt(j, planService) ?? j.PlanFile);
     }
 
-    private static bool TryGetPlanTitle(string? planFile, IPlanReaderService planService, out string title)
+    private static bool TryGetPlanTitle(JobItem j, IPlanReaderService planService, out string title)
     {
         title = string.Empty;
-        if (string.IsNullOrEmpty(planFile)) return false;
+        var folder = !string.IsNullOrEmpty(j.PlanFile) ? j.PlanFile : j.TypedArgs?.PlanFolder;
+        if (string.IsNullOrEmpty(folder)) return false;
 
-        var fullPath = Path.Combine(planService.PlansDirectory, planFile);
+        var fullPath = Path.Combine(planService.PlansDirectory, folder);
         var plan = planService.GetPlanByFolder(fullPath);
 
         if (plan != null && !string.IsNullOrEmpty(plan.Title))
