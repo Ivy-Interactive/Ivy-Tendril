@@ -134,10 +134,7 @@ public class EditProjectBladeView(
             })
             .WithTooltip(hasInvalidRepos ? "Fix or remove invalid repositories before saving" : null);
 
-        var isBeta = (tendrilArgs?.Beta ?? false) ||
-                     (config?.Settings?.Beta ?? false) ||
-                     Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
-                     Environment.GetEnvironmentVariable("IVY_BETA") == "1";
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
 
         var tabs = new List<Tab>
         {

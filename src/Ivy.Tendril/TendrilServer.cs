@@ -89,10 +89,7 @@ public static class TendrilServer
             app.UseAssets(server.Args, app.Services.GetRequiredService<ILogger<Server>>(), "Assets", "tendril/assets");
         });
 
-        var isBeta = tendrilArgs.Beta ||
-                     configService.Settings.Beta ||
-                     Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
-                     Environment.GetEnvironmentVariable("IVY_BETA") == "1";
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, configService);
 
         var assembly = typeof(TendrilServer).Assembly;
         server.AppRepository.AddFactory(() => AppHelpers.GetApps(assembly)

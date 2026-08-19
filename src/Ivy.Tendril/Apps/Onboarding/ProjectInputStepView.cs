@@ -27,10 +27,7 @@ public class ProjectInputStepView(
         var jobService = UseService<IJobService>();
         var client = UseService<IClientProvider>();
 
-        var isBeta = (tendrilArgs?.Beta ?? false) ||
-                     (config?.Settings?.Beta ?? false) ||
-                     Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
-                     Environment.GetEnvironmentVariable("IVY_BETA") == "1";
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
 
         UseEffect(() =>
         {
