@@ -249,39 +249,33 @@ public class ProjectDetailView(
         var innerContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(160)))
             // Section 1: Header (Color Picker + Name)
             | nameHeader
-            | new Separator()
 
             // Section 2: Repositories
             | Text.H4("Repositories").Bold()
             | new ProjectRepoPickerView(repos, onAdd: cloneRemoteOnAdd, showBaseBranchPicker: true)
-            | new Separator()
 
             // Section 3: Review Actions
             | Text.H4("Review Actions").Bold()
             | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx))
             | new Button("Add Review Action").Icon(Icons.Plus).Outline().Small().OnClick(() => showReviewActionTrigger(null))
-            | new Separator()
 
             // Section 4: Verifications
             | Text.H4("Verifications").Bold()
             | new ProjectVerificationsTableView(verifications, idx => showVerificationTrigger(idx))
             | new Button("Add Verification").Icon(Icons.Plus).Outline().Small().OnClick(() => showVerificationTrigger(null))
-            | new Separator()
 
             // Section 5: Agent Behavior
             | (isBeta
                 ? (object)(Layout.Vertical()
                     | Text.H4("Agent Behavior").Bold()
-                    | autoImplementSelect
-                    | new Separator())
+                    | autoImplementSelect)
                 : null!)
 
             // Section 6: Local Permissions (MCP Tools & Servers)
             | (isBeta
                 ? (object)(Layout.Vertical()
                     | Text.H4("Local Permissions").Bold()
-                    | new McpServersTableView(mcpServers, repos, idx => openMcpSheet(idx), onImport: () => openImportMcpDialog(), onDelete: idx => DeleteMcpServer(idx))
-                    | new Separator())
+                    | new McpServersTableView(mcpServers, repos, idx => openMcpSheet(idx), onImport: () => openImportMcpDialog(), onDelete: idx => DeleteMcpServer(idx)))
                 : null!)
 
             // Section 7: Customizations
@@ -289,13 +283,12 @@ public class ProjectDetailView(
                 ? (object)(Layout.Vertical()
                     | Text.H4("Customizations").Bold()
                     | new ProjectMemoryTableView(config.TendrilHome, project.Name, memoryRefresh, fileName => openMemorySheet(fileName))
-                    | new SkillsTableView(skills, repos, idx => openSkillSheet(idx), onImport: () => openImportSkillsDialog(), onDelete: idx => DeleteSkill(idx))
-                    | new Separator())
+                    | new SkillsTableView(skills, repos, idx => openSkillSheet(idx), onImport: () => openImportSkillsDialog(), onDelete: idx => DeleteSkill(idx)))
                 : null!)
 
             // Section 8: Danger Zone
             | Text.H4("Danger Zone").Bold()
-            | new Button("Delete Project").Destructive().OnClick(() =>
+            | new Button("Delete Project").Destructive().Small().OnClick(() =>
             {
                 onDeleteProject?.Invoke();
             }).WithConfirm(

@@ -88,10 +88,6 @@ public class ProjectMemoryTableView(
                 | cardHeader
                 | cardBody;
 
-            if (i > 0)
-            {
-                cards |= new Separator();
-            }
             cards |= card;
         }
 
@@ -202,10 +198,6 @@ public class McpServersTableView : ViewBase
                 | cardHeader
                 | cardBody;
 
-            if (i > 0)
-            {
-                cards |= new Separator();
-            }
             cards |= card;
         }
 
@@ -340,10 +332,6 @@ public class SkillsTableView : ViewBase
                 | cardHeader
                 | cardBody;
 
-            if (i > 0)
-            {
-                cards |= new Separator();
-            }
             cards |= card;
         }
 
@@ -396,16 +384,16 @@ public class ReviewActionsTableView(
             ))
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<ReviewActionRow, int>(idx =>
-                Layout.Horizontal()
-                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
-                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
+                Layout.Horizontal().AlignContent(Align.Right)
+                | new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
+                | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
                 {
                     var list = new List<ReviewActionConfig>(actions);
                     list.RemoveAt(idx);
                     reviewActions.Set(list);
                 })
             ))
-            .Width(Size.Fit());
+            .Width(Size.Full());
     }
 
     private record ReviewActionRow(string Name, int Index);
@@ -429,16 +417,16 @@ public class ProjectVerificationsTableView(
             ))
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<VerificationRow, int>(idx =>
-                Layout.Horizontal()
-                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
-                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
+                Layout.Horizontal().AlignContent(Align.Right)
+                | new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
+                | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
                 {
                     var current = new List<ProjectVerificationRef>(verifications.Value);
                     current.RemoveAt(idx);
                     verifications.Set(current);
                 })
             ))
-            .Width(Size.Fit());
+            .Width(Size.Full());
     }
 
     private record VerificationRow(string Name, int Index);
