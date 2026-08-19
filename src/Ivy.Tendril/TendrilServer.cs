@@ -96,7 +96,7 @@ public static class TendrilServer
 
         var assembly = typeof(TendrilServer).Assembly;
         server.AppRepository.AddFactory(() => AppHelpers.GetApps(assembly)
-            .Select(app => app.Type == typeof(Ivy.Tendril.Apps.Chat.ChatApp) ? new AppDescriptor
+            .Select(app => (app.Type == typeof(Ivy.Tendril.Apps.Chat.ChatApp) || app.Type == typeof(Ivy.Tendril.Apps.ResourceMonitor.ResourceMonitorApp)) ? new AppDescriptor
             {
                 Id = app.Id,
                 Title = app.Title,
