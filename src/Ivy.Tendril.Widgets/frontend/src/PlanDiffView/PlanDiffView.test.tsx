@@ -250,18 +250,51 @@ describe("PlanDiffView collapse scoping", () => {
     expect(newCheckboxes[0]).toHaveAttribute("aria-checked", "false");
   });
 
-  it("does not mark files as viewed when defaultCollapsed is true", () => {
-    render(<PlanDiffView id="pdv-2" diff={twoFileDiff} collapsible defaultCollapsed />);
+  it("directly couples collapsed state to viewed state", () => {
+    render(<PlanDiffView id="pdv-2" diff={twoFileDiff} collapsible />);
 
     const checkboxes = screen.getAllByRole("checkbox");
     expect(checkboxes.length).toBe(2);
-    // Even though files are collapsed by default, Viewed state must be false
     expect(checkboxes[0]).toHaveAttribute("aria-checked", "false");
-    expect(checkboxes[1]).toHaveAttribute("aria-checked", "false");
 
-    // Clicking Viewed marks it as viewed
+    // Initially expanded - diff content is in document
+    expect(screen.getByText("old a")).toBeInTheDocument();
+
+    // Clicking Viewed marks it as viewed and collapses the file
     fireEvent.click(checkboxes[0]);
     expect(checkboxes[0]).toHaveAttribute("aria-checked", "true");
-    expect(checkboxes[1]).toHaveAttribute("aria-checked", "false");
+    expect(screen.queryByText("old a")).not.toBeInTheDocument();
+
+    // Clicking Viewed again expands it
+    fireEvent.click(checkboxes[0]);
+    expect(checkboxes[0]).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("old a")).toBeInTheDocument();
+  });
+
+  it("renders header and viewed checkbox when filePath or collapsible is provided", () => {
+    const singleFileDiff = [
+      "diff --git a/src/test.txt b/src/test.txt",
+      "--- a/src/test.txt",
+      "+++ b/src/test.txt",
+      "@@ -1 +1 @@",
+      "-old raw",
+      "+new raw",
+      "",
+    ].join("\n");
+
+    render(
+      <PlanDiffView
+        id="pdv-3"
+        diff={singleFileDiff}
+        filePath="src/test.txt"
+        collapsible
+      />
+    );
+
+    expect(screen.getByText("src/")).toBeInTheDocument();
+    expect(screen.getByText("test.txt")).toBeInTheDocument();
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).toBeInTheDocument();
+    expect(checkbox).toHaveAttribute("aria-checked", "false");
   });
 });

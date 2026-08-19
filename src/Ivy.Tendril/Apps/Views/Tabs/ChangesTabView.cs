@@ -99,7 +99,6 @@ public class ChangesTabView(
             });
 
         var diffsLayout = Layout.Vertical().Gap(1).Width(Size.Grow().Min(Size.Px(0))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)));
-        var isManyFiles = sortedFileDiffs.Count > 10;
         for (var i = 0; i < sortedFileDiffs.Count; i++)
         {
             var fileDiff = sortedFileDiffs[i];
@@ -110,7 +109,6 @@ public class ChangesTabView(
                 Diff = fileDiff.Diff,
                 FilePath = path,
                 Collapsible = true,
-                DefaultCollapsed = isManyFiles && i >= 5,
                 Comments = draftComments.Value.Where(c => c.FilePath == path).ToList(),
                 OnAddComment = e =>
                 {

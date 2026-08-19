@@ -344,21 +344,23 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
   const files = useMemo(() => {
     if (!diff) return [];
     try {
-      return parseDiff(diff);
+      const parsed = parseDiff(diff);
+      if (parsed && parsed.length > 0) return parsed;
+      const p = filePath || "file";
+      const syntheticDiff = `diff --git a/${p} b/${p}\n--- a/${p}\n+++ b/${p}\n${diff}`;
+      return parseDiff(syntheticDiff);
     } catch {
       return [];
     }
-  }, [diff]);
+  }, [diff, filePath]);
 
   const [viewedState, setViewedState] = useState<Record<string, boolean>>({});
-  const [collapsedState, setCollapsedState] = useState<Record<string, boolean>>({});
   const [activeFormKeys, setActiveFormKeys] = useState<Record<string, boolean>>({});
   const [editingCommentKeys, setEditingCommentKeys] = useState<Record<string, string>>({});
   const [commentsHidden, setCommentsHidden] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setViewedState({});
-    setCollapsedState({});
     setCommentsHidden({});
     setActiveFormKeys({});
     setEditingCommentKeys({});
@@ -473,15 +475,15 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       const oldName = rawOld === "/dev/null" ? "" : rawOld;
       const newName = rawNew === "/dev/null" ? "" : rawNew;
       const isRename = oldName !== newName && oldName !== "" && newName !== "";
-      const hasHeader = Boolean(oldName || newName);
+      const hasHeader = Boolean(oldName || newName || filePath || collapsible);
       const elementId = filePath || `${id}-${file.newPath || file.oldPath || `diff-${fileIndex}`}`;
       const label = isRename
         ? `${getBasename(oldName)} → ${getBasename(newName)}`
-        : getBasename(newName || oldName) || `Diff ${fileIndex + 1}`;
+        : getBasename(newName || oldName || filePath) || `Diff ${fileIndex + 1}`;
 
       return { oldName, newName, isRename, hasHeader, elementId, label };
     });
-  }, [files, id, oldRevision, newRevision, filePath]);
+  }, [files, id, oldRevision, newRevision, filePath, collapsible]);
 
   const scrollToFile = useCallback((elementId: string) => {
     if (typeof document === "undefined") return;
@@ -556,13 +558,13 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
         const fileKey = effectiveFilePath || file.newPath || file.oldPath || `diff-${fileIndex}`;
 
         const isViewed = viewedState[fileKey] ?? false;
-        const isCollapsed = collapsedState[fileKey] ?? (isViewed ? true : defaultCollapsed);
+        const isCollapsed = collapsible ? isViewed : defaultCollapsed;
 
-        const toggleCollapsed = () => {
+        const toggleViewed = () => {
           if (!collapsible) return;
-          setCollapsedState((prev) => ({
+          setViewedState((prev) => ({
             ...prev,
-            [fileKey]: !isCollapsed,
+            [fileKey]: !isViewed,
           }));
         };
 
@@ -618,7 +620,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
               >
                 <div
                   className="flex items-center gap-2 cursor-pointer select-none grow min-w-0"
-                  onClick={collapsible ? toggleCollapsed : undefined}
+                  onClick={collapsible ? toggleViewed : undefined}
                 >
                   {collapsible && (
                     <svg
@@ -639,7 +641,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                     </div>
                   ) : (
                     <div className="truncate">
-                      {renderFilePath(newName || oldName)}
+                      {renderFilePath(newName || oldName || filePath || "Diff")}
                     </div>
                   )}
                 </div>
@@ -661,15 +663,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                     aria-checked={isViewed}
                     onClick={(e) => {
                       e.stopPropagation();
-                      const nextViewed = !isViewed;
-                      setViewedState((prev) => ({
-                        ...prev,
-                        [fileKey]: nextViewed,
-                      }));
-                      setCollapsedState((prev) => ({
-                        ...prev,
-                        [fileKey]: nextViewed,
-                      }));
+                      toggleViewed();
                     }}
                     className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] cursor-pointer select-none font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)] rounded px-1 py-0.5"
                   >
