@@ -1,4 +1,5 @@
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Agents.Providers.OpenAiProxy;
 using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Helpers;
@@ -331,39 +332,19 @@ public class CodingAgentStepView(
                                        var models = await OpenAiProxyModelCatalog.FetchModelsFromEndpointAsync(baseUrl, openAiProxyApiKey.Value);
                                        fetchedModels.Set(models);
 
+                                       var isGoogleCard = !isIvy && !isAnthropicCard && !isBergetCard && (baseUrl.Contains("generativelanguage.googleapis.com") || baseUrl.Contains("gemini") || baseUrl.Contains("google"));
+
                                        if (models is { Count: > 0 })
                                        {
                                            useCustomModelNames.Set(false);
 
-                                           var deep = isIvy
-                                               ? (models.FirstOrDefault(m => m.Id.Contains("opus", StringComparison.OrdinalIgnoreCase))?.Id ?? models.FirstOrDefault()?.Id ?? "")
-                                               : (isAnthropicCard
-                                                   ? (models.FirstOrDefault(m => m.Id.Contains("opus", StringComparison.OrdinalIgnoreCase))?.Id ?? models.FirstOrDefault()?.Id ?? "")
-                                                   : (isBergetCard
-                                                       ? (models.FirstOrDefault(m => m.Id.Contains("kimi", StringComparison.OrdinalIgnoreCase))?.Id ?? models.FirstOrDefault()?.Id ?? "")
-                                                       : (models.FirstOrDefault(m => m.Id.Contains("sol", StringComparison.OrdinalIgnoreCase))?.Id
-                                                          ?? models.FirstOrDefault(m => m.Id.Contains("gpt-4o", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("mini", StringComparison.OrdinalIgnoreCase))?.Id
-                                                          ?? models.FirstOrDefault()?.Id ?? "")));
-
-                                           var balanced = isIvy
-                                               ? (models.FirstOrDefault(m => m.Id.Contains("flash", StringComparison.OrdinalIgnoreCase))?.Id ?? models.ElementAtOrDefault(1)?.Id ?? models.FirstOrDefault()?.Id ?? "")
-                                               : (isAnthropicCard
-                                                   ? (models.FirstOrDefault(m => m.Id.Contains("sonnet", StringComparison.OrdinalIgnoreCase))?.Id ?? models.ElementAtOrDefault(1)?.Id ?? models.FirstOrDefault()?.Id ?? "")
-                                                   : (isBergetCard
-                                                       ? (models.FirstOrDefault(m => m.Id.Contains("kimi", StringComparison.OrdinalIgnoreCase))?.Id ?? models.FirstOrDefault()?.Id ?? "")
-                                                       : (models.FirstOrDefault(m => m.Id.Contains("terra", StringComparison.OrdinalIgnoreCase))?.Id
-                                                          ?? models.FirstOrDefault(m => m.Id.Contains("gpt-4o", StringComparison.OrdinalIgnoreCase) && !m.Id.Contains("mini", StringComparison.OrdinalIgnoreCase))?.Id
-                                                          ?? models.ElementAtOrDefault(1)?.Id ?? models.FirstOrDefault()?.Id ?? "")));
-
-                                           var quick = isIvy
-                                               ? (models.FirstOrDefault(m => m.Id.Contains("flash", StringComparison.OrdinalIgnoreCase))?.Id ?? models.ElementAtOrDefault(2)?.Id ?? models.ElementAtOrDefault(1)?.Id ?? models.FirstOrDefault()?.Id ?? "")
-                                               : (isAnthropicCard
-                                                   ? (models.FirstOrDefault(m => m.Id.Contains("haiku", StringComparison.OrdinalIgnoreCase))?.Id ?? models.ElementAtOrDefault(2)?.Id ?? models.ElementAtOrDefault(1)?.Id ?? models.FirstOrDefault()?.Id ?? "")
-                                                   : (isBergetCard
-                                                       ? (models.FirstOrDefault(m => m.Id.Contains("kimi", StringComparison.OrdinalIgnoreCase))?.Id ?? models.FirstOrDefault()?.Id ?? "")
-                                                       : (models.FirstOrDefault(m => m.Id.Contains("luna", StringComparison.OrdinalIgnoreCase))?.Id
-                                                          ?? models.FirstOrDefault(m => m.Id.Contains("mini", StringComparison.OrdinalIgnoreCase))?.Id
-                                                          ?? models.ElementAtOrDefault(2)?.Id ?? models.ElementAtOrDefault(1)?.Id ?? models.FirstOrDefault()?.Id ?? "")));
+                                           var (deep, balanced, quick) = ModelProfileSelector.SelectDefaults(
+                                               models,
+                                               isIvy: isIvy,
+                                               isAnthropic: isAnthropicCard,
+                                               isBerget: isBergetCard,
+                                               isGoogle: isGoogleCard,
+                                               isOpenAi: !isIvy && !isAnthropicCard && !isBergetCard && !isGoogleCard);
 
                                            deepModel.Set(deep);
                                            balancedModel.Set(balanced);
@@ -375,18 +356,20 @@ public class CodingAgentStepView(
                                        else
                                        {
                                            useCustomModelNames.Set(true);
+                                           var (fallbackDeep, fallbackBalanced, fallbackQuick) = ModelProfileSelector.SelectDefaults(
+                                               null,
+                                               isIvy: isIvy,
+                                               isAnthropic: isAnthropicCard,
+                                               isBerget: isBergetCard,
+                                               isGoogle: isGoogleCard,
+                                               isOpenAi: !isIvy && !isAnthropicCard && !isBergetCard && !isGoogleCard);
+
                                            if (string.IsNullOrWhiteSpace(customDeepText.Value))
-                                           {
-                                               customDeepText.Set(isIvy || isAnthropicCard ? "claude-opus-5" : (isBergetCard ? "moonshotai/Kimi-K3" : "gpt-5.6-sol"));
-                                           }
+                                               customDeepText.Set(fallbackDeep);
                                            if (string.IsNullOrWhiteSpace(customBalancedText.Value))
-                                           {
-                                               customBalancedText.Set(isIvy || isAnthropicCard ? "claude-sonnet-5" : (isBergetCard ? "moonshotai/Kimi-K3" : "gpt-5.6-terra"));
-                                           }
+                                               customBalancedText.Set(fallbackBalanced);
                                            if (string.IsNullOrWhiteSpace(customQuickText.Value))
-                                           {
-                                               customQuickText.Set(isIvy || isAnthropicCard ? "claude-haiku-5" : (isBergetCard ? "moonshotai/Kimi-K3" : "gpt-5.6-luna"));
-                                           }
+                                               customQuickText.Set(fallbackQuick);
                                        }
 
                                        byoSubStep.Set(1);
@@ -415,17 +398,26 @@ public class CodingAgentStepView(
             // Ensure valid selected values if in dropdown mode
             if (!isCustomMode && hasAvailableModels)
             {
+                var isGoogleCard = !isIvy && !isAnthropicCard && !isBergetCard && (openAiProxyBaseUrl.Value.Contains("generativelanguage.googleapis.com") || openAiProxyBaseUrl.Value.Contains("gemini") || openAiProxyBaseUrl.Value.Contains("google"));
+                var (defaultDeep, defaultBalanced, defaultQuick) = ModelProfileSelector.SelectDefaults(
+                    availableModels,
+                    isIvy: isIvy,
+                    isAnthropic: isAnthropicCard,
+                    isBerget: isBergetCard,
+                    isGoogle: isGoogleCard,
+                    isOpenAi: !isIvy && !isAnthropicCard && !isBergetCard && !isGoogleCard);
+
                 if (string.IsNullOrEmpty(deepModel.Value) || !availableModels.Any(m => m.Id.Equals(deepModel.Value, StringComparison.OrdinalIgnoreCase)))
                 {
-                    deepModel.Set(availableModels.FirstOrDefault()?.Id ?? "");
+                    deepModel.Set(defaultDeep);
                 }
                 if (string.IsNullOrEmpty(balancedModel.Value) || !availableModels.Any(m => m.Id.Equals(balancedModel.Value, StringComparison.OrdinalIgnoreCase)))
                 {
-                    balancedModel.Set(availableModels.ElementAtOrDefault(1)?.Id ?? availableModels.FirstOrDefault()?.Id ?? "");
+                    balancedModel.Set(defaultBalanced);
                 }
                 if (string.IsNullOrEmpty(quickModel.Value) || !availableModels.Any(m => m.Id.Equals(quickModel.Value, StringComparison.OrdinalIgnoreCase)))
                 {
-                    quickModel.Set(availableModels.ElementAtOrDefault(2)?.Id ?? availableModels.FirstOrDefault()?.Id ?? "");
+                    quickModel.Set(defaultQuick);
                 }
             }
 

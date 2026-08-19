@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Net.Http;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Agents.Providers.Ivy;
 using Ivy.Tendril.Apps.Settings.Dialogs;
 using Ivy.Tendril.Helpers;
@@ -105,26 +106,23 @@ public class CodingAgentSetupView : ViewBase
             var balancedEff = GetProfileEffort(config, realAgentId, "balanced");
             var quickEff = GetProfileEffort(config, realAgentId, "quick");
 
-            if (deep == "default")
+            if (deep == "default" || balanced == "default" || quick == "default")
             {
-                if (realAgentId == "ivy") deep = "claude-opus-5";
-                else if (selectedAgent.Value == "anthropic_card") deep = "claude-opus-5";
-                else if (isBerget) deep = "moonshotai/Kimi-K3";
-                else if (selectedAgent.Value == "openaiproxy_card") deep = "gpt-5.6-sol";
-            }
-            if (balanced == "default")
-            {
-                if (realAgentId == "ivy") balanced = "gemini-3.7-flash";
-                else if (selectedAgent.Value == "anthropic_card") balanced = "claude-sonnet-5";
-                else if (isBerget) balanced = "moonshotai/Kimi-K3";
-                else if (selectedAgent.Value == "openaiproxy_card") balanced = "gpt-5.6-terra";
-            }
-            if (quick == "default")
-            {
-                if (realAgentId == "ivy") quick = "gemini-3.7-flash";
-                else if (selectedAgent.Value == "anthropic_card") quick = "claude-haiku-5";
-                else if (isBerget) quick = "moonshotai/Kimi-K3";
-                else if (selectedAgent.Value == "openaiproxy_card") quick = "gpt-5.6-luna";
+                var isIvyAgent = realAgentId == "ivy" || openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app");
+                var isAnthropicAgent = selectedAgent.Value == "anthropic_card" || openAiProxyBaseUrl.Value.Contains("api.anthropic.com");
+                var isGoogleAgent = openAiProxyBaseUrl.Value.Contains("generativelanguage.googleapis.com") || openAiProxyBaseUrl.Value.Contains("gemini") || openAiProxyBaseUrl.Value.Contains("google");
+
+                var (defDeep, defBalanced, defQuick) = ModelProfileSelector.SelectDefaults(
+                    null,
+                    isIvy: isIvyAgent,
+                    isAnthropic: isAnthropicAgent,
+                    isBerget: isBerget,
+                    isGoogle: isGoogleAgent,
+                    isOpenAi: !isIvyAgent && !isAnthropicAgent && !isBerget && !isGoogleAgent);
+
+                if (deep == "default") deep = defDeep;
+                if (balanced == "default") balanced = defBalanced;
+                if (quick == "default") quick = defQuick;
             }
 
             deepModel.Set(deep);
