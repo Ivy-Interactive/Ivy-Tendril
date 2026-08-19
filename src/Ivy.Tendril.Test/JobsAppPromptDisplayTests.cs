@@ -62,10 +62,207 @@ public class JobsAppPromptDisplayTests
         Assert.Equal("[GitHub Issue #925](https://github.com/o/r/issues/925)", fullPrompt);
     }
 
+    [Fact]
+    public void GetFullPrompt_RetryPlanArgs_ReturnsChangeRequest()
+    {
+        var job = new JobItem
+        {
+            Id = "job-1",
+            Type = Constants.JobTypes.RetryPlan,
+            TypedArgs = new RetryPlanArgs("00001-TestPlan", "Fix the failing tests")
+        };
+
+        var fullPrompt = JobsApp.GetFullPrompt(job);
+
+        Assert.Equal("Fix the failing tests", fullPrompt);
+    }
+
+    [Fact]
+    public void GetFullPrompt_UpdatePlanArgs_ReturnsInstructions()
+    {
+        var job = new JobItem
+        {
+            Id = "job-1",
+            Type = Constants.JobTypes.UpdatePlan,
+            TypedArgs = new UpdatePlanArgs("00001-TestPlan", "Add error handling to service")
+        };
+
+        var fullPrompt = JobsApp.GetFullPrompt(job);
+
+        Assert.Equal("Add error handling to service", fullPrompt);
+    }
+
+    [Fact]
+    public void GetFullPrompt_ExecutePlanArgs_WithNote_ReturnsNote()
+    {
+        var job = new JobItem
+        {
+            Id = "job-1",
+            Type = Constants.JobTypes.ExecutePlan,
+            TypedArgs = new ExecutePlanArgs("00001-TestPlan", "Special execution note")
+        };
+
+        var fullPrompt = JobsApp.GetFullPrompt(job);
+
+        Assert.Equal("Special execution note", fullPrompt);
+    }
+
+    [Fact]
+    public void GetFullPrompt_ExecutePlanArgs_WithoutNote_ResolvesFromPlan()
+    {
+        var plan = CreateSamplePlan("00001-TestPlan", "Sample Title", "Initial plan prompt");
+        var planService = new FakePlanReaderService { PlanToReturn = plan };
+        var job = new JobItem
+        {
+            Id = "job-1",
+            Type = Constants.JobTypes.ExecutePlan,
+            PlanFile = "00001-TestPlan",
+            TypedArgs = new ExecutePlanArgs("00001-TestPlan")
+        };
+
+        var fullPrompt = JobsApp.GetFullPrompt(job, planService);
+
+        Assert.Equal("Initial plan prompt", fullPrompt);
+    }
+
+    [Fact]
+    public void GetFullPrompt_AddProjectArgs_ReturnsProjectName()
+    {
+        var job = new JobItem
+        {
+            Id = "job-1",
+            Type = Constants.JobTypes.AddProject,
+            TypedArgs = new AddProjectArgs("MyProject", [])
+        };
+
+        var fullPrompt = JobsApp.GetFullPrompt(job);
+
+        Assert.Equal("MyProject", fullPrompt);
+    }
+
+    [Fact]
+    public void GetFullPrompt_SetupProjectArgs_ReturnsFolderPath()
+    {
+        var job = new JobItem
+        {
+            Id = "job-1",
+            Type = Constants.JobTypes.SetupProject,
+            TypedArgs = new SetupProjectArgs("/path/to/project")
+        };
+
+        var fullPrompt = JobsApp.GetFullPrompt(job);
+
+        Assert.Equal("/path/to/project", fullPrompt);
+    }
+
+    [Fact]
+    public void GetFullPrompt_SyncRepoArgs_ReturnsRepoPath()
+    {
+        var job = new JobItem
+        {
+            Id = "job-1",
+            Type = Constants.JobTypes.SyncRepo,
+            TypedArgs = new SyncRepoArgs("/path/to/repo", "main")
+        };
+
+        var fullPrompt = JobsApp.GetFullPrompt(job);
+
+        Assert.Equal("/path/to/repo", fullPrompt);
+    }
+
+    [Fact]
+    public void GetFullPrompt_CreatePrArgs_WithComment_ReturnsComment()
+    {
+        var job = new JobItem
+        {
+            Id = "job-1",
+            Type = Constants.JobTypes.CreatePr,
+            TypedArgs = new CreatePrArgs("00001-TestPlan", Comment: "Please review PR promptly")
+        };
+
+        var fullPrompt = JobsApp.GetFullPrompt(job);
+
+        Assert.Equal("Please review PR promptly", fullPrompt);
+    }
+
+    [Fact]
+    public void GetFullPrompt_CreateIssueArgs_WithComment_ReturnsComment()
+    {
+        var job = new JobItem
+        {
+            Id = "job-1",
+            Type = Constants.JobTypes.CreateIssue,
+            TypedArgs = new CreateIssueArgs("00001-TestPlan", "owner/repo", Comment: "Issue comment details")
+        };
+
+        var fullPrompt = JobsApp.GetFullPrompt(job);
+
+        Assert.Equal("Issue comment details", fullPrompt);
+    }
+
+    [Fact]
+    public void GetPromptDisplay_AddProjectArgs_ReturnsProjectName()
+    {
+        var job = new JobItem
+        {
+            Id = "job-1",
+            Type = Constants.JobTypes.AddProject,
+            TypedArgs = new AddProjectArgs("MyProject", [])
+        };
+
+        var display = JobsApp.GetPromptDisplay(job, new FakePlanReaderService());
+
+        Assert.Equal("MyProject", display);
+    }
+
+    [Fact]
+    public void GetPromptDisplay_SetupProjectArgs_ReturnsFolderPath()
+    {
+        var job = new JobItem
+        {
+            Id = "job-1",
+            Type = Constants.JobTypes.SetupProject,
+            TypedArgs = new SetupProjectArgs("/path/to/project")
+        };
+
+        var display = JobsApp.GetPromptDisplay(job, new FakePlanReaderService());
+
+        Assert.Equal("/path/to/project", display);
+    }
+
+    private static PlanFile CreateSamplePlan(string folderName, string title, string? initialPrompt)
+    {
+        var metadata = new PlanMetadata(
+            Id: 1,
+            Project: "TestProject",
+            Level: "Feature",
+            Title: title,
+            State: PlanStatus.Draft,
+            Repos: [],
+            Commits: [],
+            Prs: [],
+            Verifications: [],
+            RelatedPlans: [],
+            DependsOn: [],
+            Created: DateTime.UtcNow,
+            Updated: DateTime.UtcNow,
+            InitialPrompt: initialPrompt,
+            SourceUrl: null
+        );
+
+        return new PlanFile(
+            Metadata: metadata,
+            LatestRevisionContent: "",
+            FolderPath: $"/tmp/{folderName}",
+            PlanYamlRaw: ""
+        );
+    }
+
     private class FakePlanReaderService : IPlanReaderService
     {
         public string PlansDirectory => "/tmp";
         public bool IsDatabaseReady => true;
+        public PlanFile? PlanToReturn { get; set; }
 #pragma warning disable CS0067
         public event Action? CountsInvalidated;
 #pragma warning restore CS0067
@@ -85,7 +282,7 @@ public class JobsAppPromptDisplayTests
 
         public PlanFile? GetPlanByFolder(string folderPath)
         {
-            return null;
+            return PlanToReturn;
         }
 
         public List<PlanFile> GetIceboxPlans()
