@@ -30,22 +30,49 @@ public class ReviewActionsBarView(
         {
             var action = reviewActions[i];
             var conditionMet = i < reviewActionStates.Count && reviewActionStates[i].ConditionMet;
+            var actionCapture = action;
 
-            var btn = new Button(action.Name).Icon(Icons.Play).Outline();
-            if (!conditionMet)
-            {
-                btn = btn.Disabled();
-            }
-            else
-            {
-                var actionCapture = action;
-                btn = btn.OnClick(() => nav.Navigate<ReviewActionApp>(
-                    new ReviewActionAppArgs(selectedPlan.FolderName, actionCapture.Name)));
-            }
+            var btn = BuildActionButton(
+                action,
+                conditionMet,
+                () => nav.Navigate<ReviewActionApp>(new ReviewActionAppArgs(selectedPlan.FolderName, actionCapture.Name)));
 
             actionsBar |= btn;
         }
 
         return actionsBar;
+    }
+
+    internal static string GetTooltip(ReviewActionConfig action, bool conditionMet)
+    {
+        if (!conditionMet)
+        {
+            return !string.IsNullOrWhiteSpace(action.Condition)
+                ? $"Disabled: Condition not met ({action.Condition})"
+                : "Disabled: Condition not met";
+        }
+
+        return !string.IsNullOrWhiteSpace(action.Command)
+            ? $"Run: {action.Command}"
+            : $"Run {action.Name}";
+    }
+
+    internal static Button BuildActionButton(ReviewActionConfig action, bool conditionMet, Action? onNavigate = null)
+    {
+        var btn = new Button(action.Name).Icon(Icons.Play).Outline();
+        var tooltip = GetTooltip(action, conditionMet);
+
+        if (!conditionMet)
+        {
+            return btn.Disabled().Tooltip(tooltip);
+        }
+
+        btn = btn.Tooltip(tooltip);
+        if (onNavigate != null)
+        {
+            btn = btn.OnClick(onNavigate);
+        }
+
+        return btn;
     }
 }
