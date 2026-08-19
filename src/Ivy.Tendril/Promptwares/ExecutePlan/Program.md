@@ -325,6 +325,9 @@ Work exclusively in the worktree directories. Follow the plan's latest revision:
 2. **Solution** - Execute the implementation steps in the worktree
 3. **Tests** - Write and run all tests specified in the plan
    - **Loopback only for servers:** When writing tests, demo apps, or mock servers that listen on a port, always bind to loopback (127.0.0.1 or ::1) instead of 0.0.0.0. Binding to all interfaces (0.0.0.0) is blocked and triggers "listen EPERM" errors on some systems.
+   - **E2E and browser tests:** When writing or running E2E tests (e.g. Playwright):
+     - Verify local dev servers are bound and responsive on loopback (`127.0.0.1` or `localhost`) and that base path URLs match prior to launching E2E test suites.
+     - Require fail-fast detection (`--max-failures=1` or `maxFailures: 1`) when connection errors occur during test execution to prevent test suite hangs and retry cascades.
 
 **Status cadence:** During implementation, if any sub-task takes longer than 90 seconds, issue an intermediate status update describing the current activity (e.g., `"Implementing: writing tests..."`, `"Implementing: fixing lint errors..."`, `"Implementing: reading reference code..."`). The user should never see the same status message for more than ~90 seconds.
 
@@ -398,6 +401,7 @@ For each `Pending` verification (in listed order):
 2. Fetch its full prompt: `tendril verification get <Name>`
 3. **Check if delegated:** The **Projects** section indicates which verifications are delegated — follow the prompt's instructions to invoke it as an external process. If the external process cannot be invoked (CLI broken, file lock, etc.), set the verification to `Fail` immediately. Do NOT attempt to do the verification inline or write the report yourself.
 4. Execute the prompt in the worktree directory
+   - **E2E and browser verifications:** Before running browser or Playwright test suites, perform a quick HTTP probe against the dev server base URL to confirm the server is running and reachable. Use fail-fast options (`--max-failures=1`) so that connection refused errors fail immediately instead of entering lengthy retry loops. Validate that `baseURL` matches the dev server's configured base path.
 5. If it fails: diagnose, fix the issue, **commit the fix** (e.g. `Fix lint errors from Build`), and re-run. Repeat until it passes (fail the plan after 3+ failed attempts).
 6. Document all fix commits via CLI: `tendril plan add-commit <plan-id> <sha>`
 7. Update the verification status via CLI: `tendril plan set-verification <plan-id> <Name> Pass` (or `Fail`)

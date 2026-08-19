@@ -89,6 +89,8 @@ public class PromptwareDryRunTests : IDisposable
                 profile: balanced
               SetupProject:
                 profile: deep
+              AddProject:
+                profile: deep
             projects:
             - name: TestProject
               repos:
@@ -102,7 +104,7 @@ public class PromptwareDryRunTests : IDisposable
     private string CreateFallbackPromptwareDir()
     {
         var root = Path.Combine(_tempDir, "Promptwares");
-        foreach (var name in new[] { "CreatePlan", "ExecutePlan", "ExpandPlan", "UpdatePlan", "SplitPlan", "CreatePr", "CreateIssue", "SetupProject" })
+        foreach (var name in new[] { "CreatePlan", "ExecutePlan", "ExpandPlan", "UpdatePlan", "SplitPlan", "CreatePr", "CreateIssue", "SetupProject", "AddProject" })
         {
             var dir = Path.Combine(root, name);
             Directory.CreateDirectory(dir);
@@ -327,12 +329,62 @@ public class PromptwareDryRunTests : IDisposable
         Assert.Contains("effort: max", output);
     }
 
+    [Fact]
+    public void SetupProject_ContainsPlaywrightE2EGuidance()
+    {
+        var output = RunDryRun("SetupProject", ["ProjectName=TestProject", "Instructions=Setup verifications"]);
+
+        Assert.Contains("PlaywrightTest", output);
+        Assert.Contains("max-failures", output);
+        Assert.Contains("Pre-flight HTTP probe", output);
+    }
+
+    // ==================== AddProject ====================
+
+    [Fact]
+    public void AddProject_CompilesFirmware()
+    {
+        var output = RunDryRun("AddProject", ["ProjectName=TestProject", "ReposJson=[]", "Instructions=Setup verifications"]);
+
+        Assert.Contains("ProjectName: TestProject", output);
+        Assert.Contains("Instructions: Setup verifications", output);
+        Assert.Contains("## Program", output);
+    }
+
+    [Fact]
+    public void AddProject_ResolvesDeepProfile()
+    {
+        var output = RunDryRun("AddProject", ["ProjectName=TestProject", "Instructions=Setup"]);
+
+        Assert.Contains("model: opus", output);
+        Assert.Contains("effort: max", output);
+    }
+
+    [Fact]
+    public void AddProject_ContainsPlaywrightE2EGuidance()
+    {
+        var output = RunDryRun("AddProject", ["ProjectName=TestProject", "Instructions=Setup verifications"]);
+
+        Assert.Contains("PlaywrightTest", output);
+        Assert.Contains("max-failures", output);
+        Assert.Contains("Pre-flight HTTP probe", output);
+    }
+
     // ==================== Cross-cutting ====================
+
+    [Fact]
+    public void ExecutePlan_ContainsPlaywrightE2EGuidance()
+    {
+        var output = RunDryRun("ExecutePlan", ["PlanFolder=/tmp/plans/00001-Test"]);
+
+        Assert.Contains("max-failures", output);
+        Assert.Contains("E2E and browser tests", output);
+    }
 
     [Fact]
     public void AllPromptwareNames_ResolveWithoutError()
     {
-        var promptwares = new[] { "CreatePlan", "ExecutePlan", "ExpandPlan", "UpdatePlan", "SplitPlan", "CreatePr", "CreateIssue", "SetupProject" };
+        var promptwares = new[] { "CreatePlan", "ExecutePlan", "ExpandPlan", "UpdatePlan", "SplitPlan", "CreatePr", "CreateIssue", "SetupProject", "AddProject" };
 
         foreach (var name in promptwares)
         {
