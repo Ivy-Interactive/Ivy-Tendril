@@ -117,7 +117,7 @@ public class SettingsApp : ViewBase
         rows.Add(SidebarListRow.Build("Newsletter", Icons.Mail, () => selected.Set(TagNewsletter), selectedTag == TagNewsletter));
         rows.Add(SidebarListRow.Build("Open config.yaml", Icons.FileText, () => ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost), false));
 
-        var sidebar = Layout.Vertical(rows);
+        var sidebar = Layout.Vertical(rows).Gap(1);
 
         object content;
         if (selectedTag.StartsWith("project:"))
@@ -180,9 +180,9 @@ public class SettingsApp : ViewBase
                 s => selected.Set(s.Tag))
             .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-        var contentWithMobileHeader = Layout.Vertical().Height(Size.Full())
+        var contentWithMobileHeader = Layout.Vertical().Height(Size.Full()).Gap(2)
                                       | mobileHeader
-                                      | (Layout.Vertical().Height(Size.Grow()) | content)
+                                      | (Layout.Vertical().Height(Size.Grow()).Padding(4) | content)
                                       | addProjectDialog;
 
         return new SidebarLayout(contentWithMobileHeader, sidebar);
