@@ -185,12 +185,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var navigator = UseNavigation();
         var newsArticles = UseState(Array.Empty<SidebarNewsArticle>());
 
-        var (importIssuesDialog, showImportIssuesDialog) = UseTrigger((isOpen) =>
-        {
-            if (!isOpen.Value) return null;
-            return new ImportIssuesDialog(isOpen, config);
-        });
-
         var (updateDialog, showUpdateDialog) = UseTrigger<VersionInfo>((isOpen, info) =>
         {
             if (!isOpen.Value || info == null) return null;
@@ -588,10 +582,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Tag("$trash")
                 .Icon(Icons.Trash2)
                 .OnSelect(() => navigator.Navigate<TrashApp>()),
-            MenuItem.Default("Import Issues from GitHub")
-                .Tag("$import-issues")
-                .Icon(Icons.Download)
-                .OnSelect(showImportIssuesDialog),
             MenuItem.Default("Check for Updates")
                 .Tag("$check-updates")
                 .Icon(Icons.CircleArrowUp)
@@ -706,7 +696,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 sidebarFooterCollapsed: Layout.Vertical().Width(Size.Full())
                     | settingsMenuCollapsed
             ).Open(sidebarOpen.Value).MainAppSidebar(),
-            importIssuesDialog,
             updateDialog,
             closeTabShortcut
         );
