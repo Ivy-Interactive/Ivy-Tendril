@@ -126,7 +126,6 @@ cat << 'EOF' > expanded-pkg/1.pkg/Scripts/postinstall
 #!/bin/sh
 rm -rf /tmp/velopack/IvyTendril
 sudo -u "$USER" rm -rf ~/Library/Caches/velopack/IvyTendril
-sudo -u "$USER" env VELOPACK_FIRSTRUN=1 open "$2/Ivy Tendril.app/"
 
 # Path to the installed app certificate
 APP_PATH="$2/Ivy Tendril.app"
@@ -142,6 +141,8 @@ if [ -f "$CERT_PATH" ]; then
   echo "Trusting Ivy Tendril localhost certificate system-wide..."
   security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CERT_PATH" || true
 fi
+
+sudo -u "$USER" env VELOPACK_FIRSTRUN=1 open "$APP_PATH"
 exit 0
 EOF
 chmod +x expanded-pkg/1.pkg/Scripts/postinstall
