@@ -492,6 +492,29 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
 
+  // Pre-tokenize all files and hunks once when files/language change, instead of synchronously tokenizing on every render
+  const tokensByFile = useMemo(() => {
+    return files.map((file, fileIndex) => {
+      const meta = fileMeta[fileIndex];
+      const effectiveFilePath = filePath || meta?.newName || meta?.oldName || "";
+      const fileLang = language || getLanguageFromFilePath(effectiveFilePath);
+      if (file.hunks && file.hunks.length > 0) {
+        try {
+          if (fileLang && refractor.registered(fileLang)) {
+            return tokenize(file.hunks, {
+              highlight: true,
+              refractor: refractorAdapter,
+              language: fileLang,
+            });
+          }
+        } catch {
+          // Fallback if language tokenization fails
+        }
+      }
+      return undefined;
+    });
+  }, [files, fileMeta, filePath, language]);
+
   const style: React.CSSProperties = {
     ...getWidth(width),
     ...getHeight(height),
@@ -608,7 +631,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
           <div
             key={fileIndex}
             id={elementId}
-            className={`border border-[var(--border)] rounded-md ${isCollapsed ? "mb-0" : "mb-1.5"} bg-[var(--background)] overflow-clip`}
+            className={`ivy-diff-file border border-[var(--border)] rounded-md ${isCollapsed ? "mb-0" : "mb-1.5"} bg-[var(--background)] overflow-clip`}
             style={{ scrollMarginTop: showFileDropdown ? "2rem" : 0 }}
           >
             {hasHeader && (
@@ -717,54 +740,37 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                 </div>
               </div>
             )}
-            {!isCollapsed && (() => {
-              const fileLang = language || getLanguageFromFilePath(effectiveFilePath);
-              let fileTokens: any = undefined;
-              if (file.hunks && file.hunks.length > 0) {
-                try {
-                  if (fileLang && refractor.registered(fileLang)) {
-                    fileTokens = tokenize(file.hunks, {
-                      highlight: true,
-                      refractor: refractorAdapter,
-                      language: fileLang,
-                    });
+            {!isCollapsed && (
+              <div className="overflow-x-auto">
+                <Diff
+                  className={`${effectiveViewType === "unified" ? "diff-unified-view" : "diff-split-view"} ${deletions === 0 && additions > 0 ? "diff-no-deletions" : ""} ${additions === 0 && deletions > 0 ? "diff-no-additions" : ""}`}
+                  viewType={effectiveViewType}
+                  diffType={file.type}
+                  hunks={file.hunks}
+                  tokens={tokensByFile[fileIndex]}
+                  renderToken={customRenderToken}
+                  widgets={getWidgets(file.hunks, commentsHidden[fileKey] ?? false)}
+                  gutterEvents={{
+                    onClick: ({ change }) => {
+                      if (change) {
+                        const changeKey = getChangeKey(change);
+                        setActiveFormKeys((prev) => ({ ...prev, [changeKey]: !prev[changeKey] }));
+                      }
+                    },
+                  }}
+                >
+                  {(hunks) =>
+                    hunks.map((hunk) => (
+                      <Hunk key={hunk.content} hunk={hunk} />
+                    ))
                   }
-                } catch {
-                  // Fallback if language tokenization fails
-                }
-              }
-
-              return (
-                <div className="overflow-x-auto">
-                  <Diff
-                    className={`${effectiveViewType === "unified" ? "diff-unified-view" : "diff-split-view"} ${deletions === 0 && additions > 0 ? "diff-no-deletions" : ""} ${additions === 0 && deletions > 0 ? "diff-no-additions" : ""}`}
-                    viewType={effectiveViewType}
-                    diffType={file.type}
-                    hunks={file.hunks}
-                    tokens={fileTokens}
-                    renderToken={customRenderToken}
-                    widgets={getWidgets(file.hunks, commentsHidden[fileKey] ?? false)}
-                    gutterEvents={{
-                      onClick: ({ change }) => {
-                        if (change) {
-                          const changeKey = getChangeKey(change);
-                          setActiveFormKeys((prev) => ({ ...prev, [changeKey]: !prev[changeKey] }));
-                        }
-                      },
-                    }}
-                  >
-                    {(hunks) =>
-                      hunks.map((hunk) => (
-                        <Hunk key={hunk.content} hunk={hunk} />
-                      ))
-                    }
-                  </Diff>
-                </div>
-              );
-            })()}
+                </Diff>
+              </div>
+            )}
           </div>
         );
       })}
     </div>
   );
 };
+
