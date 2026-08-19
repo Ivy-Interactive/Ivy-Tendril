@@ -1,5 +1,7 @@
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Jobs;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test.Services;
 
@@ -166,5 +168,48 @@ public class JobServiceRecoveredExecutionTests : IDisposable
         job = service.GetJob(id)!;
         Assert.Equal(JobStatus.Failed, job.Status);
         Assert.Equal("declaring permissions: cortex tool write_to_file: path is not valid", job.StatusMessage);
+    }
+
+    [Fact]
+    public void CompleteJob_ExitCode0_CreatePlan_WithRecoveredAntigravityToolError_CompletesSuccessfully()
+    {
+        var plansDir = Path.Combine(_tempDir.Path, "Plans");
+        Directory.CreateDirectory(plansDir);
+        var createdFolder = Path.Combine(plansDir, "00001-TestPlan");
+        Directory.CreateDirectory(createdFolder);
+        File.WriteAllText(Path.Combine(createdFolder, "plan.yaml"), "title: Test\n");
+
+        var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
+        var planReader = new PlanReaderService(config, NullLogger<PlanReaderService>.Instance);
+        var service = new JobService(config, planReaderService: planReader);
+        var id = service.CreateTestJob(new CreatePlanArgs("Test task description", "TestProject"));
+        var job = service.GetJob(id)!;
+        job.ReportedPlanId = "00001";
+        job.OutputLines.Enqueue("PlanId: 00001");
+        job.OutputLines.Enqueue("""{"kind":"result","error":"declaring permissions: cortex tool view_file: no such file","response":"Plan created","is_success":false}""");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Completed, job.Status);
+        Assert.Null(job.StatusMessage);
+    }
+
+    [Fact]
+    public void CompleteJob_ExitCode0_CreatePlan_WithoutCreatedPlan_MarksFailed()
+    {
+        var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
+        var planReader = new PlanReaderService(config, NullLogger<PlanReaderService>.Instance);
+        var service = new JobService(config, planReaderService: planReader);
+        var id = service.CreateTestJob(new CreatePlanArgs("Test task description", "TestProject"));
+        var job = service.GetJob(id)!;
+        job.ReportedPlanId = "99999";
+        job.OutputLines.Enqueue("""{"kind":"result","error":"declaring permissions: cortex tool view_file: no such file","response":"Plan failed","is_success":false}""");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Equal("declaring permissions: cortex tool view_file: no such file", job.StatusMessage);
     }
 }

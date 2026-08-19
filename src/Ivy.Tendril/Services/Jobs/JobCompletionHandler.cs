@@ -578,7 +578,7 @@ internal class JobCompletionHandler
         }
     }
 
-    private static readonly Regex GitHubPrUrlPattern = new(
+    internal static readonly Regex GitHubPrUrlPattern = new(
         @"https?://github\.com/(?<owner>[^/\s]+)/(?<repo>[^/\s]+)/pull/(?<number>\d+)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
@@ -801,6 +801,24 @@ internal class JobCompletionHandler
         job.StatusMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList())
             ?? job.StatusMessage
             ?? "No plan created";
+    }
+
+    internal bool IsCreatePlanSuccessful(JobItem job)
+    {
+        var plansDir = _planReaderService?.PlansDirectory
+            ?? (_configService != null ? Path.Combine(_configService.TendrilHome, "Plans") : null);
+
+        if (plansDir != null && Directory.Exists(plansDir))
+        {
+            if (TryVerifyByReportedId(job, plansDir) ||
+                TryVerifyByOutputRegex(job, plansDir) ||
+                TryVerifyByFilesystem(job, plansDir))
+            {
+                return true;
+            }
+        }
+
+        return IsDuplicatePlan(job) || IsInTrash(job);
     }
 
     private static bool TryVerifyByReportedId(JobItem job, string plansDir)

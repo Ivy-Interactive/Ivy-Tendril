@@ -167,10 +167,10 @@ public class JobService : IJobService
                 var errorMessage = JobFailureAnalyzer.TryExtractErrorEvent(job.OutputLines);
                 if (errorMessage != null)
                 {
-                    if (IsRecoveredExecutionJob(job))
+                    if (IsRecoveredJob(job))
                     {
                         _logger.LogInformation(
-                            "Job {JobId}: Agent encountered a recoverable error ({ErrorMessage}) but completed execution, recorded commits, and passed verifications.",
+                            "Job {JobId}: Agent encountered a recoverable error ({ErrorMessage}) but completed execution and verified artifacts.",
                             job.Id, errorMessage);
                     }
                     else
@@ -683,6 +683,31 @@ public class JobService : IJobService
     {
         if (Environment.GetEnvironmentVariable("TENDRIL_NOT_MASTER") == "1" || IsOtherMasterRunning())
             return;
+
+        if (job.Status == JobStatus.Failed && job.Type == Constants.JobTypes.CreatePlan)
+        {
+            var plansDir = _planReaderService?.PlansDirectory
+                ?? (_configService != null ? Path.Combine(_configService.TendrilHome, "Plans") : null);
+            if (!string.IsNullOrEmpty(plansDir) && Directory.Exists(plansDir))
+            {
+                var planId = job.ReportedPlanId ?? job.AllocatedPlanId ?? PlanYamlHelper.ExtractPlanIdFromFolder(job.PlanFile);
+                if (!string.IsNullOrEmpty(planId))
+                {
+                    var folder = PlanYamlHelper.FindPlanFolderById(plansDir, planId);
+                    if (folder != null)
+                    {
+                        job.Status = JobStatus.Completed;
+                        job.StatusMessage = null;
+                        job.PlanFile = folder;
+                        PersistJob(job);
+                        _logger.LogInformation(
+                            "Job {JobId}: Reconciled historical CreatePlan job to Completed (plan folder {Folder} exists)",
+                            job.Id, folder);
+                        return;
+                    }
+                }
+            }
+        }
 
         if (job.Status is not (JobStatus.Pending or JobStatus.Queued or JobStatus.Running))
             return;
@@ -1344,6 +1369,61 @@ public class JobService : IJobService
 
     internal static void LogCostToCsv(string planFolder, string jobType, int tokens, double cost)
         => PlanYamlHelper.LogCostToCsv(planFolder, jobType, tokens, cost);
+
+    internal bool IsRecoveredJob(JobItem job)
+    {
+        if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs || job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.RetryPlan)
+        {
+            return IsRecoveredExecutionJob(job);
+        }
+
+        if (job.TypedArgs is CreatePlanArgs || job.Type == Constants.JobTypes.CreatePlan)
+        {
+            return _completionHandler.IsCreatePlanSuccessful(job);
+        }
+
+        if (job.TypedArgs is CreatePrArgs || job.Type == Constants.JobTypes.CreatePr)
+        {
+            return IsRecoveredCreatePrJob(job);
+        }
+
+        if (job.TypedArgs is UpdatePlanArgs or ExpandPlanArgs || job.Type is Constants.JobTypes.UpdatePlan or Constants.JobTypes.ExpandPlan)
+        {
+            return IsRecoveredPlanModificationJob(job);
+        }
+
+        if (job.TypedArgs is SplitPlanArgs or CreateIssueArgs || job.Type is Constants.JobTypes.SplitPlan or Constants.JobTypes.CreateIssue)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    internal static bool IsRecoveredCreatePrJob(JobItem job)
+    {
+        var planFolder = job.TypedArgs?.PlanFolder;
+        if (!string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
+        {
+            var plan = PlanYamlHelper.ReadPlanYaml(planFolder);
+            if (plan?.Prs?.Count > 0)
+                return true;
+        }
+
+        foreach (var line in job.OutputLines)
+        {
+            if (JobCompletionHandler.GitHubPrUrlPattern.IsMatch(line))
+                return true;
+        }
+
+        return false;
+    }
+
+    internal static bool IsRecoveredPlanModificationJob(JobItem job)
+    {
+        var planFolder = job.TypedArgs?.PlanFolder;
+        return !string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder);
+    }
 
     internal static bool IsRecoveredExecutionJob(JobItem job)
     {
