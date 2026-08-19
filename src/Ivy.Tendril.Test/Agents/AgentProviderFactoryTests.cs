@@ -228,7 +228,7 @@ public class AgentProviderFactoryTests
 
         Assert.Equal("codex", resolution.AgentId);
         Assert.Equal("o4-mini", resolution.Model);
-        Assert.Equal("", resolution.Effort); // Codex CLI doesn't support EffortControl
+        Assert.Equal("medium", resolution.Effort);
     }
 
     [Fact]
