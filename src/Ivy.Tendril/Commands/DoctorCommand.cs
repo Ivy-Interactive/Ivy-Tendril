@@ -403,7 +403,7 @@ public static class DoctorCommand
         if (!Directory.Exists(worktreesPath))
             return 0;
 
-        return Directory.GetDirectories(worktreesPath).Length;
+        return GitHelper.EnumerateWorktreeDirectories(worktreesPath).Count();
     }
 
     internal static bool HasStaleWorktrees(string planPath)
@@ -414,7 +414,7 @@ public static class DoctorCommand
 
         try
         {
-            foreach (var wtDir in Directory.GetDirectories(worktreesPath))
+            foreach (var wtDir in GitHelper.EnumerateWorktreeDirectories(worktreesPath, includeOrphans: true))
             {
                 var gitFile = Path.Combine(wtDir, ".git");
                 if (!File.Exists(gitFile))
@@ -527,7 +527,7 @@ public static class DoctorCommand
                 var worktreesPath = Path.Combine(planPath, "Worktrees");
                 if (Directory.Exists(worktreesPath))
                 {
-                    foreach (var wtDir in Directory.GetDirectories(worktreesPath))
+                    foreach (var wtDir in GitHelper.EnumerateWorktreeDirectories(worktreesPath, includeOrphans: true))
                     {
                         if (!File.Exists(Path.Combine(wtDir, ".git")))
                             Directory.Delete(wtDir, true);

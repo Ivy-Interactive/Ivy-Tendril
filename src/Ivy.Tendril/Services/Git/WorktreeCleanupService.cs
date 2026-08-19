@@ -169,7 +169,7 @@ public class WorktreeCleanupService : IStartable, IDisposable
         RemoveWorktrees(planFolderPath, logger, lifecycleLogger, BranchDeleteMode.PreserveUnpushed);
 
         // Safety net: RemoveWorktrees should have removed all directories
-        foreach (var wtDir in Directory.GetDirectories(worktreesDir))
+        foreach (var wtDir in GitHelper.EnumerateWorktreeDirectories(worktreesDir))
         {
             logger?.LogWarning(
                 "Worktree directory still exists after RemoveWorktrees (this should not happen): {Path}",
@@ -471,7 +471,7 @@ public class WorktreeCleanupService : IStartable, IDisposable
         var safeTitle = ExtractSafeTitle(planFolderPath);
         var branchName = $"tendril/{planId}-{safeTitle}";
 
-        foreach (var wtDir in Directory.GetDirectories(worktreesDir))
+        foreach (var wtDir in GitHelper.EnumerateWorktreeDirectories(worktreesDir, includeOrphans: true))
         {
             var gitFile = Path.Combine(wtDir, ".git");
             if (!File.Exists(gitFile))
