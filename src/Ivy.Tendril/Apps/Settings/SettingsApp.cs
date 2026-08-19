@@ -78,9 +78,10 @@ public class SettingsApp : ViewBase
             SidebarListRow.Build("Plans", Icons.Feather, () => selected.Set(TagPlans), selectedTag == TagPlans),
             SidebarListRow.Build("Appearance", Icons.Sun, () => selected.Set(TagAppearance), selectedTag == TagAppearance),
 
-            SidebarListRow.Build(
+            SidebarListRow.BuildExpandable(
                 "Projects",
-                isProjectsExpanded.Value ? Icons.ChevronDown : Icons.ChevronRight,
+                Icons.Folder,
+                isProjectsExpanded.Value,
                 () =>
                 {
                     var willExpand = !isProjectsExpanded.Value;
@@ -116,7 +117,7 @@ public class SettingsApp : ViewBase
         rows.Add(SidebarListRow.Build("Newsletter", Icons.Mail, () => selected.Set(TagNewsletter), selectedTag == TagNewsletter));
         rows.Add(SidebarListRow.Build("Open config.yaml", Icons.FileText, () => ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost), false));
 
-        var sidebar = Layout.Vertical(rows).Gap(1);
+        var sidebar = Layout.Vertical(rows);
 
         object content;
         if (selectedTag.StartsWith("project:"))
@@ -179,9 +180,9 @@ public class SettingsApp : ViewBase
                 s => selected.Set(s.Tag))
             .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
-        var contentWithMobileHeader = Layout.Vertical().Height(Size.Full()).Gap(2)
+        var contentWithMobileHeader = Layout.Vertical().Height(Size.Full())
                                       | mobileHeader
-                                      | (Layout.Vertical().Height(Size.Grow()).Padding(4) | content)
+                                      | (Layout.Vertical().Height(Size.Grow()) | content)
                                       | addProjectDialog;
 
         return new SidebarLayout(contentWithMobileHeader, sidebar);

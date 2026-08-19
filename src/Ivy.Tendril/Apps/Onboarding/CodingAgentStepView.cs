@@ -773,9 +773,7 @@ public class CodingAgentStepView(
                 Layout.Horizontal()
                     .AlignContent(Align.Center)
                 | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))
-                | (Layout.Vertical()
-                    | Text.Block(a.Label)
-                    | (a.Key == "opencode" ? Text.Muted("Open Source (MIT)").Small() : null!))
+                | Text.Block(a.Label)
             ).OnClick(() => onSelect(a.Key)));
 
         var byoGrid = Layout.Grid().Columns(3);

@@ -247,9 +247,7 @@ public class CodingAgentSetupView : ViewBase
             current | new Card(
                 Layout.Horizontal()
                 | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))
-                | (Layout.Vertical()
-                    | Text.Block(a.Label)
-                    | (a.Key == "opencode" ? Text.Muted("Open Source (MIT)").Small() : null!))
+                | Text.Block(a.Label)
                 | new Spacer()
                 | (a.Key == selectedAgent.Value ? Icons.Check.ToIcon() : null)
             ).Width(Size.Full()).Height(Size.Full()).OnClick(() =>
