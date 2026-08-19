@@ -28,6 +28,8 @@ public class CreatePlanDialog(
 
     internal const string AddProjectActionValue = "__tendril_add_project__";
 
+    internal const int MaxProjectsForToggleVariant = 6;
+
     internal static (BadgeSelectOption[] Options, BadgeSelectOption[] Actions) BuildProjectPickerOptions(
         IReadOnlyList<string> projectNames)
     {
@@ -39,6 +41,26 @@ public class CreatePlanDialog(
         var actions = new[] { new BadgeSelectOption(AddProjectActionValue, "Add Project", "Plus") };
         return (options.ToArray(), actions);
     }
+
+    internal static List<Option<string>> BuildProjectSelectOptions(IReadOnlyList<string> projectNames)
+    {
+        var options = new List<Option<string>>();
+        if (projectNames.Count > 1 || projectNames.Count == 0)
+        {
+            options.Add(new Option<string>("Auto", "Auto", icon: Icons.WandSparkles));
+        }
+        options.AddRange(projectNames.Select(p => new Option<string>(p, p)));
+        options.Add(new Option<string>("+ Add New Project", AddProjectActionValue));
+        return options;
+    }
+
+    internal static SelectInputVariant GetProjectPickerVariant(int projectCount) =>
+        projectCount <= MaxProjectsForToggleVariant
+            ? SelectInputVariant.Toggle
+            : SelectInputVariant.Select;
+
+    internal static bool IsProjectPickerSearchable(int projectCount) =>
+        projectCount > MaxProjectsForToggleVariant;
 
     internal static int ParsePriority(string option) => option.ToLowerInvariant() switch
     {
@@ -137,15 +159,9 @@ public class CreatePlanDialog(
 
         object projectPickerWidget;
 
-        var options = new List<Option<string>>();
-        if (currentProjectNames.Count > 1 || currentProjectNames.Count == 0)
-        {
-            options.Add(new Option<string>("Auto", "Auto", icon: Icons.WandSparkles));
-        }
-        options.AddRange(currentProjectNames.Select(p => new Option<string>(p, p)));
-        options.Add(new Option<string>("+ Add New Project", AddProjectActionValue));
+        var options = BuildProjectSelectOptions(currentProjectNames);
 
-        if (currentProjectNames.Count <= 6)
+        if (GetProjectPickerVariant(currentProjectNames.Count) == SelectInputVariant.Toggle)
         {
             projectPickerWidget = selectedProject.ToSelectInput(options)
                 .Variant(SelectInputVariant.Toggle);
@@ -153,7 +169,7 @@ public class CreatePlanDialog(
         else
         {
             projectPickerWidget = selectedProject.ToSelectInput(options)
-                .Searchable(true)
+                .Searchable(IsProjectPickerSearchable(currentProjectNames.Count))
                 .Placeholder("Select project...")
                 .Variant(SelectInputVariant.Select);
         }
