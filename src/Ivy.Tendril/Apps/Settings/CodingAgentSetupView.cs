@@ -215,7 +215,9 @@ public class CodingAgentSetupView : ViewBase
             current | new Card(
                 Layout.Horizontal()
                 | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))
-                | Text.Block(a.Label)
+                | (Layout.Vertical()
+                    | Text.Block(a.Label)
+                    | (a.Key == "opencode" ? Text.Muted("Open Source (MIT)").Small() : null!))
                 | new Spacer()
                 | (a.Key == selectedAgent.Value ? Icons.Check.ToIcon() : null)
             ).Width(Size.Full()).Height(Size.Full()).OnClick(() =>
@@ -293,6 +295,7 @@ public class CodingAgentSetupView : ViewBase
         else if (selectedAgent.Value == "opencode")
         {
             agentInputs = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                | Text.Muted("OpenCode is an open source AI coding agent. Tendril integrates and bundles OpenCode runtime components under the MIT license.").Small()
                 | ollamaUrl.ToTextInput("http://localhost:11434")
                     .WithField()
                     .Label("Ollama Host");
@@ -319,6 +322,7 @@ public class CodingAgentSetupView : ViewBase
 
         return Layout.Vertical()
                | Text.Block("Coding Agent").Bold()
+               | Text.Muted("Tendril connects to your configured AI coding agent or bundled open source engines like OpenCode.").Small()
                | (Layout.Vertical()
                    .Width(Size.Full().At(Breakpoint.Mobile).And(Breakpoint.Desktop, Size.Units(170)))
                    | topGrid.Width(Size.Full()))
