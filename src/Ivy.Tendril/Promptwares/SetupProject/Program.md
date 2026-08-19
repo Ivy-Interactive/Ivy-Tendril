@@ -156,15 +156,15 @@ Inspect each repo to determine how to run the application. For website projects,
 
 For each review action:
 - **name**: Short descriptive name (e.g. "App", "Docs", "Frontend", "API")
-- **condition**: A `Test-Path` expression that checks if the worktree path exists (e.g. `Test-Path "Worktrees/<RepoName>/src/<Project>"`).
-  - **`<RepoName>` is the leaf repository folder name** (e.g. `ivy-tendril`, `ivy-framework`), **NOT** an organization prefix or GitHub URL path (e.g. do **NOT** use `ivy-interactive/ivy-tendril`). Tendril checks out plan worktrees directly into `Worktrees/<RepoName>`.
+- **condition**: A `Test-Path` expression that checks if the worktree path exists (e.g. `Test-Path "Worktrees/<owner>/<repo>/src/<Project>"` or `Test-Path "Worktrees/<repo>/src/<Project>"`).
+  - The repo path under `Worktrees/` preserves the repo origin structure (e.g. `<owner>/<repo>` such as `ivy-interactive/ivy-tendril` for repos under `Repos/<owner>/<repo>` or from GitHub).
   - **Do NOT use a leading slash or backslash** (e.g. use `Test-Path "Worktrees/..."`, NOT `Test-Path "\Worktrees/..."`), as leading slashes cause PowerShell to resolve relative to the drive root instead of the plan working directory.
-- **command**: The command to launch the application. Always use `Worktrees/<RepoName>/...` (the leaf repository folder name) in paths and project arguments.
+- **command**: The command to launch the application.
 
 ```bash
 tendril project add-review-action <project-name> "<name>" \
   --command="<launch command>" \
-  --condition="Test-Path \"Worktrees/<RepoName>/<path>\""
+  --condition="Test-Path \"Worktrees/<owner>/<repo>/<path>\""
 ```
 
 ### 4. Set the Stack Hash
