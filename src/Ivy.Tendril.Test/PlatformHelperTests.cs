@@ -76,12 +76,6 @@ public class PlatformHelperTests
             Assert.True(PlatformHelper.TryEvaluateTestPathCondition(@"Test-Path ""nonexistent/dir""", tempDir, out var r5));
             Assert.False(r5);
 
-            // Worktrees/owner/repo fallback to Worktrees/repo
-            var worktreeDir = Path.Combine(tempDir, "Worktrees", "my-repo", "src", "MyApp");
-            Directory.CreateDirectory(worktreeDir);
-            Assert.True(PlatformHelper.TryEvaluateTestPathCondition(@"Test-Path ""Worktrees/my-org/my-repo/src/MyApp""", tempDir, out var r6));
-            Assert.True(r6);
-
             // Non Test-Path expression returns false for fast-path attempt
             Assert.False(PlatformHelper.TryEvaluateTestPathCondition(@"Get-Process dotnet", tempDir, out _));
         }

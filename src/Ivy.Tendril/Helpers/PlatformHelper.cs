@@ -103,26 +103,6 @@ public static class PlatformHelper
             }
 
             result = File.Exists(fullPath) || Directory.Exists(fullPath);
-            if (!result)
-            {
-                // Fallback: If path is of the form "Worktrees/<owner>/<repo>/...", check "Worktrees/<repo>/..."
-                var worktreesSep = "Worktrees" + Path.DirectorySeparatorChar;
-                var idx = fullPath.IndexOf(worktreesSep, StringComparison.OrdinalIgnoreCase);
-                if (idx >= 0)
-                {
-                    var prefix = fullPath[..(idx + worktreesSep.Length)];
-                    var suffix = fullPath[(idx + worktreesSep.Length)..];
-                    var slashIdx = suffix.IndexOf(Path.DirectorySeparatorChar);
-                    if (slashIdx > 0)
-                    {
-                        var candidate = Path.Combine(prefix, suffix[(slashIdx + 1)..]);
-                        if (File.Exists(candidate) || Directory.Exists(candidate))
-                        {
-                            result = true;
-                        }
-                    }
-                }
-            }
             return true;
         }
         catch
