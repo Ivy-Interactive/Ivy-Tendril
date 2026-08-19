@@ -33,6 +33,7 @@ public static class EffortLevels
     public static readonly IReadOnlyList<EffortOption> Antigravity = [Low, Medium, High];
     public static readonly IReadOnlyList<EffortOption> Gemini = [Low, Medium, High];
     public static readonly IReadOnlyList<EffortOption> OpenCode = [Low, Medium, High, ExtraHigh, Max];
+    public static readonly IReadOnlyList<EffortOption> Ivy = [Low, Medium, High, ExtraHigh, Max];
 }
 
 [Flags]
