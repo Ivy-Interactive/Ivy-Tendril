@@ -249,4 +249,19 @@ describe("PlanDiffView collapse scoping", () => {
     // New file at position 0 must NOT be checked/collapsed
     expect(newCheckboxes[0]).toHaveAttribute("aria-checked", "false");
   });
+
+  it("does not mark files as viewed when defaultCollapsed is true", () => {
+    render(<PlanDiffView id="pdv-2" diff={twoFileDiff} collapsible defaultCollapsed />);
+
+    const checkboxes = screen.getAllByRole("checkbox");
+    expect(checkboxes.length).toBe(2);
+    // Even though files are collapsed by default, Viewed state must be false
+    expect(checkboxes[0]).toHaveAttribute("aria-checked", "false");
+    expect(checkboxes[1]).toHaveAttribute("aria-checked", "false");
+
+    // Clicking Viewed marks it as viewed
+    fireEvent.click(checkboxes[0]);
+    expect(checkboxes[0]).toHaveAttribute("aria-checked", "true");
+    expect(checkboxes[1]).toHaveAttribute("aria-checked", "false");
+  });
 });
