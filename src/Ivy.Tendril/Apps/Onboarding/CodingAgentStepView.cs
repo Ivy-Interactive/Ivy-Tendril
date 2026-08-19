@@ -640,7 +640,7 @@ public class CodingAgentStepView(
                    ? new Progress(progressValue.Value.Value)
                    : null!)
                | (authCode.Value != null
-                   ? Text.Markdown($"**Device code:** `{authCode.Value}` — enter this in your browser if prompted.")
+                   ? Text.Markdown($"**Device code:** `{authCode.Value}` (enter this in your browser if prompted).")
                    : null!)
                | (error.Value != null ? Text.Danger(error.Value) : null!)
                | installDialog;
@@ -773,7 +773,9 @@ public class CodingAgentStepView(
                 Layout.Horizontal()
                     .AlignContent(Align.Center)
                 | a.Logo.ToIcon().Width(Size.Px(32)).Height(Size.Px(32))
-                | Text.Block(a.Label)
+                | (Layout.Vertical()
+                    | Text.Block(a.Label)
+                    | (a.Key == "opencode" ? Text.Muted("Open Source (MIT)").Small() : null!))
             ).OnClick(() => onSelect(a.Key)));
 
         var byoGrid = Layout.Grid().Columns(3);
@@ -792,7 +794,7 @@ public class CodingAgentStepView(
         return Layout.Vertical()
                | Text.H3("What is your coding agent?")
                | Text.Muted(
-                   "Tendril is a coding orchestrator that runs on top of your own coding agent. Pick the agent you'd like to use:")
+                   "Tendril is an open source coding orchestrator that runs on top of your own coding agent or bundled open source engines like OpenCode (MIT License). Pick the agent you'd like to use:")
                | (errorMessage != null ? Text.Danger(errorMessage) : null!)
                | grid
                | byoSection;
