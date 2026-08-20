@@ -17,6 +17,7 @@ public static class Constants
     public const int Icebox = 70;
     public const int Chat = 75;
     public const int Agent = 80;
+    public const int ResourceMonitor = 85;
     public const int ReviewAction = 85;
     public const int Trash = 90;
     public const int Help = 100;
