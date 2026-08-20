@@ -11,8 +11,8 @@
 </p>
 
 <p>
-  <strong>The AI Orchestrator for 100x builders.</strong><br/>
-  Orchestrate coding agents side-by-side, manage coding plans end-to-end, and track execution and costs in one place.
+  <strong>The Agentic Sofware Factory for 10x Builders</strong><br/>
+  AI agents can now write 99% code. This changes what it means to be a developer. Our role shifts to knowing "what good looks like". For this we need completely new developer tools. 
 </p>
 
 <p>
@@ -107,16 +107,6 @@ Ingest GitHub Issues or jam.dev bug reports via webhooks to turn markdown plans 
 </td>
 </tr>
 </table>
-
-**Also in the box:**
-
-- **Modular Promptwares:** Custom agent workflows (CreatePlan, ExecutePlan, ExpandPlan, CreatePr) with dedicated prompts, tools, and hooks.
-- **Verification Gates:** Enforce build, test, lint, and format checks before advancing plans.
-- **Chat with Agent (PTY):** Direct terminal-style split interaction with running coding agents.
-- **Activity Heatmap:** View your 90-day PR contribution history.
-- **Rerun with Feedback:** Re-steer agents on failed plan steps with custom feedback.
-- **Diagnostics:** Built-in checks for agent installation, PATH, and model availability.
-- **Plan State Versioning:** Revert plan revisions and migrate plan schemas safely.
 
 ---
 
