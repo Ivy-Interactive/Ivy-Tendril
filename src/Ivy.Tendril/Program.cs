@@ -5,6 +5,7 @@ using Ivy.Desktop;
 using Ivy.Helpers;
 using Ivy.Tendril.Agents;
 using Ivy.Tendril.Commands;
+using Ivy.Tendril.Commands.Memory;
 using Ivy.Tendril.Database;
 using Ivy.Tendril.Infrastructure;
 using Ivy.Tendril.Services;
@@ -857,6 +858,35 @@ public class Program
                     .WithDescription("Get a top-level config value");
                 cfg.AddCommand<ConfigSetCommand>("set")
                     .WithDescription("Set a top-level config value");
+            });
+
+            config.AddBranch("memory", memory =>
+            {
+                memory.SetDescription("Manage Tendril codebase memories, file reference hashes, and relations");
+                memory.AddCommand<MemoryStatusCommand>("status")
+                    .WithDescription("Scan memory notes, file reference hashes, and relation graph status");
+                memory.AddCommand<MemoryAddCommand>("add")
+                    .WithDescription("Add a new memory note");
+                memory.AddCommand<MemoryReadCommand>("read")
+                    .WithDescription("Read a memory note content");
+                memory.AddCommand<MemoryWriteCommand>("write")
+                    .WithDescription("Write or update a memory note content");
+                memory.AddCommand<MemoryLinkCommand>("link")
+                    .WithDescription("Link a code file reference to a memory note");
+                memory.AddCommand<MemoryUpdateCommand>("update")
+                    .WithDescription("Synchronize reference hashes for a memory note");
+                memory.AddCommand<MemoryRelateCommand>("relate")
+                    .WithDescription("Relate two memory notes together");
+                memory.AddCommand<MemoryDeleteCommand>("delete")
+                    .WithDescription("Delete a memory note");
+                memory.AddCommand<MemoryQueryCommand>("query")
+                    .WithDescription("Search memory notes by keyword");
+                memory.AddCommand<MemoryRulesCommand>("rules")
+                    .WithDescription("Get compiled memory rules for agent system prompt");
+                memory.AddCommand<MemoryPurgeCommand>("purge")
+                    .WithDescription("Purge memory notes for a project or workspace");
+                memory.AddCommand<MemoryCompactCommand>("compact")
+                    .WithDescription("Compact large log-heavy memory notes");
             });
         });
         return app;
