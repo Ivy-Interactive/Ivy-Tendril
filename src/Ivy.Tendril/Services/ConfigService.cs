@@ -218,6 +218,7 @@ public class TendrilSettings
     public Dictionary<string, PromptwareConfig> Promptwares { get; set; } = new();
     public List<AgentConfig> CodingAgents { get; set; } = new();
     public Tunnel.TunnelConfig? Tunnel { get; set; }
+    public Tunnel.TunnelConfig? ShareTunnel { get; set; }
     public bool Telemetry { get; set; } = true;
     public bool DesktopNotifications { get; set; } = true;
     public bool SidebarOpen { get; set; } = true;

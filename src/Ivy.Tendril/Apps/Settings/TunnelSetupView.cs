@@ -1,4 +1,5 @@
 using System.Reactive.Disposables;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Tunnel;
 using Ivy.Widgets.QRCode;
@@ -10,12 +11,18 @@ public class TunnelSetupView : ViewBase
     public override object Build()
     {
         var client = UseService<IClientProvider>();
+        var config = UseService<IConfigService>();
         var tunnelService = UseService<ICloudflaredService>();
+        var shareTunnelService = UseService<IShareTunnelService>();
         var copyToClipboard = UseClipboard();
+        Context.TryUseService<TendrilArgs>(out var tendrilArgs);
 
         var error = UseState<string?>(tunnelService.ErrorMessage);
         var status = UseState(tunnelService.Status);
         var tunnelUrl = UseState<string?>(tunnelService.TunnelUrl);
+        var shareError = UseState<string?>(shareTunnelService.ErrorMessage);
+        var shareStatus = UseState(shareTunnelService.Status);
+        var shareTunnelUrl = UseState<string?>(shareTunnelService.TunnelUrl);
         var (alertView, showAlert) = UseAlert();
 
         UseEffect(() =>
@@ -138,6 +145,124 @@ public class TunnelSetupView : ViewBase
                 });
         }
 
+        UseEffect(() =>
+        {
+            void OnShareStatusChanged(TunnelStatus newStatus)
+            {
+                shareStatus.Set(newStatus);
+                shareTunnelUrl.Set(shareTunnelService.TunnelUrl);
+                shareError.Set(shareTunnelService.ErrorMessage);
+            }
+
+            shareTunnelService.StatusChanged += OnShareStatusChanged;
+
+            shareStatus.Set(shareTunnelService.Status);
+            shareTunnelUrl.Set(shareTunnelService.TunnelUrl);
+            shareError.Set(shareTunnelService.ErrorMessage);
+
+            return Disposable.Create(() => shareTunnelService.StatusChanged -= OnShareStatusChanged);
+        });
+
+        var shareSection = Layout.Vertical()
+            | new Separator()
+            | Text.Block("Share Tunnel (Read-Only & Review)").Bold()
+            | Text.Block("Creates a dedicated read-only, comment-only tunnel for team members to review plans and drafts with anonymous tags, without administrative or destructive access.").Muted().Small();
+
+        if (shareError.Value is not null)
+        {
+            shareSection |= Callout.Error(shareError.Value, "Error");
+        }
+
+        if (shareStatus.Value == TunnelStatus.Connecting)
+        {
+            var calloutContent = Layout.Vertical()
+                | Text.Block("Starting share tunnel and waiting for it to become routable. This typically takes 15-30 seconds.")
+                | new Loading();
+            shareSection |= Callout.Info(calloutContent, "Share Tunnel Starting");
+        }
+        else if (shareStatus.Value == TunnelStatus.Connected && shareTunnelUrl.Value is not null)
+        {
+            var calloutContent = Layout.Vertical()
+                | "Your read-only share tunnel is active. Anyone with this link can review plans and submit comments as anonymous reviewers."
+                | Text.Monospaced(shareTunnelUrl.Value)
+                | (Layout.Horizontal()
+                    | new Button("Copy Share URL").Icon(Icons.ClipboardCopy).Outline()
+                        .OnClick(() =>
+                        {
+                            copyToClipboard(shareTunnelUrl.Value!);
+                            client.Toast("Share tunnel URL copied to clipboard", "URL Copied");
+                        })
+                    | new Button("Open in Browser").Icon(Icons.ExternalLink).Outline()
+                        .OnClick(() => client.OpenUrl(shareTunnelUrl.Value!)))
+                | new QRCode
+                {
+                    Value = shareTunnelUrl.Value,
+                    PixelSize = 200,
+                    ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium
+                }
+                | new Button("Deactivate Share Tunnel").Outline()
+                    .OnClick(async () =>
+                    {
+                        shareStatus.Set(TunnelStatus.Disabled);
+                        shareTunnelUrl.Set(null);
+                        client.Toast("Share tunnel stopped", "Deactivated");
+                        await shareTunnelService.DeactivateAsync();
+                    });
+
+            shareSection |= new Callout(calloutContent, "Share Tunnel Active", CalloutVariant.Success);
+        }
+        else
+        {
+            shareSection |= new Button("Activate Share Tunnel").Outline()
+                .OnClick(async () =>
+                {
+                    shareError.Set(null);
+                    shareStatus.Set(TunnelStatus.Connecting);
+
+                    try
+                    {
+                        var installed = await tunnelService.CheckInstalledAsync();
+                        if (!installed)
+                        {
+                            shareStatus.Set(TunnelStatus.Disabled);
+                            showAlert("Cloudflare is not installed. Would you like to download and install it?", async result =>
+                            {
+                                if (result == AlertResult.Ok)
+                                {
+                                    shareStatus.Set(TunnelStatus.Connecting);
+                                    try
+                                    {
+                                        await tunnelService.InstallAsync();
+                                        await shareTunnelService.ActivateAsync();
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        shareError.Set($"Failed to install Cloudflare: {ex.Message}");
+                                        shareStatus.Set(TunnelStatus.Disabled);
+                                    }
+                                }
+                                else
+                                {
+                                    shareStatus.Set(TunnelStatus.Disabled);
+                                }
+                            });
+                            return;
+                        }
+
+                        await shareTunnelService.ActivateAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        shareError.Set($"Failed to start share tunnel: {ex.Message}");
+                        shareStatus.Set(TunnelStatus.Disabled);
+                    }
+                });
+        }
+
+        if (BetaHelper.IsBeta(tendrilArgs, config))
+        {
+            form |= shareSection;
+        }
         form |= alertView;
 
         return form;
