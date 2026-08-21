@@ -95,8 +95,28 @@ public class ShareContext : IShareContext
             if (!string.IsNullOrEmpty(_persona))
                 return _persona;
 
-            var seed = _appContext?.ConnectionId
-                ?? _appContext?.MachineId
+            // 1. Check if persona was explicitly passed via cookie or query
+            var httpContext = _httpContextAccessor?.HttpContext;
+            if (httpContext != null)
+            {
+                if (httpContext.Request.Cookies.TryGetValue("tendril_persona", out var cookiePersona) && !string.IsNullOrWhiteSpace(cookiePersona))
+                {
+                    _persona = cookiePersona.Trim();
+                    return _persona;
+                }
+
+                if (httpContext.Request.Query.TryGetValue("persona", out var queryPersona) && !string.IsNullOrWhiteSpace(queryPersona))
+                {
+                    _persona = queryPersona.ToString().Trim();
+                    return _persona;
+                }
+            }
+
+            // 2. Derive stable persona from MachineId (persisted per browser client)
+            var seed = (!string.IsNullOrWhiteSpace(_appContext?.MachineId) ? _appContext.MachineId : null)
+                ?? _httpContextAccessor?.HttpContext?.Request.Cookies["machineId"]
+                ?? _httpContextAccessor?.HttpContext?.Request.Query["machineId"].ToString()
+                ?? _appContext?.ConnectionId
                 ?? _httpContextAccessor?.HttpContext?.Connection.Id
                 ?? _httpContextAccessor?.HttpContext?.Connection.RemoteIpAddress?.ToString()
                 ?? Guid.NewGuid().ToString("N");

@@ -84,4 +84,30 @@ public class ShareContextTests
         shareContext.SetPersona("Observant Falcon");
         Assert.Equal("Observant Falcon", shareContext.Persona);
     }
+
+    [Fact]
+    public void Persona_WithMachineIdCookie_ReturnsDeterministicPersona()
+    {
+        var context1 = new DefaultHttpContext();
+        context1.Request.Headers["Cookie"] = "machineId=machine-42";
+        var shareContext1 = new ShareContext(new HttpContextAccessor { HttpContext = context1 }, _shareTunnelService);
+
+        var context2 = new DefaultHttpContext();
+        context2.Request.Headers["Cookie"] = "machineId=machine-42";
+        var shareContext2 = new ShareContext(new HttpContextAccessor { HttpContext = context2 }, _shareTunnelService);
+
+        Assert.Equal(shareContext1.Persona, shareContext2.Persona);
+    }
+
+    [Fact]
+    public void Persona_WithCookie_UsesCookiePersona()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Headers["Cookie"] = "tendril_persona=Wise%20Owl";
+
+        var accessor = new HttpContextAccessor { HttpContext = context };
+        var shareContext = new ShareContext(accessor, _shareTunnelService);
+
+        Assert.Equal("Wise Owl", shareContext.Persona);
+    }
 }

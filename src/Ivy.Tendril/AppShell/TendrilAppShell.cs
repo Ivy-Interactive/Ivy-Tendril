@@ -769,13 +769,9 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var reviewerPersona = shareContext.Persona;
         var reviewerInitials = GetInitials(reviewerPersona);
 
-        var reviewerFooter = Layout.Horizontal().AlignContent(Align.Left).Width(Size.Full())
+        var reviewerFooter = Layout.Horizontal().AlignContent(Align.Left).Height(Size.Auto()).Width(Size.Full())
             | new Avatar(reviewerInitials).Small()
-            | (Layout.Vertical()
-                | Text.Block(reviewerPersona).Small().Bold().Overflow(Overflow.Ellipsis)
-                | Text.Block("Reviewer").Muted().Small().Overflow(Overflow.Ellipsis))
-                .Grow()
-                .Size(Size.Full().Min(0));
+            | Text.Block(reviewerPersona).Small().Bold().Overflow(Overflow.Ellipsis);
 
         var sidebarHeader = Layout.Vertical()
             | settings.Header
@@ -796,7 +792,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             : (Layout.Vertical() | new NewPlanButton(collapsed: true));
 
         var sidebarFooterCollapsed = isShareMode
-            ? (Layout.Vertical().Width(Size.Full()) | new Tooltip(new Avatar(reviewerInitials).Small(), $"Reviewing as {reviewerPersona}"))
+            ? (Layout.Vertical().Width(Size.Full()).Height(Size.Auto()).AlignContent(Align.Center) | new Tooltip(new Avatar(reviewerInitials).Small(), $"Reviewing as {reviewerPersona}"))
             : (Layout.Vertical().Width(Size.Full()) | settingsMenuCollapsed);
 
         return new Fragment(
