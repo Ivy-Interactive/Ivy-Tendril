@@ -8,6 +8,8 @@ public class DraftAnnotationService : IDraftAnnotationService
 {
     private readonly ILogger<DraftAnnotationService> _logger;
 
+    public event Action<string, List<MarkdownAnnotation>>? AnnotationsChanged;
+
     public DraftAnnotationService(ILogger<DraftAnnotationService> logger)
     {
         _logger = logger;
@@ -41,6 +43,7 @@ public class DraftAnnotationService : IDraftAnnotationService
                     _logger.LogWarning(ex, "Failed to delete empty draft annotations file {FilePath}", filePath);
                 }
             }
+            AnnotationsChanged?.Invoke(planFolderPath, []);
             return;
         }
 
@@ -49,6 +52,7 @@ public class DraftAnnotationService : IDraftAnnotationService
             var yaml = YamlHelper.SerializerCompact.Serialize(list);
             await File.WriteAllTextAsync(filePath, yaml);
             _logger.LogInformation("Saved {Count} draft annotations to {FilePath}", list.Count, filePath);
+            AnnotationsChanged?.Invoke(planFolderPath, list);
         }
         catch (Exception ex)
         {
@@ -100,6 +104,7 @@ public class DraftAnnotationService : IDraftAnnotationService
             }
         }
 
+        AnnotationsChanged?.Invoke(planFolderPath, []);
         return Task.CompletedTask;
     }
 }

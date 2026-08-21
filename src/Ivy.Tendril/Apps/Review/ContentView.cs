@@ -228,6 +228,20 @@ public class ContentView(
             return Disposable.Empty;
         }, selectedPlanState);
 
+        UseEffect(() =>
+        {
+            void OnCommentsChanged(string folderPath, List<DraftComment> updated)
+            {
+                if (selectedPlanState.Value != null && folderPath == selectedPlanState.Value.FolderPath)
+                {
+                    draftComments.Set(updated);
+                }
+            }
+
+            draftDiffCommentService.CommentsChanged += OnCommentsChanged;
+            return Disposable.Create(() => draftDiffCommentService.CommentsChanged -= OnCommentsChanged);
+        });
+
         var isShareMode = shareContext.IsShareMode;
         var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
 

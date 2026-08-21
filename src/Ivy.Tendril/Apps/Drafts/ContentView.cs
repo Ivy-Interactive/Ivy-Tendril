@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Reactive.Disposables;
 using System.Text;
 using System.Text.RegularExpressions;
 using Ivy.Core;
@@ -121,6 +122,20 @@ public class ContentView(
 
         // Navigation effects (was UseNavigationEffects)
         UseEffect(() => { selectedTab.Set(0); }, selectedPlanState);
+
+        UseEffect(() =>
+        {
+            void OnAnnotationsChanged(string folderPath, List<MarkdownAnnotation> updated)
+            {
+                if (selectedPlanRef.Value != null && folderPath == selectedPlanRef.Value.FolderPath)
+                {
+                    annotations.Set(updated.ToImmutableList());
+                }
+            }
+
+            draftAnnotationService.AnnotationsChanged += OnAnnotationsChanged;
+            return Disposable.Create(() => draftAnnotationService.AnnotationsChanged -= OnAnnotationsChanged);
+        });
 
 #pragma warning disable CS8601
         selectedPlanRef.Value = selectedPlan;

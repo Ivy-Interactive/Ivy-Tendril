@@ -190,15 +190,52 @@ public sealed class ShareTunnelService : IShareTunnelService, IStartable, IDispo
             catch (Exception ex)
             {
                 _logger.LogDebug("Share tunnel health check attempt {Attempt} failed: {Error}", attempt, ex.Message);
+
+                // If local DNS fails (e.g. negative cache / NXDOMAIN), verify via Cloudflare 1.1.1.1 DNS
+                if (attempt >= 2 && _currentSession?.IsRegistered == true)
+                {
+                    if (await CheckDohRoutableAsync(tunnelUrl, ct))
+                    {
+                        _logger.LogInformation("Share tunnel verified via Cloudflare DNS after {Attempts} attempt(s)", attempt);
+                        return;
+                    }
+                }
             }
 
             if (DateTime.UtcNow >= deadline)
             {
+                if (_currentSession?.IsRegistered == true)
+                {
+                    _logger.LogWarning("Share tunnel local probe timed out but cloudflared reported registered connection. Marking connected.");
+                    return;
+                }
+
                 throw new TimeoutException(
                     $"Share tunnel did not become routable within {HealthCheckTimeout.TotalSeconds:0}s ({tunnelUrl})");
             }
 
             await Task.Delay(HealthCheckInterval, ct);
+        }
+    }
+
+    private async Task<bool> CheckDohRoutableAsync(string tunnelUrl, CancellationToken ct)
+    {
+        try
+        {
+            if (!Uri.TryCreate(tunnelUrl, UriKind.Absolute, out var uri)) return false;
+            using var dohClient = _httpClientFactory.CreateClient("DoH");
+            dohClient.Timeout = TimeSpan.FromSeconds(5);
+            dohClient.DefaultRequestHeaders.Accept.Clear();
+            dohClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/dns-json"));
+            var dohUrl = $"https://1.1.1.1/dns-query?name={Uri.EscapeDataString(uri.Host)}&type=A";
+            using var resp = await dohClient.GetAsync(dohUrl, ct);
+            if (!resp.IsSuccessStatusCode) return false;
+            var json = await resp.Content.ReadAsStringAsync(ct);
+            return json.Contains("\"Answer\"") && json.Contains("\"Status\":0");
+        }
+        catch
+        {
+            return false;
         }
     }
 

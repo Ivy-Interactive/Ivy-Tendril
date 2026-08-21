@@ -89,4 +89,31 @@ public class DraftDiffCommentServiceTests : IDisposable
         var loadedAfter = _service.GetDraftCommentsForPlan(_testDir);
         Assert.Empty(loadedAfter);
     }
+
+    [Fact]
+    public async Task SaveAndClearDraftComments_FiresCommentsChangedEvent()
+    {
+        string? firedFolder = null;
+        List<DraftComment>? firedList = null;
+        _service.CommentsChanged += (folder, list) =>
+        {
+            firedFolder = folder;
+            firedList = list;
+        };
+
+        var comments = new List<DraftComment>
+        {
+            new("src/Main.cs", "I10", "Realtime diff test", 10, "Calm Niels")
+        };
+
+        await _service.SaveDraftCommentsAsync(_testDir, comments);
+        Assert.Equal(_testDir, firedFolder);
+        Assert.NotNull(firedList);
+        Assert.Single(firedList!);
+
+        await _service.ClearDraftCommentsAsync(_testDir);
+        Assert.Equal(_testDir, firedFolder);
+        Assert.NotNull(firedList);
+        Assert.Empty(firedList!);
+    }
 }

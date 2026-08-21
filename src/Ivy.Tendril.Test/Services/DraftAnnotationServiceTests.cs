@@ -114,4 +114,31 @@ public class DraftAnnotationServiceTests : IDisposable
         var loadedAfter = _service.GetAnnotationsForPlan(_testDir);
         Assert.Empty(loadedAfter);
     }
+
+    [Fact]
+    public async Task SaveAndClearAnnotations_FiresAnnotationsChangedEvent()
+    {
+        string? firedFolder = null;
+        List<MarkdownAnnotation>? firedList = null;
+        _service.AnnotationsChanged += (folder, list) =>
+        {
+            firedFolder = folder;
+            firedList = list;
+        };
+
+        var annotations = new List<MarkdownAnnotation>
+        {
+            new() { Id = "ann-1", Comment = "Realtime test", Author = "Calm Niels" }
+        };
+
+        await _service.SaveAnnotationsAsync(_testDir, annotations);
+        Assert.Equal(_testDir, firedFolder);
+        Assert.NotNull(firedList);
+        Assert.Single(firedList!);
+
+        await _service.ClearAnnotationsAsync(_testDir);
+        Assert.Equal(_testDir, firedFolder);
+        Assert.NotNull(firedList);
+        Assert.Empty(firedList!);
+    }
 }

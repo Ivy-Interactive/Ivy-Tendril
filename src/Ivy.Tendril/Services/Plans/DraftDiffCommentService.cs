@@ -9,6 +9,8 @@ public class DraftDiffCommentService : IDraftDiffCommentService
     private const string CommentsFileName = "draft_diff_comments.yaml";
     private readonly ILogger<DraftDiffCommentService> _logger;
 
+    public event Action<string, List<DraftComment>>? CommentsChanged;
+
     public DraftDiffCommentService(ILogger<DraftDiffCommentService> logger)
     {
         _logger = logger;
@@ -67,12 +69,14 @@ public class DraftDiffCommentService : IDraftDiffCommentService
                     _logger.LogWarning(ex, "Failed to delete empty draft diff comments file at {FilePath}", filePath);
                 }
             }
+            CommentsChanged?.Invoke(planFolderPath, []);
             return;
         }
 
         var yaml = YamlHelper.SerializerCompact.Serialize(list);
         await File.WriteAllTextAsync(filePath, yaml);
         _logger.LogInformation("Saved {Count} draft diff comments to {FilePath}", list.Count, filePath);
+        CommentsChanged?.Invoke(planFolderPath, list);
     }
 
     public Task ClearDraftCommentsAsync(string planFolderPath)
@@ -94,6 +98,7 @@ public class DraftDiffCommentService : IDraftDiffCommentService
             }
         }
 
+        CommentsChanged?.Invoke(planFolderPath, []);
         return Task.CompletedTask;
     }
 }

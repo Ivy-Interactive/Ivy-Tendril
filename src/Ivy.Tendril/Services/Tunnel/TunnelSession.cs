@@ -14,6 +14,7 @@ public sealed partial class TunnelSession : IDisposable
     private readonly ILogger _logger;
     private Process? _process;
     private TaskCompletionSource<string>? _urlTcs;
+    private TaskCompletionSource<bool>? _registeredTcs;
 
     public TunnelSession(string binaryPath, string originUrl, ILogger logger)
     {
@@ -24,10 +25,12 @@ public sealed partial class TunnelSession : IDisposable
 
     public string? TunnelUrl { get; private set; }
     public bool IsRunning => _process is { HasExited: false };
+    public bool IsRegistered { get; private set; }
 
     public async Task<string> StartAsync(CancellationToken ct = default)
     {
         _urlTcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _registeredTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var psi = new ProcessStartInfo
         {
@@ -77,6 +80,18 @@ public sealed partial class TunnelSession : IDisposable
 
         var url = await _urlTcs.Task;
         TunnelUrl = url;
+
+        // Wait briefly for cloudflare to register the edge connection
+        if (_registeredTcs != null)
+        {
+            try
+            {
+                await _registeredTcs.Task.WaitAsync(TimeSpan.FromSeconds(6), ct);
+            }
+            catch (TimeoutException) { }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        }
+
         _logger.LogInformation("Tunnel established: {Url}", url);
         return url;
     }
@@ -119,6 +134,13 @@ public sealed partial class TunnelSession : IDisposable
             if (_recentLogs.Count >= 20)
                 _recentLogs.RemoveAt(0);
             _recentLogs.Add(e.Data);
+        }
+
+        if (e.Data.Contains("Registered tunnel connection", StringComparison.OrdinalIgnoreCase) ||
+            e.Data.Contains("Connection registered", StringComparison.OrdinalIgnoreCase))
+        {
+            IsRegistered = true;
+            _registeredTcs?.TrySetResult(true);
         }
 
         var url = ParseTunnelUrl(e.Data);
