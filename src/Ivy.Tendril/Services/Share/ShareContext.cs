@@ -50,13 +50,6 @@ public class ShareContext : IShareContext
                 return true;
             }
 
-            var sharePort = _shareTunnelService?.SharePort ?? 0;
-            if (sharePort > 0 && (httpContext.Connection.LocalPort == sharePort || httpContext.Request.Host.Port == sharePort))
-            {
-                _isShareMode = true;
-                return true;
-            }
-
             _isShareMode = false;
             return false;
         }

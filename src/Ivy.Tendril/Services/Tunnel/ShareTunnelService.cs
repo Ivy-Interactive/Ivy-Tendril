@@ -232,7 +232,10 @@ public sealed class ShareTunnelService : IShareTunnelService, IStartable, IDispo
             if (ct.IsCancellationRequested) return;
         }
 
-        var originUrl = $"http://127.0.0.1:{SharePort}";
+        var addresses = _server.Features.Get<IServerAddressesFeature>()?.Addresses;
+        var originUrl = addresses?.FirstOrDefault()
+            ?? $"http://localhost:{_config.Settings.Tunnel?.Port ?? 5010}";
+        originUrl = originUrl.Replace("://localhost:", "://127.0.0.1:");
         _logger.LogInformation("Share tunnel origin URL: {OriginUrl}", originUrl);
 
         var consecutiveFailures = 0;

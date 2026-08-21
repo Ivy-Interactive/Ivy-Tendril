@@ -64,10 +64,10 @@ public class ShareContextTests
     }
 
     [Fact]
-    public void IsShareMode_WithMatchingSharePort_ReturnsTrue()
+    public void IsShareMode_WithItemIsShareMode_ReturnsTrue()
     {
         var context = new DefaultHttpContext();
-        context.Connection.LocalPort = 5011;
+        context.Items["IsShareMode"] = true;
 
         var accessor = new HttpContextAccessor { HttpContext = context };
         var shareContext = new ShareContext(accessor, _shareTunnelService);

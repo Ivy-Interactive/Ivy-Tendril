@@ -39,17 +39,6 @@ public static class TendrilServer
             : "Information";
 
         var isBeta = BetaHelper.IsBeta(tendrilArgs, configService);
-        var mainPort = server.Args.Port > 0 ? server.Args.Port : 5010;
-        var configuredSharePort = configService.Settings.ShareTunnel?.Port ?? 0;
-        var sharePort = (configuredSharePort > 0 && configuredSharePort != mainPort)
-            ? configuredSharePort
-            : mainPort + 1;
-
-        if (configService.Settings.ShareTunnel != null && configService.Settings.ShareTunnel.Port != sharePort)
-        {
-            configService.Settings.ShareTunnel.Port = sharePort;
-            configService.SaveSettings();
-        }
 
         server.UseWebApplicationBuilder(builder =>
         {
@@ -61,18 +50,6 @@ public static class TendrilServer
                 ["Logging:LogLevel:Ivy"] = appLogLevel,
                 ["Logging:LogLevel:Ivy.Core"] = "Warning",
             });
-
-            if (!server.Args.IsCliCommand)
-            {
-                if (isBeta)
-                {
-                    builder.WebHost.UseUrls($"http://*:{mainPort}", $"http://*:{sharePort}");
-                }
-                else
-                {
-                    builder.WebHost.UseUrls($"http://*:{mainPort}");
-                }
-            }
         });
 
         server.UseWebApplication(app =>
@@ -81,9 +58,7 @@ public static class TendrilServer
             {
                 app.Use(async (context, next) =>
                 {
-                    if (context.Connection.LocalPort == sharePort ||
-                        context.Request.Host.Port == sharePort ||
-                        context.Request.Query.ContainsKey("share") ||
+                    if (context.Request.Query.ContainsKey("share") ||
                         string.Equals(context.Request.Query["mode"], "share", StringComparison.OrdinalIgnoreCase) ||
                         context.Request.Headers.ContainsKey("X-Tendril-Share"))
                     {
