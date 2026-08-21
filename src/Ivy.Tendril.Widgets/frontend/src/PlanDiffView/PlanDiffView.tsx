@@ -9,6 +9,7 @@ import { getMarkdownPlugins } from "../math";
 import { MessageSquare } from "lucide-react";
 import { refractor } from "refractor/all";
 import { prismTheme } from "../prismTheme";
+import { getInitials } from "../DraftMarkdown/annotationUtils";
 
 const refractorAdapter = {
   ...refractor,
@@ -128,6 +129,7 @@ interface DraftComment {
   changeKey: string;
   content: string;
   lineNumber: number;
+  author?: string;
 }
 
 interface PlanDiffViewProps {
@@ -148,6 +150,7 @@ interface PlanDiffViewProps {
   defaultCollapsed?: boolean;
   comments?: DraftComment[];
   filePath?: string;
+  currentAuthor?: string;
 }
 
 function getLineNumber(change: ChangeData | null): number {
@@ -240,8 +243,20 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
           {comments.map((comment, idx) => (
             <div key={idx} className="flex flex-col gap-1 border-b border-[var(--border)] pb-2 last:border-0 last:pb-0">
               <div className="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
-                <span className="font-medium text-[var(--foreground)]">Agent Instruction (Draft)</span>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {comment.author && (
+                    <div
+                      className="pmv-comment-avatar"
+                      title={comment.author}
+                    >
+                      {getInitials(comment.author)}
+                    </div>
+                  )}
+                  <span className="font-medium text-[var(--foreground)] truncate">
+                    {comment.author ? comment.author : "Agent Instruction (Draft)"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
                     className="hover:underline hover:text-[var(--foreground)] cursor-pointer"
@@ -339,6 +354,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
   defaultCollapsed = false,
   comments = [],
   filePath = "",
+  currentAuthor,
 }) => {
   const dispatchEvent = eventHandler ?? onIvyEvent;
   const files = useMemo(() => {
@@ -387,7 +403,8 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       filePath,
       changeKey,
       content,
-      lineNumber
+      lineNumber,
+      author: currentAuthor,
     }]);
   };
 

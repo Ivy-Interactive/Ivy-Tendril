@@ -46,7 +46,10 @@ public class ContentView(
         var syncingWorktrees = UseState(new HashSet<string>());
         var selectedRecTitles = UseState(() => new HashSet<string>());
         var selectedTab = UseState(0);
-        var draftComments = UseState(() => new List<DraftComment>());
+        var draftDiffCommentService = UseService<Ivy.Tendril.Services.Plans.IDraftDiffCommentService>();
+        var draftComments = UseState(() => selectedPlanState.Value != null
+            ? draftDiffCommentService.GetDraftCommentsForPlan(selectedPlanState.Value.FolderPath)
+            : new List<DraftComment>());
         var args = UseArgs<ReviewAppArgs>();
         var nav = UseNavigation();
         var planWatcher = UseService<IPlanWatcherService>();
@@ -223,7 +226,14 @@ public class ContentView(
         UseEffect(() => { selectedRecTitles.Set(new HashSet<string>()); return Disposable.Empty; },
             selectedPlanState);
 
-        UseEffect(() => { draftComments.Set(new List<DraftComment>()); return Disposable.Empty; }, selectedPlanState);
+        UseEffect(() =>
+        {
+            var loaded = selectedPlanState.Value != null
+                ? draftDiffCommentService.GetDraftCommentsForPlan(selectedPlanState.Value.FolderPath)
+                : new List<DraftComment>();
+            draftComments.Set(loaded);
+            return Disposable.Empty;
+        }, selectedPlanState);
 
         var isShareMode = shareContext.IsShareMode;
         var isBeta = BetaHelper.IsBeta(tendrilArgs, config);

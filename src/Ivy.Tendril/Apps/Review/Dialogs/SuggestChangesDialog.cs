@@ -31,6 +31,7 @@ public class SuggestChangesDialog(
     public override object? Build()
     {
         var configService = UseService<IConfigService>();
+        var draftDiffCommentService = UseService<Ivy.Tendril.Services.Plans.IDraftDiffCommentService>();
         var isCreating = UseState(false);
         var suggestText = UseState("");
         var uploadSessionId = UseState(() => Guid.NewGuid().ToString("N"));
@@ -86,7 +87,9 @@ public class SuggestChangesDialog(
                 {
                     var absolutePath = Path.Combine(repoPath, c.FilePath).Replace('\\', '/');
                     var fileLink = $"file:///{absolutePath.TrimStart('/')}";
-                    sb.AppendLine($"- **In [{c.FilePath}]({fileLink}#L{c.LineNumber}) line {c.LineNumber}**:");
+                    sb.AppendLine(!string.IsNullOrEmpty(c.Author)
+                        ? $"- **In [{c.FilePath}]({fileLink}#L{c.LineNumber}) line {c.LineNumber}** (by {c.Author}):"
+                        : $"- **In [{c.FilePath}]({fileLink}#L{c.LineNumber}) line {c.LineNumber}**:");
                     sb.AppendLine($"  {c.Content}");
                 }
             }
@@ -102,6 +105,7 @@ public class SuggestChangesDialog(
             {
                 _draftCommentsState.Set(new List<DraftComment>());
             }
+            _ = draftDiffCommentService.ClearDraftCommentsAsync(_selectedPlan.FolderPath);
             _refreshPlans();
             _dialogOpen.Set(false);
         }

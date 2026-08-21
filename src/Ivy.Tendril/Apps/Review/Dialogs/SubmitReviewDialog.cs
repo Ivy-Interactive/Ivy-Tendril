@@ -17,6 +17,7 @@ public class SubmitReviewDialog(
     public override object? Build()
     {
         var client = UseService<IClientProvider>();
+        var draftDiffCommentService = UseService<Ivy.Tendril.Services.Plans.IDraftDiffCommentService>();
         var summaryText = UseState("");
         var isSubmitting = UseState(false);
         var persona = UseState(shareContext.Persona);
@@ -49,6 +50,7 @@ public class SubmitReviewDialog(
                 try
                 {
                     await reviewFeedbackService.SaveReviewAsync(selectedPlan.FolderPath, review);
+                    await draftDiffCommentService.ClearDraftCommentsAsync(selectedPlan.FolderPath);
                     client.Toast($"Review submitted as {persona.Value}!", "Feedback Sent");
                     draftCommentsState?.Set([]);
                     onSubmitted?.Invoke();
