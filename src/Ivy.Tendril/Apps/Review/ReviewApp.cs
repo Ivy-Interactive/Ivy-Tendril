@@ -11,6 +11,7 @@ public class ReviewApp : ViewBase
 {
     public override object Build()
     {
+        var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
         var planService = UseService<IPlanReaderService>();
         var jobService = UseService<IJobService>();
         var configService = UseService<IConfigService>();
@@ -93,7 +94,7 @@ public class ReviewApp : ViewBase
 
         var content = new ContentView(selectedPlanState, filteredPlans, planService, jobService,
             RefreshPlans, configService, gitService);
-        if (plans.Count == 0)
+        if (plans.Count == 0 || shareContext.IsShareMode)
             return content;
 
         return new SidebarLayout(

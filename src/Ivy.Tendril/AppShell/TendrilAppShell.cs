@@ -784,6 +784,21 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             ? (Layout.Vertical().Width(Size.Full()).Height(Size.Auto()).AlignContent(Align.Center) | new Tooltip(new Avatar(reviewerInitials).Small(), $"Reviewing as {reviewerPersona}"))
             : (Layout.Vertical().Width(Size.Full()) | settingsMenuCollapsed);
 
+        if (isShareMode)
+        {
+            var selectedApp = tabs.Value.Length > 0 && selectedIndex.Value.HasValue
+                ? tabs.Value[selectedIndex.Value.Value].AppHost
+                : (tabs.Value.Length > 0 ? tabs.Value[0].AppHost : body);
+
+            return new Fragment(
+                selectInputWarmup,
+                selectedApp ?? null!,
+                importIssuesDialog,
+                updateDialog,
+                closeTabShortcut
+            );
+        }
+
         return new Fragment(
             selectInputWarmup,
             new SidebarLayout(

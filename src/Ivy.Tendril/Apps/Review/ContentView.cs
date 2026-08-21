@@ -262,7 +262,7 @@ public class ContentView(
             selectedPlanState.Value!, selectedRecTitles, client,
             planContentQuery.Mutator.Revalidate);
 
-        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, context, showCreatePrDialog, isShareMode, draftComments);
+        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, context, showCreatePrDialog, isShareMode, draftComments, shareContext);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
             context, agentRunner, draftComments, isShareMode, isBeta, shareTunnelService, showShareModal);
@@ -291,7 +291,8 @@ public class ContentView(
         ReviewViewContext context,
         Action showCreatePrDialog,
         bool isShareMode,
-        IState<List<DraftComment>> draftComments)
+        IState<List<DraftComment>> draftComments,
+        IShareContext shareContext)
     {
         object BuildTitleArea(bool isMobile)
         {
@@ -334,16 +335,21 @@ public class ContentView(
 
         object BuildControls(bool isMobile)
         {
-            var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+            if (isShareMode)
+            {
+                var persona = shareContext.Persona;
+                var initials = Ivy.Tendril.Services.Share.AnonymousPersonaGenerator.GetInitials(persona);
+                var reviewerBadge = Layout.Horizontal().AlignContent(Align.Right)
+                    | new Avatar(initials).Small()
+                    | Text.Block(persona).Small().Bold().NoWrap();
+                return reviewerBadge.Width(isMobile ? Size.Full() : Size.Fit());
+            }
+
+            var rightSide = Layout.Horizontal().AlignContent(Align.Right)
                            | Text.Rich()
                                .NoWrap()
                                .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                                .Muted("plans", word: true);
-
-            if (isShareMode)
-            {
-                return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
-            }
 
             if (selectedPlan.Commits.Count > 0)
             {

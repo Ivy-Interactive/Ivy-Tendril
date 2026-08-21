@@ -10,6 +10,7 @@ public class DraftsApp : ViewBase
 {
     public override object Build()
     {
+        var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
         var planService = UseService<IPlanReaderService>();
         var jobService = UseService<IJobService>();
         var configService = UseService<IConfigService>();
@@ -102,7 +103,7 @@ public class DraftsApp : ViewBase
 
         var content = new ContentView(selectedPlanState.Value, filteredPlans, selectedPlanState, planService, jobService,
             RefreshPlans, configService, gitService);
-        if (plans.Count == 0)
+        if (plans.Count == 0 || shareContext.IsShareMode)
             return content;
 
         return new SidebarLayout(
