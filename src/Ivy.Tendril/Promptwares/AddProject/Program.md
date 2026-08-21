@@ -78,6 +78,7 @@ For each detected tech stack, ensure the following verification definitions exis
 - Format/Lint: `DotnetFormat`, `NpmLint`, `PythonLint`, `RustClippy`, `GoFmt`
 - Build: `DotnetBuild`, `NpmBuild`, `PythonBuild`, `RustBuild`, `GoBuild`
 - Test: `DotnetTest`, `NpmTest`, `PythonTest`, `RustTest`, `GoTest`
+- E2E / Browser: `PlaywrightTest`, `NpmTest` (when Playwright or browser test suites are detected)
 
 **Example verification prompts by stack:**
 
@@ -89,6 +90,7 @@ For each detected tech stack, ensure the following verification definitions exis
 | JS/TS | NpmLint | Run `npm run lint` / `pnpm lint` (or equivalent) on changed files |
 | JS/TS | NpmBuild | Run `npm run build` / `pnpm build` (or equivalent) and verify success |
 | JS/TS | NpmTest | Run `npm test` / `pnpm test` with appropriate filter |
+| E2E | PlaywrightTest | Run Playwright test suite with fail-fast (`--max-failures=1`), pre-flight HTTP probe, and verify baseURL/base path |
 | Python | PythonLint | Run linter (black/ruff/flake8) on changed .py files |
 | Python | PythonTest | Run `pytest` with filter from plan's Tests section |
 | Rust | RustClippy | Run `cargo clippy -- -D warnings` |
@@ -97,6 +99,13 @@ For each detected tech stack, ensure the following verification definitions exis
 | Go | GoFmt | Run `gofmt` on changed .go files |
 | Go | GoBuild | Run `go build ./...` and verify success |
 | Go | GoTest | Run `go test` with filter from plan's Tests section |
+
+**E2E and Playwright verification guidance:**
+
+When generating verification prompts for projects that use Playwright or browser E2E test suites (e.g. `PlaywrightTest` or E2E `NpmTest`):
+1. **Pre-flight HTTP probe**: Instruct agents to perform a lightweight HTTP probe (e.g. `curl -f -s http://127.0.0.1:<port><base-path> || exit 1` or PowerShell `Invoke-WebRequest`) against the dev server base URL before launching Playwright to confirm the server is listening and returning HTTP 200.
+2. **Fail-fast flags**: Pass fail-fast options (`--max-failures=1` or `maxFailures: 1`) so that unhandled connection refused (`net::ERR_CONNECTION_REFUSED`, `ECONNREFUSED`) or initial failures terminate the test suite immediately instead of running through exhaustive retry loops.
+3. **Base path validation**: Validate that `baseURL` or navigation URLs match any configured dev server base path (such as `base: '/<project>/'` in `vite.config.ts`).
 
 For each verification:
 1. Check if it already exists in `tendril verification list`

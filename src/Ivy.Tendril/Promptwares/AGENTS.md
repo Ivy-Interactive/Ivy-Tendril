@@ -13,3 +13,6 @@ Shipped promptwares are used by all Tendril customers across different teams, te
 - **Config over convention.** Anything that varies between customers belongs in configuration (injected via the firmware header or **Projects** section), not in Program.md. If you find yourself writing "if using X, do Y" for a customer-specific X, it should be a config option instead.
 - **Keep it concise.** The limiting factor is a human reading the plan. Every sentence must earn its place.
 - **Loopback only for servers.** When promptwares write tests, demo/sample applications, or mock servers that listen on a port, configure them to bind to loopback (127.0.0.1 or localhost) instead of all network interfaces (0.0.0.0). Binding to 0.0.0.0 requires elevated permissions or is blocked on some operating systems and sandboxed environments, leading to "listen EPERM" errors.
+- **Fail-fast on E2E / browser tests.** E2E test runs (such as Playwright) should specify fail-fast (`--max-failures=1` or `maxFailures: 1`) during automated verification to prevent retry cascades on unreachable servers or connection refused errors (`net::ERR_CONNECTION_REFUSED`).
+- **Base path awareness.** When writing or running tests against application servers, ensure test navigation URLs match the server's configured base path (such as `base: '/<project>/'` in `vite.config.ts`).
+

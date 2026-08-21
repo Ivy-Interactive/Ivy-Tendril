@@ -609,6 +609,74 @@ public class SetupProjectPromptwareTests : IDisposable
         Assert.Contains("--browse", action.Command);
     }
 
+    // ==================== Playwright E2E Stack Tests ====================
+
+    [Fact]
+    public void PlaywrightStack_AddVerificationsAndReviewAction()
+    {
+        var repoPath = CreateRepo("MyPlaywrightApp", "package.json", "playwright.config.ts", "vite.config.ts", "e2e/app.spec.ts");
+        WriteConfig($"""
+            projects:
+            - name: MyPlaywrightApp
+              repos:
+              - path: {repoPath}
+            verifications:
+            - name: CheckResult
+              prompt: Verify the implementation matches the plan.
+            codingAgent: claude
+            codingAgents:
+            - name: claude
+              profiles:
+              - name: deep
+                model: opus
+                effort: max
+            """);
+
+        var config = LoadConfig();
+        config.Settings.Verifications.Add(new VerificationConfig
+        {
+            Name = "NpmLint",
+            Prompt = "Run `npm run lint` on changed files and fix any errors."
+        });
+        config.Settings.Verifications.Add(new VerificationConfig
+        {
+            Name = "NpmBuild",
+            Prompt = "Run `npm run build` and verify success."
+        });
+        config.Settings.Verifications.Add(new VerificationConfig
+        {
+            Name = "PlaywrightTest",
+            Prompt = "Run Playwright test suite with fail-fast (`--max-failures=1`), pre-flight HTTP probe against dev server base URL, and verify baseURL/base path."
+        });
+        config.SaveSettings();
+
+        var config2 = LoadConfig();
+        var project = config2.Settings.Projects[0];
+        project.Verifications.Add(new ProjectVerificationRef { Name = "NpmLint", Required = true });
+        project.Verifications.Add(new ProjectVerificationRef { Name = "NpmBuild", Required = true });
+        project.Verifications.Add(new ProjectVerificationRef { Name = "PlaywrightTest", Required = true });
+        project.Verifications.Add(new ProjectVerificationRef { Name = "CheckResult", Required = true });
+        project.ReviewActions.Add(new ReviewActionConfig
+        {
+            Name = "Dev",
+            Condition = "Test-Path \"worktrees/MyPlaywrightApp/package.json\"",
+            Command = "cd worktrees/MyPlaywrightApp && npm install && npm run dev -- --open"
+        });
+        config2.SaveSettings();
+
+        var result = LoadConfig();
+        Assert.Equal(4, result.Settings.Verifications.Count);
+        Assert.Contains(result.Settings.Verifications, v => v.Name == "PlaywrightTest");
+        var playwrightVer = result.Settings.Verifications.First(v => v.Name == "PlaywrightTest");
+        Assert.Contains("max-failures", playwrightVer.Prompt);
+        Assert.Contains("pre-flight", playwrightVer.Prompt);
+
+        var proj = result.Settings.Projects[0];
+        Assert.Equal(4, proj.Verifications.Count);
+        Assert.Single(proj.ReviewActions);
+        Assert.Contains("npm run dev", proj.ReviewActions[0].Command);
+    }
+
     private static readonly object ConsoleLock = new();
 
     private static string CaptureConsoleOutput(Action action)
