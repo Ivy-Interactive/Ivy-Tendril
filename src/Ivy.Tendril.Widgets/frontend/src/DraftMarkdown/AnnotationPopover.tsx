@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { getInitials } from "./annotationUtils";
 
 interface Position {
   top: number;
@@ -100,7 +101,7 @@ interface EditAnnotationPopoverProps {
    * (rather than unmounts) the popover so in-progress edits survive
    * scrolling the anchor back into view. Defaults to true. */
   visible?: boolean;
-  annotation: { selectedText: string; comment: string };
+  annotation: { selectedText: string; comment: string; author?: string };
   onSave: (comment: string) => void;
   onRemove: () => void;
   onCancel: () => void;
@@ -149,6 +150,14 @@ export const EditAnnotationPopover: React.FC<EditAnnotationPopoverProps> = ({
       className="pmv-popover"
       style={{ top: position.top, left: position.left, visibility: visible ? "visible" : "hidden" }}
     >
+      {annotation.author && (
+        <div className="pmv-popover-author">
+          <span className="pmv-popover-avatar">
+            {getInitials(annotation.author)}
+          </span>
+          <span className="pmv-popover-author-name">{annotation.author}</span>
+        </div>
+      )}
       <div className="pmv-popover-quote">
         &ldquo;{annotation.selectedText.slice(0, 50)}
         {annotation.selectedText.length > 50 ? "..." : ""}&rdquo;

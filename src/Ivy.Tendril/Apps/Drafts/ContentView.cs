@@ -36,7 +36,10 @@ public class ContentView(
         var issueLabelsState = UseState<string[]>([]);
         var issueCommentState = UseState("");
         var showDirtyDialog = UseState(false);
-        var annotations = UseState(ImmutableList<MarkdownAnnotation>.Empty);
+        var draftAnnotationService = UseService<Ivy.Tendril.Services.Plans.IDraftAnnotationService>();
+        var annotations = UseState(() => selectedPlan != null
+            ? draftAnnotationService.GetAnnotationsForPlan(selectedPlan.FolderPath).ToImmutableList()
+            : ImmutableList<MarkdownAnnotation>.Empty);
         var showAnnotationsDialog = UseState(false);
         var pendingWaitJobIds = UseState<List<string>?>((List<string>?)null);
         var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
@@ -127,7 +130,10 @@ public class ContentView(
         {
             lastPlanId.Set(selectedPlan?.Id ?? -1);
             isEditing.Set(false);
-            annotations.Set(ImmutableList<MarkdownAnnotation>.Empty);
+            var loaded = selectedPlan != null
+                ? draftAnnotationService.GetAnnotationsForPlan(selectedPlan.FolderPath).ToImmutableList()
+                : ImmutableList<MarkdownAnnotation>.Empty;
+            annotations.Set(loaded);
             showAnnotationsDialog.Set(false);
             pendingWaitJobIds.Set((List<string>?)null);
         }
@@ -138,7 +144,10 @@ public class ContentView(
         if (lastContentHash.Value != contentHash)
         {
             lastContentHash.Set(contentHash);
-            annotations.Set(ImmutableList<MarkdownAnnotation>.Empty);
+            var loaded = selectedPlan != null
+                ? draftAnnotationService.GetAnnotationsForPlan(selectedPlan.FolderPath).ToImmutableList()
+                : ImmutableList<MarkdownAnnotation>.Empty;
+            annotations.Set(loaded);
         }
 
         if (selectedPlan is null)
@@ -211,7 +220,7 @@ public class ContentView(
             }
 
             if (annotations.Value.Count > 0)
-                rightSide |= BuildAnnotationsUpdateButton(annotations);
+                rightSide |= BuildAnnotationsUpdateButton(annotations, draftAnnotationService);
 
             rightSide |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
                             .Loading(isCheckingPreflight)
@@ -239,7 +248,8 @@ public class ContentView(
             openFile,
             planService,
             config,
-            annotations);
+            annotations,
+            shareContext.Persona);
 
         if (planContentQuery.Loading)
         {
@@ -340,7 +350,7 @@ public class ContentView(
             : null;
 
         var annotationsDialog = BuildAnnotationsGuardDialog(
-            annotations, showAnnotationsDialog, preflightResult, pendingWaitJobIds, showDirtyDialog);
+            annotations, showAnnotationsDialog, preflightResult, pendingWaitJobIds, showDirtyDialog, draftAnnotationService);
 
         var elements = new List<object>
         {
@@ -408,19 +418,22 @@ public class ContentView(
         IState<bool> showAnnotationsDialog,
         PreflightResult? preflightResult,
         IState<List<string>?> pendingWaitJobIds,
-        IState<bool> showDirtyDialog)
+        IState<bool> showDirtyDialog,
+        Ivy.Tendril.Services.Plans.IDraftAnnotationService draftAnnotationService)
     {
         if (!showAnnotationsDialog.Value || annotations.Value.Count == 0) return null;
 
         return new PendingAnnotationsDialog(
             showAnnotationsDialog,
             annotations.Value.Count,
-            onUpdate: () => SubmitAnnotationsUpdate(annotations),
+            onUpdate: () => SubmitAnnotationsUpdate(annotations, draftAnnotationService),
             onUpdateAndExecute: () => ContinueExecute(
-                [SubmitAnnotationsUpdate(annotations)], preflightResult, pendingWaitJobIds, showDirtyDialog),
+                [SubmitAnnotationsUpdate(annotations, draftAnnotationService)], preflightResult, pendingWaitJobIds, showDirtyDialog),
             onDiscardAndExecute: () =>
             {
                 annotations.Set(ImmutableList<MarkdownAnnotation>.Empty);
+                if (selectedPlan != null)
+                    _ = draftAnnotationService.ClearAnnotationsAsync(selectedPlan.FolderPath);
                 ContinueExecute(null, preflightResult, pendingWaitJobIds, showDirtyDialog);
             });
     }
@@ -566,7 +579,7 @@ public class ContentView(
             j.TypedArgs.PlanFolder.Equals(selectedPlan!.FolderPath, StringComparison.OrdinalIgnoreCase));
     }
 
-    private Button BuildAnnotationsUpdateButton(IState<ImmutableList<MarkdownAnnotation>> annotations)
+    private Button BuildAnnotationsUpdateButton(IState<ImmutableList<MarkdownAnnotation>> annotations, IDraftAnnotationService draftAnnotationService)
     {
         return new Button("Update Plan")
             .Icon(Icons.WandSparkles)
@@ -574,16 +587,18 @@ public class ContentView(
             .Badge(annotations.Value.Count.ToString())
             .Disabled(HasActiveJob<UpdatePlanArgs>())
             .Tooltip("Update the plan from your annotations")
-            .OnClick(() => SubmitAnnotationsUpdate(annotations));
+            .OnClick(() => SubmitAnnotationsUpdate(annotations, draftAnnotationService));
     }
 
-    private string SubmitAnnotationsUpdate(IState<ImmutableList<MarkdownAnnotation>> annotations)
+    private string SubmitAnnotationsUpdate(IState<ImmutableList<MarkdownAnnotation>> annotations, IDraftAnnotationService draftAnnotationService)
     {
         var prompt = BuildAnnotationsPrompt(annotations.Value);
 
         TransitionPlanOptimistically(PlanStatus.Updating);
         var jobId = jobService.StartJob(new UpdatePlanArgs(selectedPlan!.FolderPath, prompt));
         annotations.Set(ImmutableList<MarkdownAnnotation>.Empty);
+        if (selectedPlan != null)
+            _ = draftAnnotationService.ClearAnnotationsAsync(selectedPlan.FolderPath);
         refreshPlans();
         return jobId;
     }
@@ -599,7 +614,9 @@ public class ContentView(
         foreach (var annotation in annotations)
         {
             sb.AppendLine();
-            sb.AppendLine($"## Annotation {index}");
+            sb.AppendLine(!string.IsNullOrEmpty(annotation.Author)
+                ? $"## Annotation {index} (by {annotation.Author})"
+                : $"## Annotation {index}");
             sb.AppendLine("Selected text:");
             foreach (var line in annotation.SelectedText.Split('\n'))
                 sb.AppendLine($"> {line.TrimEnd('\r')}");

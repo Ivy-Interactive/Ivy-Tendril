@@ -279,6 +279,7 @@ internal static class ServiceRegistration
             sp.GetRequiredService<Services.Tunnel.ShareTunnelService>());
 
         server.Services.AddSingleton<Services.Plans.IReviewFeedbackService, Services.Plans.ReviewFeedbackService>();
+        server.Services.AddSingleton<Services.Plans.IDraftAnnotationService, Services.Plans.DraftAnnotationService>();
         server.Services.AddTransient<Services.Share.IShareContext, Services.Share.ShareContext>();
 
         server.Services.AddSingleton<Services.Telemetry.ModelPricingWarmupService>();

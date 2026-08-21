@@ -4,6 +4,14 @@ export interface MarkdownAnnotation {
   endOffset: number;
   selectedText: string;
   comment: string;
+  author?: string;
+}
+
+export function getInitials(name?: string): string {
+  if (!name || !name.trim()) return "";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
 export function getPlainTextOffset(
@@ -119,6 +127,7 @@ export function applyAnnotationHighlights(
   annotations: MarkdownAnnotation[],
 ): void {
   container.querySelectorAll("mark[data-annotation-id]").forEach((mark) => {
+    mark.querySelectorAll(".pmv-annotation-initials-badge").forEach((b) => b.remove());
     const parent = mark.parentNode;
     if (parent) {
       while (mark.firstChild) {
@@ -136,7 +145,8 @@ export function applyAnnotationHighlights(
   for (const annotation of sorted) {
     const textNodes = getTextNodesInRange(container, annotation.startOffset, annotation.endOffset);
 
-    for (const { node, start, end } of textNodes) {
+    for (let i = 0; i < textNodes.length; i++) {
+      const { node, start, end } = textNodes[i];
       const range = document.createRange();
       range.setStart(node, start);
       range.setEnd(node, end);
@@ -144,9 +154,22 @@ export function applyAnnotationHighlights(
       const mark = document.createElement("mark");
       mark.dataset.annotationId = annotation.id;
       mark.className = "pmv-annotation-highlight";
-      mark.title = annotation.comment;
+      mark.title = annotation.author
+        ? `[${annotation.author}] ${annotation.comment}`
+        : annotation.comment;
 
       range.surroundContents(mark);
+
+      if (i === textNodes.length - 1 && annotation.author) {
+        const initials = getInitials(annotation.author);
+        if (initials) {
+          const badge = document.createElement("span");
+          badge.className = "pmv-annotation-initials-badge";
+          badge.textContent = initials;
+          badge.title = annotation.author;
+          mark.appendChild(badge);
+        }
+      }
     }
   }
 }

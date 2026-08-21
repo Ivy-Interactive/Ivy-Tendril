@@ -187,6 +187,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         return null;
     }
 
+    private static string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "R";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant();
+        return string.Concat(parts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
+    }
+
     private static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status,
         IConfigService config, IAgentRunner runner, bool isShareMode = false)
     {
@@ -758,14 +766,25 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 | noop.ToSelectInput(new[] { "_" }.ToOptions()).Disabled();
         });
 
+        var reviewerPersona = shareContext.Persona;
+        var reviewerInitials = GetInitials(reviewerPersona);
+
+        var reviewerFooter = Layout.Horizontal().AlignContent(Align.Left).Width(Size.Full())
+            | new Avatar(reviewerInitials).Small()
+            | (Layout.Vertical()
+                | Text.Block(reviewerPersona).Small().Bold().Overflow(Overflow.Ellipsis)
+                | Text.Block("Reviewer").Muted().Small().Overflow(Overflow.Ellipsis))
+                .Grow()
+                .Size(Size.Full().Min(0));
+
         var sidebarHeader = Layout.Vertical()
             | settings.Header
             | (isShareMode
-                ? Text.Block($"Reviewing as {shareContext.Persona}").Muted().Small()
+                ? (object)null!
                 : (object)new NewPlanButton(collapsed: false));
 
         var sidebarFooter = isShareMode
-            ? null
+            ? (Layout.Vertical() | settings.Footer | reviewerFooter)
             : Layout.Vertical(
                 new SidebarNews(newsArticles.Value),
                 settings.Footer,
@@ -777,7 +796,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             : (Layout.Vertical() | new NewPlanButton(collapsed: true));
 
         var sidebarFooterCollapsed = isShareMode
-            ? null
+            ? (Layout.Vertical().Width(Size.Full()) | new Tooltip(new Avatar(reviewerInitials).Small(), $"Reviewing as {reviewerPersona}"))
             : (Layout.Vertical().Width(Size.Full()) | settingsMenuCollapsed);
 
         return new Fragment(

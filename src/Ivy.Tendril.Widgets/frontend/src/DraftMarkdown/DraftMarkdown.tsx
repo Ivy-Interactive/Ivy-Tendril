@@ -22,6 +22,7 @@ interface DraftMarkdownProps {
   article?: boolean;
   dangerouslyAllowLocalFiles?: boolean;
   annotations?: MarkdownAnnotation[];
+  currentAuthor?: string;
   events?: string[];
   eventHandler?: IvyEventHandler;
   slots?: {
@@ -46,6 +47,7 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
   article = false,
   dangerouslyAllowLocalFiles = false,
   annotations = EMPTY_ANNOTATIONS,
+  currentAuthor,
   events = EMPTY_EVENTS,
   eventHandler,
   slots,
@@ -180,11 +182,12 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
         endOffset: addPopover.endOffset,
         selectedText: addPopover.selectedText,
         comment,
+        author: currentAuthor || undefined,
       };
       fireAnnotationsChange([...annotations, newAnnotation]);
       setAddPopover(null);
     },
-    [addPopover, annotations, fireAnnotationsChange],
+    [addPopover, annotations, currentAuthor, fireAnnotationsChange],
   );
 
   const handleEditAnnotation = useCallback(
