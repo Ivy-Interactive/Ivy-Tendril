@@ -50,6 +50,12 @@ public class ShareContext : IShareContext
                 return true;
             }
 
+            if (httpContext.Request.Cookies.ContainsKey("tendril_share_mode"))
+            {
+                _isShareMode = true;
+                return true;
+            }
+
             _isShareMode = false;
             return false;
         }

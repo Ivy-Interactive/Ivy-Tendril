@@ -39,6 +39,7 @@ public class ContentView(
         var annotations = UseState(ImmutableList<MarkdownAnnotation>.Empty);
         var showAnnotationsDialog = UseState(false);
         var pendingWaitJobIds = UseState<List<string>?>((List<string>?)null);
+        var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
         var (runPreflight, isCheckingPreflight, preflightResult) = Context.UsePreflightCheck();
 
         var processView = Context.UseTendrilProcess();
@@ -203,6 +204,11 @@ public class ContentView(
                                .NoWrap()
                                .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                                .Muted("plans", word: true);
+
+            if (shareContext.IsShareMode)
+            {
+                return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
+            }
 
             if (annotations.Value.Count > 0)
                 rightSide |= BuildAnnotationsUpdateButton(annotations);

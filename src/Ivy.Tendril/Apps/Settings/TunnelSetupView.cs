@@ -192,21 +192,22 @@ public class TunnelSetupView : ViewBase
         }
         else if (shareStatus.Value == TunnelStatus.Connected && shareTunnelUrl.Value is not null)
         {
+            var shareUrl = $"{shareTunnelUrl.Value.TrimEnd('/')}/review?share=1";
             var calloutContent = Layout.Vertical()
                 | "Your share tunnel is running and accessible at the URL below."
-                | Text.Monospaced(shareTunnelUrl.Value)
+                | Text.Monospaced(shareUrl)
                 | (Layout.Horizontal()
                     | new Button("Copy URL").Icon(Icons.ClipboardCopy).Outline()
                         .OnClick(() =>
                         {
-                            copyToClipboard(shareTunnelUrl.Value!);
+                            copyToClipboard(shareUrl);
                             client.Toast("Share tunnel URL copied to clipboard", "URL Copied");
                         })
                     | new Button("Open in Browser").Icon(Icons.ExternalLink).Outline()
-                        .OnClick(() => client.OpenUrl(shareTunnelUrl.Value!)))
+                        .OnClick(() => client.OpenUrl(shareUrl)))
                 | new QRCode
                 {
-                    Value = shareTunnelUrl.Value,
+                    Value = shareUrl,
                     PixelSize = 200,
                     ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium
                 }

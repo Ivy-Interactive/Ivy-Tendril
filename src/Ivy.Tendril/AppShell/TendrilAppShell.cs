@@ -160,7 +160,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
     private static readonly HashSet<string> ShareAllowedAppIds = new(StringComparer.OrdinalIgnoreCase)
     {
-        "review", "drafts", "dashboard", "pullrequest", "pull-request", "icebox", "about"
+        "review", "drafts"
     };
 
     private static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status,
