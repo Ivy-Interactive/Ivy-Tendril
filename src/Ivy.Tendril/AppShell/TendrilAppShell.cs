@@ -520,15 +520,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             tabs.Set(newTabs);
         }
 
-        void OnTabRefresh(int tabIndex)
-        {
-            if (!CheckTabExists(tabIndex)) return;
-
-            var tab = tabs.Value[tabIndex];
-            tabs.Set(tabs.Value.SetItem(tabIndex, tab with { RefreshToken = Guid.NewGuid().ToString() }));
-            selectedIndex.Set(tabIndex);
-        }
-
         void OnTabReorder(int[] newOrder)
         {
             var reorderedTabs = newOrder.Select(index => tabs.Value[index]).ToArray();
@@ -561,7 +552,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 body = Layout.Tabs(tabs.Value.ToArray().Select(e => e.ToTab()).ToArray())
                     .OnSelect(OnTabSelect)
                     .OnClose(OnTabClose)
-                    .OnRefresh(OnTabRefresh)
                     .OnReorder(OnTabReorder)
                     .SelectedIndex(selectedIndex.Value)
                     .RemoveParentPadding()
