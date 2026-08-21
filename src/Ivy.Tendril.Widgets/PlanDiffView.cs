@@ -13,16 +13,18 @@ public record DraftComment
     public string Content { get; init; } = "";
     public int LineNumber { get; init; }
     public string? Author { get; init; }
+    public bool IsResolved { get; init; }
 
     public DraftComment() { }
 
-    public DraftComment(string filePath, string changeKey, string content, int lineNumber, string? author = null)
+    public DraftComment(string filePath, string changeKey, string content, int lineNumber, string? author = null, bool isResolved = false)
     {
         FilePath = filePath;
         ChangeKey = changeKey;
         Content = content;
         LineNumber = lineNumber;
         Author = author;
+        IsResolved = isResolved;
     }
 }
 

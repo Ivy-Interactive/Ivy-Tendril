@@ -200,6 +200,15 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
     [editPopover, annotations, fireAnnotationsChange],
   );
 
+  const handleToggleResolveAnnotation = useCallback(() => {
+    if (!editPopover) return;
+    const updated = annotations.map((a) =>
+      a.id === editPopover.id ? { ...a, isResolved: !a.isResolved } : a
+    );
+    fireAnnotationsChange(updated);
+    setEditPopover(null);
+  }, [editPopover, annotations, fireAnnotationsChange]);
+
   const handleRemoveAnnotation = useCallback(() => {
     if (!editPopover) return;
     const filtered = annotations.filter((a) => a.id !== editPopover.id);
@@ -311,7 +320,9 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
           position={editAnchor.position}
           visible={editAnchor.visible}
           annotation={editPopover}
+          currentAuthor={currentAuthor}
           onSave={handleEditAnnotation}
+          onToggleResolve={handleToggleResolveAnnotation}
           onRemove={handleRemoveAnnotation}
           onCancel={() => setEditPopover(null)}
         />

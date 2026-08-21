@@ -62,7 +62,8 @@ public class SuggestChangesDialog(
 
         if (!_dialogOpen.Value) return null;
 
-        var commentCount = _draftComments?.Count ?? 0;
+        var activeComments = _draftComments?.Where(c => !c.IsResolved).ToList() ?? [];
+        var commentCount = activeComments.Count;
 
         void HandleSubmit()
         {
@@ -77,13 +78,13 @@ public class SuggestChangesDialog(
                 sb.AppendLine();
             }
 
-            if (_draftComments != null && _draftComments.Count > 0)
+            if (activeComments.Count > 0)
             {
                 var repos = _selectedPlan.GetEffectiveRepoPaths(configService);
                 var repoPath = repos.FirstOrDefault() ?? "";
 
                 sb.AppendLine("Line-by-line feedback:");
-                foreach (var c in _draftComments)
+                foreach (var c in activeComments)
                 {
                     var absolutePath = Path.Combine(repoPath, c.FilePath).Replace('\\', '/');
                     var fileLink = $"file:///{absolutePath.TrimStart('/')}";

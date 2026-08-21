@@ -10,6 +10,7 @@ public record MarkdownAnnotation
     public string SelectedText { get; init; } = "";
     public string Comment { get; init; } = "";
     public string? Author { get; init; }
+    public bool IsResolved { get; init; }
 }
 
 /// <summary>

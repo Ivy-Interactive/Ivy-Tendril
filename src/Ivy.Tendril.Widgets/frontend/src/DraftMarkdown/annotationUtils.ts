@@ -5,6 +5,7 @@ export interface MarkdownAnnotation {
   selectedText: string;
   comment: string;
   author?: string;
+  isResolved?: boolean;
 }
 
 export function getInitials(name?: string): string {
@@ -45,46 +46,33 @@ export function getPlainText(container: Node): string {
   return text;
 }
 
-interface TextNodeRange {
-  node: Text;
-  start: number;
-  end: number;
-}
-
-function getTextNodesInRange(
+export function getTextNodesInRange(
   container: Node,
   startOffset: number,
   endOffset: number,
-): TextNodeRange[] {
-  const ranges: TextNodeRange[] = [];
+): Array<{ node: Text; start: number; end: number }> {
+  const result: Array<{ node: Text; start: number; end: number }> = [];
+  let currentOffset = 0;
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  let offset = 0;
 
   let node = walker.nextNode();
-  while (node) {
-    const nodeLen = node.textContent?.length ?? 0;
-    const nodeStart = offset;
-    const nodeEnd = offset + nodeLen;
+  while (node && currentOffset < endOffset) {
+    const textNode = node as Text;
+    const length = textNode.textContent?.length ?? 0;
+    const nodeStart = currentOffset;
+    const nodeEnd = currentOffset + length;
 
     if (nodeEnd > startOffset && nodeStart < endOffset) {
-      const sliceStart = Math.max(0, startOffset - nodeStart);
-      const sliceEnd = Math.min(nodeLen, endOffset - nodeStart);
-      const slice = node.textContent?.slice(sliceStart, sliceEnd) ?? "";
-      if (slice.trim().length > 0) {
-        ranges.push({
-          node: node as Text,
-          start: sliceStart,
-          end: sliceEnd,
-        });
-      }
+      const start = Math.max(0, startOffset - nodeStart);
+      const end = Math.min(length, endOffset - nodeStart);
+      result.push({ node: textNode, start, end });
     }
 
-    if (nodeStart >= endOffset) break;
-    offset = nodeEnd;
+    currentOffset = nodeEnd;
     node = walker.nextNode();
   }
 
-  return ranges;
+  return result;
 }
 
 /**
@@ -122,6 +110,8 @@ export function getOffsetRect(
   return createRangeFromOffsets(container, startOffset, endOffset)?.getBoundingClientRect() ?? null;
 }
 
+export const getSelectionBoundingRect = getOffsetRect;
+
 export function applyAnnotationHighlights(
   container: HTMLElement,
   annotations: MarkdownAnnotation[],
@@ -153,10 +143,14 @@ export function applyAnnotationHighlights(
 
       const mark = document.createElement("mark");
       mark.dataset.annotationId = annotation.id;
+      mark.className = annotation.isResolved
+        ? "pmv-annotation-highlight pmv-annotation-resolved"
+        : "pmv-annotation-highlight";
       const author = annotation.author?.trim();
+      const statusPrefix = annotation.isResolved ? "[Resolved] " : "";
       mark.title = author
-        ? `[${author}] ${annotation.comment}`
-        : annotation.comment;
+        ? `${statusPrefix}[${author}] ${annotation.comment}`
+        : `${statusPrefix}${annotation.comment}`;
 
       range.surroundContents(mark);
 
@@ -164,9 +158,11 @@ export function applyAnnotationHighlights(
         const initials = getInitials(author);
         if (initials) {
           const badge = document.createElement("span");
-          badge.className = "pmv-annotation-initials-badge";
+          badge.className = annotation.isResolved
+            ? "pmv-annotation-initials-badge pmv-badge-resolved"
+            : "pmv-annotation-initials-badge";
           badge.textContent = initials;
-          badge.title = author;
+          badge.title = annotation.isResolved ? `[Resolved] ${author}` : author;
           mark.appendChild(badge);
         }
       }

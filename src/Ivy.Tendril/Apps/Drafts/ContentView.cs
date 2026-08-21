@@ -234,7 +234,8 @@ public class ContentView(
                 return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
             }
 
-            if (annotations.Value.Count > 0)
+            var activeAnnotationCount = annotations.Value.Count(a => !a.IsResolved);
+            if (activeAnnotationCount > 0)
                 rightSide |= BuildAnnotationsUpdateButton(annotations, draftAnnotationService);
 
             rightSide |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
@@ -242,7 +243,7 @@ public class ContentView(
                             .Disabled(isCheckingPreflight)
                             .OnClick(() => runPreflight(selectedPlan.Project, result =>
                             {
-                                if (annotations.Value.Count > 0)
+                                if (activeAnnotationCount > 0)
                                     showAnnotationsDialog.Set(true);
                                 else
                                     ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
@@ -436,11 +437,12 @@ public class ContentView(
         IState<bool> showDirtyDialog,
         Ivy.Tendril.Services.Plans.IDraftAnnotationService draftAnnotationService)
     {
-        if (!showAnnotationsDialog.Value || annotations.Value.Count == 0) return null;
+        var activeCount = annotations.Value.Count(a => !a.IsResolved);
+        if (!showAnnotationsDialog.Value || activeCount == 0) return null;
 
         return new PendingAnnotationsDialog(
             showAnnotationsDialog,
-            annotations.Value.Count,
+            activeCount,
             onUpdate: () => SubmitAnnotationsUpdate(annotations, draftAnnotationService),
             onUpdateAndExecute: () => ContinueExecute(
                 [SubmitAnnotationsUpdate(annotations, draftAnnotationService)], preflightResult, pendingWaitJobIds, showDirtyDialog),
@@ -596,10 +598,11 @@ public class ContentView(
 
     private Button BuildAnnotationsUpdateButton(IState<ImmutableList<MarkdownAnnotation>> annotations, IDraftAnnotationService draftAnnotationService)
     {
+        var activeCount = annotations.Value.Count(a => !a.IsResolved);
         return new Button("Update Plan")
             .Icon(Icons.WandSparkles)
             .Primary()
-            .Badge(annotations.Value.Count.ToString())
+            .Badge(activeCount.ToString())
             .Disabled(HasActiveJob<UpdatePlanArgs>())
             .Tooltip("Update the plan from your annotations")
             .OnClick(() => SubmitAnnotationsUpdate(annotations, draftAnnotationService));
@@ -607,7 +610,7 @@ public class ContentView(
 
     private string SubmitAnnotationsUpdate(IState<ImmutableList<MarkdownAnnotation>> annotations, IDraftAnnotationService draftAnnotationService)
     {
-        var prompt = BuildAnnotationsPrompt(annotations.Value);
+        var prompt = BuildAnnotationsPrompt(annotations.Value.Where(a => !a.IsResolved));
 
         TransitionPlanOptimistically(PlanStatus.Updating);
         var jobId = jobService.StartJob(new UpdatePlanArgs(selectedPlan!.FolderPath, prompt));
