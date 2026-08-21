@@ -242,7 +242,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var agentRunner = UseService<IAgentRunner>();
         var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current, config, agentRunner, shareContext.IsShareMode));
         var status = UseState(() => statusService.Current);
-        var sidebarOpen = UseState(() => shareContext.IsShareMode ? false : config.Settings.SidebarOpen);
+        var sidebarOpen = UseState(() => config.Settings.SidebarOpen);
         var args = UseService<AppContext>();
         var serverArgs = UseService<ServerArgs>();
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
@@ -784,7 +784,9 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             ? (Layout.Vertical().Width(Size.Full()).Height(Size.Auto()).AlignContent(Align.Center) | new Tooltip(new Avatar(reviewerInitials).Small(), $"Reviewing as {reviewerPersona}"))
             : (Layout.Vertical().Width(Size.Full()) | settingsMenuCollapsed);
 
-        if (isShareMode)
+        var isShareDirectPlan = isShareMode && HasDirectPlanId(args);
+
+        if (isShareDirectPlan)
         {
             var selectedApp = tabs.Value.Length > 0 && selectedIndex.Value.HasValue
                 ? tabs.Value[selectedIndex.Value.Value].AppHost
@@ -814,6 +816,26 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             updateDialog,
             closeTabShortcut
         );
+    }
+
+    internal static bool HasDirectPlanId(AppContext? appContext)
+    {
+        if (appContext == null) return false;
+        try
+        {
+            var reviewArgs = appContext.GetArgs<Ivy.Tendril.Apps.Review.ReviewAppArgs>();
+            if (!string.IsNullOrEmpty(reviewArgs?.PlanId)) return true;
+        }
+        catch { }
+
+        try
+        {
+            var draftsArgs = appContext.GetArgs<Ivy.Tendril.Apps.Drafts.DraftsAppArgs>();
+            if (!string.IsNullOrEmpty(draftsArgs?.PlanId)) return true;
+        }
+        catch { }
+
+        return false;
     }
 
     internal record TabState(string Id, string AppId, string Title, AppHost AppHost, Icons? Icon, string RefreshToken)

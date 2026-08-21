@@ -94,7 +94,8 @@ public class ReviewApp : ViewBase
 
         var content = new ContentView(selectedPlanState, filteredPlans, planService, jobService,
             RefreshPlans, configService, gitService);
-        if (plans.Count == 0 || shareContext.IsShareMode)
+        var isShareDirectPlan = shareContext.IsShareMode && !string.IsNullOrEmpty(args?.PlanId);
+        if (plans.Count == 0 || isShareDirectPlan)
             return content;
 
         return new SidebarLayout(

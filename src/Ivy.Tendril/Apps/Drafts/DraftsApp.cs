@@ -103,7 +103,8 @@ public class DraftsApp : ViewBase
 
         var content = new ContentView(selectedPlanState.Value, filteredPlans, selectedPlanState, planService, jobService,
             RefreshPlans, configService, gitService);
-        if (plans.Count == 0 || shareContext.IsShareMode)
+        var isShareDirectPlan = shareContext.IsShareMode && !string.IsNullOrEmpty(args?.PlanId);
+        if (plans.Count == 0 || isShareDirectPlan)
             return content;
 
         return new SidebarLayout(
