@@ -7,15 +7,18 @@ public class ShareContext : IShareContext
 {
     private readonly IHttpContextAccessor? _httpContextAccessor;
     private readonly IShareTunnelService? _shareTunnelService;
+    private readonly AppContext? _appContext;
     private string? _persona;
     private bool? _isShareMode;
 
     public ShareContext(
         IHttpContextAccessor? httpContextAccessor = null,
-        IShareTunnelService? shareTunnelService = null)
+        IShareTunnelService? shareTunnelService = null,
+        AppContext? appContext = null)
     {
         _httpContextAccessor = httpContextAccessor;
         _shareTunnelService = shareTunnelService;
+        _appContext = appContext;
     }
 
     public bool IsShareMode
@@ -24,36 +27,60 @@ public class ShareContext : IShareContext
         {
             if (_isShareMode.HasValue) return _isShareMode.Value;
 
+            // 1. Check HttpContext if available
             var httpContext = _httpContextAccessor?.HttpContext;
-            if (httpContext == null)
+            if (httpContext != null)
             {
-                _isShareMode = false;
-                return false;
+                if (httpContext.Items.TryGetValue("IsShareMode", out var isShareObj) && isShareObj is true)
+                {
+                    _isShareMode = true;
+                    return true;
+                }
+
+                if (httpContext.Request.Query.ContainsKey("share") ||
+                    string.Equals(httpContext.Request.Query["mode"], "share", StringComparison.OrdinalIgnoreCase))
+                {
+                    _isShareMode = true;
+                    return true;
+                }
+
+                if (httpContext.Request.Headers.ContainsKey("X-Tendril-Share"))
+                {
+                    _isShareMode = true;
+                    return true;
+                }
+
+                if (httpContext.Request.Cookies.ContainsKey("tendril_share_mode"))
+                {
+                    _isShareMode = true;
+                    return true;
+                }
             }
 
-            if (httpContext.Items.TryGetValue("IsShareMode", out var isShareObj) && isShareObj is true)
+            // 2. Check Ivy AppContext
+            if (_appContext != null)
             {
-                _isShareMode = true;
-                return true;
-            }
+                var args = _appContext.GetArgs<Dictionary<string, string>>();
+                if (args != null && (args.ContainsKey("share") ||
+                    string.Equals(args.GetValueOrDefault("mode"), "share", StringComparison.OrdinalIgnoreCase)))
+                {
+                    _isShareMode = true;
+                    return true;
+                }
 
-            if (httpContext.Request.Query.ContainsKey("share") ||
-                string.Equals(httpContext.Request.Query["mode"], "share", StringComparison.OrdinalIgnoreCase))
-            {
-                _isShareMode = true;
-                return true;
-            }
-
-            if (httpContext.Request.Headers.ContainsKey("X-Tendril-Share"))
-            {
-                _isShareMode = true;
-                return true;
-            }
-
-            if (httpContext.Request.Cookies.ContainsKey("tendril_share_mode"))
-            {
-                _isShareMode = true;
-                return true;
+                // If connecting through the active Share Tunnel URL, it is always Share Mode
+                if (_shareTunnelService?.IsConnected == true && !string.IsNullOrEmpty(_shareTunnelService.TunnelUrl))
+                {
+                    if (Uri.TryCreate(_shareTunnelService.TunnelUrl, UriKind.Absolute, out var tunnelUri))
+                    {
+                        if (string.Equals(_appContext.Host, tunnelUri.Host, StringComparison.OrdinalIgnoreCase) ||
+                            _appContext.Host.StartsWith(tunnelUri.Host, StringComparison.OrdinalIgnoreCase))
+                        {
+                            _isShareMode = true;
+                            return true;
+                        }
+                    }
+                }
             }
 
             _isShareMode = false;
@@ -68,9 +95,10 @@ public class ShareContext : IShareContext
             if (!string.IsNullOrEmpty(_persona))
                 return _persona;
 
-            var httpContext = _httpContextAccessor?.HttpContext;
-            var seed = httpContext?.Connection.Id
-                ?? httpContext?.Connection.RemoteIpAddress?.ToString()
+            var seed = _appContext?.ConnectionId
+                ?? _appContext?.MachineId
+                ?? _httpContextAccessor?.HttpContext?.Connection.Id
+                ?? _httpContextAccessor?.HttpContext?.Connection.RemoteIpAddress?.ToString()
                 ?? Guid.NewGuid().ToString("N");
 
             _persona = AnonymousPersonaGenerator.Generate(seed);

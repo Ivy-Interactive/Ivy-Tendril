@@ -230,6 +230,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             return new UpdateTendrilDialog(isOpen, info);
         });
 
+        var isShareMode = shareContext.IsShareMode;
+
         UseEffect(async () =>
         {
             newsArticles.Set(await FetchNewsAsync());
@@ -318,7 +320,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
         });
 
-        var isShareMode = shareContext.IsShareMode;
         var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
         var isDesktop = desktopWindow != null;
 
@@ -365,6 +366,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         {
             try
             {
+                if (isShareMode && navigateArgs.AppId != null && !ShareAllowedAppIds.Contains(navigateArgs.AppId))
+                {
+                    navigateArgs = navigateArgs with { AppId = "review" };
+                }
+
                 var router = new AppShellRouter();
                 var appDescriptor = navigateArgs.AppId != null
                     ? appRepository.GetApp(navigateArgs.AppId)
