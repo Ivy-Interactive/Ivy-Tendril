@@ -23,32 +23,45 @@ public static class ModelProfileSelector
         var modelIds = availableModels.Select(m => m.Id).ToList();
 
         // 1. Deep Profile
-        // Prioritize Opus 5, other Opus versions, Sol / flagship reasoning models, Sonnet 5, etc.
-        var deep = FindFirstMatchingModel(modelIds,
-            // Opus 5 & variations
-            id => MatchesModel(id, "opus-5") || MatchesModel(id, "opus5"),
-            id => MatchesModel(id, "opus-4-8") || MatchesModel(id, "opus-4.8"),
-            id => MatchesModel(id, "opus-4-7") || MatchesModel(id, "opus-4.7"),
-            id => MatchesModel(id, "opus-4-6") || MatchesModel(id, "opus-4.6"),
-            id => MatchesModel(id, "opus-4-5") || MatchesModel(id, "opus-4.5"),
-            id => MatchesModel(id, "opus-4") || MatchesModel(id, "opus4"),
-            id => MatchesModel(id, "opus"),
-            // Sol / OpenAI Flagship
-            id => MatchesModel(id, "gpt-5.6-sol") || MatchesModel(id, "sol"),
-            id => MatchesModel(id, "gpt-5.6"),
-            id => MatchesModel(id, "gpt-5.5"),
-            id => MatchesModel(id, "gpt-5"),
-            id => MatchesModel(id, "o3"),
-            id => MatchesModel(id, "o1"),
-            // Sonnet 5
-            id => MatchesModel(id, "sonnet-5") || MatchesModel(id, "sonnet5"),
-            id => MatchesModel(id, "sonnet"),
-            // Moonshot Kimi K3
-            id => MatchesModel(id, "kimi-k3") || MatchesModel(id, "kimi"),
-            // Gemini Pro Flagships
-            id => MatchesModel(id, "gemini-3.7-pro") || MatchesModel(id, "gemini-3.6-pro") || MatchesModel(id, "gemini-3.1-pro"),
-            id => MatchesModel(id, "gpt-4o") && !MatchesModel(id, "mini")
-        ) ?? modelIds.FirstOrDefault() ?? "";
+        // Prioritize Gemini 3.7 Flash when isGoogle is true; otherwise Opus 5, Sol, Sonnet 5, etc.
+        var deep = (isGoogle
+            ? FindFirstMatchingModel(modelIds,
+                id => (MatchesModel(id, "gemini-3.7") || MatchesModel(id, "gemini-3-7")) && MatchesModel(id, "flash"),
+                id => MatchesModel(id, "gemini-3.7") || MatchesModel(id, "gemini-3-7"),
+                id => MatchesModel(id, "gemini-3.6-flash") || MatchesModel(id, "gemini-3.6"),
+                id => MatchesModel(id, "gemini-3.1-pro") || (MatchesModel(id, "gemini") && MatchesModel(id, "pro")),
+                id => MatchesModel(id, "gemini") && MatchesModel(id, "flash"),
+                id => MatchesModel(id, "opus-5") || MatchesModel(id, "opus5"),
+                id => MatchesModel(id, "opus"),
+                id => MatchesModel(id, "gpt-5.6-sol") || MatchesModel(id, "sol"),
+                id => MatchesModel(id, "sonnet-5") || MatchesModel(id, "sonnet5")
+            )
+            : FindFirstMatchingModel(modelIds,
+                // Opus 5 & variations
+                id => MatchesModel(id, "opus-5") || MatchesModel(id, "opus5"),
+                id => MatchesModel(id, "opus-4-8") || MatchesModel(id, "opus-4.8"),
+                id => MatchesModel(id, "opus-4-7") || MatchesModel(id, "opus-4.7"),
+                id => MatchesModel(id, "opus-4-6") || MatchesModel(id, "opus-4.6"),
+                id => MatchesModel(id, "opus-4-5") || MatchesModel(id, "opus-4.5"),
+                id => MatchesModel(id, "opus-4") || MatchesModel(id, "opus4"),
+                id => MatchesModel(id, "opus"),
+                // Sol / OpenAI Flagship
+                id => MatchesModel(id, "gpt-5.6-sol") || MatchesModel(id, "sol"),
+                id => MatchesModel(id, "gpt-5.6"),
+                id => MatchesModel(id, "gpt-5.5"),
+                id => MatchesModel(id, "gpt-5"),
+                id => MatchesModel(id, "o3"),
+                id => MatchesModel(id, "o1"),
+                // Sonnet 5
+                id => MatchesModel(id, "sonnet-5") || MatchesModel(id, "sonnet5"),
+                id => MatchesModel(id, "sonnet"),
+                // Moonshot Kimi K3
+                id => MatchesModel(id, "kimi-k3") || MatchesModel(id, "kimi"),
+                // Gemini Pro Flagships
+                id => MatchesModel(id, "gemini-3.7-pro") || MatchesModel(id, "gemini-3.6-pro") || MatchesModel(id, "gemini-3.1-pro") || MatchesModel(id, "gemini-3-pro") || MatchesModel(id, "gemini-2.5-pro") || (MatchesModel(id, "gemini") && MatchesModel(id, "pro")),
+                id => MatchesModel(id, "gemini-3.7-flash") || MatchesModel(id, "gemini-3.6-flash") || MatchesModel(id, "gemini-3-flash") || (MatchesModel(id, "gemini") && MatchesModel(id, "flash")),
+                id => MatchesModel(id, "gpt-4o") && !MatchesModel(id, "mini")
+            )) ?? modelIds.FirstOrDefault() ?? "";
 
         // 2. Balanced Profile
         // Prioritize Gemini 3.7 (flash/pro), Gemini 3.6 (flash/pro), Sonnet 5, Terra, Gemini 3.5, etc.

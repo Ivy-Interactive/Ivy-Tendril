@@ -63,8 +63,6 @@ public class CodingAgentSetupView : ViewBase
                     : "")
         );
 
-        var ollamaUrl = UseState(GetOllamaUrlFromConfig(config, config.Settings.CodingAgent == "ivy" || config.Settings.CodingAgent == "openaiproxy" ? "" : config.Settings.CodingAgent));
-
         var deepModel = UseState(GetProfileModel(config, config.Settings.CodingAgent, "deep"));
         var balancedModel = UseState(GetProfileModel(config, config.Settings.CodingAgent, "balanced"));
         var quickModel = UseState(GetProfileModel(config, config.Settings.CodingAgent, "quick"));
@@ -87,7 +85,7 @@ public class CodingAgentSetupView : ViewBase
                 var result = await catalog.GetModelsAsync(ct);
                 return result.Models.ToArray();
             },
-            initialValue: []
+            initialValue: runner.GetModelCatalog(config.Settings.CodingAgent)?.GetStaticModels()?.ToArray() ?? []
         );
 
 
@@ -97,7 +95,7 @@ public class CodingAgentSetupView : ViewBase
             ? (openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app") ? "ivy" : "openaiproxy")
             : (selectedAgent.Value == "anthropic_card" || isBerget ? "openaiproxy" : selectedAgent.Value);
 
-        if (lastRealAgent.Value != realAgentId || deepModel.Value == "default")
+        if (lastRealAgent.Value != realAgentId || deepModel.Value == "default" || balancedModel.Value == "default" || quickModel.Value == "default")
         {
             var deep = GetProfileModel(config, realAgentId, "deep");
             var balanced = GetProfileModel(config, realAgentId, "balanced");
@@ -108,17 +106,22 @@ public class CodingAgentSetupView : ViewBase
 
             if (deep == "default" || balanced == "default" || quick == "default")
             {
-                var isIvyAgent = realAgentId == "ivy" || openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app");
-                var isAnthropicAgent = selectedAgent.Value == "anthropic_card" || openAiProxyBaseUrl.Value.Contains("api.anthropic.com");
-                var isGoogleAgent = openAiProxyBaseUrl.Value.Contains("generativelanguage.googleapis.com") || openAiProxyBaseUrl.Value.Contains("gemini") || openAiProxyBaseUrl.Value.Contains("google");
+                var (isIvyAgent, isAnthropicAgent, isBergetAgent, isGoogleAgent, isOpenAiAgent) =
+                    DetectAgentProvider(
+                        selectedAgent.Value == "openaiproxy_card" || selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card"
+                            ? selectedAgent.Value
+                            : realAgentId,
+                        openAiProxyBaseUrl.Value);
+
+                var catalogModels = runner.GetModelCatalog(realAgentId)?.GetStaticModels();
 
                 var (defDeep, defBalanced, defQuick) = ModelProfileSelector.SelectDefaults(
-                    null,
+                    catalogModels,
                     isIvy: isIvyAgent,
                     isAnthropic: isAnthropicAgent,
-                    isBerget: isBerget,
+                    isBerget: isBergetAgent,
                     isGoogle: isGoogleAgent,
-                    isOpenAi: !isIvyAgent && !isAnthropicAgent && !isBerget && !isGoogleAgent);
+                    isOpenAi: isOpenAiAgent);
 
                 if (deep == "default") deep = defDeep;
                 if (balanced == "default") balanced = defBalanced;
@@ -131,7 +134,6 @@ public class CodingAgentSetupView : ViewBase
             deepEffort.Set(deepEff);
             balancedEffort.Set(balancedEff);
             quickEffort.Set(quickEff);
-            ollamaUrl.Set(GetOllamaUrlFromConfig(config, realAgentId));
             lastRealAgent.Set(realAgentId);
             testAgentId.Set(realAgentId);
         }
@@ -230,10 +232,6 @@ public class CodingAgentSetupView : ViewBase
         else if (isOpenAi)
         {
             hasCredsChanged = openAiProxyApiKey.Value != currentOpenAiKey || openAiProxyBaseUrl.Value != currentOpenAiBaseUrl;
-        }
-        else if (selectedAgent.Value == "opencode")
-        {
-            hasCredsChanged = ollamaUrl.Value != GetOllamaUrlFromConfig(config, selectedAgent.Value);
         }
 
         var hasChanges = hasAgentChanges || hasProfileChanges || hasCredsChanged;
@@ -335,14 +333,6 @@ public class CodingAgentSetupView : ViewBase
                     .WithField()
                     .Label("API Key");
         }
-        else if (selectedAgent.Value == "opencode")
-        {
-            agentInputs = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
-                | Text.Muted("OpenCode is an open source AI coding agent. Tendril integrates and bundles OpenCode runtime components under the MIT license.").Small()
-                | ollamaUrl.ToTextInput("http://localhost:11434")
-                    .WithField()
-                    .Label("Ollama Host");
-        }
 
         var isByo = isIvy || isBerget || isAnthropic || isOpenAi;
         var hasFetchedModels = models.Length > 0;
@@ -436,10 +426,6 @@ public class CodingAgentSetupView : ViewBase
                                SaveOpenAiProxyBaseUrl(config, openAiProxyBaseUrl.Value);
                                SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
                                SaveIvyApiKey(config, "");
-                           }
-                           else
-                           {
-                               SaveOllamaUrl(config, selectedAgent.Value, ollamaUrl.Value);
                            }
                            config.SaveSettings();
                            client.Toast("Coding agent settings saved", "Saved");
@@ -587,47 +573,6 @@ public class CodingAgentSetupView : ViewBase
         }
     }
 
-    private static string GetOllamaUrlFromConfig(IConfigService config, string agentId)
-    {
-        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
-            AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
-        if (ac != null)
-        {
-            if (ac.EnvironmentVariables.TryGetValue("OLLAMA_HOST", out var host) && !string.IsNullOrEmpty(host))
-                return host;
-            if (ac.EnvironmentVariables.TryGetValue("OLLAMA_BASE_URL", out var baseUrl) && !string.IsNullOrEmpty(baseUrl))
-                return baseUrl;
-        }
-        return "";
-    }
-
-    private static void SaveOllamaUrl(IConfigService config, string agentId, string url)
-    {
-        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
-            AgentProviderFactory.NormalizeAgentName(a.Name).Equals(agentId, StringComparison.OrdinalIgnoreCase));
-
-        if (ac == null)
-        {
-            if (string.IsNullOrEmpty(url)) return;
-            ac = new AgentConfig { Name = agentId };
-            config.Settings.CodingAgents.Add(ac);
-        }
-
-        if (string.IsNullOrEmpty(url))
-        {
-            ac.EnvironmentVariables.Remove("OLLAMA_HOST");
-            ac.EnvironmentVariables.Remove("OLLAMA_BASE_URL");
-        }
-        else
-        {
-            ac.EnvironmentVariables["OLLAMA_HOST"] = url;
-            ac.EnvironmentVariables["OLLAMA_BASE_URL"] = url;
-        }
-    }
-
-
-
-
     private static string GetOpenAiProxyApiKeyFromConfig(IConfigService config)
     {
         var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
@@ -686,5 +631,27 @@ public class CodingAgentSetupView : ViewBase
         {
             ac.EnvironmentVariables["ANTHROPIC_BASE_URL"] = url;
         }
+    }
+
+    private static (bool IsIvy, bool IsAnthropic, bool IsBerget, bool IsGoogle, bool IsOpenAi) DetectAgentProvider(
+        string agentId,
+        string baseUrl)
+    {
+        var id = (agentId ?? "").ToLowerInvariant();
+        var url = (baseUrl ?? "").ToLowerInvariant();
+
+        if (id == "ivy" || url.Contains("llmproxy.ivy.app") || url.Contains("ivy.app"))
+            return (true, false, false, false, false);
+
+        if (id == "berget_card" || id == "berget" || url.Contains("api.berget.ai"))
+            return (false, false, true, false, false);
+
+        if (id == "anthropic_card" || id == "claude" || url.Contains("api.anthropic.com"))
+            return (false, true, false, false, false);
+
+        if (id == "gemini" || id == "antigravity" || url.Contains("generativelanguage.googleapis.com") || url.Contains("gemini") || url.Contains("google"))
+            return (false, false, false, true, false);
+
+        return (false, false, false, false, true);
     }
 }
