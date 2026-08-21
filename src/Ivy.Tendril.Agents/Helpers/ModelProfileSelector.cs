@@ -14,7 +14,7 @@ public static class ModelProfileSelector
     {
         if (availableModels == null || availableModels.Count == 0)
         {
-            var fallbackDeep = isIvy || isAnthropic ? "claude-opus-5" : (isBerget ? "moonshotai/Kimi-K3" : (isGoogle ? "gemini-3.7-flash" : "gpt-5.6-sol"));
+            var fallbackDeep = isIvy || isAnthropic ? "claude-opus-5" : (isBerget ? "moonshotai/Kimi-K3" : (isGoogle ? "gemini-3.1-pro" : "gpt-5.6-sol"));
             var fallbackBalanced = isIvy || isGoogle ? "gemini-3.7-flash" : (isAnthropic ? "claude-sonnet-5" : (isBerget ? "moonshotai/Kimi-K3" : "gpt-5.6-terra"));
             var fallbackQuick = isIvy || isGoogle ? "gemini-3.7-flash" : (isAnthropic ? "claude-haiku-5" : (isBerget ? "moonshotai/Kimi-K3" : "gpt-5.6-luna"));
             return (fallbackDeep, fallbackBalanced, fallbackQuick);
@@ -46,7 +46,8 @@ public static class ModelProfileSelector
             // Moonshot Kimi K3
             id => MatchesModel(id, "kimi-k3") || MatchesModel(id, "kimi"),
             // Gemini Pro Flagships
-            id => MatchesModel(id, "gemini-3.7-pro") || MatchesModel(id, "gemini-3.6-pro") || MatchesModel(id, "gemini-3.1-pro"),
+            id => MatchesModel(id, "gemini-3.7-pro") || MatchesModel(id, "gemini-3.6-pro") || MatchesModel(id, "gemini-3.1-pro") || MatchesModel(id, "gemini-3-pro") || MatchesModel(id, "gemini-2.5-pro") || (MatchesModel(id, "gemini") && MatchesModel(id, "pro")),
+            id => MatchesModel(id, "gemini-3.7-flash") || MatchesModel(id, "gemini-3.6-flash") || MatchesModel(id, "gemini-3-flash") || (MatchesModel(id, "gemini") && MatchesModel(id, "flash")),
             id => MatchesModel(id, "gpt-4o") && !MatchesModel(id, "mini")
         ) ?? modelIds.FirstOrDefault() ?? "";
 

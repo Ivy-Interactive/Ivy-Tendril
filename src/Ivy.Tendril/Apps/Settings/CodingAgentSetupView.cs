@@ -87,7 +87,7 @@ public class CodingAgentSetupView : ViewBase
                 var result = await catalog.GetModelsAsync(ct);
                 return result.Models.ToArray();
             },
-            initialValue: []
+            initialValue: runner.GetModelCatalog(config.Settings.CodingAgent)?.GetStaticModels()?.ToArray() ?? []
         );
 
 
@@ -97,7 +97,7 @@ public class CodingAgentSetupView : ViewBase
             ? (openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app") ? "ivy" : "openaiproxy")
             : (selectedAgent.Value == "anthropic_card" || isBerget ? "openaiproxy" : selectedAgent.Value);
 
-        if (lastRealAgent.Value != realAgentId || deepModel.Value == "default")
+        if (lastRealAgent.Value != realAgentId || deepModel.Value == "default" || balancedModel.Value == "default" || quickModel.Value == "default")
         {
             var deep = GetProfileModel(config, realAgentId, "deep");
             var balanced = GetProfileModel(config, realAgentId, "balanced");
@@ -108,17 +108,22 @@ public class CodingAgentSetupView : ViewBase
 
             if (deep == "default" || balanced == "default" || quick == "default")
             {
-                var isIvyAgent = realAgentId == "ivy" || openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app");
-                var isAnthropicAgent = selectedAgent.Value == "anthropic_card" || openAiProxyBaseUrl.Value.Contains("api.anthropic.com");
-                var isGoogleAgent = openAiProxyBaseUrl.Value.Contains("generativelanguage.googleapis.com") || openAiProxyBaseUrl.Value.Contains("gemini") || openAiProxyBaseUrl.Value.Contains("google");
+                var (isIvyAgent, isAnthropicAgent, isBergetAgent, isGoogleAgent, isOpenAiAgent) =
+                    DetectAgentProvider(
+                        selectedAgent.Value == "openaiproxy_card" || selectedAgent.Value == "anthropic_card" || selectedAgent.Value == "berget_card"
+                            ? selectedAgent.Value
+                            : realAgentId,
+                        openAiProxyBaseUrl.Value);
+
+                var catalogModels = runner.GetModelCatalog(realAgentId)?.GetStaticModels();
 
                 var (defDeep, defBalanced, defQuick) = ModelProfileSelector.SelectDefaults(
-                    null,
+                    catalogModels,
                     isIvy: isIvyAgent,
                     isAnthropic: isAnthropicAgent,
-                    isBerget: isBerget,
+                    isBerget: isBergetAgent,
                     isGoogle: isGoogleAgent,
-                    isOpenAi: !isIvyAgent && !isAnthropicAgent && !isBerget && !isGoogleAgent);
+                    isOpenAi: isOpenAiAgent);
 
                 if (deep == "default") deep = defDeep;
                 if (balanced == "default") balanced = defBalanced;
@@ -686,5 +691,27 @@ public class CodingAgentSetupView : ViewBase
         {
             ac.EnvironmentVariables["ANTHROPIC_BASE_URL"] = url;
         }
+    }
+
+    private static (bool IsIvy, bool IsAnthropic, bool IsBerget, bool IsGoogle, bool IsOpenAi) DetectAgentProvider(
+        string agentId,
+        string baseUrl)
+    {
+        var id = (agentId ?? "").ToLowerInvariant();
+        var url = (baseUrl ?? "").ToLowerInvariant();
+
+        if (id == "ivy" || url.Contains("llmproxy.ivy.app") || url.Contains("ivy.app"))
+            return (true, false, false, false, false);
+
+        if (id == "berget_card" || id == "berget" || url.Contains("api.berget.ai"))
+            return (false, false, true, false, false);
+
+        if (id == "anthropic_card" || id == "claude" || url.Contains("api.anthropic.com"))
+            return (false, true, false, false, false);
+
+        if (id == "gemini" || id == "antigravity" || url.Contains("generativelanguage.googleapis.com") || url.Contains("gemini") || url.Contains("google"))
+            return (false, false, false, true, false);
+
+        return (false, false, false, false, true);
     }
 }

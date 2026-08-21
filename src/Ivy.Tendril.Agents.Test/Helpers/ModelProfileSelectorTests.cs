@@ -84,6 +84,47 @@ public sealed class ModelProfileSelectorTests
     }
 
     [Fact]
+    public void SelectDefaults_GeminiCatalog_PicksProDeep_FlashBalanced_FlashQuick()
+    {
+        var models = new List<ModelInfo>
+        {
+            new() { Id = "gemini-3.7-flash", DisplayName = "Gemini 3.7 Flash" },
+            new() { Id = "gemini-3.6-flash", DisplayName = "Gemini 3.6 Flash" },
+            new() { Id = "gemini-3.5-flash", DisplayName = "Gemini 3.5 Flash" },
+            new() { Id = "gemini-3.1-pro", DisplayName = "Gemini 3.1 Pro" },
+            new() { Id = "gemini-3-pro-preview", DisplayName = "Gemini 3 Pro" },
+            new() { Id = "gemini-3-flash-preview", DisplayName = "Gemini 3 Flash" },
+        };
+
+        var (deep, balanced, quick) = ModelProfileSelector.SelectDefaults(models, isGoogle: true);
+
+        Assert.Equal("gemini-3.1-pro", deep);
+        Assert.Equal("gemini-3.7-flash", balanced);
+        Assert.Equal("gemini-3.7-flash", quick);
+    }
+
+    [Fact]
+    public void SelectDefaults_AntigravityCatalog_PicksOpusDeep_Gemini37Balanced_GeminiQuick()
+    {
+        var models = new List<ModelInfo>
+        {
+            new() { Id = "gemini-3.7-flash", DisplayName = "Gemini 3.7 Flash" },
+            new() { Id = "gemini-3.6-flash", DisplayName = "Gemini 3.6 Flash" },
+            new() { Id = "gemini-3.5-flash", DisplayName = "Gemini 3.5 Flash" },
+            new() { Id = "gemini-3.1-pro", DisplayName = "Gemini 3.1 Pro" },
+            new() { Id = "claude-opus-5", DisplayName = "Claude Opus 5" },
+            new() { Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5" },
+            new() { Id = "gpt-oss-120b", DisplayName = "GPT-OSS 120B" },
+        };
+
+        var (deep, balanced, quick) = ModelProfileSelector.SelectDefaults(models, isGoogle: true);
+
+        Assert.Equal("claude-opus-5", deep);
+        Assert.Equal("gemini-3.7-flash", balanced);
+        Assert.Equal("gemini-3.7-flash", quick);
+    }
+
+    [Fact]
     public void SelectDefaults_EmptyModels_ReturnsCardDefaults()
     {
         var (deepIvy, balancedIvy, quickIvy) = ModelProfileSelector.SelectDefaults(null, isIvy: true);
@@ -95,5 +136,15 @@ public sealed class ModelProfileSelectorTests
         Assert.Equal("claude-opus-5", deepAnt);
         Assert.Equal("claude-sonnet-5", balancedAnt);
         Assert.Equal("claude-haiku-5", quickAnt);
+
+        var (deepGoogle, balancedGoogle, quickGoogle) = ModelProfileSelector.SelectDefaults(null, isGoogle: true);
+        Assert.Equal("gemini-3.1-pro", deepGoogle);
+        Assert.Equal("gemini-3.7-flash", balancedGoogle);
+        Assert.Equal("gemini-3.7-flash", quickGoogle);
+
+        var (deepOpenAi, balancedOpenAi, quickOpenAi) = ModelProfileSelector.SelectDefaults(null, isOpenAi: true);
+        Assert.Equal("gpt-5.6-sol", deepOpenAi);
+        Assert.Equal("gpt-5.6-terra", balancedOpenAi);
+        Assert.Equal("gpt-5.6-luna", quickOpenAi);
     }
 }
