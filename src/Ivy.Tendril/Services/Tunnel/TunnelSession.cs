@@ -7,7 +7,7 @@ namespace Ivy.Tendril.Services.Tunnel;
 
 public sealed partial class TunnelSession : IDisposable
 {
-    private static readonly TimeSpan UrlTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan UrlTimeout = TimeSpan.FromSeconds(60);
 
     private readonly string _binaryPath;
     private readonly string _originUrl;
@@ -38,6 +38,8 @@ public sealed partial class TunnelSession : IDisposable
             CreateNoWindow = true,
         };
         psi.ArgumentList.Add("tunnel");
+        psi.ArgumentList.Add("--protocol");
+        psi.ArgumentList.Add("http2");
         psi.ArgumentList.Add("--url");
         psi.ArgumentList.Add(_originUrl);
         if (_originUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
