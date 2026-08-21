@@ -22,6 +22,7 @@ public class SettingsApp : ViewBase
     private const string TagTunnel = "tunnel";
     private const string TagAdvanced = "advanced";
     private const string TagNewsletter = "newsletter";
+    private const string TagAbout = "about";
 
     public override object Build()
     {
@@ -70,6 +71,7 @@ public class SettingsApp : ViewBase
             ("Security & Tunnel", TagSecurity, Icons.Lock),
             ("Advanced", TagAdvanced, Icons.Cog),
             ("Newsletter", TagNewsletter, Icons.Mail),
+            ("About", TagAbout, Icons.Info),
         };
 
         var rows = new List<object>
@@ -115,6 +117,7 @@ public class SettingsApp : ViewBase
         rows.Add(SidebarListRow.Build("Security & Tunnel", Icons.Lock, () => selected.Set(TagSecurity), selectedTag == TagSecurity || selectedTag == TagTunnel));
         rows.Add(SidebarListRow.Build("Advanced", Icons.Cog, () => selected.Set(TagAdvanced), selectedTag == TagAdvanced));
         rows.Add(SidebarListRow.Build("Newsletter", Icons.Mail, () => selected.Set(TagNewsletter), selectedTag == TagNewsletter));
+        rows.Add(SidebarListRow.Build("About", Icons.Info, () => selected.Set(TagAbout), selectedTag == TagAbout));
         rows.Add(SidebarListRow.Build("Open config.yaml", Icons.FileText, () => ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost), false));
 
         var sidebar = Layout.Vertical(rows).Gap(1);
@@ -166,6 +169,7 @@ public class SettingsApp : ViewBase
                     : new CodingAgentSetupView(),
                 TagAdvanced => new AdvancedSetupView(),
                 TagNewsletter => new NewsletterSetupView(),
+                TagAbout => new AboutSetupView(),
                 _ => new CodingAgentSetupView()
             };
         }
