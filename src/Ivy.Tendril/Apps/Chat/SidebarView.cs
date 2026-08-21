@@ -65,14 +65,13 @@ public class SidebarView(
                 object metaLine;
                 if (isGenerating)
                 {
-                    metaLine = Layout.Horizontal().Gap(1).AlignContent(Align.Left)
-                        | new Icon(Icons.LoaderCircle, Colors.Green).Small().WithAnimation(AnimationType.Rotate).Duration(1)
-                        | Text.Success("Generating").Small()
-                        | Text.Muted($"• {sess.AgentId}").Small();
+                    metaLine = Layout.Horizontal().AlignContent(Align.Left)
+                        | new Icon(Icons.LoaderCircle).Small().WithAnimation(AnimationType.Rotate).Duration(1)
+                        | Text.Muted(sess.AgentId).Small();
                 }
                 else if (isCompleted)
                 {
-                    metaLine = Layout.Horizontal().Gap(1).AlignContent(Align.Left)
+                    metaLine = Layout.Horizontal().AlignContent(Align.Left)
                         | new Icon(Icons.Check, Colors.Green).Small()
                         | Text.Success("Completed").Small()
                         | Text.Muted($"• {sess.AgentId}").Small();
@@ -82,13 +81,9 @@ public class SidebarView(
                     metaLine = Text.Muted($"{formattedDate} • {sess.AgentId}").Small().NoWrap().Overflow(Overflow.Ellipsis);
                 }
 
-                object titleBlock = (isGenerating || isCompleted)
-                    ? (Layout.Horizontal().Gap(1).AlignContent(Align.Left)
-                        | new Icon(Icons.CircleDot, Colors.Green).Small()
-                        | Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis))
-                    : Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis);
+                object titleBlock = Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis);
 
-                var textStack = Layout.Vertical().Gap(0).Width(Size.Full())
+                var textStack = Layout.Vertical().Width(Size.Full())
                     | titleBlock
                     | metaLine;
 
