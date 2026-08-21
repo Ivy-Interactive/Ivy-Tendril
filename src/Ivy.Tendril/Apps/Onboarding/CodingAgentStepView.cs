@@ -249,10 +249,10 @@ public class CodingAgentStepView(
                 }
                 else if (isGoogle)
                 {
-                    deepModel.Set("gemini-3.1-pro");
+                    deepModel.Set("gemini-3.7-flash");
                     balancedModel.Set("gemini-3.7-flash");
                     quickModel.Set("gemini-3.7-flash");
-                    customDeepText.Set("gemini-3.1-pro");
+                    customDeepText.Set("gemini-3.7-flash");
                     customBalancedText.Set("gemini-3.7-flash");
                     customQuickText.Set("gemini-3.7-flash");
                 }

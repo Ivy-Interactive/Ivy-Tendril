@@ -84,7 +84,7 @@ public sealed class ModelProfileSelectorTests
     }
 
     [Fact]
-    public void SelectDefaults_GeminiCatalog_PicksProDeep_FlashBalanced_FlashQuick()
+    public void SelectDefaults_GeminiCatalog_PicksFlashDeep_FlashBalanced_FlashQuick()
     {
         var models = new List<ModelInfo>
         {
@@ -98,13 +98,13 @@ public sealed class ModelProfileSelectorTests
 
         var (deep, balanced, quick) = ModelProfileSelector.SelectDefaults(models, isGoogle: true);
 
-        Assert.Equal("gemini-3.1-pro", deep);
+        Assert.Equal("gemini-3.7-flash", deep);
         Assert.Equal("gemini-3.7-flash", balanced);
         Assert.Equal("gemini-3.7-flash", quick);
     }
 
     [Fact]
-    public void SelectDefaults_AntigravityCatalog_PicksOpusDeep_Gemini37Balanced_GeminiQuick()
+    public void SelectDefaults_AntigravityCatalog_PicksFlashDeep_Gemini37Balanced_GeminiQuick()
     {
         var models = new List<ModelInfo>
         {
@@ -119,7 +119,7 @@ public sealed class ModelProfileSelectorTests
 
         var (deep, balanced, quick) = ModelProfileSelector.SelectDefaults(models, isGoogle: true);
 
-        Assert.Equal("claude-opus-5", deep);
+        Assert.Equal("gemini-3.7-flash", deep);
         Assert.Equal("gemini-3.7-flash", balanced);
         Assert.Equal("gemini-3.7-flash", quick);
     }
@@ -138,7 +138,7 @@ public sealed class ModelProfileSelectorTests
         Assert.Equal("claude-haiku-5", quickAnt);
 
         var (deepGoogle, balancedGoogle, quickGoogle) = ModelProfileSelector.SelectDefaults(null, isGoogle: true);
-        Assert.Equal("gemini-3.1-pro", deepGoogle);
+        Assert.Equal("gemini-3.7-flash", deepGoogle);
         Assert.Equal("gemini-3.7-flash", balancedGoogle);
         Assert.Equal("gemini-3.7-flash", quickGoogle);
 

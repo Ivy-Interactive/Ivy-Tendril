@@ -25,7 +25,7 @@ public sealed class AntigravityCli : IAgentCli
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
     [
-        new(ProfileTier.Deep, "gemini-3.1-pro", "medium"),
+        new(ProfileTier.Deep, "gemini-3.7-flash", "medium"),
         new(ProfileTier.Balanced, "gemini-3.7-flash", "medium"),
         new(ProfileTier.Quick, "gemini-3.7-flash", "medium"),
     ];

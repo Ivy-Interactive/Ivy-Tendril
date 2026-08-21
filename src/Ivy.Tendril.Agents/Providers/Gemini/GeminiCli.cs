@@ -21,7 +21,7 @@ public sealed class GeminiCli : IAgentCli
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
     [
-        new(ProfileTier.Deep, "gemini-3.1-pro", null),
+        new(ProfileTier.Deep, "gemini-3.7-flash", null),
         new(ProfileTier.Balanced, "gemini-3.7-flash", null),
         new(ProfileTier.Quick, "gemini-3.7-flash", null),
     ];
