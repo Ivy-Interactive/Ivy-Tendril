@@ -244,16 +244,16 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
             <div key={idx} className="flex flex-col gap-1 border-b border-[var(--border)] pb-2 last:border-0 last:pb-0">
               <div className="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  {comment.author && (
+                  {comment.author?.trim() && (
                     <div
                       className="pmv-comment-avatar"
-                      title={comment.author}
+                      title={comment.author.trim()}
                     >
-                      {getInitials(comment.author)}
+                      {getInitials(comment.author.trim())}
                     </div>
                   )}
                   <span className="font-medium text-[var(--foreground)] truncate">
-                    {comment.author ? comment.author : "Agent Instruction (Draft)"}
+                    {comment.author?.trim() ? comment.author.trim() : "Agent Instruction (Draft)"}
                   </span>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
@@ -404,7 +404,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       changeKey,
       content,
       lineNumber,
-      author: currentAuthor,
+      author: currentAuthor?.trim() || undefined,
     }]);
   };
 

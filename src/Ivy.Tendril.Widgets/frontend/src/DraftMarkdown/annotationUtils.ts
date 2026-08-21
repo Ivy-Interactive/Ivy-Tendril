@@ -153,20 +153,20 @@ export function applyAnnotationHighlights(
 
       const mark = document.createElement("mark");
       mark.dataset.annotationId = annotation.id;
-      mark.className = "pmv-annotation-highlight";
-      mark.title = annotation.author
-        ? `[${annotation.author}] ${annotation.comment}`
+      const author = annotation.author?.trim();
+      mark.title = author
+        ? `[${author}] ${annotation.comment}`
         : annotation.comment;
 
       range.surroundContents(mark);
 
-      if (i === textNodes.length - 1 && annotation.author) {
-        const initials = getInitials(annotation.author);
+      if (i === textNodes.length - 1 && author) {
+        const initials = getInitials(author);
         if (initials) {
           const badge = document.createElement("span");
           badge.className = "pmv-annotation-initials-badge";
           badge.textContent = initials;
-          badge.title = annotation.author;
+          badge.title = author;
           mark.appendChild(badge);
         }
       }

@@ -249,7 +249,7 @@ public class ContentView(
             planService,
             config,
             annotations,
-            shareContext.Persona);
+            shareContext.IsShareMode ? shareContext.Persona : null);
 
         if (planContentQuery.Loading)
         {

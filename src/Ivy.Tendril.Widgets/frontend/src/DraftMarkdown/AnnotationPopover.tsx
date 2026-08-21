@@ -150,12 +150,12 @@ export const EditAnnotationPopover: React.FC<EditAnnotationPopoverProps> = ({
       className="pmv-popover"
       style={{ top: position.top, left: position.left, visibility: visible ? "visible" : "hidden" }}
     >
-      {annotation.author && (
+      {annotation.author?.trim() && (
         <div className="pmv-popover-author">
           <span className="pmv-popover-avatar">
-            {getInitials(annotation.author)}
+            {getInitials(annotation.author.trim())}
           </span>
-          <span className="pmv-popover-author-name">{annotation.author}</span>
+          <span className="pmv-popover-author-name">{annotation.author.trim()}</span>
         </div>
       )}
       <div className="pmv-popover-quote">

@@ -112,11 +112,11 @@ public class ChangesTabView(
                 FilePath = path,
                 Collapsible = true,
                 Comments = draftComments.Value.Where(c => c.FilePath == path).ToList(),
-                CurrentAuthor = shareContext.Persona,
+                CurrentAuthor = shareContext.IsShareMode ? shareContext.Persona : null,
                 OnAddComment = async e =>
                 {
                     var comment = e.Value;
-                    if (string.IsNullOrEmpty(comment.Author))
+                    if (string.IsNullOrEmpty(comment.Author) && shareContext.IsShareMode)
                     {
                         comment = comment with { Author = shareContext.Persona };
                     }
