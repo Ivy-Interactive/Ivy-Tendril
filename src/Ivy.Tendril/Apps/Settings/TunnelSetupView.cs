@@ -47,7 +47,7 @@ public class TunnelSetupView : ViewBase
                    | Text.Block("Tunnel").Bold()
                    | Text.Block("Expose your Tendril instance to the internet via a Cloudflare tunnel. Useful for accessing Tendril from mobile devices or sharing with others.").Muted().Small();
 
-        if (error.Value is not null)
+        if (error.Value is not null && status.Value == TunnelStatus.Disabled)
         {
             form |= Callout.Error(error.Value, "Error");
         }
@@ -57,7 +57,15 @@ public class TunnelSetupView : ViewBase
             var calloutContent = Layout.Vertical()
                                  | Text.Block(
                                      "Starting tunnel and waiting for it to become routable. This typically takes 15-30 seconds.")
-                                 | new Loading();
+                                 | new Loading()
+                                 | new Button("Deactivate").Outline()
+                                     .OnClick(async () =>
+                                     {
+                                         status.Set(TunnelStatus.Disabled);
+                                         tunnelUrl.Set(null);
+                                         client.Toast("Tunnel stopped", "Deactivated");
+                                         await tunnelService.DeactivateAsync();
+                                     });
             form |= Callout.Info(calloutContent, "Tunnel Starting");
         }
         else if (status.Value == TunnelStatus.Connected && tunnelUrl.Value is not null)
@@ -74,7 +82,6 @@ public class TunnelSetupView : ViewBase
                                         })
                                     | new Button("Open in Browser").Icon(Icons.ExternalLink).Outline()
                                         .OnClick(() => client.OpenUrl(tunnelUrl.Value!)))
-                                 //| Text.Block("Scan QR Code").Bold().Small()
                                  | new QRCode
                                  {
                                      Value = tunnelUrl.Value,
@@ -84,14 +91,11 @@ public class TunnelSetupView : ViewBase
                                  | new Button("Deactivate").Outline()
                                      .OnClick(async () =>
                                      {
-                                         // Optimistically flip to the disconnected view immediately;
-                                         // the actual teardown runs in the background below.
                                          status.Set(TunnelStatus.Disabled);
                                          tunnelUrl.Set(null);
                                          client.Toast("Tunnel stopped", "Deactivated");
                                          await tunnelService.DeactivateAsync();
-                                     })
-                ;
+                                     });
 
             form |= new Callout(calloutContent, "Tunnel Active", CalloutVariant.Success);
         }
@@ -101,8 +105,6 @@ public class TunnelSetupView : ViewBase
                 .OnClick(async () =>
                 {
                     error.Set(null);
-                    // Optimistically show the connecting state; the service drives
-                    // it to Connected (or back to Disabled on failure) via StatusChanged.
                     status.Set(TunnelStatus.Connecting);
 
                     try
@@ -165,10 +167,10 @@ public class TunnelSetupView : ViewBase
 
         var shareSection = Layout.Vertical()
             | new Separator()
-            | Text.Block("Share Tunnel (Read-Only & Review)").Bold()
-            | Text.Block("Creates a dedicated read-only, comment-only tunnel for team members to review plans and drafts with anonymous tags, without administrative or destructive access.").Muted().Small();
+            | Text.Block("Share Tunnel").Bold()
+            | Text.Block("Expose a read-only, comment-only version of Tendril for team members to review plans and drafts.").Muted().Small();
 
-        if (shareError.Value is not null)
+        if (shareError.Value is not null && shareStatus.Value == TunnelStatus.Disabled)
         {
             shareSection |= Callout.Error(shareError.Value, "Error");
         }
@@ -177,16 +179,24 @@ public class TunnelSetupView : ViewBase
         {
             var calloutContent = Layout.Vertical()
                 | Text.Block("Starting share tunnel and waiting for it to become routable. This typically takes 15-30 seconds.")
-                | new Loading();
+                | new Loading()
+                | new Button("Deactivate").Outline()
+                    .OnClick(async () =>
+                    {
+                        shareStatus.Set(TunnelStatus.Disabled);
+                        shareTunnelUrl.Set(null);
+                        client.Toast("Share tunnel stopped", "Deactivated");
+                        await shareTunnelService.DeactivateAsync();
+                    });
             shareSection |= Callout.Info(calloutContent, "Share Tunnel Starting");
         }
         else if (shareStatus.Value == TunnelStatus.Connected && shareTunnelUrl.Value is not null)
         {
             var calloutContent = Layout.Vertical()
-                | "Your read-only share tunnel is active. Anyone with this link can review plans and submit comments as anonymous reviewers."
+                | "Your share tunnel is running and accessible at the URL below."
                 | Text.Monospaced(shareTunnelUrl.Value)
                 | (Layout.Horizontal()
-                    | new Button("Copy Share URL").Icon(Icons.ClipboardCopy).Outline()
+                    | new Button("Copy URL").Icon(Icons.ClipboardCopy).Outline()
                         .OnClick(() =>
                         {
                             copyToClipboard(shareTunnelUrl.Value!);
@@ -200,7 +210,7 @@ public class TunnelSetupView : ViewBase
                     PixelSize = 200,
                     ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium
                 }
-                | new Button("Deactivate Share Tunnel").Outline()
+                | new Button("Deactivate").Outline()
                     .OnClick(async () =>
                     {
                         shareStatus.Set(TunnelStatus.Disabled);
@@ -213,7 +223,7 @@ public class TunnelSetupView : ViewBase
         }
         else
         {
-            shareSection |= new Button("Activate Share Tunnel").Outline()
+            shareSection |= new Button("Activate").Primary()
                 .OnClick(async () =>
                 {
                     shareError.Set(null);
@@ -221,7 +231,7 @@ public class TunnelSetupView : ViewBase
 
                     try
                     {
-                        var installed = await tunnelService.CheckInstalledAsync();
+                        var installed = await shareTunnelService.CheckInstalledAsync();
                         if (!installed)
                         {
                             shareStatus.Set(TunnelStatus.Disabled);
@@ -232,7 +242,7 @@ public class TunnelSetupView : ViewBase
                                     shareStatus.Set(TunnelStatus.Connecting);
                                     try
                                     {
-                                        await tunnelService.InstallAsync();
+                                        await shareTunnelService.InstallAsync();
                                         await shareTunnelService.ActivateAsync();
                                     }
                                     catch (Exception ex)

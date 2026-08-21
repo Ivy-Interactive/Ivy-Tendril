@@ -53,6 +53,7 @@ public sealed partial class TunnelSession : IDisposable
             _logger.LogDebug("cloudflared process not tracked by job object (PID {Pid})", _process.Id);
 
         _process.ErrorDataReceived += OnStderrLine;
+        _process.OutputDataReceived += OnStderrLine;
         _process.BeginErrorReadLine();
         _process.BeginOutputReadLine();
 
