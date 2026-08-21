@@ -163,6 +163,30 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         "review", "drafts"
     };
 
+    private static MenuItem? FilterMenuItemForShare(MenuItem item, HashSet<string> allowedTags)
+    {
+        if (item.Children is { Length: > 0 } children)
+        {
+            var filteredChildren = children
+                .Select(c => FilterMenuItemForShare(c, allowedTags))
+                .Where(c => c != null)
+                .Select(c => c!)
+                .ToArray();
+
+            if (filteredChildren.Length == 0)
+                return null;
+
+            return item with { Children = filteredChildren };
+        }
+
+        if (item.Tag is string tag && allowedTags.Contains(tag))
+        {
+            return item;
+        }
+
+        return null;
+    }
+
     private static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status,
         IConfigService config, IAgentRunner runner, bool isShareMode = false)
     {
@@ -185,7 +209,10 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         if (isShareMode)
         {
-            items = items.Where(m => m.Tag is string tag && ShareAllowedAppIds.Contains(tag));
+            items = items
+                .Select(m => FilterMenuItemForShare(m, ShareAllowedAppIds))
+                .Where(m => m != null)
+                .Select(m => m!);
         }
 
         return items.ToArray();
