@@ -58,7 +58,6 @@ public class ContentView(
         var agentRunner = UseService<IAgentRunner>();
         var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
         var shareTunnelService = UseService<Ivy.Tendril.Services.Tunnel.IShareTunnelService>();
-        var reviewFeedbackService = UseService<Ivy.Tendril.Services.Plans.IReviewFeedbackService>();
         var resetToDraftLogger = UseService<ILogger<ResetToDraftDialog>>();
         Context.TryUseService<TendrilArgs>(out var tendrilArgs);
 
@@ -74,12 +73,6 @@ public class ContentView(
         {
             if (!isOpen.Value) return null;
             return new SuggestChangesDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans, draftComments.Value, draftComments);
-        });
-
-        var (submitReviewDialog, showSubmitReviewDialog) = UseTrigger((isOpen) =>
-        {
-            if (!isOpen.Value || selectedPlanState.Value == null) return null;
-            return new SubmitReviewDialog(isOpen, selectedPlanState.Value, shareContext, reviewFeedbackService, draftComments.Value, draftComments, refreshPlans);
         });
 
         var (shareModal, showShareModal) = UseTrigger((isOpen) =>
@@ -255,14 +248,14 @@ public class ContentView(
             selectedPlanState.Value!, selectedRecTitles, client,
             planContentQuery.Mutator.Revalidate);
 
-        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, context, showCreatePrDialog, isShareMode, showSubmitReviewDialog, draftComments);
+        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, context, showCreatePrDialog, isShareMode, draftComments);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
             context, agentRunner, draftComments, isShareMode, isBeta, shareTunnelService, showShareModal);
         var content = BuildContent(
             selectedPlanState.Value, planContentQuery, selectedTab, sheets,
             syncingWorktrees, selectedRecTitles, context, showDebugJob, showCostJob, draftComments,
-            ImplementRecommendations, reviewFeedbackService, isShareMode, isBeta);
+            ImplementRecommendations, isShareMode, isBeta);
 
         var mainLayout = new HeaderLayout(
             header,
@@ -272,7 +265,7 @@ public class ContentView(
             ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlanState.Value.Id);
 
-        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, submitReviewDialog,
+        return new Fragment(mainLayout, discardDialog, suggestChangesDialog,
             isBeta || isShareMode ? shareModal : null, createPrDialog, resetToDraftDialog,
             debugSheet, costSheet);
     }
@@ -284,7 +277,6 @@ public class ContentView(
         ReviewViewContext context,
         Action showCreatePrDialog,
         bool isShareMode,
-        Action showSubmitReviewDialog,
         IState<List<DraftComment>> draftComments)
     {
         object BuildTitleArea(bool isMobile)
@@ -328,7 +320,6 @@ public class ContentView(
 
         object BuildControls(bool isMobile)
         {
-            var commentCount = draftComments.Value.Count;
             var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
                            | Text.Rich()
                                .NoWrap()
@@ -337,11 +328,6 @@ public class ContentView(
 
             if (isShareMode)
             {
-                var submitBtn = new Button(commentCount > 0 ? $"Submit Review ({commentCount})" : "Submit Review")
-                    .Icon(Icons.Send)
-                    .OnClick(showSubmitReviewDialog);
-                submitBtn = commentCount > 0 ? submitBtn.Primary() : submitBtn.Outline();
-                rightSide |= submitBtn;
                 return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
             }
 
@@ -596,7 +582,6 @@ public class ContentView(
         Action<string> showCostJob,
         IState<List<DraftComment>> draftComments,
         Action onImplementRecommendations,
-        IReviewFeedbackService reviewFeedbackService,
         bool isShareMode,
         bool isBeta)
     {
@@ -732,18 +717,6 @@ public class ContentView(
                 tabNamesList.Add("recommendations");
             }
 
-            if (isBeta || isShareMode)
-            {
-                var submittedReviews = reviewFeedbackService.GetReviewsForPlan(selectedPlan.FolderPath);
-                if (submittedReviews.Count > 0)
-                {
-                    var reviewsTabIndex = tabList.Count;
-                    var isReviewsSelected = selectedTab.Value == reviewsTabIndex;
-                    tabList.Add(new Tab("Reviews", isReviewsSelected ? Cap(new ReviewsTabView(submittedReviews, selectedPlan, reviewFeedbackService, refreshPlans)) : new Empty())
-                        .Badge(submittedReviews.Count.ToString()));
-                    tabNamesList.Add("reviews");
-                }
-            }
 
             var actualTabNames = tabNamesList.ToArray();
 

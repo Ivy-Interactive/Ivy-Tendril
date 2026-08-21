@@ -267,10 +267,11 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
                   <span>&bull;</span>
                   <button
                     type="button"
-                    className="hover:underline hover:text-[var(--destructive)] cursor-pointer"
+                    className="hover:underline hover:text-[var(--foreground)] cursor-pointer"
                     onClick={onDeleteComment}
+                    title="Mark comment as resolved"
                   >
-                    Delete
+                    Resolve
                   </button>
                 </div>
               </div>

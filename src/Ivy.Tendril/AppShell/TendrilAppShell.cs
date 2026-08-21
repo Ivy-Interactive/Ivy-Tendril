@@ -231,7 +231,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         // All hooks must be at the top level of Build()
         var config = UseService<IConfigService>();
         var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
-        var reviewFeedbackService = UseService<Ivy.Tendril.Services.Plans.IReviewFeedbackService>();
         var logger = UseService<ILogger<TendrilAppShell>>();
         var tabs = UseState(ImmutableArray.Create<TabState>);
         var selectedIndex = UseState<int?>();
@@ -322,16 +321,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             return Disposable.Create(() => jobService.NotificationReady -= OnNotification);
         });
 
-        UseEffect(() =>
-        {
-            void OnReviewSubmitted(Ivy.Tendril.Models.ReviewFeedback review)
-            {
-                client.Toast($"New review from {review.Author} on plan #{FormatPlanId(review.PlanFolder)}", "Review Received");
-            }
-
-            reviewFeedbackService.ReviewSubmitted += OnReviewSubmitted;
-            return Disposable.Create(() => reviewFeedbackService.ReviewSubmitted -= OnReviewSubmitted);
-        });
 
         UseEffect(async () =>
         {
