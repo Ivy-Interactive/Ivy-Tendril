@@ -61,8 +61,17 @@ public sealed partial class TunnelSession : IDisposable
         timeoutCts.CancelAfter(UrlTimeout);
 
         await using var reg = timeoutCts.Token.Register(() =>
+        {
+            string recentOutput;
+            lock (_logLock)
+            {
+                recentOutput = _recentLogs.Count > 0
+                    ? string.Join(" | ", _recentLogs.TakeLast(3))
+                    : "No output received from cloudflared";
+            }
             _urlTcs.TrySetException(new TimeoutException(
-                $"Cloudflare did not produce a tunnel URL within {UrlTimeout.TotalSeconds}s")));
+                $"Cloudflare did not produce a tunnel URL within {UrlTimeout.TotalSeconds}s ({recentOutput})"));
+        });
 
         var url = await _urlTcs.Task;
         TunnelUrl = url;
@@ -94,11 +103,21 @@ public sealed partial class TunnelSession : IDisposable
         _process = null;
     }
 
+    private readonly List<string> _recentLogs = [];
+    private readonly object _logLock = new();
+
     private void OnStderrLine(object sender, DataReceivedEventArgs e)
     {
         if (e.Data is null) return;
 
         _logger.LogDebug("[cloudflared] {Line}", e.Data);
+
+        lock (_logLock)
+        {
+            if (_recentLogs.Count >= 20)
+                _recentLogs.RemoveAt(0);
+            _recentLogs.Add(e.Data);
+        }
 
         var url = ParseTunnelUrl(e.Data);
         if (url is not null)

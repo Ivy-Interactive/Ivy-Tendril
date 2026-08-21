@@ -43,10 +43,11 @@ public sealed class ShareTunnelService : IShareTunnelService, IStartable, IDispo
     {
         get
         {
-            if (_config.Settings.ShareTunnel?.Port is { } p && p > 0)
-                return p;
-            var basePort = _config.Settings.Tunnel?.Port ?? 5010;
-            return basePort + 1;
+            var mainPort = _config.Settings.Tunnel?.Port ?? 5010;
+            var configuredSharePort = _config.Settings.ShareTunnel?.Port ?? 0;
+            if (configuredSharePort > 0 && configuredSharePort != mainPort)
+                return configuredSharePort;
+            return mainPort + 1;
         }
     }
 

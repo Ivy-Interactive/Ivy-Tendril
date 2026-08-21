@@ -39,9 +39,17 @@ public static class TendrilServer
             : "Information";
 
         var isBeta = BetaHelper.IsBeta(tendrilArgs, configService);
-        var sharePort = (configService.Settings.ShareTunnel?.Port is { } spPort && spPort > 0)
-            ? spPort
-            : (configService.Settings.Tunnel?.Port ?? 5010) + 1;
+        var mainPort = server.Args.Port > 0 ? server.Args.Port : 5010;
+        var configuredSharePort = configService.Settings.ShareTunnel?.Port ?? 0;
+        var sharePort = (configuredSharePort > 0 && configuredSharePort != mainPort)
+            ? configuredSharePort
+            : mainPort + 1;
+
+        if (configService.Settings.ShareTunnel != null && configService.Settings.ShareTunnel.Port != sharePort)
+        {
+            configService.Settings.ShareTunnel.Port = sharePort;
+            configService.SaveSettings();
+        }
 
         server.UseWebApplicationBuilder(builder =>
         {
@@ -58,11 +66,11 @@ public static class TendrilServer
             {
                 if (isBeta)
                 {
-                    builder.WebHost.UseUrls($"http://*:{server.Args.Port}", $"http://*:{sharePort}");
+                    builder.WebHost.UseUrls($"http://*:{mainPort}", $"http://*:{sharePort}");
                 }
                 else
                 {
-                    builder.WebHost.UseUrls($"http://*:{server.Args.Port}");
+                    builder.WebHost.UseUrls($"http://*:{mainPort}");
                 }
             }
         });
