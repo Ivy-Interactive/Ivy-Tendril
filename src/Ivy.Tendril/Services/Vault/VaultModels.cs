@@ -1,0 +1,125 @@
+using System;
+using System.Collections.Generic;
+
+namespace Ivy.Tendril.Services.Vault;
+
+public enum VaultItemSyncStatus
+{
+    NotImported,
+    UpToDate,
+    UpdateAvailable,
+    LocalOnly,
+    Modified
+}
+
+public record VaultManifest
+{
+    public int SchemaVersion { get; set; } = 1;
+    public string Name { get; set; } = "Tendril-Vault";
+    public string Description { get; set; } = "Team shared configuration vault for Ivy Tendril";
+    public string Version { get; set; } = "";
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public string? UpdatedBy { get; set; }
+}
+
+public record VaultRepoRef
+{
+    public string Owner { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string? BaseBranch { get; set; }
+}
+
+public record VaultProjectManifest
+{
+    public int SchemaVersion { get; set; } = 1;
+    public string Name { get; set; } = "";
+    public string Version { get; set; } = "";
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public string? UpdatedBy { get; set; }
+    public string Changelog { get; set; } = "";
+    public string Color { get; set; } = "Blue";
+    public string Context { get; set; } = "";
+    public List<VaultRepoRef> Repos { get; set; } = new();
+    public List<ProjectVerificationRef> Verifications { get; set; } = new();
+    public List<ReviewActionConfig> ReviewActions { get; set; } = new();
+    public List<PromptwareHookConfig> Hooks { get; set; } = new();
+    public List<string> BuildDependencies { get; set; } = new();
+    public List<ProjectMcpServerRef> McpServers { get; set; } = new();
+    public List<ProjectSkillRef> Skills { get; set; } = new();
+
+    public string SecurityPreset { get; set; } = "Custom";
+    public string OutsideFileAccessPolicy { get; set; } = "Allow";
+    public string TerminalAutoExecution { get; set; } = "Always Proceed";
+    public string SandboxMode { get; set; } = "Inherit General";
+    public string AutoImplementPlans { get; set; } = "Inherit General";
+}
+
+public record VaultPermissionsManifest
+{
+    public List<FileAccessRuleConfig> FilePermissions { get; set; } = new();
+    public List<NetworkAccessRuleConfig> NetworkAccessRules { get; set; } = new();
+    public List<string> AllowedTerminalCommands { get; set; } = new();
+    public string OutsideFileAccessPolicy { get; set; } = "Allow";
+    public string TerminalAutoExecution { get; set; } = "Always Proceed";
+    public string SandboxMode { get; set; } = "Inherit General";
+}
+
+public record VaultCatalogItem
+{
+    public string Name { get; set; } = "";
+    public string Description { get; set; } = "";
+    public string Color { get; set; } = "Blue";
+    public string? LocalVersion { get; set; }
+    public string RemoteVersion { get; set; } = "";
+    public string? LatestChangelog { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public string? UpdatedBy { get; set; }
+    public int ReposCount { get; set; }
+    public int SkillsCount { get; set; }
+    public int McpsCount { get; set; }
+    public VaultItemSyncStatus SyncStatus { get; set; }
+    public List<string> Repos { get; set; } = new();
+}
+
+public record VaultCatalog
+{
+    public VaultManifest? Manifest { get; set; }
+    public List<VaultCatalogItem> Projects { get; set; } = new();
+    public List<string> GlobalSkills { get; set; } = new();
+    public List<string> GlobalMcps { get; set; } = new();
+}
+
+public record VaultStatus
+{
+    public bool IsConfigured { get; set; }
+    public string RepoUrl { get; set; } = "";
+    public string LocalPath { get; set; } = "";
+    public string CurrentBranch { get; set; } = "main";
+    public string? LatestCommit { get; set; }
+    public int CommitsAhead { get; set; }
+    public int CommitsBehind { get; set; }
+    public DateTimeOffset? LastSyncedAt { get; set; }
+    public bool AlwaysUpToDate { get; set; }
+}
+
+public record VaultExportRequest
+{
+    public List<string> ProjectNames { get; set; } = new();
+    public string Version { get; set; } = "";
+    public string Changelog { get; set; } = "";
+    public string PrTitle { get; set; } = "";
+    public string PrBody { get; set; } = "";
+    public List<string> Reviewers { get; set; } = new();
+}
+
+public record VaultImportRequest
+{
+    public string ProjectName { get; set; } = "";
+    public Dictionary<string, string> LocalRepoMappings { get; set; } = new();
+}
+
+public record VaultPrResult(bool Success, string? PrUrl = null, string? BranchName = null, string? ErrorMessage = null);
+
+public record VaultResult(bool Success, string Message, string? ErrorMessage = null);
+
+public record VaultSyncResult(bool Success, int UpdatedProjectsCount = 0, string Message = "", string? ErrorMessage = null);
