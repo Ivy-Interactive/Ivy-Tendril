@@ -327,7 +327,8 @@ public class VaultService : IVaultService
         var visibilityFlag = isPrivate ? "--private" : "--public";
 
         var (createOut, createErr) = await RunGhCliAsync($"repo create {targetRepo} {visibilityFlag}");
-        if (createErr != null && !createErr.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+        var alreadyExists = createErr != null && createErr.Contains("already exists", StringComparison.OrdinalIgnoreCase);
+        if (createErr != null && !alreadyExists)
         {
             return new VaultResult(false, "Failed to create GitHub repository", createErr);
         }
@@ -337,6 +338,11 @@ public class VaultService : IVaultService
         if (string.IsNullOrWhiteSpace(repoUrl))
         {
             repoUrl = $"https://github.com/{targetRepo}.git";
+        }
+
+        if (alreadyExists)
+        {
+            return await ConnectVaultAsync(repoUrl);
         }
 
         if (Directory.Exists(vaultDir))
