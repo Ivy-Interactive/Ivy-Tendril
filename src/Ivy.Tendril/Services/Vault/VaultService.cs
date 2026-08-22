@@ -919,11 +919,60 @@ public class VaultService : IVaultService
         return null;
     }
 
+    private static List<string> TokenizeArguments(string arguments)
+    {
+        var tokens = new List<string>();
+        if (string.IsNullOrWhiteSpace(arguments)) return tokens;
+
+        var sb = new StringBuilder();
+        bool inQuotes = false;
+        char quoteChar = '\0';
+
+        for (int i = 0; i < arguments.Length; i++)
+        {
+            char c = arguments[i];
+
+            if (c == '\\' && i + 1 < arguments.Length && (arguments[i + 1] == '"' || arguments[i + 1] == '\''))
+            {
+                sb.Append(arguments[++i]);
+            }
+            else if (!inQuotes && (c == '"' || c == '\''))
+            {
+                inQuotes = true;
+                quoteChar = c;
+            }
+            else if (inQuotes && c == quoteChar)
+            {
+                inQuotes = false;
+                quoteChar = '\0';
+            }
+            else if (!inQuotes && char.IsWhiteSpace(c))
+            {
+                if (sb.Length > 0)
+                {
+                    tokens.Add(sb.ToString());
+                    sb.Clear();
+                }
+            }
+            else
+            {
+                sb.Append(c);
+            }
+        }
+
+        if (sb.Length > 0)
+        {
+            tokens.Add(sb.ToString());
+        }
+
+        return tokens;
+    }
+
     private static async Task<(string? output, string? error)> RunGitCommandAsync(string workingDir, string arguments)
     {
         try
         {
-            var psi = new ProcessStartInfo("git", arguments)
+            var psi = new ProcessStartInfo("git")
             {
                 WorkingDirectory = workingDir,
                 RedirectStandardOutput = true,
@@ -933,6 +982,11 @@ public class VaultService : IVaultService
                 StandardOutputEncoding = Encoding.UTF8,
                 StandardErrorEncoding = Encoding.UTF8
             };
+
+            foreach (var arg in TokenizeArguments(arguments))
+            {
+                psi.ArgumentList.Add(arg);
+            }
 
             using var proc = Process.Start(psi);
             if (proc == null) return (null, "Failed to start git process");
@@ -953,7 +1007,7 @@ public class VaultService : IVaultService
     {
         try
         {
-            var psi = new ProcessStartInfo("gh", arguments)
+            var psi = new ProcessStartInfo("gh")
             {
                 WorkingDirectory = workingDir ?? Path.GetTempPath(),
                 RedirectStandardOutput = true,
@@ -963,6 +1017,11 @@ public class VaultService : IVaultService
                 StandardOutputEncoding = Encoding.UTF8,
                 StandardErrorEncoding = Encoding.UTF8
             };
+
+            foreach (var arg in TokenizeArguments(arguments))
+            {
+                psi.ArgumentList.Add(arg);
+            }
 
             using var proc = Process.Start(psi);
             if (proc == null) return (null, "GitHub CLI (gh) is not available.");
