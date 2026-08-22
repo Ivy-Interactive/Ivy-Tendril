@@ -326,23 +326,37 @@ public class VaultService : IVaultService
         var targetRepo = !string.IsNullOrWhiteSpace(org) ? $"{org}/{repoName}" : repoName;
         var visibilityFlag = isPrivate ? "--private" : "--public";
 
-        var (createOut, createErr) = await RunGhCliAsync($"repo create {targetRepo} {visibilityFlag}");
-        var alreadyExists = createErr != null && createErr.Contains("already exists", StringComparison.OrdinalIgnoreCase);
-        if (createErr != null && !alreadyExists)
+        // Check if the repository already exists on GitHub first
+        var (urlOut, urlErr) = await RunGhCliAsync($"repo view {targetRepo} --json url -q .url");
+        var existingUrl = urlOut?.Trim();
+        if (!string.IsNullOrWhiteSpace(existingUrl) && urlErr == null)
         {
+            return await ConnectVaultAsync(existingUrl);
+        }
+
+        var (createOut, createErr) = await RunGhCliAsync($"repo create {targetRepo} {visibilityFlag}");
+        if (createErr != null && !createErr.Contains("already exists", StringComparison.OrdinalIgnoreCase))
+        {
+            // If creation failed but repo view can see it, connect
+            var (retryUrlOut, retryUrlErr) = await RunGhCliAsync($"repo view {targetRepo} --json url -q .url");
+            var retryUrl = retryUrlOut?.Trim();
+            if (!string.IsNullOrWhiteSpace(retryUrl) && retryUrlErr == null)
+            {
+                return await ConnectVaultAsync(retryUrl);
+            }
+
             return new VaultResult(false, "Failed to create GitHub repository", createErr);
         }
 
-        var (urlOut, urlErr) = await RunGhCliAsync($"repo view {targetRepo} --json url -q .url");
-        var repoUrl = urlOut?.Trim();
+        var repoUrl = existingUrl;
         if (string.IsNullOrWhiteSpace(repoUrl))
         {
-            repoUrl = $"https://github.com/{targetRepo}.git";
-        }
-
-        if (alreadyExists)
-        {
-            return await ConnectVaultAsync(repoUrl);
+            var (newUrlOut, _) = await RunGhCliAsync($"repo view {targetRepo} --json url -q .url");
+            repoUrl = newUrlOut?.Trim();
+            if (string.IsNullOrWhiteSpace(repoUrl))
+            {
+                repoUrl = $"https://github.com/{targetRepo}.git";
+            }
         }
 
         if (Directory.Exists(vaultDir))
