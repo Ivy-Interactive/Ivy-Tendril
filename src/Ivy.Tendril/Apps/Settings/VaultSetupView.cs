@@ -81,9 +81,9 @@ public class VaultSetupView : ViewBase
 
         if (!status.IsConfigured)
         {
-            var notConfiguredLayout = Layout.Vertical()
+            var notConfiguredLayout = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
                 | Text.Block("Team Configuration Vault").Bold()
-                | Text.P("Share and synchronize Tendril projects, custom skills, MCP servers, and security rules across your team via a versioned Git repository.").Muted().Small()
+                | Text.Block("Share and synchronize Tendril projects, custom skills, MCP servers, and security rules across your team via a versioned Git repository.").Muted().Small()
                 | (Layout.Horizontal().AlignContent(Align.Left)
                     | new Button("Create GitHub Vault")
                         .Icon(Icons.Plus)
@@ -144,7 +144,7 @@ public class VaultSetupView : ViewBase
             | autoSyncState.ToBoolInput("Always keep local configuration in sync with remote");
 
         var projectRows = Layout.Vertical();
-        projectRows |= Text.Block("Shared Projects Catalog").Bold();
+        projectRows |= Text.Block("Shared Projects").Bold();
 
         if (catalog.Projects.Count == 0)
         {
@@ -236,18 +236,23 @@ public class VaultSetupView : ViewBase
             }
         }
 
-        var footerSection = Layout.Horizontal().AlignContent(Align.Right)
-            | new Button("Disconnect Vault").Destructive().Outline().OnClick(async () =>
-            {
-                await vaultService.DisconnectVaultAsync();
-                statusQuery.Mutator.Revalidate();
-                catalogQuery.Mutator.Revalidate();
-            });
+        var disconnectSection = Layout.Vertical()
+            | Text.Block("Danger Zone").Bold()
+            | Text.Block("Disconnect this Tendril instance from the shared team vault.").Muted().Small()
+            | (Layout.Horizontal().AlignContent(Align.Left)
+                | new Button("Disconnect Vault").Destructive().Outline().OnClick(async () =>
+                {
+                    await vaultService.DisconnectVaultAsync();
+                    statusQuery.Mutator.Revalidate();
+                    catalogQuery.Mutator.Revalidate();
+                }));
 
-        var mainLayout = Layout.Vertical()
+        var mainLayout = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+            | Text.Block("Team Configuration Vault").Bold()
+            | Text.Block("Share and synchronize Tendril projects, custom skills, MCP servers, and security rules across your team.").Muted().Small()
             | headerCard
             | projectRows
-            | footerSection;
+            | disconnectSection;
 
         return new Fragment(
             mainLayout,
