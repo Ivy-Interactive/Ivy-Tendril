@@ -44,6 +44,7 @@ public class CreateVaultDialog(
             errorMessage.Set(null);
 
             var chosenOrg = selectedOwner.Value?.Trim();
+            Console.WriteLine($"[CreateVaultDialog] HandleCreate triggered: repoName='{repoName.Value}', selectedOwner='{selectedOwner.Value}', isPrivate={isPrivate.Value}");
 
             var result = await vaultService.CreateVaultRepoAsync(
                 repoName.Value.Trim(),
@@ -51,6 +52,8 @@ public class CreateVaultDialog(
                 string.IsNullOrWhiteSpace(chosenOrg) ? null : chosenOrg);
 
             isLoading.Set(false);
+
+            Console.WriteLine($"[CreateVaultDialog] CreateVaultRepoAsync finished: Success={result.Success}, Message='{result.Message}', ErrorMessage='{result.ErrorMessage}'");
 
             if (result.Success)
             {
