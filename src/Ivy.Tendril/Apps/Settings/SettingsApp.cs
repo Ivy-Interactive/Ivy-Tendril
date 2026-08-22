@@ -44,6 +44,7 @@ public class SettingsApp : ViewBase
             }));
 
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
+        Context.TryUseService<TendrilArgs>(out var tendrilArgs);
 
         UseEffect(() =>
         {
@@ -54,6 +55,7 @@ public class SettingsApp : ViewBase
 
         _ = refreshToken.Token;
         var isDesktop = desktopWindow != null;
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
         var capturedHost = ConfigYamlUiHelper.CaptureHost(httpContextAccessor);
 
         var projects = config.Settings.Projects;
@@ -65,14 +67,22 @@ public class SettingsApp : ViewBase
             ("Plans", TagPlans, Icons.Feather),
             ("Appearance", TagAppearance, Icons.Sun),
             ("Projects", TagProjects, Icons.Folder),
-            ("Team Vault", TagVault, Icons.FolderGit2),
+        };
+
+        if (isBeta)
+        {
+            sections.Add(("Team Vault", TagVault, Icons.FolderGit2));
+        }
+
+        sections.AddRange(new (string Label, string Tag, Icons Icon)[]
+        {
             ("Promptwares", TagPromptwares, Icons.Wand),
             ("Levels", TagLevels, Icons.ListOrdered),
             ("Notifications", TagNotifications, Icons.Bell),
             ("Security & Tunneling", TagSecurity, Icons.Lock),
             ("Advanced", TagAdvanced, Icons.Cog),
             ("Newsletter", TagNewsletter, Icons.Mail),
-        };
+        });
 
         var rows = new List<object>
         {
@@ -111,7 +121,11 @@ public class SettingsApp : ViewBase
             rows.Add(SidebarListRow.BuildSubItem("Add Project", Icons.Plus, () => openAddProjectDialog(), false));
         }
 
-        rows.Add(SidebarListRow.Build("Team Vault", Icons.FolderGit2, () => selected.Set(TagVault), selectedTag == TagVault));
+        if (isBeta)
+        {
+            rows.Add(SidebarListRow.Build("Team Vault", Icons.FolderGit2, () => selected.Set(TagVault), selectedTag == TagVault));
+        }
+
         rows.Add(SidebarListRow.Build("Promptwares", Icons.Wand, () => selected.Set(TagPromptwares), selectedTag == TagPromptwares));
         rows.Add(SidebarListRow.Build("Levels", Icons.ListOrdered, () => selected.Set(TagLevels), selectedTag == TagLevels));
         rows.Add(SidebarListRow.Build("Notifications", Icons.Bell, () => selected.Set(TagNotifications), selectedTag == TagNotifications));
@@ -164,7 +178,7 @@ public class SettingsApp : ViewBase
                 TagTunnel => new SecuritySetupView(),
                 TagLevels => new LevelsSetupView(),
                 TagPromptwares => new PromptwaresSetupView(),
-                TagVault => new VaultSetupView(),
+                TagVault when isBeta => new VaultSetupView(),
                 TagProjects => projects.Count > 0
                     ? new ProjectDetailView(0, projects, config, client, refreshToken).Key($"project:{projects[0].Name}")
                     : new CodingAgentSetupView(),
