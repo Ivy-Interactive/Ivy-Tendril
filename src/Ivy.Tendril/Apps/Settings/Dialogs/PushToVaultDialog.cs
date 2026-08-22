@@ -38,6 +38,39 @@ public class PushProjectSelectRow(
     }
 }
 
+public class PushProjectHeaderBadge(
+    string projName,
+    List<string> projSkills,
+    List<string> projMcps,
+    List<string> projMemories,
+    List<string> projActions,
+    List<string> projVerifs,
+    IState<Dictionary<string, HashSet<string>>> selectedSkills,
+    IState<Dictionary<string, HashSet<string>>> selectedMcps,
+    IState<Dictionary<string, HashSet<string>>> selectedMemories,
+    IState<Dictionary<string, HashSet<string>>> selectedReviewActions,
+    IState<Dictionary<string, HashSet<string>>> selectedVerifications) : ViewBase
+{
+    public override object Build()
+    {
+        var selSkillsCount = selectedSkills.Value.TryGetValue(projName, out var s) ? s.Count : projSkills.Count;
+        var selMcpsCount = selectedMcps.Value.TryGetValue(projName, out var m) ? m.Count : projMcps.Count;
+        var selMemsCount = selectedMemories.Value.TryGetValue(projName, out var mem) ? mem.Count : projMemories.Count;
+        var selActionsCount = selectedReviewActions.Value.TryGetValue(projName, out var a) ? a.Count : projActions.Count;
+        var selVerifsCount = selectedVerifications.Value.TryGetValue(projName, out var v) ? v.Count : projVerifs.Count;
+
+        var parts = new List<string>();
+        if (projSkills.Count > 0) parts.Add($"{selSkillsCount}/{projSkills.Count} skills");
+        if (projMcps.Count > 0) parts.Add($"{selMcpsCount}/{projMcps.Count} MCPs");
+        if (projMemories.Count > 0) parts.Add($"{selMemsCount}/{projMemories.Count} mems");
+        if (projActions.Count > 0) parts.Add($"{selActionsCount}/{projActions.Count} actions");
+        if (projVerifs.Count > 0) parts.Add($"{selVerifsCount}/{projVerifs.Count} verifs");
+
+        var text = parts.Count > 0 ? string.Join(" • ", parts) : "0 assets";
+        return new Badge(text).Variant(BadgeVariant.Secondary).Small();
+    }
+}
+
 public class PushAssetItemRow(
     string name,
     string projName,
@@ -302,7 +335,18 @@ public class PushToVaultDialog(
 
             var projectHeader = Layout.Horizontal().AlignContent(Align.Left)
                 | new PushProjectSelectRow(projName, selectedProjects)
-                | new Badge($"{projSkills.Count} skills, {projMcps.Count} MCPs, {projMemories.Count} mems").Variant(BadgeVariant.Secondary).Small();
+                | new PushProjectHeaderBadge(
+                    projName,
+                    projSkills,
+                    projMcps,
+                    projMemories,
+                    projActions,
+                    projVerifs,
+                    selectedSkills,
+                    selectedMcps,
+                    selectedMemories,
+                    selectedReviewActions,
+                    selectedVerifications);
 
             var assetContent = Layout.Vertical();
 
