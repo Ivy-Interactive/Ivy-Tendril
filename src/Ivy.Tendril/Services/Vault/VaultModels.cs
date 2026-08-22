@@ -77,6 +77,14 @@ public record VaultCatalogItem
     public int ReposCount { get; set; }
     public int SkillsCount { get; set; }
     public int McpsCount { get; set; }
+    public int MemoriesCount { get; set; }
+    public int ReviewActionsCount { get; set; }
+    public int VerificationsCount { get; set; }
+    public List<string> SkillNames { get; set; } = new();
+    public List<string> McpServerNames { get; set; } = new();
+    public List<string> MemoryFileNames { get; set; } = new();
+    public List<string> ReviewActionNames { get; set; } = new();
+    public List<string> VerificationNames { get; set; } = new();
     public VaultItemSyncStatus SyncStatus { get; set; }
     public List<string> Repos { get; set; } = new();
 }
@@ -110,12 +118,24 @@ public record VaultExportRequest
     public string PrTitle { get; set; } = "";
     public string PrBody { get; set; } = "";
     public List<string> Reviewers { get; set; } = new();
+    public Dictionary<string, List<string>> SelectedSkills { get; set; } = new();
+    public Dictionary<string, List<string>> SelectedMcps { get; set; } = new();
+    public Dictionary<string, List<string>> SelectedMemories { get; set; } = new();
+    public Dictionary<string, List<string>> SelectedReviewActions { get; set; } = new();
+    public Dictionary<string, List<string>> SelectedVerifications { get; set; } = new();
+    public Dictionary<string, bool> SyncPermissions { get; set; } = new();
 }
 
 public record VaultImportRequest
 {
     public string ProjectName { get; set; } = "";
     public Dictionary<string, string> LocalRepoMappings { get; set; } = new();
+    public List<string>? SelectedSkills { get; set; }
+    public List<string>? SelectedMcps { get; set; }
+    public List<string>? SelectedMemories { get; set; }
+    public List<string>? SelectedReviewActions { get; set; }
+    public List<string>? SelectedVerifications { get; set; }
+    public bool ImportPermissions { get; set; } = true;
 }
 
 public record VaultPrResult(bool Success, string? PrUrl = null, string? BranchName = null, string? ErrorMessage = null);

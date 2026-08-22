@@ -144,14 +144,26 @@ public class VaultSetupView : ViewBase
                 : null)
             | autoSyncState.ToBoolInput("Always keep local configuration in sync with remote");
 
-        var tableRows = catalog.Projects.Select((p, i) => new VaultProjectTableRow(
-            p.Name,
-            !string.IsNullOrEmpty(p.RemoteVersion) ? $"v{p.RemoteVersion}" : (!string.IsNullOrEmpty(p.LocalVersion) ? $"v{p.LocalVersion}" : "-"),
-            p.SyncStatus,
-            $"{p.ReposCount} repos • {p.SkillsCount} skills • {p.McpsCount} MCPs",
-            p.LatestChangelog ?? (!string.IsNullOrEmpty(p.Description) ? p.Description : "-"),
-            i
-        )).ToList();
+        var tableRows = catalog.Projects.Select((p, i) =>
+        {
+            var parts = new List<string>();
+            if (p.ReposCount > 0) parts.Add($"{p.ReposCount} repos");
+            if (p.SkillsCount > 0) parts.Add($"{p.SkillsCount} skills");
+            if (p.McpsCount > 0) parts.Add($"{p.McpsCount} MCPs");
+            if (p.MemoriesCount > 0) parts.Add($"{p.MemoriesCount} memories");
+            if (p.ReviewActionsCount > 0) parts.Add($"{p.ReviewActionsCount} actions");
+            if (p.VerificationsCount > 0) parts.Add($"{p.VerificationsCount} verifs");
+            var contentsStr = parts.Count > 0 ? string.Join(" • ", parts) : $"{p.ReposCount} repos";
+
+            return new VaultProjectTableRow(
+                p.Name,
+                !string.IsNullOrEmpty(p.RemoteVersion) ? $"v{p.RemoteVersion}" : (!string.IsNullOrEmpty(p.LocalVersion) ? $"v{p.LocalVersion}" : "-"),
+                p.SyncStatus,
+                contentsStr,
+                p.LatestChangelog ?? (!string.IsNullOrEmpty(p.Description) ? p.Description : "-"),
+                i
+            );
+        }).ToList();
 
         var projectsTable = new TableBuilder<VaultProjectTableRow>(tableRows)
             .Builder(t => t.Name, f => f.Func<VaultProjectTableRow, string>(name =>

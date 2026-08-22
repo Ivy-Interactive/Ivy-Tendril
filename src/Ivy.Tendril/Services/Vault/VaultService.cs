@@ -4,12 +4,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using Ivy.Helpers;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
-using YamlDotNet.Serialization;
 
 namespace Ivy.Tendril.Services.Vault;
 
@@ -102,28 +99,13 @@ public class VaultService : IVaultService
 
         if (!Directory.Exists(vaultDir))
         {
-            // Populate with local projects as LocalOnly
             foreach (var localProj in _config.Settings.Projects)
             {
-                catalog.Projects.Add(new VaultCatalogItem
-                {
-                    Name = localProj.Name,
-                    Description = localProj.Context,
-                    Color = localProj.Color,
-                    LocalVersion = GetTrackedVersion(localProj.Name),
-                    RemoteVersion = "",
-                    SyncStatus = VaultItemSyncStatus.LocalOnly,
-                    Repos = localProj.Repos.Select(r => r.Path).ToList(),
-                    ReposCount = localProj.Repos.Count,
-                    SkillsCount = localProj.Skills.Count,
-                    McpsCount = localProj.McpServers.Count,
-                    UpdatedAt = DateTimeOffset.UtcNow
-                });
+                catalog.Projects.Add(BuildLocalCatalogItem(localProj));
             }
             return Task.FromResult(catalog);
         }
 
-        // Read vault.yaml
         var manifestPath = Path.Combine(vaultDir, "vault.yaml");
         if (File.Exists(manifestPath))
         {
@@ -165,9 +147,39 @@ public class VaultService : IVaultService
 
                 var skillsDir = Path.Combine(projDir, "skills");
                 var mcpsDir = Path.Combine(projDir, "mcps");
+                var memoryDir = Path.Combine(projDir, "memory");
 
-                var skillsCount = Directory.Exists(skillsDir) ? Directory.GetFiles(skillsDir).Length : (manifest?.Skills.Count ?? 0);
-                var mcpsCount = Directory.Exists(mcpsDir) ? Directory.GetFiles(mcpsDir).Length : (manifest?.McpServers.Count ?? 0);
+                var skillNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (manifest != null)
+                {
+                    foreach (var s in manifest.Skills) skillNames.Add(s.Name);
+                }
+                if (Directory.Exists(skillsDir))
+                {
+                    foreach (var f in Directory.GetFiles(skillsDir, "*.md"))
+                        skillNames.Add(Path.GetFileNameWithoutExtension(f));
+                }
+
+                var mcpNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (manifest != null)
+                {
+                    foreach (var m in manifest.McpServers) mcpNames.Add(m.Name);
+                }
+                if (Directory.Exists(mcpsDir))
+                {
+                    foreach (var f in Directory.GetFiles(mcpsDir, "*.yaml"))
+                        mcpNames.Add(Path.GetFileNameWithoutExtension(f));
+                }
+
+                var memoryNames = new List<string>();
+                if (Directory.Exists(memoryDir))
+                {
+                    memoryNames = Directory.GetFiles(memoryDir, "*.md").Select(Path.GetFileName).OfType<string>().ToList();
+                }
+
+                var reviewActionNames = manifest?.ReviewActions.Select(r => r.Name).ToList() ?? new();
+                var verificationNames = manifest?.Verifications.Select(v => v.Name).ToList() ?? new();
+
                 var remoteVersion = manifest?.Version ?? "";
                 var localVersion = GetTrackedVersion(projName);
                 var isImported = _config.Settings.Projects.Any(p => p.Name.Equals(projName, StringComparison.OrdinalIgnoreCase));
@@ -201,37 +213,73 @@ public class VaultService : IVaultService
                     UpdatedAt = manifest?.UpdatedAt ?? DateTimeOffset.UtcNow,
                     UpdatedBy = manifest?.UpdatedBy,
                     ReposCount = manifest?.Repos.Count ?? 0,
-                    SkillsCount = skillsCount,
-                    McpsCount = mcpsCount,
+                    SkillsCount = skillNames.Count,
+                    McpsCount = mcpNames.Count,
+                    MemoriesCount = memoryNames.Count,
+                    ReviewActionsCount = reviewActionNames.Count,
+                    VerificationsCount = verificationNames.Count,
+                    SkillNames = skillNames.ToList(),
+                    McpServerNames = mcpNames.ToList(),
+                    MemoryFileNames = memoryNames,
+                    ReviewActionNames = reviewActionNames,
+                    VerificationNames = verificationNames,
                     SyncStatus = syncStatus,
                     Repos = manifest?.Repos.Select(r => $"{r.Owner}/{r.Name}").ToList() ?? new()
                 });
             }
         }
 
-        // Add local-only projects
         foreach (var localProj in _config.Settings.Projects)
         {
             if (!vaultProjects.Contains(localProj.Name))
             {
-                catalog.Projects.Add(new VaultCatalogItem
-                {
-                    Name = localProj.Name,
-                    Description = localProj.Context,
-                    Color = localProj.Color,
-                    LocalVersion = GetTrackedVersion(localProj.Name),
-                    RemoteVersion = "",
-                    SyncStatus = VaultItemSyncStatus.LocalOnly,
-                    Repos = localProj.Repos.Select(r => r.Path).ToList(),
-                    ReposCount = localProj.Repos.Count,
-                    SkillsCount = localProj.Skills.Count,
-                    McpsCount = localProj.McpServers.Count,
-                    UpdatedAt = DateTimeOffset.UtcNow
-                });
+                catalog.Projects.Add(BuildLocalCatalogItem(localProj));
             }
         }
 
         return Task.FromResult(catalog);
+    }
+
+    private VaultCatalogItem BuildLocalCatalogItem(ProjectConfig localProj)
+    {
+        var localSkillsDir = ProjectPathHelper.GetSkillsDir(_config.TendrilHome, localProj.Name);
+        var skillNames = new HashSet<string>(localProj.Skills.Select(s => s.Name), StringComparer.OrdinalIgnoreCase);
+        if (Directory.Exists(localSkillsDir))
+        {
+            foreach (var f in Directory.GetFiles(localSkillsDir, "*.md"))
+                skillNames.Add(Path.GetFileNameWithoutExtension(f));
+        }
+
+        var memoryDir = ProjectPathHelper.GetMemoryDir(_config.TendrilHome, localProj.Name);
+        var memoryNames = Directory.Exists(memoryDir)
+            ? Directory.GetFiles(memoryDir, "*.md").Select(Path.GetFileName).OfType<string>().ToList()
+            : new List<string>();
+
+        var reviewActionNames = localProj.ReviewActions.Select(r => r.Name).ToList();
+        var verificationNames = localProj.Verifications.Select(v => v.Name).ToList();
+
+        return new VaultCatalogItem
+        {
+            Name = localProj.Name,
+            Description = localProj.Context,
+            Color = localProj.Color,
+            LocalVersion = GetTrackedVersion(localProj.Name),
+            RemoteVersion = "",
+            SyncStatus = VaultItemSyncStatus.LocalOnly,
+            Repos = localProj.Repos.Select(r => r.Path).ToList(),
+            ReposCount = localProj.Repos.Count,
+            SkillsCount = skillNames.Count,
+            McpsCount = localProj.McpServers.Count,
+            MemoriesCount = memoryNames.Count,
+            ReviewActionsCount = reviewActionNames.Count,
+            VerificationsCount = verificationNames.Count,
+            SkillNames = skillNames.ToList(),
+            McpServerNames = localProj.McpServers.Select(m => m.Name).ToList(),
+            MemoryFileNames = memoryNames,
+            ReviewActionNames = reviewActionNames,
+            VerificationNames = verificationNames,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
     }
 
     public async Task<VaultResult> CreateVaultRepoAsync(string repoName, bool isPrivate = true, string? org = null)
@@ -262,7 +310,6 @@ public class VaultService : IVaultService
         await RunGitCommandAsync(vaultDir, "init -b main");
         await RunGitCommandAsync(vaultDir, $"remote add origin {repoUrl}");
 
-        // Initialize structure
         var manifest = new VaultManifest
         {
             Name = repoName,
@@ -363,7 +410,6 @@ public class VaultService : IVaultService
         var timestampId = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
         var branchName = $"vault/update-{timestampId}";
 
-        // Fast forward main
         await RunGitCommandAsync(vaultDir, "checkout main");
         await RunGitCommandAsync(vaultDir, "pull origin main");
         await RunGitCommandAsync(vaultDir, $"checkout -B {branchName}");
@@ -377,6 +423,30 @@ public class VaultService : IVaultService
 
             var projDir = Path.Combine(vaultDir, "projects", proj.Name);
             Directory.CreateDirectory(projDir);
+
+            // Granular filtering
+            var selectedSkills = request.SelectedSkills.TryGetValue(proj.Name, out var sSet) ? sSet : null;
+            var selectedMcps = request.SelectedMcps.TryGetValue(proj.Name, out var mSet) ? mSet : null;
+            var selectedActions = request.SelectedReviewActions.TryGetValue(proj.Name, out var aSet) ? aSet : null;
+            var selectedVerifs = request.SelectedVerifications.TryGetValue(proj.Name, out var vSet) ? vSet : null;
+            var selectedMems = request.SelectedMemories.TryGetValue(proj.Name, out var memSet) ? memSet : null;
+            var syncPermissions = request.SyncPermissions.TryGetValue(proj.Name, out var pSync) ? pSync : true;
+
+            var exportedSkills = selectedSkills != null
+                ? proj.Skills.Where(s => selectedSkills.Contains(s.Name)).ToList()
+                : proj.Skills;
+
+            var exportedMcps = selectedMcps != null
+                ? proj.McpServers.Where(m => selectedMcps.Contains(m.Name)).ToList()
+                : proj.McpServers;
+
+            var exportedActions = selectedActions != null
+                ? proj.ReviewActions.Where(a => selectedActions.Contains(a.Name)).ToList()
+                : proj.ReviewActions;
+
+            var exportedVerifications = selectedVerifs != null
+                ? proj.Verifications.Where(v => selectedVerifs.Contains(v.Name)).ToList()
+                : proj.Verifications;
 
             // 1. Export project.yaml
             var projectManifest = new VaultProjectManifest
@@ -393,12 +463,12 @@ public class VaultService : IVaultService
                     var name = Path.GetFileName(r.Path.TrimEnd('/', '\\'));
                     return new VaultRepoRef { Owner = owner, Name = name, BaseBranch = r.BaseBranch };
                 }).ToList(),
-                Verifications = proj.Verifications,
-                ReviewActions = proj.ReviewActions,
+                Verifications = exportedVerifications,
+                ReviewActions = exportedActions,
                 Hooks = proj.Hooks,
                 BuildDependencies = proj.BuildDependencies,
-                McpServers = VaultSecretSanitizer.SanitizeMcpServers(proj.McpServers),
-                Skills = proj.Skills,
+                McpServers = VaultSecretSanitizer.SanitizeMcpServers(exportedMcps),
+                Skills = exportedSkills,
                 SecurityPreset = proj.SecurityPreset,
                 OutsideFileAccessPolicy = proj.OutsideFileAccessPolicy,
                 TerminalAutoExecution = proj.TerminalAutoExecution,
@@ -409,18 +479,21 @@ public class VaultService : IVaultService
             var projYaml = YamlHelper.SerializerCompact.Serialize(projectManifest);
             File.WriteAllText(Path.Combine(projDir, "project.yaml"), projYaml);
 
-            // 2. Export permissions.yaml
-            var permManifest = new VaultPermissionsManifest
+            // 2. Export permissions.yaml if enabled
+            if (syncPermissions)
             {
-                FilePermissions = proj.FilePermissions,
-                NetworkAccessRules = proj.NetworkAccessRules,
-                AllowedTerminalCommands = proj.AllowedTerminalCommands,
-                OutsideFileAccessPolicy = proj.OutsideFileAccessPolicy,
-                TerminalAutoExecution = proj.TerminalAutoExecution,
-                SandboxMode = proj.SandboxMode
-            };
-            var permYaml = YamlHelper.SerializerCompact.Serialize(permManifest);
-            File.WriteAllText(Path.Combine(projDir, "permissions.yaml"), permYaml);
+                var permManifest = new VaultPermissionsManifest
+                {
+                    FilePermissions = proj.FilePermissions,
+                    NetworkAccessRules = proj.NetworkAccessRules,
+                    AllowedTerminalCommands = proj.AllowedTerminalCommands,
+                    OutsideFileAccessPolicy = proj.OutsideFileAccessPolicy,
+                    TerminalAutoExecution = proj.TerminalAutoExecution,
+                    SandboxMode = proj.SandboxMode
+                };
+                var permYaml = YamlHelper.SerializerCompact.Serialize(permManifest);
+                File.WriteAllText(Path.Combine(projDir, "permissions.yaml"), permYaml);
+            }
 
             // 3. Export disk skills
             var localSkillsDir = ProjectPathHelper.GetSkillsDir(_config.TendrilHome, proj.Name);
@@ -430,7 +503,27 @@ public class VaultService : IVaultService
                 Directory.CreateDirectory(vaultSkillsDir);
                 foreach (var file in Directory.GetFiles(localSkillsDir, "*.md"))
                 {
-                    File.Copy(file, Path.Combine(vaultSkillsDir, Path.GetFileName(file)), true);
+                    var skillName = Path.GetFileNameWithoutExtension(file);
+                    if (selectedSkills == null || selectedSkills.Contains(skillName))
+                    {
+                        File.Copy(file, Path.Combine(vaultSkillsDir, Path.GetFileName(file)), true);
+                    }
+                }
+            }
+
+            // 4. Export project memories
+            var localMemoryDir = ProjectPathHelper.GetMemoryDir(_config.TendrilHome, proj.Name);
+            var vaultMemoryDir = Path.Combine(projDir, "memory");
+            if (Directory.Exists(localMemoryDir))
+            {
+                Directory.CreateDirectory(vaultMemoryDir);
+                foreach (var file in Directory.GetFiles(localMemoryDir, "*.md"))
+                {
+                    var fileName = Path.GetFileName(file);
+                    if (selectedMems == null || selectedMems.Contains(fileName))
+                    {
+                        File.Copy(file, Path.Combine(vaultMemoryDir, fileName), true);
+                    }
                 }
             }
 
@@ -448,7 +541,6 @@ public class VaultService : IVaultService
             exportedProjects.Add(proj.Name);
         }
 
-        // Update root vault.yaml
         var rootManifest = new VaultManifest
         {
             Name = _config.Settings.Vault?.RepoUrl != null ? Path.GetFileNameWithoutExtension(_config.Settings.Vault.RepoUrl) : "Tendril-Vault",
@@ -463,9 +555,8 @@ public class VaultService : IVaultService
             : $"feat(vault): update {string.Join(", ", exportedProjects)} (v{version})";
 
         await RunGitCommandAsync(vaultDir, $"commit -m \"{commitMsg.Replace("\"", "\\\"")}\"");
-        var (pushOut, pushErr) = await RunGitCommandAsync(vaultDir, $"push -u origin {branchName}");
+        await RunGitCommandAsync(vaultDir, $"push -u origin {branchName}");
 
-        // Create Pull Request via gh CLI
         var prTitle = !string.IsNullOrWhiteSpace(request.PrTitle)
             ? request.PrTitle
             : $"Update {string.Join(", ", exportedProjects)} to v{version}";
@@ -489,8 +580,18 @@ public class VaultService : IVaultService
         return new VaultPrResult(true, PrUrl: prUrl, BranchName: branchName);
     }
 
-    public async Task<VaultResult> ImportProjectAsync(string projectName, Dictionary<string, string> localRepoMappings)
+    public Task<VaultResult> ImportProjectAsync(string projectName, Dictionary<string, string> localRepoMappings)
     {
+        return ImportProjectAsync(new VaultImportRequest
+        {
+            ProjectName = projectName,
+            LocalRepoMappings = localRepoMappings
+        });
+    }
+
+    public async Task<VaultResult> ImportProjectAsync(VaultImportRequest request)
+    {
+        var projectName = request.ProjectName;
         var vaultDir = GetVaultDirectory();
         var projDir = Path.Combine(vaultDir, "projects", projectName);
 
@@ -512,19 +613,17 @@ public class VaultService : IVaultService
         foreach (var r in manifest.Repos)
         {
             var key = $"{r.Owner}/{r.Name}";
-            if (localRepoMappings.TryGetValue(key, out var path) || localRepoMappings.TryGetValue(r.Name, out path))
+            if (request.LocalRepoMappings.TryGetValue(key, out var path) || request.LocalRepoMappings.TryGetValue(r.Name, out path))
             {
                 repos.Add(new RepoRef { Path = path, BaseBranch = r.BaseBranch });
             }
             else
             {
-                // Fallback default path
                 var fallbackPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "git", r.Name);
                 repos.Add(new RepoRef { Path = fallbackPath, BaseBranch = r.BaseBranch });
             }
         }
 
-        // Permissions
         var permManifestPath = Path.Combine(projDir, "permissions.yaml");
         VaultPermissionsManifest? permManifest = null;
         if (File.Exists(permManifestPath))
@@ -537,29 +636,44 @@ public class VaultService : IVaultService
             catch { }
         }
 
+        var filteredSkills = request.SelectedSkills != null
+            ? manifest.Skills.Where(s => request.SelectedSkills.Contains(s.Name)).ToList()
+            : manifest.Skills;
+
+        var filteredMcps = request.SelectedMcps != null
+            ? manifest.McpServers.Where(m => request.SelectedMcps.Contains(m.Name)).ToList()
+            : manifest.McpServers;
+
+        var filteredActions = request.SelectedReviewActions != null
+            ? manifest.ReviewActions.Where(a => request.SelectedReviewActions.Contains(a.Name)).ToList()
+            : manifest.ReviewActions;
+
+        var filteredVerifications = request.SelectedVerifications != null
+            ? manifest.Verifications.Where(v => request.SelectedVerifications.Contains(v.Name)).ToList()
+            : manifest.Verifications;
+
         var projectConfig = new ProjectConfig
         {
             Name = manifest.Name,
             Color = manifest.Color,
             Context = manifest.Context,
             Repos = repos,
-            Verifications = manifest.Verifications,
-            ReviewActions = manifest.ReviewActions,
+            Verifications = filteredVerifications,
+            ReviewActions = filteredActions,
             Hooks = manifest.Hooks,
             BuildDependencies = manifest.BuildDependencies,
-            McpServers = manifest.McpServers,
-            Skills = manifest.Skills,
+            McpServers = filteredMcps,
+            Skills = filteredSkills,
             SecurityPreset = manifest.SecurityPreset,
-            OutsideFileAccessPolicy = permManifest?.OutsideFileAccessPolicy ?? manifest.OutsideFileAccessPolicy,
-            TerminalAutoExecution = permManifest?.TerminalAutoExecution ?? manifest.TerminalAutoExecution,
-            SandboxMode = permManifest?.SandboxMode ?? manifest.SandboxMode,
+            OutsideFileAccessPolicy = request.ImportPermissions ? (permManifest?.OutsideFileAccessPolicy ?? manifest.OutsideFileAccessPolicy) : manifest.OutsideFileAccessPolicy,
+            TerminalAutoExecution = request.ImportPermissions ? (permManifest?.TerminalAutoExecution ?? manifest.TerminalAutoExecution) : manifest.TerminalAutoExecution,
+            SandboxMode = request.ImportPermissions ? (permManifest?.SandboxMode ?? manifest.SandboxMode) : manifest.SandboxMode,
             AutoImplementPlans = manifest.AutoImplementPlans,
-            FilePermissions = permManifest?.FilePermissions ?? new(),
-            NetworkAccessRules = permManifest?.NetworkAccessRules ?? new(),
-            AllowedTerminalCommands = permManifest?.AllowedTerminalCommands ?? new()
+            FilePermissions = request.ImportPermissions ? (permManifest?.FilePermissions ?? new()) : new(),
+            NetworkAccessRules = request.ImportPermissions ? (permManifest?.NetworkAccessRules ?? new()) : new(),
+            AllowedTerminalCommands = request.ImportPermissions ? (permManifest?.AllowedTerminalCommands ?? new()) : new()
         };
 
-        // Merge into config.yaml
         var existingIdx = _config.Settings.Projects.FindIndex(p => p.Name.Equals(projectName, StringComparison.OrdinalIgnoreCase));
         if (existingIdx >= 0)
         {
@@ -570,8 +684,9 @@ public class VaultService : IVaultService
             _config.Settings.Projects.Add(projectConfig);
         }
 
-        // Setup local project directories and copy skills
         ProjectPathHelper.EnsureProjectDirectories(_config.TendrilHome, projectName);
+
+        // Copy skills
         var vaultSkillsDir = Path.Combine(projDir, "skills");
         var localSkillsDir = ProjectPathHelper.GetSkillsDir(_config.TendrilHome, projectName);
 
@@ -579,18 +694,37 @@ public class VaultService : IVaultService
         {
             foreach (var file in Directory.GetFiles(vaultSkillsDir, "*.md"))
             {
-                File.Copy(file, Path.Combine(localSkillsDir, Path.GetFileName(file)), true);
+                var skillName = Path.GetFileNameWithoutExtension(file);
+                if (request.SelectedSkills == null || request.SelectedSkills.Contains(skillName))
+                {
+                    File.Copy(file, Path.Combine(localSkillsDir, Path.GetFileName(file)), true);
+                }
             }
         }
 
-        // Update tracking
+        // Copy memories
+        var vaultMemoryDir = Path.Combine(projDir, "memory");
+        var localMemoryDir = ProjectPathHelper.GetMemoryDir(_config.TendrilHome, projectName);
+
+        if (Directory.Exists(vaultMemoryDir))
+        {
+            foreach (var file in Directory.GetFiles(vaultMemoryDir, "*.md"))
+            {
+                var memName = Path.GetFileName(file);
+                if (request.SelectedMemories == null || request.SelectedMemories.Contains(memName))
+                {
+                    File.Copy(file, Path.Combine(localMemoryDir, memName), true);
+                }
+            }
+        }
+
         if (_config.Settings.Vault != null)
         {
             _config.Settings.Vault.TrackedProjects[projectName] = new ProjectVaultTracking
             {
                 InstalledVersion = manifest.Version,
                 InstalledAt = DateTimeOffset.UtcNow,
-                LocalRepoPaths = localRepoMappings
+                LocalRepoPaths = request.LocalRepoMappings
             };
         }
 
@@ -622,7 +756,6 @@ public class VaultService : IVaultService
 
         int updatedCount = 0;
 
-        // If AlwaysUpToDate, auto-update tracked projects
         if (_config.Settings.Vault?.AlwaysUpToDate == true)
         {
             var catalog = await GetCatalogAsync();
@@ -632,7 +765,11 @@ public class VaultService : IVaultService
                 {
                     var tracking = _config.Settings.Vault.TrackedProjects.TryGetValue(item.Name, out var t) ? t : null;
                     var mappings = tracking?.LocalRepoPaths ?? new();
-                    await ImportProjectAsync(item.Name, mappings);
+                    await ImportProjectAsync(new VaultImportRequest
+                    {
+                        ProjectName = item.Name,
+                        LocalRepoMappings = mappings
+                    });
                     updatedCount++;
                 }
             }

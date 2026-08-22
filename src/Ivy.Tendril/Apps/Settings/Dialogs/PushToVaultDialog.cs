@@ -1,36 +1,98 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Ivy;
 using Ivy.Core.Hooks;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Vault;
 
 namespace Ivy.Tendril.Apps.Settings.Dialogs;
 
-public class PushToVaultProjectRow(string projectName, IState<HashSet<string>> selectedProjects) : ViewBase
+public class PushProjectSelectRow(
+    string projName,
+    IState<HashSet<string>> selectedProjects) : ViewBase
 {
     public override object Build()
     {
-        var isChecked = UseState(selectedProjects.Value.Contains(projectName));
+        var isChecked = UseState(() => selectedProjects.Value.Contains(projName));
 
         UseEffect(() =>
         {
-            var contains = selectedProjects.Value.Contains(projectName);
+            var contains = selectedProjects.Value.Contains(projName);
             if (isChecked.Value != contains) isChecked.Set(contains);
         }, selectedProjects);
 
         UseEffect(() =>
         {
             var set = new HashSet<string>(selectedProjects.Value, StringComparer.OrdinalIgnoreCase);
-            if (isChecked.Value) set.Add(projectName);
-            else set.Remove(projectName);
+            if (isChecked.Value) set.Add(projName);
+            else set.Remove(projName);
 
-            if (!set.SetEquals(selectedProjects.Value))
-                selectedProjects.Set(set);
+            if (!set.SetEquals(selectedProjects.Value)) selectedProjects.Set(set);
         }, isChecked);
 
-        return isChecked.ToBoolInput(projectName);
+        return isChecked.ToBoolInput(projName);
+    }
+}
+
+public class PushAssetItemRow(
+    string name,
+    string projName,
+    IState<Dictionary<string, HashSet<string>>> dictState,
+    string? badge = null) : ViewBase
+{
+    public override object Build()
+    {
+        var isChecked = UseState(() =>
+            dictState.Value.TryGetValue(projName, out var set) && set.Contains(name));
+
+        UseEffect(() =>
+        {
+            var contains = dictState.Value.TryGetValue(projName, out var set) && set.Contains(name);
+            if (isChecked.Value != contains) isChecked.Set(contains);
+        }, dictState);
+
+        UseEffect(() =>
+        {
+            var nextDict = new Dictionary<string, HashSet<string>>(dictState.Value);
+            var nextSet = new HashSet<string>(nextDict.TryGetValue(projName, out var s) ? s : new(), StringComparer.OrdinalIgnoreCase);
+            if (isChecked.Value) nextSet.Add(name);
+            else nextSet.Remove(name);
+            nextDict[projName] = nextSet;
+            dictState.Set(nextDict);
+        }, isChecked);
+
+        return Layout.Horizontal().AlignContent(Align.Left)
+            | isChecked.ToBoolInput(name)
+            | (badge != null ? new Badge(badge).Variant(BadgeVariant.Outline).Small() : null);
+    }
+}
+
+public class PushProjectPermissionsRow(
+    string projName,
+    IState<Dictionary<string, bool>> syncPermissions) : ViewBase
+{
+    public override object Build()
+    {
+        var isChecked = UseState(() =>
+            syncPermissions.Value.TryGetValue(projName, out var p) ? p : true);
+
+        UseEffect(() =>
+        {
+            var contains = syncPermissions.Value.TryGetValue(projName, out var p) ? p : true;
+            if (isChecked.Value != contains) isChecked.Set(contains);
+        }, syncPermissions);
+
+        UseEffect(() =>
+        {
+            var nextDict = new Dictionary<string, bool>(syncPermissions.Value) { [projName] = isChecked.Value };
+            syncPermissions.Set(nextDict);
+        }, isChecked);
+
+        return isChecked.ToBoolInput("Include Security & Permissions");
     }
 }
 
@@ -44,10 +106,106 @@ public class PushToVaultDialog(
 {
     public override object? Build()
     {
+        var config = UseService<IConfigService>();
+
         var selectedProjects = UseState(() =>
             !string.IsNullOrEmpty(defaultProject)
                 ? new HashSet<string>(StringComparer.OrdinalIgnoreCase) { defaultProject }
                 : new HashSet<string>(availableProjects, StringComparer.OrdinalIgnoreCase));
+
+        var selectedSkills = UseState<Dictionary<string, HashSet<string>>>(() =>
+        {
+            var dict = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var projName in availableProjects)
+            {
+                var proj = config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projName, StringComparison.OrdinalIgnoreCase));
+                var skills = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (proj != null)
+                {
+                    foreach (var s in proj.Skills) skills.Add(s.Name);
+                    var skillsDir = ProjectPathHelper.GetSkillsDir(config.TendrilHome, proj.Name);
+                    if (Directory.Exists(skillsDir))
+                    {
+                        foreach (var f in Directory.GetFiles(skillsDir, "*.md"))
+                            skills.Add(Path.GetFileNameWithoutExtension(f));
+                    }
+                }
+                dict[projName] = skills;
+            }
+            return dict;
+        });
+
+        var selectedMcps = UseState<Dictionary<string, HashSet<string>>>(() =>
+        {
+            var dict = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var projName in availableProjects)
+            {
+                var proj = config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projName, StringComparison.OrdinalIgnoreCase));
+                var mcps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (proj != null)
+                {
+                    foreach (var m in proj.McpServers) mcps.Add(m.Name);
+                }
+                dict[projName] = mcps;
+            }
+            return dict;
+        });
+
+        var selectedMemories = UseState<Dictionary<string, HashSet<string>>>(() =>
+        {
+            var dict = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var projName in availableProjects)
+            {
+                var mems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var memoryDir = ProjectPathHelper.GetMemoryDir(config.TendrilHome, projName);
+                if (Directory.Exists(memoryDir))
+                {
+                    foreach (var f in Directory.GetFiles(memoryDir, "*.md"))
+                        mems.Add(Path.GetFileName(f));
+                }
+                dict[projName] = mems;
+            }
+            return dict;
+        });
+
+        var selectedReviewActions = UseState<Dictionary<string, HashSet<string>>>(() =>
+        {
+            var dict = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var projName in availableProjects)
+            {
+                var proj = config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projName, StringComparison.OrdinalIgnoreCase));
+                var actions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (proj != null)
+                {
+                    foreach (var a in proj.ReviewActions) actions.Add(a.Name);
+                }
+                dict[projName] = actions;
+            }
+            return dict;
+        });
+
+        var selectedVerifications = UseState<Dictionary<string, HashSet<string>>>(() =>
+        {
+            var dict = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var projName in availableProjects)
+            {
+                var proj = config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projName, StringComparison.OrdinalIgnoreCase));
+                var verifs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (proj != null)
+                {
+                    foreach (var v in proj.Verifications) verifs.Add(v.Name);
+                }
+                dict[projName] = verifs;
+            }
+            return dict;
+        });
+
+        var syncPermissions = UseState<Dictionary<string, bool>>(() =>
+        {
+            var dict = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            foreach (var projName in availableProjects) dict[projName] = true;
+            return dict;
+        });
 
         var version = UseState(() => vaultService.GenerateVersionTimestamp());
         var changelog = UseState("");
@@ -80,7 +238,13 @@ public class PushToVaultDialog(
                 Changelog = changelog.Value.Trim(),
                 PrTitle = prTitle,
                 PrBody = prBody,
-                Reviewers = reviewerList
+                Reviewers = reviewerList,
+                SelectedSkills = selectedSkills.Value.ToDictionary(k => k.Key, v => v.Value.ToList()),
+                SelectedMcps = selectedMcps.Value.ToDictionary(k => k.Key, v => v.Value.ToList()),
+                SelectedMemories = selectedMemories.Value.ToDictionary(k => k.Key, v => v.Value.ToList()),
+                SelectedReviewActions = selectedReviewActions.Value.ToDictionary(k => k.Key, v => v.Value.ToList()),
+                SelectedVerifications = selectedVerifications.Value.ToDictionary(k => k.Key, v => v.Value.ToList()),
+                SyncPermissions = syncPermissions.Value
             };
 
             var result = await vaultService.PushAndCreatePrAsync(request);
@@ -98,61 +262,137 @@ public class PushToVaultDialog(
             }
         }
 
-        if (createdPrUrl.Value != null)
-        {
-            var successContent = Layout.Vertical()
-                | Text.Block($"Version v{version.Value} has been published to a new branch!").Bold()
-                | Text.P("A GitHub Pull Request has been opened for team review:").Small().Muted()
-                | new Button(createdPrUrl.Value)
-                    .Icon(Icons.GitPullRequest)
-                    .Primary()
-                    .OnClick(() => client.OpenUrl(createdPrUrl.Value));
-
-            var successFooter = Layout.Horizontal().AlignContent(Align.Right)
-                | new Button("Done").Outline().OnClick(() => dialogOpen.Set(false));
-
-            return new Dialog(
-                _ => dialogOpen.Set(false),
-                new DialogHeader("Pull Request Created"),
-                new DialogBody(successContent),
-                new DialogFooter(successFooter)
-            );
-        }
-
-        var projectCheckboxes = Layout.Vertical();
+        var projectSelectorList = Layout.Vertical();
         foreach (var projName in availableProjects)
         {
-            projectCheckboxes |= new PushToVaultProjectRow(projName, selectedProjects);
+            var isProjectChecked = selectedProjects.Value.Contains(projName);
+            var proj = config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projName, StringComparison.OrdinalIgnoreCase));
+
+            var projSkills = new List<string>();
+            var projMcps = new List<string>();
+            var projMemories = new List<string>();
+            var projActions = new List<string>();
+            var projVerifs = new List<string>();
+
+            if (proj != null)
+            {
+                foreach (var s in proj.Skills) projSkills.Add(s.Name);
+                var skillsDir = ProjectPathHelper.GetSkillsDir(config.TendrilHome, proj.Name);
+                if (Directory.Exists(skillsDir))
+                {
+                    foreach (var f in Directory.GetFiles(skillsDir, "*.md"))
+                    {
+                        var name = Path.GetFileNameWithoutExtension(f);
+                        if (!projSkills.Contains(name)) projSkills.Add(name);
+                    }
+                }
+
+                foreach (var m in proj.McpServers) projMcps.Add(m.Name);
+
+                var memDir = ProjectPathHelper.GetMemoryDir(config.TendrilHome, proj.Name);
+                if (Directory.Exists(memDir))
+                {
+                    foreach (var f in Directory.GetFiles(memDir, "*.md"))
+                        projMemories.Add(Path.GetFileName(f));
+                }
+
+                foreach (var a in proj.ReviewActions) projActions.Add(a.Name);
+                foreach (var v in proj.Verifications) projVerifs.Add(v.Name);
+            }
+
+            var projectHeader = Layout.Horizontal().AlignContent(Align.Left)
+                | new PushProjectSelectRow(projName, selectedProjects)
+                | new Badge($"{projSkills.Count} skills, {projMcps.Count} mcps, {projMemories.Count} mems").Variant(BadgeVariant.Outline).Small();
+
+            var assetChecklist = Layout.Vertical();
+
+            if (isProjectChecked)
+            {
+                // Skills
+                if (projSkills.Count > 0)
+                {
+                    assetChecklist |= Text.Block("Custom Skills:").Small().Bold();
+                    foreach (var sName in projSkills)
+                    {
+                        assetChecklist |= new PushAssetItemRow(sName, projName, selectedSkills, "Skill");
+                    }
+                }
+
+                // MCPs
+                if (projMcps.Count > 0)
+                {
+                    assetChecklist |= Text.Block("MCP Servers:").Small().Bold();
+                    foreach (var mName in projMcps)
+                    {
+                        assetChecklist |= new PushAssetItemRow(mName, projName, selectedMcps, "MCP");
+                    }
+                }
+
+                // Memories
+                if (projMemories.Count > 0)
+                {
+                    assetChecklist |= Text.Block("Memories:").Small().Bold();
+                    foreach (var memName in projMemories)
+                    {
+                        assetChecklist |= new PushAssetItemRow(memName, projName, selectedMemories, "Memory");
+                    }
+                }
+
+                // Review Actions
+                if (projActions.Count > 0)
+                {
+                    assetChecklist |= Text.Block("Review Actions:").Small().Bold();
+                    foreach (var aName in projActions)
+                    {
+                        assetChecklist |= new PushAssetItemRow(aName, projName, selectedReviewActions, "Action");
+                    }
+                }
+
+                // Verifications
+                if (projVerifs.Count > 0)
+                {
+                    assetChecklist |= Text.Block("Verifications:").Small().Bold();
+                    foreach (var vName in projVerifs)
+                    {
+                        assetChecklist |= new PushAssetItemRow(vName, projName, selectedVerifications, "Verification");
+                    }
+                }
+
+                // Permissions
+                assetChecklist |= new PushProjectPermissionsRow(projName, syncPermissions);
+            }
+
+            projectSelectorList |= (Layout.Vertical()
+                | projectHeader
+                | (isProjectChecked ? assetChecklist : null));
         }
 
         var form = Layout.Vertical()
-            | (Layout.Horizontal().AlignContent(Align.Left)
-                | Text.Block("Version:").Bold().Small()
-                | new Badge($"v{version.Value}").Variant(BadgeVariant.Secondary))
-            | Text.P("Select the projects to publish to the team vault:").Small().Muted()
-            | projectCheckboxes
-            | changelog.ToTextareaInput("Describe what changed in this version (e.g. Added Playwright MCP and updated component-audit skill)...")
-                .WithField().Label("Changelog")
-            | reviewers.ToTextInput("octocat, mona (optional)")
-                .WithField().Label("Request Reviewers (GitHub Usernames)")
-            | Text.Block("🔒 Any API keys or auth tokens will be automatically replaced with ${VAR} placeholders.").Small().Muted()
-            | (errorMessage.Value != null
-                ? Text.Block(errorMessage.Value).Color(Colors.Destructive).Small()
+            | Text.Block("Select projects & assets to publish:").Small().Bold()
+            | projectSelectorList
+            | version.ToTextInput().WithField().Label("Version Tag (UTC Timestamp)")
+            | changelog.ToTextareaInput("Summary of updates, new skills, MCP servers, or security policy changes...")
+                .WithField().Label("Changelog / Release Notes")
+            | reviewers.ToTextInput("e.g. alice, bob (comma-separated GitHub usernames)")
+                .WithField().Label("Request PR Reviewers")
+            | (errorMessage.Value != null ? Callout.Error(errorMessage.Value) : null)
+            | (createdPrUrl.Value != null
+                ? Callout.Success($"Pull request opened successfully: {createdPrUrl.Value}")
                 : null);
-
-        var actions = Layout.Horizontal().AlignContent(Align.Right)
-            | new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false))
-            | new Button("Publish & Create PR").Primary()
-                .Icon(Icons.GitPullRequest)
-                .Loading(isLoading.Value)
-                .Disabled(isLoading.Value || selectedProjects.Value.Count == 0 || string.IsNullOrWhiteSpace(changelog.Value))
-                .OnClick(async () => await HandlePush());
 
         return new Dialog(
             _ => dialogOpen.Set(false),
-            new DialogHeader("Publish to Team Vault"),
+            new DialogHeader("Publish to Team Vault (Create PR)"),
             new DialogBody(form),
-            new DialogFooter(actions)
+            new DialogFooter(
+                new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false)),
+                new Button("Publish & Open PR")
+                    .Icon(Icons.GitPullRequest)
+                    .Primary()
+                    .Loading(isLoading.Value)
+                    .Disabled(selectedProjects.Value.Count == 0 || isLoading.Value)
+                    .OnClick(async () => await HandlePush())
+            )
         );
     }
 }

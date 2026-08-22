@@ -205,4 +205,98 @@ verifications: []
         Assert.True(config.Settings.Vault.AlwaysUpToDate);
         Assert.True(eventFired);
     }
+
+    [Fact]
+    public async Task ImportProjectAsync_WithGranularSelection_FiltersSelectedAssetsAndCopiesMemories()
+    {
+        var config = CreateConfig();
+        var vaultDir = Path.Combine(_tempDir.Path, "Vault");
+        var projectDir = Path.Combine(vaultDir, "projects", "GranularApp");
+        var skillsDir = Path.Combine(projectDir, "skills");
+        var memoryDir = Path.Combine(projectDir, "memory");
+        Directory.CreateDirectory(skillsDir);
+        Directory.CreateDirectory(memoryDir);
+
+        File.WriteAllText(Path.Combine(skillsDir, "skill1.md"), "# Skill 1");
+        File.WriteAllText(Path.Combine(skillsDir, "skill2.md"), "# Skill 2");
+        File.WriteAllText(Path.Combine(memoryDir, "stack.md"), "# Stack Memory");
+        File.WriteAllText(Path.Combine(memoryDir, "ignored.md"), "# Ignored Memory");
+
+        var manifest = new VaultProjectManifest
+        {
+            Name = "GranularApp",
+            Version = "2026.08.22.180000",
+            Skills = new List<ProjectSkillRef>
+            {
+                new() { Name = "skill1", Description = "Skill 1", Instructions = "Do 1" },
+                new() { Name = "skill2", Description = "Skill 2", Instructions = "Do 2" }
+            },
+            McpServers = new List<ProjectMcpServerRef>
+            {
+                new() { Name = "mcp1", Command = "node", Arguments = new() { "mcp1.js" } },
+                new() { Name = "mcp2", Command = "node", Arguments = new() { "mcp2.js" } }
+            },
+            ReviewActions = new List<ReviewActionConfig>
+            {
+                new() { Name = "action1", Command = "dotnet test" },
+                new() { Name = "action2", Command = "npm test" }
+            },
+            Verifications = new List<ProjectVerificationRef>
+            {
+                new() { Name = "verif1", Required = true },
+                new() { Name = "verif2", Required = false }
+            }
+        };
+        File.WriteAllText(Path.Combine(projectDir, "project.yaml"), YamlHelper.SerializerCompact.Serialize(manifest));
+
+        config.Settings.Vault = new VaultSettings
+        {
+            Enabled = true,
+            RepoUrl = "https://github.com/team/Tendril-Vault.git",
+            LocalPath = vaultDir
+        };
+
+        var vaultService = new VaultService(config, NullLogger<VaultService>.Instance);
+
+        var importReq = new VaultImportRequest
+        {
+            ProjectName = "GranularApp",
+            LocalRepoMappings = new() { ["GranularApp"] = "/path/to/app" },
+            SelectedSkills = new() { "skill1" },
+            SelectedMcps = new() { "mcp2" },
+            SelectedReviewActions = new() { "action1" },
+            SelectedVerifications = new() { "verif2" },
+            SelectedMemories = new() { "stack.md" },
+            ImportPermissions = false
+        };
+
+        var result = await vaultService.ImportProjectAsync(importReq);
+
+        Assert.True(result.Success);
+
+        var imported = config.Settings.Projects.Find(p => p.Name == "GranularApp");
+        Assert.NotNull(imported);
+
+        // Verify only selected skills, mcps, actions, verifications are imported
+        Assert.Single(imported.Skills);
+        Assert.Equal("skill1", imported.Skills[0].Name);
+
+        Assert.Single(imported.McpServers);
+        Assert.Equal("mcp2", imported.McpServers[0].Name);
+
+        Assert.Single(imported.ReviewActions);
+        Assert.Equal("action1", imported.ReviewActions[0].Name);
+
+        Assert.Single(imported.Verifications);
+        Assert.Equal("verif2", imported.Verifications[0].Name);
+
+        // Verify selected disk skill and memory copied, ignored ones not copied
+        var localSkillsDir = ProjectPathHelper.GetSkillsDir(_tempDir.Path, "GranularApp");
+        Assert.True(File.Exists(Path.Combine(localSkillsDir, "skill1.md")));
+        Assert.False(File.Exists(Path.Combine(localSkillsDir, "skill2.md")));
+
+        var localMemoryDir = ProjectPathHelper.GetMemoryDir(_tempDir.Path, "GranularApp");
+        Assert.True(File.Exists(Path.Combine(localMemoryDir, "stack.md")));
+        Assert.False(File.Exists(Path.Combine(localMemoryDir, "ignored.md")));
+    }
 }

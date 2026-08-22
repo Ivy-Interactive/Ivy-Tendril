@@ -33,6 +33,33 @@ public class ImportRepoPathRow(string repo, IState<Dictionary<string, string>> r
     }
 }
 
+public class ImportAssetItemRow(string name, IState<HashSet<string>> selectedSet, string? badge = null) : ViewBase
+{
+    public override object Build()
+    {
+        var isChecked = UseState(() => selectedSet.Value.Contains(name));
+
+        UseEffect(() =>
+        {
+            var contains = selectedSet.Value.Contains(name);
+            if (isChecked.Value != contains) isChecked.Set(contains);
+        }, selectedSet);
+
+        UseEffect(() =>
+        {
+            var next = new HashSet<string>(selectedSet.Value, StringComparer.OrdinalIgnoreCase);
+            if (isChecked.Value) next.Add(name);
+            else next.Remove(name);
+
+            if (!next.SetEquals(selectedSet.Value)) selectedSet.Set(next);
+        }, isChecked);
+
+        return Layout.Horizontal().AlignContent(Align.Left)
+            | isChecked.ToBoolInput(name)
+            | (badge != null ? new Badge(badge).Variant(BadgeVariant.Outline).Small() : null);
+    }
+}
+
 public class ImportFromVaultDialog(
     IState<bool> dialogOpen,
     VaultCatalogItem? projectItem,
@@ -57,6 +84,33 @@ public class ImportFromVaultDialog(
             return initialMappings;
         });
 
+        var selectedSkills = UseState<HashSet<string>>(() =>
+            projectItem != null
+                ? new HashSet<string>(projectItem.SkillNames, StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+        var selectedMcps = UseState<HashSet<string>>(() =>
+            projectItem != null
+                ? new HashSet<string>(projectItem.McpServerNames, StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+        var selectedMemories = UseState<HashSet<string>>(() =>
+            projectItem != null
+                ? new HashSet<string>(projectItem.MemoryFileNames, StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+        var selectedReviewActions = UseState<HashSet<string>>(() =>
+            projectItem != null
+                ? new HashSet<string>(projectItem.ReviewActionNames, StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+        var selectedVerifications = UseState<HashSet<string>>(() =>
+            projectItem != null
+                ? new HashSet<string>(projectItem.VerificationNames, StringComparer.OrdinalIgnoreCase)
+                : new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
+        var importPermissions = UseState(true);
+
         var isLoading = UseState(false);
         var errorMessage = UseState<string?>(null);
 
@@ -69,7 +123,19 @@ public class ImportFromVaultDialog(
             isLoading.Set(true);
             errorMessage.Set(null);
 
-            var result = await vaultService.ImportProjectAsync(projectItem.Name, repoMappings.Value);
+            var request = new VaultImportRequest
+            {
+                ProjectName = projectItem.Name,
+                LocalRepoMappings = repoMappings.Value,
+                SelectedSkills = selectedSkills.Value.ToList(),
+                SelectedMcps = selectedMcps.Value.ToList(),
+                SelectedMemories = selectedMemories.Value.ToList(),
+                SelectedReviewActions = selectedReviewActions.Value.ToList(),
+                SelectedVerifications = selectedVerifications.Value.ToList(),
+                ImportPermissions = importPermissions.Value
+            };
+
+            var result = await vaultService.ImportProjectAsync(request);
             isLoading.Set(false);
 
             if (result.Success)
@@ -94,34 +160,84 @@ public class ImportFromVaultDialog(
             }
         }
 
+        var assetChecklist = Layout.Vertical();
+
+        // Skills
+        if (projectItem.SkillNames.Count > 0)
+        {
+            assetChecklist |= Text.Block("Skills to import:").Small().Bold();
+            foreach (var s in projectItem.SkillNames)
+            {
+                assetChecklist |= new ImportAssetItemRow(s, selectedSkills, "Skill");
+            }
+        }
+
+        // MCP Servers
+        if (projectItem.McpServerNames.Count > 0)
+        {
+            assetChecklist |= Text.Block("MCP Servers to import:").Small().Bold();
+            foreach (var m in projectItem.McpServerNames)
+            {
+                assetChecklist |= new ImportAssetItemRow(m, selectedMcps, "MCP");
+            }
+        }
+
+        // Memories
+        if (projectItem.MemoryFileNames.Count > 0)
+        {
+            assetChecklist |= Text.Block("Project Memories to import:").Small().Bold();
+            foreach (var mem in projectItem.MemoryFileNames)
+            {
+                assetChecklist |= new ImportAssetItemRow(mem, selectedMemories, "Memory");
+            }
+        }
+
+        // Review Actions
+        if (projectItem.ReviewActionNames.Count > 0)
+        {
+            assetChecklist |= Text.Block("Review Actions to import:").Small().Bold();
+            foreach (var a in projectItem.ReviewActionNames)
+            {
+                assetChecklist |= new ImportAssetItemRow(a, selectedReviewActions, "Action");
+            }
+        }
+
+        // Verifications
+        if (projectItem.VerificationNames.Count > 0)
+        {
+            assetChecklist |= Text.Block("Verifications to import:").Small().Bold();
+            foreach (var v in projectItem.VerificationNames)
+            {
+                assetChecklist |= new ImportAssetItemRow(v, selectedVerifications, "Verification");
+            }
+        }
+
+        // Permissions
+        assetChecklist |= importPermissions.ToBoolInput("Import Security & Permissions Policies");
+
         var form = Layout.Vertical()
             | (Layout.Horizontal().AlignContent(Align.Left)
                 | Text.Block($"Project: {projectItem.Name}").Bold()
                 | new Badge($"v{projectItem.RemoteVersion}").Variant(BadgeVariant.Secondary))
-            | (!string.IsNullOrEmpty(projectItem.LatestChangelog)
-                ? Text.P($"Changelog: {projectItem.LatestChangelog}").Small().Muted()
-                : null)
-            | (Layout.Horizontal().AlignContent(Align.Left)
-                | new Badge($"{projectItem.ReposCount} Repos").Variant(BadgeVariant.Outline)
-                | new Badge($"{projectItem.SkillsCount} Skills").Variant(BadgeVariant.Outline)
-                | new Badge($"{projectItem.McpsCount} MCPs").Variant(BadgeVariant.Outline))
+            | (!string.IsNullOrEmpty(projectItem.Description) ? Text.P(projectItem.Description).Small().Muted() : null)
+            | (!string.IsNullOrEmpty(projectItem.LatestChangelog) ? Text.P($"Changelog: {projectItem.LatestChangelog}").Small().Muted() : null)
             | repoInputs
-            | (errorMessage.Value != null
-                ? Text.Block(errorMessage.Value).Color(Colors.Destructive).Small()
-                : null);
-
-        var actions = Layout.Horizontal().AlignContent(Align.Right)
-            | new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false))
-            | new Button("Import Project").Primary()
-                .Loading(isLoading.Value)
-                .Disabled(isLoading.Value)
-                .OnClick(async () => await HandleImport());
+            | assetChecklist
+            | (errorMessage.Value != null ? Callout.Error(errorMessage.Value) : null);
 
         return new Dialog(
             _ => dialogOpen.Set(false),
             new DialogHeader($"Import '{projectItem.Name}' from Vault"),
             new DialogBody(form),
-            new DialogFooter(actions)
+            new DialogFooter(
+                new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false)),
+                new Button("Import Project")
+                    .Icon(Icons.Download)
+                    .Primary()
+                    .Loading(isLoading.Value)
+                    .Disabled(isLoading.Value)
+                    .OnClick(async () => await HandleImport())
+            )
         );
     }
 }

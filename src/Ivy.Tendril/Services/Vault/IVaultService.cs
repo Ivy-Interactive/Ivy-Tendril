@@ -22,6 +22,8 @@ public interface IVaultService
 
     Task<VaultPrResult> PushAndCreatePrAsync(VaultExportRequest request);
 
+    Task<VaultResult> ImportProjectAsync(VaultImportRequest request);
+
     Task<VaultResult> ImportProjectAsync(string projectName, Dictionary<string, string> localRepoMappings);
 
     Task<VaultSyncResult> PullLatestAsync();
