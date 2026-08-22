@@ -351,59 +351,69 @@ public class PushToVaultDialog(
             var assetContent = Layout.Vertical();
 
             // Skills Section
+            var skillsList = Layout.Vertical();
             if (projSkills.Count > 0)
             {
-                var skillsList = Layout.Vertical();
                 foreach (var sName in projSkills)
-                {
                     skillsList |= new PushAssetItemRow(sName, projName, selectedSkills, "Skill");
-                }
-                assetContent |= new Expandable($"Skills ({projSkills.Count})", skillsList).Small().Open(true);
             }
+            else
+            {
+                skillsList |= Text.Block("No custom skills configured for this project.").Small().Muted();
+            }
+            assetContent |= new Expandable($"Skills ({projSkills.Count})", skillsList).Small().Open(projSkills.Count > 0);
 
             // MCP Servers Section
+            var mcpsList = Layout.Vertical();
             if (projMcps.Count > 0)
             {
-                var mcpsList = Layout.Vertical();
                 foreach (var mName in projMcps)
-                {
                     mcpsList |= new PushAssetItemRow(mName, projName, selectedMcps, "MCP");
-                }
-                assetContent |= new Expandable($"MCP Servers ({projMcps.Count})", mcpsList).Small().Open(true);
             }
+            else
+            {
+                mcpsList |= Text.Block("No MCP servers configured for this project.").Small().Muted();
+            }
+            assetContent |= new Expandable($"MCP Servers ({projMcps.Count})", mcpsList).Small().Open(projMcps.Count > 0);
 
             // Memories Section
+            var memsList = Layout.Vertical();
             if (projMemories.Count > 0)
             {
-                var memsList = Layout.Vertical();
                 foreach (var memName in projMemories)
-                {
                     memsList |= new PushAssetItemRow(memName, projName, selectedMemories, "Memory");
-                }
-                assetContent |= new Expandable($"Project Memories ({projMemories.Count})", memsList).Small().Open(true);
             }
+            else
+            {
+                memsList |= Text.Block("No memory markdown files found in .tendril/Projects/<Project>/Memory/.").Small().Muted();
+            }
+            assetContent |= new Expandable($"Project Memories ({projMemories.Count})", memsList).Small().Open(projMemories.Count > 0);
 
             // Review Actions Section
+            var actionsList = Layout.Vertical();
             if (projActions.Count > 0)
             {
-                var actionsList = Layout.Vertical();
                 foreach (var aName in projActions)
-                {
                     actionsList |= new PushAssetItemRow(aName, projName, selectedReviewActions, "Action");
-                }
-                assetContent |= new Expandable($"Review Actions ({projActions.Count})", actionsList).Small().Open(true);
             }
+            else
+            {
+                actionsList |= Text.Block("No review actions configured for this project.").Small().Muted();
+            }
+            assetContent |= new Expandable($"Review Actions ({projActions.Count})", actionsList).Small().Open(projActions.Count > 0);
 
             // Verifications Section
+            var verifsList = Layout.Vertical();
             if (projVerifs.Count > 0)
             {
-                var verifsList = Layout.Vertical();
                 foreach (var vName in projVerifs)
-                {
                     verifsList |= new PushAssetItemRow(vName, projName, selectedVerifications, "Verification");
-                }
-                assetContent |= new Expandable($"Verifications ({projVerifs.Count})", verifsList).Small().Open(true);
             }
+            else
+            {
+                verifsList |= Text.Block("No verifications configured for this project.").Small().Muted();
+            }
+            assetContent |= new Expandable($"Verifications ({projVerifs.Count})", verifsList).Small().Open(projVerifs.Count > 0);
 
             // Permissions Policy
             assetContent |= new PushProjectPermissionsRow(projName, syncPermissions);

@@ -186,59 +186,69 @@ public class ImportFromVaultDialog(
         var assetChecklist = Layout.Vertical();
 
         // Skills
+        var skillsList = Layout.Vertical();
         if (projectItem.SkillNames.Count > 0)
         {
-            var skillsList = Layout.Vertical();
             foreach (var s in projectItem.SkillNames)
-            {
                 skillsList |= new ImportAssetItemRow(s, selectedSkills, "Skill");
-            }
-            assetChecklist |= new Expandable($"Skills ({projectItem.SkillNames.Count})", skillsList).Small().Open(true);
         }
+        else
+        {
+            skillsList |= Text.Block("No custom skills in this vault project.").Small().Muted();
+        }
+        assetChecklist |= new Expandable($"Skills ({projectItem.SkillNames.Count})", skillsList).Small().Open(projectItem.SkillNames.Count > 0);
 
         // MCP Servers
+        var mcpsList = Layout.Vertical();
         if (projectItem.McpServerNames.Count > 0)
         {
-            var mcpsList = Layout.Vertical();
             foreach (var m in projectItem.McpServerNames)
-            {
                 mcpsList |= new ImportAssetItemRow(m, selectedMcps, "MCP");
-            }
-            assetChecklist |= new Expandable($"MCP Servers ({projectItem.McpServerNames.Count})", mcpsList).Small().Open(true);
         }
+        else
+        {
+            mcpsList |= Text.Block("No MCP servers in this vault project.").Small().Muted();
+        }
+        assetChecklist |= new Expandable($"MCP Servers ({projectItem.McpServerNames.Count})", mcpsList).Small().Open(projectItem.McpServerNames.Count > 0);
 
         // Memories
+        var memsList = Layout.Vertical();
         if (projectItem.MemoryFileNames.Count > 0)
         {
-            var memsList = Layout.Vertical();
             foreach (var mem in projectItem.MemoryFileNames)
-            {
                 memsList |= new ImportAssetItemRow(mem, selectedMemories, "Memory");
-            }
-            assetChecklist |= new Expandable($"Project Memories ({projectItem.MemoryFileNames.Count})", memsList).Small().Open(true);
         }
+        else
+        {
+            memsList |= Text.Block("No project memory markdown files in this vault project.").Small().Muted();
+        }
+        assetChecklist |= new Expandable($"Project Memories ({projectItem.MemoryFileNames.Count})", memsList).Small().Open(projectItem.MemoryFileNames.Count > 0);
 
         // Review Actions
+        var actionsList = Layout.Vertical();
         if (projectItem.ReviewActionNames.Count > 0)
         {
-            var actionsList = Layout.Vertical();
             foreach (var a in projectItem.ReviewActionNames)
-            {
                 actionsList |= new ImportAssetItemRow(a, selectedReviewActions, "Action");
-            }
-            assetChecklist |= new Expandable($"Review Actions ({projectItem.ReviewActionNames.Count})", actionsList).Small().Open(true);
         }
+        else
+        {
+            actionsList |= Text.Block("No review actions in this vault project.").Small().Muted();
+        }
+        assetChecklist |= new Expandable($"Review Actions ({projectItem.ReviewActionNames.Count})", actionsList).Small().Open(projectItem.ReviewActionNames.Count > 0);
 
         // Verifications
+        var verifsList = Layout.Vertical();
         if (projectItem.VerificationNames.Count > 0)
         {
-            var verifsList = Layout.Vertical();
             foreach (var v in projectItem.VerificationNames)
-            {
                 verifsList |= new ImportAssetItemRow(v, selectedVerifications, "Verification");
-            }
-            assetChecklist |= new Expandable($"Verifications ({projectItem.VerificationNames.Count})", verifsList).Small().Open(true);
         }
+        else
+        {
+            verifsList |= Text.Block("No verifications in this vault project.").Small().Muted();
+        }
+        assetChecklist |= new Expandable($"Verifications ({projectItem.VerificationNames.Count})", verifsList).Small().Open(projectItem.VerificationNames.Count > 0);
 
         // Permissions
         assetChecklist |= importPermissions.ToBoolInput("Import Security & Permissions Policies");
