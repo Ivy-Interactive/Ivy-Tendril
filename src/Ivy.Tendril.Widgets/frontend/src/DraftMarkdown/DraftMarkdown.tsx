@@ -22,6 +22,7 @@ interface DraftMarkdownProps {
   article?: boolean;
   dangerouslyAllowLocalFiles?: boolean;
   annotations?: MarkdownAnnotation[];
+  currentAuthor?: string;
   events?: string[];
   eventHandler?: IvyEventHandler;
   slots?: {
@@ -46,6 +47,7 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
   article = false,
   dangerouslyAllowLocalFiles = false,
   annotations = EMPTY_ANNOTATIONS,
+  currentAuthor,
   events = EMPTY_EVENTS,
   eventHandler,
   slots,
@@ -180,11 +182,12 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
         endOffset: addPopover.endOffset,
         selectedText: addPopover.selectedText,
         comment,
+        author: currentAuthor || undefined,
       };
       fireAnnotationsChange([...annotations, newAnnotation]);
       setAddPopover(null);
     },
-    [addPopover, annotations, fireAnnotationsChange],
+    [addPopover, annotations, currentAuthor, fireAnnotationsChange],
   );
 
   const handleEditAnnotation = useCallback(
@@ -196,6 +199,15 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
     },
     [editPopover, annotations, fireAnnotationsChange],
   );
+
+  const handleToggleResolveAnnotation = useCallback(() => {
+    if (!editPopover) return;
+    const updated = annotations.map((a) =>
+      a.id === editPopover.id ? { ...a, isResolved: !a.isResolved } : a
+    );
+    fireAnnotationsChange(updated);
+    setEditPopover(null);
+  }, [editPopover, annotations, fireAnnotationsChange]);
 
   const handleRemoveAnnotation = useCallback(() => {
     if (!editPopover) return;
@@ -308,7 +320,9 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
           position={editAnchor.position}
           visible={editAnchor.visible}
           annotation={editPopover}
+          currentAuthor={currentAuthor}
           onSave={handleEditAnnotation}
+          onToggleResolve={handleToggleResolveAnnotation}
           onRemove={handleRemoveAnnotation}
           onCancel={() => setEditPopover(null)}
         />

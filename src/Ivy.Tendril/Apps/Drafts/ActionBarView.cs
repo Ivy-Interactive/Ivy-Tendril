@@ -1,9 +1,12 @@
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Apps.Agent;
+using Ivy.Tendril.Apps.Views.Dialogs;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Share;
+using Ivy.Tendril.Services.Tunnel;
 
 namespace Ivy.Tendril.Apps.Drafts;
 
@@ -28,13 +31,49 @@ public class ActionBarView(
     {
         var client = UseService<IClientProvider>();
         var nav = UseNavigation();
+        var shareContext = UseService<IShareContext>();
+        var shareTunnelService = UseService<IShareTunnelService>();
         var agentRunner = UseService<IAgentRunner>();
+        Context.TryUseService<TendrilArgs>(out var tendrilArgs);
+        var (shareModal, showShareModal) = UseTrigger((isOpen) =>
+            !isOpen.Value ? null : new ShareTunnelModal(isOpen, selectedPlan.FolderName, isReview: false));
+
+        var isShareMode = shareContext.IsShareMode;
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
         var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner, config);
+
+        void HandleShareDraft()
+        {
+            if (shareTunnelService.IsConnected && !string.IsNullOrEmpty(shareTunnelService.TunnelUrl))
+            {
+                var link = shareTunnelService.GetShareUrlForPlan(selectedPlan.FolderName, isReview: false);
+                copyToClipboard(link);
+                client.Toast("Draft share link copied to clipboard", "Link Copied");
+            }
+            else
+            {
+                showShareModal();
+            }
+        }
+
+        if (isShareMode)
+        {
+            // Share / Read-only mode: only Share and Copy Plan buttons
+            return Layout.Horizontal().AlignContent(Align.Left)
+                | new Button("Share Draft").Icon(Icons.Share2).Outline().OnClick(HandleShareDraft)
+                | new Button("Copy Plan").Icon(Icons.ClipboardCopy).Ghost().OnClick(() =>
+                {
+                    var exported = PlanExportHelper.ExportToClipboard(selectedPlan);
+                    copyToClipboard(exported);
+                    client.Toast("Plan copied to clipboard", "Plan Exported");
+                })
+                | shareModal;
+        }
 
         if (isEditingState.Value)
         {
             // Edit mode: show only Save and Cancel buttons
-            return Layout.Horizontal().AlignContent(Align.Left).Gap(2).Wrap()
+            return Layout.Horizontal().AlignContent(Align.Left).Wrap()
                 | new Button("Save Revision").Icon(Icons.Save).Primary().ShortcutKey("S").OnClick(() =>
                 {
                     if (editContentState.Value != originalContentState.Value)
@@ -54,8 +93,12 @@ public class ActionBarView(
         }
 
         // Standard overflow menu items (always at bottom of dropdowns)
-        var standardOverflowItems = new[]
+        var standardOverflowList = new List<MenuItem>();
+        if (isBeta)
         {
+            standardOverflowList.Add(new MenuItem("Share Draft Link", Icon: Icons.Share2, Tag: "ShareDraft").OnSelect(HandleShareDraft));
+        }
+        standardOverflowList.AddRange([
             new MenuItem($"Discuss with {agentLabel}", Icon: agentIcon, Tag: "DiscussWithAgent")
                 .OnSelect(() => nav.Navigate<AgentApp>(new AgentAppArgs(
                     $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Draft mode.",
@@ -125,7 +168,8 @@ public class ActionBarView(
                         variant: ToastVariant.Destructive);
                 }
             })
-        };
+        ]);
+        var standardOverflowItems = standardOverflowList.ToArray();
 
         // Split / Expand share the same OnClick logic whether shown as an inline button
         // (Full tier) or a dropdown item (Compact/Minimal tiers).
@@ -182,14 +226,19 @@ public class ActionBarView(
         minimalDropdownItems.AddRange(standardOverflowItems);
 
         // Action bar without .Wrap() - single row layout with progressive collapse.
-        // Full tier (>=1024px): Edit, Update, Split, Expand, Delete inline + overflow dropdown.
-        // Compact tier (768-1023px): Edit, Update inline; Split/Expand/Delete in dropdown.
-        // Minimal tier (<768px): everything in dropdown.
-        return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
+        var actionBar = Layout.Horizontal().AlignContent(Align.Left)
                | new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E")
                    .OnClick(() => isEditingState.Set(true)).CompactUp()
                | new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
-                   .OnClick(showUpdateDialog).CompactUp()
+                   .OnClick(showUpdateDialog).CompactUp();
+
+        if (isBeta)
+        {
+            actionBar |= new Button("Share").Icon(Icons.Share2).Outline()
+                .OnClick(HandleShareDraft).CompactUp();
+        }
+
+        actionBar = actionBar
                | new Button("Split").Icon(Icons.Scissors).Outline()
                    .OnClick(StartSplit).Disabled(hasActiveSplitJob).FullOnly()
                | new Button("Expand").Icon(Icons.UnfoldVertical).Outline()
@@ -208,5 +257,7 @@ public class ActionBarView(
                | ActionBarResponsive.DropdownAtMinimal(
                    new Button().Icon(Icons.EllipsisVertical).Ghost(),
                    minimalDropdownItems.ToArray());
+
+        return isBeta ? new Fragment(actionBar, shareModal) : actionBar;
     }
 }

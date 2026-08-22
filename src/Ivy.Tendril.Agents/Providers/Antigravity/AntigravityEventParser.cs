@@ -200,10 +200,15 @@ public sealed class AntigravityEventParser : IEventParser
         if (!root.TryGetProperty("result", out var res)) return Empty;
 
         var status = res.TryGetProperty("status", out var sp) ? sp.GetString() : "SUCCESS";
-        var isSuccess = !string.Equals(status, "ERROR", StringComparison.OrdinalIgnoreCase);
         var responseText = res.TryGetProperty("response", out var rp) ? rp.GetString() : null;
         var errorText = res.TryGetProperty("error", out var ep) ? ep.GetString() : null;
         var durationSec = res.TryGetProperty("duration_seconds", out var dp) ? dp.GetDouble() : 0;
+
+        // If the agent completed its run and produced a response, treat it as successful
+        // even if Antigravity flagged a non-fatal recovered mid-turn tool error with status: ERROR.
+        var hasResponse = !string.IsNullOrWhiteSpace(responseText);
+        var isSuccess = !string.Equals(status, "ERROR", StringComparison.OrdinalIgnoreCase) || hasResponse;
+        var effectiveError = isSuccess ? null : errorText;
 
         AgentUsage? usage = null;
         if (res.TryGetProperty("usage", out var usageEl))
@@ -220,7 +225,7 @@ public sealed class AntigravityEventParser : IEventParser
         {
             Kind = AgentEventKind.Result,
             Response = responseText,
-            Error = errorText,
+            Error = effectiveError,
             IsSuccess = isSuccess,
             Duration = durationSec > 0 ? TimeSpan.FromSeconds(durationSec) : null,
             Usage = usage,
