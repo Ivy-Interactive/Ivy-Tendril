@@ -12,6 +12,8 @@ public enum VaultItemSyncStatus
     Modified
 }
 
+public record GitHubAccountOption(string Login, string Type);
+
 public record VaultManifest
 {
     public int SchemaVersion { get; set; } = 1;

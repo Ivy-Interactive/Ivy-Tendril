@@ -12,6 +12,8 @@ public interface IVaultService
 
     Task<VaultCatalog> GetCatalogAsync();
 
+    Task<List<GitHubAccountOption>> GetGitHubAccountsAndOrgsAsync();
+
     Task<VaultResult> CreateVaultRepoAsync(string repoName, bool isPrivate = true, string? org = null);
 
     Task<VaultResult> ConnectVaultAsync(string repoUrl);

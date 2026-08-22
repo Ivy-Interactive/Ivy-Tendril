@@ -282,6 +282,35 @@ public class VaultService : IVaultService
         };
     }
 
+    public async Task<List<GitHubAccountOption>> GetGitHubAccountsAndOrgsAsync()
+    {
+        var list = new List<GitHubAccountOption>();
+
+        // 1. Current user login
+        var (userOut, _) = await RunGhCliAsync("api user --jq .login");
+        var userLogin = userOut?.Trim();
+        if (!string.IsNullOrWhiteSpace(userLogin) && !userLogin.StartsWith("{"))
+        {
+            list.Add(new GitHubAccountOption(userLogin, "Personal"));
+        }
+
+        // 2. User organizations
+        var (orgsOut, _) = await RunGhCliAsync("api user/orgs --jq .[].login");
+        if (!string.IsNullOrWhiteSpace(orgsOut))
+        {
+            var orgs = orgsOut.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var org in orgs)
+            {
+                if (!string.IsNullOrWhiteSpace(org))
+                {
+                    list.Add(new GitHubAccountOption(org, "Organization"));
+                }
+            }
+        }
+
+        return list;
+    }
+
     public async Task<VaultResult> CreateVaultRepoAsync(string repoName, bool isPrivate = true, string? org = null)
     {
         var vaultDir = GetVaultDirectory();
