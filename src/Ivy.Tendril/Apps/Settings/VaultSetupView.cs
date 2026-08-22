@@ -81,7 +81,7 @@ public class VaultSetupView : ViewBase
 
         if (!status.IsConfigured)
         {
-            var notConfiguredLayout = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+            var notConfiguredLayout = Layout.Vertical().Width(Size.Auto().Max(Size.Units(200)))
                 | Text.Block("Team Configuration Vault").Bold()
                 | Text.Block("Share and synchronize Tendril projects, custom skills, MCP servers, and security rules across your team via a versioned Git repository.").Muted().Small()
                 | (Layout.Horizontal().AlignContent(Align.Left)
@@ -116,125 +116,129 @@ public class VaultSetupView : ViewBase
             }
         }
 
-        var headerCard = Layout.Vertical()
-            | (Layout.Horizontal()
+        var connectionSection = Layout.Vertical()
+            | Text.Block("Vault Connection").Bold()
+            | (Layout.Horizontal().AlignContent(Align.SpaceBetween)
                 | (Layout.Horizontal().AlignContent(Align.Left)
                     | Icons.FolderGit2.ToIcon()
-                    | Text.Block("Team Vault").Bold()
-                    | new Badge(status.CurrentBranch).Variant(BadgeVariant.Secondary))
+                    | Text.Monospaced(status.RepoUrl).Bold()
+                    | new Badge(status.CurrentBranch).Variant(BadgeVariant.Secondary).Small())
                 | (Layout.Horizontal().AlignContent(Align.Right)
                     | new Button("Sync / Pull Latest")
                         .Icon(Icons.RefreshCw)
                         .Outline()
+                        .Small()
                         .Loading(isSyncing.Value)
                         .OnClick(async () => await HandleSync())
                     | new Button("Publish Update (PR)")
                         .Icon(Icons.GitPullRequest)
                         .Primary()
+                        .Small()
                         .OnClick(() =>
                         {
                             selectedPushProject.Set(null);
                             openPushDialog.Set(true);
                         })))
-            | (Layout.Horizontal().AlignContent(Align.Left)
-                | Text.Block($"Repository: {status.RepoUrl}").Small().Muted()
-                | (status.LastSyncedAt.HasValue
-                    ? Text.Block($"• Last synced: {status.LastSyncedAt.Value:MMM d, HH:mm} UTC").Small().Muted()
-                    : null))
+            | (status.LastSyncedAt.HasValue
+                ? Text.Muted($"Last synced: {status.LastSyncedAt.Value:MMM d, yyyy HH:mm} UTC").Small()
+                : null)
             | autoSyncState.ToBoolInput("Always keep local configuration in sync with remote");
 
-        var projectRows = Layout.Vertical();
-        projectRows |= Text.Block("Shared Projects").Bold();
+        var tableRows = catalog.Projects.Select((p, i) => new VaultProjectTableRow(
+            p.Name,
+            !string.IsNullOrEmpty(p.RemoteVersion) ? $"v{p.RemoteVersion}" : (!string.IsNullOrEmpty(p.LocalVersion) ? $"v{p.LocalVersion}" : "-"),
+            p.SyncStatus,
+            $"{p.ReposCount} repos • {p.SkillsCount} skills • {p.McpsCount} MCPs",
+            p.LatestChangelog ?? (!string.IsNullOrEmpty(p.Description) ? p.Description : "-"),
+            i
+        )).ToList();
 
-        if (catalog.Projects.Count == 0)
-        {
-            projectRows |= Text.P("No projects found in the vault yet. Click 'Publish Update' to share your local projects with the team.").Small().Muted();
-        }
-        else
-        {
-            foreach (var item in catalog.Projects)
+        var projectsTable = new TableBuilder<VaultProjectTableRow>(tableRows)
+            .Builder(t => t.Name, f => f.Func<VaultProjectTableRow, string>(name =>
             {
-                var rowActions = Layout.Horizontal().AlignContent(Align.Right);
-
-                switch (item.SyncStatus)
+                var item = catalog.Projects.Find(p => p.Name == name);
+                var colorStr = item?.Color ?? "Slate";
+                var color = Enum.TryParse<Colors>(colorStr, out var c) ? c : Colors.Slate;
+                return Layout.Horizontal().AlignContent(Align.Left)
+                    | new Badge("").Color(color).Small()
+                    | Text.Block(name).Bold();
+            }))
+            .Builder(t => t.Version, f => f.Func<VaultProjectTableRow, string>(v =>
+                new Badge(v).Variant(BadgeVariant.Secondary).Small()
+            ))
+            .Builder(t => t.SyncStatus, f => f.Func<VaultProjectTableRow, VaultItemSyncStatus>(s => s switch
+            {
+                VaultItemSyncStatus.UpToDate => new Badge("✓ In Sync").Variant(BadgeVariant.Secondary).Small(),
+                VaultItemSyncStatus.UpdateAvailable => new Badge("Update Available").Variant(BadgeVariant.Destructive).Small(),
+                VaultItemSyncStatus.LocalOnly => new Badge("Local Only").Variant(BadgeVariant.Outline).Small(),
+                VaultItemSyncStatus.NotImported => new Badge("Not Imported").Variant(BadgeVariant.Outline).Small(),
+                _ => new Badge("In Vault").Variant(BadgeVariant.Secondary).Small()
+            }))
+            .Header(t => t.Contents, "Contents")
+            .Header(t => t.Changelog, "Changelog / Context")
+            .Header(t => t.Index, "")
+            .Builder(t => t.Index, f => f.Func<VaultProjectTableRow, int>(idx =>
+            {
+                var item = catalog.Projects[idx];
+                return item.SyncStatus switch
                 {
-                    case VaultItemSyncStatus.NotImported:
-                        rowActions |= new Button("Import")
-                            .Icon(Icons.Download)
-                            .Primary()
-                            .Small()
-                            .OnClick(() =>
+                    VaultItemSyncStatus.NotImported => new Button("Import")
+                        .Icon(Icons.Download)
+                        .Primary()
+                        .Small()
+                        .OnClick(() =>
+                        {
+                            selectedImportItem.Set(item);
+                            openImportDialog.Set(true);
+                        }),
+
+                    VaultItemSyncStatus.UpdateAvailable => new Button("Update")
+                        .Icon(Icons.CircleArrowUp)
+                        .Primary()
+                        .Small()
+                        .OnClick(async () =>
+                        {
+                            var tracking = config.Settings.Vault?.TrackedProjects.TryGetValue(item.Name, out var t) == true ? t : null;
+                            var mappings = tracking?.LocalRepoPaths ?? new();
+                            var res = await vaultService.ImportProjectAsync(item.Name, mappings);
+                            if (res.Success)
                             {
-                                selectedImportItem.Set(item);
-                                openImportDialog.Set(true);
-                            });
-                        break;
+                                client.Toast(res.Message, "Updated");
+                                catalogQuery.Mutator.Revalidate();
+                            }
+                        }),
 
-                    case VaultItemSyncStatus.UpdateAvailable:
-                        rowActions |= new Button("Update")
-                            .Icon(Icons.CircleArrowUp)
-                            .Primary()
-                            .Small()
-                            .OnClick(async () =>
-                            {
-                                var tracking = config.Settings.Vault?.TrackedProjects.TryGetValue(item.Name, out var t) == true ? t : null;
-                                var mappings = tracking?.LocalRepoPaths ?? new();
-                                var res = await vaultService.ImportProjectAsync(item.Name, mappings);
-                                if (res.Success)
-                                {
-                                    client.Toast(res.Message, "Updated");
-                                    catalogQuery.Mutator.Revalidate();
-                                }
-                            });
-                        break;
+                    VaultItemSyncStatus.LocalOnly => new Button("Publish")
+                        .Icon(Icons.Upload)
+                        .Outline()
+                        .Small()
+                        .OnClick(() =>
+                        {
+                            selectedPushProject.Set(item.Name);
+                            openPushDialog.Set(true);
+                        }),
 
-                    case VaultItemSyncStatus.LocalOnly:
-                        rowActions |= new Button("Publish")
-                            .Icon(Icons.Upload)
-                            .Outline()
-                            .Small()
-                            .OnClick(() =>
-                            {
-                                selectedPushProject.Set(item.Name);
-                                openPushDialog.Set(true);
-                            });
-                        break;
+                    VaultItemSyncStatus.UpToDate => new Button("Publish PR")
+                        .Icon(Icons.GitPullRequest)
+                        .Outline()
+                        .Small()
+                        .OnClick(() =>
+                        {
+                            selectedPushProject.Set(item.Name);
+                            openPushDialog.Set(true);
+                        }),
 
-                    case VaultItemSyncStatus.UpToDate:
-                    default:
-                        rowActions |= new Badge("✓ In Sync").Variant(BadgeVariant.Secondary);
-                        break;
-                }
-
-                var statusBadge = item.SyncStatus switch
-                {
-                    VaultItemSyncStatus.UpToDate => new Badge($"v{item.RemoteVersion}").Variant(BadgeVariant.Secondary),
-                    VaultItemSyncStatus.UpdateAvailable => new Badge($"Update: v{item.RemoteVersion}").Variant(BadgeVariant.Destructive),
-                    VaultItemSyncStatus.LocalOnly => new Badge("Local Only").Variant(BadgeVariant.Outline),
-                    VaultItemSyncStatus.NotImported => new Badge($"v{item.RemoteVersion}").Variant(BadgeVariant.Outline),
-                    _ => new Badge("In Vault").Variant(BadgeVariant.Secondary)
+                    _ => null
                 };
+            }))
+            .Width(Size.Fit());
 
-                var projectCard = Layout.Horizontal()
-                    | (Layout.Vertical()
-                        | (Layout.Horizontal().AlignContent(Align.Left)
-                            | Text.Block(item.Name).Bold()
-                            | statusBadge)
-                        | (!string.IsNullOrEmpty(item.Description)
-                            ? Text.P(item.Description).Small().Muted()
-                            : null)
-                        | (!string.IsNullOrEmpty(item.LatestChangelog)
-                            ? Text.P($"Changelog: {item.LatestChangelog}").Small().Muted()
-                            : null)
-                        | (Layout.Horizontal().AlignContent(Align.Left)
-                            | Text.Block($"{item.ReposCount} repos").Small().Muted()
-                            | Text.Block($"• {item.SkillsCount} skills").Small().Muted()
-                            | Text.Block($"• {item.McpsCount} MCPs").Small().Muted()))
-                    | rowActions;
-
-                projectRows |= projectCard;
-            }
-        }
+        var projectsSection = Layout.Vertical()
+            | Text.Block("Shared Projects").Bold()
+            | Text.Block("Projects tracked in the team vault and their local sync status.").Muted().Small()
+            | (tableRows.Count > 0
+                ? projectsTable
+                : Text.Muted("No projects found in the vault yet. Click 'Publish Update (PR)' above to share your local projects.").Small());
 
         var disconnectSection = Layout.Vertical()
             | Text.Block("Danger Zone").Bold()
@@ -247,11 +251,11 @@ public class VaultSetupView : ViewBase
                     catalogQuery.Mutator.Revalidate();
                 }));
 
-        var mainLayout = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+        var mainLayout = Layout.Vertical().Width(Size.Auto().Max(Size.Units(200)))
             | Text.Block("Team Configuration Vault").Bold()
             | Text.Block("Share and synchronize Tendril projects, custom skills, MCP servers, and security rules across your team.").Muted().Small()
-            | headerCard
-            | projectRows
+            | connectionSection
+            | projectsSection
             | disconnectSection;
 
         return new Fragment(
@@ -262,4 +266,13 @@ public class VaultSetupView : ViewBase
             importDialog
         );
     }
+
+    private record VaultProjectTableRow(
+        string Name,
+        string Version,
+        VaultItemSyncStatus SyncStatus,
+        string Contents,
+        string Changelog,
+        int Index
+    );
 }
