@@ -153,7 +153,7 @@ public class ImportFromVaultDialog(
         var repoInputs = Layout.Vertical();
         if (projectItem.Repos.Count > 0)
         {
-            repoInputs |= Text.Block("Map repositories to local folders:").Small().Bold();
+            repoInputs |= Text.Block("Local Folder Mappings").Small().Bold();
             foreach (var repo in projectItem.Repos)
             {
                 repoInputs |= new ImportRepoPathRow(repo, repoMappings);
@@ -165,51 +165,56 @@ public class ImportFromVaultDialog(
         // Skills
         if (projectItem.SkillNames.Count > 0)
         {
-            assetChecklist |= Text.Block("Skills to import:").Small().Bold();
+            var skillsList = Layout.Vertical();
             foreach (var s in projectItem.SkillNames)
             {
-                assetChecklist |= new ImportAssetItemRow(s, selectedSkills, "Skill");
+                skillsList |= new ImportAssetItemRow(s, selectedSkills, "Skill");
             }
+            assetChecklist |= new Expandable($"Skills ({projectItem.SkillNames.Count})", skillsList).Small().Open(true);
         }
 
         // MCP Servers
         if (projectItem.McpServerNames.Count > 0)
         {
-            assetChecklist |= Text.Block("MCP Servers to import:").Small().Bold();
+            var mcpsList = Layout.Vertical();
             foreach (var m in projectItem.McpServerNames)
             {
-                assetChecklist |= new ImportAssetItemRow(m, selectedMcps, "MCP");
+                mcpsList |= new ImportAssetItemRow(m, selectedMcps, "MCP");
             }
+            assetChecklist |= new Expandable($"MCP Servers ({projectItem.McpServerNames.Count})", mcpsList).Small().Open(true);
         }
 
         // Memories
         if (projectItem.MemoryFileNames.Count > 0)
         {
-            assetChecklist |= Text.Block("Project Memories to import:").Small().Bold();
+            var memsList = Layout.Vertical();
             foreach (var mem in projectItem.MemoryFileNames)
             {
-                assetChecklist |= new ImportAssetItemRow(mem, selectedMemories, "Memory");
+                memsList |= new ImportAssetItemRow(mem, selectedMemories, "Memory");
             }
+            assetChecklist |= new Expandable($"Project Memories ({projectItem.MemoryFileNames.Count})", memsList).Small().Open(true);
         }
 
         // Review Actions
         if (projectItem.ReviewActionNames.Count > 0)
         {
-            assetChecklist |= Text.Block("Review Actions to import:").Small().Bold();
+            var actionsList = Layout.Vertical();
             foreach (var a in projectItem.ReviewActionNames)
             {
-                assetChecklist |= new ImportAssetItemRow(a, selectedReviewActions, "Action");
+                actionsList |= new ImportAssetItemRow(a, selectedReviewActions, "Action");
             }
+            assetChecklist |= new Expandable($"Review Actions ({projectItem.ReviewActionNames.Count})", actionsList).Small().Open(true);
         }
 
         // Verifications
         if (projectItem.VerificationNames.Count > 0)
         {
-            assetChecklist |= Text.Block("Verifications to import:").Small().Bold();
+            var verifsList = Layout.Vertical();
             foreach (var v in projectItem.VerificationNames)
             {
-                assetChecklist |= new ImportAssetItemRow(v, selectedVerifications, "Verification");
+                verifsList |= new ImportAssetItemRow(v, selectedVerifications, "Verification");
             }
+            assetChecklist |= new Expandable($"Verifications ({projectItem.VerificationNames.Count})", verifsList).Small().Open(true);
         }
 
         // Permissions
@@ -222,6 +227,7 @@ public class ImportFromVaultDialog(
             | (!string.IsNullOrEmpty(projectItem.Description) ? Text.P(projectItem.Description).Small().Muted() : null)
             | (!string.IsNullOrEmpty(projectItem.LatestChangelog) ? Text.P($"Changelog: {projectItem.LatestChangelog}").Small().Muted() : null)
             | repoInputs
+            | Text.Block("Assets to Import").Small().Bold()
             | assetChecklist
             | (errorMessage.Value != null ? Callout.Error(errorMessage.Value) : null);
 

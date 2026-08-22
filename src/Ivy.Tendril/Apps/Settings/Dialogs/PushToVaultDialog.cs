@@ -92,7 +92,7 @@ public class PushProjectPermissionsRow(
             syncPermissions.Set(nextDict);
         }, isChecked);
 
-        return isChecked.ToBoolInput("Include Security & Permissions");
+        return isChecked.ToBoolInput("Include Security & Permissions Policies");
     }
 }
 
@@ -302,74 +302,79 @@ public class PushToVaultDialog(
 
             var projectHeader = Layout.Horizontal().AlignContent(Align.Left)
                 | new PushProjectSelectRow(projName, selectedProjects)
-                | new Badge($"{projSkills.Count} skills, {projMcps.Count} mcps, {projMemories.Count} mems").Variant(BadgeVariant.Outline).Small();
+                | new Badge($"{projSkills.Count} skills, {projMcps.Count} MCPs, {projMemories.Count} mems").Variant(BadgeVariant.Secondary).Small();
 
-            var assetChecklist = Layout.Vertical();
+            var assetContent = Layout.Vertical();
 
-            if (isProjectChecked)
+            // Skills Section
+            if (projSkills.Count > 0)
             {
-                // Skills
-                if (projSkills.Count > 0)
+                var skillsList = Layout.Vertical();
+                foreach (var sName in projSkills)
                 {
-                    assetChecklist |= Text.Block("Custom Skills:").Small().Bold();
-                    foreach (var sName in projSkills)
-                    {
-                        assetChecklist |= new PushAssetItemRow(sName, projName, selectedSkills, "Skill");
-                    }
+                    skillsList |= new PushAssetItemRow(sName, projName, selectedSkills, "Skill");
                 }
-
-                // MCPs
-                if (projMcps.Count > 0)
-                {
-                    assetChecklist |= Text.Block("MCP Servers:").Small().Bold();
-                    foreach (var mName in projMcps)
-                    {
-                        assetChecklist |= new PushAssetItemRow(mName, projName, selectedMcps, "MCP");
-                    }
-                }
-
-                // Memories
-                if (projMemories.Count > 0)
-                {
-                    assetChecklist |= Text.Block("Memories:").Small().Bold();
-                    foreach (var memName in projMemories)
-                    {
-                        assetChecklist |= new PushAssetItemRow(memName, projName, selectedMemories, "Memory");
-                    }
-                }
-
-                // Review Actions
-                if (projActions.Count > 0)
-                {
-                    assetChecklist |= Text.Block("Review Actions:").Small().Bold();
-                    foreach (var aName in projActions)
-                    {
-                        assetChecklist |= new PushAssetItemRow(aName, projName, selectedReviewActions, "Action");
-                    }
-                }
-
-                // Verifications
-                if (projVerifs.Count > 0)
-                {
-                    assetChecklist |= Text.Block("Verifications:").Small().Bold();
-                    foreach (var vName in projVerifs)
-                    {
-                        assetChecklist |= new PushAssetItemRow(vName, projName, selectedVerifications, "Verification");
-                    }
-                }
-
-                // Permissions
-                assetChecklist |= new PushProjectPermissionsRow(projName, syncPermissions);
+                assetContent |= new Expandable($"Skills ({projSkills.Count})", skillsList).Small().Open(true);
             }
 
-            projectSelectorList |= (Layout.Vertical()
-                | projectHeader
-                | (isProjectChecked ? assetChecklist : null));
+            // MCP Servers Section
+            if (projMcps.Count > 0)
+            {
+                var mcpsList = Layout.Vertical();
+                foreach (var mName in projMcps)
+                {
+                    mcpsList |= new PushAssetItemRow(mName, projName, selectedMcps, "MCP");
+                }
+                assetContent |= new Expandable($"MCP Servers ({projMcps.Count})", mcpsList).Small().Open(true);
+            }
+
+            // Memories Section
+            if (projMemories.Count > 0)
+            {
+                var memsList = Layout.Vertical();
+                foreach (var memName in projMemories)
+                {
+                    memsList |= new PushAssetItemRow(memName, projName, selectedMemories, "Memory");
+                }
+                assetContent |= new Expandable($"Project Memories ({projMemories.Count})", memsList).Small().Open(true);
+            }
+
+            // Review Actions Section
+            if (projActions.Count > 0)
+            {
+                var actionsList = Layout.Vertical();
+                foreach (var aName in projActions)
+                {
+                    actionsList |= new PushAssetItemRow(aName, projName, selectedReviewActions, "Action");
+                }
+                assetContent |= new Expandable($"Review Actions ({projActions.Count})", actionsList).Small().Open(true);
+            }
+
+            // Verifications Section
+            if (projVerifs.Count > 0)
+            {
+                var verifsList = Layout.Vertical();
+                foreach (var vName in projVerifs)
+                {
+                    verifsList |= new PushAssetItemRow(vName, projName, selectedVerifications, "Verification");
+                }
+                assetContent |= new Expandable($"Verifications ({projVerifs.Count})", verifsList).Small().Open(true);
+            }
+
+            // Permissions Policy
+            assetContent |= new PushProjectPermissionsRow(projName, syncPermissions);
+
+            var projectCard = new Expandable(projectHeader, assetContent)
+                .Small()
+                .Open(isProjectChecked);
+
+            projectSelectorList |= projectCard;
         }
 
         var form = Layout.Vertical()
-            | Text.Block("Select projects & assets to publish:").Small().Bold()
+            | Text.Block("Projects & Assets to Publish").Small().Bold()
             | projectSelectorList
+            | Text.Block("Release Details").Small().Bold()
             | version.ToTextInput().WithField().Label("Version Tag (UTC Timestamp)")
             | changelog.ToTextareaInput("Summary of updates, new skills, MCP servers, or security policy changes...")
                 .WithField().Label("Changelog / Release Notes")
