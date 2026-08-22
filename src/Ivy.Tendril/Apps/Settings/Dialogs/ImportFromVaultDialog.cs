@@ -9,15 +9,27 @@ using Ivy.Tendril.Services.Vault;
 
 namespace Ivy.Tendril.Apps.Settings.Dialogs;
 
-public class ImportRepoPathRow(string repo, IState<Dictionary<string, string>> repoMappings) : ViewBase
+public class ImportRepoPathRow(
+    VaultRepoRef repoRef,
+    IState<Dictionary<string, string>> repoMappings) : ViewBase
 {
     public override object Build()
     {
-        var inputState = UseState(() => repoMappings.Value.TryGetValue(repo, out var p) ? p : "");
+        var inputState = UseState(() =>
+        {
+            var key = !string.IsNullOrEmpty(repoRef.Owner) && repoRef.Owner != "local" && repoRef.Owner != "default"
+                ? $"{repoRef.Owner}/{repoRef.Name}"
+                : repoRef.Name;
+            return repoMappings.Value.TryGetValue(key, out var p) ? p : "";
+        });
+
+        var repoKey = !string.IsNullOrEmpty(repoRef.Owner) && repoRef.Owner != "local" && repoRef.Owner != "default"
+            ? $"{repoRef.Owner}/{repoRef.Name}"
+            : repoRef.Name;
 
         UseEffect(() =>
         {
-            if (repoMappings.Value.TryGetValue(repo, out var val) && val != inputState.Value)
+            if (repoMappings.Value.TryGetValue(repoKey, out var val) && val != inputState.Value)
             {
                 inputState.Set(val);
             }
@@ -25,11 +37,20 @@ public class ImportRepoPathRow(string repo, IState<Dictionary<string, string>> r
 
         UseEffect(() =>
         {
-            var updated = new Dictionary<string, string>(repoMappings.Value) { [repo] = inputState.Value };
+            var updated = new Dictionary<string, string>(repoMappings.Value) { [repoKey] = inputState.Value };
             repoMappings.Set(updated);
         }, inputState);
 
-        return inputState.ToTextInput().WithField().Label(repo);
+        var exists = !string.IsNullOrWhiteSpace(inputState.Value) && Directory.Exists(inputState.Value);
+        var label = repoRef.RemoteUrl != null
+            ? $"{repoKey} ({repoRef.RemoteUrl})"
+            : repoKey;
+
+        return Layout.Vertical()
+            | inputState.ToTextInput().WithField().Label(label)
+            | (!exists && !string.IsNullOrWhiteSpace(repoRef.RemoteUrl)
+                ? Text.Block("⚡ Folder not found locally — will auto-clone from remote repository upon import.").Small().Muted()
+                : null);
     }
 }
 
@@ -77,8 +98,10 @@ public class ImportFromVaultDialog(
             {
                 foreach (var repo in projectItem.Repos)
                 {
-                    var repoName = repo.Contains('/') ? repo.Split('/')[^1] : repo;
-                    initialMappings[repo] = Path.Combine(homeDir, "git", repoName);
+                    var repoKey = !string.IsNullOrEmpty(repo.Owner) && repo.Owner != "local" && repo.Owner != "default"
+                        ? $"{repo.Owner}/{repo.Name}"
+                        : repo.Name;
+                    initialMappings[repoKey] = Path.Combine(homeDir, "git", repo.Name);
                 }
             }
             return initialMappings;

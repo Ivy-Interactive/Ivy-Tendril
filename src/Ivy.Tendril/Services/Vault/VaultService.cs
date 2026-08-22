@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.Logging;
@@ -207,6 +208,7 @@ public class VaultService : IVaultService
                     Name = projName,
                     Description = manifest?.Context ?? "",
                     Color = manifest?.Color ?? "Blue",
+                    StackHash = manifest?.StackHash,
                     LocalVersion = localVersion,
                     RemoteVersion = remoteVersion,
                     LatestChangelog = manifest?.Changelog,
@@ -224,7 +226,7 @@ public class VaultService : IVaultService
                     ReviewActionNames = reviewActionNames,
                     VerificationNames = verificationNames,
                     SyncStatus = syncStatus,
-                    Repos = manifest?.Repos.Select(r => $"{r.Owner}/{r.Name}").ToList() ?? new()
+                    Repos = manifest?.Repos ?? new()
                 });
             }
         }
@@ -258,15 +260,22 @@ public class VaultService : IVaultService
         var reviewActionNames = localProj.ReviewActions.Select(r => r.Name).ToList();
         var verificationNames = localProj.Verifications.Select(v => v.Name).ToList();
 
+        var repos = localProj.Repos.Select(r =>
+        {
+            var name = Path.GetFileName(r.Path.TrimEnd('/', '\\'));
+            return new VaultRepoRef { Owner = "local", Name = name, BaseBranch = r.BaseBranch };
+        }).ToList();
+
         return new VaultCatalogItem
         {
             Name = localProj.Name,
             Description = localProj.Context,
             Color = localProj.Color,
+            StackHash = localProj.StackHash,
             LocalVersion = GetTrackedVersion(localProj.Name),
             RemoteVersion = "",
             SyncStatus = VaultItemSyncStatus.LocalOnly,
-            Repos = localProj.Repos.Select(r => r.Path).ToList(),
+            Repos = repos,
             ReposCount = localProj.Repos.Count,
             SkillsCount = skillNames.Count,
             McpsCount = localProj.McpServers.Count,
@@ -477,6 +486,45 @@ public class VaultService : IVaultService
                 ? proj.Verifications.Where(v => selectedVerifs.Contains(v.Name)).ToList()
                 : proj.Verifications;
 
+            // Extract repo remote URLs
+            var repoRefs = new List<VaultRepoRef>();
+            foreach (var r in proj.Repos)
+            {
+                var repoPath = r.Path;
+                var remoteUrl = "";
+                var owner = "default";
+                var repoName = Path.GetFileName(repoPath.TrimEnd('/', '\\'));
+
+                if (Directory.Exists(repoPath))
+                {
+                    var (remoteOut, _) = await RunGitCommandAsync(repoPath, "config --get remote.origin.url");
+                    if (!string.IsNullOrWhiteSpace(remoteOut))
+                    {
+                        remoteUrl = remoteOut.Trim();
+                        var match = Regex.Match(remoteUrl, @"[:/]([^/]+)/([^/]+?)(?:\.git)?$");
+                        if (match.Success)
+                        {
+                            owner = match.Groups[1].Value;
+                            repoName = match.Groups[2].Value;
+                        }
+                    }
+                }
+
+                repoRefs.Add(new VaultRepoRef
+                {
+                    Owner = owner,
+                    Name = repoName,
+                    BaseBranch = r.BaseBranch,
+                    RemoteUrl = !string.IsNullOrEmpty(remoteUrl) ? remoteUrl : null
+                });
+            }
+
+            // Include verification definitions
+            var usedVerifNames = new HashSet<string>(exportedVerifications.Select(v => v.Name), StringComparer.OrdinalIgnoreCase);
+            var verifDefinitions = _config.Settings.Verifications
+                .Where(v => usedVerifNames.Contains(v.Name))
+                .ToList();
+
             // 1. Export project.yaml
             var projectManifest = new VaultProjectManifest
             {
@@ -486,16 +534,14 @@ public class VaultService : IVaultService
                 Changelog = request.Changelog,
                 Color = proj.Color,
                 Context = proj.Context,
-                Repos = proj.Repos.Select(r =>
-                {
-                    var owner = "default";
-                    var name = Path.GetFileName(r.Path.TrimEnd('/', '\\'));
-                    return new VaultRepoRef { Owner = owner, Name = name, BaseBranch = r.BaseBranch };
-                }).ToList(),
+                StackHash = proj.StackHash,
+                Meta = proj.Meta ?? new(),
+                Repos = repoRefs,
                 Verifications = exportedVerifications,
+                VerificationDefinitions = verifDefinitions,
                 ReviewActions = exportedActions,
-                Hooks = proj.Hooks,
-                BuildDependencies = proj.BuildDependencies,
+                Hooks = proj.Hooks ?? new(),
+                BuildDependencies = proj.BuildDependencies ?? new(),
                 McpServers = VaultSecretSanitizer.SanitizeMcpServers(exportedMcps),
                 Skills = exportedSkills,
                 SecurityPreset = proj.SecurityPreset,
@@ -638,19 +684,51 @@ public class VaultService : IVaultService
         var yaml = await File.ReadAllTextAsync(projManifestPath);
         var manifest = YamlHelper.Deserializer.Deserialize<VaultProjectManifest>(yaml);
 
+        // 1. Merge verification definitions if present
+        if (manifest.VerificationDefinitions != null)
+        {
+            foreach (var def in manifest.VerificationDefinitions)
+            {
+                if (!_config.Settings.Verifications.Any(v => v.Name.Equals(def.Name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    _config.Settings.Verifications.Add(def);
+                }
+            }
+        }
+
+        // 2. Resolve or clone repositories
         var repos = new List<RepoRef>();
         foreach (var r in manifest.Repos)
         {
             var key = $"{r.Owner}/{r.Name}";
-            if (request.LocalRepoMappings.TryGetValue(key, out var path) || request.LocalRepoMappings.TryGetValue(r.Name, out path))
+            if (!request.LocalRepoMappings.TryGetValue(key, out var path) &&
+                !request.LocalRepoMappings.TryGetValue(r.Name, out path))
             {
-                repos.Add(new RepoRef { Path = path, BaseBranch = r.BaseBranch });
+                path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "git", r.Name);
             }
-            else
+
+            // Auto-clone if folder doesn't exist locally and remote URL is available
+            if (!Directory.Exists(path) && !string.IsNullOrWhiteSpace(r.RemoteUrl))
             {
-                var fallbackPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "git", r.Name);
-                repos.Add(new RepoRef { Path = fallbackPath, BaseBranch = r.BaseBranch });
+                try
+                {
+                    var parentDir = Path.GetDirectoryName(path);
+                    if (!string.IsNullOrEmpty(parentDir)) Directory.CreateDirectory(parentDir);
+
+                    _logger.LogInformation("Cloning repository {RemoteUrl} into {Path}...", r.RemoteUrl, path);
+                    var (cloneOut, cloneErr) = await RunGitCommandAsync(parentDir ?? Path.GetTempPath(), $"clone {r.RemoteUrl} {path}");
+                    if (cloneErr != null && !Directory.Exists(Path.Combine(path, ".git")))
+                    {
+                        await RunGhCliAsync($"repo clone {r.Owner}/{r.Name} {path}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to auto-clone {RemoteUrl}", r.RemoteUrl);
+                }
             }
+
+            repos.Add(new RepoRef { Path = path, BaseBranch = r.BaseBranch });
         }
 
         var permManifestPath = Path.Combine(projDir, "permissions.yaml");
@@ -686,11 +764,13 @@ public class VaultService : IVaultService
             Name = manifest.Name,
             Color = manifest.Color,
             Context = manifest.Context,
+            StackHash = manifest.StackHash,
+            Meta = manifest.Meta ?? new(),
             Repos = repos,
             Verifications = filteredVerifications,
             ReviewActions = filteredActions,
-            Hooks = manifest.Hooks,
-            BuildDependencies = manifest.BuildDependencies,
+            Hooks = manifest.Hooks ?? new(),
+            BuildDependencies = manifest.BuildDependencies ?? new(),
             McpServers = filteredMcps,
             Skills = filteredSkills,
             SecurityPreset = manifest.SecurityPreset,

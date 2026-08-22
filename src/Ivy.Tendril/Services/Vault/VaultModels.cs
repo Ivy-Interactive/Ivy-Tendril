@@ -29,6 +29,7 @@ public record VaultRepoRef
     public string Owner { get; set; } = "";
     public string Name { get; set; } = "";
     public string? BaseBranch { get; set; }
+    public string? RemoteUrl { get; set; }
 }
 
 public record VaultProjectManifest
@@ -41,8 +42,11 @@ public record VaultProjectManifest
     public string Changelog { get; set; } = "";
     public string Color { get; set; } = "Blue";
     public string Context { get; set; } = "";
+    public string? StackHash { get; set; }
+    public Dictionary<string, object> Meta { get; set; } = new();
     public List<VaultRepoRef> Repos { get; set; } = new();
     public List<ProjectVerificationRef> Verifications { get; set; } = new();
+    public List<VerificationConfig> VerificationDefinitions { get; set; } = new();
     public List<ReviewActionConfig> ReviewActions { get; set; } = new();
     public List<PromptwareHookConfig> Hooks { get; set; } = new();
     public List<string> BuildDependencies { get; set; } = new();
@@ -71,6 +75,7 @@ public record VaultCatalogItem
     public string Name { get; set; } = "";
     public string Description { get; set; } = "";
     public string Color { get; set; } = "Blue";
+    public string? StackHash { get; set; }
     public string? LocalVersion { get; set; }
     public string RemoteVersion { get; set; } = "";
     public string? LatestChangelog { get; set; }
@@ -88,7 +93,7 @@ public record VaultCatalogItem
     public List<string> ReviewActionNames { get; set; } = new();
     public List<string> VerificationNames { get; set; } = new();
     public VaultItemSyncStatus SyncStatus { get; set; }
-    public List<string> Repos { get; set; } = new();
+    public List<VaultRepoRef> Repos { get; set; } = new();
 }
 
 public record VaultCatalog

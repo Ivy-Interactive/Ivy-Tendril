@@ -299,4 +299,75 @@ verifications: []
         Assert.True(File.Exists(Path.Combine(localMemoryDir, "stack.md")));
         Assert.False(File.Exists(Path.Combine(localMemoryDir, "ignored.md")));
     }
+
+    [Fact]
+    public async Task ImportProjectAsync_RestoresWorkingProjectWithStackHashMetaAndVerificationDefinitions()
+    {
+        var config = CreateConfig();
+        var vaultDir = Path.Combine(_tempDir.Path, "Vault");
+        var projectDir = Path.Combine(vaultDir, "projects", "FullProject");
+        Directory.CreateDirectory(projectDir);
+
+        var manifest = new VaultProjectManifest
+        {
+            Name = "FullProject",
+            Version = "2026.08.22.200000",
+            Color = "Purple",
+            Context = "Full working project context",
+            StackHash = "sha256:abc123stackhash",
+            Meta = new Dictionary<string, object> { ["team"] = "core", ["priority"] = "high" },
+            Repos = new List<VaultRepoRef>
+            {
+                new() { Owner = "Ivy-Interactive", Name = "Ivy-Tendril", BaseBranch = "main", RemoteUrl = "https://github.com/Ivy-Interactive/Ivy-Tendril.git" }
+            },
+            Verifications = new List<ProjectVerificationRef>
+            {
+                new() { Name = "DotnetBuild", Required = true }
+            },
+            VerificationDefinitions = new List<VerificationConfig>
+            {
+                new() { Name = "DotnetBuild", Prompt = "Run dotnet build --warnaserror." }
+            },
+            ReviewActions = new List<ReviewActionConfig>
+            {
+                new() { Name = "QuickReview", Command = "echo review" }
+            }
+        };
+        File.WriteAllText(Path.Combine(projectDir, "project.yaml"), YamlHelper.SerializerCompact.Serialize(manifest));
+
+        config.Settings.Vault = new VaultSettings
+        {
+            Enabled = true,
+            RepoUrl = "https://github.com/Ivy-Interactive/tendril-vault.git",
+            LocalPath = vaultDir
+        };
+
+        var vaultService = new VaultService(config, NullLogger<VaultService>.Instance);
+
+        var importReq = new VaultImportRequest
+        {
+            ProjectName = "FullProject",
+            LocalRepoMappings = new() { ["Ivy-Interactive/Ivy-Tendril"] = "/tmp/repos/ivy-tendril" }
+        };
+
+        var result = await vaultService.ImportProjectAsync(importReq);
+
+        Assert.True(result.Success);
+
+        var imported = config.Settings.Projects.Find(p => p.Name == "FullProject");
+        Assert.NotNull(imported);
+        Assert.Equal("Purple", imported.Color);
+        Assert.Equal("Full working project context", imported.Context);
+        Assert.Equal("sha256:abc123stackhash", imported.StackHash);
+        Assert.Equal("core", imported.GetMeta("team"));
+        Assert.Single(imported.Repos);
+        Assert.Equal("/tmp/repos/ivy-tendril", imported.Repos[0].Path);
+        Assert.Equal("main", imported.Repos[0].BaseBranch);
+
+        // Verification definition merged globally
+        var def = config.Settings.Verifications.Find(v => v.Name == "DotnetBuild");
+        Assert.NotNull(def);
+        Assert.Equal("Run dotnet build --warnaserror.", def.Prompt);
+    }
 }
+
