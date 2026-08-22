@@ -327,7 +327,7 @@ public class VaultService : IVaultService
         var visibilityFlag = isPrivate ? "--private" : "--public";
 
         // Check if the repository already exists on GitHub first
-        var (urlOut, urlErr) = await RunGhCliAsync($"repo view {targetRepo} --json url -q .url");
+        var (urlOut, urlErr) = await RunGhCliAsync($"api repos/{targetRepo} --jq .html_url");
         var existingUrl = urlOut?.Trim();
         if (!string.IsNullOrWhiteSpace(existingUrl) && urlErr == null)
         {
@@ -337,8 +337,8 @@ public class VaultService : IVaultService
         var (createOut, createErr) = await RunGhCliAsync($"repo create {targetRepo} {visibilityFlag}");
         if (createErr != null && !createErr.Contains("already exists", StringComparison.OrdinalIgnoreCase))
         {
-            // If creation failed but repo view can see it, connect
-            var (retryUrlOut, retryUrlErr) = await RunGhCliAsync($"repo view {targetRepo} --json url -q .url");
+            // If creation failed but repo exists via API, connect
+            var (retryUrlOut, retryUrlErr) = await RunGhCliAsync($"api repos/{targetRepo} --jq .html_url");
             var retryUrl = retryUrlOut?.Trim();
             if (!string.IsNullOrWhiteSpace(retryUrl) && retryUrlErr == null)
             {
@@ -351,7 +351,7 @@ public class VaultService : IVaultService
         var repoUrl = existingUrl;
         if (string.IsNullOrWhiteSpace(repoUrl))
         {
-            var (newUrlOut, _) = await RunGhCliAsync($"repo view {targetRepo} --json url -q .url");
+            var (newUrlOut, _) = await RunGhCliAsync($"api repos/{targetRepo} --jq .html_url");
             repoUrl = newUrlOut?.Trim();
             if (string.IsNullOrWhiteSpace(repoUrl))
             {
