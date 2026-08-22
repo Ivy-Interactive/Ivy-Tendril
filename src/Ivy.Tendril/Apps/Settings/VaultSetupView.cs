@@ -139,7 +139,7 @@ public class VaultSetupView : ViewBase
                             selectedPushProject.Set(null);
                             openPushDialog.Set(true);
                         })))
-            | (status.LastSyncedAt.HasValue
+            | (status.LastSyncedAt.HasValue && status.LastSyncedAt.Value.Year > 1
                 ? Text.Muted($"Last synced: {status.LastSyncedAt.Value:MMM d, yyyy HH:mm} UTC").Small()
                 : null)
             | autoSyncState.ToBoolInput("Always keep local configuration in sync with remote");

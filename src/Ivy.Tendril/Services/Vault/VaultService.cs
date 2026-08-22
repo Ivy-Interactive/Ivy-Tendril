@@ -79,6 +79,18 @@ public class VaultService : IVaultService
             // origin/main may not exist yet or offline
         }
 
+        var lastSynced = settings.LastSyncedAt;
+        if ((!lastSynced.HasValue || lastSynced.Value.Year <= 1) && Directory.Exists(Path.Combine(vaultDir, ".git")))
+        {
+            var (commitDateOut, _) = await RunGitCommandAsync(vaultDir, "log -1 --format=%cI");
+            if (DateTimeOffset.TryParse(commitDateOut?.Trim(), out var parsedDate) && parsedDate.Year > 1)
+            {
+                lastSynced = parsedDate;
+                settings.LastSyncedAt = parsedDate;
+                _config.SaveSettings();
+            }
+        }
+
         return new VaultStatus
         {
             IsConfigured = true,
@@ -88,7 +100,7 @@ public class VaultService : IVaultService
             LatestCommit = commit?.Trim(),
             CommitsAhead = ahead,
             CommitsBehind = behind,
-            LastSyncedAt = settings.LastSyncedAt,
+            LastSyncedAt = lastSynced,
             AlwaysUpToDate = settings.AlwaysUpToDate
         };
     }
@@ -338,39 +350,25 @@ public class VaultService : IVaultService
         var targetRepo = !string.IsNullOrWhiteSpace(org) ? $"{org}/{repoName}" : repoName;
         var visibilityFlag = isPrivate ? "--private" : "--public";
 
-        _logger.LogInformation("[Vault] CreateVaultRepoAsync starting: repoName={RepoName}, isPrivate={IsPrivate}, org={Org}, targetRepo={TargetRepo}",
-            repoName, isPrivate, org, targetRepo);
-
         // Check if the repository already exists on GitHub first
         var (urlOut, urlErr) = await RunGhCliAsync($"api repos/{targetRepo} --jq .html_url");
         var existingUrl = urlOut?.Trim();
-        _logger.LogInformation("[Vault] Initial check for existing repo '{TargetRepo}': out='{UrlOut}', err='{UrlErr}'",
-            targetRepo, existingUrl, urlErr);
-
         if (!string.IsNullOrWhiteSpace(existingUrl) && urlErr == null)
         {
-            _logger.LogInformation("[Vault] Repository '{TargetRepo}' already exists at '{ExistingUrl}'. Connecting directly.", targetRepo, existingUrl);
             return await ConnectVaultAsync(existingUrl);
         }
 
-        _logger.LogInformation("[Vault] Repository '{TargetRepo}' does not exist yet. Running repo create...", targetRepo);
         var (createOut, createErr) = await RunGhCliAsync($"repo create {targetRepo} {visibilityFlag}");
-        _logger.LogInformation("[Vault] repo create result: out='{CreateOut}', err='{CreateErr}'", createOut, createErr);
-
         if (createErr != null && !createErr.Contains("already exists", StringComparison.OrdinalIgnoreCase))
         {
             // If creation failed but repo exists via API, connect
             var (retryUrlOut, retryUrlErr) = await RunGhCliAsync($"api repos/{targetRepo} --jq .html_url");
             var retryUrl = retryUrlOut?.Trim();
-            _logger.LogInformation("[Vault] Retry check via API: out='{RetryUrl}', err='{RetryUrlErr}'", retryUrl, retryUrlErr);
-
             if (!string.IsNullOrWhiteSpace(retryUrl) && retryUrlErr == null)
             {
-                _logger.LogInformation("[Vault] Retry check succeeded. Connecting to '{RetryUrl}'", retryUrl);
                 return await ConnectVaultAsync(retryUrl);
             }
 
-            _logger.LogError("[Vault] Failed to create GitHub repository '{TargetRepo}': {CreateErr}", targetRepo, createErr);
             return new VaultResult(false, "Failed to create GitHub repository", createErr);
         }
 
@@ -697,6 +695,11 @@ public class VaultService : IVaultService
         var (prOut, prErr) = await RunGhCliAsync(ghPrCmd, vaultDir);
         var prUrl = prOut?.Trim();
 
+        if (_config.Settings.Vault != null)
+        {
+            _config.Settings.Vault.LastSyncedAt = DateTimeOffset.UtcNow;
+        }
+
         _config.SaveSettings();
         VaultChanged?.Invoke();
 
@@ -1011,13 +1014,10 @@ public class VaultService : IVaultService
                 StandardErrorEncoding = Encoding.UTF8
             };
 
-            var tokens = TokenizeArguments(arguments);
-            foreach (var arg in tokens)
+            foreach (var arg in TokenizeArguments(arguments))
             {
                 psi.ArgumentList.Add(arg);
             }
-
-            Console.WriteLine($"[Vault:Git] Executing in '{workingDir}': git {string.Join(" ", tokens.Select(t => t.Contains(' ') ? $"\"{t}\"" : t))}");
 
             using var proc = Process.Start(psi);
             if (proc == null) return (null, "Failed to start git process");
@@ -1026,13 +1026,10 @@ public class VaultService : IVaultService
             var stderr = await proc.StandardError.ReadToEndAsync();
             await proc.WaitForExitAsync();
 
-            Console.WriteLine($"[Vault:Git] ExitCode={proc.ExitCode}, Stdout='{stdout.Trim()}', Stderr='{stderr.Trim()}'");
-
             return proc.ExitCode == 0 ? (stdout, null) : (stdout, stderr);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Vault:Git] Exception: {ex.Message}");
             return (null, ex.Message);
         }
     }
@@ -1052,13 +1049,10 @@ public class VaultService : IVaultService
                 StandardErrorEncoding = Encoding.UTF8
             };
 
-            var tokens = TokenizeArguments(arguments);
-            foreach (var arg in tokens)
+            foreach (var arg in TokenizeArguments(arguments))
             {
                 psi.ArgumentList.Add(arg);
             }
-
-            Console.WriteLine($"[Vault:GH] Executing: gh {string.Join(" ", tokens.Select(t => t.Contains(' ') ? $"\"{t}\"" : t))}");
 
             using var proc = Process.Start(psi);
             if (proc == null) return (null, "GitHub CLI (gh) is not available.");
@@ -1067,13 +1061,10 @@ public class VaultService : IVaultService
             var stderr = await proc.StandardError.ReadToEndAsync();
             await proc.WaitForExitAsync();
 
-            Console.WriteLine($"[Vault:GH] ExitCode={proc.ExitCode}, Stdout='{stdout.Trim()}', Stderr='{stderr.Trim()}'");
-
             return proc.ExitCode == 0 ? (stdout, null) : (stdout, stderr);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Vault:GH] Exception: {ex.Message}");
             return (null, ex.Message);
         }
     }
