@@ -370,5 +370,3 @@ verifications: []
         Assert.Equal("Run dotnet build --warnaserror.", def.Prompt);
     }
 }
-
-
