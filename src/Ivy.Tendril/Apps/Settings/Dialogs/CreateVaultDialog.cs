@@ -73,7 +73,7 @@ public class CreateVaultDialog(
         if (accounts.Count > 0)
         {
             var options = accounts
-                .Select(a => new Option<string>(a.Login, $"{a.Login} ({a.Type})"))
+                .Select(a => new Option<string>($"{a.Login} ({a.Type})", a.Login))
                 .ToArray();
 
             ownerInput = selectedOwner.ToSelectInput(options)

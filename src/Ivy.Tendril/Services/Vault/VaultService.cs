@@ -323,6 +323,18 @@ public class VaultService : IVaultService
     public async Task<VaultResult> CreateVaultRepoAsync(string repoName, bool isPrivate = true, string? org = null)
     {
         var vaultDir = GetVaultDirectory();
+
+        repoName = repoName.Trim();
+        if (!string.IsNullOrWhiteSpace(org))
+        {
+            org = org.Trim();
+            var spaceIdx = org.IndexOf(' ');
+            if (spaceIdx > 0)
+            {
+                org = org[..spaceIdx].Trim();
+            }
+        }
+
         var targetRepo = !string.IsNullOrWhiteSpace(org) ? $"{org}/{repoName}" : repoName;
         var visibilityFlag = isPrivate ? "--private" : "--public";
 
