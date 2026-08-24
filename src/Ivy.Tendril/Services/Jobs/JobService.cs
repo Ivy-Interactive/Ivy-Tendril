@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -939,6 +939,10 @@ public class JobService : IJobService
         // Persist while in flight, not just on completion: the agent reports status over HTTP and
         // must still be resolvable if the master restarts mid-job (#1759).
         PersistJob(job);
+
+        // Tracked here rather than at launch: the job is queued from this point on, even if it
+        // goes straight to Blocked below. Not flushed — job_completed flushes the batch later.
+        _telemetryService?.TrackJobCreated(new JobCreatedContext(job.Type, job.Provider, job.ResolvePlanId()));
 
         if (TryBlockForDependencies(job, skipDependencyCheck))
         {

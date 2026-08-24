@@ -1,9 +1,10 @@
-using Ivy.Tendril.Apps.Onboarding;
+﻿using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Telemetry;
 using Ivy.Tendril.Services.Jobs;
 
 namespace Ivy.Tendril.Apps.Settings;
@@ -17,6 +18,7 @@ public class AddProjectView(
     public override object? Build()
     {
         var jobService = UseService<IJobService>();
+        var telemetry = UseService<ITelemetryService>();
         var step = UseState(0);
         var editName = UseState("");
         var editRepos = UseState(new List<RepoRef>());
@@ -110,6 +112,7 @@ public class AddProjectView(
                     };
                     config.Settings.Projects.Add(newProj);
                     try { config.SaveSettings(); } catch { }
+                    telemetry?.TrackProjectCreated(new ProjectCreatedContext(newProj.Repos.Count, newProj.StackHash));
 
                     jobService?.StartJob(new AddProjectArgs(newProj.Name, newProj.Repos));
 

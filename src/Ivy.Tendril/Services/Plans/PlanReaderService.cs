@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.RegularExpressions;
 using Ivy.Helpers;
 using Ivy.Tendril.Helpers;
@@ -205,7 +205,7 @@ public class PlanReaderService(
         {
             var currentPlan = GetPlanByFolder(Path.Combine(PlansDirectory, folderName));
             var oldState = currentPlan?.Status.ToString() ?? "Unknown";
-            telemetryService?.TrackPlanStateTransition(oldState, newState.ToString());
+            telemetryService?.TrackPlanStateTransition(oldState, newState.ToString(), planId.Value.ToString());
 
             // Flush telemetry events to ensure they reach PostHog
             if (telemetryService != null)
@@ -771,7 +771,8 @@ public class PlanReaderService(
         {
             var currentPlan = GetPlanByFolder(Path.Combine(PlansDirectory, folderName));
             var oldState = currentPlan?.Status.ToString() ?? "Unknown";
-            telemetryService?.TrackPlanStateTransition(oldState, PlanStatus.Executing.ToString());
+            telemetryService?.TrackPlanStateTransition(oldState, PlanStatus.Executing.ToString(),
+                planId.Value.ToString());
         }
 
         // Update database atomically for all three mutations.
@@ -827,7 +828,8 @@ public class PlanReaderService(
         {
             var currentPlan = GetPlanByFolder(Path.Combine(PlansDirectory, folderName));
             var oldState = currentPlan?.Status.ToString() ?? "Unknown";
-            telemetryService?.TrackPlanStateTransition(oldState, PlanStatus.Executing.ToString());
+            telemetryService?.TrackPlanStateTransition(oldState, PlanStatus.Executing.ToString(),
+                planId.Value.ToString());
         }
 
         // Update database atomically for all mutations.
