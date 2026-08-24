@@ -79,4 +79,29 @@ public class FormatHelperTests
         Assert.Equal("1K", FormatHelper.FormatTokens(1_000));
         Assert.Equal("1.0M", FormatHelper.FormatTokens(1_000_000));
     }
+
+    [Fact]
+    public void FormatBytes_FormatsZeroAndNegative()
+    {
+        Assert.Equal("0 B", FormatHelper.FormatBytes(0));
+        Assert.Equal("0 B", FormatHelper.FormatBytes(-100));
+    }
+
+    [Fact]
+    public void FormatBytes_FormatsVariousUnits()
+    {
+        Assert.Equal("500.0 B", FormatHelper.FormatBytes(500));
+        Assert.Equal("1.0 KB", FormatHelper.FormatBytes(1024));
+        Assert.Equal("1.5 KB", FormatHelper.FormatBytes(1536));
+        Assert.Equal("1.0 MB", FormatHelper.FormatBytes(1024 * 1024));
+        Assert.Equal("1.0 GB", FormatHelper.FormatBytes(1024L * 1024L * 1024L));
+        Assert.Equal("50.0 GB", FormatHelper.FormatBytes(50L * 1024L * 1024L * 1024L));
+        Assert.Equal("1.0 TB", FormatHelper.FormatBytes(1024L * 1024L * 1024L * 1024L));
+    }
+
+    [Fact]
+    public void FormatBytes_CommaDecimalCulture_StillUsesAPeriod()
+    {
+        Assert.Equal("1.5 GB", InCulture(CommaDecimalCulture, () => FormatHelper.FormatBytes((long)(1.5 * 1024 * 1024 * 1024))));
+    }
 }
