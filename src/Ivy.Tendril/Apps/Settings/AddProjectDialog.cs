@@ -200,7 +200,7 @@ public class AddProjectDialog(
         var title = step.Value switch
         {
             0 => "Add New Project",
-            1 => "Setting Up Project...",
+            1 => "Setting Up Project",
             2 => "Review Project Configuration",
             _ => "Add New Project"
         };
