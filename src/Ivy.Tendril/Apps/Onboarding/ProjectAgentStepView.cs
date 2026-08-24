@@ -311,7 +311,7 @@ public class ProjectAgentStepView(
                | (showHeader ? Text.H3("Setting up your project") : null!)
                | Text.Muted(isCloning.Value
                    ? (progressMessage.Value ?? "Setting up your project...")
-                   : "Tendril is detecting your tech stack and configuring your agentic harness.")
+                   : "Tendril is detecting your tech stack and configuring your agentic harness. This will take a few minutes to treat yourself to a ☕ while you wait.")
                | (error.Value != null ? Text.Danger(error.Value) : null!)
                | (session.Error.Value != null ? Text.Danger(session.Error.Value) : null!)
                | (authCode.Value != null
