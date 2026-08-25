@@ -1,27 +1,39 @@
 import React, { useMemo, useState } from "react";
 import Markdown from "react-markdown";
-import { answerEntries, isSkipped, otherEntry, parseQuestions, questionLabel } from "./questionsSchema";
+import remarkGfm from "remark-gfm";
+import { CodeBlock } from "../CodeBlock";
+import { answerEntries, isSkipped, otherEntry, parseQuestions } from "./questionsSchema";
 import type { PlanQuestion, QuestionOption } from "./questionsSchema";
 import type { AnswerCallback } from "./questionsContext";
 
-const CheckIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="20 6 9 17 4 12" />
-  </svg>
-);
-
 /**
- * Question and option descriptions are markdown, but only inline markdown: a paragraph collapses to
- * its children and a code span stays a plain `code` element. Deliberately *not* routed through
- * `BlockHandler` — a `questions` fence nested in a description is text, not another picker.
+ * Question and option descriptions are full block markdown — paragraphs, lists, tables and fenced
+ * code blocks all render. An option often needs to show the shape of the thing it is proposing, and
+ * a snippet says that better than a sentence about it.
+ *
+ * Code fences are routed to `CodeBlock` directly and never to `BlockHandler`: a `questions` fence
+ * written inside a description is an example, not another picker, and must stay a code block.
  */
-const inlineComponents = {
-  p: ({ children }: React.HTMLAttributes<HTMLParagraphElement>) => <>{children}</>,
-  code: ({ children }: React.HTMLAttributes<HTMLElement>) => <code>{children}</code>,
+const descriptionComponents = {
+  code: ({ className, children }: React.HTMLAttributes<HTMLElement>) => {
+    const language = /language-(\w+)/.exec(String(className || ""))?.[1];
+    const text = String(children);
+
+    // react-markdown hands both spans and fences to `code`; only a fence is block content.
+    if (!language && !text.includes("\n")) return <code>{children}</code>;
+
+    return <CodeBlock content={text.replace(/\n$/, "")} language={language} />;
+  },
+  // DraftMarkdown overrides `pre` globally to render bare, and CodeBlock brings its own.
+  pre: ({ children }: React.HTMLAttributes<HTMLPreElement>) => <>{children}</>,
 };
 
-const InlineMarkdown: React.FC<{ text: string }> = ({ text }) => (
-  <Markdown components={inlineComponents}>{text}</Markdown>
+const remarkPlugins = [remarkGfm];
+
+const DescriptionMarkdown: React.FC<{ text: string }> = ({ text }) => (
+  <Markdown remarkPlugins={remarkPlugins} components={descriptionComponents}>
+    {text}
+  </Markdown>
 );
 
 /**
@@ -110,11 +122,8 @@ const QuestionView: React.FC<QuestionViewProps> = ({ question, blockIndex, onAns
     if (draft) writeOther(draft);
   };
 
-  const clear = () => {
-    setDraft("");
-    setOtherOpen(false);
-    onAnswer(question.id, undefined);
-  };
+  // Clearing is a block-level action — see `QuestionsCallout`. Nothing to undo here: the answer
+  // leaves the document, the new content arrives, and the resync above returns `draft` to empty.
 
   const freeTextInput = (
     <input
@@ -129,10 +138,13 @@ const QuestionView: React.FC<QuestionViewProps> = ({ question, blockIndex, onAns
 
   return (
     <div className="pmv-question">
+      {/* `header` was the tab's chip label. With the tabs gone it becomes an eyebrow, which is
+          what keeps a stack of questions scannable. */}
+      {question.header && <div className="pmv-question-header">{question.header}</div>}
       <div className="pmv-question-title">{question.title}</div>
       {question.description && (
         <div className="pmv-question-description">
-          <InlineMarkdown text={question.description} />
+          <DescriptionMarkdown text={question.description} />
         </div>
       )}
 
@@ -144,31 +156,34 @@ const QuestionView: React.FC<QuestionViewProps> = ({ question, blockIndex, onAns
         {options.map((option) => {
           const selected = entries.includes(option.value);
           return (
-            <label
+            // A div rather than a label, with the label around the radio and title only: a
+            // description may hold a code block, whose copy button would otherwise toggle the
+            // option on its way through the label.
+            <div
               key={option.value}
               className={`pmv-question-option${selected ? " pmv-question-option--selected" : ""}`}
             >
-              <input
-                type={question.multiple ? "checkbox" : "radio"}
-                name={groupName}
-                className="pmv-question-check"
-                checked={selected}
-                onChange={() => selectOption(option)}
-              />
-              <span className="pmv-question-option-body">
+              <label className="pmv-question-option-main">
+                <input
+                  type={question.multiple ? "checkbox" : "radio"}
+                  name={groupName}
+                  className="pmv-question-check"
+                  checked={selected}
+                  onChange={() => selectOption(option)}
+                />
                 <span className="pmv-question-option-title">
                   {option.title}
                   {option.recommended && (
                     <span className="pmv-question-option-recommended">Recommended</span>
                   )}
                 </span>
-                {option.description && (
-                  <span className="pmv-question-option-description">
-                    <InlineMarkdown text={option.description} />
-                  </span>
-                )}
-              </span>
-            </label>
+              </label>
+              {option.description && (
+                <div className="pmv-question-option-description">
+                  <DescriptionMarkdown text={option.description} />
+                </div>
+              )}
+            </div>
           );
         })}
 
@@ -192,12 +207,6 @@ const QuestionView: React.FC<QuestionViewProps> = ({ question, blockIndex, onAns
 
         {!hasOptions && freeTextInput}
       </div>
-
-      <div className="pmv-question-actions">
-        <button type="button" className="pmv-question-clear" onClick={clear}>
-          Clear
-        </button>
-      </div>
     </div>
   );
 };
@@ -212,45 +221,52 @@ export interface QuestionsCalloutProps {
 
 export const QuestionsCallout: React.FC<QuestionsCalloutProps> = ({ content, blockIndex = 0, onAnswer }) => {
   const parsed = useMemo(() => parseQuestions(content), [content]);
-  const [tab, setTab] = useState(0);
 
   if (parsed.kind === "invalid" || parsed.questions.length === 0 || !onAnswer) {
     return <StaticCallout content={content} />;
   }
 
   const questions = parsed.questions;
-  const active = Math.min(tab, questions.length - 1);
 
+  // One Clear for the whole block rather than one per question: the block is what the user is
+  // working through, and a row of identical buttons down a stack reads as clutter. It resets
+  // every answered question in the block, and stays hidden until there is one.
+  //
+  // `answerPresent` covers a skip too — `answer: null` is a decision worth being able to retract.
+  const answered = questions.filter((question) => question.answerPresent);
+
+  const clearAll = () => {
+    for (const question of answered) {
+      onAnswer(question.id, undefined);
+    }
+  };
+
+  // Every question in the block is on screen at once, stacked. A block holds at most four, and
+  // they are usually related — reading them together is how you notice that answering one settles
+  // the next. Tabs hid that, and hid how much was still open.
   return (
     <Shell>
-      {questions.length > 1 && (
-        <div className="pmv-questions-tabs" role="tablist">
-          {questions.map((question, index) => (
-            <button
-              key={question.id}
-              type="button"
-              role="tab"
-              aria-selected={index === active}
-              className={`pmv-questions-tab${index === active ? " pmv-questions-tab--active" : ""}`}
-              onClick={() => setTab(index)}
-            >
-              {questionLabel(question, index)}
-              {question.answerPresent && (
-                <span className="pmv-questions-tab-badge" aria-label="answered">
-                  <CheckIcon />
-                </span>
-              )}
-            </button>
-          ))}
+      {answered.length > 0 && (
+        <div className="pmv-questions-actions">
+          <button
+            type="button"
+            className="pmv-question-clear"
+            onClick={clearAll}
+            aria-label={questions.length > 1 ? "Clear all answers in this block" : "Clear answer"}
+          >
+            Clear
+          </button>
         </div>
       )}
 
-      <QuestionView
-        key={questions[active].id}
-        question={questions[active]}
-        blockIndex={blockIndex}
-        onAnswer={onAnswer}
-      />
+      {questions.map((question) => (
+        <QuestionView
+          key={question.id}
+          question={question}
+          blockIndex={blockIndex}
+          onAnswer={onAnswer}
+        />
+      ))}
     </Shell>
   );
 };

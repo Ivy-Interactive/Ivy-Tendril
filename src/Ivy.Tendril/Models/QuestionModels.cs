@@ -47,7 +47,10 @@ public record PlanQuestion
     /// <summary>The question itself. Required.</summary>
     public string Title { get; init; } = "";
 
-    /// <summary>Short chip label (max 12 chars). Derived from <see cref="Title" /> when absent.</summary>
+    /// <summary>
+    ///     Short label (max 12 chars) shown as an eyebrow above <see cref="Title" />. Optional —
+    ///     a question without one simply leads with its title.
+    /// </summary>
     public string? Header { get; init; }
 
     /// <summary>Markdown context shown under the question.</summary>

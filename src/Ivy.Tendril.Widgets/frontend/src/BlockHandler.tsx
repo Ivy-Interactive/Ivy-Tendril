@@ -1,6 +1,5 @@
-import React, { lazy, Suspense, useCallback, useContext, useState } from "react";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { prismTheme } from "./prismTheme";
+import React, { lazy, Suspense, useContext } from "react";
+import { CodeBlock } from "./CodeBlock";
 import { QuestionsCallout } from "./DraftMarkdown/QuestionsCallout";
 import { QuestionsAnswerContext } from "./DraftMarkdown/questionsContext";
 
@@ -10,42 +9,10 @@ const QUESTIONS_LANG = /^questions(?:_(\d+))?$/;
 const MermaidRenderer = lazy(() => import("./DraftMarkdown/MermaidRenderer").then((m) => ({ default: m.MermaidRenderer })));
 const GraphvizRenderer = lazy(() => import("./DraftMarkdown/GraphvizRenderer").then((m) => ({ default: m.GraphvizRenderer })));
 
-const CopyIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-  </svg>
-);
-
-const CheckIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="20 6 9 17 4 12" />
-  </svg>
-);
-
-const codeBlockPreStyle: React.CSSProperties = {
-  margin: 0,
-  borderRadius: 0,
-  background: "transparent",
-  padding: "1rem",
-  paddingRight: "3rem",
-  overflowX: "auto",
-  wordBreak: "normal",
-  overflowWrap: "break-word",
-};
-
 export const BlockHandler: React.FC<React.HTMLAttributes<HTMLElement>> = ({ className, children, style: _style, ...rest }) => {
   const match = /language-(\w+)/.exec(String(className || ""));
   const content = String(children).replace(/\n$/, "");
-  const [copied, setCopied] = useState(false);
   const onAnswer = useContext(QuestionsAnswerContext);
-
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(content).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }, [content]);
 
   if (match) {
     const lang = match[1];
@@ -77,48 +44,15 @@ export const BlockHandler: React.FC<React.HTMLAttributes<HTMLElement>> = ({ clas
       );
     }
 
-    const normalizedLang = lang === "xml" || lang === "html" || lang === "svg" ? "markup" : lang;
-
-    return (
-      <div className="pmv-code-block">
-        <button
-          className={`pmv-code-copy${copied ? " pmv-code-copy--copied" : ""}`}
-          onClick={handleCopy}
-          aria-label="Copy to clipboard"
-        >
-          {copied ? <CheckIcon /> : <CopyIcon />}
-        </button>
-        <SyntaxHighlighter
-          style={prismTheme as unknown as { [key: string]: React.CSSProperties }}
-          language={normalizedLang}
-          PreTag="pre"
-          customStyle={codeBlockPreStyle}
-          wrapLongLines={false}
-        >
-          {content}
-        </SyntaxHighlighter>
-      </div>
-    );
+    return <CodeBlock content={content} language={lang} />;
   }
 
   // No language match - check if block-level (multi-line) or inline
   const isBlock = String(children).includes("\n");
   if (isBlock) {
-    return (
-      <div className="pmv-code-block">
-        <button
-          className={`pmv-code-copy${copied ? " pmv-code-copy--copied" : ""}`}
-          onClick={handleCopy}
-          aria-label="Copy to clipboard"
-        >
-          {copied ? <CheckIcon /> : <CopyIcon />}
-        </button>
-        <pre style={codeBlockPreStyle}>
-          <code>{children}</code>
-        </pre>
-      </div>
-    );
+    return <CodeBlock content={content} />;
   }
+
   return (
     <code className={className} {...rest}>
       {children}

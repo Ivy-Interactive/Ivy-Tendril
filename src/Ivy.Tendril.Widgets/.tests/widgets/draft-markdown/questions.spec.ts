@@ -19,6 +19,11 @@ test.describe("DraftMarkdown Questions", () => {
     await expect(chip).toBeVisible();
     await expect(chip).toHaveText("Recommended");
 
+    // Option descriptions are block markdown: this one carries a snippet.
+    const snippet = callout.locator(".pmv-question-option-description .pmv-code-block").first();
+    await expect(snippet).toBeVisible();
+    await expect(snippet).toContainText("client.SendAsync");
+
     await stepScreenshot("picker-rendered");
   });
 
@@ -66,7 +71,7 @@ test.describe("DraftMarkdown Questions", () => {
     await expect(callout.locator(".pmv-question-option--selected")).toHaveCount(0, { timeout: 15_000 });
   });
 
-  test("a multi-select answer accumulates and badges its tab", async ({ page }) => {
+  test("a multi-select answer accumulates", async ({ page }) => {
     const callout = page.locator(".pmv-questions").nth(1);
 
     await callout.locator(".pmv-question-check").first().click();
@@ -77,31 +82,73 @@ test.describe("DraftMarkdown Questions", () => {
     await expect(callout.locator(".pmv-question-option--selected")).toHaveCount(2, { timeout: 15_000 });
   });
 
-  test("an answered question badges its tab", async ({ page }) => {
-    // The third block holds two free-text questions, so it renders a tab strip.
+  test("both questions of a block are on screen at once", async ({ page, stepScreenshot }) => {
+    // The third block holds two free-text questions. They stack rather than tab, so both are
+    // answerable without first finding the second one.
     const callout = page.locator(".pmv-questions").nth(2);
-    await expect(callout.locator(".pmv-questions-tab")).toHaveCount(2);
+    await expect(callout.locator(".pmv-question")).toHaveCount(2);
+    await expect(callout.locator(".pmv-questions-tab")).toHaveCount(0);
 
-    // The second question ships with `answer: null`, so only it starts badged.
-    await expect(callout.locator(".pmv-questions-tab-badge")).toHaveCount(1);
+    // Each header renders as the eyebrow over its question.
+    await expect(callout.locator(".pmv-question-header")).toHaveText(["Name", "Owner"]);
 
-    await callout.locator(".pmv-question-other-input").fill("dispatch");
-    await expect(callout.locator(".pmv-questions-tab-badge")).toHaveCount(2, { timeout: 15_000 });
+    // The second ships with `answer: null` — asked and deliberately skipped.
+    await expect(callout.locator(".pmv-question-skipped")).toHaveCount(1);
+
+    // Two questions, one shared Clear for the block.
+    await expect(callout.locator(".pmv-question-clear")).toHaveCount(1);
+
+    await stepScreenshot("stacked-questions");
+
+    // Answering the first leaves the second alone.
+    await callout.locator(".pmv-question-other-input").first().fill("dispatch");
+    await expect(page.locator(".pmv-sticky").getByText("service-name").first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(callout.locator(".pmv-question-skipped")).toHaveCount(1);
   });
 
-  test("Clear reports the cleared state", async ({ page }) => {
+  test("Clear appears only once there is an answer, and reports the cleared state", async ({ page }) => {
     const panel = page.locator(".pmv-sticky");
     const callout = page.locator(".pmv-questions").first();
-    await callout.locator(".pmv-question-clear").click();
 
-    await expect(panel.getByText("Answers received (1)")).toBeVisible({ timeout: 15_000 });
+    // Nothing answered yet, so there is nothing to clear.
+    await expect(callout.locator(".pmv-question-clear")).toHaveCount(0);
+
+    await callout.locator(".pmv-question-check").first().click();
+    await expect(callout.locator(".pmv-question-clear")).toHaveCount(1, { timeout: 15_000 });
+
+    await callout.locator(".pmv-question-clear").click();
+    await expect(panel.getByText("Answers received (2)")).toBeVisible({ timeout: 15_000 });
     await expect(panel.getByText("cleared — back to unanswered")).toBeVisible({ timeout: 15_000 });
+
+    // Cleared back to unanswered, so the button retires again.
+    await expect(callout.locator(".pmv-question-clear")).toHaveCount(0, { timeout: 15_000 });
   });
 
   test("a documentation fence stays a code block", async ({ page }) => {
-    // The `questions` fence nested inside a four-backtick fence must never become a picker.
-    await expect(page.locator(".pmv-code-block")).toBeVisible();
-    await expect(page.locator(".pmv-code-block")).toContainText("This one is an example");
+    // The `questions` fence nested inside a longer fence must never become a picker. Filtered
+    // rather than bare: option descriptions carry code blocks of their own now.
+    const documentation = page
+      .locator(".pmv-code-block")
+      .filter({ hasText: "This one is an example" });
+
+    await expect(documentation).toBeVisible();
+    await expect(documentation.locator(".pmv-question-option")).toHaveCount(0);
+  });
+
+  test("a seeded annotation never highlights inside a question block", async ({ page }) => {
+    // The sample seeds three: one on prose, one aimed at the question block, one after it. Only
+    // the two outside the block may highlight.
+    const highlights = page.locator(".pmv-annotation-highlight");
+    await expect(highlights).toHaveCount(2);
+
+    await expect(page.locator(".pmv-questions .pmv-annotation-highlight")).toHaveCount(0);
+
+    // The third proves a block's text still advances the offset counter — if it did not, this
+    // annotation would have drifted off "separate consumer".
+    await expect(highlights.nth(0)).toHaveText("Where the budget lives");
+    await expect(highlights.nth(1)).toHaveText("separate consumer");
   });
 
   test("dragging across the picker raises no selection toolbar", async ({ page, stepScreenshot }) => {

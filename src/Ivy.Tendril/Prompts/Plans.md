@@ -293,7 +293,7 @@ decision.
 questions:                    # 1-4 items
   - id:          string       # required, stable, unique across the whole revision
     title:       string       # required, the question
-    header:      string       # optional, <=12 char chip label; derived from title if absent
+    header:      string       # optional, <=12 char label shown as an eyebrow above the title
     description: markdown     # optional, context shown under the question
     multiple:    bool         # optional, default false; true = multi-select
     other:       bool         # optional, default true; user may type a free value

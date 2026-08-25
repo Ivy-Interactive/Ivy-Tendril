@@ -127,11 +127,3 @@ export function otherEntry(question: PlanQuestion): string | undefined {
   const values = new Set((question.options ?? []).map((option) => option.value));
   return answerEntries(question).find((entry) => !values.has(entry));
 }
-
-/** Short chip label for a tab: `header` when given, else the first few words of `title`. */
-export function questionLabel(question: PlanQuestion, index: number): string {
-  if (question.header) return question.header;
-
-  const words = question.title.trim().split(/\s+/).filter(Boolean).slice(0, 3).join(" ");
-  return words || `Question ${index + 1}`;
-}

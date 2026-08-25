@@ -110,6 +110,50 @@ const TWO_QUESTIONS = fence(
   "    answer: platform",
 );
 
+// Four backticks so the snippets inside the descriptions can use three.
+const RICH_DESCRIPTION = [
+  "````questions",
+  "questions:",
+  "  - id: budget",
+  "    title: Retry budget scope?",
+  "    description: |",
+  "      | Setting | Scope |",
+  "      |---|---|",
+  "      | `retry.window` | tenant |",
+  "    options:",
+  "      - title: Per request",
+  "        description: |",
+  "          Each call gets its **own** budget.",
+  "",
+  "          ```csharp",
+  "          await client.SendAsync(request);",
+  "          ```",
+  "        value: per-request",
+  "      - title: Per session",
+  "        value: per-session",
+  "````",
+].join("\n");
+
+const NESTED_QUESTIONS_DESCRIPTION = [
+  "````questions",
+  "questions:",
+  "  - id: budget",
+  "    title: Retry budget scope?",
+  "    options:",
+  "      - title: Per request",
+  "        description: |",
+  "          For example:",
+  "",
+  "          ```questions",
+  "          questions:",
+  "            - id: not-a-picker",
+  "          ```",
+  "        value: per-request",
+  "      - title: Per session",
+  "        value: per-session",
+  "````",
+].join("\n");
+
 const renderInteractive = (content: string) => {
   const eventHandler = vi.fn();
   const { container } = render(
@@ -193,11 +237,48 @@ describe("DraftMarkdown interactive questions", () => {
   });
 
   it("fires a null answer when Clear is used", () => {
-    const { container, eventHandler } = renderInteractive(SINGLE);
+    const { container, eventHandler } = renderInteractive(SINGLE_ANSWERED);
 
     fireEvent.click(container.querySelector<HTMLButtonElement>(".pmv-question-clear")!);
 
     expect(answerCalls(eventHandler)).toEqual([{ questionId: "budget", answer: null }]);
+  });
+
+  it("offers Clear only once something in the block is answered", () => {
+    const { container } = renderInteractive(SINGLE);
+    expect(container.querySelector(".pmv-question-clear")).toBeNull();
+
+    const { container: answered } = renderInteractive(SINGLE_ANSWERED);
+    expect(answered.querySelector(".pmv-question-clear")).not.toBeNull();
+  });
+
+  it("offers Clear for a skipped question, since a skip is a decision to take back", () => {
+    const skipped = fence(
+      "questions:",
+      "  - id: budget",
+      "    title: Retry budget scope?",
+      "    answer: null",
+    );
+
+    const { container } = renderInteractive(skipped);
+
+    expect(container.querySelector(".pmv-question-clear")).not.toBeNull();
+  });
+
+  it("gives a multi-question block one shared Clear, not one per question", () => {
+    const { container } = renderInteractive(TWO_QUESTIONS);
+
+    expect(container.querySelectorAll(".pmv-question")).toHaveLength(2);
+    expect(container.querySelectorAll(".pmv-question-clear")).toHaveLength(1);
+  });
+
+  it("clears every answered question in the block and leaves the rest alone", () => {
+    // `naming` is unanswered and `owner` is not, so Clear must fire for owner only.
+    const { container, eventHandler } = renderInteractive(TWO_QUESTIONS);
+
+    fireEvent.click(container.querySelector<HTMLButtonElement>(".pmv-question-clear")!);
+
+    expect(answerCalls(eventHandler)).toEqual([{ questionId: "owner", answer: null }]);
   });
 
   it("marks an explicitly skipped question as skipped rather than unanswered", () => {
@@ -256,34 +337,37 @@ describe("DraftMarkdown interactive questions", () => {
     expect(chips[0].closest(".pmv-question-option")?.textContent).toContain("Per session");
   });
 
-  it("renders a tab per question, badged once answered", () => {
+  it("stacks every question in the block instead of tabbing between them", () => {
     const { container } = renderInteractive(TWO_QUESTIONS);
 
-    const tabs = container.querySelectorAll(".pmv-questions-tab");
-    expect(tabs).toHaveLength(2);
-    expect(Array.from(tabs).map((t) => t.textContent?.trim())).toEqual(["Naming", "Owner"]);
-    expect(container.querySelectorAll(".pmv-questions-tab-badge")).toHaveLength(1);
-    expect(tabs[1].querySelector(".pmv-questions-tab-badge")).not.toBeNull();
+    const titles = Array.from(container.querySelectorAll(".pmv-question-title")).map(
+      (t) => t.textContent,
+    );
+    expect(titles).toEqual(["What should it be called?", "Who owns the rollout?"]);
+    expect(container.querySelector(".pmv-questions-tab")).toBeNull();
   });
 
-  it("switches the visible question when a tab is clicked", () => {
+  it("answers the second question of a block without touching the first", () => {
+    const { container, eventHandler } = renderInteractive(TWO_QUESTIONS);
+
+    const inputs = container.querySelectorAll<HTMLInputElement>(".pmv-question-other-input");
+    expect(inputs).toHaveLength(2);
+
+    fireEvent.change(inputs[1], { target: { value: "platform-team" } });
+
+    expect(answerCalls(eventHandler)).toEqual([
+      { questionId: "owner", answer: ["platform-team"] },
+    ]);
+  });
+
+  it("renders the header as an eyebrow, and nothing when there is none", () => {
     const { container } = renderInteractive(TWO_QUESTIONS);
 
-    expect(container.querySelector(".pmv-question-title")?.textContent).toBe(
-      "What should it be called?",
-    );
+    expect(Array.from(container.querySelectorAll(".pmv-question-header")).map((h) => h.textContent))
+      .toEqual(["Naming", "Owner"]);
 
-    fireEvent.click(container.querySelectorAll(".pmv-questions-tab")[1]);
-
-    expect(container.querySelector(".pmv-question-title")?.textContent).toBe(
-      "Who owns the rollout?",
-    );
-  });
-
-  it("renders no tab strip for a single question", () => {
-    const { container } = renderInteractive(SINGLE);
-
-    expect(container.querySelector(".pmv-questions-tabs")).toBeNull();
+    const { container: bare } = renderInteractive(SINGLE);
+    expect(bare.querySelector(".pmv-question-header")).toBeNull();
   });
 
   it("keeps a legacy prose fence static next to a structured one", () => {
@@ -314,6 +398,47 @@ describe("DraftMarkdown interactive questions", () => {
     expect(container.querySelector(".pmv-questions")).not.toBeNull();
     expect(container.querySelector("pre .pmv-questions")).toBeNull();
     expect(container.querySelector("pre")).toBeNull();
+  });
+
+  it("renders block markdown in an option description, code fences included", () => {
+    const { container } = renderInteractive(RICH_DESCRIPTION);
+
+    const description = container.querySelector(".pmv-question-option-description");
+    expect(description).not.toBeNull();
+    expect(description!.querySelector("strong")?.textContent).toBe("own");
+
+    const code = description!.querySelector(".pmv-code-block");
+    expect(code).not.toBeNull();
+    expect(code!.textContent).toContain("await client.SendAsync(request);");
+  });
+
+  it("keeps a description's copy button out of the label so it cannot toggle the option", () => {
+    const { container, eventHandler } = renderInteractive(RICH_DESCRIPTION);
+
+    const copy = container.querySelector<HTMLButtonElement>(
+      ".pmv-question-option-description .pmv-code-copy",
+    );
+    expect(copy).not.toBeNull();
+    expect(copy!.closest("label")).toBeNull();
+    expect(eventHandler).not.toHaveBeenCalled();
+  });
+
+  it("renders a GFM table in a description", () => {
+    const { container } = renderInteractive(RICH_DESCRIPTION);
+
+    const table = container.querySelector(".pmv-question-description table");
+    expect(table).not.toBeNull();
+    expect(table!.textContent).toContain("retry.window");
+  });
+
+  it("leaves a questions fence inside a description a code block, not another picker", () => {
+    const { container } = renderInteractive(NESTED_QUESTIONS_DESCRIPTION);
+
+    // One picker — the real block. The example inside the description stays text.
+    expect(container.querySelectorAll(".pmv-questions")).toHaveLength(1);
+    const description = container.querySelector(".pmv-question-option-description");
+    expect(description!.querySelector(".pmv-code-block")?.textContent).toContain("id: not-a-picker");
+    expect(description!.querySelector(".pmv-question-option")).toBeNull();
   });
 
   it("still wraps an ordinary fence in its code block after the pre override", () => {

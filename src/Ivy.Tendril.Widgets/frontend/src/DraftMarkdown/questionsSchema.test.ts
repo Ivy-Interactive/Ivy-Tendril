@@ -4,7 +4,6 @@ import {
   isSkipped,
   otherEntry,
   parseQuestions,
-  questionLabel,
 } from "./questionsSchema";
 
 const body = (...lines: string[]) => lines.join("\n");
@@ -190,28 +189,5 @@ describe("parseQuestions tolerance", () => {
     );
 
     expect(parseQuestions(duplicate)).toEqual({ kind: "invalid" });
-  });
-});
-
-describe("questionLabel", () => {
-  it("prefers the header", () => {
-    const parsed = parseQuestions(SINGLE_SELECT);
-    if (parsed.kind !== "questions") throw new Error("expected questions");
-
-    expect(questionLabel(parsed.questions[0], 0)).toBe("Retry scope");
-  });
-
-  it("falls back to the first few words of the title", () => {
-    const parsed = parseQuestions(FREE_TEXT);
-    if (parsed.kind !== "questions") throw new Error("expected questions");
-
-    expect(questionLabel(parsed.questions[0], 0)).toBe("What should the");
-  });
-
-  it("falls back to the position when there is no title either", () => {
-    const parsed = parseQuestions(body("questions:", "  - id: bare"));
-    if (parsed.kind !== "questions") throw new Error("expected questions");
-
-    expect(questionLabel(parsed.questions[0], 2)).toBe("Question 3");
   });
 });
