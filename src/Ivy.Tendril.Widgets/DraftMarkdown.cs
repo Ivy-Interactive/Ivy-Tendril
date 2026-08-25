@@ -20,8 +20,9 @@ public record MarkdownAnnotation
 /// <c>multiple</c> is <c>true</c>.
 /// <para>
 /// Merging this back into the block's YAML is the host's job: find the question by <c>id</c> and
-/// set or delete its <c>answer</c> key. The widget's <c>setAnswer</c> in <c>questionsSource.ts</c>
-/// is the reference implementation of that merge.
+/// set or delete its <c>answer</c> key. <see cref="QuestionAnswers.Apply" /> does exactly that and
+/// is what a host should reach for; <c>setAnswer</c> in <c>questionsSource.ts</c> is the same merge
+/// expressed client-side.
 /// </para>
 /// </summary>
 public sealed record QuestionAnswer(string QuestionId, IReadOnlyList<string>? Answer);

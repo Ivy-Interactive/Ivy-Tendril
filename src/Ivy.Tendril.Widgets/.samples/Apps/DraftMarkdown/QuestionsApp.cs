@@ -9,10 +9,12 @@ namespace WidgetSamples.Apps.DraftMarkdown;
 ///     Interactive `questions` blocks. Subscribing to <c>OnAnswersChange</c> is what turns the
 ///     read-only blue callout into a picker.
 ///     <para>
-///         The document is deliberately never rewritten when an answer comes in: the event reports
-///         <c>{ QuestionId, Answer }</c> and the host decides how to persist it. So the picker only
-///         changes appearance when the markdown itself changes — what you see here instead is the
-///         raw stream of records the widget emitted.
+///         The widget never rewrites its own document: the event reports <c>{ QuestionId, Answer }</c>
+///         and the host decides how and whether to persist it. This sample persists — it merges each
+///         event straight back into the markdown with <see cref="QuestionAnswers.Apply" />, which is
+///         why a selection sticks, a tab grows a check badge and a skip announces itself. The pinned
+///         panel shows both halves of that loop: the raw event stream, and the block source it
+///         produced.
 ///     </para>
 /// </summary>
 [App(title: "Questions", icon: Icons.CircleQuestionMark, group: ["DraftMarkdown"])]
@@ -119,39 +121,63 @@ class QuestionsApp : ViewBase
         var markdown = UseState(InitialMarkdown);
         var answers = UseState(ImmutableList<QuestionAnswer>.Empty);
 
-        object panel;
-        if (answers.Value.Count > 0)
-        {
-            var items = answers.Value.Reverse().Select(answer =>
-                (object)(Layout.Vertical().Gap(1)
-                | Text.Block(answer.QuestionId).Bold()
-                | Text.Muted(Describe(answer))));
+        var stream = answers.Value.Count > 0
+            ? (object)(Layout.Vertical().Gap(3)
+               | answers.Value.Reverse().Select(answer =>
+                   (object)(Layout.Vertical().Gap(1)
+                   | Text.Block(answer.QuestionId).Bold()
+                   | Text.Muted(Describe(answer)))))
+            : Text.Muted("Pick an option, type an answer, or press Clear. Every change "
+                         + "shows up here as a QuestionAnswer record.");
 
-            panel = Layout.Vertical().Gap(3).Width(Size.Units(80))
+        var panel = Layout.Vertical().Gap(3).Width(Size.Units(80))
                     | Text.Block($"Answers received ({answers.Value.Count})").Bold()
                     | Text.Muted("Newest first. Each entry is one OnAnswersChange event.")
-                    | items
+                    | stream
+                    | Text.Block("Block source").Bold()
+                    | Text.Muted("The fence QuestionAnswers.Apply last edited. Only the answer key "
+                                 + "moves — comments, key order and the other blocks stay put.")
+                    | Text.Code(SourceOf(markdown.Value, answers.Value.LastOrDefault()), Languages.Yaml)
                     | new Button("Reset").Outline().OnClick(() =>
                     {
                         markdown.Set(InitialMarkdown);
                         answers.Set(ImmutableList<QuestionAnswer>.Empty);
                     });
-        }
-        else
-        {
-            panel = Layout.Vertical().Gap(3).Width(Size.Units(80))
-                    | Text.Block("Answers received (0)").Bold()
-                    | Text.Muted("Pick an option, type an answer, or press Clear. Every change "
-                                 + "shows up here as a QuestionAnswer record.");
-        }
 
         return Layout.Horizontal().Height(Size.Full()).RemoveParentPadding()
                | new DraftMarkdownWidget(markdown.Value)
                    .Article()
-                   .OnAnswersChange(answer => answers.Set(answers.Value.Add(answer)))
+                   .OnAnswersChange(answer =>
+                   {
+                       // The merge is the host's job, and this is all of it. TryApply rather than
+                       // Apply because an answer can outlive the document it was given against.
+                       if (QuestionAnswers.TryApply(markdown.Value, answer, out var merged))
+                           markdown.Set(merged);
+
+                       answers.Set(answers.Value.Add(answer));
+                   })
                    .Width(Size.Full())
                    .Height(Size.Full())
                    .StickyContent(panel);
+    }
+
+    /// <summary>
+    ///     The body of the block holding <paramref name="last" />'s question, or the first block
+    ///     before anything has been answered. One block rather than the whole document, because the
+    ///     point is to watch a single fence change.
+    /// </summary>
+    private static string SourceOf(string markdown, QuestionAnswer? last)
+    {
+        var blocks = QuestionAnswers.Scan(markdown);
+        if (blocks.Count == 0)
+            return "";
+
+        var touched = last is null
+            ? null
+            : blocks.Cast<QuestionBlockSource?>()
+                .FirstOrDefault(b => b!.Value.Body.Contains($"id: {last.QuestionId}", StringComparison.Ordinal));
+
+        return (touched ?? blocks[0]).Body.TrimEnd();
     }
 
     /// <summary>The record's tri-state <c>Answer</c>, spelled out.</summary>

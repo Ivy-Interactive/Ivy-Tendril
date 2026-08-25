@@ -690,26 +690,7 @@
   background: hsl(199 89% 48% / 0.08);
 }
 
-.pmv-questions-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: 600;
-  margin-bottom: 0.25rem;
-  white-space: normal;
-  color: hsl(199 89% 48%);
-}
-
-.pmv-questions-header svg {
-  flex-shrink: 0;
-}
-
-.pmv-questions-title {
-  font-size: 0.875rem;
-}
-
 .pmv-questions-content {
-  margin-top: 0.25rem;
   white-space: pre-wrap;
 }
 
@@ -720,7 +701,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
-  margin: 0.5rem 0 0.75rem;
+  margin: 0 0 0.75rem;
   border-bottom: 1px solid hsl(199 89% 48% / 0.25);
 }
 

@@ -4,14 +4,6 @@ import { answerEntries, isSkipped, otherEntry, parseQuestions, questionLabel } f
 import type { PlanQuestion, QuestionOption } from "./questionsSchema";
 import type { AnswerCallback } from "./questionsContext";
 
-const HelpCircleIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10" />
-    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-    <path d="M12 17h.01" />
-  </svg>
-);
-
 const CheckIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="20 6 9 17 4 12" />
@@ -32,12 +24,12 @@ const InlineMarkdown: React.FC<{ text: string }> = ({ text }) => (
   <Markdown components={inlineComponents}>{text}</Markdown>
 );
 
+/**
+ * The tinted frame every questions block sits in. It carries no heading of its own — the question
+ * text is the heading — so the block leads with what is actually being asked.
+ */
 const Shell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="pmv-questions" role="note">
-    <div className="pmv-questions-header">
-      <HelpCircleIcon />
-      <span className="pmv-questions-title">Questions</span>
-    </div>
     {children}
   </div>
 );
