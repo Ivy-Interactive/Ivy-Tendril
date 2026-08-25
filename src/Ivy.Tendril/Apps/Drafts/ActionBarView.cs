@@ -93,12 +93,8 @@ public class ActionBarView(
         }
 
         // Standard overflow menu items (always at bottom of dropdowns)
-        var standardOverflowList = new List<MenuItem>();
-        if (isBeta)
+        var standardOverflowItems = new[]
         {
-            standardOverflowList.Add(new MenuItem("Share Draft Link", Icon: Icons.Share2, Tag: "ShareDraft").OnSelect(HandleShareDraft));
-        }
-        standardOverflowList.AddRange([
             new MenuItem($"Discuss with {agentLabel}", Icon: agentIcon, Tag: "DiscussWithAgent")
                 .OnSelect(() => nav.Navigate<AgentApp>(new AgentAppArgs(
                     $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Draft mode.",
@@ -168,8 +164,7 @@ public class ActionBarView(
                         variant: ToastVariant.Destructive);
                 }
             })
-        ]);
-        var standardOverflowItems = standardOverflowList.ToArray();
+        };
 
         // Split / Expand share the same OnClick logic whether shown as an inline button
         // (Full tier) or a dropdown item (Compact/Minimal tiers).
@@ -217,6 +212,8 @@ public class ActionBarView(
                 .OnSelect(() => isEditingState.Set(true)),
             new MenuItem("Update", Icon: Icons.WandSparkles, Tag: "Update")
                 .OnSelect(showUpdateDialog),
+            new MenuItem("Share", Icon: Icons.Share2, Tag: "Share")
+                .OnSelect(HandleShareDraft),
             new MenuItem("Split", Icon: Icons.Scissors, Tag: "Split")
                 .OnSelect(StartSplit).Disabled(hasActiveSplitJob),
             new MenuItem("Expand", Icon: Icons.UnfoldVertical, Tag: "Expand")
@@ -230,15 +227,9 @@ public class ActionBarView(
                | new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E")
                    .OnClick(() => isEditingState.Set(true)).CompactUp()
                | new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
-                   .OnClick(showUpdateDialog).CompactUp();
-
-        if (isBeta)
-        {
-            actionBar |= new Button("Share").Icon(Icons.Share2).Outline()
-                .OnClick(HandleShareDraft).CompactUp();
-        }
-
-        actionBar = actionBar
+                   .OnClick(showUpdateDialog).CompactUp()
+               | new Button("Share").Icon(Icons.Share2).Outline()
+                   .OnClick(HandleShareDraft).CompactUp()
                | new Button("Split").Icon(Icons.Scissors).Outline()
                    .OnClick(StartSplit).Disabled(hasActiveSplitJob).FullOnly()
                | new Button("Expand").Icon(Icons.UnfoldVertical).Outline()
@@ -258,6 +249,6 @@ public class ActionBarView(
                    new Button().Icon(Icons.EllipsisVertical).Ghost(),
                    minimalDropdownItems.ToArray());
 
-        return isBeta ? new Fragment(actionBar, shareModal) : actionBar;
+        return new Fragment(actionBar, shareModal);
     }
 }

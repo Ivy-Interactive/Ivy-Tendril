@@ -456,12 +456,8 @@ public class ContentView(
         }
 
         // Standard overflow menu items
-        var standardOverflowList = new List<MenuItem>();
-        if (isBeta)
+        var standardOverflowItems = new[]
         {
-            standardOverflowList.Add(new MenuItem("Share Plan Link", Icon: Icons.Share2, Tag: "SharePlan").OnSelect(HandleSharePlan));
-        }
-        standardOverflowList.AddRange([
             new MenuItem($"Discuss with {agentLabel}", Icon: agentIcon, Tag: "DiscussWithAgent")
                 .OnSelect(() => nav.Navigate<AgentApp>(new AgentAppArgs(
                     $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode.",
@@ -522,8 +518,7 @@ public class ContentView(
                         variant: ToastVariant.Destructive);
                 }
             })
-        ]);
-        var standardOverflowItems = standardOverflowList.ToArray();
+        };
 
         // Full-tier dropdown: standard overflow items only (all buttons shown inline)
         var fullDropdownItems = standardOverflowItems;
@@ -543,6 +538,7 @@ public class ContentView(
         {
             new MenuItem("Reset to Draft", Icon: Icons.RotateCcw, Tag: "ResetToDraft").OnSelect(showResetToDraftDialog),
             new MenuItem(requestChangesMenuLabel, Icon: Icons.MessageSquare, Tag: "RequestChanges").OnSelect(showSuggestChangesDialog),
+            new MenuItem("Share", Icon: Icons.Share2, Tag: "Share").OnSelect(HandleSharePlan),
             new MenuItem("Discard", Icon: Icons.Trash, Tag: "Discard").OnSelect(showDiscardDialog)
         };
         minimalDropdownItems.AddRange(standardOverflowItems);
@@ -566,15 +562,9 @@ public class ContentView(
         var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                 | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r")
                     .OnClick(showResetToDraftDialog).CompactUp()
-                | requestChangesBtn;
-
-        if (isBeta)
-        {
-            actionBar |= new Button("Share").Icon(Icons.Share2).Outline()
-                .OnClick(HandleSharePlan).CompactUp();
-        }
-
-        actionBar = actionBar
+                | requestChangesBtn
+                | new Button("Share").Icon(Icons.Share2).Outline()
+                    .OnClick(HandleSharePlan).CompactUp()
                 | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
                     .OnClick(showDiscardDialog).FullOnly()
                 | ActionBarResponsive.DropdownAtFull(
