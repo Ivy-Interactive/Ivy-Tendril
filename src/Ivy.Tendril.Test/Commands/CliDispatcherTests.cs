@@ -140,6 +140,7 @@ public class CliDispatcherTests
     public void IsPortInUse_ReturnsFalse_WhenPortIsFree()
     {
         var probe = new TcpListener(IPAddress.Loopback, 0);
+        probe.Server.SetSocketOption(System.Net.Sockets.SocketOptionLevel.Socket, System.Net.Sockets.SocketOptionName.ReuseAddress, true);
         probe.Start();
         var port = ((IPEndPoint)probe.LocalEndpoint).Port;
         probe.Stop();

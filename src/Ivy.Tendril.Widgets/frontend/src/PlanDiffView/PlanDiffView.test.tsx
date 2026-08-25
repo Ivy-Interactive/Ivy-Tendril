@@ -249,4 +249,52 @@ describe("PlanDiffView collapse scoping", () => {
     // New file at position 0 must NOT be checked/collapsed
     expect(newCheckboxes[0]).toHaveAttribute("aria-checked", "false");
   });
+
+  it("directly couples collapsed state to viewed state", () => {
+    render(<PlanDiffView id="pdv-2" diff={twoFileDiff} collapsible />);
+
+    const checkboxes = screen.getAllByRole("checkbox");
+    expect(checkboxes.length).toBe(2);
+    expect(checkboxes[0]).toHaveAttribute("aria-checked", "false");
+
+    // Initially expanded - diff content is in document
+    expect(screen.getByText("old a")).toBeInTheDocument();
+
+    // Clicking Viewed marks it as viewed and collapses the file
+    fireEvent.click(checkboxes[0]);
+    expect(checkboxes[0]).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByText("old a")).not.toBeInTheDocument();
+
+    // Clicking Viewed again expands it
+    fireEvent.click(checkboxes[0]);
+    expect(checkboxes[0]).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("old a")).toBeInTheDocument();
+  });
+
+  it("renders header and viewed checkbox when filePath or collapsible is provided", () => {
+    const singleFileDiff = [
+      "diff --git a/src/test.txt b/src/test.txt",
+      "--- a/src/test.txt",
+      "+++ b/src/test.txt",
+      "@@ -1 +1 @@",
+      "-old raw",
+      "+new raw",
+      "",
+    ].join("\n");
+
+    render(
+      <PlanDiffView
+        id="pdv-3"
+        diff={singleFileDiff}
+        filePath="src/test.txt"
+        collapsible
+      />
+    );
+
+    expect(screen.getByText("src/")).toBeInTheDocument();
+    expect(screen.getByText("test.txt")).toBeInTheDocument();
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).toBeInTheDocument();
+    expect(checkbox).toHaveAttribute("aria-checked", "false");
+  });
 });

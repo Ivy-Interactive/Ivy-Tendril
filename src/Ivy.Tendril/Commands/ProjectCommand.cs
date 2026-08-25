@@ -1,6 +1,7 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Telemetry;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -579,8 +580,31 @@ public class ProjectAddCommand : Command<ProjectAddSettings>
             });
         });
 
+        TrackProjectCreated(config);
+
         Console.WriteLine($"Added project: {settings.Name}");
         return 0;
+    }
+
+    /// <summary>
+    ///     The CLI runs out-of-process with no DI graph, so it builds and flushes its own client.
+    ///     The wait is bounded because this command is usually invoked by the AddProject promptware
+    ///     from inside an agent run, where a hung flush would stall the job.
+    /// </summary>
+    private static void TrackProjectCreated(ConfigService config)
+    {
+        try
+        {
+            var telemetry = new TelemetryService(config.Settings.Telemetry);
+            // A CLI-created project has no repos yet — they are attached by `project add-repo`.
+            telemetry.TrackProjectCreated(new ProjectCreatedContext(RepoCount: 0));
+            Task.WhenAny(telemetry.FlushAsync(), Task.Delay(TimeSpan.FromSeconds(2)))
+                .GetAwaiter().GetResult();
+        }
+        catch
+        {
+            // Telemetry must never fail the command.
+        }
     }
 }
 

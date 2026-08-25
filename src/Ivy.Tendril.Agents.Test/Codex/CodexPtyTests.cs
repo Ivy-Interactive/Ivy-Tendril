@@ -8,6 +8,18 @@ public class CodexPtyTests
     private readonly CodexPty _pty = new();
 
     [Fact]
+    public void Capabilities_IncludesEffortControl()
+    {
+        Assert.True(_pty.Capabilities.HasFlag(AgentCapabilities.EffortControl));
+    }
+
+    [Fact]
+    public void SupportedEfforts_ReturnsCodexEffortLevels()
+    {
+        Assert.Equal(EffortLevels.Codex, _pty.SupportedEfforts);
+    }
+
+    [Fact]
     public void BuildPtySpec_FullAuto_UsesSandboxAndApprovalFlags()
     {
         var config = new AgentPtyConfig

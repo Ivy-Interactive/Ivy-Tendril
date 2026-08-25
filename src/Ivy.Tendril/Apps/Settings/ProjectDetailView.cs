@@ -68,10 +68,7 @@ public class ProjectDetailView(
         var (importSkillsDialog, openImportSkillsDialog) = UseTrigger((IState<bool> isOpen) =>
             new ImportRepoAssetsDialog(isOpen, ImportAssetKind.Skills, projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : "", repos.Value, config, client, skills: skills));
 
-        var isBeta = (tendrilArgs?.Beta ?? false) ||
-                     (config?.Settings?.Beta ?? false) ||
-                     Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
-                     Environment.GetEnvironmentVariable("IVY_BETA") == "1";
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
 
         // Auto-save settings on state changes
         void SaveProjectChanges()
@@ -252,39 +249,33 @@ public class ProjectDetailView(
         var innerContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(160)))
             // Section 1: Header (Color Picker + Name)
             | nameHeader
-            | new Separator()
 
             // Section 2: Repositories
             | Text.H4("Repositories").Bold()
             | new ProjectRepoPickerView(repos, onAdd: cloneRemoteOnAdd, showBaseBranchPicker: true)
-            | new Separator()
 
             // Section 3: Review Actions
             | Text.H4("Review Actions").Bold()
             | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx))
-            | new Button("Add Review Action").Icon(Icons.Plus).Outline().Small().OnClick(() => showReviewActionTrigger(null))
-            | new Separator()
+            | new Button("Add Review Action").Icon(Icons.Plus).Outline().OnClick(() => showReviewActionTrigger(null))
 
             // Section 4: Verifications
             | Text.H4("Verifications").Bold()
             | new ProjectVerificationsTableView(verifications, idx => showVerificationTrigger(idx))
-            | new Button("Add Verification").Icon(Icons.Plus).Outline().Small().OnClick(() => showVerificationTrigger(null))
-            | new Separator()
+            | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() => showVerificationTrigger(null))
 
             // Section 5: Agent Behavior
             | (isBeta
                 ? (object)(Layout.Vertical()
                     | Text.H4("Agent Behavior").Bold()
-                    | autoImplementSelect
-                    | new Separator())
+                    | autoImplementSelect)
                 : null!)
 
             // Section 6: Local Permissions (MCP Tools & Servers)
             | (isBeta
                 ? (object)(Layout.Vertical()
                     | Text.H4("Local Permissions").Bold()
-                    | new McpServersTableView(mcpServers, repos, idx => openMcpSheet(idx), onImport: () => openImportMcpDialog(), onDelete: idx => DeleteMcpServer(idx))
-                    | new Separator())
+                    | new McpServersTableView(mcpServers, repos, idx => openMcpSheet(idx), onImport: () => openImportMcpDialog(), onDelete: idx => DeleteMcpServer(idx)))
                 : null!)
 
             // Section 7: Customizations
@@ -292,8 +283,7 @@ public class ProjectDetailView(
                 ? (object)(Layout.Vertical()
                     | Text.H4("Customizations").Bold()
                     | new ProjectMemoryTableView(config.TendrilHome, project.Name, memoryRefresh, fileName => openMemorySheet(fileName))
-                    | new SkillsTableView(skills, repos, idx => openSkillSheet(idx), onImport: () => openImportSkillsDialog(), onDelete: idx => DeleteSkill(idx))
-                    | new Separator())
+                    | new SkillsTableView(skills, repos, idx => openSkillSheet(idx), onImport: () => openImportSkillsDialog(), onDelete: idx => DeleteSkill(idx)))
                 : null!)
 
             // Section 8: Danger Zone

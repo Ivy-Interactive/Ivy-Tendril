@@ -292,7 +292,6 @@ public class ContentView(
 
         var actionBar = new ActionBarView(
             selectedPlan,
-            allPlans,
             selectedPlanState,
             isEditing,
             editContent,

@@ -46,7 +46,7 @@ The profile is selected automatically based on the plan's complexity level, or c
 
 ## Local Ollama Setup
 
-When running OpenCode with local Ollama models, you can configure a custom server URL in **Settings > Coding Agent** under **Ollama Host / Base URL**. Alternatively, specify the server URL directly in `config.yaml`:
+When running OpenCode with local Ollama models, specify the server URL directly in `config.yaml`:
 
 ```yaml
 codingAgents:

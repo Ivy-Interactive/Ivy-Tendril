@@ -39,12 +39,23 @@ public class PlanRemoveWorktreeCommand : Command<PlanRemoveWorktreeSettings>
     protected override int Execute(CommandContext context, PlanRemoveWorktreeSettings settings, CancellationToken cancellationToken)
     {
         var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-        var worktreePath = Path.Combine(planFolder, "Worktrees", settings.RepoName);
+        var worktreesDir = Path.Combine(planFolder, "Worktrees");
+        var worktreePath = Path.Combine(worktreesDir, settings.RepoName);
 
         if (!Directory.Exists(worktreePath))
         {
-            AnsiConsole.MarkupLine($"[yellow]Worktree directory not found: {worktreePath.EscapeMarkup()}[/]");
-            return 0;
+            var match = GitHelper.EnumerateWorktreeDirectories(worktreesDir)
+                .FirstOrDefault(w => Path.GetFileName(w).Equals(settings.RepoName, StringComparison.OrdinalIgnoreCase) ||
+                                     Path.GetRelativePath(worktreesDir, w).Replace('\\', '/').Equals(settings.RepoName.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase));
+            if (match != null)
+            {
+                worktreePath = match;
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"[yellow]Worktree directory not found: {worktreePath.EscapeMarkup()}[/]");
+                return 0;
+            }
         }
 
         var branchName = settings.Branch ?? DeriveBranchName(planFolder);

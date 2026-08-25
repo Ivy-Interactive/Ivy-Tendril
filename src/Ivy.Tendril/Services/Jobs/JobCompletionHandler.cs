@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -182,31 +182,43 @@ internal class JobCompletionHandler
         if (isSuccess)
             TrackSuccessTelemetry(job);
 
-        _telemetryService?.TrackJobCompleted(job.Type, job.Status, job.DurationSeconds, job.Provider);
+        _telemetryService?.TrackJobCompleted(job.Type, job.Status, job.DurationSeconds, job.Provider,
+            job.ResolvePlanId());
         FlushTelemetryAsync();
     }
 
     private void TrackSuccessTelemetry(JobItem job)
     {
-        if (job.TypedArgs is CreatePlanArgs)
+        if (job.TypedArgs is CreatePlanArgs createPlanArgs)
         {
-            var planFolder = job.TypedArgs?.PlanFolder ?? "";
+            // CreatePlanArgs has no PlanFolder — the folder does not exist yet when the job starts.
+            // VerifyCreatePlanResult (which runs earlier in HandleCompletion) records the resolved
+            // folder *name* in job.PlanFile, so resolve it against the plans directory here.
+            var plansDir = _planReaderService?.PlansDirectory;
+            var planFolder = !string.IsNullOrEmpty(plansDir) && !string.IsNullOrEmpty(job.PlanFile)
+                ? Path.Combine(plansDir, job.PlanFile)
+                : "";
+
             var level = "Feature";
-            string? stackHash = null;
+            // Fall back to the project the job was queued for, so stack_hash still lands even when
+            // the plan folder cannot be resolved.
+            var stackHash = _configService?.GetProject(createPlanArgs.Project)?.StackHash;
             if (Directory.Exists(planFolder))
             {
                 var plan = PlanYamlHelper.ReadPlanYaml(planFolder);
                 if (plan != null)
                 {
                     level = plan.Level;
-                    stackHash = _configService?.GetProject(plan.Project)?.StackHash;
+                    stackHash = _configService?.GetProject(plan.Project)?.StackHash ?? stackHash;
                 }
             }
-            _telemetryService?.TrackPlanCreated(new PlanCreatedContext(level, job.DurationSeconds, job.Provider, stackHash));
+            _telemetryService?.TrackPlanCreated(new PlanCreatedContext(level, job.DurationSeconds, job.Provider,
+                stackHash, job.ResolvePlanId()));
         }
         else if (job.TypedArgs is CreatePrArgs)
         {
-            _telemetryService?.TrackPrCreated(new PrCreatedContext(job.DurationSeconds, job.Provider));
+            _telemetryService?.TrackPrCreated(new PrCreatedContext(job.DurationSeconds, job.Provider,
+                job.ResolvePlanId()));
         }
     }
 
@@ -578,7 +590,7 @@ internal class JobCompletionHandler
         }
     }
 
-    private static readonly Regex GitHubPrUrlPattern = new(
+    internal static readonly Regex GitHubPrUrlPattern = new(
         @"https?://github\.com/(?<owner>[^/\s]+)/(?<repo>[^/\s]+)/pull/(?<number>\d+)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
@@ -801,6 +813,24 @@ internal class JobCompletionHandler
         job.StatusMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList())
             ?? job.StatusMessage
             ?? "No plan created";
+    }
+
+    internal bool IsCreatePlanSuccessful(JobItem job)
+    {
+        var plansDir = _planReaderService?.PlansDirectory
+            ?? (_configService != null ? Path.Combine(_configService.TendrilHome, "Plans") : null);
+
+        if (plansDir != null && Directory.Exists(plansDir))
+        {
+            if (TryVerifyByReportedId(job, plansDir) ||
+                TryVerifyByOutputRegex(job, plansDir) ||
+                TryVerifyByFilesystem(job, plansDir))
+            {
+                return true;
+            }
+        }
+
+        return IsDuplicatePlan(job) || IsInTrash(job);
     }
 
     private static bool TryVerifyByReportedId(JobItem job, string plansDir)

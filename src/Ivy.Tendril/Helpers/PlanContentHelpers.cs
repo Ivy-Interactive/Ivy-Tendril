@@ -404,7 +404,7 @@ public static class PlanContentHelpers
         var worktreesDir = Path.Combine(plan.FolderPath, "Worktrees");
         if (Directory.Exists(worktreesDir))
         {
-            foreach (var worktree in Directory.GetDirectories(worktreesDir))
+            foreach (var worktree in GitHelper.EnumerateWorktreeDirectories(worktreesDir))
             {
                 var result = BuildFromRepo(worktree, fromUnlistedWorktree: true);
                 if (result != null) return result;

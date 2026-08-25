@@ -104,6 +104,23 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         }
     }
 
+    internal static MenuItem[] BuildHelpMenuItems(bool isBeta, IClientProvider? client, INavigator? navigator)
+    {
+        var items = new List<MenuItem>
+        {
+            MenuItem.Default("Documentation").Icon(Icons.ExternalLink).OnSelect(() => client?.OpenUrl(Constants.DocsUrl)),
+            MenuItem.Default("Discord").Icon(Icons.Discord).OnSelect(() => client?.OpenUrl(Constants.DiscordUrl)),
+            MenuItem.Default("Report Issue").Icon(Icons.Bug).OnSelect(() => client?.OpenUrl(Constants.IssuesUrl))
+        };
+
+        if (isBeta)
+        {
+            items.Add(MenuItem.Default("About").Icon(Icons.Info).OnSelect(() => navigator?.Navigate<AboutApp>()));
+        }
+
+        return items.ToArray();
+    }
+
     private static bool ShouldShowBadge(MenuItem item, Dictionary<string, int> badges, out string badgeText)
     {
         badgeText = string.Empty;
@@ -184,6 +201,9 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
         var navigator = UseNavigation();
         var newsArticles = UseState(Array.Empty<SidebarNewsArticle>());
+        var jobService = UseService<IJobService>();
+        Context.TryUseService<DesktopWindow>(out var desktopWindow);
+        Context.TryUseService<TendrilArgs>(out var tendrilArgs);
 
         var (importIssuesDialog, showImportIssuesDialog) = UseTrigger((isOpen) =>
         {
@@ -196,8 +216,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             if (!isOpen.Value || info == null) return null;
             return new UpdateTendrilDialog(isOpen, info);
         });
-
-
 
         UseEffect(async () =>
         {
@@ -235,8 +253,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);
         });
 
-        var jobService = UseService<IJobService>();
-        Context.TryUseService<DesktopWindow>(out var desktopWindow);
         var isDesktop = desktopWindow != null;
 
         UseEffect(() =>
@@ -578,6 +594,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             OnCtrlRightClickSelect = new EventHandler<Event<SidebarMenu, object>>(OnCtrlRightClickSelect)
         };
 
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
+
         var settingsMenuItems = new[]
         {
             MenuItem.Default("Configuration")
@@ -638,12 +656,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             MenuItem.Default("Help")
                 .Tag("$help")
                 .Icon(Icons.CircleQuestionMark)
-                .Children(
-                    MenuItem.Default("Documentation").Icon(Icons.ExternalLink).OnSelect(() => client.OpenUrl(Constants.DocsUrl)),
-                    MenuItem.Default("Discord").Icon(Icons.Discord).OnSelect(() => client.OpenUrl(Constants.DiscordUrl)),
-                    MenuItem.Default("Report Issue").Icon(Icons.Bug).OnSelect(() => client.OpenUrl(Constants.IssuesUrl)),
-                    MenuItem.Default("About").Icon(Icons.Info).OnSelect(() => navigator.Navigate<AboutApp>())
-                ),
+                .Children(BuildHelpMenuItems(isBeta, client, navigator)),
         };
 
         var settingsTrigger = new Button("Settings")

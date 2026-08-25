@@ -25,6 +25,7 @@ public sealed class GeminiModelCatalog : CachedModelCatalogProvider
         {
             Id = "gemini-3.7-flash", DisplayName = "Gemini 3.7 Flash",
             Capabilities = MidCaps,
+            SupportedEfforts = EffortLevels.Gemini,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google", IsDefault = true,
             InputPerMillion = 0.15m, OutputPerMillion = 0.60m,
@@ -34,6 +35,7 @@ public sealed class GeminiModelCatalog : CachedModelCatalogProvider
         {
             Id = "gemini-3.6-flash", DisplayName = "Gemini 3.6 Flash",
             Capabilities = MidCaps,
+            SupportedEfforts = EffortLevels.Gemini,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
             InputPerMillion = 0.15m, OutputPerMillion = 0.60m,
@@ -43,6 +45,7 @@ public sealed class GeminiModelCatalog : CachedModelCatalogProvider
         {
             Id = "gemini-3.5-flash", DisplayName = "Gemini 3.5 Flash",
             Capabilities = MidCaps,
+            SupportedEfforts = EffortLevels.Gemini,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
             InputPerMillion = 0.15m, OutputPerMillion = 0.60m,
@@ -52,6 +55,7 @@ public sealed class GeminiModelCatalog : CachedModelCatalogProvider
         {
             Id = "gemini-3.1-pro", DisplayName = "Gemini 3.1 Pro",
             Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Gemini,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
             InputPerMillion = 1.25m, OutputPerMillion = 10.00m,
@@ -61,6 +65,7 @@ public sealed class GeminiModelCatalog : CachedModelCatalogProvider
         {
             Id = "gemini-3-pro-preview", DisplayName = "Gemini 3 Pro",
             Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Gemini,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
             InputPerMillion = 1.25m, OutputPerMillion = 10.00m,
@@ -70,6 +75,7 @@ public sealed class GeminiModelCatalog : CachedModelCatalogProvider
         {
             Id = "gemini-3-flash-preview", DisplayName = "Gemini 3 Flash",
             Capabilities = MidCaps,
+            SupportedEfforts = EffortLevels.Gemini,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
             InputPerMillion = 0.15m, OutputPerMillion = 0.60m,
