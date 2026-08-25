@@ -416,6 +416,112 @@ public class QuestionAnswersTests
         Assert.Equal(["yes"], Question(updated, "real").AnswerValues);
     }
 
+    // -------------------------------------------------------------------------------------------
+    // Reading an index
+    // -------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void Read_ReturnsEveryQuestionInDocumentOrder()
+    {
+        var summaries = QuestionAnswers.Read(Markdown);
+
+        Assert.Equal(["retry-scope", "launch-channels"], summaries.Select(s => s.Id));
+        Assert.Equal("Which channels ship first?", summaries[1].Title);
+        Assert.Equal("Retry scope", summaries[0].Header);
+        Assert.Null(summaries[1].Header);
+        Assert.All(summaries, s => Assert.Equal(0, s.BlockIndex));
+        Assert.All(summaries, s => Assert.False(s.HasAnswer));
+    }
+
+    [Fact]
+    public void Read_ReportsAnAnswerAndASkipDifferently()
+    {
+        var answered = Apply(Markdown, "retry-scope", "per-session");
+        var skipped = Apply(answered, "launch-channels");
+
+        var summaries = QuestionAnswers.Read(skipped);
+
+        Assert.True(summaries[0].HasAnswer);
+        Assert.False(summaries[0].IsSkipped);
+
+        // A skip is still "dealt with", which is what an index cares about.
+        Assert.True(summaries[1].HasAnswer);
+        Assert.True(summaries[1].IsSkipped);
+    }
+
+    [Fact]
+    public void Read_NumbersTheBlockEachQuestionCameFrom()
+    {
+        const string twoBlocks = """
+            ```questions
+            questions:
+              - id: first
+                title: One?
+            ```
+
+            ```questions
+            questions:
+              - id: second
+                title: Two?
+            ```
+            """;
+
+        var summaries = QuestionAnswers.Read(twoBlocks);
+
+        Assert.Equal([0, 1], summaries.Select(s => s.BlockIndex));
+    }
+
+    [Fact]
+    public void Read_SkipsLegacyAndDocumentationBlocks()
+    {
+        const string mixed = """
+            ```questions
+            Should we support notification templates? Not clear yet.
+            ```
+
+            ````
+            ```questions
+            questions:
+              - id: example
+                title: Documentation, not a question.
+            ```
+            ````
+
+            ```questions
+            questions:
+              - id: real
+                title: A real one?
+            ```
+            """;
+
+        var summary = Assert.Single(QuestionAnswers.Read(mixed));
+        Assert.Equal("real", summary.Id);
+    }
+
+    [Fact]
+    public void Read_IgnoresAQuestionWithNoId()
+    {
+        // Without an id there is nothing for the host to address, so it cannot be an index entry.
+        const string idless = """
+            ```questions
+            questions:
+              - title: Nameless?
+              - id: named
+                title: Named?
+            ```
+            """;
+
+        var summary = Assert.Single(QuestionAnswers.Read(idless));
+        Assert.Equal("named", summary.Id);
+    }
+
+    [Fact]
+    public void Read_OnADocumentWithNoQuestionsIsEmpty()
+    {
+        Assert.Empty(QuestionAnswers.Read("# Just a plan\n\nNo questions here."));
+        Assert.Empty(QuestionAnswers.Read(""));
+    }
+
     [Fact]
     public void Scan_ReportsBodyOffsetsThatSliceBackToTheBody()
     {

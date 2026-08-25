@@ -28,6 +28,19 @@ public record MarkdownAnnotation
 public sealed record QuestionAnswer(string QuestionId, IReadOnlyList<string>? Answer);
 
 /// <summary>
+/// Asks the widget to bring one question into view, so a host can put an index of them beside a
+/// long plan.
+/// <para>
+/// <see cref="Token" /> is what makes the request repeatable: the widget scrolls when the target
+/// changes, and clicking the same entry twice has to work. Bump it on every request — the id alone
+/// would compare equal the second time and nothing would move.
+/// </para>
+/// </summary>
+/// <param name="QuestionId">The question's <c>id</c>. Unknown ids are ignored.</param>
+/// <param name="Token">Any value that differs from the previous request.</param>
+public sealed record QuestionScrollTarget(string QuestionId, int Token);
+
+/// <summary>
 /// Renders plan markdown in its own internal scroll container, alongside a
 /// <c>StickyContent</c> slot that is pinned in place and unaffected by the
 /// markdown scroll. Use the slot for interactive elements that should stay put
@@ -60,6 +73,12 @@ public record DraftMarkdown : WidgetBase<DraftMarkdown>
 
     /// <summary>Text annotations (highlights with comments) applied to the markdown content.</summary>
     [Prop] public ImmutableList<MarkdownAnnotation> Annotations { get; init; } = [];
+
+    /// <summary>
+    /// Scrolls the question with this id into view, block and all, whenever the value changes.
+    /// Setting it does not re-render the markdown — only the scroll runs.
+    /// </summary>
+    [Prop] public QuestionScrollTarget? ScrollTo { get; init; }
 
     /// <summary>Fired when a link inside the markdown is clicked; the payload is the href.</summary>
     [Event] public EventHandler<Event<DraftMarkdown, string>>? OnLinkClick { get; init; }
@@ -95,6 +114,10 @@ public static class DraftMarkdownExtensions
 
     public static DraftMarkdown Annotations(this DraftMarkdown w, IEnumerable<MarkdownAnnotation> annotations) =>
         w with { Annotations = annotations.ToImmutableList() };
+
+    /// <summary>Brings a question into view. See <see cref="QuestionScrollTarget" /> on repeat requests.</summary>
+    public static DraftMarkdown ScrollTo(this DraftMarkdown w, QuestionScrollTarget? target) =>
+        w with { ScrollTo = target };
 
     public static DraftMarkdown OnLinkClick(
         this DraftMarkdown w,

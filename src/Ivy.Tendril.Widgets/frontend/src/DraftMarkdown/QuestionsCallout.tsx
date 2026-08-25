@@ -84,37 +84,44 @@ const QuestionView: React.FC<QuestionViewProps> = ({ question, blockIndex, onAns
   const groupName = `pmv-q-${blockIndex}-${question.id}`;
   const otherActive = typed !== undefined;
 
+  /**
+   * Reports one change, mapping an emptied selection to "unanswered".
+   *
+   * An empty list is the wire encoding for `answer: null` — asked and deliberately skipped, which
+   * tells the agent to decide for you. Unchecking your last box does not mean that, so it clears
+   * the question instead. Nothing in the picker asks to skip; only the document can say that.
+   */
+  const report = (answer: string | string[] | null | undefined) =>
+    onAnswer(question.id, Array.isArray(answer) && answer.length === 0 ? undefined : answer);
+
   const selectOption = (option: QuestionOption) => {
     setOtherOpen(false);
     if (!question.multiple) {
-      onAnswer(question.id, option.value);
+      report(option.value);
       return;
     }
 
     const next = entries.includes(option.value)
       ? entries.filter((entry) => entry !== option.value)
       : [...entries, option.value];
-    onAnswer(question.id, next);
+    report(next);
   };
 
   const writeOther = (value: string) => {
     setDraft(value);
     if (!question.multiple) {
-      onAnswer(question.id, value);
+      report(value);
       return;
     }
 
     const kept = entries.filter((entry) => optionValues.has(entry));
-    onAnswer(question.id, value ? [...kept, value] : kept);
+    report(value ? [...kept, value] : kept);
   };
 
   const toggleOther = () => {
     if (question.multiple && otherActive) {
       setOtherOpen(false);
-      onAnswer(
-        question.id,
-        entries.filter((entry) => optionValues.has(entry)),
-      );
+      report(entries.filter((entry) => optionValues.has(entry)));
       return;
     }
 
@@ -137,7 +144,9 @@ const QuestionView: React.FC<QuestionViewProps> = ({ question, blockIndex, onAns
   );
 
   return (
-    <div className="pmv-question">
+    // The anchor a host's ScrollTo addresses. Ids are unique across a revision by schema, so it
+    // needs no block qualifier.
+    <div className="pmv-question" data-question-id={question.id}>
       {/* `header` was the tab's chip label. With the tabs gone it becomes an eyebrow, which is
           what keeps a stack of questions scannable. */}
       {question.header && <div className="pmv-question-header">{question.header}</div>}

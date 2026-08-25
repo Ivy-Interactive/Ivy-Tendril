@@ -17,6 +17,28 @@ namespace Ivy.Tendril.Widgets;
 public readonly record struct QuestionBlockSource(int Index, int BodyStart, int BodyEnd, string Body);
 
 /// <summary>
+///     One question as an index entry: what it is called, where it lives, and whether it has been
+///     dealt with. Enough to build a table of contents beside a long plan.
+/// </summary>
+/// <param name="BlockIndex">0-based index of the <c>questions</c> fence holding it.</param>
+/// <param name="Id">The question's <c>id</c> — unique across the revision, and what
+/// <see cref="DraftMarkdown.ScrollTo" /> addresses.</param>
+/// <param name="Title">The question itself. Empty when the block omitted it.</param>
+/// <param name="Header">The optional short label shown as an eyebrow above the title.</param>
+/// <param name="HasAnswer">
+///     Whether an <c>answer</c> key is present at all — true for a real answer and for a
+///     deliberate skip alike, which is what "dealt with" means for an index.
+/// </param>
+/// <param name="IsSkipped"><c>answer: null</c> — asked and deliberately skipped.</param>
+public readonly record struct QuestionSummary(
+    int BlockIndex,
+    string Id,
+    string Title,
+    string? Header,
+    bool HasAnswer,
+    bool IsSkipped);
+
+/// <summary>
 ///     Merges a <see cref="QuestionAnswer" /> reported by <see cref="DraftMarkdown.OnAnswersChange" />
 ///     back into the markdown it came from.
 ///     <para>
@@ -48,6 +70,71 @@ public static class QuestionAnswers
         ScanBlocks(markdown)
             .Select(b => new QuestionBlockSource(b.Index, b.BodyStart, b.BodyEnd, b.Body))
             .ToList();
+
+    /// <summary>
+    ///     Every question in the document, in document order — enough to build an index of them
+    ///     without the host parsing YAML itself.
+    ///     <para>
+    ///         Tolerant, like the widget's own reader: a block that does not parse, or is the
+    ///         pre-schema plain-text form, contributes nothing rather than throwing.
+    ///     </para>
+    /// </summary>
+    public static IReadOnlyList<QuestionSummary> Read(string markdown)
+    {
+        var summaries = new List<QuestionSummary>();
+        if (string.IsNullOrEmpty(markdown))
+            return summaries;
+
+        foreach (var block in ScanBlocks(markdown))
+        {
+            var body = Dedent(block.Body, block.Indent);
+
+            YamlMappingNode? root;
+            try
+            {
+                var stream = new YamlStream();
+                stream.Load(new StringReader(body));
+                root = stream.Documents.Count > 0 ? stream.Documents[0].RootNode as YamlMappingNode : null;
+            }
+            catch (YamlException)
+            {
+                continue;
+            }
+
+            if (root is null ||
+                !root.Children.TryGetValue(new YamlScalarNode(InfoWord), out var node) ||
+                node is not YamlSequenceNode questions)
+                continue;
+
+            foreach (var child in questions.Children)
+            {
+                if (child is not YamlMappingNode entry)
+                    continue;
+
+                var id = Value(entry, "id");
+                if (string.IsNullOrEmpty(id))
+                    continue;
+
+                var answer = Entry(entry, AnswerKey);
+                summaries.Add(new QuestionSummary(
+                    block.Index,
+                    id,
+                    Value(entry, "title") ?? "",
+                    Value(entry, "header"),
+                    answer is not null,
+                    answer is { } pair && IsNullScalar(pair.Value)));
+            }
+        }
+
+        return summaries;
+    }
+
+    /// <summary>An explicit YAML null — <c>answer: null</c>, <c>answer: ~</c> or a bare <c>answer:</c>.</summary>
+    private static bool IsNullScalar(YamlNode node) =>
+        node is YamlScalarNode { Style: ScalarStyle.Plain } scalar &&
+        (string.IsNullOrEmpty(scalar.Value) ||
+         string.Equals(scalar.Value, "null", StringComparison.OrdinalIgnoreCase) ||
+         scalar.Value == "~");
 
     /// <summary>
     ///     Returns <paramref name="markdown" /> with <paramref name="answer" /> written onto the

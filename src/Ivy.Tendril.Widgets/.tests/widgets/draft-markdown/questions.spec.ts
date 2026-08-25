@@ -1,5 +1,14 @@
 import { test, expect } from "../../fixtures/widget-test.js";
+import type { Locator, Page } from "@playwright/test";
 import { navigateToApp, waitForDraftMarkdown } from "../../utils/ivy.js";
+
+/** Whether the whole block sits inside the widget's own scroll viewport. */
+async function inFrame(page: Page, block: Locator): Promise<boolean> {
+  const shell = page.locator(".pmv-shell");
+  const [shellBox, blockBox] = await Promise.all([shell.boundingBox(), block.boundingBox()]);
+  if (!shellBox || !blockBox) return false;
+  return blockBox.y >= shellBox.y && blockBox.y + blockBox.height <= shellBox.y + shellBox.height;
+}
 
 test.describe("DraftMarkdown Questions", () => {
   test.beforeEach(async ({ page }) => {
@@ -27,27 +36,46 @@ test.describe("DraftMarkdown Questions", () => {
     await stepScreenshot("picker-rendered");
   });
 
-  test("selecting an option round-trips through SignalR", async ({ page, stepScreenshot }) => {
-    // Scoped to the pinned panel: the question's own title also contains these words. Within the
-    // panel the event stream renders above the block source, and a highlighted YAML token can carry
-    // the same text, so first() pins each assertion to the stream entry.
-    const panel = page.locator(".pmv-sticky");
-    await expect(panel.getByText("Answers received (0)")).toBeVisible();
+  test("answering a question strikes it out of the index card", async ({ page, stepScreenshot }) => {
+    // The card is built host-side from QuestionAnswers.Read, so it is the round trip made visible:
+    // the answer reaches the server, is merged into the document, and comes back as an index entry
+    // that is done with.
+    const card = page.locator(".pmv-sticky");
+    const entry = card.getByRole("button", { name: /retry budget/ });
 
-    const callout = page.locator(".pmv-questions").first();
-    await callout.locator(".pmv-question-check").first().click();
+    await expect(card.getByText("1 of 4 answered")).toBeVisible();
+    await expect(entry).not.toHaveCSS("text-decoration-line", "line-through");
 
-    // The server echoes the QuestionAnswer record back into the pinned panel.
-    await expect(panel.getByText("Answers received (1)")).toBeVisible({ timeout: 15_000 });
-    await expect(panel.getByText("retry-scope", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
-    await expect(panel.getByText("per-request", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+    await page.locator(".pmv-questions").first().locator(".pmv-question-check").first().click();
 
-    // A second answer appends rather than replacing, and lands at the top (newest first).
-    await callout.locator(".pmv-question-check").nth(1).click();
-    await expect(panel.getByText("Answers received (2)")).toBeVisible({ timeout: 15_000 });
-    await expect(panel.getByText("per-session", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByText("2 of 4 answered")).toBeVisible({ timeout: 15_000 });
+    await expect(entry).toHaveCSS("text-decoration-line", "line-through", { timeout: 15_000 });
 
-    await stepScreenshot("answer-received");
+    await stepScreenshot("answered-struck-out");
+  });
+
+  test("an index entry scrolls its block into frame, and again on a repeat click", async ({
+    page,
+    stepScreenshot,
+  }) => {
+    const card = page.locator(".pmv-sticky");
+    const block = page.locator(".pmv-questions").nth(2);
+
+    // The last block is well below the fold on load.
+    await expect(await inFrame(page, block)).toBe(false);
+
+    await card.getByRole("button", { name: "What should the service be called?" }).click();
+    await expect.poll(() => inFrame(page, block), { timeout: 15_000 }).toBe(true);
+
+    await stepScreenshot("scrolled-to-question");
+
+    // Scroll away and click the same entry again: the request carries a token precisely so that
+    // an unchanged question id still moves the page.
+    await page.locator(".pmv-shell").evaluate((shell) => shell.scrollTo({ top: 0 }));
+    await expect.poll(() => inFrame(page, block)).toBe(false);
+
+    await card.getByRole("button", { name: "What should the service be called?" }).click();
+    await expect.poll(() => inFrame(page, block), { timeout: 15_000 }).toBe(true);
   });
 
   test("an answer is merged back into the document", async ({ page, stepScreenshot }) => {
@@ -102,14 +130,14 @@ test.describe("DraftMarkdown Questions", () => {
 
     // Answering the first leaves the second alone.
     await callout.locator(".pmv-question-other-input").first().fill("dispatch");
-    await expect(page.locator(".pmv-sticky").getByText("service-name").first()).toBeVisible({
+    await expect(page.locator(".pmv-sticky").getByText("3 of 4 answered")).toBeVisible({
       timeout: 15_000,
     });
     await expect(callout.locator(".pmv-question-skipped")).toHaveCount(1);
   });
 
-  test("Clear appears only once there is an answer, and reports the cleared state", async ({ page }) => {
-    const panel = page.locator(".pmv-sticky");
+  test("Clear appears only once there is an answer, and retires with it", async ({ page }) => {
+    const card = page.locator(".pmv-sticky");
     const callout = page.locator(".pmv-questions").first();
 
     // Nothing answered yet, so there is nothing to clear.
@@ -117,13 +145,13 @@ test.describe("DraftMarkdown Questions", () => {
 
     await callout.locator(".pmv-question-check").first().click();
     await expect(callout.locator(".pmv-question-clear")).toHaveCount(1, { timeout: 15_000 });
+    await expect(card.getByText("2 of 4 answered")).toBeVisible({ timeout: 15_000 });
 
     await callout.locator(".pmv-question-clear").click();
-    await expect(panel.getByText("Answers received (2)")).toBeVisible({ timeout: 15_000 });
-    await expect(panel.getByText("cleared — back to unanswered")).toBeVisible({ timeout: 15_000 });
 
-    // Cleared back to unanswered, so the button retires again.
+    // Back to unanswered on both sides: the button retires and the index entry un-strikes.
     await expect(callout.locator(".pmv-question-clear")).toHaveCount(0, { timeout: 15_000 });
+    await expect(card.getByText("1 of 4 answered")).toBeVisible({ timeout: 15_000 });
   });
 
   test("a documentation fence stays a code block", async ({ page }) => {

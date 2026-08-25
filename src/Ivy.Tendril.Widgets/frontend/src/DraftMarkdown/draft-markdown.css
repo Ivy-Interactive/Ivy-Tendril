@@ -682,6 +682,7 @@
    `pre` to render these bare, so there is no UA `pre` styling to reset — a
    question form is flow content and must not sit inside a `pre` at all. */
 .pmv-questions {
+  position: relative;
   border-radius: 0.375rem;
   border: 1px solid;
   padding: 0.75rem 1rem;
@@ -706,11 +707,19 @@
   border-top: 1px solid hsl(199 89% 48% / 0.25);
 }
 
-/* One Clear for the block, pinned top-right above the stack. */
+/* One Clear for the block, in the corner and out of flow. It comes and goes as answers do, and a
+   row of its own would shift the whole block every time it did. */
 .pmv-questions-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 0.25rem;
+  position: absolute;
+  top: 0.375rem;
+  right: 0.5rem;
+}
+
+/* Only the first question sits under the button, so only it keeps out of its way. Padding rather
+   than margin: it must not change the block's height either. */
+.pmv-questions-actions + .pmv-question .pmv-question-header,
+.pmv-questions-actions + .pmv-question .pmv-question-title {
+  padding-right: 4rem;
 }
 
 /* The former tab chip label, now an eyebrow over the question it names. */

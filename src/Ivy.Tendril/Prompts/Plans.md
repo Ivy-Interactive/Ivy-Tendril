@@ -294,12 +294,12 @@ questions:                    # 1-4 items
   - id:          string       # required, stable, unique across the whole revision
     title:       string       # required, the question
     header:      string       # optional, <=12 char label shown as an eyebrow above the title
-    description: markdown     # optional, context shown under the question
+    description: markdown     # optional, block markdown shown under the question
     multiple:    bool         # optional, default false; true = multi-select
     other:       bool         # optional, default true; user may type a free value
     options:                  # 2-4 items; omit entirely for a pure free-text question
       - title:       string   # required, 1-5 words
-        description: markdown # optional, the expanded body for this option
+        description: markdown # optional, block markdown expanding on this option
         value:       slug     # required, stable id used by `answer`; ^[a-z0-9][a-z0-9-]*$
         recommended: bool     # optional, max one per question
     answer:      value | [values] | string   # filled in on response
@@ -311,6 +311,35 @@ addressed: the UI reports an answer as that id and a value, with no block or pos
 So an `id` must be unique across the **whole revision**, not merely within its own block, and must
 keep its meaning across revisions — rewording a question is fine, renaming its `id` orphans an answer
 already given for it.
+
+### Descriptions
+
+Both `description` fields render as full block markdown — paragraphs, lists, tables and fenced code
+all work. Reach for a snippet or a table when it settles the question faster than another sentence
+would: an option that proposes an API is clearer showing the call than describing it.
+
+A fence inside a description needs the `questions` fence to be *longer* than the one it contains,
+which is ordinary CommonMark. Open the block with four backticks and the descriptions can use three:
+
+`````
+````questions
+questions:
+  - id: retry-scope
+    title: Should the retry budget be per-request or per-session?
+    options:
+      - title: Per session
+        description: |
+          One budget shared by every call in the session.
+
+          ```csharp
+          using var session = client.OpenSession(new RetryBudget(maxAttempts: 3));
+          ```
+        value: per-session
+````
+`````
+
+Use a `|` block scalar for any description spanning more than one line, so blank lines and
+indentation survive YAML parsing intact.
 
 Three shapes fall out of `multiple` / `other` / the presence of `options`:
 

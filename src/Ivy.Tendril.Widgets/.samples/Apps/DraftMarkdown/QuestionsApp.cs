@@ -12,9 +12,13 @@ namespace WidgetSamples.Apps.DraftMarkdown;
 ///         The widget never rewrites its own document: the event reports <c>{ QuestionId, Answer }</c>
 ///         and the host decides how and whether to persist it. This sample persists — it merges each
 ///         event straight back into the markdown with <see cref="QuestionAnswers.Apply" />, which is
-///         why a selection sticks, a tab grows a check badge and a skip announces itself. The pinned
-///         panel shows both halves of that loop: the raw event stream, and the block source it
-///         produced.
+///         why a selection sticks and a skip announces itself.
+///     </para>
+///     <para>
+///         The pinned card is the other half of the pattern, and the reason a plan this long stays
+///         navigable: <see cref="QuestionAnswers.Read" /> turns the document into an index, and
+///         <see cref="DraftMarkdownWidget.ScrollTo" /> takes you to whichever entry you click.
+///         Answered entries strike through, so the card empties as the plan is settled.
 ///     </para>
 /// </summary>
 [App(title: "Questions", icon: Icons.CircleQuestionMark, group: ["DraftMarkdown"])]
@@ -183,36 +187,54 @@ class QuestionsApp : ViewBase
     public override object Build()
     {
         var markdown = UseState(InitialMarkdown);
-        var answers = UseState(ImmutableList<QuestionAnswer>.Empty);
         var annotations = UseState(DummyAnnotations);
+        var scrollTo = UseState<QuestionScrollTarget?>(() => null);
 
-        var stream = answers.Value.Count > 0
-            ? (object)(Layout.Vertical().Gap(3)
-               | answers.Value.Reverse().Select(answer =>
-                   (object)(Layout.Vertical().Gap(1)
-                   | Text.Block(answer.QuestionId).Bold()
-                   | Text.Muted(Describe(answer)))))
-            : Text.Muted("Pick an option, type an answer, or press Clear. Every change "
-                         + "shows up here as a QuestionAnswer record.");
+        // Read straight off the document, so the index reflects every merge without a second copy
+        // of the answer state living beside it.
+        var questions = QuestionAnswers.Read(markdown.Value);
 
-        var panel = Layout.Vertical().Gap(3).Width(Size.Units(80))
-                    | Text.Block($"Answers received ({answers.Value.Count})").Bold()
-                    | Text.Muted("Newest first. Each entry is one OnAnswersChange event.")
-                    | stream
-                    | Text.Block("Block source").Bold()
-                    | Text.Muted("The fence QuestionAnswers.Apply last edited. Only the answer key "
-                                 + "moves — comments, key order and the other blocks stay put.")
-                    | Text.Code(SourceOf(markdown.Value, answers.Value.LastOrDefault()), Languages.Yaml)
-                    | Text.Block($"Annotations ({annotations.Value.Count})").Bold()
-                    | Text.Muted("Seeded, one of them aimed at a question block. Only two are "
-                                 + "highlighted: a question block is a form, and it never takes a "
-                                 + "highlight — dragging across one raises no toolbar either.")
-                    | new Button("Reset").Outline().OnClick(() =>
-                    {
-                        markdown.Set(InitialMarkdown);
-                        answers.Set(ImmutableList<QuestionAnswer>.Empty);
-                        annotations.Set(DummyAnnotations);
-                    });
+        // One rich text block rather than a stack of buttons: these are links in a list, and
+        // buttons brought their own padding and hit targets to something that reads as prose.
+        // The link's url carries the question id, which is what comes back to OnLinkClick.
+        var index = Text.Rich();
+        for (var i = 0; i < questions.Count; i++)
+        {
+            var question = questions[i];
+
+            // A blank line between entries: several of these titles wrap, and without the gap a
+            // wrapped one runs straight into the next and the list reads as a paragraph.
+            if (i > 0)
+                index.LineBreak().LineBreak();
+
+            // Struck through and muted once the question has been dealt with — an answer or a
+            // deliberate skip both count. Muting is what makes what is left stand out; the strike
+            // alone still reads as live text.
+            index.Link(
+                Label(question),
+                question.Id,
+                strikeThrough: question.HasAnswer,
+                color: question.HasAnswer ? Colors.Muted : null);
+        }
+
+        index.OnLinkClick(id => scrollTo.Set(new QuestionScrollTarget(
+            id,
+            // Any different value re-triggers the scroll, which is what makes clicking the same
+            // entry twice work.
+            (scrollTo.Value?.Token ?? 0) + 1)));
+
+        var card = new Card(
+            Layout.Vertical().Gap(1)
+            | Text.Muted($"{questions.Count(q => q.HasAnswer)} of {questions.Count} answered. "
+                         + "Click one to scroll its block into view.")
+            | index
+            | new Button("Reset").Outline().OnClick(() =>
+            {
+                markdown.Set(InitialMarkdown);
+                annotations.Set(DummyAnnotations);
+                scrollTo.Set((QuestionScrollTarget?)null);
+            })
+        ).Title("Open questions").Width(Size.Units(80));
 
         return Layout.Horizontal().Height(Size.Full()).RemoveParentPadding()
                | new DraftMarkdownWidget(markdown.Value)
@@ -223,40 +245,19 @@ class QuestionsApp : ViewBase
                        // Apply because an answer can outlive the document it was given against.
                        if (QuestionAnswers.TryApply(markdown.Value, answer, out var merged))
                            markdown.Set(merged);
-
-                       answers.Set(answers.Value.Add(answer));
                    })
                    .Annotations(annotations.Value)
                    .OnAnnotationsChange(a => annotations.Set(a))
+                   .ScrollTo(scrollTo.Value)
                    .Width(Size.Full())
                    .Height(Size.Full())
-                   .StickyContent(panel);
+                   .StickyContent(card);
     }
 
-    /// <summary>
-    ///     The body of the block holding <paramref name="last" />'s question, or the first block
-    ///     before anything has been answered. One block rather than the whole document, because the
-    ///     point is to watch a single fence change.
-    /// </summary>
-    private static string SourceOf(string markdown, QuestionAnswer? last)
-    {
-        var blocks = QuestionAnswers.Scan(markdown);
-        if (blocks.Count == 0)
-            return "";
+    /// <summary>The eyebrow when the question has one, else its title. Falls back to the id.</summary>
+    private static string Label(QuestionSummary question) =>
+        !string.IsNullOrWhiteSpace(question.Title) ? question.Title
+        : !string.IsNullOrWhiteSpace(question.Header) ? question.Header
+        : question.Id;
 
-        var touched = last is null
-            ? null
-            : blocks.Cast<QuestionBlockSource?>()
-                .FirstOrDefault(b => b!.Value.Body.Contains($"id: {last.QuestionId}", StringComparison.Ordinal));
-
-        return (touched ?? blocks[0]).Body.TrimEnd();
-    }
-
-    /// <summary>The record's tri-state <c>Answer</c>, spelled out.</summary>
-    private static string Describe(QuestionAnswer answer) => answer.Answer switch
-    {
-        null => "cleared — back to unanswered",
-        { Count: 0 } => "skipped — answer: null",
-        var entries => string.Join(", ", entries),
-    };
 }

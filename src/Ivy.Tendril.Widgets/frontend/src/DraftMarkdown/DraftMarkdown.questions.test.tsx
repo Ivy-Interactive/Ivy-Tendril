@@ -214,12 +214,37 @@ describe("DraftMarkdown interactive questions", () => {
     ]);
   });
 
-  it("removes a value when an already-selected multi-select option is clicked", () => {
+  it("clears rather than skips when the last multi-select option is unchecked", () => {
+    // An empty list on the wire means `answer: null` — asked and deliberately skipped, which tells
+    // the agent to decide. Unchecking your last box means neither of those.
     const { container, eventHandler } = renderInteractive(MULTI_ANSWERED);
 
     fireEvent.click(checks(container)[0]);
 
-    expect(answerCalls(eventHandler)).toEqual([{ questionId: "channels", answer: [] }]);
+    expect(answerCalls(eventHandler)).toEqual([{ questionId: "channels", answer: null }]);
+  });
+
+  it("still reports the remaining values when one of several is unchecked", () => {
+    const both = fence(
+      "questions:",
+      "  - id: channels",
+      "    title: Which channels ship first?",
+      "    multiple: true",
+      "    options:",
+      "      - title: In-app",
+      "        value: in-app",
+      "      - title: Email",
+      "        value: email",
+      "    answer:",
+      "      - in-app",
+      "      - email",
+    );
+
+    const { container, eventHandler } = renderInteractive(both);
+
+    fireEvent.click(checks(container)[0]);
+
+    expect(answerCalls(eventHandler)).toEqual([{ questionId: "channels", answer: ["email"] }]);
   });
 
   it("fires the typed text when Other is chosen", () => {
@@ -439,6 +464,50 @@ describe("DraftMarkdown interactive questions", () => {
     const description = container.querySelector(".pmv-question-option-description");
     expect(description!.querySelector(".pmv-code-block")?.textContent).toContain("id: not-a-picker");
     expect(description!.querySelector(".pmv-question-option")).toBeNull();
+  });
+
+  it("anchors each question by its id so a host can scroll to it", () => {
+    const { container } = renderInteractive(TWO_QUESTIONS);
+
+    expect(
+      Array.from(container.querySelectorAll("[data-question-id]")).map((el) =>
+        el.getAttribute("data-question-id"),
+      ),
+    ).toEqual(["naming", "owner"]);
+  });
+
+  it("scrolls the block into view when the host asks, and again on a new token", () => {
+    // jsdom has no layout and no Element.scrollTo, so this pins when the effect runs rather than
+    // where it lands — the arithmetic needs a real box.
+    const scrollTo = vi.fn();
+    Element.prototype.scrollTo = scrollTo as unknown as Element["scrollTo"];
+
+    const { rerender } = render(
+      <DraftMarkdown id="w1" content={TWO_QUESTIONS} events={["OnAnswersChange"]} eventHandler={vi.fn()} />,
+    );
+    expect(scrollTo).not.toHaveBeenCalled();
+
+    const draw = (target: { questionId: string; token: number } | null) =>
+      rerender(
+        <DraftMarkdown
+          id="w1"
+          content={TWO_QUESTIONS}
+          events={["OnAnswersChange"]}
+          eventHandler={vi.fn()}
+          scrollTo={target}
+        />,
+      );
+
+    draw({ questionId: "owner", token: 1 });
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+
+    // Same question again: the token is what makes a repeat click move the page.
+    draw({ questionId: "owner", token: 2 });
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+
+    // An unknown id is ignored rather than throwing.
+    draw({ questionId: "nope", token: 3 });
+    expect(scrollTo).toHaveBeenCalledTimes(2);
   });
 
   it("still wraps an ordinary fence in its code block after the pre override", () => {

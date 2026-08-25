@@ -4,7 +4,7 @@ import "./draft-markdown.css";
 import { getHeight, getWidth } from "../styles";
 import { BlockHandler } from "../BlockHandler";
 import type { MarkdownAnnotation } from "./annotationUtils";
-import { applyAnnotationHighlights, getPlainTextOffset, rangeTouchesQuestions } from "./annotationUtils";
+import { applyAnnotationHighlights, getPlainTextOffset, QUESTIONS_SELECTOR, rangeTouchesQuestions } from "./annotationUtils";
 import { AddAnnotationPopover, EditAnnotationPopover, SelectionToolbar } from "./AnnotationPopover";
 import { AlertBlockquote } from "./AlertBlockquote";
 import { ImageRenderer } from "./ImageRenderer";
@@ -25,6 +25,7 @@ interface DraftMarkdownProps {
   article?: boolean;
   dangerouslyAllowLocalFiles?: boolean;
   annotations?: MarkdownAnnotation[];
+  scrollTo?: { questionId: string; token: number } | null;
   events?: string[];
   eventHandler?: IvyEventHandler;
   slots?: {
@@ -49,6 +50,7 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
   article = false,
   dangerouslyAllowLocalFiles = false,
   annotations = EMPTY_ANNOTATIONS,
+  scrollTo,
   events = EMPTY_EVENTS,
   eventHandler,
   slots,
@@ -105,6 +107,35 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
       applyAnnotationHighlights(contentRef.current, annotations);
     }
   }, [annotations, content, annotationsEnabled]);
+
+  // Bring a question into view when the host asks. Keyed on the token as well as the id, so
+  // asking for the same question twice scrolls twice.
+  const scrollQuestionId = scrollTo?.questionId;
+  const scrollToken = scrollTo?.token;
+  useEffect(() => {
+    if (!scrollQuestionId) return;
+
+    const shell = shellRef.current;
+    const container = contentRef.current;
+    if (!shell || !container) return;
+
+    // Compared rather than interpolated into a selector: an id is whatever the document said, and
+    // this needs no escaping and no CSS.escape (which jsdom does not provide).
+    const question = Array.from(container.querySelectorAll("[data-question-id]")).find(
+      (el) => el.getAttribute("data-question-id") === scrollQuestionId,
+    );
+    if (!question) return;
+
+    // Scroll the whole block, not just the question: a question is only answerable in the context
+    // of the fence it sits in, and landing mid-block hides that.
+    const block = question.closest(QUESTIONS_SELECTOR) ?? question;
+    const margin = 16;
+    const delta = block.getBoundingClientRect().top - shell.getBoundingClientRect().top - margin;
+
+    // The widget owns its own scroll, so move that rather than calling scrollIntoView, which would
+    // also drag every scrollable ancestor of the host page along with it.
+    shell.scrollTo({ top: shell.scrollTop + delta, behavior: "smooth" });
+  }, [scrollQuestionId, scrollToken]);
 
   // Detect text selection
   useEffect(() => {
@@ -308,6 +339,30 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
   // offsets — computed over rendered text — are unaffected.
   const tagged = useMemo(() => tagQuestionBlocks(content), [content]);
 
+  // Held by identity so React can skip the whole markdown subtree on renders that did not touch
+  // it. Re-parsing and re-rendering a long plan to answer a scroll request — or to move a popover
+  // — is work nobody asked for. Every dependency here is already stable (useCallback/useMemo), so
+  // this only rebuilds when the document or the rendering of it actually changes.
+  const markdownTree = useMemo(
+    () => (
+      <Markdown
+        remarkPlugins={plugins.remarkPlugins}
+        rehypePlugins={plugins.rehypePlugins}
+        urlTransform={urlTransform}
+        components={{
+          a: anchor,
+          code: BlockHandler,
+          pre,
+          blockquote: AlertBlockquote,
+          img: ImageRenderer,
+        }}
+      >
+        {tagged}
+      </Markdown>
+    ),
+    [plugins, urlTransform, anchor, pre, tagged],
+  );
+
   const fixed = slots?.StickyContent;
   const hasFixed = !!fixed && React.Children.count(fixed) > 0;
 
@@ -320,22 +375,7 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
     <div ref={shellRef} className="pmv-shell" style={shellStyle}>
       <div className="pmv-body">
         <div ref={contentRef} className={article ? "pmv-markdown pmv-article" : "pmv-markdown"}>
-          <QuestionsAnswerContext.Provider value={answerCallback}>
-            <Markdown
-              remarkPlugins={plugins.remarkPlugins}
-              rehypePlugins={plugins.rehypePlugins}
-              urlTransform={urlTransform}
-              components={{
-                a: anchor,
-                code: BlockHandler,
-                pre,
-                blockquote: AlertBlockquote,
-                img: ImageRenderer,
-              }}
-            >
-              {tagged}
-            </Markdown>
-          </QuestionsAnswerContext.Provider>
+          <QuestionsAnswerContext.Provider value={answerCallback}>{markdownTree}</QuestionsAnswerContext.Provider>
         </div>
       </div>
       {hasFixed && <div className="pmv-sticky">{fixed}</div>}
