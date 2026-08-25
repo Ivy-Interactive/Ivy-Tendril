@@ -446,7 +446,7 @@ public class ContentView(
 
         if (isShareMode)
         {
-            return Layout.Horizontal().AlignContent(Align.Left)
+            return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                 | new Button("Share Plan").Icon(Icons.Share2).Outline().OnClick(HandleSharePlan)
                 | new Button("Copy Path").Icon(Icons.Copy).Ghost().OnClick(() =>
                 {
@@ -563,7 +563,7 @@ public class ContentView(
         }
 
         // Action bar without .Wrap() - single row with progressive collapse.
-        var actionBar = Layout.Horizontal().AlignContent(Align.Left)
+        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                 | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r")
                     .OnClick(showResetToDraftDialog).CompactUp()
                 | requestChangesBtn;
