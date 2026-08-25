@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Isopoh.Cryptography.Argon2;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -24,12 +24,13 @@ public class SecuritySetupView : ViewBase
             && !string.IsNullOrWhiteSpace(newPassword.Value)
             && passwordsMatch;
 
-        var form = Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        var form = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+                   | new TunnelSetupView()
                    | Text.Block("Session Protection").Bold()
                    | Text.Block("Require a password to access the Tendril interface.").Muted().Small()
                    | isEnabled.ToBoolInput("Enable Password Protection")
                    | (isEnabled.Value
-                       ? Layout.Vertical().Gap(3)
+                       ? Layout.Vertical()
                          | (hasAuthConfigured
                              ? currentPassword.ToPasswordInput("Current password...")
                                  .WithField().Label("Current Password")

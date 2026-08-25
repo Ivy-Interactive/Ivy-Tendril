@@ -122,9 +122,8 @@ public class AgentTestDialog(
                             modelResult.ErrorMessage ?? "Invalid model", modelResult.ErrorMessage),
                         ModelValidationStatus.AuthError => new AgentTestResult($"Model: {entry.DisplayName}", TestStatus.Failed,
                             modelResult.ErrorMessage ?? "Auth error", modelResult.ErrorMessage),
-                        ModelValidationStatus.Timeout => new AgentTestResult($"Model: {entry.DisplayName}", TestStatus.Warning,
-                            "Timed out", modelResult.ErrorMessage),
-                        _ => new AgentTestResult($"Model: {entry.DisplayName}", TestStatus.Warning,
+                        _ => new AgentTestResult($"Model: {entry.DisplayName}",
+                            modelResult.ErrorMessage != null ? TestStatus.Failed : TestStatus.Warning,
                             modelResult.ErrorMessage ?? "Unknown", modelResult.ErrorMessage)
                     };
                     testResults.Set([.. results]);

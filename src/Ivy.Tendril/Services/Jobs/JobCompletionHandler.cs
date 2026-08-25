@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -182,31 +182,43 @@ internal class JobCompletionHandler
         if (isSuccess)
             TrackSuccessTelemetry(job);
 
-        _telemetryService?.TrackJobCompleted(job.Type, job.Status, job.DurationSeconds, job.Provider);
+        _telemetryService?.TrackJobCompleted(job.Type, job.Status, job.DurationSeconds, job.Provider,
+            job.ResolvePlanId());
         FlushTelemetryAsync();
     }
 
     private void TrackSuccessTelemetry(JobItem job)
     {
-        if (job.TypedArgs is CreatePlanArgs)
+        if (job.TypedArgs is CreatePlanArgs createPlanArgs)
         {
-            var planFolder = job.TypedArgs?.PlanFolder ?? "";
+            // CreatePlanArgs has no PlanFolder — the folder does not exist yet when the job starts.
+            // VerifyCreatePlanResult (which runs earlier in HandleCompletion) records the resolved
+            // folder *name* in job.PlanFile, so resolve it against the plans directory here.
+            var plansDir = _planReaderService?.PlansDirectory;
+            var planFolder = !string.IsNullOrEmpty(plansDir) && !string.IsNullOrEmpty(job.PlanFile)
+                ? Path.Combine(plansDir, job.PlanFile)
+                : "";
+
             var level = "Feature";
-            string? stackHash = null;
+            // Fall back to the project the job was queued for, so stack_hash still lands even when
+            // the plan folder cannot be resolved.
+            var stackHash = _configService?.GetProject(createPlanArgs.Project)?.StackHash;
             if (Directory.Exists(planFolder))
             {
                 var plan = PlanYamlHelper.ReadPlanYaml(planFolder);
                 if (plan != null)
                 {
                     level = plan.Level;
-                    stackHash = _configService?.GetProject(plan.Project)?.StackHash;
+                    stackHash = _configService?.GetProject(plan.Project)?.StackHash ?? stackHash;
                 }
             }
-            _telemetryService?.TrackPlanCreated(new PlanCreatedContext(level, job.DurationSeconds, job.Provider, stackHash));
+            _telemetryService?.TrackPlanCreated(new PlanCreatedContext(level, job.DurationSeconds, job.Provider,
+                stackHash, job.ResolvePlanId()));
         }
         else if (job.TypedArgs is CreatePrArgs)
         {
-            _telemetryService?.TrackPrCreated(new PrCreatedContext(job.DurationSeconds, job.Provider));
+            _telemetryService?.TrackPrCreated(new PrCreatedContext(job.DurationSeconds, job.Provider,
+                job.ResolvePlanId()));
         }
     }
 
@@ -236,14 +248,14 @@ internal class JobCompletionHandler
         if (string.IsNullOrEmpty(job.SessionId))
             return;
 
-        var inlineCost = ExtractCostFromOutputLines(job.OutputLines.ToArray());
+        var inlineUsage = ExtractCostFromOutputLines(job.OutputLines.ToArray());
 
         // Fast path: only trust the agent-reported inline cost when it is actually positive.
         // A timed-out/interrupted run emits token usage but no cost, so a zero inline cost must
         // fall through to the pricing fallback below (which derives cost from tokens × model price).
-        if (inlineCost is { cost: > 0 })
+        if (inlineUsage is { CostUsd: > 0 })
         {
-            ApplyCost(job, persistJob, raisePropertyChanged, inlineCost.Value.tokens, inlineCost.Value.cost);
+            ApplyCost(job, persistJob, raisePropertyChanged, ResolveJobCost(inlineUsage, priced: null));
             return;
         }
 
@@ -251,8 +263,9 @@ internal class JobCompletionHandler
         {
             // No pricing service to derive cost from: still surface the tokens we have (cost stays
             // null rather than a misleading $0.0000).
-            if (inlineCost is { tokens: > 0 })
-                ApplyCost(job, persistJob, raisePropertyChanged, inlineCost.Value.tokens, cost: null);
+            var inlineOnly = ResolveJobCost(inlineUsage, priced: null);
+            if (inlineOnly.Tokens > 0)
+                ApplyCost(job, persistJob, raisePropertyChanged, inlineOnly);
             return;
         }
 
@@ -269,19 +282,18 @@ internal class JobCompletionHandler
             try
             {
                 var costCalc = _modelPricingService.CalculateSessionCost(sessionId, provider);
-                var (tokens, cost) = ResolveJobCost(inlineCost, costCalc);
-                if (tokens > 0 || cost is > 0)
+                var usage = ResolveJobCost(inlineUsage, costCalc);
+                if (usage.Tokens > 0 || usage.Cost is > 0)
                 {
                     if (jobs.TryGetValue(jobId, out var j))
                     {
-                        j.Cost = cost;
-                        j.Tokens = tokens;
+                        usage.ApplyTo(j);
                         persistJob(j);
                         raisePropertyChanged();
                     }
 
                     if (jobPlanFolder != null)
-                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, tokens, (double)(cost ?? 0m));
+                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, usage.Tokens, (double)(usage.Cost ?? 0m));
                 }
             }
             catch (Exception ex)
@@ -292,16 +304,16 @@ internal class JobCompletionHandler
     }
 
     /// <summary>
-    /// Reconciles the agent-reported inline cost with the pricing-derived session cost.
-    /// Prefers any positive cost (inline first, then priced); carries the best available token
-    /// count; leaves cost null when neither source has a positive cost so the UI shows nothing
-    /// instead of a misleading $0.0000 next to a positive token count.
+    /// Reconciles the agent-reported inline usage with the pricing-derived session cost.
+    /// Prefers any positive cost (inline first, then priced) and records which of the two it came
+    /// from; carries the best available token count and per-bucket breakdown; leaves cost null when
+    /// neither source has a positive cost so the UI shows nothing instead of a misleading $0.0000
+    /// next to a positive token count.
     /// </summary>
-    internal static (int tokens, decimal? cost) ResolveJobCost(
-        (int tokens, decimal cost)? inline, CostCalculation? priced)
+    internal static JobUsageSnapshot ResolveJobCost(AgentUsage? inline, CostCalculation? priced)
     {
-        var inlineTokens = inline?.tokens ?? 0;
-        var inlineCost = inline?.cost ?? 0m;
+        var inlineTokens = inline is not null ? inline.InputTokens + inline.OutputTokens : 0;
+        var inlineCost = inline?.CostUsd ?? 0m;
         var pricedTokens = priced?.TotalTokens ?? 0;
         var pricedCost = priced is not null ? (decimal)priced.TotalCost : 0m;
 
@@ -313,27 +325,53 @@ internal class JobCompletionHandler
             : pricedCost > 0 ? pricedCost
             : null;
 
-        return (tokens, cost);
+        var costSource = inlineCost > 0 ? JobCostSources.Agent
+            : pricedCost > 0 ? JobCostSources.Computed
+            : null;
+
+        // Same precedence for the buckets: the session parse sees subagent traffic the inline
+        // ResultEvent never reports, so it wins whenever it found any tokens at all (cache-only
+        // sessions included, which is why this doesn't key off TotalTokens).
+        var pricedHasBuckets = priced is not null &&
+                               (priced.InputTokens > 0 || priced.OutputTokens > 0 ||
+                                priced.CacheReadTokens > 0 || priced.CacheWriteTokens > 0);
+
+        return new JobUsageSnapshot
+        {
+            Tokens = tokens,
+            Cost = cost,
+            CostSource = costSource,
+            Model = priced?.Model ?? inline?.Model,
+            InputTokens = pricedHasBuckets ? priced!.InputTokens : inline?.InputTokens,
+            OutputTokens = pricedHasBuckets ? priced!.OutputTokens : inline?.OutputTokens,
+            CacheReadTokens = pricedHasBuckets ? priced!.CacheReadTokens : inline?.CacheReadTokens,
+            CacheWriteTokens = pricedHasBuckets ? priced!.CacheWriteTokens : inline?.CacheWriteTokens,
+            // Only the inline ResultEvent carries reasoning tokens; SessionCostResult has no such
+            // bucket, so this is never sourced from the priced path.
+            ReasoningTokens = inline?.ReasoningTokens,
+        };
     }
 
     private void ApplyCost(
         JobItem job,
         Action<JobItem> persistJob,
         Action raisePropertyChanged,
-        int tokens,
-        decimal? cost)
+        JobUsageSnapshot usage)
     {
-        job.Cost = cost;
-        job.Tokens = tokens;
+        usage.ApplyTo(job);
         persistJob(job);
         raisePropertyChanged();
 
         var jobPlanFolder = job.TypedArgs?.PlanFolder;
         if (jobPlanFolder != null)
-            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, tokens, (double)(cost ?? 0m));
+            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, usage.Tokens, (double)(usage.Cost ?? 0m));
     }
 
-    private static (int tokens, decimal cost)? ExtractCostFromOutputLines(IReadOnlyList<string> outputLines)
+    /// <summary>
+    /// Returns the whole usage report from the agent's last ResultEvent (not just the two headline
+    /// numbers), so the cache/reasoning buckets and the model survive to the breakdown sheet.
+    /// </summary>
+    private static AgentUsage? ExtractCostFromOutputLines(IReadOnlyList<string> outputLines)
     {
         var serializer = new JsonEventSerializer();
         for (var i = outputLines.Count - 1; i >= 0; i--)
@@ -344,7 +382,7 @@ internal class JobCompletionHandler
                 var tokens = usage.InputTokens + usage.OutputTokens;
                 var cost = usage.CostUsd ?? 0;
                 if (tokens > 0 || cost > 0)
-                    return (tokens, cost);
+                    return usage;
             }
         }
         return null;
@@ -552,7 +590,7 @@ internal class JobCompletionHandler
         }
     }
 
-    private static readonly Regex GitHubPrUrlPattern = new(
+    internal static readonly Regex GitHubPrUrlPattern = new(
         @"https?://github\.com/(?<owner>[^/\s]+)/(?<repo>[^/\s]+)/pull/(?<number>\d+)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
@@ -745,7 +783,7 @@ internal class JobCompletionHandler
                 var ext = Path.GetExtension(file).ToLowerInvariant();
                 if (ext is ".md" or ".yaml" or ".yml")
                 {
-                    var content = File.ReadAllText(file);
+                    var content = FileHelper.ReadAllText(file);
                     var originalContent = content;
 
                     if (content.Contains(oldPath))
@@ -756,7 +794,7 @@ internal class JobCompletionHandler
 
                     if (content != originalContent)
                     {
-                        File.WriteAllText(file, content);
+                        FileHelper.WriteAllText(file, content);
                     }
                 }
             }
@@ -775,6 +813,24 @@ internal class JobCompletionHandler
         job.StatusMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList())
             ?? job.StatusMessage
             ?? "No plan created";
+    }
+
+    internal bool IsCreatePlanSuccessful(JobItem job)
+    {
+        var plansDir = _planReaderService?.PlansDirectory
+            ?? (_configService != null ? Path.Combine(_configService.TendrilHome, "Plans") : null);
+
+        if (plansDir != null && Directory.Exists(plansDir))
+        {
+            if (TryVerifyByReportedId(job, plansDir) ||
+                TryVerifyByOutputRegex(job, plansDir) ||
+                TryVerifyByFilesystem(job, plansDir))
+            {
+                return true;
+            }
+        }
+
+        return IsDuplicatePlan(job) || IsInTrash(job);
     }
 
     private static bool TryVerifyByReportedId(JobItem job, string plansDir)

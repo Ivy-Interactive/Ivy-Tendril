@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Git;
 
-public class GithubService(IConfigService config, ILogger<GithubService> logger) : IGithubService
+public class GithubService : IGithubService, IDisposable
 {
     public const int DefaultIssueLimit = 1000;
     public const int MaxIssueLimit = 1000;
@@ -17,17 +17,31 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
     // ConcurrentDictionary required: multiple UseQuery calls from different views/dialogs
     // can fetch different repos simultaneously, causing concurrent writes to different keys.
     private readonly ConcurrentDictionary<string, List<string>> _assigneeCache = new();
-    private readonly IConfigService _config = config;
-    private readonly ILogger<GithubService> _logger = logger;
+    private readonly IConfigService _config;
+    private readonly ILogger<GithubService> _logger;
     private readonly ConcurrentDictionary<string, List<string>> _labelCache = new();
     private readonly ConcurrentDictionary<string, RepoConfig?> _repoPathCache = new();
-    private List<RepoConfig>? _repoCache;
+
+    public GithubService(IConfigService config, ILogger<GithubService> logger)
+    {
+        _config = config;
+        _logger = logger;
+        _config.SettingsReloaded += OnSettingsReloaded;
+    }
+
+    private void OnSettingsReloaded(object? sender, EventArgs e)
+    {
+        _repoPathCache.Clear();
+    }
+
+    public void Dispose()
+    {
+        _config.SettingsReloaded -= OnSettingsReloaded;
+        GC.SuppressFinalize(this);
+    }
 
     public List<RepoConfig> GetRepos()
     {
-        if (_repoCache is not null)
-            return _repoCache;
-
         var uniquePaths = _config.Settings.Projects
             .SelectMany(p => p.RepoPaths)
             .Distinct()
@@ -42,12 +56,10 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
         }
 
         // Deduplicate by FullName (owner/name)
-        _repoCache = repos
+        return repos
             .GroupBy(r => r.FullName, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
             .ToList();
-
-        return _repoCache;
     }
 
     public async Task<(List<string> assignees, string? error)> GetAssigneesAsync(string owner, string repo)
@@ -56,7 +68,7 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
     public async Task<(List<string> labels, string? error)> GetLabelsAsync(string owner, string repo)
         => await GetCachedListAsync(_labelCache, owner, repo, FetchLabelsFromGhCliAsync);
 
-    public async Task<(Dictionary<string, string> statuses, string? error)> GetPrStatusesAsync(string owner, string repo)
+    public async Task<(Dictionary<string, PrInfo> statuses, string? error)> GetPrStatusesAsync(string owner, string repo)
     {
         return await FetchPrStatusesFromGhCliAsync(owner, repo);
     }
@@ -195,7 +207,7 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
 
     internal static RepoConfig? ParseRepoConfigFromUrl(string url)
     {
-        var match = Regex.Match(url, @"[/:](?<owner>[^/]+)/(?<name>[^/]+?)(?:\.git)?$");
+        var match = Regex.Match(url, @"[/:](?<owner>[^/]+)/(?<name>[^/]+?)(?:\.git)?$", RegexOptions.IgnoreCase);
         if (!match.Success) return null;
 
         return new RepoConfig
@@ -318,9 +330,9 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
         return (items, error);
     }
 
-    private Dictionary<string, string> ParsePrStatuses(string json)
+    internal static Dictionary<string, PrInfo> ParsePrStatuses(string json)
     {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var result = new Dictionary<string, PrInfo>(StringComparer.OrdinalIgnoreCase);
         using var doc = JsonDocument.Parse(json);
 
         foreach (var element in doc.RootElement.EnumerateArray())
@@ -330,13 +342,20 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
 
             if (url is not null && state is not null)
             {
-                result[url] = state switch
+                var status = state switch
                 {
                     "OPEN" => "Open",
                     "CLOSED" => "Closed",
                     "MERGED" => "Merged",
                     _ => state
                 };
+
+                var branch = element.TryGetProperty("headRefName", out var headRefProp) &&
+                             headRefProp.ValueKind == JsonValueKind.String
+                    ? headRefProp.GetString() ?? ""
+                    : "";
+
+                result[url] = new PrInfo(status, branch);
             }
         }
 
@@ -359,12 +378,12 @@ public class GithubService(IConfigService config, ILogger<GithubService> logger)
         return (labels, error);
     }
 
-    private async Task<(Dictionary<string, string> statuses, string? error)> FetchPrStatusesFromGhCliAsync(string owner, string repo)
+    private async Task<(Dictionary<string, PrInfo> statuses, string? error)> FetchPrStatusesFromGhCliAsync(string owner, string repo)
     {
         var (statuses, error) = await ExecuteGhCliAsync(
-            $"pr list --repo {owner}/{repo} --limit 100 --state all --json url,state",
+            $"pr list --repo {owner}/{repo} --limit 100 --state all --json url,state,headRefName",
             ParsePrStatuses,
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+            new Dictionary<string, PrInfo>(StringComparer.OrdinalIgnoreCase));
 
         if (error is not null)
             _logger.LogWarning("gh pr list failed for {Owner}/{Repo}", owner, repo);

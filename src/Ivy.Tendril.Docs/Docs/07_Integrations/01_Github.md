@@ -43,7 +43,7 @@ When a plan reaches the **Completed** state, the **CreatePr** promptware automat
 2. Creates a pull request with a summary of changes
 3. Links the PR back to the plan
 
-PR settings like merge strategy are controlled by the `prRule` field in your project configuration.
+Merge strategy, reviewers, draft status, and branch cleanup are chosen per PR in the Create PR dialog.
 
 ## PR Status Sync
 

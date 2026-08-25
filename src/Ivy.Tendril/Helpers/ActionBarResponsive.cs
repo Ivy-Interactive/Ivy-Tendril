@@ -24,15 +24,6 @@ namespace Ivy.Tendril.Helpers;
 public static class ActionBarResponsive
 {
     /// <summary>
-    /// Shows button at all breakpoints (always visible). Used for navigation
-    /// (Previous/Next) which must stay visible at every size.
-    /// </summary>
-    public static Button AlwaysVisible(this Button btn)
-    {
-        return btn;
-    }
-
-    /// <summary>
     /// Shows button only at the Full tier — a wide desktop monitor (width ≥1024px).
     /// Hidden at the Compact and Minimal tiers, where the button collapses into a dropdown.
     /// </summary>

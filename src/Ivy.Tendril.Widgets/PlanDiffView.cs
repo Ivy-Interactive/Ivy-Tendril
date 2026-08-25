@@ -67,14 +67,16 @@ public record PlanDiffView : WidgetBase<PlanDiffView>
     [Event] public Func<Event<PlanDiffView, DraftComment>, ValueTask>? OnUpdateComment { get; init; }
 
     [Event] public Func<Event<PlanDiffView, DirectEditArgs>, ValueTask>? OnDirectEdit { get; init; }
-
-    [Event] public Func<Event<PlanDiffView, string>, ValueTask>? OnEditFile { get; init; }
-
-    [Event] public Func<Event<PlanDiffView, string>, ValueTask>? OnDeleteFile { get; init; }
 }
 
 public static class PlanDiffViewExtensions
 {
+    public static PlanDiffView Key(this PlanDiffView w, string key)
+    {
+        w.Key = key;
+        return w;
+    }
+
     public static PlanDiffView Diff(this PlanDiffView w, string? diff) =>
         w with { Diff = diff };
 

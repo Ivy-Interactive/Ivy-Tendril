@@ -23,6 +23,11 @@ public sealed class OpenAiProxyHealthCheck : IAgentHealthCheck
     {
         var path = IvyBinaryResolver.Resolve();
         if (!File.Exists(path))
+        {
+            path = await IvyBinaryResolver.EnsureInstalledAsync(ct) ?? path;
+        }
+
+        if (!File.Exists(path))
             return new AgentInstallStatus { IsInstalled = false, Error = "ivy-agent not found" };
 
         var version = await GetVersionAsync(ct);
@@ -73,14 +78,6 @@ public sealed class OpenAiProxyHealthCheck : IAgentHealthCheck
 
     public async Task<ModelValidationResult> ValidateModelAsync(string model, CancellationToken ct = default)
     {
-        if (!string.IsNullOrEmpty(model) && !string.Equals(model, "default", StringComparison.OrdinalIgnoreCase))
-            return new ModelValidationResult
-            {
-                Status = ModelValidationStatus.Unknown,
-                Model = model,
-                ErrorMessage = "OpenAI Proxy does not support model validation for non-default models",
-            };
-
         var baseUrl = _baseUrlProvider();
         var apiKey = _apiKeyProvider();
 
@@ -94,33 +91,7 @@ public sealed class OpenAiProxyHealthCheck : IAgentHealthCheck
             };
         }
 
-        var binaryPath = IvyBinaryResolver.Resolve();
-        var originalEnv = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
-        var originalUrl = Environment.GetEnvironmentVariable("ANTHROPIC_BASE_URL");
-        try
-        {
-            Environment.SetEnvironmentVariable("ANTHROPIC_BASE_URL", baseUrl);
-            Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", apiKey);
-
-            var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
-                binaryPath, ["run", "ping"],
-                TimeSpan.FromSeconds(30), ct);
-
-            if (exitCode == 0)
-                return new ModelValidationResult { Status = ModelValidationStatus.Ok, Model = model };
-
-            return new ModelValidationResult
-            {
-                Status = ModelValidationStatus.Unknown,
-                Model = model,
-                ErrorMessage = stderr,
-            };
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", originalEnv);
-            Environment.SetEnvironmentVariable("ANTHROPIC_BASE_URL", originalUrl);
-        }
+        return await LlmEndpointTester.TestModelPromptAsync(baseUrl, apiKey, model, ct);
     }
 
     public Task<bool> RunAuthFlowAsync(AuthFlowCallbacks callbacks, CancellationToken ct = default)

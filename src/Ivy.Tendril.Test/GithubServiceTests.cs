@@ -17,6 +17,20 @@ public class GithubServiceTests
     }
 
     [Fact]
+    public void Should_Parse_MixedCase_Https_Url()
+    {
+        var repo = GithubService.ParseRepoConfigFromUrl("Https://github.com/Ivy-Interactive/Ivy-Framework.git");
+        Assert.NotNull(repo);
+        Assert.Equal("Ivy-Interactive", repo.Owner);
+        Assert.Equal("Ivy-Framework", repo.Name);
+
+        var repo2 = GithubService.ParseRepoConfigFromUrl("HTTPS://github.com/Ivy-Interactive/Ivy-Framework.GIT");
+        Assert.NotNull(repo2);
+        Assert.Equal("Ivy-Interactive", repo2.Owner);
+        Assert.Equal("Ivy-Framework", repo2.Name);
+    }
+
+    [Fact]
     public void Should_Parse_Https_Url_Without_Git_Suffix()
     {
         var repo = GithubService.ParseRepoConfigFromUrl("https://github.com/Ivy-Interactive/Ivy-Framework");
@@ -262,6 +276,41 @@ public class GithubServiceTests
     }
 
     [Fact]
+    public void ParsePrStatuses_ParsesStatusAndBranch()
+    {
+        var json = """
+                   [
+                     {"url": "https://github.com/owner/repo/pull/1", "state": "OPEN", "headRefName": "feature/foo"},
+                     {"url": "https://github.com/owner/repo/pull/2", "state": "MERGED", "headRefName": "feature/bar"}
+                   ]
+                   """;
+
+        var statuses = GithubService.ParsePrStatuses(json);
+
+        Assert.Equal(2, statuses.Count);
+        Assert.Equal("Open", statuses["https://github.com/owner/repo/pull/1"].Status);
+        Assert.Equal("feature/foo", statuses["https://github.com/owner/repo/pull/1"].Branch);
+        Assert.Equal("Merged", statuses["https://github.com/owner/repo/pull/2"].Status);
+        Assert.Equal("feature/bar", statuses["https://github.com/owner/repo/pull/2"].Branch);
+    }
+
+    [Fact]
+    public void ParsePrStatuses_TreatsMissingHeadRefNameAsEmpty()
+    {
+        var json = """
+                   [
+                     {"url": "https://github.com/owner/repo/pull/1", "state": "OPEN"}
+                   ]
+                   """;
+
+        var statuses = GithubService.ParsePrStatuses(json);
+
+        Assert.Single(statuses);
+        Assert.Equal("Open", statuses["https://github.com/owner/repo/pull/1"].Status);
+        Assert.Equal("", statuses["https://github.com/owner/repo/pull/1"].Branch);
+    }
+
+    [Fact]
     public async Task GetLabelsAsync_Returns_Error_When_Command_Fails()
     {
         var configService = new ConfigService(new TendrilSettings());
@@ -445,6 +494,150 @@ public class GithubServiceTests
             Directory.Delete(temp1, true);
             Directory.Delete(temp2, true);
         }
+    }
+
+    [Fact]
+    public void Should_Return_Newly_Added_Projects_Without_Service_Restart()
+    {
+        var tempDir1 = CreateTempGitRepo("https://github.com/Test-Owner-1/Test-Repo-1.git");
+        var tempDir2 = CreateTempGitRepo("https://github.com/Test-Owner-2/Test-Repo-2.git");
+        try
+        {
+            var settings = new TendrilSettings
+            {
+                Projects = [new ProjectConfig { Name = "Project1", Repos = [new RepoRef { Path = tempDir1 }] }]
+            };
+            var configService = new ConfigService(settings);
+            using var githubService = new GithubService(configService, NullLogger<GithubService>.Instance);
+
+            var initialRepos = githubService.GetRepos();
+            Assert.Single(initialRepos);
+            Assert.Equal("Test-Owner-1", initialRepos[0].Owner);
+            Assert.Equal("Test-Repo-1", initialRepos[0].Name);
+
+            settings.Projects.Add(new ProjectConfig { Name = "Project2", Repos = [new RepoRef { Path = tempDir2 }] });
+
+            var updatedRepos = githubService.GetRepos();
+            Assert.Equal(2, updatedRepos.Count);
+            Assert.Contains(updatedRepos, r => r.Owner == "Test-Owner-1" && r.Name == "Test-Repo-1");
+            Assert.Contains(updatedRepos, r => r.Owner == "Test-Owner-2" && r.Name == "Test-Repo-2");
+        }
+        finally
+        {
+            Directory.Delete(tempDir1, true);
+            Directory.Delete(tempDir2, true);
+        }
+    }
+
+    [Fact]
+    public void SettingsReloaded_Should_Invalidate_Repo_Cache()
+    {
+        var tempDir = CreateTempGitRepo("https://github.com/Initial-Owner/Initial-Repo.git");
+        try
+        {
+            var testConfig = new TestConfigServiceWithEvents(new TendrilSettings
+            {
+                Projects = [new ProjectConfig { Name = "Project1", Repos = [new RepoRef { Path = tempDir }] }]
+            });
+            using var githubService = new GithubService(testConfig, NullLogger<GithubService>.Instance);
+
+            var initial = githubService.GetRepoConfigFromPathCached(tempDir);
+            Assert.NotNull(initial);
+            Assert.Equal("Initial-Owner", initial.Owner);
+            Assert.Equal("Initial-Repo", initial.Name);
+
+            // Change git origin remote on disk
+            RunGit(tempDir, "remote set-url origin https://github.com/Updated-Owner/Updated-Repo.git");
+
+            // Still cached before reload event
+            var beforeReload = githubService.GetRepoConfigFromPathCached(tempDir);
+            Assert.Same(initial, beforeReload);
+
+            // Trigger settings reload
+            testConfig.TriggerReload();
+
+            // After reload, cache was cleared and fresh remote is resolved
+            var afterReload = githubService.GetRepoConfigFromPathCached(tempDir);
+            Assert.NotNull(afterReload);
+            Assert.NotSame(initial, afterReload);
+            Assert.Equal("Updated-Owner", afterReload.Owner);
+            Assert.Equal("Updated-Repo", afterReload.Name);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Dispose_Should_Unsubscribe_From_SettingsReloaded()
+    {
+        var tempDir = CreateTempGitRepo("https://github.com/Initial-Owner/Initial-Repo.git");
+        try
+        {
+            var testConfig = new TestConfigServiceWithEvents(new TendrilSettings
+            {
+                Projects = [new ProjectConfig { Name = "Project1", Repos = [new RepoRef { Path = tempDir }] }]
+            });
+            var githubService = new GithubService(testConfig, NullLogger<GithubService>.Instance);
+
+            var initial = githubService.GetRepoConfigFromPathCached(tempDir);
+            Assert.NotNull(initial);
+
+            githubService.Dispose();
+
+            RunGit(tempDir, "remote set-url origin https://github.com/Updated-Owner/Updated-Repo.git");
+            testConfig.TriggerReload();
+
+            // Cache was not cleared on reload because the service was disposed and unsubscribed
+            var afterReload = githubService.GetRepoConfigFromPathCached(tempDir);
+            Assert.Same(initial, afterReload);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    private class TestConfigServiceWithEvents(TendrilSettings settings) : IConfigService
+    {
+        public TendrilSettings Settings { get; } = settings;
+        public string TendrilHome => "";
+        public string ConfigPath => "";
+        public string PlanFolder => "";
+        public List<ProjectConfig> Projects => Settings.Projects;
+        public List<LevelConfig> Levels => [];
+        public string[] LevelNames => [];
+        public EditorConfig Editor => new();
+        public bool NeedsOnboarding => false;
+        public ConfigParseError? ParseError => null;
+        public event EventHandler? SettingsReloaded;
+
+        public void TriggerReload() => SettingsReloaded?.Invoke(this, EventArgs.Empty);
+
+        public ProjectConfig? GetProject(string name) =>
+            Settings.Projects.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+        public bool TryAutoHeal() => false;
+        public void ResetToDefaults() { }
+        public void RetryLoadConfig() { }
+        public Colors? GetLevelColor(string level) => null;
+        public Colors? GetProjectColor(string projectName) => null;
+        public void SaveSettings() { }
+        public void MutateAndSave(Action<TendrilSettings> mutate) => mutate(Settings);
+        public void ReloadSettings() => TriggerReload();
+        public void SetPendingTendrilHome(string path) { }
+        public string? GetPendingTendrilHome() => null;
+        public void SetPendingProject(ProjectConfig project) { }
+        public ProjectConfig? GetPendingProject() => null;
+        public void SetPendingCodingAgent(string name) { }
+        public string? GetPendingCodingAgent() => null;
+        public void SetPendingVerificationDefinitions(List<VerificationConfig> definitions) { }
+        public List<VerificationConfig>? GetPendingVerificationDefinitions() => null;
+        public void CompleteOnboarding(string tendrilHome) { }
+        public void OpenInEditor(string path) { }
+        public string PolishMarkdown(string content) => content;
+        public void Dispose() { }
     }
 
     private static string CreateTempGitRepo(string remoteUrl)

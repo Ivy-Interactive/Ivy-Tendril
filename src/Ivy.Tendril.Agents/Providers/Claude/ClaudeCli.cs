@@ -32,6 +32,8 @@ public sealed class ClaudeCli : IAgentCli
         new(ProfileTier.Quick, "haiku", "low"),
     ];
 
+    public IReadOnlyList<EffortOption> SupportedEfforts => EffortLevels.Claude;
+
     private static readonly FrozenDictionary<string, string> ToolNameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         [CanonicalTools.Read] = "Read",
@@ -182,7 +184,7 @@ public sealed class ClaudeCli : IAgentCli
                 EffortLevel.Low => "low",
                 EffortLevel.Medium => "medium",
                 EffortLevel.High => "high",
-                EffortLevel.XHigh => "max",
+                EffortLevel.XHigh => "xhigh",
                 EffortLevel.Max => "max",
                 _ => "medium"
             });
@@ -206,6 +208,13 @@ public sealed class ClaudeCli : IAgentCli
             File.WriteAllText(tempFile, config.SystemPrompt);
             args.Add("--system-prompt-file");
             args.Add(tempFile);
+        }
+
+        var mcpConfigFile = global::Ivy.Tendril.Agents.Helpers.McpConfigWriter.WriteConfigFile(config.McpServers);
+        if (!string.IsNullOrEmpty(mcpConfigFile))
+        {
+            args.Add("--mcp-config");
+            args.Add(mcpConfigFile);
         }
 
         foreach (var mcp in config.McpServers)

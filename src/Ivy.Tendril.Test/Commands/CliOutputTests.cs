@@ -16,19 +16,22 @@ public class CliOutputTests : IDisposable
 
     private static string CaptureConsoleOut(Action action)
     {
-        var original = Console.Out;
-        var writer = new StringWriter();
-        Console.SetOut(writer);
-        try
+        lock (TestLocks.ConsoleLock)
         {
-            action();
-        }
-        finally
-        {
-            Console.SetOut(original);
-        }
+            var original = Console.Out;
+            var writer = new StringWriter();
+            Console.SetOut(writer);
+            try
+            {
+                action();
+            }
+            finally
+            {
+                Console.SetOut(original);
+            }
 
-        return writer.ToString();
+            return writer.ToString();
+        }
     }
 
     // Mirrors PlanCliCommandTests.CaptureAnsiConsoleOutput: swaps AnsiConsole.Console (not

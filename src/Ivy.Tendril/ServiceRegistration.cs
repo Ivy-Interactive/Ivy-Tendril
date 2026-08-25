@@ -2,6 +2,7 @@ using System.ClientModel;
 using Ivy.Core.Exceptions;
 using Ivy.Tendril.Agents;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,10 +33,8 @@ internal static class ServiceRegistration
 
         server.Services.AddAgentInfrastructure(opts =>
         {
-            opts.IncludeBetaProviders = (tendrilArgs?.Beta ?? false) ||
-                                        Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
-                                        Environment.GetEnvironmentVariable("IVY_BETA") == "1";
-            
+            opts.IncludeBetaProviders = BetaHelper.IsBeta(tendrilArgs, configService);
+
             opts.IvyApiKeyProviderFactory = sp =>
             {
                 var config = sp.GetService<IConfigService>();
@@ -54,13 +53,13 @@ internal static class ServiceRegistration
                     return authTokenHandler?.GetCurrentToken()?.AccessToken;
                 };
             };
-            
+
             opts.IvyTokenProviderFactory = sp =>
             {
                 var authTokenHandler = sp.GetService<Ivy.IAuthTokenHandlerService>();
                 return () => authTokenHandler?.GetCurrentToken()?.AccessToken;
             };
-            
+
             opts.IvyEmailProviderFactory = sp =>
             {
                 var authTokenHandler = sp.GetService<Ivy.IAuthTokenHandlerService>();
@@ -264,5 +263,9 @@ internal static class ServiceRegistration
             sp.GetRequiredService<Services.Tunnel.CloudflaredService>());
         server.Services.AddSingleton<IStartable>(sp =>
             sp.GetRequiredService<Services.Tunnel.CloudflaredService>());
+
+        server.Services.AddSingleton<Services.Telemetry.ModelPricingWarmupService>();
+        server.Services.AddSingleton<IStartable>(sp =>
+            sp.GetRequiredService<Services.Telemetry.ModelPricingWarmupService>());
     }
 }

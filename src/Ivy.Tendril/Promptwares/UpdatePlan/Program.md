@@ -33,7 +33,7 @@ Read the `UpdateInstructions` value from the firmware header. Instructions are e
 Report status: `tendril job status TendrilJobId --message="Researching questions..."`
 
 For each question in the instructions:
-1. Read relevant source files to find the answer
+1. Read relevant source files to find the answer. Scope `grep_search` to specific subdirectories (e.g. `src/`) and file patterns (`*.cs`, `*.tsx`, etc.), avoiding unconstrained root searches over build artifacts.
 2. Use the firmware header for project context if needed
 
 ### 3.5. Resolve Answered Questions

@@ -36,7 +36,7 @@ public class TunnelSetupView : ViewBase
             return Disposable.Create(() => tunnelService.StatusChanged -= OnStatusChanged);
         });
 
-        var form = Layout.Vertical().Padding(4).Width(Size.Auto().Max(Size.Units(120)))
+        var form = Layout.Vertical()
                    | Text.Block("Tunnel").Bold()
                    | Text.Block("Expose your Tendril instance to the internet via a Cloudflare tunnel. Useful for accessing Tendril from mobile devices or sharing with others.").Muted().Small();
 

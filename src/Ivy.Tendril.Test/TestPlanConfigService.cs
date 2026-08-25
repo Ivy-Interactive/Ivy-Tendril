@@ -5,6 +5,7 @@ namespace Ivy.Tendril.Test;
 internal class TestPlanConfigService : IConfigService
 {
     private readonly List<ProjectConfig> _projects;
+    private readonly TendrilSettings _settings;
 
     public TestPlanConfigService(string repoDir, string projectName = "TestProject",
         IReadOnlyList<ProjectVerificationRef>? verifications = null, string? tendrilHome = null)
@@ -19,9 +20,10 @@ internal class TestPlanConfigService : IConfigService
                 Verifications = verifications?.ToList() ?? []
             }
         ];
+        _settings = new TendrilSettings { Projects = _projects };
     }
 
-    public TendrilSettings Settings => new() { Projects = _projects };
+    public TendrilSettings Settings => _settings;
     public string TendrilHome { get; }
     public string ConfigPath => "";
     public string PlanFolder => string.IsNullOrEmpty(TendrilHome) ? "" : Path.Combine(TendrilHome, "Plans");

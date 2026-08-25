@@ -7,7 +7,12 @@ public static class GitTabDataBuilder
 {
     public record GitTabData(
         List<WorktreeSection> WorktreeSections,
-        List<PlanContentHelpers.CommitRow> UnassociatedCommitRows
+        List<PlanContentHelpers.CommitRow> UnassociatedCommitRows,
+        // Ref status for the unassociated commits only. Commits listed under a worktree section are
+        // ancestors of that worktree's HEAD and so reachable by definition; the unassociated ones
+        // are those no surviving worktree accounts for, which is exactly where a commit can turn
+        // out to be reachable from nothing at all.
+        Dictionary<string, CommitRefStatus>? UnassociatedCommitRefStatus = null
     );
 
     public record WorktreeSection(
@@ -18,8 +23,8 @@ public static class GitTabDataBuilder
         bool HasUncommittedChanges,
         List<PlanContentHelpers.CommitRow> CommitRows,
         string? ParentRepoPath = null,
-        string? ParentBranch = null,
-        string? ParentShortHash = null
+        string? BaseBranch = null,
+        string? BaseShortHash = null
     );
 
     public static GitTabData BuildGitTabData(
@@ -59,7 +64,7 @@ public static class GitTabDataBuilder
 
         if (Directory.Exists(worktreesDir))
         {
-            foreach (var repoDir in Directory.GetDirectories(worktreesDir))
+            foreach (var repoDir in GitHelper.EnumerateWorktreeDirectories(worktreesDir))
             {
                 var section = BuildSectionForWorktree(repoDir, allCommitRows, assignedCommitHashes, gitService);
                 if (section != null)
@@ -71,7 +76,42 @@ public static class GitTabDataBuilder
             .Where(r => !assignedCommitHashes.Contains(r.Hash))
             .ToList();
 
-        return new GitTabData(sections, unassigned);
+        return new GitTabData(sections, unassigned, ResolveRefStatus(plan, config, gitService, unassigned));
+    }
+
+    /// <summary>
+    ///     Asks each of the plan's repos whether it still holds the given commits, and keeps the best
+    ///     answer per commit: a commit lives in exactly one of a multi-repo plan's repos, so a repo
+    ///     that has never heard of it must not mask the repo that has.
+    /// </summary>
+    private static Dictionary<string, CommitRefStatus> ResolveRefStatus(
+        PlanFile plan, IConfigService config, IGitService gitService, List<PlanContentHelpers.CommitRow> rows)
+    {
+        var statuses = new Dictionary<string, CommitRefStatus>(StringComparer.OrdinalIgnoreCase);
+        if (rows.Count == 0) return statuses;
+
+        var hashes = rows.Select(r => r.Hash).ToList();
+        foreach (var repo in plan.GetEffectiveRepoPaths(config))
+        {
+            var result = gitService.GetCommitRefStatus(repo, hashes);
+            if (!result.IsSuccess || result.Value == null) continue;
+
+            foreach (var (hash, status) in result.Value)
+            {
+                if (!statuses.TryGetValue(hash, out var current) || Rank(status) < Rank(current))
+                    statuses[hash] = status;
+            }
+        }
+
+        return statuses;
+
+        // Reachable is the most informative answer, Missing the least.
+        static int Rank(CommitRefStatus status) => status switch
+        {
+            CommitRefStatus.Reachable => 0,
+            CommitRefStatus.Unreachable => 1,
+            _ => 2
+        };
     }
 
     private static WorktreeSection? BuildSectionForWorktree(
@@ -88,9 +128,7 @@ public static class GitTabDataBuilder
 
         if (worktree == null) return null;
 
-        var shortHash = worktree.CommitHash.Length > 7
-            ? worktree.CommitHash[..7]
-            : worktree.CommitHash;
+        var shortHash = Shorten(worktree.CommitHash);
 
         var hasUncommitted = false;
         var statusResult = gitService.HasUncommittedChanges(repoDir);
@@ -117,7 +155,7 @@ public static class GitTabDataBuilder
             }
         }
 
-        var (parentRepoPath, parentBranch, parentShortHash) = ResolveParentInfo(repoDir, worktreesResult.Value, gitService);
+        var (parentRepoPath, baseBranch, baseShortHash) = ResolveParentInfo(repoDir, worktreesResult.Value, gitService);
 
         return new WorktreeSection(
             Path.GetFileName(repoDir),
@@ -127,12 +165,27 @@ public static class GitTabDataBuilder
             hasUncommitted,
             worktreeCommits,
             parentRepoPath,
-            parentBranch,
-            parentShortHash
+            baseBranch,
+            baseShortHash
         );
     }
 
     private static (string? Path, string? Branch, string? ShortHash) ResolveParentInfo(
+        string repoDir, List<WorktreeInfo> worktrees, IGitService gitService)
+    {
+        var fallback = ResolveMainWorktreeInfo(repoDir, worktrees, gitService);
+
+        var baseResult = gitService.GetWorktreeBase(repoDir);
+        if (baseResult.IsSuccess && baseResult.Value != null)
+        {
+            var baseInfo = baseResult.Value;
+            return (fallback.Path, StripOriginPrefix(baseInfo.Branch), Shorten(baseInfo.CommitHash));
+        }
+
+        return fallback;
+    }
+
+    private static (string? Path, string? Branch, string? ShortHash) ResolveMainWorktreeInfo(
         string repoDir, List<WorktreeInfo> worktrees, IGitService gitService)
     {
         var mainWorktree = worktrees.FirstOrDefault(w =>
@@ -143,7 +196,7 @@ public static class GitTabDataBuilder
             return (
                 mainWorktree.Path,
                 mainWorktree.Branch,
-                mainWorktree.CommitHash.Length > 7 ? mainWorktree.CommitHash[..7] : mainWorktree.CommitHash
+                Shorten(mainWorktree.CommitHash)
             );
         }
 
@@ -161,7 +214,12 @@ public static class GitTabDataBuilder
         return (
             resolvedRoot,
             main.Branch,
-            main.CommitHash.Length > 7 ? main.CommitHash[..7] : main.CommitHash
+            Shorten(main.CommitHash)
         );
     }
+
+    private static string StripOriginPrefix(string branch) =>
+        branch.StartsWith("origin/", StringComparison.Ordinal) ? branch["origin/".Length..] : branch;
+
+    private static string Shorten(string hash) => hash.Length > 7 ? hash[..7] : hash;
 }

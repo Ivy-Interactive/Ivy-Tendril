@@ -1,5 +1,6 @@
 using System.Globalization;
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.PullRequest;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Git;
@@ -48,8 +49,8 @@ public class PrStatusSyncService : IStartable, IDisposable
 
             foreach (var url in prUrls)
             {
-                if (existingStatuses.TryGetValue(url, out var status) &&
-                    string.Equals(status, "Merged", StringComparison.OrdinalIgnoreCase))
+                if (existingStatuses.TryGetValue(url, out var info) &&
+                    string.Equals(info.Status, "Merged", StringComparison.OrdinalIgnoreCase))
                     continue;
 
                 urlsToCheck.Add(url);
@@ -88,8 +89,10 @@ public class PrStatusSyncService : IStartable, IDisposable
 
                     foreach (var url in urls)
                     {
-                        var resolvedStatus = statuses.GetValueOrDefault(url, "Open");
-                        _database.UpsertPrStatus(url, parts[0], parts[1], resolvedStatus, now);
+                        if (statuses.TryGetValue(url, out var info))
+                            _database.UpsertPrStatus(url, parts[0], parts[1], info.Status, info.Branch, now);
+                        else
+                            _database.UpsertPrStatus(url, parts[0], parts[1], "Open", "", now);
                     }
 
                     _logger.LogDebug("Synced {Count} PR statuses for {Repo}", urls.Count, ownerRepo);

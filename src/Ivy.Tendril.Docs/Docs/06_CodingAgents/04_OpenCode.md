@@ -34,11 +34,11 @@ For more details on `config.yaml` structure and settings, see [Setup & Settings]
 
 Tendril maps effort levels to OpenCode models:
 
-| Profile | Model | Use Case |
-|---------|-------|----------|
-| `deep` | default | Complex multi-file changes |
-| `balanced` | default | Standard plan execution |
-| `quick` | default | Simple fixes and small edits |
+| Profile | Model | Effort | Use Case |
+|---------|-------|--------|----------|
+| `deep` | default | high | Complex multi-file changes |
+| `balanced` | default | medium | Standard plan execution |
+| `quick` | default | low | Simple fixes and small edits |
 
 OpenCode supports multiple backend providers (Anthropic, OpenAI, Google, etc.) and manages model selection internally. Use `tendril models` to see discovered models.
 
@@ -46,7 +46,7 @@ The profile is selected automatically based on the plan's complexity level, or c
 
 ## Local Ollama Setup
 
-When running OpenCode with local Ollama models, you can configure a custom server URL in **Settings > Coding Agent** under **Ollama Host / Base URL**. Alternatively, specify the server URL directly in `config.yaml`:
+When running OpenCode with local Ollama models, specify the server URL directly in `config.yaml`:
 
 ```yaml
 codingAgents:

@@ -43,13 +43,14 @@ describe("PlanDiffView", () => {
     expect(screen.queryByText("**change**")).toBeNull();
   });
 
-  it("renders markdown in Preview tab", () => {
+  it("allows editing and updating a comment", () => {
     const onIvyEvent = vi.fn();
     render(
       <PlanDiffView
         id="pdv-1"
         onIvyEvent={onIvyEvent}
         diff={diff}
+        filePath="a.txt"
         comments={[
           {
             filePath: "a.txt",
@@ -65,107 +66,37 @@ describe("PlanDiffView", () => {
     fireEvent.click(editButton);
 
     const textarea = screen.getByPlaceholderText(/Enter instruction for the agent/i) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "**change**" } });
+    fireEvent.change(textarea, { target: { value: "updated text" } });
 
-    const previewButton = screen.getByRole("button", { name: /preview/i });
-    fireEvent.click(previewButton);
+    const updateButton = screen.getByRole("button", { name: /update comment/i });
+    fireEvent.click(updateButton);
 
-    const strong = document.querySelector(".diff-comment-markdown strong");
-    expect(strong).toBeTruthy();
-    expect(strong?.textContent).toBe("change");
+    expect(onIvyEvent).toHaveBeenCalledWith("OnUpdateComment", "pdv-1", [
+      {
+        filePath: "a.txt",
+        changeKey: changeKey,
+        content: "updated text",
+        lineNumber: 1,
+      },
+    ]);
   });
 
-  it("keeps raw source in Write tab after Preview", () => {
-    const onIvyEvent = vi.fn();
+  it("renders markdown lists with list items in saved comments", () => {
     render(
       <PlanDiffView
         id="pdv-1"
-        onIvyEvent={onIvyEvent}
+        onIvyEvent={vi.fn()}
         diff={diff}
         comments={[
           {
             filePath: "a.txt",
             changeKey: changeKey,
-            content: "initial",
+            content: "- one\n- two",
             lineNumber: 1,
           },
         ]}
       />
     );
-
-    const editButton = screen.getByRole("button", { name: /edit/i });
-    fireEvent.click(editButton);
-
-    const textarea = screen.getByPlaceholderText(/Enter instruction for the agent/i) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "**change**" } });
-
-    const previewButton = screen.getByRole("button", { name: /preview/i });
-    fireEvent.click(previewButton);
-
-    const writeButton = screen.getByRole("button", { name: /write/i });
-    fireEvent.click(writeButton);
-
-    const textareaAfter = screen.getByPlaceholderText(/Enter instruction for the agent/i) as HTMLTextAreaElement;
-    expect(textareaAfter.value).toBe("**change**");
-  });
-
-  it("shows placeholder when preview is empty", () => {
-    const onIvyEvent = vi.fn();
-    render(
-      <PlanDiffView
-        id="pdv-1"
-        onIvyEvent={onIvyEvent}
-        diff={diff}
-        comments={[
-          {
-            filePath: "a.txt",
-            changeKey: changeKey,
-            content: "initial",
-            lineNumber: 1,
-          },
-        ]}
-      />
-    );
-
-    const editButton = screen.getByRole("button", { name: /edit/i });
-    fireEvent.click(editButton);
-
-    const textarea = screen.getByPlaceholderText(/Enter instruction for the agent/i) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "" } });
-
-    const previewButton = screen.getByRole("button", { name: /preview/i });
-    fireEvent.click(previewButton);
-
-    expect(screen.getByText(/Nothing to preview/i)).toBeInTheDocument();
-    expect(document.querySelector(".diff-comment-markdown strong")).toBeNull();
-  });
-
-  it("renders markdown lists with list items", () => {
-    const onIvyEvent = vi.fn();
-    render(
-      <PlanDiffView
-        id="pdv-1"
-        onIvyEvent={onIvyEvent}
-        diff={diff}
-        comments={[
-          {
-            filePath: "a.txt",
-            changeKey: changeKey,
-            content: "initial",
-            lineNumber: 1,
-          },
-        ]}
-      />
-    );
-
-    const editButton = screen.getByRole("button", { name: /edit/i });
-    fireEvent.click(editButton);
-
-    const textarea = screen.getByPlaceholderText(/Enter instruction for the agent/i) as HTMLTextAreaElement;
-    fireEvent.change(textarea, { target: { value: "- one\n- two" } });
-
-    const previewButton = screen.getByRole("button", { name: /preview/i });
-    fireEvent.click(previewButton);
 
     const listItems = document.querySelectorAll(".diff-comment-markdown ul li");
     expect(listItems.length).toBe(2);
@@ -268,17 +199,7 @@ new mode 100755`;
   });
 });
 
-describe("PlanDiffView kebab menu", () => {
-  const singleFileDiff = [
-    "diff --git a/a.txt b/a.txt",
-    "--- a/a.txt",
-    "+++ b/a.txt",
-    "@@ -1 +1 @@",
-    "-old",
-    "+new",
-    "",
-  ].join("\n");
-
+describe("PlanDiffView collapse scoping", () => {
   const twoFileDiff = [
     "diff --git a/a.txt b/a.txt",
     "--- a/a.txt",
@@ -295,48 +216,85 @@ describe("PlanDiffView kebab menu", () => {
     "",
   ].join("\n");
 
-  it("renders the more-actions menu in a document.body portal", () => {
-    render(<PlanDiffView id="pdv-1" diff={singleFileDiff} collapsible />);
+  it("keys collapsed state by file path and resets when diff/filePath changes", () => {
+    const { rerender } = render(
+      <PlanDiffView id="pdv-1" diff={twoFileDiff} collapsible />
+    );
 
-    fireEvent.click(screen.getByRole("button", { name: /more actions/i }));
+    const checkboxes = screen.getAllByRole("checkbox");
+    expect(checkboxes.length).toBe(2);
+    expect(checkboxes[0]).toHaveAttribute("aria-checked", "false");
+    expect(checkboxes[1]).toHaveAttribute("aria-checked", "false");
 
-    const editFileItem = screen.getByText("Edit file");
-    expect(editFileItem).toBeInTheDocument();
-    expect(editFileItem.closest(".ivy-diff-view")).toBeNull();
-    expect(document.body.contains(editFileItem)).toBe(true);
+    // Click Viewed on first file (a.txt)
+    fireEvent.click(checkboxes[0]);
+    expect(checkboxes[0]).toHaveAttribute("aria-checked", "true");
+    expect(checkboxes[1]).toHaveAttribute("aria-checked", "false");
+
+    // Re-render with a new diff/file at position 0 (e.g. c.txt)
+    const newDiff = [
+      "diff --git a/c.txt b/c.txt",
+      "--- a/c.txt",
+      "+++ b/c.txt",
+      "@@ -1 +1 @@",
+      "-old c",
+      "+new c",
+      "",
+    ].join("\n");
+
+    rerender(<PlanDiffView id="pdv-1" diff={newDiff} collapsible />);
+
+    const newCheckboxes = screen.getAllByRole("checkbox");
+    expect(newCheckboxes.length).toBe(1);
+    // New file at position 0 must NOT be checked/collapsed
+    expect(newCheckboxes[0]).toHaveAttribute("aria-checked", "false");
   });
 
-  it("menu style is fixed positioned with a high z-index", () => {
-    render(<PlanDiffView id="pdv-1" diff={singleFileDiff} collapsible />);
+  it("directly couples collapsed state to viewed state", () => {
+    render(<PlanDiffView id="pdv-2" diff={twoFileDiff} collapsible />);
 
-    fireEvent.click(screen.getByRole("button", { name: /more actions/i }));
+    const checkboxes = screen.getAllByRole("checkbox");
+    expect(checkboxes.length).toBe(2);
+    expect(checkboxes[0]).toHaveAttribute("aria-checked", "false");
 
-    const menu = screen.getByText("Edit file").closest(".diff-more-actions-menu") as HTMLElement;
-    expect(menu.style.position).toBe("fixed");
-    expect(Number(menu.style.zIndex)).toBeGreaterThanOrEqual(1000);
+    // Initially expanded - diff content is in document
+    expect(screen.getByText("old a")).toBeInTheDocument();
+
+    // Clicking Viewed marks it as viewed and collapses the file
+    fireEvent.click(checkboxes[0]);
+    expect(checkboxes[0]).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByText("old a")).not.toBeInTheDocument();
+
+    // Clicking Viewed again expands it
+    fireEvent.click(checkboxes[0]);
+    expect(checkboxes[0]).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByText("old a")).toBeInTheDocument();
   });
 
-  it("menu action still dispatches for the right file", () => {
-    const onIvyEvent = vi.fn();
-    render(<PlanDiffView id="pdv-1" diff={twoFileDiff} onIvyEvent={onIvyEvent} collapsible />);
+  it("renders header and viewed checkbox when filePath or collapsible is provided", () => {
+    const singleFileDiff = [
+      "diff --git a/src/test.txt b/src/test.txt",
+      "--- a/src/test.txt",
+      "+++ b/src/test.txt",
+      "@@ -1 +1 @@",
+      "-old raw",
+      "+new raw",
+      "",
+    ].join("\n");
 
-    const moreActionsButtons = screen.getAllByRole("button", { name: /more actions/i });
-    expect(moreActionsButtons.length).toBe(2);
-    fireEvent.click(moreActionsButtons[1]);
+    render(
+      <PlanDiffView
+        id="pdv-3"
+        diff={singleFileDiff}
+        filePath="src/test.txt"
+        collapsible
+      />
+    );
 
-    fireEvent.click(screen.getByText("Edit file"));
-
-    expect(onIvyEvent).toHaveBeenCalledWith("OnEditFile", "pdv-1", ["b.txt"]);
-  });
-
-  it("clicking inside the portaled menu does not swallow the action", () => {
-    const onIvyEvent = vi.fn();
-    render(<PlanDiffView id="pdv-1" diff={singleFileDiff} onIvyEvent={onIvyEvent} collapsible />);
-
-    fireEvent.click(screen.getByRole("button", { name: /more actions/i }));
-    fireEvent.click(screen.getByText("Edit file"));
-
-    expect(onIvyEvent).toHaveBeenCalledWith("OnEditFile", "pdv-1", ["a.txt"]);
-    expect(screen.queryByText("Edit file")).toBeNull();
+    expect(screen.getByText("src/")).toBeInTheDocument();
+    expect(screen.getByText("test.txt")).toBeInTheDocument();
+    const checkbox = screen.getByRole("checkbox");
+    expect(checkbox).toBeInTheDocument();
+    expect(checkbox).toHaveAttribute("aria-checked", "false");
   });
 });

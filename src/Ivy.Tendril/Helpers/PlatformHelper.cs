@@ -10,9 +10,15 @@ public static class PlatformHelper
 {
     /// <summary>
     /// Returns true if condition evaluates to exit code 0, false otherwise.
+    /// Fast-paths simple Test-Path condition expressions natively in C# without spawning a pwsh process.
     /// </summary>
     public static bool EvaluatePowerShellCondition(string condition, string workingDirectory, int timeoutMs = 5000, ILogger? logger = null)
     {
+        if (TryEvaluateTestPathCondition(condition, workingDirectory, out var testPathResult))
+        {
+            return testPathResult;
+        }
+
         try
         {
             var sanitizedCondition = SanitizeConditionPath(condition);
@@ -43,6 +49,69 @@ public static class PlatformHelper
     }
 
     /// <summary>
+    /// Attempts to evaluate simple Test-Path expressions natively in C# without launching PowerShell.
+    /// </summary>
+    public static bool TryEvaluateTestPathCondition(string? condition, string workingDirectory, out bool result)
+    {
+        result = false;
+        if (string.IsNullOrWhiteSpace(condition)) return false;
+
+        var sanitized = SanitizeConditionPath(condition).Trim();
+        var match = System.Text.RegularExpressions.Regex.Match(
+            sanitized,
+            @"^(?i)Test-Path\s+(?:[""']([^""']+)[""']|([^\s""']+))\s*$"
+        );
+        if (!match.Success) return false;
+
+        var rawPath = (match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value).Trim();
+        if (string.IsNullOrEmpty(rawPath)) return false;
+
+        string fullPath;
+        if (rawPath.StartsWith("~"))
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var remainder = rawPath.Length > 1 ? rawPath[1..].TrimStart('/', '\\') : "";
+            fullPath = Path.Combine(home, remainder);
+        }
+        else if (Path.IsPathRooted(rawPath))
+        {
+            fullPath = rawPath;
+        }
+        else
+        {
+            fullPath = Path.Combine(workingDirectory, rawPath);
+        }
+
+        fullPath = fullPath.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+
+        try
+        {
+            if (fullPath.Contains('*') || fullPath.Contains('?'))
+            {
+                var dir = Path.GetDirectoryName(fullPath);
+                var pattern = Path.GetFileName(fullPath);
+                if (string.IsNullOrEmpty(dir)) dir = workingDirectory;
+
+                if (Directory.Exists(dir))
+                {
+                    result = Directory.EnumerateFileSystemEntries(dir, pattern, SearchOption.TopDirectoryOnly).Any();
+                    return true;
+                }
+
+                result = false;
+                return true;
+            }
+
+            result = File.Exists(fullPath) || Directory.Exists(fullPath);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Strips leading slashes or backslashes from relative worktree/artifact paths inside Test-Path condition expressions
     /// so PowerShell evaluates them relative to the working directory instead of the drive root.
     /// Preserves genuine absolute paths (e.g. /Users/..., /home/..., C:\...).
@@ -55,65 +124,6 @@ public static class PlatformHelper
             condition,
             @"(?i)(Test-Path\s+[""']?)[\\/]+(?=(Worktrees|artifacts)[\\/])",
             "$1");
-    }
-
-    /// <summary>
-    /// Launches a PowerShell action. Returns false if pwsh is not found or the launch fails.
-    /// </summary>
-    public static bool RunPowerShellAction(string action, string workingDirectory, ILogger? logger = null)
-    {
-        try
-        {
-            var pwshPath = PathHelper.GetPwshPath();
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                // On macOS, create a temporary .command script and open it in Terminal.app
-                // This ensures the terminal window is visible and interactive
-                var scriptPath = Path.Combine(Path.GetTempPath(), $"tendril-action-{Guid.NewGuid():N}.command");
-                var scriptContent = $"#!/bin/bash\ncd \"{workingDirectory}\"\n\"{pwshPath}\" -NoExit -NoProfile -Command \"{action.Replace("\"", "\\\"")}\"\nrm \"{scriptPath}\"\n";
-                File.WriteAllText(scriptPath, scriptContent);
-
-                // Make the script executable
-                var chmodPsi = new ProcessStartInfo("chmod", $"+x \"{scriptPath}\"")
-                {
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using (var chmodProc = Process.Start(chmodPsi))
-                {
-                    chmodProc?.WaitForExit();
-                }
-
-                // Open the script in Terminal.app
-                Process.Start(new ProcessStartInfo
-                {
-                    FileName = "open",
-                    Arguments = $"-a Terminal \"{scriptPath}\"",
-                    UseShellExecute = false
-                });
-                return true;
-            }
-
-            // Windows and Linux: run pwsh directly
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = pwshPath,
-                Arguments = $"-NoExit -NoProfile -Command \"{action}\"",
-                WorkingDirectory = workingDirectory,
-                UseShellExecute = true
-            });
-            return true;
-        }
-        catch (Win32Exception ex)
-        {
-            logger?.LogWarning(ex, "Failed to run PowerShell action");
-            return false;
-        }
-        catch (FileNotFoundException ex)
-        {
-            logger?.LogWarning(ex, "Failed to run PowerShell action");
-            return false;
-        }
     }
 
     public static bool OpenInTerminal(string workingDirectory, ILogger? logger = null)

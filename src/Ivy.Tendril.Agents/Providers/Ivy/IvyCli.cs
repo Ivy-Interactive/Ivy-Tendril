@@ -21,7 +21,13 @@ public sealed class IvyCli : IAgentCli
     public TransportKind SupportedTransports => _inner.SupportedTransports;
     public PromptTransport PromptTransport => _inner.PromptTransport;
     public OutputFormat PreferredOutputFormat => _inner.PreferredOutputFormat;
-    public IReadOnlyList<AgentProfileDefault> DefaultProfiles => _inner.DefaultProfiles;
+    public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
+    [
+        new(ProfileTier.Deep, "claude-opus-5", "max"),
+        new(ProfileTier.Balanced, "gemini-3.7-flash", "medium"),
+        new(ProfileTier.Quick, "gemini-3.7-flash", "low"),
+    ];
+    public IReadOnlyList<EffortOption> SupportedEfforts => _inner.SupportedEfforts;
 
     public string? TranslateToolName(string canonicalTool) => _inner.TranslateToolName(canonicalTool);
     public string? ReverseTranslateToolName(string nativeTool) => _inner.ReverseTranslateToolName(nativeTool);
@@ -29,15 +35,26 @@ public sealed class IvyCli : IAgentCli
 
     public AgentProcessSpec BuildProcessSpec(AgentLaunchConfig config)
     {
+        var model = config.Model;
+        if (string.IsNullOrEmpty(model) || model == "default")
+        {
+            model = "claude-opus-5";
+        }
+        config = config with { Model = model };
+
         var spec = _inner.BuildProcessSpec(config);
 
         var env = new Dictionary<string, string>(spec.Environment);
         env["ANTHROPIC_BASE_URL"] = "https://llmproxy.ivy.app";
+        env["OPENAI_BASE_URL"] = "https://llmproxy.ivy.app/v1";
+        env["IVY_BASE_URL"] = "https://llmproxy.ivy.app";
 
         var apiKey = _apiKeyProvider();
         if (!string.IsNullOrEmpty(apiKey))
         {
             env["ANTHROPIC_API_KEY"] = apiKey;
+            env["OPENAI_API_KEY"] = apiKey;
+            env["IVY_API_KEY"] = apiKey;
         }
 
         return new AgentProcessSpec
@@ -59,6 +76,8 @@ public sealed class IvyCli : IAgentCli
     {
         var env = new Dictionary<string, string>(_inner.GetDefaultEnvironment());
         env["ANTHROPIC_BASE_URL"] = "https://llmproxy.ivy.app";
+        env["OPENAI_BASE_URL"] = "https://llmproxy.ivy.app/v1";
+        env["IVY_BASE_URL"] = "https://llmproxy.ivy.app";
         return env;
     }
 }

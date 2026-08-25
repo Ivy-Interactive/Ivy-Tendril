@@ -21,9 +21,9 @@ public sealed class GeminiCli : IAgentCli
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
     [
-        new(ProfileTier.Deep, null, null),
-        new(ProfileTier.Balanced, null, null),
-        new(ProfileTier.Quick, null, null),
+        new(ProfileTier.Deep, "gemini-3.7-flash", null),
+        new(ProfileTier.Balanced, "gemini-3.7-flash", null),
+        new(ProfileTier.Quick, "gemini-3.7-flash", null),
     ];
 
     public string? TranslateToolName(string canonicalTool) => null;
@@ -68,6 +68,13 @@ public sealed class GeminiCli : IAgentCli
         {
             args.Add("--include-directories");
             args.Add(dir);
+        }
+
+        var mcpConfigFile = global::Ivy.Tendril.Agents.Helpers.McpConfigWriter.WriteConfigFile(config.McpServers);
+        if (!string.IsNullOrEmpty(mcpConfigFile))
+        {
+            args.Add("--mcp-config");
+            args.Add(mcpConfigFile);
         }
 
         foreach (var arg in config.ExtraArguments)

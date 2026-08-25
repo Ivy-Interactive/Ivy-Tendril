@@ -85,7 +85,7 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
         var headers = new[]
         {
             "Model", "Display Name", "Input $/M", "Output $/M", "Cache R $/M", "Cache W $/M",
-            "Source", "Default", "Vision"
+            "Source", "Default", "Vision", "Reasoning"
         };
 
         var sourceIndex = new Dictionary<string, int>();
@@ -107,6 +107,7 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
             }
 
             var hasVision = model.Capabilities.HasFlag(ModelCapabilities.ImageInput) ? CliOutput.Glyph(true) : "-";
+            var hasReasoning = model.Capabilities.HasFlag(ModelCapabilities.Reasoning) ? CliOutput.Glyph(true) : "-";
 
             rows.Add(new[]
             {
@@ -118,7 +119,8 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
                 FormatPrice(model.CacheWritePerMillion),
                 sourceRef,
                 isDefault,
-                hasVision
+                hasVision,
+                hasReasoning
             });
         }
 
@@ -132,5 +134,5 @@ public sealed class ModelsCommand(IAgentRunner runner) : AsyncCommand<ModelsComm
     }
 
     private static string FormatPrice(decimal price) =>
-        price == 0m ? "[dim]-[/]" : $"${price:F2}";
+        price == 0m ? "[dim]-[/]" : FormatHelper.FormatCost(price);
 }

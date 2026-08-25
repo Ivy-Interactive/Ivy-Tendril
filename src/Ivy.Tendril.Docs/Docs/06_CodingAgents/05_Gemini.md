@@ -35,17 +35,18 @@ Tendril maps effort levels to Gemini models:
 
 | Profile | Model | Use Case |
 |---------|-------|----------|
-| `deep` | gemini-2.5-pro | Complex multi-file changes |
-| `balanced` | gemini-2.5-flash | Standard plan execution |
-| `quick` | gemini-2.5-flash-lite | Simple fixes and small edits |
+| `deep` | gemini-3.1-pro | Complex multi-file changes |
+| `balanced` | gemini-3.7-flash | Standard plan execution |
+| `quick` | gemini-3.5-flash | Simple fixes and small edits |
 
 The profile is selected automatically based on the plan's complexity level, or can be configured per promptware in `config.yaml`.
 
 ## Available Models
 
-- `gemini-2.5-pro` — Full reasoning, 1M context (default)
-- `gemini-2.5-flash` — Fast and capable, 1M context
-- `gemini-2.5-flash-lite` — Lightweight, lowest cost
+- `gemini-3.7-flash` — Next-gen fast and capable reasoning, 1M context (default)
+- `gemini-3.6-flash` — Fast and capable, 1M context
+- `gemini-3.5-flash` — Lightweight and fast, 1M context
+- `gemini-3.1-pro` — Advanced reasoning, 1M context
 - `gemini-3-pro-preview` — Next-gen reasoning (preview)
 - `gemini-3-flash-preview` — Next-gen fast (preview)
 
@@ -56,5 +57,5 @@ codingAgents:
   - name: gemini
     profiles:
       - name: deep
-        model: gemini-3-pro-preview
+        model: gemini-3.1-pro
 ```

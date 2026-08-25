@@ -24,20 +24,13 @@ public class ReviewPage
     {
         await _page.GetByRole(AriaRole.Button, new() { Name = "Create PR" }).First.ClickAsync();
 
-        // With PrRule "default", a Create PR dialog opens. Click the dialog's Create PR to confirm.
-        try
-        {
-            await _page.GetByText("Create PR").First.WaitForAsync(
-                new() { State = WaitForSelectorState.Visible, Timeout = 3_000 });
-            // The dialog's Create PR is the last one on the page
-            var buttons = _page.GetByRole(AriaRole.Button, new() { Name = "Create PR" });
-            var count = await buttons.CountAsync();
-            await buttons.Nth(count - 1).ClickAsync();
-        }
-        catch (TimeoutException)
-        {
-            // No dialog — PrRule is "yolo", PR creation started directly
-        }
+        // The Create PR dialog always opens now. Click the dialog's Create PR to confirm.
+        await _page.GetByText("Create PR").First.WaitForAsync(
+            new() { State = WaitForSelectorState.Visible, Timeout = 3_000 });
+        // The dialog's Create PR is the last one on the page
+        var buttons = _page.GetByRole(AriaRole.Button, new() { Name = "Create PR" });
+        var count = await buttons.CountAsync();
+        await buttons.Nth(count - 1).ClickAsync();
     }
 
     public async Task WaitForPRCreated(int timeoutMs = 120_000)

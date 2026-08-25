@@ -1,3 +1,9 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using Ivy.Core.Hooks;
 using Ivy.Desktop;
 using Ivy.Tendril.Helpers;
@@ -46,7 +52,7 @@ public class ProjectRepoPickerView(
                 return;
             }
 
-            var draft = new RepoRef { Path = path, PrRule = "default" };
+            var draft = new RepoRef { Path = path };
             var suggestedName = RepoPathValidator.ExtractRepoName(path) ?? path;
 
             addingError.Set(null);
@@ -87,7 +93,7 @@ public class ProjectRepoPickerView(
 
         if (isDesktop)
         {
-            pickerControls = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center).Gap(2)
+            pickerControls = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center)
                              | repoInput
                              | new Button("Browse").Icon(Icons.FolderOpen).Outline()
                                  .OnClick(() =>
@@ -102,12 +108,12 @@ public class ProjectRepoPickerView(
             pickerControls = repoInput;
         }
 
-        var addButton = new Button("Add Repository").Icon(Icons.Plus)
+        var addButton = new Button("Add Repository").Icon(Icons.Plus).Outline()
             .Disabled(string.IsNullOrWhiteSpace(inputValue.Value) || isAdding.Value)
             .Loading(isAdding.Value)
             .OnClick(() => { _ = AddAsync(); });
 
-        var listLayout = Layout.Vertical().Gap(3);
+        var listLayout = Layout.Vertical();
         var current = repos.Value;
         for (var i = 0; i < current.Count; i++)
         {
@@ -117,7 +123,7 @@ public class ProjectRepoPickerView(
             var isLocal = itemKind == RepoPathKind.LocalPath;
 
             object? validityIcon = null;
-            object pathLabel = Text.Block(GetDisplayLabel(item)).Color(Colors.Primary);
+            object pathLabel = Text.Block(GetDisplayLabel(item, tendrilHome)).Color(Colors.Primary);
             if (isLocal)
             {
                 var expanded = VariableExpansion.ExpandVariables(item.Path, tendrilHome);
@@ -133,29 +139,29 @@ public class ProjectRepoPickerView(
                 }
             }
 
-            object row = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center).Gap(2)
+            object row = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center)
                          | (validityIcon ?? null!)
                          | pathLabel
                          | new Spacer()
                          | (showBaseBranchPicker
                              ? (object)BuildBaseBranchSelector(repos, idx)
                              : null!)
-                         | new Button().Icon(Icons.X).Ghost().OnClick(() =>
+                         | new Button().Icon(Icons.X).Outline().Small().OnClick(() =>
                          {
                              var list = new List<RepoRef>(repos.Value);
                              if (idx < list.Count) list.RemoveAt(idx);
                              repos.Set(list);
                          }).WithTooltip("Remove");
 
-            listLayout |= new Box(row).BorderStyle(BorderStyle.None).Background(Colors.Muted).Padding(4, 2, 2, 2).Width(Size.Full());
+            listLayout |= new Box(row).BorderStyle(BorderStyle.None).Background(Colors.Muted).Width(Size.Full());
         }
 
-        var scrollableContent = Layout.Vertical().Gap(3)
+        var scrollableContent = Layout.Vertical()
                | pickerControls
                | (current.Count > 0 ? listLayout : null!)
                | addButton;
 
-        return Layout.Vertical().Width(Size.Full()).Gap(4)
+        return Layout.Vertical().Width(Size.Full())
                | Text.Label("Add one or more Git repositories")
                | (addingError.Value != null ? Text.Danger(addingError.Value) : null!)
                | scrollableContent;
@@ -177,34 +183,74 @@ public class ProjectRepoPickerView(
         return bridge.ToTextInput("Base branch").Width(Size.Units(40)).WithTooltip("Default branch for this repository");
     }
 
-    private static string GetDisplayLabel(RepoRef repo)
+    private static string GetDisplayLabel(RepoRef repo, string? tendrilHome = null)
     {
-        var name = RepoPathValidator.ExtractRepoName(repo.Path);
-        if (name != null)
+        var path = repo.Path;
+        if (string.IsNullOrWhiteSpace(path)) return "";
+
+        var expanded = VariableExpansion.ExpandVariables(path, tendrilHome);
+        var kind = RepoPathValidator.Classify(expanded);
+
+        if (kind == RepoPathKind.LocalPath)
         {
-            var kind = RepoPathValidator.Classify(repo.Path);
-            if (kind == RepoPathKind.HttpUrl || kind == RepoPathKind.SshUrl)
+            try
             {
-                // Show owner/repo for remote URLs
-                var trimmed = repo.Path;
-                if (trimmed.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
-                    trimmed = trimmed[..^4];
-                if (kind == RepoPathKind.SshUrl)
+                var gitDir = Path.Combine(expanded, ".git");
+                string? configPath = null;
+                if (Directory.Exists(gitDir))
                 {
-                    var colonIdx = trimmed.IndexOf(':');
-                    if (colonIdx >= 0)
-                        return trimmed[(colonIdx + 1)..];
+                    configPath = Path.Combine(gitDir, "config");
                 }
-                else
+                else if (File.Exists(gitDir))
                 {
-                    var parts = trimmed.Split('/');
-                    if (parts.Length >= 2)
-                        return $"{parts[^2]}/{parts[^1]}";
+                    var gitContent = FileHelper.ReadAllText(gitDir).Trim();
+                    var match = Regex.Match(gitContent, @"gitdir:\s*(.+)");
+                    if (match.Success)
+                    {
+                        var realGitDir = Path.GetFullPath(Path.Combine(expanded, match.Groups[1].Value.Trim()));
+                        configPath = Path.Combine(realGitDir, "config");
+                    }
+                }
+
+                if (configPath != null && File.Exists(configPath))
+                {
+                    var configText = FileHelper.ReadAllText(configPath);
+                    var originMatch = Regex.Match(configText, @"(?ms)\[remote\s+""(?:origin|upstream)""\][^\[]*?url\s*=\s*([^\r\n]+)");
+                    if (!originMatch.Success)
+                    {
+                        originMatch = Regex.Match(configText, @"(?ms)\[remote\s+""[^""]+""\][^\[]*?url\s*=\s*([^\r\n]+)");
+                    }
+
+                    if (originMatch.Success)
+                    {
+                        var remoteUrl = originMatch.Groups[1].Value.Trim();
+                        var remoteOwner = RepoPathValidator.ExtractOwnerName(remoteUrl);
+                        var remoteName = RepoPathValidator.ExtractRepoName(remoteUrl);
+                        if (!string.IsNullOrEmpty(remoteOwner) && !string.IsNullOrEmpty(remoteName))
+                        {
+                            return $"{remoteOwner}/{remoteName}";
+                        }
+                    }
                 }
             }
-            return name;
-        }
-        return repo.Path;
-    }
+            catch { }
 
+            var owner = RepoPathValidator.ExtractOwnerName(expanded);
+            var name = RepoPathValidator.ExtractRepoName(expanded);
+            if (!string.IsNullOrEmpty(owner) && !string.IsNullOrEmpty(name))
+            {
+                return $"{owner}/{name}";
+            }
+            return name ?? path;
+        }
+
+        var directOwner = RepoPathValidator.ExtractOwnerName(path);
+        var directName = RepoPathValidator.ExtractRepoName(path);
+        if (!string.IsNullOrEmpty(directOwner) && !string.IsNullOrEmpty(directName))
+        {
+            return $"{directOwner}/{directName}";
+        }
+
+        return RepoPathValidator.ExtractRepoName(path) ?? path;
+    }
 }

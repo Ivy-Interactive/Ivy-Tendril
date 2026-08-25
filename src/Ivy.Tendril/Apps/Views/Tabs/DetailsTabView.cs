@@ -9,6 +9,7 @@ public class DetailsTabView(
     PlanFile plan,
     List<JobItem> jobs,
     Action<string> showDebug,
+    Action<string> showCost,
     IPlanReaderService planService,
     IState<PlanFile?> selectedPlanState,
     Action refreshPlans,
@@ -69,7 +70,7 @@ public class DetailsTabView(
                | (jobs.Count > 0
                    ? (Layout.Vertical().Gap(2)
                       | Text.H4("Jobs")
-                      | new PlanJobsDataTableView(jobs, showDebug))
+                      | new PlanJobsDataTableView(jobs, showDebug, showCost))
                    : null);
     }
 

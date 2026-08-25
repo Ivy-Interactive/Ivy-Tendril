@@ -120,33 +120,41 @@ public static class AgentProviderFactory
         IAgentCli cli,
         List<string> extraArgs)
     {
-        if (string.IsNullOrEmpty(profileName))
-            return ("", "");
-
         var agentConfig = settings.CodingAgents.FirstOrDefault(a =>
             NormalizeAgentName(a.Name).Equals(codingAgent, StringComparison.OrdinalIgnoreCase));
 
-        if (agentConfig == null)
+        if (agentConfig == null && string.IsNullOrEmpty(profileName))
             return ("", "");
 
-        var profile = agentConfig.Profiles.FirstOrDefault(p =>
-            p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
+        AgentProfileConfig? profile = null;
+        if (!string.IsNullOrEmpty(profileName) && agentConfig != null)
+        {
+            profile = agentConfig.Profiles.FirstOrDefault(p =>
+                p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
+        }
 
-        if (profile == null)
-            return ("", "");
+        if (profile == null && agentConfig != null && agentConfig.Profiles.Count > 0)
+        {
+            profile = agentConfig.Profiles.FirstOrDefault(p => p.Name.Equals("balanced", StringComparison.OrdinalIgnoreCase))
+                ?? agentConfig.Profiles.FirstOrDefault(p => p.Name.Equals("default", StringComparison.OrdinalIgnoreCase))
+                ?? agentConfig.Profiles.FirstOrDefault(p => !string.IsNullOrEmpty(p.Model) && !p.Model.Equals("default", StringComparison.OrdinalIgnoreCase));
+        }
 
         var model = "";
         var effort = "";
 
-        if (!string.IsNullOrEmpty(profile.Model) &&
-            !profile.Model.Equals("default", StringComparison.OrdinalIgnoreCase) &&
-            cli.Capabilities.HasFlag(AgentCapabilities.ModelSelection))
-            model = profile.Model;
-        if (!string.IsNullOrEmpty(profile.Effort) &&
-            cli.Capabilities.HasFlag(AgentCapabilities.EffortControl))
-            effort = profile.Effort;
-        if (!string.IsNullOrWhiteSpace(profile.Arguments))
-            extraArgs.AddRange(SplitArgs(profile.Arguments));
+        if (profile != null)
+        {
+            if (!string.IsNullOrEmpty(profile.Model) &&
+                !profile.Model.Equals("default", StringComparison.OrdinalIgnoreCase) &&
+                cli.Capabilities.HasFlag(AgentCapabilities.ModelSelection))
+                model = profile.Model;
+            if (!string.IsNullOrEmpty(profile.Effort) &&
+                cli.Capabilities.HasFlag(AgentCapabilities.EffortControl))
+                effort = profile.Effort;
+            if (!string.IsNullOrWhiteSpace(profile.Arguments))
+                extraArgs.AddRange(SplitArgs(profile.Arguments));
+        }
 
         return (model, effort);
     }

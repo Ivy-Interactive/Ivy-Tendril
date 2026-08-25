@@ -3,10 +3,13 @@ using System.Reactive.Disposables;
 using System.Text.Json;
 using Ivy.Core;
 using Ivy.Core.Apps;
+using Ivy.Desktop;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Apps.Onboarding;
+using Ivy.Tendril.Apps.ReviewAction;
 using Ivy.Tendril.Apps.Settings;
 using Ivy.Tendril.Apps.Trash;
 using Ivy.Tendril.Apps.Views;
@@ -27,6 +30,52 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     private static readonly HttpClient NewsHttp = new();
     private static readonly HashSet<string> OnboardingAppIds =
         new(StringComparer.OrdinalIgnoreCase) { "onboarding", "OnboardingApp", "onboarding-app" };
+
+    /// <summary>
+    ///     Overrides the default app-descriptor tab title for apps whose title depends on the
+    ///     navigation args rather than being fixed. <see cref="ReviewActionApp"/> is titled
+    ///     "#&lt;PlanId&gt; &lt;ReviewActionName&gt;", formatted here from the plan folder name.
+    ///     <see cref="AgentApp"/> is titled with the caller-supplied <see cref="AgentAppArgs.Title"/>
+    ///     verbatim (see the Draft/Review "Discuss with &lt;Agent&gt;" call sites, which build it
+    ///     with <see cref="FormatPlanId"/>). Returns null (use the descriptor title) for every other
+    ///     arg shape, including <see cref="AgentAppArgs"/> without a <see cref="AgentAppArgs.Title"/>.
+    /// </summary>
+    internal static string? ResolveArgsTabTitle(object? appArgs) => appArgs switch
+    {
+        ReviewActionAppArgs { PlanId: { Length: > 0 } planId, ActionName: { Length: > 0 } name }
+            => $"#{FormatPlanId(planId)} {name}",
+        AgentAppArgs { Title: { Length: > 0 } title } => title,
+        _ => null
+    };
+
+    // "00074-OpenReviewActions..." -> "74". Falls back to the raw folder name when the numeric
+    // prefix is missing, so a malformed arg never throws inside OpenApp (which swallows exceptions).
+    internal static string FormatPlanId(string planFolderName) =>
+        int.TryParse(PlanYamlHelper.ExtractPlanIdFromFolder(planFolderName), out var id)
+            ? id.ToString()
+            : planFolderName;
+
+    /// <summary>
+    ///     Whether the in-app toast should be shown for a job notification. In desktop mode the
+    ///     native OS notification raised in Program.cs covers it, so the toast would be a duplicate.
+    ///     When desktop notifications are switched off the native path does not fire, so the toast
+    ///     is the only notification left and must stay.
+    /// </summary>
+    internal static bool ShouldShowInAppToast(bool isDesktop, bool desktopNotificationsEnabled)
+        => !isDesktop || !desktopNotificationsEnabled;
+
+    /// <summary>
+    ///     Whether Cmd+W / Ctrl+W should be wired up to close the active tab. Desktop shell only: in a
+    ///     browser the chord belongs to the browser (it closes the browser tab and cannot be cancelled),
+    ///     and <see cref="AppShellNavigation.Pages"/> has no tab strip at all.
+    /// </summary>
+    internal static bool ShouldEnableCloseTabShortcut(
+        bool isDesktop, AppShellNavigation navigation, int tabCount, int? selectedIndex)
+        => isDesktop
+           && navigation != AppShellNavigation.Pages
+           && selectedIndex is { } index
+           && index >= 0
+           && index < tabCount;
 
     private static async Task<SidebarNewsArticle[]> FetchNewsAsync()
     {
@@ -53,6 +102,23 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         {
             return [];
         }
+    }
+
+    internal static MenuItem[] BuildHelpMenuItems(bool isBeta, IClientProvider? client, INavigator? navigator)
+    {
+        var items = new List<MenuItem>
+        {
+            MenuItem.Default("Documentation").Icon(Icons.ExternalLink).OnSelect(() => client?.OpenUrl(Constants.DocsUrl)),
+            MenuItem.Default("Discord").Icon(Icons.Discord).OnSelect(() => client?.OpenUrl(Constants.DiscordUrl)),
+            MenuItem.Default("Report Issue").Icon(Icons.Bug).OnSelect(() => client?.OpenUrl(Constants.IssuesUrl))
+        };
+
+        if (isBeta)
+        {
+            items.Add(MenuItem.Default("About").Icon(Icons.Info).OnSelect(() => navigator?.Navigate<AboutApp>()));
+        }
+
+        return items.ToArray();
     }
 
     private static bool ShouldShowBadge(MenuItem item, Dictionary<string, int> badges, out string badgeText)
@@ -129,12 +195,15 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var agentRunner = UseService<IAgentRunner>();
         var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current, config, agentRunner));
         var status = UseState(() => statusService.Current);
-        var sidebarOpen = UseState(settings.SidebarOpen);
+        var sidebarOpen = UseState(config.Settings.SidebarOpen);
         var args = UseService<AppContext>();
         var serverArgs = UseService<ServerArgs>();
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
         var navigator = UseNavigation();
         var newsArticles = UseState(Array.Empty<SidebarNewsArticle>());
+        var jobService = UseService<IJobService>();
+        Context.TryUseService<DesktopWindow>(out var desktopWindow);
+        Context.TryUseService<TendrilArgs>(out var tendrilArgs);
 
         var (importIssuesDialog, showImportIssuesDialog) = UseTrigger((isOpen) =>
         {
@@ -175,18 +244,26 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         // branded "Agent" item updates immediately without needing a reload.
         UseEffect(() =>
         {
-            void OnSettingsReloaded(object? sender, EventArgs e) =>
+            void OnSettingsReloaded(object? sender, EventArgs e)
+            {
                 menuItems.Set(BuildMenuItems(appRepository, status.Value, config, agentRunner));
+                sidebarOpen.Set(config.Settings.SidebarOpen);
+            }
             config.SettingsReloaded += OnSettingsReloaded;
             return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);
         });
 
-        var jobService = UseService<IJobService>();
+        var isDesktop = desktopWindow != null;
 
         UseEffect(() =>
         {
             void OnNotification(JobNotification notification)
             {
+                // Read the setting at notification time: the user can toggle it in Settings while
+                // the shell is mounted, and the effect does not re-subscribe on that change.
+                if (!ShouldShowInAppToast(isDesktop, config.Settings.DesktopNotifications))
+                    return;
+
                 if (notification.IsSuccess)
                     client.Toast(notification.Message, notification.Title);
                 else
@@ -367,6 +444,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             var appHost = navigateArgs.ToAppHost(args.ConnectionId);
             var app = appRepository.GetAppOrDefault(effectiveAppId);
             var (tabTitle, tabIcon) = BrandedAppDisplay(app);
+            tabTitle = ResolveArgsTabTitle(navigateArgs.AppArgs) ?? tabTitle;
 
             var newTabs = tabs.Value.Add(new TabState(tabId, app.Id, tabTitle, appHost,
                 tabIcon, Guid.NewGuid().ToString()));
@@ -492,6 +570,22 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
         }
 
+        // Cmd+W (Ctrl+W on Windows) closes the active tab, matching desktop-app convention. ShortcutKey is
+        // the only shortcut API Ivy exposes, so the binding lives on a zero-width Ghost button that paints
+        // nothing, wrapped in a zero-height stack so it stays out of the layout (same trick as the
+        // SelectInput warm-up below).
+        object? closeTabShortcut = null;
+        if (ShouldEnableCloseTabShortcut(isDesktop, settings.Navigation, tabs.Value.Length, selectedIndex.Value)
+            && selectedIndex.Value is { } activeTabIndex)
+        {
+            closeTabShortcut = Layout.Vertical().Height(Size.Px(0)).Width(Size.Px(0))
+                | new Button()
+                    .Ghost()
+                    .Width(Size.Px(0))
+                    .ShortcutKey("Ctrl+W")
+                    .OnClick(() => OnTabClose(activeTabIndex));
+        }
+
         var sidebarMenu = new SidebarMenu(
             OnMenuSelect,
             menuItems.Value
@@ -499,6 +593,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         {
             OnCtrlRightClickSelect = new EventHandler<Event<SidebarMenu, object>>(OnCtrlRightClickSelect)
         };
+
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
 
         var settingsMenuItems = new[]
         {
@@ -546,15 +642,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                         }
                     });
                 }),
-            MenuItem.Default("Theme")
-                .Tag("$theme")
-                .Icon(Icons.SunMoon)
-                .Children(
-                    MenuItem.Checkbox("Light").Icon(Icons.Sun).OnSelect(() => client.SetThemeMode(ThemeMode.Light)),
-                    MenuItem.Checkbox("Dark").Icon(Icons.Moon).OnSelect(() => client.SetThemeMode(ThemeMode.Dark)),
-                    MenuItem.Checkbox("System").Icon(Icons.SunMoon)
-                        .OnSelect(() => client.SetThemeMode(ThemeMode.System))
-                ),
+
 #if DEBUG
             MenuItem.Default("Debug")
                 .Tag("$debug")
@@ -565,6 +653,10 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                         .OnSelect(() => navigator.Navigate<OnboardingApp>())
                 ),
 #endif
+            MenuItem.Default("Help")
+                .Tag("$help")
+                .Icon(Icons.CircleQuestionMark)
+                .Children(BuildHelpMenuItems(isBeta, client, navigator)),
         };
 
         var settingsTrigger = new Button("Settings")
@@ -589,6 +681,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var settingsMenuCollapsed = new DropDownMenu(
                 DropDownMenu.DefaultSelectHandler(),
                 settingsTriggerCollapsed)
+            .Width(Size.Full())
             .Top()
             .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
 
@@ -612,7 +705,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             new SidebarLayout(
                 body ?? null!,
                 sidebarMenu,
-                sidebarHeader: Layout.Vertical().Gap(2)
+                sidebarHeader: Layout.Vertical()
                     | settings.Header
                     | new NewPlanButton(collapsed: false),
                 sidebarFooter: Layout.Vertical(
@@ -621,12 +714,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                     footer
                 ),
                 width: settings.Width,
-                sidebarHeaderCollapsed: Layout.Vertical().Gap(2)
+                sidebarHeaderCollapsed: Layout.Vertical()
                     | new NewPlanButton(collapsed: true),
-                sidebarFooterCollapsed: settingsMenuCollapsed
+                sidebarFooterCollapsed: Layout.Vertical().Width(Size.Full())
+                    | settingsMenuCollapsed
             ).Open(sidebarOpen.Value).MainAppSidebar(),
             importIssuesDialog,
-            updateDialog
+            updateDialog,
+            closeTabShortcut
         );
     }
 

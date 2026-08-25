@@ -346,7 +346,8 @@ public static class PlanContentHelpers
         // The repo/worktree the diff was read from, and whether that was a worktree NOT in the
         // plan's configured repos (the work landed in a repo outside the plan's project — #1340).
         string? SourceRepoPath = null,
-        bool FromUnlistedWorktree = false
+        bool FromUnlistedWorktree = false,
+        List<FileDiff>? FileDiffs = null
     );
 
     public static AllChangesData? GetAllChangesData(PlanFile plan, IConfigService config, IGitService gitService)
@@ -384,7 +385,10 @@ public static class PlanContentHelpers
             var deleted = fileList.Count(f => f.Status == "D");
             var modified = fileList.Count - added - deleted;
 
-            return new AllChangesData(diff, fileList, added, modified, deleted, repo, fromUnlistedWorktree);
+            var baseData = new AllChangesData(diff, fileList, added, modified, deleted, repo, fromUnlistedWorktree);
+            var fileDiffs = SplitDiffByFile(baseData);
+
+            return baseData with { FileDiffs = fileDiffs };
         }
 
         // Prefer the plan's / project's configured repos.
@@ -400,7 +404,7 @@ public static class PlanContentHelpers
         var worktreesDir = Path.Combine(plan.FolderPath, "Worktrees");
         if (Directory.Exists(worktreesDir))
         {
-            foreach (var worktree in Directory.GetDirectories(worktreesDir))
+            foreach (var worktree in GitHelper.EnumerateWorktreeDirectories(worktreesDir))
             {
                 var result = BuildFromRepo(worktree, fromUnlistedWorktree: true);
                 if (result != null) return result;

@@ -30,6 +30,8 @@ public sealed class CopilotCli : IAgentCli
         new(ProfileTier.Quick, null, "low"),
     ];
 
+    public IReadOnlyList<EffortOption> SupportedEfforts => EffortLevels.Copilot;
+
     private static readonly string ShellToolName =
         RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "powershell" : "bash";
 
@@ -132,6 +134,13 @@ public sealed class CopilotCli : IAgentCli
 
         foreach (var arg in config.ExtraArguments)
             args.Add(arg);
+
+        var mcpConfigFile = global::Ivy.Tendril.Agents.Helpers.McpConfigWriter.WriteConfigFile(config.McpServers);
+        if (!string.IsNullOrEmpty(mcpConfigFile))
+        {
+            args.Add("--mcp-config");
+            args.Add(mcpConfigFile);
+        }
 
         var env = new Dictionary<string, string>(GetDefaultEnvironment());
         if (config.EnvironmentVariables is not null)

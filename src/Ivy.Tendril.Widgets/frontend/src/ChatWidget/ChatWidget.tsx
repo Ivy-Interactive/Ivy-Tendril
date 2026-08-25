@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Mic, Bot, Cpu, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square, Clock } from "lucide-react";
+import { Mic, Bot, Cpu, Zap, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square, ArrowRight, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { AgentViewer } from "../AgentViewer";
 import { getMarkdownPlugins } from "../math";
+import { CodeBlock } from "../CodeBlock";
+import { AlertBlockquote } from "../DraftMarkdown/AlertBlockquote";
 import "./chat-widget.css";
 
 export interface ChatMessageDto {
@@ -14,6 +16,7 @@ export interface ChatMessageDto {
   agentId?: string;
   modelId?: string;
   rawStream?: string;
+  effort?: string;
 }
 
 export interface ChatSessionDto {
@@ -25,6 +28,7 @@ export interface ChatSessionDto {
   updatedAt: string;
   messages: ChatMessageDto[];
   status?: "generating" | "waiting" | "done";
+  effort?: string;
 }
 
 export interface AgentOptionDto {
@@ -33,6 +37,11 @@ export interface AgentOptionDto {
 }
 
 export interface ModelOptionDto {
+  id: string;
+  displayName: string;
+}
+
+export interface EffortOptionDto {
   id: string;
   displayName: string;
 }
@@ -54,8 +63,11 @@ export interface ChatWidgetProps {
   sessions?: ChatSessionDto[];
   agents?: AgentOptionDto[];
   models?: ModelOptionDto[];
+  efforts?: EffortOptionDto[];
   selectedAgent?: string;
   selectedModel?: string;
+  selectedEffort?: string;
+  supportsEffort?: boolean;
   isStreaming?: boolean;
   streamingText?: string;
   streamingStream?: { id: string };
@@ -187,8 +199,11 @@ export function ChatWidget({
   sessions = [],
   agents = [],
   models = [],
+  efforts = [],
   selectedAgent = "claude",
   selectedModel = "opus",
+  selectedEffort = "default",
+  supportsEffort = true,
   isStreaming = false,
   streamingText = "",
   streamingStream: _streamingStream,
@@ -202,6 +217,9 @@ export function ChatWidget({
   const [editingTitleText, setEditingTitleText] = useState("");
   const [attachments, setAttachments] = useState<ChatAttachmentDto[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<QueuedItem[]>([]);
+  const [collapsedQueue, setCollapsedQueue] = useState(false);
+  const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null);
+  const [editingQueuedText, setEditingQueuedText] = useState("");
   const [pendingRenames, setPendingRenames] = useState<Record<string, string>>({});
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -292,6 +310,46 @@ export function ChatWidget({
   const handleCancelStream = () => {
     setQueuedMessages([]);
     emit("OnCancelStream");
+  };
+
+  const handleSendQueuedNow = (queueId: string) => {
+    const item = queuedMessages.find((q) => q.id === queueId);
+    if (!item) return;
+
+    const payload = { prompt: item.prompt, attachments: item.attachments, sessionId: activeSessionId };
+    emit("OnSendMessage", payload);
+    setQueuedMessages((prev) => prev.filter((q) => q.id !== queueId));
+  };
+
+  const handleStartEditQueued = (item: QueuedItem) => {
+    setEditingQueuedId(item.id);
+    setEditingQueuedText(item.prompt);
+  };
+
+  const handleSaveEditQueued = (queueId: string) => {
+    const trimmed = editingQueuedText.trim();
+    if (!trimmed) {
+      handleDeleteQueued(queueId);
+    } else {
+      setQueuedMessages((prev) =>
+        prev.map((q) => (q.id === queueId ? { ...q, prompt: trimmed } : q))
+      );
+    }
+    setEditingQueuedId(null);
+    setEditingQueuedText("");
+  };
+
+  const handleCancelEditQueued = () => {
+    setEditingQueuedId(null);
+    setEditingQueuedText("");
+  };
+
+  const handleDeleteQueued = (queueId: string) => {
+    setQueuedMessages((prev) => prev.filter((q) => q.id !== queueId));
+    if (editingQueuedId === queueId) {
+      setEditingQueuedId(null);
+      setEditingQueuedText("");
+    }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -392,14 +450,6 @@ export function ChatWidget({
     }
   };
 
-  const handleAgentChange = (val: string) => {
-    emit("OnAgentChanged", val);
-  };
-
-  const handleModelChange = (val: string) => {
-    emit("OnModelChanged", val);
-  };
-
   const toggleVoiceRecording = () => {
     if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
       alert("Speech recognition is not supported in this browser.");
@@ -443,6 +493,19 @@ export function ChatWidget({
 
   const agentSelectOptions = agents.map((a) => ({ value: a.id, label: a.label }));
   const modelSelectOptions = models.map((m) => ({ value: m.id, label: m.displayName }));
+  const effortSelectOptions = (efforts || []).map((e) => ({ value: e.id, label: e.displayName }));
+
+  const handleAgentChange = (agentId: string) => {
+    emit("OnAgentChanged", agentId);
+  };
+
+  const handleModelChange = (modelId: string) => {
+    emit("OnModelChanged", modelId);
+  };
+
+  const handleEffortChange = (effortId: string) => {
+    emit("OnEffortChanged", effortId);
+  };
 
   return (
     <div className="chat-widget-root">
@@ -473,7 +536,7 @@ export function ChatWidget({
                 autoFocus
               />
             ) : (
-              <div className="chat-header-title-row" onClick={startHeaderTitleEdit} title="Click to rename chat">
+              <div className="chat-header-title-clickable" onClick={startHeaderTitleEdit} title="Click to rename chat">
                 <h1 className="chat-main-title">
                   {(activeSession && pendingRenames[activeSession.id]) || activeSession?.title || "New Chat"}
                 </h1>
@@ -481,10 +544,22 @@ export function ChatWidget({
               </div>
             )}
           </div>
-          <div className="chat-header-badges">
-            <span className="chat-badge">{selectedAgent}</span>
-            <span className="chat-badge">{selectedModel}</span>
-          </div>
+          {activeSession && (
+            <div className="chat-header-actions">
+              <button
+                type="button"
+                className="chat-header-delete-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  emit("OnDeleteSession", activeSession.id);
+                }}
+                title="Delete chat session"
+                aria-label="Delete chat session"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Message List Container */}
@@ -516,7 +591,10 @@ export function ChatWidget({
                   ) : (
                     msg.content && (
                       <div className="chat-markdown-body">
-                        <ReactMarkdown {...getMarkdownPlugins(msg.content)}>
+                        <ReactMarkdown
+                          {...getMarkdownPlugins(msg.content)}
+                          components={{ code: CodeBlock, blockquote: AlertBlockquote }}
+                        >
                           {msg.content}
                         </ReactMarkdown>
                       </div>
@@ -556,24 +634,117 @@ export function ChatWidget({
             </div>
           )}
 
-          {/* Queued Messages */}
-          {queuedMessages.map((q) => (
-            <div key={q.id} className="chat-message-row user queued">
-              <div className="chat-message-bubble queued">
-                <div className="chat-queued-badge">
-                  <Clock size={11} />
-                  <span>Queued</span>
-                </div>
-                <div>{q.prompt}</div>
-              </div>
-            </div>
-          ))}
 
           <div ref={messagesEndRef} />
         </div>
 
         {/* Footer & Resizable Input Toolbar */}
         <div className="chat-footer">
+          {queuedMessages.length > 0 && (
+            <div className="chat-queued-panel">
+              <div className="chat-queued-header">
+                <div className="chat-queued-header-left">
+                  <span className="chat-queued-title">Queued Messages</span>
+                  <span className="chat-queued-badge">{queuedMessages.length}</span>
+                  <span className="chat-queued-subtitle">Sends after agent finishes working</span>
+                </div>
+                <div className="chat-queued-header-right">
+                  <button
+                    type="button"
+                    className="chat-queued-toggle-btn"
+                    onClick={() => setCollapsedQueue(!collapsedQueue)}
+                    title={collapsedQueue ? "Expand queued messages" : "Collapse queued messages"}
+                    aria-label={collapsedQueue ? "Expand queued messages" : "Collapse queued messages"}
+                  >
+                    <ChevronDown className={`chat-queued-chevron ${collapsedQueue ? "collapsed" : ""}`} size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {!collapsedQueue && (
+                <div className="chat-queued-list">
+                  {queuedMessages.map((q) => (
+                    <div key={q.id} className="chat-queued-item">
+                      {editingQueuedId === q.id ? (
+                        <div className="chat-queued-edit-container">
+                          <input
+                            type="text"
+                            className="chat-queued-edit-input"
+                            value={editingQueuedText}
+                            onChange={(e) => setEditingQueuedText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSaveEditQueued(q.id);
+                              if (e.key === "Escape") handleCancelEditQueued();
+                            }}
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            className="chat-queued-item-btn save"
+                            onClick={() => handleSaveEditQueued(q.id)}
+                            title="Save"
+                            aria-label="Save"
+                          >
+                            <Check size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="chat-queued-item-btn cancel"
+                            onClick={handleCancelEditQueued}
+                            title="Cancel"
+                            aria-label="Cancel"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="chat-queued-item-text">
+                            {q.prompt}
+                            {q.attachments && q.attachments.length > 0 && (
+                              <span className="chat-queued-item-att-count">
+                                <Paperclip size={11} />
+                                {q.attachments.length}
+                              </span>
+                            )}
+                          </div>
+                          <div className="chat-queued-item-actions">
+                            <button
+                              type="button"
+                              className="chat-queued-item-btn send"
+                              onClick={() => handleSendQueuedNow(q.id)}
+                              title="Send now"
+                              aria-label="Send now"
+                            >
+                              <ArrowRight size={15} />
+                            </button>
+                            <button
+                              type="button"
+                              className="chat-queued-item-btn edit"
+                              onClick={() => handleStartEditQueued(q)}
+                              title="Edit message"
+                              aria-label="Edit message"
+                            >
+                              <Pencil size={15} />
+                            </button>
+                            <button
+                              type="button"
+                              className="chat-queued-item-btn delete"
+                              onClick={() => handleDeleteQueued(q.id)}
+                              title="Delete message"
+                              aria-label="Delete message"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <div className="chat-input-box">
             {/* Attachment preview pills */}
             {attachments.length > 0 && (
@@ -621,6 +792,16 @@ export function ChatWidget({
                   onChange={handleModelChange}
                   title="Model"
                 />
+
+                {supportsEffort && effortSelectOptions.length > 0 && (
+                  <InlineSelect
+                    icon={<Zap size={13} />}
+                    value={selectedEffort}
+                    options={effortSelectOptions}
+                    onChange={handleEffortChange}
+                    title="Effort Level"
+                  />
+                )}
 
                 <button
                   type="button"

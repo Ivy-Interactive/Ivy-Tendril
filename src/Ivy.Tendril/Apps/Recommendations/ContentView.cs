@@ -41,7 +41,7 @@ public class ContentView(
                 plan?.Title ?? folderName
             ).Width(UxHelper.SheetWidth).Resizable();
 
-            return new Fragment(sheet, new FileSheet(openFile, config));
+            return sheet;
         });
         var (notesDialog, showNotesDialog) = UseTrigger((isOpen) =>
         {
@@ -119,17 +119,17 @@ public class ContentView(
         // Content
         var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(6, 2, 6, 2);
 
-        // Source plan info
-        var metaRow = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-                      | Text.Muted($"Plan #{selectedRecommendation.ShortPlanId}: {selectedRecommendation.PlanTitle}");
-
-        scrollableContent |= Layout.Vertical().Gap(1)
-                             | Text.Block("Source Plan").Bold()
-                             | metaRow;
-
         // Description
-        scrollableContent |= new Separator();
-        scrollableContent |= new Markdown(MarkdownHelper.PrepareForDisplay(selectedRecommendation.Description, config));
+        scrollableContent |= new Markdown(MarkdownHelper.PrepareForDisplay(selectedRecommendation.Description, config))
+            .DangerouslyAllowLocalFiles()
+            .Article()
+            .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>
+            {
+                var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
+                    .FirstOrDefault();
+                if (planFolder != null)
+                    showPlan(planFolder);
+            }));
 
         // Standard overflow menu items
         var standardOverflowItems = new[]
@@ -193,14 +193,10 @@ public class ContentView(
         minimalDropdownItems.AddRange(standardOverflowItems);
 
         // Action bar without .Wrap() - single row with progressive collapse.
-        // Full (>=1024px): Previous, Next, Accept with Notes, View Plan inline + overflow dropdown.
-        // Compact (768-1023px): Previous, Next, Accept with Notes inline; View Plan in dropdown.
-        // Minimal (<768px): Previous, Next inline; everything else in dropdown.
+        // Full (>=1024px): Accept with Notes, View Plan inline + overflow dropdown.
+        // Compact (768-1023px): Accept with Notes inline; View Plan in dropdown.
+        // Minimal (<768px): everything in dropdown.
         var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2)
-                        | new Button("Previous").Icon(Icons.ChevronLeft).Outline().ShortcutKey("p")
-                            .OnClick(GoToPrevious).AlwaysVisible()
-                        | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().ShortcutKey("n")
-                            .OnClick(GoToNext).AlwaysVisible()
                         | new Button("Accept with Notes").Icon(Icons.CircleCheck).Outline().ShortcutKey("w")
                             .OnClick(() => showNotesDialog()).CompactUp()
                         | new Button("View Plan").Icon(Icons.ExternalLink).Outline()
@@ -223,7 +219,7 @@ public class ContentView(
             ).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full());
 
-        return new Fragment(mainLayout, planSheet, notesDialog);
+        return new Fragment(mainLayout, planSheet, notesDialog, new FileSheet(openFile, config));
     }
 
     private void GoToNext()
@@ -233,14 +229,5 @@ public class ContentView(
         if (currentIndex == -1) return; // Prevent navigation if not found
         var nextIndex = (currentIndex + 1) % allRecommendations.Count;
         selectedState.Set(allRecommendations[nextIndex]);
-    }
-
-    private void GoToPrevious()
-    {
-        if (allRecommendations.Count == 0) return;
-        var currentIndex = allRecommendations.FindIndex(r => r.PlanId == selectedRecommendation?.PlanId && r.Title == selectedRecommendation?.Title);
-        if (currentIndex == -1) return; // Prevent navigation if not found
-        var prevIndex = (currentIndex - 1 + allRecommendations.Count) % allRecommendations.Count;
-        selectedState.Set(allRecommendations[prevIndex]);
     }
 }

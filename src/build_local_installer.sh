@@ -23,6 +23,21 @@ mkdir -p "$PUBLISH_DIR/certs"
 chmod +x "$PUBLISH_DIR/Ivy.Tendril"
 "$PUBLISH_DIR/Ivy.Tendril" generate-certs "$PUBLISH_DIR/certs"
 
+echo "=== 2.1. Bundling Ivy Agent CLI ==="
+LOCAL_IVY_AGENT="/Users/rorychatt/git/ivy/ivy-agent-cli/packages/ivy-agent/dist/ivy-agent-darwin-arm64/bin/ivy-agent"
+if [ -f "$LOCAL_IVY_AGENT" ]; then
+  echo "Using locally built Ivy Agent CLI from $LOCAL_IVY_AGENT"
+  cp "$LOCAL_IVY_AGENT" "$PUBLISH_DIR/ivy-agent"
+else
+  IVY_AGENT_VERSION="v0.1.5"
+  URL_IVY_AGENT="https://cdn.ivy.app/ivy-agent-cli/releases/download/$IVY_AGENT_VERSION/ivy-agent-cli-darwin-arm64.tar.gz"
+  echo "Downloading Ivy Agent CLI..."
+  curl -L -o ivy-agent.tar.gz "$URL_IVY_AGENT"
+  tar -xzf ivy-agent.tar.gz -C "$PUBLISH_DIR"
+  rm ivy-agent.tar.gz
+fi
+chmod +x "$PUBLISH_DIR/ivy-agent"
+
 echo "=== 3. Creating .app Bundle Structure ==="
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS"
@@ -111,7 +126,6 @@ cat << 'EOF' > expanded-pkg/1.pkg/Scripts/postinstall
 #!/bin/sh
 rm -rf /tmp/velopack/IvyTendril
 sudo -u "$USER" rm -rf ~/Library/Caches/velopack/IvyTendril
-sudo -u "$USER" env VELOPACK_FIRSTRUN=1 open "$2/Ivy Tendril.app/"
 
 # Path to the installed app certificate
 APP_PATH="$2/Ivy Tendril.app"
@@ -127,6 +141,8 @@ if [ -f "$CERT_PATH" ]; then
   echo "Trusting Ivy Tendril localhost certificate system-wide..."
   security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CERT_PATH" || true
 fi
+
+sudo -u "$USER" env VELOPACK_FIRSTRUN=1 open "$APP_PATH"
 exit 0
 EOF
 chmod +x expanded-pkg/1.pkg/Scripts/postinstall

@@ -12,12 +12,14 @@ public sealed class CodexPty : IAgentPty
         AgentCapabilities.StdinPrompt |
         AgentCapabilities.StreamJsonOutput |
         AgentCapabilities.ModelSelection |
+        AgentCapabilities.EffortControl |
         AgentCapabilities.DirectoryRestriction |
         AgentCapabilities.HealthCheck |
         AgentCapabilities.ExtraArgPassthrough;
 
     public TransportKind SupportedTransports => TransportKind.Pty;
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles => [];
+    public IReadOnlyList<EffortOption> SupportedEfforts => EffortLevels.Codex;
 
     public string? ContextFileName => "AGENTS.md";
 

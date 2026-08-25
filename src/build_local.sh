@@ -45,6 +45,15 @@ tar -xzf dotnet.tar.gz -C "$TARGET_DOTNET_DIR"
 rm dotnet.tar.gz
 chmod +x "$TARGET_DOTNET_DIR/dotnet"
 
+echo "=== Bundling Ivy Agent CLI ==="
+IVY_AGENT_VERSION="v0.1.5"
+URL_IVY_AGENT="https://cdn.ivy.app/ivy-agent-cli/releases/download/$IVY_AGENT_VERSION/ivy-agent-cli-darwin-arm64.tar.gz"
+echo "Downloading Ivy Agent CLI..."
+curl -L -o ivy-agent.tar.gz "$URL_IVY_AGENT"
+tar -xzf ivy-agent.tar.gz -C "$PUBLISH_DIR"
+rm ivy-agent.tar.gz
+chmod +x "$PUBLISH_DIR/ivy-agent"
+
 echo "=== Packing with Velopack ==="
 vpk pack \
   --packId IvyTendril \

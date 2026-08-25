@@ -125,7 +125,7 @@ public static class GitHelper
             return (-1, outTask.IsCompletedSuccessfully ? outTask.Result : "", combinedErr);
         }
 
-        return (process.ExitCode, outTask.GetAwaiter().GetResult(), errTask.GetAwaiter().GetResult());
+        return (process.ExitCode, FileHelper.SanitizeUtf8(outTask.GetAwaiter().GetResult()), FileHelper.SanitizeUtf8(errTask.GetAwaiter().GetResult()));
     }
 
     internal static string? RunGitCapture(string? workingDir, string args, int timeoutMs)
@@ -148,7 +148,7 @@ public static class GitHelper
             var output = outTask.GetAwaiter().GetResult();
             _ = errTask.GetAwaiter().GetResult();
 
-            return process.ExitCode == 0 ? output : null;
+            return process.ExitCode == 0 ? FileHelper.SanitizeUtf8(output) : null;
         }
         catch
         {
@@ -238,5 +238,103 @@ public static class GitHelper
     private static bool RunGitShowRef(string repoPath, string refName)
     {
         return RunGitCapture(repoPath, $"show-ref --verify \"{refName}\"", 5000) != null;
+    }
+
+    /// <summary>
+    /// Enumerates all worktree directories under a plan's Worktrees directory, supporting both flat
+    /// (Worktrees/repo) and nested (Worktrees/owner/repo) directory structures.
+    /// </summary>
+    public static IEnumerable<string> EnumerateWorktreeDirectories(string worktreesDir, bool includeOrphans = false)
+    {
+        if (!Directory.Exists(worktreesDir)) yield break;
+
+        var topDirs = Directory.GetDirectories(worktreesDir);
+        var hasAnyGitFile = topDirs.Any(d => File.Exists(Path.Combine(d, ".git")) ||
+                                             Directory.GetDirectories(d).Any(sd => File.Exists(Path.Combine(sd, ".git"))));
+
+        foreach (var dir in topDirs)
+        {
+            if (File.Exists(Path.Combine(dir, ".git")))
+            {
+                yield return dir;
+            }
+            else
+            {
+                var subDirs = Directory.GetDirectories(dir);
+                if (subDirs.Length > 0)
+                {
+                    var foundChild = false;
+                    foreach (var subDir in subDirs)
+                    {
+                        if (File.Exists(Path.Combine(subDir, ".git")) || (!hasAnyGitFile && !includeOrphans) || includeOrphans)
+                        {
+                            foundChild = true;
+                            yield return subDir;
+                        }
+                    }
+                    if (!foundChild && includeOrphans)
+                    {
+                        yield return dir;
+                    }
+                }
+                else if (includeOrphans || !hasAnyGitFile)
+                {
+                    yield return dir;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Derives the relative worktree path for a repo (e.g. "ivy-interactive/ivy-tendril" or "my-repo").
+    /// Checks for standard {TENDRIL_HOME}/Projects/{project}/Repos/{owner}/{repo} layout first,
+    /// falls back to git remote origin owner/repo, and finally falls back to the leaf directory name.
+    /// </summary>
+    public static string DeriveWorktreeRelativePath(string repoPath)
+    {
+        var normalized = repoPath.TrimEnd('/', '\\');
+        var matchRepos = Regex.Match(normalized, @"[\\/]Repos[\\/](?<subPath>.+)$", RegexOptions.IgnoreCase);
+        if (matchRepos.Success)
+        {
+            var subPath = matchRepos.Groups["subPath"].Value;
+            if (!string.IsNullOrWhiteSpace(subPath))
+            {
+                return subPath;
+            }
+        }
+
+        if (Directory.Exists(normalized))
+        {
+            try
+            {
+                var (exitCode, url, _) = RunGit("remote get-url origin", normalized, 5000);
+                if (exitCode == 0 && !string.IsNullOrWhiteSpace(url))
+                {
+                    var trimmedUrl = url.Trim();
+                    var isRemoteUrl = trimmedUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                                      trimmedUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+                                      trimmedUrl.StartsWith("git@", StringComparison.OrdinalIgnoreCase) ||
+                                      trimmedUrl.StartsWith("ssh://", StringComparison.OrdinalIgnoreCase);
+
+                    if (isRemoteUrl)
+                    {
+                        var match = Regex.Match(trimmedUrl, @"[/:](?<owner>[^/]+)/(?<name>[^/]+?)(?:\.git)?$", RegexOptions.IgnoreCase);
+                        if (match.Success)
+                        {
+                            var owner = match.Groups["owner"].Value;
+                            var name = match.Groups["name"].Value;
+                            return Path.Combine(owner, name);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Best-effort remote lookup
+            }
+        }
+
+        var lastSlash = normalized.LastIndexOfAny(['/', '\\']);
+        return lastSlash >= 0 ? normalized[(lastSlash + 1)..] : normalized;
     }
 }

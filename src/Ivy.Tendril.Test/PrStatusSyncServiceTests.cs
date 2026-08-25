@@ -1,4 +1,5 @@
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.PullRequest;
 using Ivy.Tendril.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -31,34 +32,80 @@ public class PrStatusSyncServiceTests : IDisposable
     [Fact]
     public void UpsertPrStatus_StoresAndRetrieves()
     {
-        _db.UpsertPrStatus("https://github.com/owner/repo/pull/1", "owner", "repo", "Open", DateTime.UtcNow);
-        _db.UpsertPrStatus("https://github.com/owner/repo/pull/2", "owner", "repo", "Merged", DateTime.UtcNow);
+        _db.UpsertPrStatus("https://github.com/owner/repo/pull/1", "owner", "repo", "Open", "", DateTime.UtcNow);
+        _db.UpsertPrStatus("https://github.com/owner/repo/pull/2", "owner", "repo", "Merged", "", DateTime.UtcNow);
 
         var statuses = _db.GetAllPrStatuses();
         Assert.Equal(2, statuses.Count);
-        Assert.Equal("Open", statuses["https://github.com/owner/repo/pull/1"]);
-        Assert.Equal("Merged", statuses["https://github.com/owner/repo/pull/2"]);
+        Assert.Equal("Open", statuses["https://github.com/owner/repo/pull/1"].Status);
+        Assert.Equal("Merged", statuses["https://github.com/owner/repo/pull/2"].Status);
     }
 
     [Fact]
     public void UpsertPrStatus_UpdatesExistingStatus()
     {
         var now = DateTime.UtcNow;
-        _db.UpsertPrStatus("https://github.com/owner/repo/pull/1", "owner", "repo", "Open", now);
-        _db.UpsertPrStatus("https://github.com/owner/repo/pull/1", "owner", "repo", "Merged", now.AddMinutes(10));
+        _db.UpsertPrStatus("https://github.com/owner/repo/pull/1", "owner", "repo", "Open", "", now);
+        _db.UpsertPrStatus("https://github.com/owner/repo/pull/1", "owner", "repo", "Merged", "", now.AddMinutes(10));
 
         var statuses = _db.GetAllPrStatuses();
         Assert.Single(statuses);
-        Assert.Equal("Merged", statuses["https://github.com/owner/repo/pull/1"]);
+        Assert.Equal("Merged", statuses["https://github.com/owner/repo/pull/1"].Status);
+    }
+
+    [Fact]
+    public void UpsertPrStatus_StoresAndRetrievesBranch()
+    {
+        _db.UpsertPrStatus("https://github.com/owner/repo/pull/1", "owner", "repo", "Open", "feature/foo", DateTime.UtcNow);
+
+        var statuses = _db.GetAllPrStatuses();
+        Assert.Equal("feature/foo", statuses["https://github.com/owner/repo/pull/1"].Branch);
+    }
+
+    [Fact]
+    public void UpsertPrStatus_UpdatesBranchOnConflict()
+    {
+        var now = DateTime.UtcNow;
+        _db.UpsertPrStatus("https://github.com/owner/repo/pull/1", "owner", "repo", "Open", "feature/foo", now);
+        _db.UpsertPrStatus("https://github.com/owner/repo/pull/1", "owner", "repo", "Open", "feature/bar", now.AddMinutes(10));
+
+        var statuses = _db.GetAllPrStatuses();
+        Assert.Equal("feature/bar", statuses["https://github.com/owner/repo/pull/1"].Branch);
+    }
+
+    [Fact]
+    public void GetAllPrStatuses_MapsNullBranchColumnToEmptyString()
+    {
+        // Simulate a pre-migration row: insert directly (on a fresh connection to the same file,
+        // since PlanDatabaseService doesn't expose its connection), bypassing UpsertPrStatus and
+        // leaving Branch NULL.
+        using (var connection = new SqliteConnection($"Data Source={_dbPath}"))
+        {
+            connection.Open();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = """
+                              INSERT INTO PrStatuses (PrUrl, Owner, Repo, Status, LastChecked)
+                              VALUES (@url, @owner, @repo, @status, @checked)
+                              """;
+            cmd.Parameters.AddWithValue("@url", "https://github.com/owner/repo/pull/1");
+            cmd.Parameters.AddWithValue("@owner", "owner");
+            cmd.Parameters.AddWithValue("@repo", "repo");
+            cmd.Parameters.AddWithValue("@status", "Open");
+            cmd.Parameters.AddWithValue("@checked", DateTime.UtcNow.ToString("O"));
+            cmd.ExecuteNonQuery();
+        }
+
+        var statuses = _db.GetAllPrStatuses();
+        Assert.Equal("", statuses["https://github.com/owner/repo/pull/1"].Branch);
     }
 
     [Fact]
     public void GetNonMergedPrUrls_ExcludesMerged()
     {
         var now = DateTime.UtcNow;
-        _db.UpsertPrStatus("https://github.com/owner/repo/pull/1", "owner", "repo", "Open", now);
-        _db.UpsertPrStatus("https://github.com/owner/repo/pull/2", "owner", "repo", "Merged", now);
-        _db.UpsertPrStatus("https://github.com/owner/repo/pull/3", "owner", "repo", "Closed", now);
+        _db.UpsertPrStatus("https://github.com/owner/repo/pull/1", "owner", "repo", "Open", "", now);
+        _db.UpsertPrStatus("https://github.com/owner/repo/pull/2", "owner", "repo", "Merged", "", now);
+        _db.UpsertPrStatus("https://github.com/owner/repo/pull/3", "owner", "repo", "Closed", "", now);
 
         var nonMerged = _db.GetNonMergedPrUrls();
         Assert.Equal(2, nonMerged.Count);
@@ -90,6 +137,8 @@ public class PrStatusSyncServiceTests : IDisposable
         Assert.True(PullRequestApp.IsValidUrl("https://github.com/owner/repo/pull/1"));
         Assert.True(PullRequestApp.IsValidUrl("https://github.com/owner/repo/pull/123"));
         Assert.True(PullRequestApp.IsValidUrl("http://github.com/owner/repo/pull/1"));
+        Assert.True(PullRequestApp.IsValidUrl("Https://github.com/owner/repo/pull/1"));
+        Assert.True(PullRequestApp.IsValidUrl("HTTPS://GITHUB.COM/owner/repo/pull/1"));
     }
 
     [Fact]

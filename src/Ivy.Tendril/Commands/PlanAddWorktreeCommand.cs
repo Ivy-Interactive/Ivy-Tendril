@@ -45,10 +45,10 @@ public class PlanAddWorktreeCommand : Command<PlanAddWorktreeSettings>
         }
 
         var branchName = DeriveBranchName(planFolder);
-        var repoName = Path.GetFileName(settings.Repo.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-        var worktreePath = Path.Combine(planFolder, "Worktrees", repoName);
+        var relWorktreePath = GitHelper.DeriveWorktreeRelativePath(settings.Repo);
+        var worktreePath = Path.Combine(planFolder, "Worktrees", relWorktreePath);
 
-        Directory.CreateDirectory(Path.Combine(planFolder, "Worktrees"));
+        Directory.CreateDirectory(Path.GetDirectoryName(worktreePath)!);
 
         if (Directory.Exists(worktreePath))
         {

@@ -609,21 +609,24 @@ public class SetupProjectPromptwareTests : IDisposable
         Assert.Contains("--browse", action.Command);
     }
 
-    // ==================== Helpers ====================
+    private static readonly object ConsoleLock = new();
 
     private static string CaptureConsoleOutput(Action action)
     {
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
-        try
+        lock (ConsoleLock)
         {
-            action();
-            return sw.ToString();
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
+            var originalOut = Console.Out;
+            var sw = new StringWriter();
+            Console.SetOut(sw);
+            try
+            {
+                action();
+                return sw.ToString();
+            }
+            finally
+            {
+                Console.SetOut(originalOut);
+            }
         }
     }
 }

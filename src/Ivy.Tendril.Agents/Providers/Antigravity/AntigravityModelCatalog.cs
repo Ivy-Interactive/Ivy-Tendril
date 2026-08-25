@@ -27,8 +27,17 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
     [
         new()
         {
+            Id = "gemini-3.7-flash", DisplayName = "Gemini 3.7 Flash",
+            Capabilities = MidCaps,
+            SupportedEfforts = EffortLevels.Antigravity,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "google",
+        },
+        new()
+        {
             Id = "gemini-3.6-flash", DisplayName = "Gemini 3.6 Flash",
             Capabilities = MidCaps, IsDefault = true,
+            SupportedEfforts = EffortLevels.Antigravity,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
         },
@@ -36,6 +45,7 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
         {
             Id = "gemini-3.5-flash", DisplayName = "Gemini 3.5 Flash",
             Capabilities = MidCaps,
+            SupportedEfforts = EffortLevels.Antigravity,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
         },
@@ -43,13 +53,31 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
         {
             Id = "gemini-3.1-pro", DisplayName = "Gemini 3.1 Pro",
             Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Antigravity,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
         },
         new()
         {
+            Id = "claude-opus-5", DisplayName = "Claude Opus 5",
+            Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "anthropic",
+        },
+        new()
+        {
+            Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5",
+            Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "anthropic",
+        },
+        new()
+        {
             Id = "claude-sonnet-4-6", DisplayName = "Claude Sonnet 4.6",
             Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "anthropic",
         },
@@ -57,6 +85,7 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
         {
             Id = "claude-opus-4-6", DisplayName = "Claude Opus 4.6",
             Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "anthropic",
         },
@@ -64,6 +93,7 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
         {
             Id = "gpt-oss-120b", DisplayName = "GPT-OSS 120B",
             Capabilities = MidCaps,
+            SupportedEfforts = EffortLevels.Antigravity,
             ContextWindow = 128_000, MaxOutputTokens = 32_768,
             Provider = "openai",
         },

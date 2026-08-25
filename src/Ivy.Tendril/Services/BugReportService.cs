@@ -119,8 +119,8 @@ public sealed class BugReportService
         if (!Directory.Exists(worktreesDir))
             return null;
 
-        var dirs = Directory.GetDirectories(worktreesDir);
-        if (dirs.Length == 0)
+        var dirs = GitHelper.EnumerateWorktreeDirectories(worktreesDir).ToList();
+        if (dirs.Count == 0)
             return null;
 
         var sb = new System.Text.StringBuilder();
@@ -130,7 +130,8 @@ public sealed class BugReportService
             var branch = GitField(wtDir, "rev-parse --abbrev-ref HEAD");
             var sha = GitField(wtDir, "rev-parse HEAD");
 
-            sb.AppendLine(Path.GetFileName(wtDir));
+            var relPath = Path.GetRelativePath(worktreesDir, wtDir);
+            sb.AppendLine(relPath);
             sb.AppendLine($"  remote: {remote}");
             sb.AppendLine($"  branch: {branch}");
             sb.AppendLine($"  HEAD:   {sha}");
@@ -309,8 +310,8 @@ public sealed class BugReportService
     private void CollectJobFiles(IReadOnlyCollection<string> jobIds, List<BugReportFile> files)
     {
         foreach (var jobId in jobIds)
-        foreach (var file in JobLogPaths.AllForJobId(_config.TendrilHome, jobId))
-            files.Add(new BugReportFile(file, Path.Combine("Jobs", Path.GetFileName(file))));
+            foreach (var file in JobLogPaths.AllForJobId(_config.TendrilHome, jobId))
+                files.Add(new BugReportFile(file, Path.Combine("Jobs", Path.GetFileName(file))));
     }
 
     private static void CollectPlanFiles(string planFolder, List<BugReportFile> files)

@@ -25,7 +25,10 @@ public class AcceptWithNotesDialog(
             new DialogBody(
                 Layout.Vertical().Gap(2)
                 | Text.Block("Add notes to include with this recommendation:").Muted()
-                | new Markdown(MarkdownHelper.PrepareForDisplay(_recommendation.Description, config))
+                // Deliberately no .DangerouslyAllowLocalFiles() / OnLinkClick() here: a Sheet
+                // stacked on top of this open Dialog isn't a pattern this codebase uses, and an
+                // inert link is a smaller failure than a live-looking one that does nothing.
+                | new Markdown(MarkdownHelper.PrepareForDisplay(_recommendation.Description, config)).Article()
                 | notesText.ToTextareaInput("Enter your notes...").Rows(6).AutoFocus()
             ),
             new DialogFooter(

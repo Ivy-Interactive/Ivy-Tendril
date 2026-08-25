@@ -522,7 +522,7 @@ public class PlanDatabaseService : IPlanDatabaseService
         using (new WriteLockHandle(_lock))
         {
             ExecuteNonQuery("UPDATE Plans SET LatestRevisionContent = @content, RevisionCount = @count, Updated = @updated WHERE Id = @id",
-                new SqliteParameter("@content", latestRevisionContent),
+                new SqliteParameter("@content", FileHelper.SanitizeUtf8(latestRevisionContent)),
                 new SqliteParameter("@count", revisionCount),
                 new SqliteParameter("@updated", DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture)),
                 new SqliteParameter("@id", planId));
@@ -675,8 +675,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand, Cleared, ProcessId, ReportedPlanId, ReportedPlanTitle, ReportedFailureReason)
-                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand, @cleared, @processId, @reportedPlanId, @reportedPlanTitle, @reportedFailureReason)
+                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand, Cleared, ProcessId, ReportedPlanId, ReportedPlanTitle, ReportedFailureReason, Model, InputTokens, OutputTokens, CacheReadTokens, CacheWriteTokens, ReasoningTokens, CostSource)
+                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand, @cleared, @processId, @reportedPlanId, @reportedPlanTitle, @reportedFailureReason, @model, @inputTokens, @outputTokens, @cacheReadTokens, @cacheWriteTokens, @reasoningTokens, @costSource)
                               """;
             cmd.Parameters.AddWithValue("@id", job.Id);
             cmd.Parameters.AddWithValue("@type", job.Type);
@@ -705,6 +705,13 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.Parameters.AddWithValue("@reportedPlanTitle", (object?)job.ReportedPlanTitle ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@reportedFailureReason",
                 (object?)job.ReportedFailureReason ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@model", (object?)job.Model ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@inputTokens", (object?)job.InputTokens ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@outputTokens", (object?)job.OutputTokens ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@cacheReadTokens", (object?)job.CacheReadTokens ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@cacheWriteTokens", (object?)job.CacheWriteTokens ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@reasoningTokens", (object?)job.ReasoningTokens ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@costSource", (object?)job.CostSource ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
     }
@@ -800,7 +807,28 @@ public class PlanDatabaseService : IPlanDatabaseService
                 : reader.GetString(reader.GetOrdinal("ReportedPlanTitle")),
             ReportedFailureReason = reader.IsDBNull(reader.GetOrdinal("ReportedFailureReason"))
                 ? null
-                : reader.GetString(reader.GetOrdinal("ReportedFailureReason"))
+                : reader.GetString(reader.GetOrdinal("ReportedFailureReason")),
+            Model = reader.IsDBNull(reader.GetOrdinal("Model"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("Model")),
+            InputTokens = reader.IsDBNull(reader.GetOrdinal("InputTokens"))
+                ? null
+                : reader.GetInt32(reader.GetOrdinal("InputTokens")),
+            OutputTokens = reader.IsDBNull(reader.GetOrdinal("OutputTokens"))
+                ? null
+                : reader.GetInt32(reader.GetOrdinal("OutputTokens")),
+            CacheReadTokens = reader.IsDBNull(reader.GetOrdinal("CacheReadTokens"))
+                ? null
+                : reader.GetInt32(reader.GetOrdinal("CacheReadTokens")),
+            CacheWriteTokens = reader.IsDBNull(reader.GetOrdinal("CacheWriteTokens"))
+                ? null
+                : reader.GetInt32(reader.GetOrdinal("CacheWriteTokens")),
+            ReasoningTokens = reader.IsDBNull(reader.GetOrdinal("ReasoningTokens"))
+                ? null
+                : reader.GetInt32(reader.GetOrdinal("ReasoningTokens")),
+            CostSource = reader.IsDBNull(reader.GetOrdinal("CostSource"))
+                ? null
+                : reader.GetString(reader.GetOrdinal("CostSource"))
         };
     }
 
@@ -885,36 +913,39 @@ public class PlanDatabaseService : IPlanDatabaseService
         }
     }
 
-    public Dictionary<string, string> GetAllPrStatuses()
+    public Dictionary<string, PrInfo> GetAllPrStatuses()
     {
         using (new ReadLockHandle(_lock))
         {
-            var list = ReadList("SELECT PrUrl, Status FROM PrStatuses", reader =>
-                (Url: reader.GetString(0), Status: reader.GetString(1)));
+            var list = ReadList("SELECT PrUrl, Status, Branch FROM PrStatuses", reader =>
+                (Url: reader.GetString(0), Status: reader.GetString(1),
+                    Branch: reader.IsDBNull(2) ? "" : reader.GetString(2)));
 
-            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (url, status) in list)
-                result[url] = status;
+            var result = new Dictionary<string, PrInfo>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (url, status, branch) in list)
+                result[url] = new PrInfo(status, branch);
             return result;
         }
     }
 
-    public void UpsertPrStatus(string prUrl, string owner, string repo, string status, DateTime lastChecked)
+    public void UpsertPrStatus(string prUrl, string owner, string repo, string status, string branch, DateTime lastChecked)
     {
         using (new WriteLockHandle(_lock))
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                              INSERT INTO PrStatuses (PrUrl, Owner, Repo, Status, LastChecked)
-                              VALUES (@url, @owner, @repo, @status, @checked)
+                              INSERT INTO PrStatuses (PrUrl, Owner, Repo, Status, Branch, LastChecked)
+                              VALUES (@url, @owner, @repo, @status, @branch, @checked)
                               ON CONFLICT(PrUrl) DO UPDATE SET
                                   Status = excluded.Status,
+                                  Branch = excluded.Branch,
                                   LastChecked = excluded.LastChecked
                               """;
             cmd.Parameters.AddWithValue("@url", prUrl);
             cmd.Parameters.AddWithValue("@owner", owner);
             cmd.Parameters.AddWithValue("@repo", repo);
             cmd.Parameters.AddWithValue("@status", status);
+            cmd.Parameters.AddWithValue("@branch", branch);
             cmd.Parameters.AddWithValue("@checked", lastChecked.ToString("O", CultureInfo.InvariantCulture));
             cmd.ExecuteNonQuery();
         }
@@ -1325,19 +1356,19 @@ public class PlanDatabaseService : IPlanDatabaseService
                            """;
 
         cmd.Parameters.AddWithValue("@id", plan.Id);
-        cmd.Parameters.AddWithValue("@title", plan.Title);
-        cmd.Parameters.AddWithValue("@project", plan.Project);
-        cmd.Parameters.AddWithValue("@level", plan.Level);
+        cmd.Parameters.AddWithValue("@title", FileHelper.SanitizeUtf8(plan.Title));
+        cmd.Parameters.AddWithValue("@project", FileHelper.SanitizeUtf8(plan.Project));
+        cmd.Parameters.AddWithValue("@level", FileHelper.SanitizeUtf8(plan.Level));
         cmd.Parameters.AddWithValue("@state", plan.Status.ToString());
         cmd.Parameters.AddWithValue("@folderPath", plan.FolderPath);
         cmd.Parameters.AddWithValue("@folderName", plan.FolderName);
-        cmd.Parameters.AddWithValue("@yamlRaw", plan.PlanYamlRaw);
+        cmd.Parameters.AddWithValue("@yamlRaw", FileHelper.SanitizeUtf8(plan.PlanYamlRaw));
         cmd.Parameters.AddWithValue("@revisionCount", plan.RevisionCount);
-        cmd.Parameters.AddWithValue("@latestContent", plan.LatestRevisionContent);
+        cmd.Parameters.AddWithValue("@latestContent", FileHelper.SanitizeUtf8(plan.LatestRevisionContent));
         cmd.Parameters.AddWithValue("@created", plan.Created.ToString("O", CultureInfo.InvariantCulture));
         cmd.Parameters.AddWithValue("@updated", plan.Updated.ToString("O", CultureInfo.InvariantCulture));
-        cmd.Parameters.AddWithValue("@initialPrompt", plan.InitialPrompt ?? (object)DBNull.Value);
-        cmd.Parameters.AddWithValue("@sourceUrl", plan.SourceUrl ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@initialPrompt", plan.InitialPrompt != null ? FileHelper.SanitizeUtf8(plan.InitialPrompt) : (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("@sourceUrl", plan.SourceUrl != null ? FileHelper.SanitizeUtf8(plan.SourceUrl) : (object)DBNull.Value);
 
         cmd.ExecuteNonQuery();
 

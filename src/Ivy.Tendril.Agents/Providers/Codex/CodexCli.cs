@@ -13,6 +13,7 @@ public sealed class CodexCli : IAgentCli
         AgentCapabilities.StdinPrompt |
         AgentCapabilities.StreamJsonOutput |
         AgentCapabilities.ModelSelection |
+        AgentCapabilities.EffortControl |
         AgentCapabilities.DirectoryRestriction |
         AgentCapabilities.HealthCheck |
         AgentCapabilities.ExtraArgPassthrough;
@@ -23,10 +24,12 @@ public sealed class CodexCli : IAgentCli
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
     [
-        new(ProfileTier.Deep, null, "high"),
-        new(ProfileTier.Balanced, null, "medium"),
-        new(ProfileTier.Quick, null, "low"),
+        new(ProfileTier.Deep, "gpt-5.6-sol", "high"),
+        new(ProfileTier.Balanced, "gpt-5.6-terra", "medium"),
+        new(ProfileTier.Quick, "gpt-5.6-luna", "low"),
     ];
+
+    public IReadOnlyList<EffortOption> SupportedEfforts => EffortLevels.Codex;
 
     private static readonly FrozenDictionary<string, string> ToolNameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -76,6 +79,21 @@ public sealed class CodexCli : IAgentCli
             args.Add(config.Model);
         }
 
+        if (config.Effort is not null)
+        {
+            var effort = config.Effort.Value switch
+            {
+                EffortLevel.Low => "low",
+                EffortLevel.Medium => "medium",
+                EffortLevel.High => "high",
+                EffortLevel.XHigh => "xhigh",
+                EffortLevel.Max => "xhigh",
+                _ => "medium"
+            };
+            args.Add("-c");
+            args.Add($"model_reasoning_effort=\"{effort}\"");
+        }
+
         var extractedDirs = ExtractWritableDirectories(config.AllowedTools);
         var allDirs = new HashSet<string>(extractedDirs, StringComparer.OrdinalIgnoreCase);
         foreach (var dir in config.WritableDirectories)
@@ -85,6 +103,13 @@ public sealed class CodexCli : IAgentCli
         {
             args.Add("--add-dir");
             args.Add(dir);
+        }
+
+        var mcpConfigFile = global::Ivy.Tendril.Agents.Helpers.McpConfigWriter.WriteConfigFile(config.McpServers);
+        if (!string.IsNullOrEmpty(mcpConfigFile))
+        {
+            args.Add("--mcp-config");
+            args.Add(mcpConfigFile);
         }
 
         foreach (var arg in config.ExtraArguments)

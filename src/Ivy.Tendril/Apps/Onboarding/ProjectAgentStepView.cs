@@ -82,7 +82,7 @@ public class ProjectAgentStepView(
                     }
 
                     var refs = await OnboardingRepoHelper.ResolveReposAsync(
-                        selectedRepos.Value, tendrilHome, progressMessage, error, isCloning, isStepLoading);
+                        selectedRepos.Value, tendrilHome, name, progressMessage, error, isCloning, isStepLoading);
 
                     if (refs == null)
                     {
@@ -156,6 +156,7 @@ public class ProjectAgentStepView(
 
                         if (!resumed)
                         {
+                            error.Set($"Agent {info.DisplayName} is not installed. You can install it, go Back to choose another agent, or proceed with manual configuration.");
                             isStepLoading.Set(false);
                             return;
                         }
@@ -272,7 +273,7 @@ public class ProjectAgentStepView(
 
         // With no setupTrigger the run starts on mount, so the step counts as
         // about-to-start from the moment it renders until the session has started.
-        var aboutToStart = (setupTrigger == null || setupTrigger.Value) && !session.Started.Value;
+        var aboutToStart = (setupTrigger == null || setupTrigger.Value) && !session.Started.Value && isStepLoading.Value && error.Value == null && session.Error.Value == null;
 
         var running = session.Running.Value || isCloning.Value || aboutToStart;
 
@@ -310,11 +311,11 @@ public class ProjectAgentStepView(
                | (showHeader ? Text.H3("Setting up your project") : null!)
                | Text.Muted(isCloning.Value
                    ? (progressMessage.Value ?? "Setting up your project...")
-                   : "Tendril is detecting your tech stack and configuring your agentic harness.")
+                   : "Tendril is detecting your tech stack and configuring your agentic harness. This will take a few minutes to treat yourself to a ☕ while you wait.")
                | (error.Value != null ? Text.Danger(error.Value) : null!)
                | (session.Error.Value != null ? Text.Danger(session.Error.Value) : null!)
                | (authCode.Value != null
-                   ? (object)Text.Markdown($"**Device code:** `{authCode.Value}` — enter this in your browser if prompted.")
+                   ? (object)Text.Markdown($"**Device code:** `{authCode.Value}`: enter this in your browser if prompted.")
                    : null!)
                | (isCloning.Value && progressValue.Value != null
                    ? (object)new Progress(progressValue.Value.Value)

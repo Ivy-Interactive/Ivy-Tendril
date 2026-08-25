@@ -26,6 +26,11 @@ public sealed class IvyHealthCheck : IAgentHealthCheck
     {
         var path = IvyBinaryResolver.Resolve();
         if (!File.Exists(path))
+        {
+            path = await IvyBinaryResolver.EnsureInstalledAsync(ct) ?? path;
+        }
+
+        if (!File.Exists(path))
             return new AgentInstallStatus { IsInstalled = false, Error = "ivy-agent not found" };
 
         var version = await GetVersionAsync(ct);
@@ -96,45 +101,56 @@ public sealed class IvyHealthCheck : IAgentHealthCheck
 
     public async Task<ModelValidationResult> ValidateModelAsync(string model, CancellationToken ct = default)
     {
-        if (!string.IsNullOrEmpty(model) && !string.Equals(model, "default", StringComparison.OrdinalIgnoreCase))
-            return new ModelValidationResult
-            {
-                Status = ModelValidationStatus.Unknown,
-                Model = model,
-                ErrorMessage = "Ivy Agent does not support model validation for non-default models",
-            };
-
-        var binaryPath = IvyBinaryResolver.Resolve();
-        var originalEnv = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
-        var originalUrl = Environment.GetEnvironmentVariable("ANTHROPIC_BASE_URL");
-        try
+        var key = _apiKeyProvider();
+        if (!string.IsNullOrEmpty(key))
         {
-            Environment.SetEnvironmentVariable("ANTHROPIC_BASE_URL", "https://llmproxy.ivy.app");
-            var key = _apiKeyProvider();
-            if (!string.IsNullOrEmpty(key))
+            return await LlmEndpointTester.TestModelPromptAsync("https://llmproxy.ivy.app/v1", key, model, ct);
+        }
+
+        var token = _tokenProvider();
+        if (!string.IsNullOrEmpty(token))
+        {
+            var binaryPath = IvyBinaryResolver.Resolve();
+            var originalEnv = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
+            var originalUrl = Environment.GetEnvironmentVariable("ANTHROPIC_BASE_URL");
+            try
             {
-                Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", key);
+                Environment.SetEnvironmentVariable("ANTHROPIC_BASE_URL", "https://llmproxy.ivy.app");
+
+                var args = new List<string> { "run", "ping" };
+                if (!string.IsNullOrEmpty(model) && !string.Equals(model, "default", StringComparison.OrdinalIgnoreCase))
+                {
+                    args.Add("--model");
+                    args.Add(model);
+                }
+
+                var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
+                    binaryPath, args,
+                    TimeSpan.FromSeconds(30), ct);
+
+                if (exitCode == 0)
+                    return new ModelValidationResult { Status = ModelValidationStatus.Ok, Model = model };
+
+                return new ModelValidationResult
+                {
+                    Status = ModelValidationStatus.Unknown,
+                    Model = model,
+                    ErrorMessage = stderr,
+                };
             }
-            
-            var (exitCode, _, stderr) = await HealthCheckRunner.RunAsync(
-                binaryPath, ["run", "ping"],
-                TimeSpan.FromSeconds(30), ct);
-
-            if (exitCode == 0)
-                return new ModelValidationResult { Status = ModelValidationStatus.Ok, Model = model };
-
-            return new ModelValidationResult
+            finally
             {
-                Status = ModelValidationStatus.Unknown,
-                Model = model,
-                ErrorMessage = stderr,
-            };
+                Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", originalEnv);
+                Environment.SetEnvironmentVariable("ANTHROPIC_BASE_URL", originalUrl);
+            }
         }
-        finally
+
+        return new ModelValidationResult
         {
-            Environment.SetEnvironmentVariable("ANTHROPIC_API_KEY", originalEnv);
-            Environment.SetEnvironmentVariable("ANTHROPIC_BASE_URL", originalUrl);
-        }
+            Status = ModelValidationStatus.AuthError,
+            Model = model,
+            ErrorMessage = "No API key or @ivy.app login configured.",
+        };
     }
 
     public Task<bool> RunAuthFlowAsync(AuthFlowCallbacks callbacks, CancellationToken ct = default)

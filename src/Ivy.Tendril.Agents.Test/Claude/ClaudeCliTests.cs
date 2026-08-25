@@ -132,12 +132,12 @@ public class ClaudeCliTests
         Assert.Contains("--permission-mode", spec.Arguments);
         Assert.Contains("dontAsk", spec.Arguments);
         Assert.Contains("--settings", spec.Arguments);
-        
+
         var settingsIdx = spec.Arguments.ToList().IndexOf("--settings");
         Assert.True(settingsIdx >= 0);
         Assert.Contains("permissions", spec.Arguments[settingsIdx + 1]);
         Assert.Contains("allow", spec.Arguments[settingsIdx + 1]);
-        
+
         Assert.Contains("-", spec.Arguments);
         Assert.Equal("Hello", spec.StdinContent);
         Assert.Equal("/tmp", spec.WorkingDirectory);
@@ -182,7 +182,7 @@ public class ClaudeCliTests
     [InlineData(EffortLevel.Low, "low")]
     [InlineData(EffortLevel.Medium, "medium")]
     [InlineData(EffortLevel.High, "high")]
-    [InlineData(EffortLevel.XHigh, "max")]
+    [InlineData(EffortLevel.XHigh, "xhigh")]
     [InlineData(EffortLevel.Max, "max")]
     public void BuildProcessSpec_AllEffortLevels_MapCorrectly(EffortLevel level, string expected)
     {

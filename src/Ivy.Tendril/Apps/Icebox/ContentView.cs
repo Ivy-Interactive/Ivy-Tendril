@@ -84,10 +84,6 @@ public class ContentView(
 
         var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(1).Wrap()
                         | new Button("Delete").Icon(Icons.Trash).Outline().ShortcutKey("Backspace").OnClick(() => showDeleteDialog())
-                        | new Button("Previous").Icon(Icons.ChevronLeft).Outline().OnClick(() => GoToPrevious())
-                            .ShortcutKey("p")
-                        | new Button("Next").Icon(Icons.ChevronRight, Align.Right).Outline().OnClick(() => GoToNext())
-                            .ShortcutKey("n")
                         | new Button("Thaw").Icon(Icons.Flame).Primary().OnClick(() =>
                         {
                             planService.TransitionState(selectedPlan.FolderName, PlanStatus.Draft);
@@ -184,21 +180,5 @@ public class ContentView(
         // Plan transition (and pre-state snapshot) handled by JobService.StartJob.
         jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = syncJobIds });
         refreshPlans();
-    }
-
-    private void GoToNext()
-    {
-        if (allPlans.Count == 0) return;
-        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan?.FolderName);
-        var nextIndex = (currentIndex + 1) % allPlans.Count;
-        selectedPlanState.Set(allPlans[nextIndex]);
-    }
-
-    private void GoToPrevious()
-    {
-        if (allPlans.Count == 0) return;
-        var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan?.FolderName);
-        var prevIndex = (currentIndex - 1 + allPlans.Count) % allPlans.Count;
-        selectedPlanState.Set(allPlans[prevIndex]);
     }
 }

@@ -53,8 +53,8 @@ public interface IPlanDatabaseService : IDisposable
     void DeleteJob(string id);
 
     // PR statuses
-    Dictionary<string, string> GetAllPrStatuses();
-    void UpsertPrStatus(string prUrl, string owner, string repo, string status, DateTime lastChecked);
+    Dictionary<string, PrInfo> GetAllPrStatuses();
+    void UpsertPrStatus(string prUrl, string owner, string repo, string status, string branch, DateTime lastChecked);
     List<string> GetNonMergedPrUrls();
 
     // Diagnostics

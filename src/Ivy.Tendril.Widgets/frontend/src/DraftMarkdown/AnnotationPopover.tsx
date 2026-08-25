@@ -8,6 +8,10 @@ interface Position {
 
 interface AddAnnotationPopoverProps {
   position: Position;
+  /** False once the anchor has scrolled out of the shell's viewport. Hides
+   * (rather than unmounts) the popover so a half-typed comment survives
+   * scrolling the anchor back into view. Defaults to true. */
+  visible?: boolean;
   selectedText: string;
   onAdd: (comment: string) => void;
   onCancel: () => void;
@@ -15,6 +19,7 @@ interface AddAnnotationPopoverProps {
 
 export const AddAnnotationPopover: React.FC<AddAnnotationPopoverProps> = ({
   position,
+  visible = true,
   selectedText,
   onAdd,
   onCancel,
@@ -49,7 +54,11 @@ export const AddAnnotationPopover: React.FC<AddAnnotationPopoverProps> = ({
   }, [comment, onAdd]);
 
   return createPortal(
-    <div ref={popoverRef} className="pmv-popover" style={{ top: position.top, left: position.left }}>
+    <div
+      ref={popoverRef}
+      className="pmv-popover"
+      style={{ top: position.top, left: position.left, visibility: visible ? "visible" : "hidden" }}
+    >
       <div className="pmv-popover-quote">
         &ldquo;{selectedText.slice(0, 50)}
         {selectedText.length > 50 ? "..." : ""}&rdquo;
@@ -72,7 +81,11 @@ export const AddAnnotationPopover: React.FC<AddAnnotationPopoverProps> = ({
         <button type="button" className="pmv-popover-btn pmv-popover-btn--ghost" onClick={onCancel}>
           Cancel
         </button>
-        <button type="button" className="pmv-popover-btn pmv-popover-btn--primary" onClick={handleSubmit}>
+        <button
+          type="button"
+          className="pmv-popover-btn pmv-popover-btn--primary"
+          onClick={handleSubmit}
+        >
           Add
         </button>
       </div>
@@ -83,6 +96,10 @@ export const AddAnnotationPopover: React.FC<AddAnnotationPopoverProps> = ({
 
 interface EditAnnotationPopoverProps {
   position: Position;
+  /** False once the anchor has scrolled out of the shell's viewport. Hides
+   * (rather than unmounts) the popover so in-progress edits survive
+   * scrolling the anchor back into view. Defaults to true. */
+  visible?: boolean;
   annotation: { selectedText: string; comment: string };
   onSave: (comment: string) => void;
   onRemove: () => void;
@@ -91,6 +108,7 @@ interface EditAnnotationPopoverProps {
 
 export const EditAnnotationPopover: React.FC<EditAnnotationPopoverProps> = ({
   position,
+  visible = true,
   annotation,
   onSave,
   onRemove,
@@ -126,7 +144,11 @@ export const EditAnnotationPopover: React.FC<EditAnnotationPopoverProps> = ({
   }, [comment, onSave]);
 
   return createPortal(
-    <div ref={popoverRef} className="pmv-popover" style={{ top: position.top, left: position.left }}>
+    <div
+      ref={popoverRef}
+      className="pmv-popover"
+      style={{ top: position.top, left: position.left, visibility: visible ? "visible" : "hidden" }}
+    >
       <div className="pmv-popover-quote">
         &ldquo;{annotation.selectedText.slice(0, 50)}
         {annotation.selectedText.length > 50 ? "..." : ""}&rdquo;
@@ -146,14 +168,26 @@ export const EditAnnotationPopover: React.FC<EditAnnotationPopoverProps> = ({
         }}
       />
       <div className="pmv-popover-actions pmv-popover-actions--between">
-        <button type="button" className="pmv-popover-btn pmv-popover-btn--danger" onClick={onRemove}>
+        <button
+          type="button"
+          className="pmv-popover-btn pmv-popover-btn--danger"
+          onClick={onRemove}
+        >
           Remove
         </button>
         <div className="pmv-popover-actions pmv-popover-actions--end">
-          <button type="button" className="pmv-popover-btn pmv-popover-btn--ghost" onClick={onCancel}>
+          <button
+            type="button"
+            className="pmv-popover-btn pmv-popover-btn--ghost"
+            onClick={onCancel}
+          >
             Cancel
           </button>
-          <button type="button" className="pmv-popover-btn pmv-popover-btn--primary" onClick={handleSave}>
+          <button
+            type="button"
+            className="pmv-popover-btn pmv-popover-btn--primary"
+            onClick={handleSave}
+          >
             Save
           </button>
         </div>
@@ -165,15 +199,25 @@ export const EditAnnotationPopover: React.FC<EditAnnotationPopoverProps> = ({
 
 interface SelectionToolbarProps {
   position: Position;
+  /** False once the anchor has scrolled out of the shell's viewport. Hides
+   * (rather than unmounts) the toolbar. Defaults to true. */
+  visible?: boolean;
   onAddComment: () => void;
 }
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 const ADD_COMMENT_SHORTCUT = isMac ? "⌘⌥M" : "Ctrl+Alt+M";
 
-export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({ position, onAddComment }) => {
+export const SelectionToolbar: React.FC<SelectionToolbarProps> = ({
+  position,
+  visible = true,
+  onAddComment,
+}) => {
   return createPortal(
-    <div className="pmv-selection-toolbar" style={{ top: position.top, left: position.left }}>
+    <div
+      className="pmv-selection-toolbar"
+      style={{ top: position.top, left: position.left, visibility: visible ? "visible" : "hidden" }}
+    >
       <button
         type="button"
         className="pmv-selection-toolbar-btn"

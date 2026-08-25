@@ -23,16 +23,22 @@ public class HashPasswordCommandTests
     [Fact]
     public void Handle_ValidArgs_ReturnsZero()
     {
-        var result = HashPasswordCommand.Handle(["hash-password", "test123"]);
-        Assert.Equal(0, result);
+        lock (TestLocks.ConsoleLock)
+        {
+            var result = HashPasswordCommand.Handle(["hash-password", "test123"]);
+            Assert.Equal(0, result);
+        }
     }
 
     [Fact]
     public void Handle_WithExistingSecret_ReturnsZero()
     {
-        var secret = Convert.ToBase64String(new byte[32]);
-        var result = HashPasswordCommand.Handle(["hash-password", "test123", secret]);
-        Assert.Equal(0, result);
+        lock (TestLocks.ConsoleLock)
+        {
+            var secret = Convert.ToBase64String(new byte[32]);
+            var result = HashPasswordCommand.Handle(["hash-password", "test123", secret]);
+            Assert.Equal(0, result);
+        }
     }
 
     [Fact]

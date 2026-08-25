@@ -44,8 +44,15 @@ public class PromptwareDryRunTests : IDisposable
     {
         Environment.SetEnvironmentVariable("TENDRIL_HOME", _originalTendrilHome);
         Environment.SetEnvironmentVariable("TENDRIL_PLANS", _originalTendrilPlans);
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, true);
+        try
+        {
+            if (Directory.Exists(_tempDir))
+                Directory.Delete(_tempDir, true);
+        }
+        catch
+        {
+            // Best effort cleanup
+        }
     }
 
     private void WriteConfig()
@@ -106,28 +113,33 @@ public class PromptwareDryRunTests : IDisposable
 
     private static IAgentRunner CreateRunner() => TestAgentRunner.Create();
 
+    private static readonly object ConsoleLock = new();
+
     private string RunDryRun(string promptware, string[]? values = null, string? plan = null)
     {
-        var command = new PromptwareRunCommand(CreateRunner(), NullLogger<PromptwareRunCommand>.Instance);
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
-        try
+        lock (ConsoleLock)
         {
-            command.Run(new PromptwareRunSettings
+            var command = new PromptwareRunCommand(CreateRunner(), NullLogger<PromptwareRunCommand>.Instance);
+            var originalOut = Console.Out;
+            var sw = new StringWriter();
+            Console.SetOut(sw);
+            try
             {
-                Promptware = promptware,
-                DryRun = true,
-                ConfigPath = _configPath,
-                PromptwarePath = _promptwarePath,
-                Values = values,
-                Plan = plan
-            });
-            return sw.ToString();
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
+                command.Run(new PromptwareRunSettings
+                {
+                    Promptware = promptware,
+                    DryRun = true,
+                    ConfigPath = _configPath,
+                    PromptwarePath = _promptwarePath,
+                    Values = values,
+                    Plan = plan
+                });
+                return sw.ToString();
+            }
+            finally
+            {
+                Console.SetOut(originalOut);
+            }
         }
     }
 
@@ -341,27 +353,30 @@ public class PromptwareDryRunTests : IDisposable
     [Fact]
     public void DryRun_DoesNotLaunchProcess()
     {
-        // Dry-run with a non-existent agent command — should not error since no process is started
-        var command = new PromptwareRunCommand(CreateRunner(), NullLogger<PromptwareRunCommand>.Instance);
-        var originalOut = Console.Out;
-        using var sw = new StringWriter();
-        Console.SetOut(sw);
-        try
+        lock (ConsoleLock)
         {
-            var exitCode = command.Run(new PromptwareRunSettings
+            // Dry-run with a non-existent agent command — should not error since no process is started
+            var command = new PromptwareRunCommand(CreateRunner(), NullLogger<PromptwareRunCommand>.Instance);
+            var originalOut = Console.Out;
+            var sw = new StringWriter();
+            Console.SetOut(sw);
+            try
             {
-                Promptware = "CreatePlan",
-                DryRun = true,
-                ConfigPath = _configPath,
-                PromptwarePath = _promptwarePath,
-                Agent = "claude",
-                Values = ["PlansDirectory=/tmp"]
-            });
-            Assert.Equal(0, exitCode);
-        }
-        finally
-        {
-            Console.SetOut(originalOut);
+                var exitCode = command.Run(new PromptwareRunSettings
+                {
+                    Promptware = "CreatePlan",
+                    DryRun = true,
+                    ConfigPath = _configPath,
+                    PromptwarePath = _promptwarePath,
+                    Agent = "claude",
+                    Values = ["PlansDirectory=/tmp"]
+                });
+                Assert.Equal(0, exitCode);
+            }
+            finally
+            {
+                Console.SetOut(originalOut);
+            }
         }
     }
 }

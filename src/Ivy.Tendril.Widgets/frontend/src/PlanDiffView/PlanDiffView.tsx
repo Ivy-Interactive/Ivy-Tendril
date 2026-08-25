@@ -1,5 +1,4 @@
-import React, { useMemo, useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
-import { createPortal } from "react-dom";
+import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { parseDiff, Diff, Hunk, getChangeKey, tokenize, type ChangeData, type HunkData } from "react-diff-view";
 import "react-diff-view/style/index.css";
 import "./plan-diff.css";
@@ -7,7 +6,7 @@ import Markdown from "react-markdown";
 type IvyEventHandler = (eventName: string, widgetId: string, args: any[]) => void;
 import { getWidth, getHeight } from "../styles";
 import { getMarkdownPlugins } from "../math";
-import { Pencil, Trash2, MoreHorizontal, MessageSquare } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import { refractor } from "refractor/all";
 import { prismTheme } from "../prismTheme";
 
@@ -124,10 +123,6 @@ export function getLanguageFromFilePath(filePath: string): string {
 /** Container width (px) below which the diff is too cramped for a side-by-side (split) view. */
 export const NARROW_BREAKPOINT = 768;
 
-const DROPDOWN_MENU_WIDTH = 144; // w-36
-const DROPDOWN_MENU_HEIGHT_ESTIMATE = 110;
-const DROPDOWN_MENU_GAP = 4;
-
 interface DraftComment {
   filePath: string;
   changeKey: string;
@@ -185,7 +180,7 @@ export function useIsNarrow(): [React.RefObject<HTMLDivElement | null>, boolean]
       setIsNarrow((prev) => (prev === next ? prev : next));
     };
 
-    update(element.clientWidth);
+    update(element.clientWidth || element.getBoundingClientRect?.().width || 0);
 
     const observer = new ResizeObserver((entries) => {
       if (entries.length === 0) return;
@@ -349,71 +344,27 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
   const files = useMemo(() => {
     if (!diff) return [];
     try {
-      return parseDiff(diff);
+      const parsed = parseDiff(diff);
+      if (parsed && parsed.length > 0) return parsed;
+      const p = filePath || "file";
+      const syntheticDiff = `diff --git a/${p} b/${p}\n--- a/${p}\n+++ b/${p}\n${diff}`;
+      return parseDiff(syntheticDiff);
     } catch {
       return [];
     }
-  }, [diff]);
+  }, [diff, filePath]);
 
-  const [collapsedState, setCollapsedState] = useState<Record<number, boolean>>({});
+  const [viewedState, setViewedState] = useState<Record<string, boolean>>({});
   const [activeFormKeys, setActiveFormKeys] = useState<Record<string, boolean>>({});
   const [editingCommentKeys, setEditingCommentKeys] = useState<Record<string, string>>({});
-  const [activeDropdownIndex, setActiveDropdownIndex] = useState<number | null>(null);
-  const [commentsHidden, setCommentsHidden] = useState<Record<number, boolean>>({});
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
-  const dropdownTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const dropdownMenuRef = useRef<HTMLDivElement | null>(null);
-
-  const updateDropdownPosition = useCallback(() => {
-    const trigger = dropdownTriggerRef.current;
-    if (!trigger) return;
-    const rect = trigger.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom - DROPDOWN_MENU_GAP;
-    const spaceAbove = rect.top - DROPDOWN_MENU_GAP;
-    const flipUp = spaceBelow < DROPDOWN_MENU_HEIGHT_ESTIMATE && spaceAbove > spaceBelow;
-    const left = Math.max(
-      4,
-      Math.min(rect.right - DROPDOWN_MENU_WIDTH, window.innerWidth - DROPDOWN_MENU_WIDTH - 4)
-    );
-
-    setDropdownStyle({
-      position: "fixed",
-      left,
-      width: DROPDOWN_MENU_WIDTH,
-      top: flipUp ? undefined : rect.bottom + DROPDOWN_MENU_GAP,
-      bottom: flipUp ? window.innerHeight - rect.top + DROPDOWN_MENU_GAP : undefined,
-      zIndex: 1000,
-    });
-  }, []);
-
-  useLayoutEffect(() => {
-    if (activeDropdownIndex === null) return;
-    updateDropdownPosition();
-  }, [activeDropdownIndex, updateDropdownPosition]);
+  const [commentsHidden, setCommentsHidden] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    if (activeDropdownIndex === null) return;
-    const handleOutsideClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.closest(".diff-more-actions-container")) return;
-      if (dropdownMenuRef.current?.contains(target)) return;
-      setActiveDropdownIndex(null);
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setActiveDropdownIndex(null);
-    };
-    const onReposition = () => updateDropdownPosition();
-    document.addEventListener("click", handleOutsideClick);
-    document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", onReposition);
-    window.addEventListener("scroll", onReposition, true);
-    return () => {
-      document.removeEventListener("click", handleOutsideClick);
-      document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", onReposition);
-      window.removeEventListener("scroll", onReposition, true);
-    };
-  }, [activeDropdownIndex, updateDropdownPosition]);
+    setViewedState({});
+    setCommentsHidden({});
+    setActiveFormKeys({});
+    setEditingCommentKeys({});
+  }, [id, diff, filePath]);
 
   const [containerRef, isNarrow] = useIsNarrow();
   const diffViewType = viewType === "Split" ? "split" : "unified";
@@ -524,15 +475,15 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       const oldName = rawOld === "/dev/null" ? "" : rawOld;
       const newName = rawNew === "/dev/null" ? "" : rawNew;
       const isRename = oldName !== newName && oldName !== "" && newName !== "";
-      const hasHeader = Boolean(oldName || newName);
+      const hasHeader = Boolean(oldName || newName || filePath || collapsible);
       const elementId = filePath || `${id}-${file.newPath || file.oldPath || `diff-${fileIndex}`}`;
       const label = isRename
         ? `${getBasename(oldName)} → ${getBasename(newName)}`
-        : getBasename(newName || oldName) || `Diff ${fileIndex + 1}`;
+        : getBasename(newName || oldName || filePath) || `Diff ${fileIndex + 1}`;
 
       return { oldName, newName, isRename, hasHeader, elementId, label };
     });
-  }, [files, id, oldRevision, newRevision, filePath]);
+  }, [files, id, oldRevision, newRevision, filePath, collapsible]);
 
   const scrollToFile = useCallback((elementId: string) => {
     if (typeof document === "undefined") return;
@@ -540,6 +491,29 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       .getElementById(elementId)
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
+
+  // Pre-tokenize all files and hunks once when files/language change, instead of synchronously tokenizing on every render
+  const tokensByFile = useMemo(() => {
+    return files.map((file, fileIndex) => {
+      const meta = fileMeta[fileIndex];
+      const effectiveFilePath = filePath || meta?.newName || meta?.oldName || "";
+      const fileLang = language || getLanguageFromFilePath(effectiveFilePath);
+      if (file.hunks && file.hunks.length > 0) {
+        try {
+          if (fileLang && refractor.registered(fileLang)) {
+            return tokenize(file.hunks, {
+              highlight: true,
+              refractor: refractorAdapter,
+              language: fileLang,
+            });
+          }
+        } catch {
+          // Fallback if language tokenization fails
+        }
+      }
+      return undefined;
+    });
+  }, [files, fileMeta, filePath, language]);
 
   const style: React.CSSProperties = {
     ...getWidth(width),
@@ -604,14 +578,16 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       {files.map((file, fileIndex) => {
         const { oldName, newName, isRename, hasHeader, elementId } = fileMeta[fileIndex];
         const effectiveFilePath = filePath || newName || oldName;
+        const fileKey = effectiveFilePath || file.newPath || file.oldPath || `diff-${fileIndex}`;
 
-        const isCollapsed = collapsedState[fileIndex] ?? defaultCollapsed;
+        const isViewed = viewedState[fileKey] ?? false;
+        const isCollapsed = collapsible ? isViewed : defaultCollapsed;
 
-        const toggleCollapsed = () => {
+        const toggleViewed = () => {
           if (!collapsible) return;
-          setCollapsedState((prev) => ({
+          setViewedState((prev) => ({
             ...prev,
-            [fileIndex]: !isCollapsed,
+            [fileKey]: !isViewed,
           }));
         };
 
@@ -655,7 +631,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
           <div
             key={fileIndex}
             id={elementId}
-            className={`border border-[var(--border)] rounded-md ${isCollapsed ? "mb-0" : "mb-1.5"} bg-[var(--background)] overflow-clip`}
+            className={`ivy-diff-file border border-[var(--border)] rounded-md ${isCollapsed ? "mb-0" : "mb-1.5"} bg-[var(--background)] overflow-clip`}
             style={{ scrollMarginTop: showFileDropdown ? "2rem" : 0 }}
           >
             {hasHeader && (
@@ -667,7 +643,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
               >
                 <div
                   className="flex items-center gap-2 cursor-pointer select-none grow min-w-0"
-                  onClick={collapsible ? toggleCollapsed : undefined}
+                  onClick={collapsible ? toggleViewed : undefined}
                 >
                   {collapsible && (
                     <svg
@@ -688,7 +664,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                     </div>
                   ) : (
                     <div className="truncate">
-                      {renderFilePath(newName || oldName)}
+                      {renderFilePath(newName || oldName || filePath || "Diff")}
                     </div>
                   )}
                 </div>
@@ -707,24 +683,21 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                   <button
                     type="button"
                     role="checkbox"
-                    aria-checked={isCollapsed}
+                    aria-checked={isViewed}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setCollapsedState((prev) => ({
-                        ...prev,
-                        [fileIndex]: !isCollapsed,
-                      }));
+                      toggleViewed();
                     }}
                     className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] cursor-pointer select-none font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)] rounded px-1 py-0.5"
                   >
                     <span
                       className={`size-3.5 shrink-0 rounded-sm border transition-colors flex items-center justify-center ${
-                        isCollapsed
+                        isViewed
                           ? "bg-[var(--primary)] text-[var(--primary-foreground)] border-[var(--primary)]"
                           : "border-[var(--border)] bg-[var(--background)] hover:bg-[var(--accent)]"
                       }`}
                     >
-                      {isCollapsed && (
+                      {isViewed && (
                         <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="2 6 5 9 10 3" />
                         </svg>
@@ -736,7 +709,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                   {/* Comment count / visibility toggle */}
                   {(() => {
                     const fileCommentCount = comments.length;
-                    const hidden = commentsHidden[fileIndex] ?? false;
+                    const hidden = commentsHidden[fileKey] ?? false;
                     return (
                       <button
                         type="button"
@@ -754,7 +727,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                         onClick={(e) => {
                           e.stopPropagation();
                           if (fileCommentCount === 0) return;
-                          setCommentsHidden((prev) => ({ ...prev, [fileIndex]: !hidden }));
+                          setCommentsHidden((prev) => ({ ...prev, [fileKey]: !hidden }));
                         }}
                       >
                         <MessageSquare className="w-3.5 h-3.5" />
@@ -764,108 +737,40 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                       </button>
                     );
                   })()}
-
-                  {/* More actions button & dropdown */}
-                  <div className="diff-more-actions-container relative">
-                    <button
-                      type="button"
-                      aria-label="More actions"
-                      className="p-1 rounded hover:bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors flex items-center justify-center cursor-pointer"
-                      ref={(node) => {
-                        if (activeDropdownIndex === fileIndex) {
-                          dropdownTriggerRef.current = node;
-                        }
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveDropdownIndex(prev => prev === fileIndex ? null : fileIndex);
-                      }}
-                    >
-                      <MoreHorizontal className="w-3.5 h-3.5" />
-                    </button>
-                    {activeDropdownIndex === fileIndex && createPortal(
-                      <div
-                        ref={dropdownMenuRef}
-                        style={dropdownStyle}
-                        className="diff-more-actions-menu bg-[var(--background)] border border-[var(--border)] rounded-md shadow-lg py-1 text-xs"
-                      >
-                        <button
-                          type="button"
-                          className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--muted)] text-[var(--foreground)] text-left cursor-pointer"
-                          onClick={() => {
-                            setActiveDropdownIndex(null);
-                            dispatchEvent?.("OnEditFile", id, [effectiveFilePath]);
-                          }}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                          Edit file
-                        </button>
-                        <button
-                          type="button"
-                          className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-destructive/10 text-[var(--destructive)] text-left border-t border-[var(--border)] cursor-pointer"
-                          onClick={() => {
-                            setActiveDropdownIndex(null);
-                            dispatchEvent?.("OnDeleteFile", id, [effectiveFilePath]);
-                          }}
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-[var(--destructive)]" />
-                          Delete file
-                        </button>
-                      </div>,
-                      document.body
-                    )}
-                  </div>
                 </div>
               </div>
             )}
-            {!isCollapsed && (() => {
-              const fileLang = language || getLanguageFromFilePath(effectiveFilePath);
-              let fileTokens: any = undefined;
-              if (file.hunks && file.hunks.length > 0) {
-                try {
-                  if (fileLang && refractor.registered(fileLang)) {
-                    fileTokens = tokenize(file.hunks, {
-                      highlight: true,
-                      refractor: refractorAdapter,
-                      language: fileLang,
-                    });
+            {!isCollapsed && (
+              <div className="overflow-x-auto">
+                <Diff
+                  className={`${effectiveViewType === "unified" ? "diff-unified-view" : "diff-split-view"} ${deletions === 0 && additions > 0 ? "diff-no-deletions" : ""} ${additions === 0 && deletions > 0 ? "diff-no-additions" : ""}`}
+                  viewType={effectiveViewType}
+                  diffType={file.type}
+                  hunks={file.hunks}
+                  tokens={tokensByFile[fileIndex]}
+                  renderToken={customRenderToken}
+                  widgets={getWidgets(file.hunks, commentsHidden[fileKey] ?? false)}
+                  gutterEvents={{
+                    onClick: ({ change }) => {
+                      if (change) {
+                        const changeKey = getChangeKey(change);
+                        setActiveFormKeys((prev) => ({ ...prev, [changeKey]: !prev[changeKey] }));
+                      }
+                    },
+                  }}
+                >
+                  {(hunks) =>
+                    hunks.map((hunk) => (
+                      <Hunk key={hunk.content} hunk={hunk} />
+                    ))
                   }
-                } catch {
-                  // Fallback if language tokenization fails
-                }
-              }
-
-              return (
-                <div className="overflow-x-auto">
-                  <Diff
-                    className={`${effectiveViewType === "unified" ? "diff-unified-view" : "diff-split-view"} ${deletions === 0 && additions > 0 ? "diff-no-deletions" : ""} ${additions === 0 && deletions > 0 ? "diff-no-additions" : ""}`}
-                    viewType={effectiveViewType}
-                    diffType={file.type}
-                    hunks={file.hunks}
-                    tokens={fileTokens}
-                    renderToken={customRenderToken}
-                    widgets={getWidgets(file.hunks, commentsHidden[fileIndex] ?? false)}
-                    gutterEvents={{
-                      onClick: ({ change }) => {
-                        if (change) {
-                          const changeKey = getChangeKey(change);
-                          setActiveFormKeys((prev) => ({ ...prev, [changeKey]: !prev[changeKey] }));
-                        }
-                      },
-                    }}
-                  >
-                    {(hunks) =>
-                      hunks.map((hunk) => (
-                        <Hunk key={hunk.content} hunk={hunk} />
-                      ))
-                    }
-                  </Diff>
-                </div>
-              );
-            })()}
+                </Diff>
+              </div>
+            )}
           </div>
         );
       })}
     </div>
   );
 };
+
