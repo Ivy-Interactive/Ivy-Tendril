@@ -2,6 +2,13 @@ import { test, expect } from "../../fixtures/widget-test.js";
 import type { Locator, Page } from "@playwright/test";
 import { navigateToApp, waitForDraftMarkdown } from "../../utils/ivy.js";
 
+/**
+ * The block holding a given question, addressed by that question rather than by position — the
+ * sample grows blocks, and an index would silently point at the wrong one when it does.
+ */
+const blockFor = (page: Page, questionId: string) =>
+  page.locator(`.pmv-questions:has([data-question-id="${questionId}"])`);
+
 /** Whether the whole block sits inside the widget's own scroll viewport. */
 async function inFrame(page: Page, block: Locator): Promise<boolean> {
   const shell = page.locator(".pmv-shell");
@@ -17,7 +24,7 @@ test.describe("DraftMarkdown Questions", () => {
   });
 
   test("renders the picker with a recommended chip", async ({ page, stepScreenshot }) => {
-    const callout = page.locator(".pmv-questions").first();
+    const callout = blockFor(page, "retry-scope");
     await expect(callout).toBeVisible();
 
     // Option rows, not raw YAML.
@@ -43,12 +50,12 @@ test.describe("DraftMarkdown Questions", () => {
     const card = page.locator(".pmv-sticky");
     const entry = card.getByRole("button", { name: /retry budget/ });
 
-    await expect(card.getByText("1 of 4 answered")).toBeVisible();
+    await expect(card.getByText("3 of 8 answered")).toBeVisible();
     await expect(entry).not.toHaveCSS("text-decoration-line", "line-through");
 
-    await page.locator(".pmv-questions").first().locator(".pmv-question-check").first().click();
+    await blockFor(page, "retry-scope").locator(".pmv-question-check").first().click();
 
-    await expect(card.getByText("2 of 4 answered")).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByText("4 of 8 answered")).toBeVisible({ timeout: 15_000 });
     await expect(entry).toHaveCSS("text-decoration-line", "line-through", { timeout: 15_000 });
 
     await stepScreenshot("answered-struck-out");
@@ -59,7 +66,7 @@ test.describe("DraftMarkdown Questions", () => {
     stepScreenshot,
   }) => {
     const card = page.locator(".pmv-sticky");
-    const block = page.locator(".pmv-questions").nth(2);
+    const block = blockFor(page, "service-name");
 
     // The last block is well below the fold on load.
     await expect(await inFrame(page, block)).toBe(false);
@@ -81,7 +88,7 @@ test.describe("DraftMarkdown Questions", () => {
   test("an answer is merged back into the document", async ({ page, stepScreenshot }) => {
     // This sample persists: it feeds every event through QuestionAnswers.Apply and hands the widget
     // the updated markdown, so a selection has to survive the round trip and come back rendered.
-    const callout = page.locator(".pmv-questions").first();
+    const callout = blockFor(page, "retry-scope");
     await expect(callout.locator(".pmv-question-option--selected")).toHaveCount(0);
 
     await callout.locator(".pmv-question-check").first().click();
@@ -100,7 +107,7 @@ test.describe("DraftMarkdown Questions", () => {
   });
 
   test("a multi-select answer accumulates", async ({ page }) => {
-    const callout = page.locator(".pmv-questions").nth(1);
+    const callout = blockFor(page, "launch-channels");
 
     await callout.locator(".pmv-question-check").first().click();
     await expect(callout.locator(".pmv-question-option--selected")).toHaveCount(1, { timeout: 15_000 });
@@ -113,7 +120,7 @@ test.describe("DraftMarkdown Questions", () => {
   test("both questions of a block are on screen at once", async ({ page, stepScreenshot }) => {
     // The third block holds two free-text questions. They stack rather than tab, so both are
     // answerable without first finding the second one.
-    const callout = page.locator(".pmv-questions").nth(2);
+    const callout = blockFor(page, "service-name");
     await expect(callout.locator(".pmv-question")).toHaveCount(2);
     await expect(callout.locator(".pmv-questions-tab")).toHaveCount(0);
 
@@ -130,7 +137,7 @@ test.describe("DraftMarkdown Questions", () => {
 
     // Answering the first leaves the second alone.
     await callout.locator(".pmv-question-other-input").first().fill("dispatch");
-    await expect(page.locator(".pmv-sticky").getByText("3 of 4 answered")).toBeVisible({
+    await expect(page.locator(".pmv-sticky").getByText("4 of 8 answered")).toBeVisible({
       timeout: 15_000,
     });
     await expect(callout.locator(".pmv-question-skipped")).toHaveCount(1);
@@ -138,20 +145,20 @@ test.describe("DraftMarkdown Questions", () => {
 
   test("Clear appears only once there is an answer, and retires with it", async ({ page }) => {
     const card = page.locator(".pmv-sticky");
-    const callout = page.locator(".pmv-questions").first();
+    const callout = blockFor(page, "retry-scope");
 
     // Nothing answered yet, so there is nothing to clear.
     await expect(callout.locator(".pmv-question-clear")).toHaveCount(0);
 
     await callout.locator(".pmv-question-check").first().click();
     await expect(callout.locator(".pmv-question-clear")).toHaveCount(1, { timeout: 15_000 });
-    await expect(card.getByText("2 of 4 answered")).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByText("4 of 8 answered")).toBeVisible({ timeout: 15_000 });
 
     await callout.locator(".pmv-question-clear").click();
 
     // Back to unanswered on both sides: the button retires and the index entry un-strikes.
     await expect(callout.locator(".pmv-question-clear")).toHaveCount(0, { timeout: 15_000 });
-    await expect(card.getByText("1 of 4 answered")).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByText("3 of 8 answered")).toBeVisible({ timeout: 15_000 });
   });
 
   test("a documentation fence stays a code block", async ({ page }) => {
@@ -180,7 +187,7 @@ test.describe("DraftMarkdown Questions", () => {
   });
 
   test("dragging across the picker raises no selection toolbar", async ({ page, stepScreenshot }) => {
-    const callout = page.locator(".pmv-questions").first();
+    const callout = blockFor(page, "retry-scope");
     const box = await callout.boundingBox();
     expect(box).not.toBeNull();
 

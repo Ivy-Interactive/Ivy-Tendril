@@ -542,14 +542,16 @@ A failed pre-execution (step 1.7) is signalled by `Verification/PreExecution.md`
 
 You are running in non-interactive mode and CANNOT ask questions. If you are unsure about requirements, encounter conflicting instructions, or cannot find referenced files — STOP and fail with a clear message explaining what needs clarification. Do NOT guess when uncertain.
 
-**Unanswered question blocks.** Before doing any work, scan the plan revision you read in step 1 for any fenced `questions` block (see the **Question Blocks** section of **Reference Documents**). If any question in it has no `answer` key, the plan is not ready:
+**Unanswered question blocks.** Before doing any work, scan the plan revision you read  in step 1 for any fenced `questions` block (see the **Question Blocks** section of **Reference Documents**).
 
-```bash
-tendril job fail TendrilJobId --message="Plan has an unanswered question; answer it and run UpdatePlan"
-exit 1
-```
+An unanswered question is **not** a failure. The user saw the block and chose not to answer, which is a decision in itself: it means *you* decide. Resolve each one yourself, in this order:
 
-Guessing at an open question wastes an execution. A block that is fully answered but still present — the user executed without running UpdatePlan first — is not a failure: honor the answers as decisions and continue. ExecutePlan never writes revisions, so it never adds question blocks.
+1. **Take the `recommended` option** if the question has one. It is the asking agent's own choice, made with the plan in front of it.
+2. **Otherwise pick the most reasonable answer** from the options, or — for a free-text question — from the plan and the code. Prefer the option that is smallest in scope and easiest to change later.
+
+Record every question you resolved this way in the execution log with the answer you picked and the one-line reason, so the decision is auditable and the next revision can fold it in. Then continue.
+
+A question that already carries an `answer` is a decision the user made: honor it exactly, and never re-decide it. A block that is fully answered but still present — the user executed without running UpdatePlan first — is likewise not a failure. ExecutePlan never writes revisions, so it never adds or edits question blocks.
 
 ### Rules
 

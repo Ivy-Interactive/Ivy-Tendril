@@ -92,6 +92,46 @@ describe("parseQuestions shapes", () => {
   });
 });
 
+describe("YAML scalars that are not strings", () => {
+  // The schema calls these fields strings, but YAML disagrees: `4.2` is a number and `yes` is a
+  // boolean. The C# validator coerces them, so a block using them lints clean and must render.
+  const NUMERIC = body(
+    "questions:",
+    "  - id: release",
+    "    title: 4.2",
+    "    options:",
+    "      - title: 4.2",
+    "        value: 42",
+    "      - title: 4.3",
+    "        value: 43",
+    "    answer: 43",
+  );
+
+  it("reads a numeric title and value as the text the author wrote", () => {
+    const parsed = parseQuestions(NUMERIC);
+    if (parsed.kind !== "questions") throw new Error("expected questions");
+
+    const question = parsed.questions[0];
+    expect(question.title).toBe("4.2");
+    expect(question.options!.map((o) => o.title)).toEqual(["4.2", "4.3"]);
+    expect(question.options!.map((o) => o.value)).toEqual(["42", "43"]);
+  });
+
+  it("matches a numeric answer against the option it names", () => {
+    const parsed = parseQuestions(NUMERIC);
+    if (parsed.kind !== "questions") throw new Error("expected questions");
+
+    expect(answerEntries(parsed.questions[0])).toEqual(["43"]);
+  });
+
+  it("reads a numeric id, so the question is still addressable", () => {
+    const parsed = parseQuestions(body("questions:", "  - id: 2024", "    title: Which year?"));
+    if (parsed.kind !== "questions") throw new Error("expected questions");
+
+    expect(parsed.questions[0].id).toBe("2024");
+  });
+});
+
 describe("parseQuestions defaults", () => {
   it("treats other as true and multiple as false when absent", () => {
     const parsed = parseQuestions(MULTI_SELECT);

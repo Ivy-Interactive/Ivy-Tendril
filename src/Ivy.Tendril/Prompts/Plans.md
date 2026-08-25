@@ -355,9 +355,15 @@ Three shapes fall out of `multiple` / `other` / the presence of `options`:
 - An entry that matches nothing is the user's own text. Legal when `other` is true, or when there are
   no options.
 - `multiple: true` means `answer` is always a list, even with one selection.
-- `answer` absent means not yet answered. Carry the block forward unchanged.
+- `answer` absent means not yet answered. UpdatePlan carries the block forward unchanged.
 - `answer: null` means asked and deliberately skipped. Treat it as "you decide", record the decision
   in the plan, and retire the block.
+
+An unanswered question never blocks execution. ExecutePlan and RetryPlan resolve one themselves —
+taking the `recommended` option when there is one, otherwise the most reasonable answer they can
+defend — and log the choice. Leaving a question unanswered is a way of saying "you decide", not a
+way of stopping the plan. That is why `recommended: true` matters: it is the default execution will
+actually take.
 
 ### Lint rules
 

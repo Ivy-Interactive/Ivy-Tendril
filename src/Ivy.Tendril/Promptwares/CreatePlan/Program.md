@@ -448,8 +448,8 @@ When you hit a genuine ambiguity, ask the user with a fenced `questions` block. 
 - Ask only about an ambiguity that research cannot settle and that changes what gets built. A question you can answer by reading the code is not a question, it is research you skipped.
 - Emit one or more blocks of 1-4 questions each. Place each block where it is most relevant: right after the H1 for a scope-level question, or inline under the `## Solution` subsection it concerns for a narrower design question.
 - Never write an `answer` key. CreatePlan asks; it never answers.
-- Prefer options with `recommended: true` on the one you would pick, so an unanswered plan still has a defensible default.
-- The plan must remain executable if nobody answers: state the fallback in `## Solution`.
+- Put `recommended: true` on the option you would pick. This is load-bearing, not decoration: an unanswered question is resolved at execution time by taking the recommended option, so a question without one leaves ExecutePlan to invent an answer.
+- The plan must remain executable if nobody answers, because nobody answering is a supported outcome — it means "you decide". State the fallback in `## Solution`.
 - There is no `## Questions` section any more. Do not write one.
 - `write-revision` rejects a malformed block and writes nothing; fix the reported lines and retry.
 

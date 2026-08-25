@@ -46,17 +46,36 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * A YAML scalar as the string the author wrote.
+ *
+ * The schema says these fields are strings, but YAML decides otherwise: an option titled `4.2` or
+ * valued `2024` parses as a number, and a `title: yes` as a boolean. The C# validator accepts all
+ * of them — YamlDotNet coerces a scalar into a `string` field — so a block that lints clean would
+ * otherwise render blank here. Coerce rather than reject: the widget's job is to display a plan.
+ */
+function scalarString(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return undefined;
+}
+
+function requiredString(value: unknown): string {
+  return scalarString(value) ?? "";
+}
+
 function optionalString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
+  const text = scalarString(value);
+  return text !== undefined && text.length > 0 ? text : undefined;
 }
 
 function readOptions(raw: unknown): QuestionOption[] | undefined {
   if (!Array.isArray(raw)) return undefined;
 
   return raw.filter(isRecord).map((option) => ({
-    title: typeof option.title === "string" ? option.title : "",
+    title: requiredString(option.title),
     description: optionalString(option.description),
-    value: typeof option.value === "string" ? option.value : "",
+    value: requiredString(option.value),
     recommended: option.recommended === true,
   }));
 }
@@ -85,13 +104,13 @@ export function parseQuestions(body: string): ParsedQuestions {
   for (const entry of raw.questions) {
     if (!isRecord(entry)) return { kind: "invalid" };
 
-    const id = entry.id;
-    if (typeof id !== "string" || id.length === 0 || seen.has(id)) return { kind: "invalid" };
+    const id = scalarString(entry.id);
+    if (id === undefined || id.length === 0 || seen.has(id)) return { kind: "invalid" };
     seen.add(id);
 
     questions.push({
       id,
-      title: typeof entry.title === "string" ? entry.title : "",
+      title: requiredString(entry.title),
       header: optionalString(entry.header),
       description: optionalString(entry.description),
       multiple: entry.multiple === true,
@@ -113,8 +132,10 @@ export function parseQuestions(body: string): ParsedQuestions {
 export function answerEntries(question: PlanQuestion): string[] {
   if (!question.answerPresent || question.answer === null || question.answer === undefined) return [];
 
+  // Same coercion as the option values these are matched against, so `answer: 2024` still selects
+  // the option valued `2024`.
   const raw = Array.isArray(question.answer) ? question.answer : [question.answer];
-  return raw.filter((entry): entry is string => typeof entry === "string");
+  return raw.map(scalarString).filter((entry): entry is string => entry !== undefined);
 }
 
 /** `answer: null` — asked and deliberately skipped. */

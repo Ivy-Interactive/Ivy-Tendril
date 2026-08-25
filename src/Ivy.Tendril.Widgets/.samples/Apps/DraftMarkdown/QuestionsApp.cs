@@ -20,6 +20,13 @@ namespace WidgetSamples.Apps.DraftMarkdown;
 ///         <see cref="DraftMarkdownWidget.ScrollTo" /> takes you to whichever entry you click.
 ///         Answered entries strike through, so the card empties as the plan is settled.
 ///     </para>
+///     <para>
+///         Between them the four blocks cover the whole schema: a four-question block under the H1
+///         (the cap, and the scope-level placement the spec asks for), every shape from the shape
+///         table including multi-select over a fixed set, questions that arrive already answered
+///         with a scalar and with a list, one with no <c>header</c>, a skip, and a documentation
+///         fence that must never become a picker.
+///     </para>
 /// </summary>
 [App(title: "Questions", icon: Icons.CircleQuestionMark, group: ["DraftMarkdown"])]
 class QuestionsApp : ViewBase
@@ -27,8 +34,65 @@ class QuestionsApp : ViewBase
     private const string InitialMarkdown = """
         # Notification Delivery: Open Decisions
 
-        Three decisions are still open before the delivery pipeline can be built. Each is a
-        `questions` block, and each block demonstrates a different shape from the schema.
+        ```questions
+        questions:
+          - id: delivery-scope
+            title: How much of the pipeline is in scope for this plan?
+            header: Scope
+            description: |
+              A block placed directly under the H1, which is where a question about the
+              plan's overall scope belongs. Four questions is the cap, and they stack.
+            other: false
+            options:
+              - title: Dispatch only
+                description: The fan-out and the consumers. No settings UI.
+                value: dispatch
+                recommended: true
+              - title: Dispatch and preferences
+                description: Adds the per-channel settings page.
+                value: dispatch-prefs
+              - title: Everything
+                description: Dispatch, preferences and the operator dashboard.
+                value: everything
+          - id: target-release
+            title: Which release should this land in?
+            header: Release
+            description: Answered at the kickoff, so it arrives already filled in — this is
+              what a revision looks like after UpdatePlan has folded a decision back in.
+            other: false
+            options:
+              # Quoted, or YAML reads them as numbers. The renderer coerces either way, but a
+              # sample should model the authoring the schema actually asks for.
+              - title: "4.2"
+                value: four-two
+              - title: "4.3"
+                value: four-three
+                recommended: true
+            answer: four-three
+          - id: rollout-regions
+            title: Which regions ship first?
+            multiple: true
+            other: false
+            description: Multi-select over a fixed set — the third shape from the schema's
+              table, and the only one the other blocks below do not cover.
+            options:
+              - title: EU
+                value: eu
+                recommended: true
+              - title: US
+                value: us
+              - title: APAC
+                value: apac
+            answer:
+              - eu
+              - us
+          - id: kickoff-notes
+            title: Anything else the plan should account for?
+            description: No `header` on this one, so it leads with its title and no eyebrow.
+        ```
+
+        Three further decisions are open before the delivery pipeline can be built. Each block
+        below demonstrates a different shape from the schema.
 
         ## Retry policy
 
@@ -156,8 +220,8 @@ class QuestionsApp : ViewBase
         new()
         {
             Id = "prose",
-            StartOffset = 274,
-            EndOffset = 296,
+            StartOffset = 1123,
+            EndOffset = 1145,
             SelectedText = "Where the budget lives",
             Comment = "Ordinary prose annotates as usual.",
         },
@@ -167,8 +231,8 @@ class QuestionsApp : ViewBase
             // nothing. The picker is a form, and a <mark> spliced into it would fight React for
             // the DOM.
             Id = "question",
-            StartOffset = 619,
-            EndOffset = 657,
+            StartOffset = 1468,
+            EndOffset = 1506,
             SelectedText = "Should the retry budget be per-request",
             Comment = "Aimed at the question block — must not highlight.",
         },
@@ -177,8 +241,8 @@ class QuestionsApp : ViewBase
             // Guards the offset bookkeeping: a block's text is never highlighted but still counts
             // toward the offsets, so an annotation after one must not drift.
             Id = "after",
-            StartOffset = 1410,
-            EndOffset = 1427,
+            StartOffset = 2259,
+            EndOffset = 2276,
             SelectedText = "separate consumer",
             Comment = "After a block, so it proves the block's text still advances the offsets.",
         },
