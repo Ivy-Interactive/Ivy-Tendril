@@ -1,5 +1,6 @@
-using Ivy.Tendril.Helpers;
+﻿using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Telemetry;
 using Ivy.Tendril.Services.Jobs;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Apps.Views;
@@ -26,6 +27,7 @@ public class ProjectInputStepView(
         var tendrilArgs = UseService<TendrilArgs>();
         var jobService = UseService<IJobService>();
         var client = UseService<IClientProvider>();
+        var telemetry = UseService<ITelemetryService>();
 
         var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
 
@@ -64,6 +66,7 @@ public class ProjectInputStepView(
             };
             config.Settings.Projects.Add(newProj);
             try { config.SaveSettings(); } catch { }
+            telemetry?.TrackProjectCreated(new ProjectCreatedContext(newProj.Repos.Count, newProj.StackHash));
 
             jobService?.StartJob(new AddProjectArgs(newProj.Name, newProj.Repos));
             if (client != null)

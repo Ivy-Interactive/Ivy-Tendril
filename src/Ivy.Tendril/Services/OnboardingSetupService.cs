@@ -1,5 +1,6 @@
-using Ivy.Tendril.Agents.Abstractions;
+﻿using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Services.Telemetry;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;
@@ -7,6 +8,12 @@ namespace Ivy.Tendril.Services;
 public class OnboardingSetupService(IConfigService config, IAgentRunner agentRunner, IServiceProvider services, ILogger<OnboardingSetupService> logger) : IOnboardingSetupService
 {
     private readonly ILogger<OnboardingSetupService> _logger = logger;
+
+    /// <summary>
+    ///     Resolved lazily rather than injected: onboarding runs before TendrilHome exists, and
+    ///     several services in the graph throw when constructed in that state.
+    /// </summary>
+    private ITelemetryService? Telemetry => services?.GetService(typeof(ITelemetryService)) as ITelemetryService;
 
     public async Task BootstrapTendrilHomeAsync(string tendrilHome)
     {
@@ -121,6 +128,8 @@ public class OnboardingSetupService(IConfigService config, IAgentRunner agentRun
             config.Settings.Projects.Add(pendingProject);
             config.SaveSettings();
             _logger.LogInformation("Pending project '{Name}' committed", pendingProject.Name);
+            Telemetry?.TrackProjectCreated(
+                new ProjectCreatedContext(pendingProject.Repos.Count, pendingProject.StackHash));
         }
 
         return Task.CompletedTask;
@@ -138,6 +147,15 @@ public class OnboardingSetupService(IConfigService config, IAgentRunner agentRun
         await CommitPendingProjectAsync();
 
         _logger.LogInformation("Configuration saved");
+
+        var telemetry = Telemetry;
+        if (telemetry != null)
+        {
+            telemetry.TrackOnboardingCompleted(
+                new OnboardingCompletedContext(config.Settings.Projects.Count, config.Settings.CodingAgent));
+            // Onboarding is often followed by a restart, so this event must not sit in the batch.
+            await telemetry.FlushAsync();
+        }
     }
 
     public Task RemoveProjectVerificationAsync(string projectName, string verificationName)
