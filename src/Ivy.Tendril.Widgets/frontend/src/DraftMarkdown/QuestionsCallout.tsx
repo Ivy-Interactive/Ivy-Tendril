@@ -262,7 +262,7 @@ const AnsweredQuestion: React.FC<{ question: PlanQuestion }> = ({ question }) =>
         // Said out loud, because an unanswered question in a settled plan is itself information:
         // it means the agent chose, using the recommended option where there was one.
         <div className="pmv-question-answer pmv-question-answer--none">
-          {question.optional ? "Not answered — not required" : "Not answered — agent decided"}
+          {question.optional ? "Not answered — Not required" : "Not answered — Agent decided"}
         </div>
       )}
     </div>

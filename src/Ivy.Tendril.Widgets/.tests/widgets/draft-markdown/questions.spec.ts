@@ -209,8 +209,8 @@ test.describe("DraftMarkdown Questions", () => {
     // Unanswered questions say which kind they are — both are decisions nobody explicitly made.
     const naming = blockFor(page, "service-name");
     await expect(naming.locator(".pmv-question-answer--none")).toHaveText([
-      "Not answered — not required",
-      "Not answered — agent decided",
+      "Not answered — Not required",
+      "Not answered — Agent decided",
     ]);
 
     await stepScreenshot("review-read-only");

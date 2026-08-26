@@ -228,7 +228,7 @@ describe("DraftMarkdown interactive questions", () => {
 
     expect(
       Array.from(container.querySelectorAll(".pmv-question-answer--none")).map((e) => e.textContent),
-    ).toEqual(["Not answered — agent decided", "Not answered — not required"]);
+    ).toEqual(["Not answered — Agent decided", "Not answered — Not required"]);
   });
 
   it("still renders a legacy prose block as its text when nobody subscribes", () => {

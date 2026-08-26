@@ -258,49 +258,60 @@ class QuestionsApp : ViewBase
         // of the answer state living beside it.
         var questions = QuestionAnswers.Read(markdown.Value);
 
-        // One rich text block rather than a stack of buttons: these are links in a list, and
-        // buttons brought their own padding and hit targets to something that reads as prose.
-        // The link's url carries the question id, which is what comes back to OnLinkClick.
-        var index = Text.Rich();
-        for (var i = 0; i < questions.Count; i++)
+        // One element per entry, stacked, rather than a single rich block separated by line breaks:
+        // spacing is the layout's job, and a title that wraps no longer needs a blank line after it
+        // to stay distinct from the next. Each link's url carries its question id, which is what
+        // comes back to OnLinkClick.
+        var index = Layout.Vertical().Gap(2);
+        foreach (var question in questions)
         {
-            var question = questions[i];
+            // Struck through and muted only once it carries an answer. Optional says the plan does
+            // not wait on this one, not that anyone has dealt with it — it is still a question
+            // somebody may want to answer, so it stays live and says it is optional.
+            // Keyed by question id. Eight sibling stateless views of the same type otherwise have
+            // nothing to tell them apart, and their link handlers do not survive the diff.
+            var entry = Text.Rich();
+            entry.Key = question.Id;
 
-            // A blank line between entries: several of these titles wrap, and without the gap a
-            // wrapped one runs straight into the next and the list reads as a paragraph.
-            if (i > 0)
-                index.LineBreak().LineBreak();
-
-            // Struck through and muted once nothing is outstanding: it has an answer, or it is
-            // optional and the plan does not wait on it. What stays live is what still wants a
-            // human. Muting is what makes that stand out — the strike alone still reads as live.
-            var settled = question.HasAnswer || question.IsOptional;
-
-            index.Link(
-                question.IsOptional ? $"{Label(question)} (Optional)" : Label(question),
-                question.Id,
-                strikeThrough: settled,
-                color: settled ? Colors.Muted : null);
+            index |= entry
+                .Link(
+                    question.IsOptional ? $"{Label(question)} (Optional)" : Label(question),
+                    question.Id,
+                    strikeThrough: question.HasAnswer,
+                    color: question.HasAnswer ? Colors.Muted : null)
+                .OnLinkClick(id => scrollTo.Set(new QuestionScrollTarget(
+                    id,
+                    // Any different value re-triggers the scroll, which is what makes clicking the
+                    // same entry twice work.
+                    (scrollTo.Value?.Token ?? 0) + 1)));
         }
 
-        index.OnLinkClick(id => scrollTo.Set(new QuestionScrollTarget(
-            id,
-            // Any different value re-triggers the scroll, which is what makes clicking the same
-            // entry twice work.
-            (scrollTo.Value?.Token ?? 0) + 1)));
-
         var card = new Card(
-            Layout.Vertical().Gap(1)
-            | Text.Muted($"{questions.Count(q => q.HasAnswer || q.IsOptional)} of {questions.Count} settled. "
-                         + "Click one to scroll its block into view.")
-            | index
-            | new Button("Reset").Outline().OnClick(() =>
-            {
-                markdown.Set(InitialMarkdown);
-                annotations.Set(DummyAnnotations);
-                scrollTo.Set((QuestionScrollTarget?)null);
-            })
-        ).Title("Open questions").Width(Size.Units(80));
+          index
+        ).Title("Questions").Width(Size.Units(80));
+
+        var rightPanel = Layout.Vertical()
+                         | Text.Muted(
+                           $"{questions.Count(q => q.HasAnswer)} of {questions.Count} answered. ")
+                         | card
+                         | (Layout.Horizontal().Gap(2)
+                            | new Button("Restore Plan").Outline().OnClick(() =>
+                            {
+                              markdown.Set(InitialMarkdown);
+                              annotations.Set(DummyAnnotations);
+                              scrollTo.Set((QuestionScrollTarget?)null);
+                            })
+                            | new Button("Clear Answers").OnClick(() =>
+                            {
+                              // Every answer in the document, including the two it shipped with. Cleared one
+                              // at a time through the same merge the widget's own events use.
+                              var cleared = markdown.Value;
+                              foreach (var answered in QuestionAnswers.Read(cleared).Where(q => q.HasAnswer))
+                                QuestionAnswers.TryApply(cleared, new QuestionAnswer(answered.Id, null), out cleared);
+
+                              markdown.Set(cleared);
+                            }));
+          
 
         return Layout.Horizontal().Height(Size.Full()).RemoveParentPadding()
                | new DraftMarkdownWidget(markdown.Value)
@@ -317,7 +328,7 @@ class QuestionsApp : ViewBase
                    .ScrollTo(scrollTo.Value)
                    .Width(Size.Full())
                    .Height(Size.Full())
-                   .StickyContent(card);
+                   .StickyContent(rightPanel);
     }
 
     /// <summary>The eyebrow when the question has one, else its title. Falls back to the id.</summary>

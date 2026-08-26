@@ -80,9 +80,32 @@ class QuestionsReviewApp : ViewBase
           - id: service-name
             title: What should the service be called?
             header: Name
-            description: Free text comes back verbatim — it is the user's own words, not a
-              slug to look up.
+            description: A pure free-text question the user answered. There is no option to
+              look up, so the answer is shown exactly as it was typed.
             answer: Dispatch
+          - id: naming-rationale
+            title: Why that name?
+            header: Rationale
+            description: Free text is not always a word — a sentence has to read as prose
+              rather than as a chip.
+            answer: It is short enough for a log prefix and does not collide with the
+              existing Delivery namespace, which already means something else in billing.
+          - id: backoff-curve
+            title: What backoff curve should sit under the budget?
+            header: Backoff
+            description: |
+              Asked with options and `other` left at its default, and the user took neither
+              option — they typed their own. The answer matches no `value`, so it is their
+              words rather than an option title.
+            options:
+              - title: Exponential
+                description: Doubling, with jitter.
+                value: exponential
+                recommended: true
+              - title: Fixed interval
+                description: Every 30s, up to the budget.
+                value: fixed
+            answer: Exponential, but capped at 2 minutes between attempts
           - id: rollout-owner
             title: Who owns the rollout?
             header: Owner
