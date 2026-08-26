@@ -106,19 +106,32 @@ public static class QuestionAnswers
                 node is not YamlSequenceNode questions)
                 continue;
 
+            // Ids gate the whole block, exactly as the renderer's own reader does. A question with
+            // no id, or one that repeats another in the same block, cannot be addressed by an
+            // answer — so that block renders as plain text rather than a picker, and an index
+            // listing its questions would offer what the document will not show.
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var readable = new List<QuestionSummary>();
+
             foreach (var child in questions.Children)
             {
                 if (child is not YamlMappingNode entry)
-                    continue;
+                {
+                    readable = null!;
+                    break;
+                }
 
                 var id = Value(entry, "id");
-                if (string.IsNullOrEmpty(id))
-                    continue;
+                if (string.IsNullOrEmpty(id) || !seen.Add(id))
+                {
+                    readable = null!;
+                    break;
+                }
 
                 // A present-but-null answer is not a state the schema has, so it reads as
                 // unanswered rather than as something in between.
                 var answer = Entry(entry, AnswerKey);
-                summaries.Add(new QuestionSummary(
+                readable.Add(new QuestionSummary(
                     block.Index,
                     id,
                     Value(entry, "title") ?? "",
@@ -126,6 +139,9 @@ public static class QuestionAnswers
                     answer is { } pair && !IsNullScalar(pair.Value),
                     string.Equals(Value(entry, "optional"), "true", StringComparison.OrdinalIgnoreCase)));
             }
+
+            if (readable is not null)
+                summaries.AddRange(readable);
         }
 
         return summaries;

@@ -535,9 +535,11 @@ public class QuestionAnswersTests
     }
 
     [Fact]
-    public void Read_IgnoresAQuestionWithNoId()
+    public void Read_SkipsAWholeBlockWhenAQuestionHasNoId()
     {
-        // Without an id there is nothing for the host to address, so it cannot be an index entry.
+        // The renderer refuses a block whose ids are not all present and distinct — an answer is
+        // addressed by id alone, so an ambiguous one is unsafe to answer. The index has to agree,
+        // or it would offer entries the document will not show.
         const string idless = """
             ```questions
             questions:
@@ -547,8 +549,43 @@ public class QuestionAnswersTests
             ```
             """;
 
-        var summary = Assert.Single(QuestionAnswers.Read(idless));
-        Assert.Equal("named", summary.Id);
+        Assert.Empty(QuestionAnswers.Read(idless));
+    }
+
+    [Fact]
+    public void Read_SkipsAWholeBlockWhenTwoQuestionsShareAnId()
+    {
+        const string duplicate = """
+            ```questions
+            questions:
+              - id: same
+                title: First?
+              - id: same
+                title: Second?
+            ```
+            """;
+
+        Assert.Empty(QuestionAnswers.Read(duplicate));
+    }
+
+    [Fact]
+    public void Read_KeepsOtherBlocksWhenOneIsUnreadable()
+    {
+        // A hand-edited document breaks one block at a time; the rest must keep working.
+        const string mixed = """
+            ```questions
+            questions:
+              - title: No id here.
+            ```
+
+            ```questions
+            questions:
+              - id: fine
+                title: Still readable?
+            ```
+            """;
+
+        Assert.Equal("fine", Assert.Single(QuestionAnswers.Read(mixed)).Id);
     }
 
     [Fact]

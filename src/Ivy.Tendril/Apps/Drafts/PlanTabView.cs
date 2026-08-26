@@ -15,10 +15,16 @@ public class PlanTabView(
     IState<string?> openFileState,
     IPlanReaderService planService,
     IConfigService config,
-    IState<ImmutableList<MarkdownAnnotation>> annotations) : ViewBase
+    IState<ImmutableList<MarkdownAnnotation>> annotations,
+    IState<string> revisionContent,
+    Action<QuestionAnswer> onAnswerChanged) : ViewBase
 {
     public override object Build()
     {
+        // Brings a question into view when its card entry is clicked. The token is what makes a
+        // repeat click work — an unchanged id compares equal and nothing would move.
+        var scrollTo = UseState<QuestionScrollTarget?>(() => null);
+
         if (isEditing)
         {
             // The Plan tab is no longer wrapped in Cap(), so provide the scroll,
@@ -37,10 +43,21 @@ public class PlanTabView(
             if (selectedPlan.Status == PlanStatus.Failed)
                 planLayout |= ContentView.BuildFailureCallout(selectedPlan, config.TendrilHome);
 
-            var annotatedContent = MarkdownHelper.PrepareForDisplay(
-                selectedPlan.LatestRevisionContent, config);
+            // Answers are merged into the raw revision, so display preparation happens after it —
+            // otherwise the polished form would be what gets written back.
+            var raw = revisionContent.Value;
+            var annotatedContent = MarkdownHelper.PrepareForDisplay(raw, config);
+            var questions = QuestionAnswers.Read(raw);
 
-            var fixedElement = new VerificationsCardView(selectedPlan, planService, config);
+            var sticky = Layout.Vertical().Gap(4);
+            if (questions.Count > 0)
+            {
+                sticky |= new QuestionsCardView(
+                    questions,
+                    id => scrollTo.Set(new QuestionScrollTarget(id, (scrollTo.Value?.Token ?? 0) + 1)));
+            }
+
+            sticky |= new VerificationsCardView(selectedPlan, planService, config);
 
             Action<string> onLinkClick = FileSheet.CreateLinkClickHandler(openFileState, planId =>
             {
@@ -58,9 +75,11 @@ public class PlanTabView(
                 .Article()
                 .DangerouslyAllowLocalFiles()
                 .Height(Size.Full())
-                .StickyContent(fixedElement)
+                .StickyContent(sticky)
                 .Annotations(annotations.Value)
                 .OnAnnotationsChange(a => annotations.Set(a))
+                .OnAnswersChange(onAnswerChanged)
+                .ScrollTo(scrollTo.Value)
                 .OnLinkClick(onLinkClick);
 
             return planLayout;

@@ -179,17 +179,18 @@ test.describe("DraftMarkdown Questions", () => {
   });
 
   test("a seeded annotation never highlights inside a question block", async ({ page }) => {
-    // The sample seeds three: one on prose, one aimed at the question block, one after it. Only
-    // the two outside the block may highlight.
+    // The sample seeds three: one on prose, one spanning a block, one after it. The spanning one
+    // becomes several marks, since a mark is created per text node it covers.
     const highlights = page.locator(".pmv-annotation-highlight");
-    await expect(highlights).toHaveCount(2);
+    await expect(highlights).toHaveCount(5);
 
+    // Whatever they cover, no block takes a highlight.
     await expect(page.locator(".pmv-questions .pmv-annotation-highlight")).toHaveCount(0);
 
-    // The third proves a block's text still advances the offset counter — if it did not, this
-    // annotation would have drifted off "separate consumer".
-    await expect(highlights.nth(0)).toHaveText("Where the budget lives");
-    await expect(highlights.nth(1)).toHaveText("separate consumer");
+    // The last one is after a block, and proves a block's rendering cannot move what follows it —
+    // otherwise this would have drifted off "separate consumer".
+    await expect(highlights.first()).toHaveText("Where the budget lives");
+    await expect(highlights.last()).toHaveText("separate consumer");
   });
 
   test("the review sample presents answers instead of controls", async ({ page, stepScreenshot }) => {

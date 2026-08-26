@@ -1,3 +1,4 @@
+using Ivy.Tendril.Widgets;
 using Ivy.Tendril.Apps.Trash.Dialogs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Hooks;
@@ -109,8 +110,10 @@ public class TrashApp : ViewBase
                             });
 
             var annotatedContent = MarkdownHelper.PrepareForDisplay(selected.Content, configService);
-            var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(6, 2, 6, 2)
-                                    | new Markdown(annotatedContent)
+            // No max-width or inset here: DraftMarkdown reproduces both itself.
+            var scrollableContent = Layout.Vertical().Width(Size.Full())
+                                    // Read-only: `questions` blocks present their answers.
+                                    | new DraftMarkdown(annotatedContent)
                                         .DangerouslyAllowLocalFiles()
                                         .Article()
                                         .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile));

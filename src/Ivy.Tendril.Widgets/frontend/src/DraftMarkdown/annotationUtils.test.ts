@@ -150,6 +150,38 @@ describe("applyAnnotationHighlights with questions blocks", () => {
     document.body.appendChild(container);
   });
 
+  it("holds an annotation in place when the block above it renders differently", () => {
+    // The reason questions text is not counted. A block's rendering is not stable: answering a
+    // question adds a Clear button, and an option title YAML had read as a number starts showing.
+    // Either would shift every offset after the block if its text were counted, silently moving
+    // annotations off the words they were put on.
+    const prose = "<p>Intro.</p>";
+    const trailing = "<p>Trailing prose to highlight.</p>";
+    const before = `<div class="pmv-questions"><div class="pmv-question-title">Which one?</div></div>`;
+    const after =
+      `<div class="pmv-questions"><div class="pmv-question-title">Which one?</div>` +
+      `<button class="pmv-question-clear">Clear</button><span>4.2</span></div>`;
+
+    container.innerHTML = prose + before + trailing;
+    const target = "Trailing prose";
+    const startOffset = getPlainText(container).indexOf(target);
+    const annotation: MarkdownAnnotation = {
+      id: "a3",
+      startOffset,
+      endOffset: startOffset + target.length,
+      selectedText: target,
+      comment: "trailing",
+    };
+
+    applyAnnotationHighlights(container, [annotation]);
+    expect(container.querySelector("mark[data-annotation-id]")?.textContent).toBe(target);
+
+    // Same offsets, more text inside the block: the highlight must not drift.
+    container.innerHTML = prose + after + trailing;
+    applyAnnotationHighlights(container, [annotation]);
+    expect(container.querySelector("mark[data-annotation-id]")?.textContent).toBe(target);
+  });
+
   it("creates no mark inside a .pmv-questions element", () => {
     container.innerHTML =
       '<p>Before text.</p><div class="pmv-questions"><div class="pmv-questions-content">A question here?</div></div>';
@@ -169,10 +201,8 @@ describe("applyAnnotationHighlights with questions blocks", () => {
   });
 
   it("keeps offsets stable for prose that follows a questions block", () => {
-    // Without the guard, callout text would be skipped from highlighting but still
-    // counted for offsets by getPlainTextOffset — this is the exact scenario that
-    // regression (b) protects: an annotation on the trailing prose must land on the
-    // same characters whether or not a questions block precedes it.
+    // A questions block is invisible to offsets: not highlighted, and not counted. An annotation
+    // on the trailing prose must land on the same characters whether or not a block precedes it.
     container.innerHTML =
       '<p>Intro.</p><div class="pmv-questions"><div class="pmv-questions-content">A question?</div></div><p>Trailing prose to highlight.</p>';
 

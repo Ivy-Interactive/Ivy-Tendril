@@ -1,3 +1,4 @@
+using Ivy.Tendril.Widgets;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -21,10 +22,14 @@ public class PlanTabView(
     {
         var annotated = MarkdownHelper.PrepareForDisplay(selectedPlan.LatestRevisionContent, config);
 
+        // DraftMarkdown, but with neither OnAnnotationsChange nor OnAnswersChange: a plan under
+        // review is read, not edited. Not subscribing is what makes its `questions` blocks present
+        // the decisions instead of a picker — the plain Markdown widget would show raw YAML.
         return Layout.Vertical().Height(Size.Full())
-               | new Markdown(annotated)
+               | new DraftMarkdown(annotated)
                    .DangerouslyAllowLocalFiles()
                    .Article()
+                   .Height(Size.Full())
                    .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>
                    {
                        var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")

@@ -210,9 +210,10 @@ class QuestionsApp : ViewBase
     ///     Three annotations placed by hand so the interaction between annotations and question
     ///     blocks is visible without having to drag anything.
     ///     <para>
-    ///         Offsets are into the widget's <em>rendered plain text</em>, not the markdown source,
-    ///         which is why they are opaque numbers — and why editing the document above means
-    ///         re-measuring them.
+    ///         Offsets are into the widget's <em>rendered prose</em> — question blocks are excluded
+    ///         from the offset space entirely, so a block's own rendering can change (a Clear button
+    ///         appearing, an option title starting to render) without moving anything anchored after
+    ///         it. Editing the document above still means re-measuring these numbers.
     ///     </para>
     /// </summary>
     private static readonly ImmutableList<MarkdownAnnotation> DummyAnnotations =
@@ -220,31 +221,31 @@ class QuestionsApp : ViewBase
         new()
         {
             Id = "prose",
-            StartOffset = 1123,
-            EndOffset = 1145,
+            StartOffset = 252,
+            EndOffset = 274,
             SelectedText = "Where the budget lives",
             Comment = "Ordinary prose annotates as usual.",
         },
         new()
         {
-            // The point of the sample: an annotation aimed squarely at a question block renders
-            // nothing. The picker is a form, and a <mark> spliced into it would fight React for
-            // the DOM.
-            Id = "question",
-            StartOffset = 1468,
-            EndOffset = 1506,
-            SelectedText = "Should the retry budget be per-request",
-            Comment = "Aimed at the question block — must not highlight.",
+            // Spans the retry block: prose before it, prose after it, nothing in between. The
+            // picker is a form, and a <mark> spliced into it would fight React for the DOM — so
+            // the block is stepped over rather than highlighted through.
+            Id = "across",
+            StartOffset = 555,
+            EndOffset = 625,
+            SelectedText = "snippets inside can use three … Delivery is fanned out",
+            Comment = "Spans a question block — the block itself takes no highlight.",
         },
         new()
         {
-            // Guards the offset bookkeeping: a block's text is never highlighted but still counts
-            // toward the offsets, so an annotation after one must not drift.
+            // Guards the offset bookkeeping: a block's text counts for nothing, so an annotation
+            // after one stays put however that block ends up rendering.
             Id = "after",
-            StartOffset = 2259,
-            EndOffset = 2276,
+            StartOffset = 661,
+            EndOffset = 678,
             SelectedText = "separate consumer",
-            Comment = "After a block, so it proves the block's text still advances the offsets.",
+            Comment = "After a block, so it proves a block's rendering cannot move it.",
         },
     ];
 
