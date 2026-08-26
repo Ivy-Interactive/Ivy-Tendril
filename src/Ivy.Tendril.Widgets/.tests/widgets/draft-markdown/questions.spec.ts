@@ -9,6 +9,10 @@ import { navigateToApp, waitForDraftMarkdown } from "../../utils/ivy.js";
 const blockFor = (page: Page, questionId: string) =>
   page.locator(`.pmv-questions:has([data-question-id="${questionId}"])`);
 
+/** One question, wherever it sits. A block may hold up to four, so block scope is often too wide. */
+const questionFor = (page: Page, questionId: string) =>
+  page.locator(`[data-question-id="${questionId}"]`);
+
 /** Whether the whole block sits inside the widget's own scroll viewport. */
 async function inFrame(page: Page, block: Locator): Promise<boolean> {
   const shell = page.locator(".pmv-shell");
@@ -50,13 +54,14 @@ test.describe("DraftMarkdown Questions", () => {
     const card = page.locator(".pmv-sticky");
     const entry = card.getByRole("button", { name: /retry budget/ });
 
-    await expect(card.getByText("3 of 8 settled")).toBeVisible();
-    await expect(entry).not.toHaveCSS("text-decoration-line", "line-through");
+    await expect(card.getByText("2 of 8 answered")).toBeVisible();
+    await expect(entry).not.toHaveCSS("text-decoration-line", /line-through/);
 
     await blockFor(page, "retry-scope").locator(".pmv-question-check").first().click();
 
-    await expect(card.getByText("4 of 8 settled")).toBeVisible({ timeout: 15_000 });
-    await expect(entry).toHaveCSS("text-decoration-line", "line-through", { timeout: 15_000 });
+    await expect(card.getByText("3 of 8 answered")).toBeVisible({ timeout: 15_000 });
+    // The entries are links, so the computed value carries the underline too.
+    await expect(entry).toHaveCSS("text-decoration-line", /line-through/, { timeout: 15_000 });
 
     await stepScreenshot("answered-struck-out");
   });
@@ -130,17 +135,18 @@ test.describe("DraftMarkdown Questions", () => {
     // The second is `optional: true` — the plan is complete without it.
     await expect(callout.locator(".pmv-question-optional")).toHaveCount(1);
 
-    // Two questions, one shared Clear for the block.
-    await expect(callout.locator(".pmv-question-clear")).toHaveCount(1);
+    // Neither is answered — optional is not an answer — so there is nothing to clear yet.
+    await expect(callout.locator(".pmv-question-clear")).toHaveCount(0);
 
     await stepScreenshot("stacked-questions");
 
-    // Answering the first leaves the second alone.
+    // Answering the first leaves the second alone, and the block gains one shared Clear.
     await callout.locator(".pmv-question-other-input").first().fill("dispatch");
-    await expect(page.locator(".pmv-sticky").getByText("4 of 8 settled")).toBeVisible({
+    await expect(page.locator(".pmv-sticky").getByText("3 of 8 answered")).toBeVisible({
       timeout: 15_000,
     });
     await expect(callout.locator(".pmv-question-optional")).toHaveCount(1);
+    await expect(callout.locator(".pmv-question-clear")).toHaveCount(1);
   });
 
   test("Clear appears only once there is an answer, and retires with it", async ({ page }) => {
@@ -152,13 +158,13 @@ test.describe("DraftMarkdown Questions", () => {
 
     await callout.locator(".pmv-question-check").first().click();
     await expect(callout.locator(".pmv-question-clear")).toHaveCount(1, { timeout: 15_000 });
-    await expect(card.getByText("4 of 8 settled")).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByText("3 of 8 answered")).toBeVisible({ timeout: 15_000 });
 
     await callout.locator(".pmv-question-clear").click();
 
     // Back to unanswered on both sides: the button retires and the index entry un-strikes.
     await expect(callout.locator(".pmv-question-clear")).toHaveCount(0, { timeout: 15_000 });
-    await expect(card.getByText("3 of 8 settled")).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByText("2 of 8 answered")).toBeVisible({ timeout: 15_000 });
   });
 
   test("a documentation fence stays a code block", async ({ page }) => {
@@ -197,13 +203,18 @@ test.describe("DraftMarkdown Questions", () => {
     await expect(page.locator(".pmv-question-clear")).toHaveCount(0);
 
     // The chosen option's title, not the slug the YAML carries.
-    const scope = blockFor(page, "delivery-scope");
-    await expect(scope.locator(".pmv-question-answer-value").first()).toHaveText("Dispatch only");
-    await expect(page.locator(".pmv-markdown")).not.toContainText("questions:");
-
-    // A multi-select answer lists every value.
     await expect(
-      blockFor(page, "rollout-regions").locator(".pmv-question-answer-value"),
+      questionFor(page, "delivery-scope").locator(".pmv-question-answer-value"),
+    ).toHaveText(["Dispatch only"]);
+    // No block fell back to dumping its fence body — the static callout is what would show that.
+    // Asserted this way rather than by searching for "questions:", because the sample also carries
+    // a documentation fence whose text legitimately contains it.
+    await expect(page.locator(".pmv-questions-content")).toHaveCount(0);
+
+    // A multi-select answer lists every value. Scoped to the question rather than its block —
+    // the block holds another answered question above it.
+    await expect(
+      questionFor(page, "rollout-regions").locator(".pmv-question-answer-value"),
     ).toHaveText(["EU", "US"]);
 
     // Unanswered questions say which kind they are — both are decisions nobody explicitly made.

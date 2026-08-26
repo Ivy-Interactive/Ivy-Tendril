@@ -12,7 +12,7 @@ namespace WidgetSamples.Apps.DraftMarkdown;
 ///         The widget never rewrites its own document: the event reports <c>{ QuestionId, Answer }</c>
 ///         and the host decides how and whether to persist it. This sample persists — it merges each
 ///         event straight back into the markdown with <see cref="QuestionAnswers.Apply" />, which is
-///         why a selection sticks and a skip announces itself.
+///         why a selection sticks rather than snapping back on the next render.
 ///     </para>
 ///     <para>
 ///         The pinned card is the other half of the pattern, and the reason a plan this long stays
@@ -176,8 +176,8 @@ class QuestionsApp : ViewBase
         Two questions with no options at all — the pure free-text shape. A block may hold up
         to four, and they stack, so both are answerable without hunting for the second one.
         Each `header` becomes the eyebrow above its question. The second is `optional: true` —
-        worth asking, but the plan is complete without it, so the index counts it as settled
-        and only the first still wants a human.
+        worth asking, but the plan is complete without it. The index says so beside the entry
+        rather than striking it out: nobody has answered it yet, and somebody still might.
 
         ```questions
         questions:
