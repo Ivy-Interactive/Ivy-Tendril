@@ -12,7 +12,7 @@
 
 <p>
   <strong>The Agentic Software Factory for 10x Builders</strong><br/>
-  AI agents can now write 99% code. This changes what it means to be a developer. Our role shifts to knowing "what good looks like". For this we need completely new developer tools. 
+  AI agents can now write 99% of the code. This changes what it means to be a developer. Our role shifts to knowing "what good looks like". To do that, we need completely new developer tools. Tendril is what replaces your IDE in an agentic era. 
 </p>
 
 <p>
