@@ -210,7 +210,10 @@ public class QuestionBlockParserTests
 
     [Theory]
     [InlineData("", AnswerState.Unanswered)]
-    [InlineData("    answer:", AnswerState.Declined)]
+    // A present-but-null answer is not a third state. The validator rejects it; the model reads it
+    // as unanswered rather than inventing a meaning for it.
+    [InlineData("    answer:", AnswerState.Unanswered)]
+    [InlineData("    answer: null", AnswerState.Unanswered)]
     [InlineData("    answer: jwt", AnswerState.Answered)]
     public void Parse_DistinguishesAnswerStates(string answerLine, AnswerState expected)
     {

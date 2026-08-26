@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CodeBlock } from "../CodeBlock";
-import { answerEntries, isSkipped, otherEntry, parseQuestions } from "./questionsSchema";
+import { answerEntries, otherEntry, parseQuestions } from "./questionsSchema";
 import type { PlanQuestion, QuestionOption } from "./questionsSchema";
 import type { AnswerCallback } from "./questionsContext";
 
@@ -87,9 +87,8 @@ const QuestionView: React.FC<QuestionViewProps> = ({ question, blockIndex, onAns
   /**
    * Reports one change, mapping an emptied selection to "unanswered".
    *
-   * An empty list is the wire encoding for `answer: null` — asked and deliberately skipped, which
-   * tells the agent to decide for you. Unchecking your last box does not mean that, so it clears
-   * the question instead. Nothing in the picker asks to skip; only the document can say that.
+   * An empty list would otherwise travel as "the answer is nothing in particular". Unchecking your
+   * last box means the question is simply unanswered again, so that is what gets reported.
    */
   const report = (answer: string | string[] | null | undefined) =>
     onAnswer(question.id, Array.isArray(answer) && answer.length === 0 ? undefined : answer);
@@ -150,16 +149,17 @@ const QuestionView: React.FC<QuestionViewProps> = ({ question, blockIndex, onAns
       {/* `header` was the tab's chip label. With the tabs gone it becomes an eyebrow, which is
           what keeps a stack of questions scannable. */}
       {question.header && <div className="pmv-question-header">{question.header}</div>}
-      <div className="pmv-question-title">{question.title}</div>
+      <div className="pmv-question-title">
+        {question.title}
+        {/* Says the plan does not wait on this one. Without it the block gives no hint of what the
+            index card already knows, and the two would disagree on screen. */}
+        {question.optional && <span className="pmv-question-optional">Optional</span>}
+      </div>
       {question.description && (
         <div className="pmv-question-description">
           <DescriptionMarkdown text={question.description} />
         </div>
       )}
-
-      {/* `answer: null` selects nothing, so without this a skipped question is indistinguishable
-          from one that was never touched. */}
-      {isSkipped(question) && <div className="pmv-question-skipped">Skipped — you decide</div>}
 
       <div className="pmv-question-options">
         {options.map((option) => {
@@ -220,6 +220,55 @@ const QuestionView: React.FC<QuestionViewProps> = ({ question, blockIndex, onAns
   );
 };
 
+/**
+ * The read-only rendering: what was asked, and what was decided.
+ *
+ * A plan under review is no longer a form — the questions have been settled and the reader wants
+ * the decisions, not the controls. Dumping the fence body as YAML (which is what a structured
+ * block used to do without a subscriber) shows the data but buries the answer, so this renders the
+ * question and its answer as prose instead.
+ */
+const AnsweredQuestion: React.FC<{ question: PlanQuestion }> = ({ question }) => {
+  const entries = answerEntries(question);
+  const options = question.options ?? [];
+
+  // An entry naming an option shows that option's title; anything else is the user's own words.
+  const answers = entries.map(
+    (entry) => options.find((option) => option.value === entry)?.title ?? entry,
+  );
+
+  return (
+    <div className="pmv-question" data-question-id={question.id}>
+      {question.header && <div className="pmv-question-header">{question.header}</div>}
+      <div className="pmv-question-title">
+        {question.title}
+        {question.optional && <span className="pmv-question-optional">Optional</span>}
+      </div>
+      {question.description && (
+        <div className="pmv-question-description">
+          <DescriptionMarkdown text={question.description} />
+        </div>
+      )}
+
+      {answers.length > 0 ? (
+        <div className="pmv-question-answer">
+          {answers.map((answer) => (
+            <span key={answer} className="pmv-question-answer-value">
+              {answer}
+            </span>
+          ))}
+        </div>
+      ) : (
+        // Said out loud, because an unanswered question in a settled plan is itself information:
+        // it means the agent chose, using the recommended option where there was one.
+        <div className="pmv-question-answer pmv-question-answer--none">
+          {question.optional ? "Not answered — not required" : "Not answered — agent decided"}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export interface QuestionsCalloutProps {
   content: string;
   /** Which `questions` fence this is, 0-based. Keeps radio groups distinct across blocks. */
@@ -231,17 +280,31 @@ export interface QuestionsCalloutProps {
 export const QuestionsCallout: React.FC<QuestionsCalloutProps> = ({ content, blockIndex = 0, onAnswer }) => {
   const parsed = useMemo(() => parseQuestions(content), [content]);
 
-  if (parsed.kind === "invalid" || parsed.questions.length === 0 || !onAnswer) {
+  // A block that does not parse is the pre-schema plain-text form, and there is nothing to render
+  // but the text itself.
+  if (parsed.kind === "invalid" || parsed.questions.length === 0) {
     return <StaticCallout content={content} />;
   }
 
   const questions = parsed.questions;
 
+  // No subscriber means the host is showing a plan rather than working through it — the Review
+  // stage, or any other read-only view. Present the decisions.
+  if (!onAnswer) {
+    return (
+      <Shell>
+        {questions.map((question) => (
+          <AnsweredQuestion key={question.id} question={question} />
+        ))}
+      </Shell>
+    );
+  }
+
   // One Clear for the whole block rather than one per question: the block is what the user is
   // working through, and a row of identical buttons down a stack reads as clutter. It resets
   // every answered question in the block, and stays hidden until there is one.
   //
-  // `answerPresent` covers a skip too — `answer: null` is a decision worth being able to retract.
+  // Optional questions are included: being optional does not make an answer unretractable.
   const answered = questions.filter((question) => question.answerPresent);
 
   const clearAll = () => {

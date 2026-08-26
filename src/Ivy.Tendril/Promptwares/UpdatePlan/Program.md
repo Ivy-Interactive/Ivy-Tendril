@@ -42,7 +42,7 @@ This is where the user's answers land: the UI writes them back into the revision
 
 1. Scan the revision markdown for every `questions` fence. There may be several, anywhere in the document.
 2. For every question whose block has an `answer` key with a non-null value, treat it as a decision by the user. Fold it into whichever section it sits nearest to (or `## Problem` / `## Solution` for a scope-level question) as concrete prose or steps, and **delete that question from its block**. Never restate it as an open question, and never leave an answered question in a revision.
-3. For every question with `answer: null` (declined), make the call yourself, write one sentence near where the block sits saying which way you went and that the user deferred, then delete the question.
+3. For every `optional: true` question left unanswered, make the call yourself — take its `recommended` option if it has one — write one sentence near where the block sits saying which way you went and that the question was optional, then delete it. `answer: null` is not a state any more: a revision still carrying one was written against the old rules, so treat it as unanswered and drop the key.
 4. A question the user answered in prose in `UpdateInstructions` counts as answered even though the markdown has no `answer` key. Same handling.
 5. Carry every question with no `answer` key forward verbatim — same `header`, `options`, ordering, and position in the document. Do not reword it, and do not add an `answer`.
 6. If a block's last question is retired, drop that fence entirely. If new ambiguity appeared, add new blocks, each with 4 or fewer questions, placed next to the section it concerns.

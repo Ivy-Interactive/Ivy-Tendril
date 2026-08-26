@@ -13,11 +13,11 @@ public record MarkdownAnnotation
 
 /// <summary>
 /// A single question's answer, identified by the question's <c>id</c> in the <c>questions</c>
-/// YAML schema. <see cref="Answer" /> encodes all three answer states without a sentinel:
-/// <c>null</c> clears the question back to unanswered (removes the <c>answer</c> key), an empty
-/// list records an explicit skip (<c>answer: null</c>), and a non-empty list is the answer itself —
-/// one entry for a single-select or free-text question, several when the question's
-/// <c>multiple</c> is <c>true</c>.
+/// YAML schema. <c>null</c> or an empty <see cref="Answer" /> clears the question back to
+/// unanswered (removing the <c>answer</c> key); a non-empty list is the answer itself — one entry
+/// for a single-select or free-text question, several when the question's <c>multiple</c> is
+/// <c>true</c>. There is no third state: a question that need not be answered is marked
+/// <c>optional: true</c> where it is written.
 /// <para>
 /// Merging this back into the block's YAML is the host's job: find the question by <c>id</c> and
 /// set or delete its <c>answer</c> key. <see cref="QuestionAnswers.Apply" /> does exactly that and

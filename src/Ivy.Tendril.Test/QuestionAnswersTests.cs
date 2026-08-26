@@ -152,12 +152,16 @@ public class QuestionAnswersTests
     // -------------------------------------------------------------------------------------------
 
     [Fact]
-    public void Apply_WritesExplicitNullForAnEmptyAnswer()
+    public void Apply_RemovesTheAnswerKeyForAnEmptyAnswer()
     {
-        var updated = Apply(Markdown, "retry-scope");
+        // An empty list used to write `answer: null`, a deliberate skip. That state no longer
+        // exists, so it clears the question like a null answer does.
+        var answered = Apply(Markdown, "retry-scope", "per-session");
 
-        Assert.Contains("answer: null", updated);
-        Assert.Equal(AnswerState.Declined, Question(updated, "retry-scope").AnswerState);
+        var cleared = Apply(answered, "retry-scope");
+
+        Assert.DoesNotContain("answer:", cleared);
+        Assert.Equal(Markdown, cleared);
     }
 
     [Fact]
@@ -434,19 +438,51 @@ public class QuestionAnswersTests
     }
 
     [Fact]
-    public void Read_ReportsAnAnswerAndASkipDifferently()
+    public void Read_ReportsWhetherAQuestionCarriesAnAnswer()
     {
         var answered = Apply(Markdown, "retry-scope", "per-session");
-        var skipped = Apply(answered, "launch-channels");
 
-        var summaries = QuestionAnswers.Read(skipped);
+        var summaries = QuestionAnswers.Read(answered);
 
         Assert.True(summaries[0].HasAnswer);
-        Assert.False(summaries[0].IsSkipped);
+        Assert.False(summaries[1].HasAnswer);
+    }
 
-        // A skip is still "dealt with", which is what an index cares about.
-        Assert.True(summaries[1].HasAnswer);
-        Assert.True(summaries[1].IsSkipped);
+    [Fact]
+    public void Read_ReportsOptionalQuestions()
+    {
+        const string optional = """
+            ```questions
+            questions:
+              - id: required-one
+                title: Which scheme?
+              - id: optional-one
+                title: Anything else?
+                optional: true
+            ```
+            """;
+
+        var summaries = QuestionAnswers.Read(optional);
+
+        Assert.False(summaries[0].IsOptional);
+        Assert.True(summaries[1].IsOptional);
+    }
+
+    [Fact]
+    public void Read_TreatsAPresentButNullAnswerAsUnanswered()
+    {
+        // A revision written against the old rules. `answer: null` is a lint error now, and reads
+        // as unanswered rather than as a third state.
+        const string legacySkip = """
+            ```questions
+            questions:
+              - id: owner
+                title: Who owns it?
+                answer: null
+            ```
+            """;
+
+        Assert.False(Assert.Single(QuestionAnswers.Read(legacySkip)).HasAnswer);
     }
 
     [Fact]

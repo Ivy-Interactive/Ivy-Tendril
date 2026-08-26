@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   answerEntries,
-  isSkipped,
   otherEntry,
   parseQuestions,
 } from "./questionsSchema";
@@ -151,18 +150,16 @@ describe("parseQuestions answer states", () => {
   const withAnswer = (line: string) =>
     parseQuestions(body("questions:", "  - id: q", "    title: T", line));
 
-  it("distinguishes an absent answer from an explicit null", () => {
-    const absent = parseQuestions(body("questions:", "  - id: q", "    title: T"));
-    if (absent.kind !== "questions") throw new Error("expected questions");
-    expect(absent.questions[0].answerPresent).toBe(false);
-    expect(isSkipped(absent.questions[0])).toBe(false);
-    expect(answerEntries(absent.questions[0])).toEqual([]);
+  it("reads an explicit null as unanswered, since there is no third state", () => {
+    // `answer: null` used to mean "deliberately skipped". A question that need not be answered is
+    // `optional: true` now, so a leftover null is just an unanswered question.
+    const parsed = parseQuestions(
+      body("questions:", "  - id: q", "    title: Which one?", "    answer: null"),
+    );
+    if (parsed.kind !== "questions") throw new Error("expected questions");
 
-    const skipped = withAnswer("    answer: null");
-    if (skipped.kind !== "questions") throw new Error("expected questions");
-    expect(skipped.questions[0].answerPresent).toBe(true);
-    expect(isSkipped(skipped.questions[0])).toBe(true);
-    expect(answerEntries(skipped.questions[0])).toEqual([]);
+    expect(parsed.questions[0].answerPresent).toBe(false);
+    expect(answerEntries(parsed.questions[0])).toEqual([]);
   });
 
   it("reads a scalar answer and a list answer", () => {

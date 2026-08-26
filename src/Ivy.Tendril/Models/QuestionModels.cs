@@ -4,14 +4,15 @@ using YamlDotNet.Serialization;
 
 namespace Ivy.Tendril.Models;
 
-/// <summary>Whether a question carries an answer, and what kind.</summary>
+/// <summary>
+///     Whether a question carries an answer. Two states only: <c>answer</c> is absent or it is a
+///     value, never null. A question that need not be answered says so with <c>Optional</c> when it
+///     is written, rather than being marked after the fact.
+/// </summary>
 public enum AnswerState
 {
-    /// <summary>No <c>answer</c> key at all. Carry the question forward unchanged.</summary>
+    /// <summary>No <c>answer</c> key. Carry the question forward unchanged.</summary>
     Unanswered,
-
-    /// <summary><c>answer: null</c> — asked and deliberately skipped. Means "you decide".</summary>
-    Declined,
 
     /// <summary><c>answer</c> present with a value.</summary>
     Answered
@@ -62,6 +63,13 @@ public record PlanQuestion
     /// <summary>Whether the user may type a value of their own. Defaults to true, per the schema.</summary>
     public bool Other { get; init; } = true;
 
+    /// <summary>
+    ///     Whether the plan is complete without an answer. Worth asking, not worth blocking on —
+    ///     the UI treats an unanswered optional question as settled, so what remains outstanding is
+    ///     what still wants a human.
+    /// </summary>
+    public bool Optional { get; init; }
+
     /// <summary>2-4 options, or null for a pure free-text question.</summary>
     public List<QuestionOption>? Options { get; init; }
 
@@ -81,19 +89,21 @@ public record PlanQuestion
     [YamlIgnore]
     public bool AnswerPresent { get; init; }
 
-    /// <summary>Absent key, explicit null, or a real answer.</summary>
+    /// <summary>
+    ///     Answered when the key is present with a value. A present-but-null <c>answer</c> is not a
+    ///     state the schema has — <c>QuestionValidationService</c> rejects it — so it reads as
+    ///     unanswered here rather than inventing a third meaning for it.
+    /// </summary>
     [YamlIgnore]
     public AnswerState AnswerState =>
-        !AnswerPresent ? AnswerState.Unanswered :
-        RawAnswer is null ? AnswerState.Declined :
-        AnswerState.Answered;
+        AnswerPresent && RawAnswer is not null ? AnswerState.Answered : AnswerState.Unanswered;
 
     /// <summary>Whether <c>answer</c> was written as a YAML sequence rather than a scalar.</summary>
     [YamlIgnore]
     public bool AnswerIsList => RawAnswer is IList;
 
     /// <summary>
-    ///     The answer flattened to strings — empty when unanswered or declined. An entry that equals
+    ///     The answer flattened to strings — empty when unanswered. An entry that equals
     ///     an option's <see cref="QuestionOption.Value" /> is that option; anything else is the
     ///     user's own text.
     /// </summary>

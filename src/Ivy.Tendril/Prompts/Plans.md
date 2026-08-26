@@ -297,6 +297,7 @@ questions:                    # 1-4 items
     description: markdown     # optional, block markdown shown under the question
     multiple:    bool         # optional, default false; true = multi-select
     other:       bool         # optional, default true; user may type a free value
+    optional:    bool         # optional, default false; true = answering is not expected
     options:                  # 2-4 items; omit entirely for a pure free-text question
       - title:       string   # required, 1-5 words
         description: markdown # optional, block markdown expanding on this option
@@ -356,14 +357,26 @@ Three shapes fall out of `multiple` / `other` / the presence of `options`:
   no options.
 - `multiple: true` means `answer` is always a list, even with one selection.
 - `answer` absent means not yet answered. UpdatePlan carries the block forward unchanged.
-- `answer: null` means asked and deliberately skipped. Treat it as "you decide", record the decision
-  in the plan, and retire the block.
+- There is no third state. `answer` is either absent or a value — **never `null`**. A question that
+  does not need answering is marked `optional: true` when it is written, which is a property of the
+  question rather than a thing the user does to it.
 
 An unanswered question never blocks execution. ExecutePlan and RetryPlan resolve one themselves —
 taking the `recommended` option when there is one, otherwise the most reasonable answer they can
 defend — and log the choice. Leaving a question unanswered is a way of saying "you decide", not a
 way of stopping the plan. That is why `recommended: true` matters: it is the default execution will
 actually take.
+
+### Optional questions
+
+`optional: true` says the plan is complete without an answer: the question is worth putting to the
+user, but not worth their time if they have none to give. Everything else about it is unchanged —
+it renders and answers like any other question, and an answer to it is honoured like any other.
+
+The difference is what it tells the reader. The UI lists an optional question as answered-for-now,
+so what remains unstruck is what still wants a human. Mark a question optional when you would be
+comfortable shipping your `recommended` option without ever hearing back, and leave it required
+when you would not.
 
 ### Lint rules
 
@@ -381,6 +394,7 @@ revision does not consume a revision number. Fix the reported lines and retry.
 | `answer` is a list iff `multiple: true` | `question N: multiple: true requires a list answer` / `question N: answer must be a scalar when multiple is false` |
 | `value` unique within a question | `question N: duplicate option value '<value>'` |
 | `other: false` and an answer entry matches no option value | `question N: answer '<entry>' matches no option and other is false` |
+| `answer` is present but null | `question N: answer: null is not a state; omit the key, or mark the question optional` |
 
 Schema bounds are enforced too: 1-4 questions, a required `id` and `title`, a `header` of at most 12
 characters, 2-4 options when `options` is present, a required `title` and slug `value` on each

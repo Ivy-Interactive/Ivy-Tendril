@@ -162,6 +162,17 @@ public static class QuestionValidationService
 
     private static void ValidateAnswer(PlanQuestion question, int line, string prefix, List<QuestionIssue> issues)
     {
+        // `answer: null` used to mean "asked and deliberately skipped". It no longer means anything:
+        // a question that need not be answered says so with `optional: true` when it is written.
+        // Rejected rather than ignored, because a revision carrying one was written against the old
+        // rules and its author meant something by it.
+        if (question.AnswerPresent && question.RawAnswer is null)
+        {
+            issues.Add(Error(line, prefix +
+                "answer: null is not a state; omit the key, or mark the question optional"));
+            return;
+        }
+
         if (question.AnswerState != AnswerState.Answered)
             return;
 

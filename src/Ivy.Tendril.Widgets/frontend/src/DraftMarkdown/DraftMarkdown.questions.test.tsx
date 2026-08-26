@@ -178,11 +178,65 @@ describe("DraftMarkdown interactive questions", () => {
     expect(container.textContent).toContain("Per request");
   });
 
-  it("renders the static callout when the host does not subscribe", () => {
-    const container = renderContent(SINGLE);
+  it("renders answers rather than controls when the host does not subscribe", () => {
+    // The Review stage and anywhere else showing a settled plan: the reader wants the decisions,
+    // not a form, and certainly not the raw YAML.
+    const container = renderContent(SINGLE_ANSWERED);
 
     expect(container.querySelector(".pmv-question-option")).toBeNull();
-    expect(container.querySelector(".pmv-questions-content")?.textContent).toContain("questions:");
+    expect(container.querySelector(".pmv-question-check")).toBeNull();
+    expect(container.querySelector(".pmv-question-clear")).toBeNull();
+    expect(container.querySelector(".pmv-questions-content")).toBeNull();
+    expect(container.textContent).not.toContain("questions:");
+
+    // The option's title, not the slug the answer names.
+    expect(container.querySelector(".pmv-question-answer-value")?.textContent).toBe("Per request");
+  });
+
+  it("lists every value of a read-only multi-select answer", () => {
+    const container = renderContent(MULTI_ANSWERED);
+
+    expect(
+      Array.from(container.querySelectorAll(".pmv-question-answer-value")).map((e) => e.textContent),
+    ).toEqual(["In-app"]);
+  });
+
+  it("shows free text verbatim in the read-only view", () => {
+    const container = renderContent(
+      fence(
+        "questions:",
+        "  - id: name",
+        "    title: What should it be called?",
+        "    answer: Dispatch",
+      ),
+    );
+
+    expect(container.querySelector(".pmv-question-answer-value")?.textContent).toBe("Dispatch");
+  });
+
+  it("says an unanswered question was left to the agent, and an optional one was not required", () => {
+    const container = renderContent(
+      fence(
+        "questions:",
+        "  - id: required-one",
+        "    title: Which scheme?",
+        "  - id: optional-one",
+        "    title: Anything else?",
+        "    optional: true",
+      ),
+    );
+
+    expect(
+      Array.from(container.querySelectorAll(".pmv-question-answer--none")).map((e) => e.textContent),
+    ).toEqual(["Not answered — agent decided", "Not answered — not required"]);
+  });
+
+  it("still renders a legacy prose block as its text when nobody subscribes", () => {
+    const container = renderContent("```questions\nWhat is the retention policy?\n```");
+
+    expect(container.querySelector(".pmv-questions-content")?.textContent).toBe(
+      "What is the retention policy?",
+    );
   });
 
   it("fires once with the question id and a one-element list when an option is clicked", () => {
@@ -215,8 +269,8 @@ describe("DraftMarkdown interactive questions", () => {
   });
 
   it("clears rather than skips when the last multi-select option is unchecked", () => {
-    // An empty list on the wire means `answer: null` — asked and deliberately skipped, which tells
-    // the agent to decide. Unchecking your last box means neither of those.
+    // Unchecking the last box leaves the question unanswered, and that is what travels — not an
+    // empty answer.
     const { container, eventHandler } = renderInteractive(MULTI_ANSWERED);
 
     fireEvent.click(checks(container)[0]);
@@ -277,17 +331,18 @@ describe("DraftMarkdown interactive questions", () => {
     expect(answered.querySelector(".pmv-question-clear")).not.toBeNull();
   });
 
-  it("offers Clear for a skipped question, since a skip is a decision to take back", () => {
-    const skipped = fence(
+  it("offers no Clear for a question whose only answer is a leftover null", () => {
+    // `answer: null` is not a state any more, so there is nothing to take back.
+    const legacySkip = fence(
       "questions:",
       "  - id: budget",
       "    title: Retry budget scope?",
       "    answer: null",
     );
 
-    const { container } = renderInteractive(skipped);
+    const { container } = renderInteractive(legacySkip);
 
-    expect(container.querySelector(".pmv-question-clear")).not.toBeNull();
+    expect(container.querySelector(".pmv-question-clear")).toBeNull();
   });
 
   it("gives a multi-question block one shared Clear, not one per question", () => {
@@ -306,30 +361,30 @@ describe("DraftMarkdown interactive questions", () => {
     expect(answerCalls(eventHandler)).toEqual([{ questionId: "owner", answer: null }]);
   });
 
-  it("marks an explicitly skipped question as skipped rather than unanswered", () => {
-    const skipped = fence(
+  it("marks an optional question as optional", () => {
+    const optional = fence(
       "questions:",
       "  - id: budget",
       "    title: Retry budget scope?",
+      "    optional: true",
       "    options:",
       "      - title: Per request",
       "        value: per-request",
       "      - title: Per session",
       "        value: per-session",
-      "    answer: null",
     );
 
-    const { container } = renderInteractive(skipped);
+    const { container } = renderInteractive(optional);
 
-    expect(container.querySelector(".pmv-question-skipped")?.textContent).toBe("Skipped — you decide");
-    // Skipping selects nothing, which is what made it look identical to an untouched question.
+    expect(container.querySelector(".pmv-question-optional")?.textContent).toBe("Optional");
+    // Optional says the plan does not wait on it, not that anything has been chosen.
     expect(checks(container).some((check) => check.checked)).toBe(false);
   });
 
-  it("does not mark an unanswered question as skipped", () => {
+  it("does not mark an ordinary question as optional", () => {
     const { container } = renderInteractive(SINGLE);
 
-    expect(container.querySelector(".pmv-question-skipped")).toBeNull();
+    expect(container.querySelector(".pmv-question-optional")).toBeNull();
   });
 
   it("renders no Other row when other is false", () => {

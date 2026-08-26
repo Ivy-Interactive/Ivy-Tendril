@@ -26,10 +26,18 @@ export interface PlanQuestion {
   multiple: boolean;
   /** Whether the user may type a value of their own. Defaults to true, per the schema. */
   other: boolean;
+  /**
+   * Whether the plan is complete without an answer. Worth asking, not worth blocking on — an index
+   * treats an unanswered optional question as settled.
+   */
+  optional: boolean;
   options?: QuestionOption[];
-  /** The raw `answer` node: absent, null, a scalar or a list. */
+  /** The raw `answer` node: absent, a scalar or a list. */
   answer?: unknown;
-  /** Whether the `answer` key was present at all — absent and explicit null mean different things. */
+  /**
+   * Whether the question carries an answer. A present-but-null `answer` is not a state the schema
+   * has — the validator rejects it — so it reads as unanswered.
+   */
   answerPresent: boolean;
 }
 
@@ -115,9 +123,11 @@ export function parseQuestions(body: string): ParsedQuestions {
       description: optionalString(entry.description),
       multiple: entry.multiple === true,
       other: entry.other !== false,
+      optional: entry.optional === true,
       options: readOptions(entry.options),
       answer: entry.answer,
-      answerPresent: Object.prototype.hasOwnProperty.call(entry, "answer"),
+      answerPresent:
+        Object.prototype.hasOwnProperty.call(entry, "answer") && entry.answer !== null,
     });
   }
 
@@ -125,22 +135,17 @@ export function parseQuestions(body: string): ParsedQuestions {
 }
 
 /**
- * The answer as a list of entries, which is what drives selection state. Empty when the question
- * is unanswered or explicitly skipped. An entry matching an option's `value` is that option; an
- * entry matching nothing is the user's own free text.
+ * The answer as a list of entries, which is what drives selection state. Empty when the question is
+ * unanswered. An entry matching an option's `value` is that option; an entry matching nothing is
+ * the user's own free text.
  */
 export function answerEntries(question: PlanQuestion): string[] {
-  if (!question.answerPresent || question.answer === null || question.answer === undefined) return [];
+  if (!question.answerPresent || question.answer === undefined) return [];
 
   // Same coercion as the option values these are matched against, so `answer: 2024` still selects
   // the option valued `2024`.
   const raw = Array.isArray(question.answer) ? question.answer : [question.answer];
   return raw.map(scalarString).filter((entry): entry is string => entry !== undefined);
-}
-
-/** `answer: null` — asked and deliberately skipped. */
-export function isSkipped(question: PlanQuestion): boolean {
-  return question.answerPresent && question.answer === null;
 }
 
 /** The answer entry that matches no option, i.e. what the user typed into "Other". */

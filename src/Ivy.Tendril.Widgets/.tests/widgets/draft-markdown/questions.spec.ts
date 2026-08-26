@@ -50,12 +50,12 @@ test.describe("DraftMarkdown Questions", () => {
     const card = page.locator(".pmv-sticky");
     const entry = card.getByRole("button", { name: /retry budget/ });
 
-    await expect(card.getByText("3 of 8 answered")).toBeVisible();
+    await expect(card.getByText("3 of 8 settled")).toBeVisible();
     await expect(entry).not.toHaveCSS("text-decoration-line", "line-through");
 
     await blockFor(page, "retry-scope").locator(".pmv-question-check").first().click();
 
-    await expect(card.getByText("4 of 8 answered")).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByText("4 of 8 settled")).toBeVisible({ timeout: 15_000 });
     await expect(entry).toHaveCSS("text-decoration-line", "line-through", { timeout: 15_000 });
 
     await stepScreenshot("answered-struck-out");
@@ -127,8 +127,8 @@ test.describe("DraftMarkdown Questions", () => {
     // Each header renders as the eyebrow over its question.
     await expect(callout.locator(".pmv-question-header")).toHaveText(["Name", "Owner"]);
 
-    // The second ships with `answer: null` — asked and deliberately skipped.
-    await expect(callout.locator(".pmv-question-skipped")).toHaveCount(1);
+    // The second is `optional: true` — the plan is complete without it.
+    await expect(callout.locator(".pmv-question-optional")).toHaveCount(1);
 
     // Two questions, one shared Clear for the block.
     await expect(callout.locator(".pmv-question-clear")).toHaveCount(1);
@@ -137,10 +137,10 @@ test.describe("DraftMarkdown Questions", () => {
 
     // Answering the first leaves the second alone.
     await callout.locator(".pmv-question-other-input").first().fill("dispatch");
-    await expect(page.locator(".pmv-sticky").getByText("4 of 8 answered")).toBeVisible({
+    await expect(page.locator(".pmv-sticky").getByText("4 of 8 settled")).toBeVisible({
       timeout: 15_000,
     });
-    await expect(callout.locator(".pmv-question-skipped")).toHaveCount(1);
+    await expect(callout.locator(".pmv-question-optional")).toHaveCount(1);
   });
 
   test("Clear appears only once there is an answer, and retires with it", async ({ page }) => {
@@ -152,13 +152,13 @@ test.describe("DraftMarkdown Questions", () => {
 
     await callout.locator(".pmv-question-check").first().click();
     await expect(callout.locator(".pmv-question-clear")).toHaveCount(1, { timeout: 15_000 });
-    await expect(card.getByText("4 of 8 answered")).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByText("4 of 8 settled")).toBeVisible({ timeout: 15_000 });
 
     await callout.locator(".pmv-question-clear").click();
 
     // Back to unanswered on both sides: the button retires and the index entry un-strikes.
     await expect(callout.locator(".pmv-question-clear")).toHaveCount(0, { timeout: 15_000 });
-    await expect(card.getByText("3 of 8 answered")).toBeVisible({ timeout: 15_000 });
+    await expect(card.getByText("3 of 8 settled")).toBeVisible({ timeout: 15_000 });
   });
 
   test("a documentation fence stays a code block", async ({ page }) => {
@@ -184,6 +184,36 @@ test.describe("DraftMarkdown Questions", () => {
     // annotation would have drifted off "separate consumer".
     await expect(highlights.nth(0)).toHaveText("Where the budget lives");
     await expect(highlights.nth(1)).toHaveText("separate consumer");
+  });
+
+  test("the review sample presents answers instead of controls", async ({ page, stepScreenshot }) => {
+    // A separate app with no OnAnswersChange handler — the Review stage, and anywhere else showing
+    // a plan the reader is no longer editing.
+    await navigateToApp(page, "draft-markdown/questions-review");
+    await waitForDraftMarkdown(page);
+
+    await expect(page.locator(".pmv-question-check")).toHaveCount(0);
+    await expect(page.locator(".pmv-question-other-input")).toHaveCount(0);
+    await expect(page.locator(".pmv-question-clear")).toHaveCount(0);
+
+    // The chosen option's title, not the slug the YAML carries.
+    const scope = blockFor(page, "delivery-scope");
+    await expect(scope.locator(".pmv-question-answer-value").first()).toHaveText("Dispatch only");
+    await expect(page.locator(".pmv-markdown")).not.toContainText("questions:");
+
+    // A multi-select answer lists every value.
+    await expect(
+      blockFor(page, "rollout-regions").locator(".pmv-question-answer-value"),
+    ).toHaveText(["EU", "US"]);
+
+    // Unanswered questions say which kind they are — both are decisions nobody explicitly made.
+    const naming = blockFor(page, "service-name");
+    await expect(naming.locator(".pmv-question-answer--none")).toHaveText([
+      "Not answered — not required",
+      "Not answered — agent decided",
+    ]);
+
+    await stepScreenshot("review-read-only");
   });
 
   test("dragging across the picker raises no selection toolbar", async ({ page, stepScreenshot }) => {

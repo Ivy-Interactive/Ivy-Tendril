@@ -25,18 +25,18 @@ public readonly record struct QuestionBlockSource(int Index, int BodyStart, int 
 /// <see cref="DraftMarkdown.ScrollTo" /> addresses.</param>
 /// <param name="Title">The question itself. Empty when the block omitted it.</param>
 /// <param name="Header">The optional short label shown as an eyebrow above the title.</param>
-/// <param name="HasAnswer">
-///     Whether an <c>answer</c> key is present at all — true for a real answer and for a
-///     deliberate skip alike, which is what "dealt with" means for an index.
+/// <param name="HasAnswer">Whether the question carries an <c>answer</c>.</param>
+/// <param name="IsOptional">
+///     Whether the plan is complete without an answer. An index treats an unanswered optional
+///     question as settled, so what remains outstanding is what still wants a human.
 /// </param>
-/// <param name="IsSkipped"><c>answer: null</c> — asked and deliberately skipped.</param>
 public readonly record struct QuestionSummary(
     int BlockIndex,
     string Id,
     string Title,
     string? Header,
     bool HasAnswer,
-    bool IsSkipped);
+    bool IsOptional);
 
 /// <summary>
 ///     Merges a <see cref="QuestionAnswer" /> reported by <see cref="DraftMarkdown.OnAnswersChange" />
@@ -115,14 +115,16 @@ public static class QuestionAnswers
                 if (string.IsNullOrEmpty(id))
                     continue;
 
+                // A present-but-null answer is not a state the schema has, so it reads as
+                // unanswered rather than as something in between.
                 var answer = Entry(entry, AnswerKey);
                 summaries.Add(new QuestionSummary(
                     block.Index,
                     id,
                     Value(entry, "title") ?? "",
                     Value(entry, "header"),
-                    answer is not null,
-                    answer is { } pair && IsNullScalar(pair.Value)));
+                    answer is { } pair && !IsNullScalar(pair.Value),
+                    string.Equals(Value(entry, "optional"), "true", StringComparison.OrdinalIgnoreCase)));
             }
         }
 
@@ -140,10 +142,9 @@ public static class QuestionAnswers
     ///     Returns <paramref name="markdown" /> with <paramref name="answer" /> written onto the
     ///     question it names.
     ///     <para>
-    ///         <see cref="QuestionAnswer.Answer" /> carries all three states without a sentinel:
-    ///         <c>null</c> removes the <c>answer</c> key (back to unanswered), an empty list writes
-    ///         <c>answer: null</c> (asked and deliberately skipped), and a non-empty list is the answer
-    ///         itself. Whether that is written as a scalar or a list follows the question's own
+    ///         <c>null</c> or an empty <see cref="QuestionAnswer.Answer" /> removes the <c>answer</c>
+    ///         key, taking the question back to unanswered; a non-empty list is the answer itself.
+    ///         Whether that is written as a scalar or a list follows the question's own
     ///         <c>multiple</c>, so the result satisfies the "answer is a list iff multiple" lint rule.
     ///     </para>
     /// </summary>
@@ -254,7 +255,7 @@ public static class QuestionAnswers
 
         if (existing is not { } pair)
         {
-            if (answer is null)
+            if (answer is not { Count: > 0 })
                 return body; // Already unanswered — nothing to remove.
 
             var insertAt = EndOfBlockEntry(body, entry);
@@ -266,7 +267,7 @@ public static class QuestionAnswers
         var keyStart = (int)pair.Key.Start.Index;
         var valueEnd = EndOfBlockValue(body, pair.Value, indent);
 
-        if (answer is null)
+        if (answer is not { Count: > 0 })
         {
             // Take the whole line, its indentation and its terminator with it, so removing an answer
             // leaves no blank line behind.
@@ -286,7 +287,7 @@ public static class QuestionAnswers
 
         if (existing is not { } pair)
         {
-            if (answer is null)
+            if (answer is not { Count: > 0 })
                 return body;
 
             var close = MatchDelimiter(body, (int)entry.Start.Index);
@@ -297,7 +298,7 @@ public static class QuestionAnswers
         var keyStart = (int)pair.Key.Start.Index;
         var valueEnd = EndOfFlowValue(body, pair.Value);
 
-        if (answer is null)
+        if (answer is not { Count: > 0 })
         {
             // `id` always precedes `answer`, so there is a separating comma to absorb.
             var start = keyStart;
@@ -456,9 +457,6 @@ public static class QuestionAnswers
 
     private static string FormatBlockAnswer(IReadOnlyList<string> answer, bool multiple, int indent, string newline)
     {
-        if (answer.Count == 0)
-            return $"{AnswerKey}: null";
-
         // A single entry stays a scalar only when the question is single-select. More than one entry
         // is always written as a list, even if `multiple` is false: dropping the extras would lose the
         // user's answer, and the lint rule then reports the mismatch honestly.
@@ -471,9 +469,6 @@ public static class QuestionAnswers
 
     private static string FormatFlowValue(IReadOnlyList<string> answer, bool multiple)
     {
-        if (answer.Count == 0)
-            return "null";
-
         if (!multiple && answer.Count == 1)
             return FormatScalar(answer[0]);
 

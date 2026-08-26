@@ -14,6 +14,60 @@ public class QuestionValidationServiceTests
         return issue.Message;
     }
 
+    // ---------------------------------------------------------------- optional / answer: null
+
+    [Fact]
+    public void Validate_RejectsAnExplicitNullAnswer()
+    {
+        // `answer: null` used to mean "asked and deliberately skipped". A question that need not be
+        // answered is `optional: true` now, so a null answer no longer means anything.
+        var message = SingleError("""
+            questions:
+              - id: owner
+                title: Who owns the rollout?
+                answer: null
+            """);
+
+        Assert.Contains("answer: null is not a state", message);
+        Assert.Contains("optional", message);
+    }
+
+    [Fact]
+    public void Validate_RejectsABareAnswerKey()
+    {
+        // `answer:` with nothing after it is the same explicit null, written differently.
+        Assert.Contains("answer: null is not a state", SingleError("""
+            questions:
+              - id: owner
+                title: Who owns the rollout?
+                answer:
+            """));
+    }
+
+    [Fact]
+    public void Validate_AcceptsAnOptionalQuestion()
+    {
+        Assert.Empty(Validate("""
+            questions:
+              - id: owner
+                title: Who owns the rollout?
+                optional: true
+            """));
+    }
+
+    [Fact]
+    public void Validate_AcceptsAnOptionalQuestionThatWasAnsweredAnyway()
+    {
+        // Optional says the plan does not wait on an answer, not that one is unwelcome.
+        Assert.Empty(Validate("""
+            questions:
+              - id: owner
+                title: Who owns the rollout?
+                optional: true
+                answer: platform-team
+            """));
+    }
+
     // ---------------------------------------------------------------- clean documents
 
     [Fact]

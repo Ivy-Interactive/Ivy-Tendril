@@ -24,8 +24,8 @@ namespace WidgetSamples.Apps.DraftMarkdown;
 ///         Between them the four blocks cover the whole schema: a four-question block under the H1
 ///         (the cap, and the scope-level placement the spec asks for), every shape from the shape
 ///         table including multi-select over a fixed set, questions that arrive already answered
-///         with a scalar and with a list, one with no <c>header</c>, a skip, and a documentation
-///         fence that must never become a picker.
+///         with a scalar and with a list, one with no <c>header</c>, an optional question, and a
+///         documentation fence that must never become a picker.
 ///     </para>
 /// </summary>
 [App(title: "Questions", icon: Icons.CircleQuestionMark, group: ["DraftMarkdown"])]
@@ -175,9 +175,9 @@ class QuestionsApp : ViewBase
 
         Two questions with no options at all — the pure free-text shape. A block may hold up
         to four, and they stack, so both are answerable without hunting for the second one.
-        Each `header` becomes the eyebrow above its question. The second carries `answer:
-        null` — asked and deliberately skipped — which the picker says out loud instead of
-        leaving it looking untouched.
+        Each `header` becomes the eyebrow above its question. The second is `optional: true` —
+        worth asking, but the plan is complete without it, so the index counts it as settled
+        and only the first still wants a human.
 
         ```questions
         questions:
@@ -189,7 +189,7 @@ class QuestionsApp : ViewBase
             title: Who owns the rollout?
             header: Owner
             description: The person paged when delivery latency regresses.
-            answer: null
+            optional: true
         ```
 
         ## Not a question
@@ -271,14 +271,16 @@ class QuestionsApp : ViewBase
             if (i > 0)
                 index.LineBreak().LineBreak();
 
-            // Struck through and muted once the question has been dealt with — an answer or a
-            // deliberate skip both count. Muting is what makes what is left stand out; the strike
-            // alone still reads as live text.
+            // Struck through and muted once nothing is outstanding: it has an answer, or it is
+            // optional and the plan does not wait on it. What stays live is what still wants a
+            // human. Muting is what makes that stand out — the strike alone still reads as live.
+            var settled = question.HasAnswer || question.IsOptional;
+
             index.Link(
-                Label(question),
+                question.IsOptional ? $"{Label(question)} (Optional)" : Label(question),
                 question.Id,
-                strikeThrough: question.HasAnswer,
-                color: question.HasAnswer ? Colors.Muted : null);
+                strikeThrough: settled,
+                color: settled ? Colors.Muted : null);
         }
 
         index.OnLinkClick(id => scrollTo.Set(new QuestionScrollTarget(
@@ -289,7 +291,7 @@ class QuestionsApp : ViewBase
 
         var card = new Card(
             Layout.Vertical().Gap(1)
-            | Text.Muted($"{questions.Count(q => q.HasAnswer)} of {questions.Count} answered. "
+            | Text.Muted($"{questions.Count(q => q.HasAnswer || q.IsOptional)} of {questions.Count} settled. "
                          + "Click one to scroll its block into view.")
             | index
             | new Button("Reset").Outline().OnClick(() =>
