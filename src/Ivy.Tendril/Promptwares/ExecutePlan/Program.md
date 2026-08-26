@@ -167,7 +167,7 @@ date: <CurrentTime>
 
 ### 2. Create Worktrees
 
-Report status: `tendril job status TendrilJobId --message="Creating worktrees..."`
+Report status: `tendril job status TendrilJobId --message="Creating worktrees..."` (or "worktree" if only one)
 
 For each repo in `RepoConfigs` (this includes both the plan's repos AND any read-only build dependencies from the project config):
 

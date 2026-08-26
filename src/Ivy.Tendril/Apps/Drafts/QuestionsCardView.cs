@@ -44,7 +44,7 @@ public class QuestionsCardView(
 
         return new Card(
             Layout.Vertical().Gap(2)
-            | Text.Muted($"{answered} of {questions.Count} answered")
+            //| Text.Muted($"{answered} of {questions.Count} answered")
             | inner
         ).Header("Questions").Width(Size.Px(280));
     }
