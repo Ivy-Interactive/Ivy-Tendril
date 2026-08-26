@@ -10,14 +10,19 @@
   <img src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux-4493F8?style=flat-square" alt="Supported platforms: macOS, Windows, and Linux" />
 </p>
 
+<h2>The Agentic Software Factory for 10x Builders</h2>
+
 <p>
-  <strong>The Agentic Sofware Factory for 10x Builders</strong><br/>
-  AI agents can now write 99% code. This changes what it means to be a developer. Our role shifts to knowing "what good looks like". For this we need completely new developer tools. 
+AI agents can now write 99% of the code. This changes what it means to be a developer. Our role shifts to knowing <strong>what good looks like</strong>. To do that, we need completely new developer tools. Tendril is that tool and replaces your IDE in an agentic era. 
 </p>
 
 <p>
-  <img src="src/main.gif" alt="Tendril desktop app running agents and tracking jobs" width="960" />
+<a href="https://www.youtube.com/watch?v=5xNEMt8IRo4">
+  <img src="docs/yt-thumbnail-in-two-minutes-2.png" alt="Ivy Tendril in two minutes — watch on YouTube" width="720">
+</a>
 </p>
+
+<p>https://www.youtube.com/watch?v=5xNEMt8IRo4</p>
 
 ## Features
 
