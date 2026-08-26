@@ -362,6 +362,45 @@ public class QuestionAnswersTests
     }
 
     [Fact]
+    public void Apply_RemovesAFlowAnswerWrittenBeforeTheId()
+    {
+        // A hand-edited mapping can put `answer` first. Absorbing only a preceding comma left
+        // `{, id: ...}` behind, which does not parse — so every later answer would be lost.
+        const string flowFirst = """
+            ```questions
+            questions:
+              - {answer: per-session, id: flow-q, title: Which scope?}
+            ```
+            """;
+
+        var cleared = QuestionAnswers.Apply(flowFirst, new QuestionAnswer("flow-q", null));
+
+        Assert.DoesNotContain("answer", cleared);
+        Assert.DoesNotContain("{,", cleared);
+        // Still readable, which is the point: the block survives the edit.
+        Assert.Equal("flow-q", Assert.Single(QuestionAnswers.Read(cleared)).Id);
+    }
+
+    [Fact]
+    public void Apply_HandlesAnApostropheInsideAFlowMapping()
+    {
+        // `Don't` is a plain scalar, not an opening quote. Reading it as one ran the brace scan
+        // past the end of the mapping and spliced the answer at a wrong offset.
+        const string apostrophe = """
+            ```questions
+            questions:
+              - {id: flow-q, title: Don't retry}
+            ```
+            """;
+
+        var updated = Apply(apostrophe, "flow-q", "per-session");
+
+        var question = Question(updated, "flow-q");
+        Assert.Equal("Don't retry", question.Title);
+        Assert.Equal(["per-session"], question.AnswerValues);
+    }
+
+    [Fact]
     public void Apply_HandlesASequenceAlignedWithItsKey()
     {
         // Legal YAML: a block sequence may sit at its key's own column.

@@ -316,15 +316,32 @@ public static class QuestionAnswers
 
         if (answer is not { Count: > 0 })
         {
-            // `id` always precedes `answer`, so there is a separating comma to absorb.
+            // Absorb the comma that separated this pair from its neighbour, or removing the pair
+            // leaves `{, id: q1}` behind — which does not parse, so the block degrades to plain
+            // text and every later answer for it is lost. The comma may sit on either side:
+            // `answer` is normally written last, but a hand-edited mapping can put it first.
             var start = keyStart;
-            var scan = keyStart - 1;
-            while (scan > 0 && char.IsWhiteSpace(body[scan]))
-                scan--;
-            if (scan >= 0 && body[scan] == ',')
-                start = scan;
+            var end = valueEnd;
 
-            return body[..start] + body[valueEnd..];
+            var before = keyStart - 1;
+            while (before >= 0 && char.IsWhiteSpace(body[before]))
+                before--;
+
+            if (before >= 0 && body[before] == ',')
+            {
+                start = before;
+            }
+            else
+            {
+                var after = valueEnd;
+                while (after < body.Length && char.IsWhiteSpace(body[after]))
+                    after++;
+
+                if (after < body.Length && body[after] == ',')
+                    end = after + 1;
+            }
+
+            return body[..start] + body[end..];
         }
 
         var replacement = $"{AnswerKey}: {FormatFlowValue(answer, IsMultiple(entry))}";
@@ -420,20 +437,39 @@ public static class QuestionAnswers
         var opener = body[open];
         var depth = 0;
 
+        // A quote opens a scalar only where a value may start — after `{`, `[`, `,` or `:`. Anywhere
+        // else it is punctuation inside a plain one, and reading the apostrophe in `Don't retry` as
+        // an opening quote would run the scan past the closing brace and splice at a wrong offset.
+        var expectValue = true;
+
         for (var i = open; i < body.Length; i++)
         {
             var c = body[i];
 
-            if (c is '\'' or '"')
+            if (expectValue && c is '\'' or '"')
             {
                 i = SkipQuoted(body, i);
+                expectValue = false;
                 continue;
             }
 
             if (c == opener)
+            {
                 depth++;
+                expectValue = true;
+            }
             else if (c == closer && --depth == 0)
+            {
                 return i;
+            }
+            else if (c is ',' or ':' or '[' or '{')
+            {
+                expectValue = true;
+            }
+            else if (!char.IsWhiteSpace(c))
+            {
+                expectValue = false;
+            }
         }
 
         return body.Length - 1;

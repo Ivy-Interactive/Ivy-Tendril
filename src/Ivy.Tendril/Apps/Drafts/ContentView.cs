@@ -133,6 +133,9 @@ public class ContentView(
             isEditing.Set(false);
             annotations.Set(ImmutableList<MarkdownAnnotation>.Empty);
             showAnnotationsDialog.Set(false);
+            // Left open across a switch, "Execute Anyway" would run the new plan on a confirmation
+            // the user gave for the old one.
+            showQuestionsDialog.Set(false);
             pendingWaitJobIds.Set((List<string>?)null);
         }
 
@@ -163,9 +166,12 @@ public class ContentView(
 
             revisionContent.Set(merged);
 
-            // Keep the guard above from firing on our own write. It drops annotations when the plan
-            // text changes underneath, which is right for a re-plan and wrong for this: an answer
-            // lands inside a fence, and the passages annotations point at have not moved.
+            // The plan snapshot has to carry the write as well. The guard above compares against
+            // `selectedPlan`, which nothing else re-reads after a content write — leaving it stale
+            // makes the guard fire on the very next render and revert the answer we just made.
+            // Advancing both together keeps the guard quiet, which is what we want here: an answer
+            // lands inside a fence, so the passages annotations point at have not moved.
+            selectedPlanState.Set(selectedPlan with { LatestRevisionContent = merged });
             lastContentHash.Set(merged.GetHashCode());
 
             planService.UpdateLatestRevision(selectedPlan.FolderName, merged);

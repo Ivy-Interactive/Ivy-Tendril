@@ -90,16 +90,26 @@ const QuestionView: React.FC<QuestionViewProps> = ({ question, blockIndex, onAns
    * An empty list would otherwise travel as "the answer is nothing in particular". Unchecking your
    * last box means the question is simply unanswered again, so that is what gets reported.
    */
-  const report = (answer: string | string[] | null | undefined) =>
-    onAnswer(question.id, Array.isArray(answer) && answer.length === 0 ? undefined : answer);
+  const report = (answer: string | string[] | null | undefined) => {
+    // Emptying the field is not an answer of "": clearing the box means the question is unanswered
+    // again. Written literally it would stay struck through in the index and counted as answered,
+    // with nothing in it.
+    const empty =
+      answer === "" || (Array.isArray(answer) && answer.length === 0);
+
+    onAnswer(question.id, empty ? undefined : answer);
+  };
 
   const selectOption = (option: QuestionOption) => {
-    setOtherOpen(false);
     if (!question.multiple) {
+      // Single-select: the option replaces whatever was typed, so the field goes with it.
+      setOtherOpen(false);
       report(option.value);
       return;
     }
 
+    // Multi-select keeps the typed entry in the answer, so the field it was typed into has to stay
+    // open. Closing it stranded the text — visible in the document, invisible and uneditable here.
     const next = entries.includes(option.value)
       ? entries.filter((entry) => entry !== option.value)
       : [...entries, option.value];
