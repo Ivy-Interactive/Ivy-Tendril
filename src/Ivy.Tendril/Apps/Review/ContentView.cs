@@ -601,7 +601,11 @@ public class ContentView(
                     config, planData.SummaryMarkdown, selectedPlan.Verifications,
                     planData.VerificationReports, v => openVerification.Set(v), onLinkClick,
                     planContentQuery.Loading) : new Empty()),
-                new Tab("Plan", isPlanSelected ? Cap(planTabContent) : new Empty()),
+                // Plan is DraftMarkdown too, so it is unwrapped for the same reason as Summary —
+                // Cap()'s inset and max-width are what the widget already applies, and wrapping it
+                // applied each twice. Unwrapped, the two tabs also start their text in the same
+                // place, which is what switching between them should look like.
+                new Tab("Plan", isPlanSelected ? planTabContent : new Empty()),
                 new Tab("Details", isDetailsSelected ? Cap(new DetailsTabView(selectedPlan,
                     jobService.GetJobsForPlan(selectedPlan.FolderName),
                     showDebugJob, showCostJob, planService, selectedPlanState, refreshPlans,
