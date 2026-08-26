@@ -381,20 +381,6 @@ public class ContentView(
                 .OnSelect(() => nav.Navigate<AgentApp>(new AgentAppArgs(
                     $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode.",
                     $"#{TendrilAppShell.FormatPlanId(selectedPlan.FolderName)}"))),
-            new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
-            {
-                try
-                {
-                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                }
-                catch (PlanTransitionBlockedException ex)
-                {
-                    client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
-                    return;
-                }
-
-                refreshPlans();
-            }),
             new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
                 .OnSelect(() => { PlatformHelper.OpenInFileManager(selectedPlan.FolderPath, logger); }),
             new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal").OnSelect(() =>

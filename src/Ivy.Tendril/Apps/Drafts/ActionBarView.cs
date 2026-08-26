@@ -95,21 +95,6 @@ public class ActionBarView(
                     copyToClipboard(exported);
                     client.Toast("Plan copied to clipboard", "Plan Exported");
                 }),
-            new MenuItem("Mark as Completed", Icon: Icons.CircleCheck, Tag: "MarkCompleted")
-                .OnSelect(() =>
-                {
-                    try
-                    {
-                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                    }
-                    catch (PlanTransitionBlockedException ex)
-                    {
-                        client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
-                        return;
-                    }
-
-                    refreshPlans();
-                }),
             new MenuItem("Open plan.yaml", Icon: Icons.FileText, Tag: "OpenPlanYaml").OnSelect(() =>
             {
                 var yamlPath = Path.Combine(selectedPlan.FolderPath, "plan.yaml");
