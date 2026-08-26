@@ -201,46 +201,6 @@ projects:
   filePermissions: []
   networkAccessRules: []
   allowedTerminalCommands: []
-- name: Tendril-EpicDraftQuestions
-  color: Emerald
-  meta: {}
-  repos:
-  - path: D:/Repos/_Ivy/Ivy-Tendril
-    baseBranch: epic-draft-questions
-  - path: D:/Repos/_Ivy/Ivy-Framework
-    baseBranch: development
-  verifications:
-  - name: DotnetBuild
-    required: true
-  - name: DotnetFormat
-    required: true
-  - name: DotnetTest
-    required: true
-  - name: CodeReview
-    required: true
-  - name: CheckResult
-    required: true
-  context: "Plan management TUI. Key folders: - src\\Ivy.Tendril\\Services\\ — ConfigService, PlanReaderService, JobService - src\\Ivy.Tendril\\Apps\\ — DraftsApp, JobsApp UI - src\\Ivy.Tendril\\Promptwares\\ — CreatePlan, UpdatePlan, SplitPlan, ExpandPlan This project uses the Ivy Framework - there's CLI helper methods you can use:  ivy docs AGENTS.md  ivy question \"How do I make a button in Ivy?\""
-  stackHash: fe.ts:react+vite+tailwind/fs.cs:ivyframework/db:sqlite/infra:docker/test:playwright+vitest+xunit
-  reviewActions:
-  - name: Tendril
-    condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril"
-    command: "& '.\\worktrees\\Ivy-Tendril\\src\\Ivy.Tendril\\Run.ps1'"
-  - name: Docs
-    condition: Test-Path "worktrees\Ivy-Tendril\src\Ivy.Tendril.Docs"
-    command: "& '.\\worktrees\\Ivy-Tendril\\src\\Ivy.Tendril.Docs\\Run.ps1'"
-  hooks: []
-  buildDependencies: []
-  mcpServers: []
-  skills: []
-  securityPreset: Custom
-  outsideFileAccessPolicy: Allow
-  terminalAutoExecution: Always Proceed
-  sandboxMode: Inherit General
-  autoImplementPlans: Inherit General
-  filePermissions: []
-  networkAccessRules: []
-  allowedTerminalCommands: []
 - name: Tendril-Widgets
   color: Cyan
   meta: {}
