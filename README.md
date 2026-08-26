@@ -11,7 +11,7 @@
 </p>
 
 <p>
-  <strong>The Agentic Sofware Factory for 10x Builders</strong><br/>
+  <strong>The Agentic Software Factory for 10x Builders</strong><br/>
   AI agents can now write 99% code. This changes what it means to be a developer. Our role shifts to knowing "what good looks like". For this we need completely new developer tools. 
 </p>
 
