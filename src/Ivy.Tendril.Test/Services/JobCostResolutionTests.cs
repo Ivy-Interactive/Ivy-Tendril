@@ -1,4 +1,5 @@
 ﻿using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Jobs;
@@ -248,6 +249,32 @@ public class JobCostResolutionTests
     }
 
     [Fact]
+    public void Sheet_Effort_ComesFromTheJobAndIsCapitalised()
+    {
+        var job = CostedJob(JobCostSources.Agent);
+        job.Effort = "high";
+
+        Assert.Equal("High", Build(job).Effort);
+    }
+
+    [Fact]
+    public void Sheet_Effort_IsAbsentForAnAgentWithNoEffortControl()
+    {
+        Assert.Null(Build(CostedJob(JobCostSources.Agent)).Effort);
+    }
+
+    [Fact]
+    public void Sheet_Signature_ChangesWhenTheEffortIsRecordedAtLaunch()
+    {
+        var job = UncostedJob();
+        var before = JobCostModelBuilder.BuildSignature(job);
+
+        job.Effort = "high";
+
+        Assert.NotEqual(before, JobCostModelBuilder.BuildSignature(job));
+    }
+
+    [Fact]
     public void Sheet_Signature_ChangesWhenTheProfileIsRecordedAtLaunch()
     {
         var job = UncostedJob();
@@ -267,6 +294,10 @@ public class JobCostResolutionTests
         CacheWritePerMillion = 3.75m,
         Source = "Static catalog (claude)",
     };
+
+    /// <summary>Builds the model against a price list holding only <see cref="StaticClaudePricing" />.</summary>
+    private static JobCostModel Build(JobItem job) =>
+        JobCostModelBuilder.Build(job, new ModelPricingProvider([StaticClaudePricing]));
 
     private static JobItem CostedJob(string? costSource, decimal? cost = 1.25m) => new()
     {
@@ -292,7 +323,7 @@ public class JobCostResolutionTests
         var buckets = JobCostModelBuilder.BuildBuckets(CostedJob(JobCostSources.Agent), StaticClaudePricing);
 
         Assert.Equal(
-            new[] { "Input", "Output", "Cache read", "Cache write", "Reasoning" },
+            new[] { "Input", "Output", "Cache Read", "Cache Write", "Reasoning" },
             buckets.Select(b => b.Kind));
 
         // Reasoning is reported alongside (and by some providers inside) output, so counting it
@@ -312,84 +343,54 @@ public class JobCostResolutionTests
 
         var buckets = JobCostModelBuilder.BuildBuckets(job, pricing: null);
 
-        Assert.Equal(new[] { "Input", "Output", "Cache read" }, buckets.Select(b => b.Kind));
+        Assert.Equal(new[] { "Input", "Output", "Cache Read" }, buckets.Select(b => b.Kind));
         Assert.All(buckets, b => Assert.Null(b.RatePerMillion));
     }
 
-    [Fact]
-    public void Sheet_Reconciliation_AgentReportedCost_DisclaimsTheLocalRates()
-    {
-        var text = JobCostModelBuilder.BuildReconciliation(CostedJob(JobCostSources.Agent), computedCost: 1.2505m);
-
-        Assert.Contains("$1.2500", text);
-        Assert.Contains("as reported by the claude CLI", text);
-        Assert.Contains("were not used for this figure", text);
-        // Within a cent of the charge, so the computed figure is not worth surfacing.
-        Assert.DoesNotContain("Those rates would give", text);
-    }
-
-    [Fact]
-    public void Sheet_Reconciliation_AgentCostFarFromComputed_ShowsTheGap()
-    {
-        var text = JobCostModelBuilder.BuildReconciliation(CostedJob(JobCostSources.Agent), computedCost: 0.4m);
-
-        Assert.Contains("Those rates would give $0.4000", text);
-    }
-
-    [Fact]
-    public void Sheet_Reconciliation_ComputedCost_SaysItCameFromTheRates()
-    {
-        var text = JobCostModelBuilder.BuildReconciliation(CostedJob(JobCostSources.Computed), computedCost: 1.25m);
-
-        Assert.Contains("computed from the rates above", text);
-        Assert.DoesNotContain("were not used", text);
-    }
-
-    [Fact]
-    public void Sheet_Reconciliation_UnknownSource_DoesNotClaimEitherOrigin()
-    {
-        // Jobs costed before CostSource existed must not be described as agent-reported.
-        var text = JobCostModelBuilder.BuildReconciliation(CostedJob(costSource: null), computedCost: 1.25m);
-
-        Assert.Contains("was not recorded", text);
-        Assert.DoesNotContain("as reported by", text);
-        Assert.DoesNotContain("computed from the rates", text);
-    }
-
-    [Fact]
-    public void Sheet_Reconciliation_NoCost_SaysSo()
-    {
-        var text = JobCostModelBuilder.BuildReconciliation(CostedJob(costSource: null, cost: null), computedCost: null);
-
-        Assert.Contains("No cost recorded", text);
-    }
-
-    [Fact]
-    public void Sheet_PriceListSource_NamesTheStaticCatalogFile()
-    {
-        var text = JobCostModelBuilder.BuildPriceListSource(CostedJob(JobCostSources.Agent), StaticClaudePricing);
-
-        Assert.Contains("Static catalog (claude)", text);
-        Assert.Contains("src/Ivy.Tendril.Agents/Providers/Claude/ClaudeModelCatalog.cs", text);
-    }
-
-    [Fact]
-    public void Sheet_PriceListSource_NoMatchingEntry_SaysNoRatesApplied()
-    {
-        var text = JobCostModelBuilder.BuildPriceListSource(CostedJob(JobCostSources.Agent), pricing: null);
-
-        Assert.Contains("No price list entry matches 'claude-opus-5'", text);
-    }
-
     [Theory]
-    [InlineData("Static catalog (claude)", "src/Ivy.Tendril.Agents/Providers/Claude/ClaudeModelCatalog.cs")]
-    [InlineData("Static catalog (opencode)", "src/Ivy.Tendril.Agents/Providers/OpenCode/OpenCodeModelCatalog.cs")]
-    [InlineData("Static catalog (nonesuch)", null)]
-    [InlineData("https://models.dev", null)]
-    [InlineData(null, null)]
-    public void Sheet_ResolveCatalogFile(string? source, string? expected)
+    [InlineData(JobCostSources.Agent, 1.25, 1.25)]
+    [InlineData(JobCostSources.Computed, 1.25, null)]
+    [InlineData(null, 1.25, null)]
+    public void Sheet_AgentReportedCost_OnlySetWhenTheAgentActuallyReportedOne(
+        string? costSource, double charged, double? expected)
     {
-        Assert.Equal(expected, JobCostModelBuilder.ResolveCatalogFile(source));
+        // A charge whose source was never recorded must not be presented as the agent's figure.
+        var model = Build(CostedJob(costSource, (decimal)charged));
+
+        Assert.Equal((decimal?)expected, model.AgentReportedCost);
+        Assert.Equal((decimal)charged, model.ChargedCost);
+        Assert.Equal(costSource, model.CostSource);
+    }
+
+    [Fact]
+    public void Sheet_PriceList_StaticCatalog_IsAttributedToTendrilWithNothingToLinkTo()
+    {
+        var (priceList, url) = JobCostModelBuilder.ResolvePriceList(StaticClaudePricing);
+
+        Assert.Equal("Tendril", priceList);
+        Assert.Null(url);
+    }
+
+    [Fact]
+    public void Sheet_PriceList_RefreshedEntry_LinksToModelsDev()
+    {
+        var refreshed = StaticClaudePricing with { Source = ModelsDevPricingSource.SourceUrl };
+
+        var (priceList, url) = JobCostModelBuilder.ResolvePriceList(refreshed);
+
+        // The link goes to the site a reader can actually read, not the JSON the rates came from.
+        Assert.Equal("models.dev", priceList);
+        Assert.Equal("https://models.dev/", url);
+        Assert.NotEqual(ModelsDevPricingSource.SourceUrl, url);
+    }
+
+    [Fact]
+    public void Sheet_PriceList_NoMatchingEntry_IsEmptySoTheRowIsDropped()
+    {
+        var (priceList, url) = JobCostModelBuilder.ResolvePriceList(pricing: null);
+
+        Assert.Equal("", priceList);
+        Assert.Null(url);
     }
 
     // A sheet opened on a just-completed job renders the empty state; the cost lands ~30s later on a

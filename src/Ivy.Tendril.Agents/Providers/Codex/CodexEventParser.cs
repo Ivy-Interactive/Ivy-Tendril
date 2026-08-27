@@ -1,4 +1,4 @@
-using System.Buffers;
+﻿using System.Buffers;
 using System.Text;
 using System.Text.Json;
 using Ivy.Tendril.Agents.Abstractions;
@@ -180,6 +180,10 @@ public sealed class CodexEventParser : IEventParser
                 InputTokens = usageEl.TryGetProperty("input_tokens", out var it) ? it.GetInt32() : 0,
                 OutputTokens = usageEl.TryGetProperty("output_tokens", out var ot) ? ot.GetInt32() : 0,
                 CacheReadTokens = usageEl.TryGetProperty("cached_input_tokens", out var cr) ? cr.GetInt32() : 0,
+                // Codex counts reasoning inside output_tokens - a turn reporting 47 output with 28
+                // reasoning totals 47, not 75 - so this is carried for information only and the
+                // cost breakdown keeps it out of the totals.
+                ReasoningTokens = usageEl.TryGetProperty("reasoning_output_tokens", out var rt) ? rt.GetInt32() : 0,
             };
         }
 

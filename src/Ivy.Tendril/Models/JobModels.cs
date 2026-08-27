@@ -85,6 +85,14 @@ public record JobItem
     /// </summary>
     public string? ExecutionProfile { get; set; }
 
+    /// <summary>
+    /// The reasoning effort this job ran at - <c>high</c>, <c>medium</c> - as resolved at launch,
+    /// or null for a job launched before migration 021 and for an agent with no effort control.
+    /// Recorded at launch for the same reason as <see cref="ExecutionProfile" />: it is a property
+    /// of the run, not of the configuration as it stands now.
+    /// </summary>
+    public string? Effort { get; set; }
+
     public int Priority { get; init; }
     public List<string>? WaitForJobIds { get; init; }
     public decimal? Cost { get; set; }

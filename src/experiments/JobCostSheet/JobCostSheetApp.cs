@@ -1,6 +1,7 @@
-using Ivy.Tendril.Apps.Views.Sheets;
+﻿using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services.Jobs;
 
 namespace JobCostSheetDemo;
 
@@ -56,9 +57,10 @@ internal static class Scenarios
         ("Computed cost", "The agent reported no cost, so the rates in the table produced it."),
         ("Rates disagree", "An agent-reported charge the reference rates do not reproduce."),
         ("No price list entry", "A model the price list does not cover — tokens, but no rates."),
-        ("Deep profile", "An ExecutePlan job, showing the profile it ran under."),
+        ("Refreshed from models.dev", "Rates refreshed from models.dev, so the row links out."),
+        ("Deep profile", "An ExecutePlan job, showing the profile and effort it ran under."),
         ("Reasoning tokens", "Reasoning shown for information and kept out of the totals."),
-        ("Totals only", "A job predating the per-bucket columns: totals survive, breakdown does not."),
+        ("Totals only", "A job predating the per-bucket columns: an empty table carrying its totals."),
         ("Not costed yet", "A finished job whose cost has not landed."),
         ("Still running", "The same emptiness, worded for a job that has not finished."),
         ("Job not found", "A null model — the job was cleared while its sheet was open."),
@@ -69,26 +71,24 @@ internal static class Scenarios
         "Agent-reported cost" => Standard(),
         "Computed cost" => Standard() with
         {
-            Reconciliation = "Charged $2.4180, computed from the rates above (the agent did not "
-                             + "report a cost).",
+            AgentReportedCost = null,
+            CostSource = JobCostSources.Computed,
         },
-        "Rates disagree" => Standard() with
-        {
-            Reconciliation = "Charged $3.1000 as reported by the claude CLI. The per-token rates "
-                             + "above are Tendril's reference prices and were not used for this "
-                             + "figure. Those rates would give $2.4180.",
-        },
+        "Rates disagree" => Standard() with { AgentReportedCost = 3.1000m, ChargedCost = 3.1000m },
         "No price list entry" => Standard() with
         {
             Model = "some-unlisted-model",
             Buckets = Standard().Buckets.Select(b => b with { RatePerMillion = null }).ToList(),
             ComputedCost = null,
-            Reconciliation = "Charged $2.4180 as reported by the claude CLI. The per-token rates "
-                             + "above are Tendril's reference prices and were not used for this figure.",
-            PriceListSource = "No price list entry matches 'some-unlisted-model', so no rates could "
-                              + "be applied.",
+            PriceList = "",
+            PriceListUrl = null,
         },
-        "Deep profile" => Standard() with { Type = "ExecutePlan", Profile = "Deep" },
+        "Refreshed from models.dev" => Standard() with
+        {
+            PriceList = "models.dev",
+            PriceListUrl = "https://models.dev/",
+        },
+        "Deep profile" => Standard() with { Type = "ExecutePlan", Profile = "Deep", Effort = "High" },
         "Reasoning tokens" => Standard() with
         {
             Buckets =
@@ -101,14 +101,13 @@ internal static class Scenarios
         {
             TotalsOnlyTokens = 48_300,
             TotalsOnlyCost = 1.2050m,
-            Reconciliation = "Charged $1.2050. The source of this figure was not recorded (it "
-                             + "predates cost-source tracking).",
+            ChargedCost = 1.2050m,
+            CostSource = null,
         },
         "Not costed yet" => Empty() with
         {
             NoUsageReason = "No usage data recorded for this job. Cost is calculated about 30 "
-                            + "seconds after a job finishes, so a just-completed job may still be "
-                            + "pending.",
+                            + "seconds after a job finishes.",
         },
         "Still running" => Empty() with
         {
@@ -128,24 +127,23 @@ internal static class Scenarios
         [
             new JobCostBucket("Input", 38_200, 15m, CountsTowardTotal: true),
             new JobCostBucket("Output", 9_450, 75m, CountsTowardTotal: true),
-            new JobCostBucket("Cache read", 412_000, 1.50m, CountsTowardTotal: true),
-            new JobCostBucket("Cache write", 22_100, 18.75m, CountsTowardTotal: true),
+            new JobCostBucket("Cache Read", 412_000, 1.50m, CountsTowardTotal: true),
+            new JobCostBucket("Cache Write", 22_100, 18.75m, CountsTowardTotal: true),
         ],
         TotalTokens = 481_750,
         ComputedCost = 2.4180m,
-        Reconciliation = "Charged $2.4180 as reported by the claude CLI. The per-token rates above "
-                         + "are Tendril's reference prices and were not used for this figure.",
-        PriceListSource = "Rates for 'claude-opus-4' come from: Static catalog (claude). They are "
-                          + "hardcoded in src/Ivy.Tendril.Agents/Providers/Claude/ClaudeModelCatalog.cs",
+        AgentReportedCost = 2.4180m,
+        ChargedCost = 2.4180m,
+        CostSource = JobCostSources.Agent,
+        PriceList = "Tendril",
     };
 
-    /// <summary>A job with no per-bucket usage at all — the shape the empty states build on.</summary>
+    /// <summary>A job with no per-bucket usage at all - the shape the empty states build on.</summary>
     private static JobCostModel Empty() => new()
     {
         Model = "claude-opus-4",
         Provider = "claude",
         Type = "CreatePlan",
-        Reconciliation = "No cost recorded for this job; the figures above are token counts only.",
-        PriceListSource = "Rates for 'claude-opus-4' come from: Static catalog (claude).",
+        PriceList = "Tendril",
     };
 }

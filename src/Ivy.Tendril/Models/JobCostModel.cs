@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services.Jobs;
 
@@ -26,9 +27,9 @@ public readonly record struct JobCostBucket(
 ///     Everything <c>JobCostSheet</c> renders about one job, resolved once by
 ///     <see cref="JobCostModelBuilder" /> so the sheet does no lookups of its own.
 ///     <para>
-///         Numbers are raw — dollars and token counts are formatted at render time. The prose fields
-///         are not formatting but findings: what the charge was reconciled against, and where the
-///         rates came from. Both are conclusions drawn from job state, so they are settled here.
+///         Numbers are raw — dollars and token counts are formatted at render time. The sheet states
+///         the job's provenance as facts in its details list rather than narrating it: what the agent
+///         reported, and whose price list the rates belong to. Both are resolved here.
 ///     </para>
 /// </summary>
 public sealed record JobCostModel
@@ -49,6 +50,12 @@ public sealed record JobCostModel
     /// </summary>
     public string? Profile { get; init; }
 
+    /// <summary>
+    ///     The reasoning effort the job ran at — High, Medium — as recorded at launch. Null for a job
+    ///     that predates <c>Migration_021_JobsEffort</c> and for an agent with no effort control.
+    /// </summary>
+    public string? Effort { get; init; }
+
     /// <summary>Per-bucket usage, in document order. Empty when nothing was recorded per bucket.</summary>
     public IReadOnlyList<JobCostBucket> Buckets { get; init; } = [];
 
@@ -57,7 +64,7 @@ public sealed record JobCostModel
 
     /// <summary>
     ///     What the rates in the price list come to for this job, or null when no rate matched. This
-    ///     is not necessarily what was charged — see <see cref="Reconciliation" />.
+    ///     is not necessarily what was charged — see <see cref="AgentReportedCost" />.
     /// </summary>
     public decimal? ComputedCost { get; init; }
 
@@ -76,34 +83,43 @@ public sealed record JobCostModel
     /// <summary>Why there is nothing to show, when there is nothing to show.</summary>
     public string? NoUsageReason { get; init; }
 
-    /// <summary>Whether the charge came from the agent's report or from the rates, and any gap.</summary>
-    public required string Reconciliation { get; init; }
+    /// <summary>
+    ///     What the agent's own CLI said the job cost, or null when it reported nothing and the
+    ///     charge was computed from the rates instead. Shown beside the table's computed total so a
+    ///     disagreement between the two is visible without being narrated.
+    /// </summary>
+    public decimal? AgentReportedCost { get; init; }
 
-    /// <summary>Where the rates came from, and the file they are written in when that applies.</summary>
-    public required string PriceListSource { get; init; }
+    /// <summary>The job's charged cost, whatever its origin. Null when the job was never costed.</summary>
+    public decimal? ChargedCost { get; init; }
+
+    /// <summary>
+    ///     Where the charge came from — see <see cref="JobCostSources" />. Null for a job costed
+    ///     before the source was tracked, which is not the same as a job the agent priced itself.
+    /// </summary>
+    public string? CostSource { get; init; }
+
+    /// <summary>
+    ///     Who the rates belong to: <c>Tendril</c> for the hardcoded per-provider catalogs,
+    ///     <c>models.dev</c> once an entry has been refreshed from there. Empty when no entry
+    ///     matched the model at all.
+    /// </summary>
+    public required string PriceList { get; init; }
+
+    /// <summary>The price list's address when it has one, so the row can link out. Null for Tendril's own.</summary>
+    public string? PriceListUrl { get; init; }
 }
 
 /// <summary>
 ///     Resolves everything <c>JobCostSheet</c> needs into a <see cref="JobCostModel" />: the job, its
-///     price list entry, the plan's execution profile, and the two findings the sheet states in prose.
+///     price list entry, and the profile and effort the run was launched with.
 ///     <para>
-///         Kept out of the sheet so the arithmetic and the wording can be tested without rendering
-///         anything, and so the sheet does no lookups while building a view.
+///         Kept out of the sheet so the arithmetic can be tested without rendering anything, and so
+///         the sheet does no lookups while building a view.
 ///     </para>
 /// </summary>
 public static class JobCostModelBuilder
 {
-    /// <summary>Folder + type-name prefix of each provider's hardcoded catalog, keyed by agent id.</summary>
-    private static readonly Dictionary<string, string> CatalogFolders = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["antigravity"] = "Antigravity",
-        ["claude"] = "Claude",
-        ["codex"] = "Codex",
-        ["copilot"] = "Copilot",
-        ["opencode"] = "OpenCode",
-        ["ivy"] = "Ivy",
-    };
-
     /// <summary>
     ///     Builds the model for <paramref name="jobId" />, or null when no such job exists — a job can
     ///     be cleared while its sheet is open.
@@ -130,20 +146,26 @@ public static class JobCostModelBuilder
             ? counted.Sum(b => b.Tokens * (b.RatePerMillion ?? 0m) / 1_000_000m)
             : (decimal?)null;
 
+        var (priceList, priceListUrl) = ResolvePriceList(pricing);
+
         return new JobCostModel
         {
             Model = job.Model ?? "",
             Provider = job.Provider,
             Type = job.Type,
             Profile = FormatProfile(job),
+            Effort = FormatHelper.FormatExecutionProfile(job.Effort),
             Buckets = buckets,
             TotalTokens = counted.Sum(b => b.Tokens),
             ComputedCost = computedCost,
             TotalsOnlyTokens = buckets.Count == 0 ? job.Tokens : null,
             TotalsOnlyCost = buckets.Count == 0 ? job.Cost : null,
             NoUsageReason = buckets.Count == 0 ? BuildNoUsageReason(job) : null,
-            Reconciliation = BuildReconciliation(job, computedCost),
-            PriceListSource = BuildPriceListSource(job, pricing),
+            AgentReportedCost = job.CostSource == JobCostSources.Agent ? job.Cost : null,
+            ChargedCost = job.Cost,
+            CostSource = job.CostSource,
+            PriceList = priceList,
+            PriceListUrl = priceListUrl,
         };
     }
 
@@ -157,7 +179,7 @@ public static class JobCostModelBuilder
     ///     </para>
     /// </summary>
     public static string BuildSignature(JobItem job) => string.Create(CultureInfo.InvariantCulture,
-        $"{job.Status};{job.Model};{job.Provider};{job.Type};{job.ExecutionProfile};{job.Cost};{job.CostSource};{job.Tokens};{job.InputTokens};{job.OutputTokens};{job.CacheReadTokens};{job.CacheWriteTokens};{job.ReasoningTokens}");
+        $"{job.Status};{job.Model};{job.Provider};{job.Type};{job.ExecutionProfile};{job.Effort};{job.Cost};{job.CostSource};{job.Tokens};{job.InputTokens};{job.OutputTokens};{job.CacheReadTokens};{job.CacheWriteTokens};{job.ReasoningTokens}");
 
     /// <summary>
     ///     The profile the job recorded at launch, capitalised for display. Read from the job rather
@@ -179,8 +201,8 @@ public static class JobCostModelBuilder
 
         Add("Input", job.InputTokens, pricing?.InputPerMillion);
         Add("Output", job.OutputTokens, pricing?.OutputPerMillion);
-        Add("Cache read", job.CacheReadTokens, pricing?.CacheReadPerMillion);
-        Add("Cache write", job.CacheWriteTokens, pricing?.CacheWritePerMillion);
+        Add("Cache Read", job.CacheReadTokens, pricing?.CacheReadPerMillion);
+        Add("Cache Write", job.CacheWriteTokens, pricing?.CacheWritePerMillion);
         // No reasoning rate exists in ModelPricing, so this row always renders "—" for rate/cost.
         Add("Reasoning", job.ReasoningTokens, rate: null, countsTowardTotal: false);
 
@@ -197,69 +219,28 @@ public static class JobCostModelBuilder
             return null;
 
         return job.Status is JobStatus.Completed or JobStatus.Failed or JobStatus.Timeout or JobStatus.Stopped
-            ? "No usage data recorded for this job. Cost is calculated about 30 seconds after a job finishes, so a just-completed job may still be pending."
+            ? "No usage data recorded for this job. Cost is calculated about 30 seconds after a job finishes."
             : "No usage data recorded for this job yet. Cost is calculated about 30 seconds after the job finishes.";
     }
 
     /// <summary>
-    ///     States plainly whether the displayed cost came from the agent's own report or from the rates
-    ///     in the table, and surfaces the gap when the two disagree.
+    ///     Names the price list the rates came from, and its address when it has one. Tendril's own
+    ///     catalogs are hardcoded per provider and have nowhere to link; a refreshed entry is
+    ///     attributed to models.dev, which does.
     /// </summary>
-    internal static string BuildReconciliation(JobItem job, decimal? computedCost)
-    {
-        if (job.Cost is null)
-            return "No cost recorded for this job; the figures above are token counts only.";
+    /// <summary>
+    ///     Where a reader goes to check the rates — the site, not the
+    ///     <see cref="ModelsDevPricingSource.SourceUrl" /> JSON endpoint they were fetched from.
+    /// </summary>
+    internal const string ModelsDevPricingUrl = "https://models.dev/";
 
-        var charged = FormatHelper.FormatCost(job.Cost.Value, decimals: 4);
-
-        if (job.CostSource == JobCostSources.Computed)
-            return $"Charged {charged}, computed from the rates above (the agent did not report a cost).";
-
-        if (job.CostSource == JobCostSources.Agent)
-        {
-            var text = $"Charged {charged} as reported by the {job.Provider} CLI. The per-token rates "
-                       + "above are Tendril's reference prices and were not used for this figure.";
-
-            if (computedCost.HasValue && Math.Abs(computedCost.Value - job.Cost.Value) > 0.01m)
-                text += $" Those rates would give {FormatHelper.FormatCost(computedCost.Value, decimals: 4)}.";
-
-            return text;
-        }
-
-        return $"Charged {charged}. The source of this figure was not recorded (it predates cost-source tracking).";
-    }
-
-    internal static string BuildPriceListSource(JobItem job, ModelPricing? pricing)
+    internal static (string PriceList, string? Url) ResolvePriceList(ModelPricing? pricing)
     {
         if (pricing is null)
-        {
-            var model = string.IsNullOrWhiteSpace(job.Model) ? "this job's model" : $"'{job.Model}'";
-            return $"No price list entry matches {model}, so no rates could be applied.";
-        }
+            return ("", null);
 
-        var source = string.IsNullOrWhiteSpace(pricing.Source) ? "unknown" : pricing.Source;
-        var text = $"Rates for '{pricing.Model}' come from: {source}.";
-
-        var catalogFile = ResolveCatalogFile(pricing.Source);
-        if (catalogFile is not null)
-            text += $" They are hardcoded in {catalogFile}.";
-
-        return text;
-    }
-
-    /// <summary>
-    ///     Maps a "Static catalog (claude)" source label back to the file the rates are written in.
-    ///     Returns null for any other source (e.g. a models.dev URL), which is already self-describing.
-    /// </summary>
-    internal static string? ResolveCatalogFile(string? source)
-    {
-        const string prefix = "Static catalog (";
-        if (source is null || !source.StartsWith(prefix, StringComparison.Ordinal) || !source.EndsWith(')'))
-            return null;
-
-        var agentId = source[prefix.Length..^1];
-        return CatalogFolders.TryGetValue(agentId, out var folder)
-            ? $"src/Ivy.Tendril.Agents/Providers/{folder}/{folder}ModelCatalog.cs"
-            : null;
+        return pricing.Source == ModelsDevPricingSource.SourceUrl
+            ? ("models.dev", ModelsDevPricingUrl)
+            : ("Tendril", null);
     }
 }

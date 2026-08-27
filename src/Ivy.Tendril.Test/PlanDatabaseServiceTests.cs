@@ -941,6 +941,26 @@ public class PlanDatabaseServiceTests : IDisposable
     }
 
     [Fact]
+    public void UpsertJob_RoundTripsEffort()
+    {
+        _db.UpsertJob(new JobItem
+        {
+            Id = "job-effort",
+            Type = "ExecutePlan",
+            PlanFile = "01500-TestPlan",
+            Project = "Tendril",
+            Status = JobStatus.Completed,
+            Provider = "claude",
+            Effort = "high"
+        });
+
+        var result = _db.GetJobById("job-effort");
+
+        Assert.NotNull(result);
+        Assert.Equal("high", result!.Effort);
+    }
+
+    [Fact]
     public void UpsertJob_NullExecutionProfile_RoundTripsAsNull()
     {
         // Migration 020 does not backfill: a job launched before it has no profile to report, and
@@ -959,6 +979,7 @@ public class PlanDatabaseServiceTests : IDisposable
 
         Assert.NotNull(result);
         Assert.Null(result!.ExecutionProfile);
+        Assert.Null(result.Effort);
     }
 
     [Fact]

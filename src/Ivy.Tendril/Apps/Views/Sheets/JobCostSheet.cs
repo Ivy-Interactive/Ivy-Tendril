@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Hooks;
@@ -34,24 +34,41 @@ public class JobCostSheet(JobCostModel? model) : ViewBase
 
     private static string Count(int value) => FormatHelper.FormatCount(value);
 
+    /// <summary>A details value, or the em-dash the table already uses for "nothing here".</summary>
+    private static string Dash(string? value) => string.IsNullOrWhiteSpace(value) ? NoValue : value;
+
     public override object Build()
     {
         if (model is null)
-            return Text.P("Job not found.");
+            return Callout.Info(
+                "This job no longer exists — it was cleared while this sheet was open.",
+                "Job Not Found");
 
+        // Every row is kept, dashed when it has no value: which facts the sheet reports is then the
+        // same for every job, and a blank Effort reads as "none recorded" rather than as a row the
+        // reader has to notice is missing.
         var details = new
         {
-            model.Model,
-            model.Provider,
-            model.Type,
-            // The profile the job ran under, when its type takes one — absent rows are dropped below.
-            Profile = model.Profile ?? "",
-        }.ToDetails().RemoveEmpty();
+            Model = Dash(model.Model),
+            Provider = Dash(model.Provider),
+            Type = Dash(model.Type),
+            Profile = Dash(model.Profile),
+            Effort = Dash(model.Effort),
+            CostReportedByAgent = BuildAgentCostValue(model),
+            PriceList = Dash(model.PriceList),
+        }
+            .ToDetails()
+            .Label(x => x.CostReportedByAgent, "Cost Reported by Agent")
+            .Label(x => x.PriceList, "Price List")
+            // Tendril's catalogs are hardcoded and have nowhere to point; models.dev does.
+            .Builder(x => x.PriceList, f => f.Func((string name) => model.PriceListUrl is null
+                ? Text.Block(name)
+                : new Button(name, variant: ButtonVariant.Inline).Url(model.PriceListUrl).Target(LinkTarget.Blank)));
 
-        if (!model.HasBreakdown)
+        if (model.NoUsageReason is not null)
             return Layout.Vertical().Gap(4)
                    | details
-                   | BuildNoBreakdownView(model);
+                   | Callout.Info(model.NoUsageReason, "No Data Recorded");
 
         var table = model.Buckets
             .Select(b => new UsageRow
@@ -70,40 +87,35 @@ public class JobCostSheet(JobCostModel? model) : ViewBase
             .AlignContent(x => x.RatePerMillion, Align.Right)
             .AlignContent(x => x.Cost, Align.Right)
             .Totals(x => x.Kind, _ => "Total")
-            .Totals(x => x.Tokens, _ => Count(model.TotalTokens))
-            .Totals(x => x.Cost, _ => model.ComputedCost.HasValue ? Usd(model.ComputedCost.Value) : NoValue)
+            .Totals(x => x.Tokens, _ => Count(model.HasBreakdown ? model.TotalTokens : model.TotalsOnlyTokens ?? 0))
+            .Totals(x => x.Cost, _ => TotalCost(model))
             .Width(Size.Full());
 
         return Layout.Vertical().Gap(4)
                | details
                | (Layout.Vertical().Gap(2)
                   | Text.H4("Breakdown")
-                  | table
-                  | Text.Muted(model.Reconciliation))
-               | (Layout.Vertical().Gap(2)
-                  | Text.H4("Price list")
-                  | Text.Muted(model.PriceListSource)
-                  | Text.Muted(
-                      "The Tokens column in the Jobs table counts input + output only; cache tokens "
-                      + "are listed here but excluded from it. Reasoning tokens are shown for "
-                      + "information and excluded from the totals above to avoid double-counting "
-                      + "output."));
+                  | table);
     }
 
     /// <summary>
-    /// Shown when no per-bucket data was persisted: either the job has not been costed yet, or it
-    /// predates the breakdown columns — in which case the totals it does have are still worth showing.
+    /// What the agent's own CLI charged, when it charged anything. The table's total is what
+    /// Tendril's rates come to, so showing the agent's figure beside it lets the two be compared
+    /// without a sentence explaining which one won.
     /// </summary>
-    private static object BuildNoBreakdownView(JobCostModel model)
+    private static string BuildAgentCostValue(JobCostModel model) =>
+        // Everything else - a charge computed from the rates, one whose source predates cost-source
+        // tracking, no charge at all - comes to the same thing for a reader: the agent gave no figure.
+        model.AgentReportedCost is { } reported ? Usd(reported) : "Not Provided";
+
+    /// <summary>
+    /// The table's total: what the rates come to for a job with a breakdown, and the charge itself
+    /// for one that predates the per-bucket columns and has nothing to compute from.
+    /// </summary>
+    private static string TotalCost(JobCostModel model)
     {
-        if (model.NoUsageReason is not null)
-            return Text.Muted(model.NoUsageReason);
-
-        var totals = new List<string>();
-        if (model.TotalsOnlyTokens is > 0) totals.Add($"{Count(model.TotalsOnlyTokens.Value)} tokens (input + output)");
-        if (model.TotalsOnlyCost is not null) totals.Add(Usd(model.TotalsOnlyCost.Value));
-
-        return Text.Block(string.Join(" · ", totals));
+        var total = model.HasBreakdown ? model.ComputedCost : model.TotalsOnlyCost;
+        return total.HasValue ? Usd(total.Value) : NoValue;
     }
 
     private sealed record UsageRow

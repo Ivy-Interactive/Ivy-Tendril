@@ -473,6 +473,7 @@ internal class JobLauncher
         // Recorded at launch: the plan's profile can be edited afterwards, so reading it back later
         // would report a profile this run never saw.
         job.ExecutionProfile = string.IsNullOrEmpty(resolution.Profile) ? null : resolution.Profile;
+        job.Effort = string.IsNullOrEmpty(resolution.Effort) ? null : resolution.Effort;
 
         var spec = resolution.Cli.BuildProcessSpec(launchConfig);
         var psi = AgentProcessHelper.ToPsi(spec);
