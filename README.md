@@ -17,12 +17,12 @@ AI agents can now write 99% of the code. This changes what it means to be a deve
 </p>
 
 <p>
-<a href="https://www.youtube.com/watch?v=5xNEMt8IRo4">
+<a href="https://youtu.be/_KVG1NnAj-8">
   <img src="docs/yt-thumbnail-in-two-minutes-2.png" alt="Ivy Tendril in two minutes — watch on YouTube" width="720">
 </a>
 </p>
 
-<p>https://www.youtube.com/watch?v=5xNEMt8IRo4</p>
+<p>https://youtu.be/_KVG1NnAj-8</p>
 
 ## Features
 
