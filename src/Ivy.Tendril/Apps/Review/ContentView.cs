@@ -93,7 +93,7 @@ public class ContentView(
             if (!isOpen.Value) return null;
             return new Sheet(
                 () => isOpen.Set(false),
-                new JobCostSheet(jobId, jobService),
+                new JobCostSheetView(jobId, jobService),
                 "Cost & Tokens"
             ).Width(UxHelper.SheetWidth).Resizable();
         });

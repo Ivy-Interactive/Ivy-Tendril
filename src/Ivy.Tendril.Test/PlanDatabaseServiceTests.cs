@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.Data.Sqlite;
@@ -918,6 +918,47 @@ public class PlanDatabaseServiceTests : IDisposable
         Assert.Equal(300, result.CacheWriteTokens);
         Assert.Equal(42, result.ReasoningTokens);
         Assert.Equal("agent", result.CostSource);
+    }
+
+    [Fact]
+    public void UpsertJob_RoundTripsExecutionProfile()
+    {
+        _db.UpsertJob(new JobItem
+        {
+            Id = "job-profile",
+            Type = "ExecutePlan",
+            PlanFile = "01500-TestPlan",
+            Project = "Tendril",
+            Status = JobStatus.Completed,
+            Provider = "claude",
+            ExecutionProfile = "deep"
+        });
+
+        var result = _db.GetJobById("job-profile");
+
+        Assert.NotNull(result);
+        Assert.Equal("deep", result!.ExecutionProfile);
+    }
+
+    [Fact]
+    public void UpsertJob_NullExecutionProfile_RoundTripsAsNull()
+    {
+        // Migration 020 does not backfill: a job launched before it has no profile to report, and
+        // the UI drops the row rather than inventing one.
+        _db.UpsertJob(new JobItem
+        {
+            Id = "job-no-profile",
+            Type = "CreatePlan",
+            PlanFile = "01500-TestPlan",
+            Project = "Tendril",
+            Status = JobStatus.Completed,
+            Provider = "claude"
+        });
+
+        var result = _db.GetJobById("job-no-profile");
+
+        Assert.NotNull(result);
+        Assert.Null(result!.ExecutionProfile);
     }
 
     [Fact]

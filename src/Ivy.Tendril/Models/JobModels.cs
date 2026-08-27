@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reactive.Subjects;
 using System.Text.Json.Serialization;
@@ -76,6 +76,15 @@ public record JobItem
     // Settable: the standalone CLI runners resolve the agent after the job object exists.
     public string Provider { get; set; } = "claude";
     public string? Model { get; set; }
+
+    /// <summary>
+    /// The execution profile this job ran under — <c>deep</c>, <c>balanced</c> — as resolved at
+    /// launch, or null for a job launched before migration 020 (no backfill) or one no profile
+    /// applied to. Recorded rather than re-read from the plan: the plan's profile can be changed
+    /// after the fact, and only ExecutePlan/RetryPlan take it from there in the first place.
+    /// </summary>
+    public string? ExecutionProfile { get; set; }
+
     public int Priority { get; init; }
     public List<string>? WaitForJobIds { get; init; }
     public decimal? Cost { get; set; }
@@ -335,6 +344,8 @@ public record JobItemRow
     public string PlanId { get; init; } = "";
     public string Plan { get; init; } = "";
     public string Type { get; init; } = "";
+    /// <summary>Execution profile the job ran under, capitalised. Empty when none was recorded.</summary>
+    public string Profile { get; init; } = "";
     public string Project { get; init; } = "";
     public string Timer { get; init; } = "";
     public string AgentOutput { get; init; } = "";
