@@ -10,18 +10,16 @@ public class AppearanceSetupView : ViewBase
         var config = UseService<IConfigService>();
         var client = UseService<IClientProvider>();
         var selectedTheme = UseState(() => config.Settings.Theme ?? "default");
-        var initialized = UseState(false);
+        var lastAppliedTheme = UseState(() => config.Settings.Theme ?? "default");
 
         UseEffect(() =>
         {
-            if (!initialized.Value)
-            {
-                initialized.Set(true);
-                return;
-            }
-
             var themeId = selectedTheme.Value;
             if (string.IsNullOrWhiteSpace(themeId)) themeId = "default";
+
+            if (themeId == lastAppliedTheme.Value) return;
+
+            lastAppliedTheme.Set(themeId);
             var theme = TendrilThemes.GetTheme(themeId);
             TendrilThemes.ApplyTheme(client, theme.Id);
             config.Settings.Theme = theme.Id;

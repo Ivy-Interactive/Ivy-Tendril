@@ -720,7 +720,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             .Content(
                 Layout.Horizontal().AlignContent(Align.Left)
                 | Icons.Settings.ToIcon()
-                | Text.P("Settings").Small().Muted()
+                | Text.Literal("Settings")
             )
             .Variant(ButtonVariant.Ghost).Width(Size.Full());
 
