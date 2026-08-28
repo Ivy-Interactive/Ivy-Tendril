@@ -7,13 +7,14 @@ namespace Ivy.Tendril.Services.Tunnel;
 
 public sealed partial class TunnelSession : IDisposable
 {
-    private static readonly TimeSpan UrlTimeout = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan UrlTimeout = TimeSpan.FromSeconds(60);
 
     private readonly string _binaryPath;
     private readonly string _originUrl;
     private readonly ILogger _logger;
     private Process? _process;
     private TaskCompletionSource<string>? _urlTcs;
+    private TaskCompletionSource<bool>? _registeredTcs;
 
     public TunnelSession(string binaryPath, string originUrl, ILogger logger)
     {
@@ -24,10 +25,12 @@ public sealed partial class TunnelSession : IDisposable
 
     public string? TunnelUrl { get; private set; }
     public bool IsRunning => _process is { HasExited: false };
+    public bool IsRegistered { get; private set; }
 
     public async Task<string> StartAsync(CancellationToken ct = default)
     {
         _urlTcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _registeredTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var psi = new ProcessStartInfo
         {
@@ -38,6 +41,8 @@ public sealed partial class TunnelSession : IDisposable
             CreateNoWindow = true,
         };
         psi.ArgumentList.Add("tunnel");
+        psi.ArgumentList.Add("--protocol");
+        psi.ArgumentList.Add("http2");
         psi.ArgumentList.Add("--url");
         psi.ArgumentList.Add(_originUrl);
         if (_originUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
@@ -53,6 +58,7 @@ public sealed partial class TunnelSession : IDisposable
             _logger.LogDebug("cloudflared process not tracked by job object (PID {Pid})", _process.Id);
 
         _process.ErrorDataReceived += OnStderrLine;
+        _process.OutputDataReceived += OnStderrLine;
         _process.BeginErrorReadLine();
         _process.BeginOutputReadLine();
 
@@ -60,11 +66,32 @@ public sealed partial class TunnelSession : IDisposable
         timeoutCts.CancelAfter(UrlTimeout);
 
         await using var reg = timeoutCts.Token.Register(() =>
+        {
+            string recentOutput;
+            lock (_logLock)
+            {
+                recentOutput = _recentLogs.Count > 0
+                    ? string.Join(" | ", _recentLogs.TakeLast(3))
+                    : "No output received from cloudflared";
+            }
             _urlTcs.TrySetException(new TimeoutException(
-                $"Cloudflare did not produce a tunnel URL within {UrlTimeout.TotalSeconds}s")));
+                $"Cloudflare did not produce a tunnel URL within {UrlTimeout.TotalSeconds}s ({recentOutput})"));
+        });
 
         var url = await _urlTcs.Task;
         TunnelUrl = url;
+
+        // Wait briefly for cloudflare to register the edge connection
+        if (_registeredTcs != null)
+        {
+            try
+            {
+                await _registeredTcs.Task.WaitAsync(TimeSpan.FromSeconds(6), ct);
+            }
+            catch (TimeoutException) { }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        }
+
         _logger.LogInformation("Tunnel established: {Url}", url);
         return url;
     }
@@ -93,11 +120,28 @@ public sealed partial class TunnelSession : IDisposable
         _process = null;
     }
 
+    private readonly List<string> _recentLogs = [];
+    private readonly object _logLock = new();
+
     private void OnStderrLine(object sender, DataReceivedEventArgs e)
     {
         if (e.Data is null) return;
 
         _logger.LogDebug("[cloudflared] {Line}", e.Data);
+
+        lock (_logLock)
+        {
+            if (_recentLogs.Count >= 20)
+                _recentLogs.RemoveAt(0);
+            _recentLogs.Add(e.Data);
+        }
+
+        if (e.Data.Contains("Registered tunnel connection", StringComparison.OrdinalIgnoreCase) ||
+            e.Data.Contains("Connection registered", StringComparison.OrdinalIgnoreCase))
+        {
+            IsRegistered = true;
+            _registeredTcs?.TrySetResult(true);
+        }
 
         var url = ParseTunnelUrl(e.Data);
         if (url is not null)

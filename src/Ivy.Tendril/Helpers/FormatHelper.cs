@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 namespace Ivy.Tendril.Helpers;
 
@@ -41,4 +41,15 @@ public static class FormatHelper
     {
         return value.ToString("N0", CultureInfo.InvariantCulture);
     }
+
+    /// <summary>
+    ///     Title-cases an execution profile for display: profiles are stored lowercase ("deep",
+    ///     "balanced") but read as labels, so "Deep" is what belongs in a table cell or a details
+    ///     row. Returns null for a blank profile, so callers can drop the row rather than render an
+    ///     empty label.
+    /// </summary>
+    public static string? FormatExecutionProfile(string? profile) =>
+        string.IsNullOrWhiteSpace(profile)
+            ? null
+            : char.ToUpperInvariant(profile[0]) + profile[1..];
 }

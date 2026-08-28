@@ -15,10 +15,13 @@ public class PlanTabView(
     IState<string?> openFileState,
     IPlanReaderService planService,
     IConfigService config,
-    IState<ImmutableList<MarkdownAnnotation>> annotations) : ViewBase
+    IState<ImmutableList<MarkdownAnnotation>> annotations,
+    string? currentAuthor = null) : ViewBase
 {
     public override object Build()
     {
+        var draftAnnotationService = UseService<Ivy.Tendril.Services.Plans.IDraftAnnotationService>();
+
         if (isEditing)
         {
             // The Plan tab is no longer wrapped in Cap(), so provide the scroll,
@@ -60,7 +63,12 @@ public class PlanTabView(
                 .Height(Size.Full())
                 .StickyContent(fixedElement)
                 .Annotations(annotations.Value)
-                .OnAnnotationsChange(a => annotations.Set(a))
+                .CurrentAuthor(currentAuthor)
+                .OnAnnotationsChange(a =>
+                {
+                    annotations.Set(a);
+                    _ = draftAnnotationService.SaveAnnotationsAsync(selectedPlan.FolderPath, a);
+                })
                 .OnLinkClick(onLinkClick);
 
             return planLayout;

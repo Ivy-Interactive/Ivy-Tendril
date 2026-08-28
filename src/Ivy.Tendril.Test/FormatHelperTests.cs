@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Ivy.Tendril.Helpers;
 using Xunit;
 
@@ -78,5 +78,19 @@ public class FormatHelperTests
         Assert.Equal("999", FormatHelper.FormatTokens(999));
         Assert.Equal("1K", FormatHelper.FormatTokens(1_000));
         Assert.Equal("1.0M", FormatHelper.FormatTokens(1_000_000));
+    }
+
+    // Shared by the plan details row and the job cost sheet, which read the profile from different
+    // places (the plan's yaml and the job's launch record) but must label it the same way.
+    [Theory]
+    [InlineData("deep", "Deep")]
+    [InlineData("balanced", "Balanced")]
+    [InlineData("Deep", "Deep")]
+    [InlineData("", null)]
+    [InlineData("   ", null)]
+    [InlineData(null, null)]
+    public void FormatExecutionProfile(string? profile, string? expected)
+    {
+        Assert.Equal(expected, FormatHelper.FormatExecutionProfile(profile));
     }
 }

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <NoWarn>CS8618;CS8603;CS8602;CS8604;CS8625;CS9113</NoWarn>
+    <GenerateProgramFile>false</GenerateProgramFile>
+    <!-- Not "JobCostSheet": that is the name of the type this project exists to render, and a
+         namespace of the same name would shadow it at every use site. -->
+    <RootNamespace>JobCostSheetDemo</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Ivy.Tendril brings the sheet, its model, and Ivy itself transitively. -->
+    <ProjectReference Include="..\..\Ivy.Tendril\Ivy.Tendril.csproj" />
+  </ItemGroup>
+
+</Project>

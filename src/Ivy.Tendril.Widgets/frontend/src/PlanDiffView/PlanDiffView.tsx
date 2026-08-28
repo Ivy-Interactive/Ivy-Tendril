@@ -9,6 +9,7 @@ import { getMarkdownPlugins } from "../math";
 import { MessageSquare } from "lucide-react";
 import { refractor } from "refractor/all";
 import { prismTheme } from "../prismTheme";
+import { getInitials } from "../DraftMarkdown/annotationUtils";
 
 const refractorAdapter = {
   ...refractor,
@@ -128,6 +129,8 @@ interface DraftComment {
   changeKey: string;
   content: string;
   lineNumber: number;
+  author?: string;
+  isResolved?: boolean;
 }
 
 interface PlanDiffViewProps {
@@ -148,6 +151,7 @@ interface PlanDiffViewProps {
   defaultCollapsed?: boolean;
   comments?: DraftComment[];
   filePath?: string;
+  currentAuthor?: string;
 }
 
 function getLineNumber(change: ChangeData | null): number {
@@ -161,10 +165,6 @@ function getBasename(path: string): string {
   return parts[parts.length - 1] || path;
 }
 
-/**
- * Tracks whether a container is narrower than {@link NARROW_BREAKPOINT}, measured
- * against the element's own width (via ResizeObserver) rather than the viewport.
- */
 export function useIsNarrow(): [React.RefObject<HTMLDivElement | null>, boolean] {
   const ref = useRef<HTMLDivElement | null>(null);
   const [isNarrow, setIsNarrow] = useState(false);
@@ -175,29 +175,18 @@ export function useIsNarrow(): [React.RefObject<HTMLDivElement | null>, boolean]
 
     let animFrameId: number | null = null;
 
-    const update = (width: number) => {
-      const next = width > 0 && width < NARROW_BREAKPOINT;
-      setIsNarrow((prev) => (prev === next ? prev : next));
-    };
-
-    update(element.clientWidth || element.getBoundingClientRect?.().width || 0);
-
     const observer = new ResizeObserver((entries) => {
-      if (entries.length === 0) return;
+      if (!entries[0]) return;
       const width = entries[0].contentRect.width;
-      if (animFrameId !== null) {
-        cancelAnimationFrame(animFrameId);
-      }
+      if (animFrameId !== null) cancelAnimationFrame(animFrameId);
       animFrameId = requestAnimationFrame(() => {
-        update(width);
+        setIsNarrow(width > 0 && width < NARROW_BREAKPOINT);
       });
     });
 
     observer.observe(element);
     return () => {
-      if (animFrameId !== null) {
-        cancelAnimationFrame(animFrameId);
-      }
+      if (animFrameId !== null) cancelAnimationFrame(animFrameId);
       observer.disconnect();
     };
   }, []);
@@ -208,14 +197,16 @@ export function useIsNarrow(): [React.RefObject<HTMLDivElement | null>, boolean]
 interface CommentWidgetContainerProps {
   changeKey: string;
   comments: DraftComment[];
-  isEditing?: boolean;
+  isEditing: boolean;
   editingText?: string;
-  originalLineText: string;
+  editingComment?: DraftComment;
+  originalLineText?: string;
+  currentAuthor?: string;
   onAddComment: (text: string) => void;
-  onUpdateComment: (text: string) => void;
-  onDeleteComment: () => void;
+  onUpdateComment: (comment: DraftComment) => void;
+  onDeleteComment: (comment: DraftComment) => void;
   onCancelForm: () => void;
-  onStartEdit: (text: string) => void;
+  onStartEdit: (comment: DraftComment) => void;
   onCancelEdit: () => void;
 }
 
@@ -223,6 +214,8 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
   comments,
   isEditing,
   editingText,
+  editingComment,
+  currentAuthor,
   onAddComment,
   onUpdateComment,
   onDeleteComment,
@@ -232,38 +225,98 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
 }) => {
   const [inputText, setInputText] = useState("");
   const hasComment = comments.length > 0;
+  const isAuthor = !currentAuthor || !currentAuthor.trim();
 
   return (
     <div className="diff-comment-widget p-3 bg-[var(--background)] border border-[var(--border)] rounded-md m-2 shadow-sm max-w-[600px] text-xs font-sans">
       {hasComment && !isEditing ? (
         <div className="flex flex-col gap-2">
-          {comments.map((comment, idx) => (
-            <div key={idx} className="flex flex-col gap-1 border-b border-[var(--border)] pb-2 last:border-0 last:pb-0">
-              <div className="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
-                <span className="font-medium text-[var(--foreground)]">Agent Instruction (Draft)</span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    className="hover:underline hover:text-[var(--foreground)] cursor-pointer"
-                    onClick={() => onStartEdit(comment.content)}
-                  >
-                    Edit
-                  </button>
-                  <span>&bull;</span>
-                  <button
-                    type="button"
-                    className="hover:underline hover:text-[var(--destructive)] cursor-pointer"
-                    onClick={onDeleteComment}
-                  >
-                    Delete
-                  </button>
+          {comments.map((comment, idx) => {
+            const isResolved = comment.isResolved ?? false;
+            const isOwner = !comment.author?.trim() || (currentAuthor && comment.author.trim() === currentAuthor.trim());
+            const canResolve = true; 
+            const canDelete = isAuthor || isOwner;
+            const canEdit = isAuthor || isOwner;
+
+            return (
+              <div
+                key={idx}
+                className={`flex flex-col gap-1 border-b border-[var(--border)] pb-2 last:border-0 last:pb-0 ${
+                  isResolved ? "opacity-75" : ""
+                }`}
+              >
+                <div className="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {comment.author?.trim() && (
+                      <div
+                        className="pmv-comment-avatar"
+                        title={comment.author.trim()}
+                      >
+                        {getInitials(comment.author.trim())}
+                      </div>
+                    )}
+                    <span className="font-medium text-[var(--foreground)] truncate">
+                      {comment.author?.trim() ? comment.author.trim() : "Agent Instruction (Draft)"}
+                    </span>
+                    {isResolved && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 text-[10px] font-medium rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        ✓ Resolved
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {canEdit && !isResolved && (
+                      <>
+                        <button
+                          type="button"
+                          className="hover:underline hover:text-[var(--foreground)] cursor-pointer"
+                          onClick={() => onStartEdit(comment)}
+                        >
+                          Edit
+                        </button>
+                        <span>&bull;</span>
+                      </>
+                    )}
+                    {canResolve && (
+                      <>
+                        <button
+                          type="button"
+                          className={`hover:underline cursor-pointer ${
+                            isResolved
+                              ? "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                              : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 font-medium"
+                          }`}
+                          onClick={() =>
+                            onUpdateComment({
+                              ...comment,
+                              isResolved: !isResolved,
+                            })
+                          }
+                          title={isResolved ? "Reopen comment" : "Mark comment as resolved"}
+                        >
+                          {isResolved ? "Unresolve" : "Resolve"}
+                        </button>
+                        {canDelete && <span>&bull;</span>}
+                      </>
+                    )}
+                    {canDelete && (
+                      <button
+                        type="button"
+                        className="hover:underline text-[var(--destructive)] cursor-pointer"
+                        onClick={() => onDeleteComment(comment)}
+                        title="Delete comment"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="diff-comment-markdown leading-relaxed text-sm text-[var(--foreground)] mt-1">
+                  <Markdown {...getMarkdownPlugins(comment.content)}>{comment.content}</Markdown>
                 </div>
               </div>
-              <div className="diff-comment-markdown leading-relaxed text-sm text-[var(--foreground)] mt-1">
-                <Markdown {...getMarkdownPlugins(comment.content)}>{comment.content}</Markdown>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -279,7 +332,7 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
             value={isEditing ? (editingText ?? "") : inputText}
             onChange={(e) => {
               if (isEditing) {
-                onStartEdit(e.target.value);
+                if (editingComment) onStartEdit({ ...editingComment, content: e.target.value });
               } else {
                 setInputText(e.target.value);
               }
@@ -306,8 +359,8 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
               className="px-3 py-1 text-xs font-medium bg-[var(--primary)] text-[var(--primary-foreground)] rounded hover:opacity-90 transition-colors disabled:opacity-50 cursor-pointer"
               disabled={isEditing ? !editingText?.trim() : !inputText.trim()}
               onClick={() => {
-                if (isEditing) {
-                  onUpdateComment(editingText ?? "");
+                if (isEditing && editingComment) {
+                  onUpdateComment({ ...editingComment, content: editingText ?? editingComment.content });
                 } else {
                   onAddComment(inputText);
                   setInputText("");
@@ -334,29 +387,26 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
   language,
   oldRevision,
   newRevision,
-  wordWrap,
-  collapsible = false,
+  wordWrap = true,
+  collapsible = true,
   defaultCollapsed = false,
   comments = [],
   filePath = "",
+  currentAuthor,
 }) => {
-  const dispatchEvent = eventHandler ?? onIvyEvent;
+  const dispatchEvent = eventHandler || onIvyEvent;
   const files = useMemo(() => {
     if (!diff) return [];
     try {
-      const parsed = parseDiff(diff);
-      if (parsed && parsed.length > 0) return parsed;
-      const p = filePath || "file";
-      const syntheticDiff = `diff --git a/${p} b/${p}\n--- a/${p}\n+++ b/${p}\n${diff}`;
-      return parseDiff(syntheticDiff);
+      return parseDiff(diff);
     } catch {
       return [];
     }
-  }, [diff, filePath]);
+  }, [diff]);
 
-  const [viewedState, setViewedState] = useState<Record<string, boolean>>({});
   const [activeFormKeys, setActiveFormKeys] = useState<Record<string, boolean>>({});
-  const [editingCommentKeys, setEditingCommentKeys] = useState<Record<string, string>>({});
+  const [editingCommentKeys, setEditingCommentKeys] = useState<Record<string, DraftComment>>({});
+  const [viewedState, setViewedState] = useState<Record<string, boolean>>({});
   const [commentsHidden, setCommentsHidden] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -387,24 +437,18 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       filePath,
       changeKey,
       content,
-      lineNumber
+      lineNumber,
+      author: currentAuthor?.trim() || undefined,
+      isResolved: false,
     }]);
   };
 
-  const handleUpdateComment = (changeKey: string, content: string, lineNumber: number) => {
-    dispatchEvent?.("OnUpdateComment", id, [{
-      filePath,
-      changeKey,
-      content,
-      lineNumber
-    }]);
+  const handleUpdateComment = (comment: DraftComment) => {
+    dispatchEvent?.("OnUpdateComment", id, [comment]);
   };
 
-  const handleDeleteComment = (changeKey: string) => {
-    const existing = commentsByChangeKey[changeKey]?.[0];
-    if (existing) {
-      dispatchEvent?.("OnDeleteComment", id, [existing]);
-    }
+  const handleDeleteComment = (comment: DraftComment) => {
+    dispatchEvent?.("OnDeleteComment", id, [comment]);
   };
 
   const getWidgets = (hunks: HunkData[], hideComments = false) => {
@@ -429,29 +473,31 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
             changeKey={changeKey}
             comments={visibleComments}
             isEditing={isEditing}
-            editingText={editingCommentKeys[changeKey]}
+            editingText={editingCommentKeys[changeKey]?.content}
+            editingComment={editingCommentKeys[changeKey]}
             originalLineText={originalLineText}
+            currentAuthor={currentAuthor}
             onAddComment={(text) => {
               handleAddComment(changeKey, text, getLineNumber(change));
               setActiveFormKeys(prev => ({ ...prev, [changeKey]: false }));
             }}
-            onUpdateComment={(text) => {
-              handleUpdateComment(changeKey, text, getLineNumber(change));
+            onUpdateComment={(updatedComment) => {
+              handleUpdateComment(updatedComment);
               setEditingCommentKeys(prev => {
                 const copy = { ...prev };
                 delete copy[changeKey];
                 return copy;
               });
             }}
-            onDeleteComment={() => {
-              handleDeleteComment(changeKey);
+            onDeleteComment={(commentToDelete) => {
+              handleDeleteComment(commentToDelete);
               setActiveFormKeys(prev => ({ ...prev, [changeKey]: false }));
             }}
             onCancelForm={() => {
               setActiveFormKeys(prev => ({ ...prev, [changeKey]: false }));
             }}
-            onStartEdit={(text) => {
-              setEditingCommentKeys(prev => ({ ...prev, [changeKey]: text }));
+            onStartEdit={(commentToEdit) => {
+              setEditingCommentKeys(prev => ({ ...prev, [changeKey]: commentToEdit }));
             }}
             onCancelEdit={() => {
               setEditingCommentKeys(prev => {

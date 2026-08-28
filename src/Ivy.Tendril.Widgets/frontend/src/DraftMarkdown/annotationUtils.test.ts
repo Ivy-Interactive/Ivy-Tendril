@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { getPlainTextOffset, getPlainText, createRangeFromOffsets } from "./annotationUtils";
+import {
+  getPlainTextOffset,
+  getPlainText,
+  createRangeFromOffsets,
+  getInitials,
+  applyAnnotationHighlights,
+} from "./annotationUtils";
 
 describe("getPlainTextOffset", () => {
   let container: HTMLDivElement;
@@ -90,5 +96,55 @@ describe("getPlainText", () => {
 
   it("returns empty string for empty container", () => {
     expect(getPlainText(container)).toBe("");
+  });
+});
+
+describe("getInitials", () => {
+  it("extracts 2 initials from a two-word name", () => {
+    expect(getInitials("Calm Niels")).toBe("CN");
+    expect(getInitials("Observant Fox")).toBe("OF");
+  });
+
+  it("extracts first two letters for a single word name", () => {
+    expect(getInitials("Admin")).toBe("AD");
+    expect(getInitials("A")).toBe("A");
+  });
+
+  it("handles empty or whitespace strings", () => {
+    expect(getInitials("")).toBe("");
+    expect(getInitials("   ")).toBe("");
+    expect(getInitials(undefined)).toBe("");
+  });
+});
+
+describe("applyAnnotationHighlights", () => {
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+  });
+
+  it("attaches initials badge when author is provided", () => {
+    container.textContent = "This is a sample plan for testing.";
+    applyAnnotationHighlights(container, [
+      {
+        id: "a1",
+        startOffset: 10,
+        endOffset: 21,
+        selectedText: "sample plan",
+        comment: "Needs review",
+        author: "Calm Niels",
+      },
+    ]);
+
+    const mark = container.querySelector("mark[data-annotation-id='a1']");
+    expect(mark).not.toBeNull();
+    expect(mark?.title).toBe("[Calm Niels] Needs review");
+
+    const badge = mark?.querySelector(".pmv-annotation-initials-badge");
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent).toBe("CN");
+    expect(badge?.getAttribute("title")).toBe("Calm Niels");
   });
 });

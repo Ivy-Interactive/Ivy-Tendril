@@ -55,7 +55,7 @@ public class AntigravityCliTests
     public void DefaultProfiles_Correct()
     {
         Assert.Equal(3, _cli.DefaultProfiles.Count);
-        Assert.All(_cli.DefaultProfiles, p => Assert.Equal("gemini-3.6-flash", p.Model));
+        Assert.All(_cli.DefaultProfiles, p => Assert.Equal("gemini-3.7-flash", p.Model));
     }
 
     [Fact]
