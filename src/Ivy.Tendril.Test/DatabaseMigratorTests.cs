@@ -1,4 +1,4 @@
-using Ivy.Tendril.Database;
+﻿using Ivy.Tendril.Database;
 using Ivy.Tendril.Database.Migrations;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -608,6 +608,128 @@ public class DatabaseMigratorTests : IDisposable
         selectCmd.CommandText =
             "SELECT Model || '|' || InputTokens || '|' || OutputTokens || '|' || CacheReadTokens || '|' || CacheWriteTokens || '|' || ReasoningTokens || '|' || CostSource FROM Jobs WHERE Id = 'job-1';";
         Assert.Equal("claude-opus-5|1000|500|90000|300|42|agent", selectCmd.ExecuteScalar()?.ToString());
+    }
+
+    [Fact]
+    public void Migration_020_JobsExecutionProfile_AddsColumn()
+    {
+        new Migration_001_InitialSchema().Apply(_connection);
+        new Migration_002_Fts5Search().Apply(_connection);
+        new Migration_003_JobsTable().Apply(_connection);
+        new Migration_004_SourceUrl().Apply(_connection);
+        new Migration_005_CostsLogTimestampIndex().Apply(_connection);
+        new Migration_006_CostsCompositeIndex().Apply(_connection);
+        new Migration_007_FtsSourceUrl().Apply(_connection);
+        new Migration_008_PrStatusTable().Apply(_connection);
+        new Migration_009_JobsArgs().Apply(_connection);
+        new Migration_010_RecommendationImpactRisk().Apply(_connection);
+        new Migration_011_JobsTypedArgs().Apply(_connection);
+        new Migration_012_JobsPlanFileIndex().Apply(_connection);
+        new Migration_013_JobsWorkingDirAndCliCommand().Apply(_connection);
+        new Migration_014_JobsCleared().Apply(_connection);
+        new Migration_015_RenamePlanStates().Apply(_connection);
+        new Migration_016_DropRecommendationRisk().Apply(_connection);
+        new Migration_017_JobsInFlightFields().Apply(_connection);
+        new Migration_018_PrStatusBranch().Apply(_connection);
+        new Migration_019_JobsTokenBreakdown().Apply(_connection);
+
+        Assert.Equal(19, GetUserVersion());
+
+        // A job that ran before the column existed. The migration does not backfill it from the
+        // plan - the plan's profile can have been edited since - so it must survive as null.
+        using (var preExistingCmd = _connection.CreateCommand())
+        {
+            preExistingCmd.CommandText = """
+                                         INSERT INTO Jobs (Id, Type, PlanFile, Project, Status, Provider)
+                                         VALUES ('job-pre-020', 'ExecutePlan', 'Plan', 'Proj', 'Completed', 'claude')
+                                         """;
+            preExistingCmd.ExecuteNonQuery();
+        }
+
+        new Migration_020_JobsExecutionProfile().Apply(_connection);
+
+        Assert.Equal(20, GetUserVersion());
+
+        var columns = new List<string>();
+        using (var pragmaCmd = _connection.CreateCommand())
+        {
+            pragmaCmd.CommandText = "PRAGMA table_info(Jobs);";
+            using var reader = pragmaCmd.ExecuteReader();
+            while (reader.Read())
+                columns.Add(reader.GetString(reader.GetOrdinal("name")));
+        }
+
+        Assert.Contains("ExecutionProfile", columns);
+
+        using (var preExistingCmd = _connection.CreateCommand())
+        {
+            preExistingCmd.CommandText = "SELECT ExecutionProfile FROM Jobs WHERE Id = 'job-pre-020';";
+            Assert.Equal(DBNull.Value, preExistingCmd.ExecuteScalar());
+        }
+
+        using var insertCmd = _connection.CreateCommand();
+        insertCmd.CommandText = """
+                                INSERT INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, ExecutionProfile)
+                                VALUES ('job-1', 'ExecutePlan', 'Plan', 'Proj', 'Completed', 'claude', 'deep')
+                                """;
+        insertCmd.ExecuteNonQuery();
+
+        using var selectCmd = _connection.CreateCommand();
+        selectCmd.CommandText = "SELECT ExecutionProfile FROM Jobs WHERE Id = 'job-1';";
+        Assert.Equal("deep", selectCmd.ExecuteScalar()?.ToString());
+    }
+
+    [Fact]
+    public void Migration_021_JobsEffort_AddsColumn()
+    {
+        new Migration_001_InitialSchema().Apply(_connection);
+        new Migration_002_Fts5Search().Apply(_connection);
+        new Migration_003_JobsTable().Apply(_connection);
+        new Migration_004_SourceUrl().Apply(_connection);
+        new Migration_005_CostsLogTimestampIndex().Apply(_connection);
+        new Migration_006_CostsCompositeIndex().Apply(_connection);
+        new Migration_007_FtsSourceUrl().Apply(_connection);
+        new Migration_008_PrStatusTable().Apply(_connection);
+        new Migration_009_JobsArgs().Apply(_connection);
+        new Migration_010_RecommendationImpactRisk().Apply(_connection);
+        new Migration_011_JobsTypedArgs().Apply(_connection);
+        new Migration_012_JobsPlanFileIndex().Apply(_connection);
+        new Migration_013_JobsWorkingDirAndCliCommand().Apply(_connection);
+        new Migration_014_JobsCleared().Apply(_connection);
+        new Migration_015_RenamePlanStates().Apply(_connection);
+        new Migration_016_DropRecommendationRisk().Apply(_connection);
+        new Migration_017_JobsInFlightFields().Apply(_connection);
+        new Migration_018_PrStatusBranch().Apply(_connection);
+        new Migration_019_JobsTokenBreakdown().Apply(_connection);
+        new Migration_020_JobsExecutionProfile().Apply(_connection);
+
+        Assert.Equal(20, GetUserVersion());
+
+        new Migration_021_JobsEffort().Apply(_connection);
+
+        Assert.Equal(21, GetUserVersion());
+
+        var columns = new List<string>();
+        using (var pragmaCmd = _connection.CreateCommand())
+        {
+            pragmaCmd.CommandText = "PRAGMA table_info(Jobs);";
+            using var reader = pragmaCmd.ExecuteReader();
+            while (reader.Read())
+                columns.Add(reader.GetString(reader.GetOrdinal("name")));
+        }
+
+        Assert.Contains("Effort", columns);
+
+        using var insertCmd = _connection.CreateCommand();
+        insertCmd.CommandText = """
+                                INSERT INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, ExecutionProfile, Effort)
+                                VALUES ('job-1', 'ExecutePlan', 'Plan', 'Proj', 'Completed', 'claude', 'deep', 'high')
+                                """;
+        insertCmd.ExecuteNonQuery();
+
+        using var selectCmd = _connection.CreateCommand();
+        selectCmd.CommandText = "SELECT ExecutionProfile || '|' || Effort FROM Jobs WHERE Id = 'job-1';";
+        Assert.Equal("deep|high", selectCmd.ExecuteScalar()?.ToString());
     }
 
     private class FakeMigration : IMigration

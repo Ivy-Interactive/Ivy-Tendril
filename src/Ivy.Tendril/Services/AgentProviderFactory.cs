@@ -1,4 +1,4 @@
-using Ivy.Tendril.Agents.Abstractions;
+﻿using Ivy.Tendril.Agents.Abstractions;
 
 namespace Ivy.Tendril.Services;
 
@@ -6,6 +6,10 @@ public record AgentResolution(
     IAgentCli Cli,
     string Model,
     string Effort,
+    // Name of the profile whose settings actually applied — after the promptware defaults, the
+    // caller's override and the balanced/default fallback have all had their say. Empty when no
+    // profile matched, so nothing shaped the model or effort.
+    string Profile,
     IReadOnlyList<string> AllowedTools,
     IReadOnlyList<string> ExtraArgs,
     IReadOnlyDictionary<string, string> EnvironmentVariables)
@@ -42,9 +46,9 @@ public static class AgentProviderFactory
 
         var allowedTools = ResolveAllowedTools(settings, promptwareName, jobContext);
         var (profileName, extraArgs, envVars) = ResolveAgentConfig(settings, codingAgent, promptwareName, profileOverride);
-        var (model, effort) = ApplyProfile(settings, codingAgent, profileName, cli, extraArgs);
+        var (model, effort, appliedProfile) = ApplyProfile(settings, codingAgent, profileName, cli, extraArgs);
 
-        return new AgentResolution(cli, model, effort, allowedTools, extraArgs, envVars);
+        return new AgentResolution(cli, model, effort, appliedProfile, allowedTools, extraArgs, envVars);
     }
 
     private static List<string> ResolveAllowedTools(
@@ -113,7 +117,7 @@ public static class AgentProviderFactory
         return (profileName, extraArgs, envVars);
     }
 
-    private static (string Model, string Effort) ApplyProfile(
+    private static (string Model, string Effort, string AppliedProfile) ApplyProfile(
         TendrilSettings settings,
         string codingAgent,
         string profileName,
@@ -124,7 +128,7 @@ public static class AgentProviderFactory
             NormalizeAgentName(a.Name).Equals(codingAgent, StringComparison.OrdinalIgnoreCase));
 
         if (agentConfig == null && string.IsNullOrEmpty(profileName))
-            return ("", "");
+            return ("", "", "");
 
         AgentProfileConfig? profile = null;
         if (!string.IsNullOrEmpty(profileName) && agentConfig != null)
@@ -156,7 +160,10 @@ public static class AgentProviderFactory
                 extraArgs.AddRange(SplitArgs(profile.Arguments));
         }
 
-        return (model, effort);
+        // The applied profile is the one that was found, not the one that was asked for: an override
+        // naming a profile the agent does not define falls through to balanced/default below, and
+        // recording the request rather than the fallback would misreport what the job ran under.
+        return (model, effort, profile?.Name ?? "");
     }
 
     internal static string NormalizeAgentName(string name) => name.ToLowerInvariant() switch

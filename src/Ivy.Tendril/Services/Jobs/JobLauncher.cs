@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Linq;
 using Ivy.Helpers;
@@ -470,6 +470,10 @@ internal class JobLauncher
         };
 
         job.Model = launchConfig.Model;
+        // Recorded at launch: the plan's profile can be edited afterwards, so reading it back later
+        // would report a profile this run never saw.
+        job.ExecutionProfile = string.IsNullOrEmpty(resolution.Profile) ? null : resolution.Profile;
+        job.Effort = string.IsNullOrEmpty(resolution.Effort) ? null : resolution.Effort;
 
         var spec = resolution.Cli.BuildProcessSpec(launchConfig);
         var psi = AgentProcessHelper.ToPsi(spec);

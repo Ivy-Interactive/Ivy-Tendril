@@ -1,4 +1,4 @@
-using Ivy.Tendril.Agents.Abstractions;
+﻿using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Providers.Codex;
 
 namespace Ivy.Tendril.Agents.Test.Codex;
@@ -176,7 +176,7 @@ public class CodexEventParserTests
     [Fact]
     public void ParseLine_TurnCompleted_WithUsage_ReturnsResultEvent()
     {
-        var json = """{"type":"turn.completed","usage":{"input_tokens":100,"output_tokens":50,"cached_input_tokens":25}}""";
+        var json = """{"type":"turn.completed","usage":{"input_tokens":100,"output_tokens":50,"cached_input_tokens":25,"reasoning_output_tokens":28}}""";
         var events = _parser.ParseLine(json);
 
         Assert.Single(events);
@@ -187,6 +187,9 @@ public class CodexEventParserTests
         Assert.Equal(100, result.Usage!.InputTokens);
         Assert.Equal(50, result.Usage.OutputTokens);
         Assert.Equal(25, result.Usage.CacheReadTokens);
+        // Codex counts reasoning inside output_tokens, so this is carried for information only -
+        // 50 output with 28 reasoning is 50 tokens billed, not 78.
+        Assert.Equal(28, result.Usage.ReasoningTokens);
     }
 
     [Fact]

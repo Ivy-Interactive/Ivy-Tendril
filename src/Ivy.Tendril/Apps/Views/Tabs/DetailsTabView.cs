@@ -1,4 +1,4 @@
-using Ivy.Tendril.Helpers;
+﻿using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Plans;
@@ -26,7 +26,7 @@ public class DetailsTabView(
             Folder = plan.FolderPath,
             plan.InitialPrompt,
             Revision = plan.RevisionCount,
-            Profile = Capitalize(planYaml?.ExecutionProfile),
+            Profile = FormatHelper.FormatExecutionProfile(planYaml?.ExecutionProfile) ?? "",
             // Null (not an empty list) so Details.RemoveEmpty() drops these rows. Empty-collection
             // handling in RemoveEmpty needs Ivy >= the release that fixes ValidationHelper.IsEmptyContent;
             // this keeps the rows hidden with the currently referenced package.
@@ -92,10 +92,6 @@ public class DetailsTabView(
                    .Tooltip("Revert to previous revision")
                    .OnClick(onRevert);
     }
-
-    // Execution profiles are stored lowercase (e.g. "balanced"); present them title-cased.
-    private static string Capitalize(string? value) =>
-        string.IsNullOrEmpty(value) ? "" : char.ToUpperInvariant(value[0]) + value[1..];
 
     private static List<Link> ParsePlanLinks(List<string> planFolders)
     {
