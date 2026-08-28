@@ -162,6 +162,11 @@
   gap: 0.375rem;
 }
 
+.chat-session-item.active .chat-session-meta {
+  color: currentColor;
+  opacity: 0.75;
+}
+
 .chat-session-status {
   display: inline-flex;
   align-items: center;
@@ -719,13 +724,14 @@
   border: 1px solid var(--border);
   border-radius: var(--radius, 6px);
   font-size: 0.75rem;
-  color: var(--foreground);
+  color: var(--secondary-foreground);
   max-width: 100%;
 }
 
 .chat-user-attachment-icon {
   flex-shrink: 0;
-  color: var(--muted-foreground);
+  color: currentColor;
+  opacity: 0.75;
 }
 
 .chat-user-attachment-name {
@@ -1019,8 +1025,23 @@
 button .text-muted-foreground,
 button span.text-muted,
 button .text-muted {
-  font-weight: 400 !important;
-  color: var(--muted-foreground) !important;
+  font-weight: 400;
+}
+
+button.bg-secondary .text-muted-foreground,
+button.bg-secondary span.text-muted,
+button.bg-secondary .text-muted,
+button[class*="bg-secondary"] .text-muted-foreground,
+button[class*="bg-secondary"] span.text-muted,
+button[class*="bg-secondary"] .text-muted,
+button.bg-primary .text-muted-foreground,
+button.bg-primary span.text-muted,
+button.bg-primary .text-muted,
+button[class*="bg-primary"] .text-muted-foreground,
+button[class*="bg-primary"] span.text-muted,
+button[class*="bg-primary"] .text-muted {
+  color: currentColor !important;
+  opacity: 0.75 !important;
 }
 
 /* Queued Messages Panel */
