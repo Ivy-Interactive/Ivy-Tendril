@@ -46,7 +46,6 @@ Plans can be created via multiple pathways:
 1. **Dashboard / Drafts** — Write a description manually in the UI to spawn `CreatePlan`.
 2. **Inbox** — Drop a markdown file into the `Inbox/` folder in `TENDRIL_HOME`.
 3. **Recommendations** — Accept a generative recommendation from the system.
-4. **Duplicate** — Restore an old or discarded plan from the **Trash**.
 
 Each plan is stored as a folder under `TENDRIL_HOME/Plans/` with a unique numeric ID and descriptive name, e.g. `01234-FixLoginBug/`.
 

@@ -121,6 +121,65 @@ describe("PlanDiffView", () => {
 
     expect(document.querySelectorAll('[class*="text-[10px]"], [class*="text-[11px]"]').length).toBe(0);
   });
+
+  it("renders comment author name and initials avatar", () => {
+    render(
+      <PlanDiffView
+        id="pdv-author"
+        diff={diff}
+        comments={[
+          {
+            filePath: "a.txt",
+            changeKey: changeKey,
+            content: "Check this logic",
+            lineNumber: 1,
+            author: "Calm Niels",
+          },
+        ]}
+      />
+    );
+
+    expect(screen.getByText("Calm Niels")).toBeInTheDocument();
+    const avatar = document.querySelector(".pmv-comment-avatar");
+    expect(avatar).not.toBeNull();
+    expect(avatar?.textContent).toBe("CN");
+    expect(avatar?.getAttribute("title")).toBe("Calm Niels");
+  });
+
+  it("passes currentAuthor when adding a new comment", () => {
+    const onIvyEvent = vi.fn();
+    render(
+      <PlanDiffView
+        id="pdv-add-author"
+        onIvyEvent={onIvyEvent}
+        diff={diff}
+        filePath="a.txt"
+        currentAuthor="Calm Niels"
+      />
+    );
+
+    // Click on gutter line to open comment form
+    const gutter = document.querySelector("td.diff-gutter-insert")!;
+    expect(gutter).toBeTruthy();
+    fireEvent.click(gutter);
+
+    const textarea = screen.getByPlaceholderText(/Enter instruction for the agent/i);
+    fireEvent.change(textarea, { target: { value: "New comment by reviewer" } });
+
+    const addButton = screen.getByRole("button", { name: /add comment/i });
+    fireEvent.click(addButton);
+
+    expect(onIvyEvent).toHaveBeenCalledWith("OnAddComment", "pdv-add-author", [
+      {
+        filePath: "a.txt",
+        changeKey: changeKey,
+        content: "New comment by reviewer",
+        lineNumber: 1,
+        author: "Calm Niels",
+        isResolved: false,
+      },
+    ]);
+  });
 });
 
 describe("PlanDiffView unified column collapse", () => {

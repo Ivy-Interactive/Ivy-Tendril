@@ -183,10 +183,14 @@ public class ChatApp : ViewBase
                 {
                     try
                     {
-                        var filePath = Path.Combine(attachDir, att.Name);
-                        if (!string.IsNullOrEmpty(att.Base64Data) && att.Base64Data.Contains(","))
+                        var rawName = Path.GetFileName(att.Name);
+                        var fileName = !string.IsNullOrWhiteSpace(rawName) ? rawName : $"file_{Guid.NewGuid():N}.bin";
+                        var filePath = Path.Combine(attachDir, fileName);
+                        if (!string.IsNullOrEmpty(att.Base64Data))
                         {
-                            var base64 = att.Base64Data[(att.Base64Data.IndexOf(",") + 1)..];
+                            var base64 = att.Base64Data.Contains(",")
+                                ? att.Base64Data[(att.Base64Data.IndexOf(",") + 1)..]
+                                : att.Base64Data;
                             var bytes = Convert.FromBase64String(base64);
                             File.WriteAllBytes(filePath, bytes);
                         }
@@ -478,7 +482,8 @@ public class ChatApp : ViewBase
                 var asyncResult = catalog.GetModelsAsync().GetAwaiter().GetResult();
                 if (asyncResult != null && asyncResult.Models.Count > 0)
                 {
-                    return asyncResult.Models.Select(m => (m.Id, m.DisplayName ?? m.Id)).ToList();
+                    var sorted = ModelCatalogSorter.Sort(asyncResult.Models);
+                    return sorted.Select(m => (m.Id, m.DisplayName ?? m.Id)).ToList();
                 }
             }
             catch
@@ -489,7 +494,8 @@ public class ChatApp : ViewBase
             var staticModels = catalog.GetStaticModels();
             if (staticModels != null && staticModels.Count > 0)
             {
-                return staticModels.Select(m => (m.Id, m.DisplayName ?? m.Id)).ToList();
+                var sorted = ModelCatalogSorter.Sort(staticModels);
+                return sorted.Select(m => (m.Id, m.DisplayName ?? m.Id)).ToList();
             }
         }
 

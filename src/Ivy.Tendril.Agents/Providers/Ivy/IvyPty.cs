@@ -1,4 +1,5 @@
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Agents.Providers.OpenCode;
 
 namespace Ivy.Tendril.Agents.Providers.Ivy;
@@ -27,15 +28,22 @@ public sealed class IvyPty : IAgentPty
 
     public AgentPtySpec BuildPtySpec(AgentPtyConfig config)
     {
+        var model = OpenCodeModelHelper.FormatModel(config.Model, "https://llmproxy.ivy.app");
+        config = config with { Model = model };
+
         var spec = _inner.BuildPtySpec(config);
 
         var env = new Dictionary<string, string>(spec.Environment);
         env["ANTHROPIC_BASE_URL"] = "https://llmproxy.ivy.app";
+        env["OPENAI_BASE_URL"] = "https://llmproxy.ivy.app/v1";
+        env["IVY_BASE_URL"] = "https://llmproxy.ivy.app";
 
         var apiKey = _apiKeyProvider();
         if (!string.IsNullOrEmpty(apiKey))
         {
             env["ANTHROPIC_API_KEY"] = apiKey;
+            env["OPENAI_API_KEY"] = apiKey;
+            env["IVY_API_KEY"] = apiKey;
         }
 
         var args = new List<string>(spec.CommandLine);
@@ -56,6 +64,15 @@ public sealed class IvyPty : IAgentPty
     {
         var env = new Dictionary<string, string>(_inner.GetDefaultEnvironment());
         env["ANTHROPIC_BASE_URL"] = "https://llmproxy.ivy.app";
+        env["OPENAI_BASE_URL"] = "https://llmproxy.ivy.app/v1";
+        env["IVY_BASE_URL"] = "https://llmproxy.ivy.app";
+        var apiKey = _apiKeyProvider();
+        if (!string.IsNullOrEmpty(apiKey))
+        {
+            env["ANTHROPIC_API_KEY"] = apiKey;
+            env["OPENAI_API_KEY"] = apiKey;
+            env["IVY_API_KEY"] = apiKey;
+        }
         return env;
     }
 

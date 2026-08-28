@@ -25,26 +25,27 @@ internal static class OnboardingRepoHelper
         foreach (var repo in selectedRepos)
         {
             i++;
-            var kind = RepoPathValidator.Classify(repo.Path);
+            var normalizedPath = RepoPathValidator.Normalize(repo.Path);
+            var kind = RepoPathValidator.Classify(normalizedPath);
             if (kind == RepoPathKind.LocalPath)
             {
-                progressMessage.Set($"Adding {repo.Path} ({i}/{total})...");
-                var trimmed = repo.Path.Trim();
+                progressMessage.Set($"Adding {normalizedPath} ({i}/{total})...");
+                var trimmed = normalizedPath.Trim();
                 if (!string.IsNullOrWhiteSpace(trimmed))
                     refs.Add(repo with { Path = trimmed });
             }
             else
             {
-                var owner = RepoPathValidator.ExtractOwnerName(repo.Path) ?? "default";
-                var repoName = RepoPathValidator.ExtractRepoName(repo.Path) ?? Guid.NewGuid().ToString();
+                var owner = RepoPathValidator.ExtractOwnerName(normalizedPath) ?? "default";
+                var repoName = RepoPathValidator.ExtractRepoName(normalizedPath) ?? Guid.NewGuid().ToString();
                 var destPath = ProjectPathHelper.GetRepoPath(tendrilHome, projectName, owner, repoName);
                 Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
 
                 progressMessage.Set($"Fetching {owner}/{repoName} ({i}/{total})...");
-                var success = await ProcessCheckHelper.CloneRepositoryAsync(repo.Path, destPath);
+                var success = await ProcessCheckHelper.CloneRepositoryAsync(normalizedPath, destPath);
                 if (!success)
                 {
-                    error.Set($"Failed to fetch repository: {repo.Path}.");
+                    error.Set($"Failed to fetch repository: {normalizedPath}.");
                     isCloning.Set(false);
                     isStepLoading.Set(false);
                     return null;

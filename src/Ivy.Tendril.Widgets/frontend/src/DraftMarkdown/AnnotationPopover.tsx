@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { getInitials, type MarkdownAnnotation } from "./annotationUtils";
 
 interface Position {
   top: number;
@@ -100,8 +101,10 @@ interface EditAnnotationPopoverProps {
    * (rather than unmounts) the popover so in-progress edits survive
    * scrolling the anchor back into view. Defaults to true. */
   visible?: boolean;
-  annotation: { selectedText: string; comment: string };
+  annotation: MarkdownAnnotation;
+  currentAuthor?: string;
   onSave: (comment: string) => void;
+  onToggleResolve?: () => void;
   onRemove: () => void;
   onCancel: () => void;
 }
@@ -110,7 +113,9 @@ export const EditAnnotationPopover: React.FC<EditAnnotationPopoverProps> = ({
   position,
   visible = true,
   annotation,
+  currentAuthor,
   onSave,
+  onToggleResolve,
   onRemove,
   onCancel,
 }) => {
@@ -143,12 +148,33 @@ export const EditAnnotationPopover: React.FC<EditAnnotationPopoverProps> = ({
     onSave(comment);
   }, [comment, onSave]);
 
+  const isAuthor = !currentAuthor || !currentAuthor.trim();
+  const isOwner = !annotation.author?.trim() || (currentAuthor && annotation.author.trim() === currentAuthor.trim());
+  const canResolve = isAuthor;
+  const canRemove = isAuthor || isOwner;
+  const isResolved = annotation.isResolved ?? false;
+
   return createPortal(
     <div
       ref={popoverRef}
       className="pmv-popover"
       style={{ top: position.top, left: position.left, visibility: visible ? "visible" : "hidden" }}
     >
+      <div className="pmv-popover-header">
+        {annotation.author?.trim() && (
+          <div className="pmv-popover-author">
+            <span className="pmv-popover-avatar">
+              {getInitials(annotation.author.trim())}
+            </span>
+            <span className="pmv-popover-author-name">{annotation.author.trim()}</span>
+          </div>
+        )}
+        {isResolved && (
+          <span className="pmv-resolved-badge">
+            ✓ Resolved
+          </span>
+        )}
+      </div>
       <div className="pmv-popover-quote">
         &ldquo;{annotation.selectedText.slice(0, 50)}
         {annotation.selectedText.length > 50 ? "..." : ""}&rdquo;
@@ -168,13 +194,28 @@ export const EditAnnotationPopover: React.FC<EditAnnotationPopoverProps> = ({
         }}
       />
       <div className="pmv-popover-actions pmv-popover-actions--between">
-        <button
-          type="button"
-          className="pmv-popover-btn pmv-popover-btn--danger"
-          onClick={onRemove}
-        >
-          Remove
-        </button>
+        <div className="flex items-center gap-1">
+          {canResolve && onToggleResolve && (
+            <button
+              type="button"
+              className={`pmv-popover-btn ${isResolved ? "pmv-popover-btn--ghost" : "pmv-popover-btn--success"}`}
+              onClick={onToggleResolve}
+              title={isResolved ? "Reopen annotation" : "Mark annotation as resolved"}
+            >
+              {isResolved ? "Unresolve" : "Resolve"}
+            </button>
+          )}
+          {canRemove && (
+            <button
+              type="button"
+              className="pmv-popover-btn pmv-popover-btn--danger"
+              onClick={onRemove}
+              title="Delete annotation"
+            >
+              Delete
+            </button>
+          )}
+        </div>
         <div className="pmv-popover-actions pmv-popover-actions--end">
           <button
             type="button"

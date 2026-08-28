@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Telemetry;
@@ -682,7 +682,7 @@ public class ProjectAddRepoCommand : Command<ProjectAddRepoSettings>
         if (!config.Settings.Projects.Any(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase)))
             CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
 
-        var repoPath = settings.RepoPath;
+        var repoPath = RepoPathValidator.Normalize(settings.RepoPath);
         var kind = RepoPathValidator.Classify(repoPath);
         if (kind != RepoPathKind.LocalPath)
         {

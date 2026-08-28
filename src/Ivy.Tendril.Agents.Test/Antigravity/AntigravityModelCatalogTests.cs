@@ -61,4 +61,29 @@ public class AntigravityModelCatalogTests
         var defaultModel = _catalog.GetStaticModels().Single(m => m.IsDefault);
         Assert.Equal("gemini-3.6-flash", defaultModel.Id);
     }
+
+    [Fact]
+    public void GetStaticModels_AllHavePricingRates()
+    {
+        var models = _catalog.GetStaticModels();
+        Assert.All(models, m =>
+        {
+            Assert.True(m.InputPerMillion > 0, $"{m.Id} should have InputPerMillion > 0");
+            Assert.True(m.OutputPerMillion > 0, $"{m.Id} should have OutputPerMillion > 0");
+        });
+    }
+
+    [Fact]
+    public void ModelPricingProvider_ResolvesAntigravityModels()
+    {
+        var provider = new Ivy.Tendril.Agents.Runtime.ModelPricingProvider([_catalog]);
+        var pricing = provider.GetPricing("gemini-3.7-flash");
+
+        Assert.NotNull(pricing);
+        Assert.Equal(0.15m, pricing.InputPerMillion);
+        Assert.Equal(0.60m, pricing.OutputPerMillion);
+
+        var cost = provider.CalculateCost("gemini-3.7-flash", 1_000_000, 1_000_000);
+        Assert.Equal(0.75m, cost);
+    }
 }

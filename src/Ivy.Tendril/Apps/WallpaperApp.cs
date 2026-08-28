@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using System.Reactive.Disposables;
 using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Plans;
@@ -21,7 +22,9 @@ public class WallpaperApp : ViewBase
         var versionService = UseService<IVersionCheckService>();
         var planDbService = UseService<IPlanDatabaseService>();
         var tunnelService = UseService<ICloudflaredService>();
+        var shareTunnelService = UseService<IShareTunnelService>();
         var copyToClipboard = UseClipboard();
+        Context.TryUseService<TendrilArgs>(out var tendrilArgs);
         var versionInfo = UseState<VersionInfo?>(null);
         var dismissedVersion = UseState<string?>(() => config.Settings.DismissedUpdateVersion);
         var updateProgress = UseState<int?>(null);
@@ -29,6 +32,8 @@ public class WallpaperApp : ViewBase
         var updateError = UseState<string?>(null);
         var tunnelStatus = UseState(tunnelService.Status);
         var tunnelUrl = UseState<string?>(tunnelService.TunnelUrl);
+        var shareTunnelStatus = UseState(shareTunnelService.Status);
+        var shareTunnelUrl = UseState<string?>(shareTunnelService.TunnelUrl);
 
         var processView = Context.UseTendrilProcess();
 
@@ -55,6 +60,22 @@ public class WallpaperApp : ViewBase
             tunnelUrl.Set(tunnelService.TunnelUrl);
 
             return Disposable.Create(() => tunnelService.StatusChanged -= OnStatusChanged);
+        });
+
+        UseEffect(() =>
+        {
+            void OnShareStatusChanged(TunnelStatus newStatus)
+            {
+                shareTunnelStatus.Set(newStatus);
+                shareTunnelUrl.Set(shareTunnelService.TunnelUrl);
+            }
+
+            shareTunnelService.StatusChanged += OnShareStatusChanged;
+
+            shareTunnelStatus.Set(shareTunnelService.Status);
+            shareTunnelUrl.Set(shareTunnelService.TunnelUrl);
+
+            return Disposable.Create(() => shareTunnelService.StatusChanged -= OnShareStatusChanged);
         });
 
         // Query last 90 days of completed PRs
@@ -114,6 +135,40 @@ public class WallpaperApp : ViewBase
             .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
 
             elements.Add(tunnelQr);
+        }
+
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
+
+        if (isBeta && shareTunnelStatus.Value == TunnelStatus.Connected && shareTunnelUrl.Value is not null)
+        {
+            var shareAddress = shareTunnelUrl.Value;
+            var shareMenu = new Button().Icon(Icons.Ellipsis).Ghost().Small().WithDropDown(
+                new MenuItem("Copy Share URL", Icon: Icons.ClipboardCopy, Tag: "copy").OnSelect(() =>
+                {
+                    copyToClipboard(shareAddress);
+                    client.Toast("Share tunnel URL copied to clipboard", "URL Copied");
+                }),
+                new MenuItem("Open in Browser", Icon: Icons.ExternalLink, Tag: "open").OnSelect(() => client.OpenUrl(shareAddress)),
+                new MenuItem("Deactivate", Icon: Icons.Power, Tag: "deactivate").OnSelect(() =>
+                {
+                    shareTunnelStatus.Set(TunnelStatus.Disabled);
+                    client.Toast("Share tunnel stopped", "Deactivated");
+                    _ = shareTunnelService.DeactivateAsync();
+                })
+            );
+
+            var topOffset = tunnelStatus.Value == TunnelStatus.Connected ? 240 : 8;
+
+            var shareQr = new FloatingPanel(
+                new Card(
+                    new QRCode { Value = shareAddress, PixelSize = 160, ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium }
+                ).Header("Share Tunnel", null, shareMenu)
+            )
+            .AlignSelf(Align.TopRight)
+            .Offset(new Thickness(0, topOffset, 8, 0))
+            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
+
+            elements.Add(shareQr);
         }
 
         if ((versionInfo.Value?.HasUpdate == true && versionInfo.Value.LatestVersion != dismissedVersion.Value) || updateProgress.Value != null || updateError.Value != null)

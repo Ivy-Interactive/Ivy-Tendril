@@ -4,7 +4,6 @@ public record TendrilProcessStatus
 {
     public int IceboxCount { get; init; }
     public int JobCount { get; init; }
-    public int TrashCount { get; init; }
     public int DraftCount { get; init; }
     public int ReviewCount { get; init; }
     public int CreatingPlansCount { get; init; }

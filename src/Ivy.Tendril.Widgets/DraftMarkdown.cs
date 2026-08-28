@@ -9,6 +9,8 @@ public record MarkdownAnnotation
     public int EndOffset { get; init; }
     public string SelectedText { get; init; } = "";
     public string Comment { get; init; } = "";
+    public string? Author { get; init; }
+    public bool IsResolved { get; init; }
 }
 
 /// <summary>
@@ -80,6 +82,9 @@ public record DraftMarkdown : WidgetBase<DraftMarkdown>
     /// </summary>
     [Prop] public QuestionScrollTarget? ScrollTo { get; init; }
 
+    /// <summary>The current author/persona leaving annotations.</summary>
+    [Prop] public string? CurrentAuthor { get; init; }
+
     /// <summary>Fired when a link inside the markdown is clicked; the payload is the href.</summary>
     [Event] public EventHandler<Event<DraftMarkdown, string>>? OnLinkClick { get; init; }
 
@@ -96,6 +101,8 @@ public record DraftMarkdown : WidgetBase<DraftMarkdown>
 
 public static class DraftMarkdownExtensions
 {
+    public static DraftMarkdown CurrentAuthor(this DraftMarkdown w, string? author) =>
+        w with { CurrentAuthor = author };
     public static DraftMarkdown Article(this DraftMarkdown w, bool article = true) =>
         w with { Article = article };
 

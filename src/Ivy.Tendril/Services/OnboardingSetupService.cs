@@ -28,7 +28,6 @@ public class OnboardingSetupService(IConfigService config, IAgentRunner agentRun
         var counterPath = Path.Combine(planFolder, ".counter");
         if (!File.Exists(counterPath))
             await FileHelper.WriteAllTextAsync(counterPath, "1");
-        Directory.CreateDirectory(Path.Combine(tendrilHome, "Trash"));
         Directory.CreateDirectory(Path.Combine(tendrilHome, "Promptwares"));
         if (PromptwareDeployer.IsEmbeddedAvailable())
             PromptwareDeployer.Deploy(Path.Combine(tendrilHome, "Promptwares"));

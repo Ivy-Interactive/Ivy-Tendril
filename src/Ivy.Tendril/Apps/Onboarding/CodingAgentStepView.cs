@@ -158,10 +158,10 @@ public class CodingAgentStepView(
                     lastDetectedProvider.Set("anthropic");
                     deepModel.Set("claude-opus-5");
                     balancedModel.Set("claude-sonnet-5");
-                    quickModel.Set("claude-haiku-5");
+                    quickModel.Set("claude-haiku-4-5");
                     customDeepText.Set("claude-opus-5");
                     customBalancedText.Set("claude-sonnet-5");
-                    customQuickText.Set("claude-haiku-5");
+                    customQuickText.Set("claude-haiku-4-5");
                 }
                 else if (agentKey == "openaiproxy_card")
                 {
@@ -197,7 +197,7 @@ public class CodingAgentStepView(
         {
             var isBergetCard = selectedAgent.Value == "berget_card";
             var isAnthropicCard = selectedAgent.Value == "anthropic_card";
-            var isIvy = !isBergetCard && !isAnthropicCard && (openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app") || openAiProxyBaseUrl.Value.Contains("ivy.app"));
+            var isIvy = openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app") || openAiProxyBaseUrl.Value.Contains("ivy.app");
 
             var cardTitle = isIvy
                 ? "Setup Ivy Proxy"
@@ -233,10 +233,10 @@ public class CodingAgentStepView(
                 {
                     deepModel.Set("claude-opus-5");
                     balancedModel.Set("claude-sonnet-5");
-                    quickModel.Set("claude-haiku-5");
+                    quickModel.Set("claude-haiku-4-5");
                     customDeepText.Set("claude-opus-5");
                     customBalancedText.Set("claude-sonnet-5");
-                    customQuickText.Set("claude-haiku-5");
+                    customQuickText.Set("claude-haiku-4-5");
                 }
                 else if (isBergetCard)
                 {
@@ -292,6 +292,7 @@ public class CodingAgentStepView(
                        | (Layout.Horizontal()
                            | new Button("Back")
                                .Ghost()
+                               .Disabled(isFetchingModels.Value)
                                .OnClick(() =>
                                {
                                    selectedAgent.Set(null);
@@ -303,6 +304,7 @@ public class CodingAgentStepView(
                            | new Button("Continue")
                                .Primary()
                                .Loading(isFetchingModels.Value)
+                               .Disabled(isFetchingModels.Value)
                                .OnClick(async () =>
                                {
                                    apiKeyError.Set(null);
@@ -329,17 +331,23 @@ public class CodingAgentStepView(
 
                                    try
                                    {
-                                       var models = await OpenAiProxyModelCatalog.FetchModelsFromEndpointAsync(baseUrl, openAiProxyApiKey.Value);
-                                       fetchedModels.Set(models);
+                                       var fetchResult = await OpenAiProxyModelCatalog.FetchModelsDetailedAsync(baseUrl, openAiProxyApiKey.Value);
+
+                                       if (fetchResult.IsAuthError)
+                                       {
+                                           apiKeyError.Set(fetchResult.ErrorMessage ?? "Invalid API Key or unauthorized for this endpoint.");
+                                           return;
+                                       }
 
                                        var isGoogleCard = !isIvy && !isAnthropicCard && !isBergetCard && (baseUrl.Contains("generativelanguage.googleapis.com") || baseUrl.Contains("gemini") || baseUrl.Contains("google"));
 
-                                       if (models is { Count: > 0 })
+                                       if (fetchResult.Success && fetchResult.Models is { Count: > 0 })
                                        {
+                                           fetchedModels.Set(fetchResult.Models);
                                            useCustomModelNames.Set(false);
 
                                            var (deep, balanced, quick) = ModelProfileSelector.SelectDefaults(
-                                               models,
+                                               fetchResult.Models,
                                                isIvy: isIvy,
                                                isAnthropic: isAnthropicCard,
                                                isBerget: isBergetCard,
@@ -352,10 +360,10 @@ public class CodingAgentStepView(
                                            customDeepText.Set(deep);
                                            customBalancedText.Set(balanced);
                                            customQuickText.Set(quick);
+                                           byoSubStep.Set(1);
                                        }
                                        else
                                        {
-                                           useCustomModelNames.Set(true);
                                            var (fallbackDeep, fallbackBalanced, fallbackQuick) = ModelProfileSelector.SelectDefaults(
                                                null,
                                                isIvy: isIvy,
@@ -364,26 +372,43 @@ public class CodingAgentStepView(
                                                isGoogle: isGoogleCard,
                                                isOpenAi: !isIvy && !isAnthropicCard && !isBergetCard && !isGoogleCard);
 
+                                           var testPing = await LlmEndpointTester.TestModelPromptAsync(baseUrl, openAiProxyApiKey.Value, fallbackBalanced);
+                                           if (testPing.Status == ModelValidationStatus.AuthError)
+                                           {
+                                               apiKeyError.Set(testPing.ErrorMessage ?? "Invalid API Key for this endpoint.");
+                                               return;
+                                           }
+
+                                           if (testPing.Status == ModelValidationStatus.Unknown && !string.IsNullOrEmpty(testPing.ErrorMessage) &&
+                                               (testPing.ErrorMessage.Contains("connect", StringComparison.OrdinalIgnoreCase) || testPing.ErrorMessage.Contains("HTTP", StringComparison.OrdinalIgnoreCase)))
+                                           {
+                                               baseUrlError.Set(testPing.ErrorMessage);
+                                               return;
+                                           }
+
+                                           fetchedModels.Set(Array.Empty<ModelInfo>());
+                                           useCustomModelNames.Set(true);
+
                                            if (string.IsNullOrWhiteSpace(customDeepText.Value))
                                                customDeepText.Set(fallbackDeep);
                                            if (string.IsNullOrWhiteSpace(customBalancedText.Value))
                                                customBalancedText.Set(fallbackBalanced);
                                            if (string.IsNullOrWhiteSpace(customQuickText.Value))
                                                customQuickText.Set(fallbackQuick);
-                                       }
 
-                                       byoSubStep.Set(1);
+                                           byoSubStep.Set(1);
+                                       }
                                    }
                                    catch (Exception ex)
                                    {
-                                       generalError.Set($"Failed to fetch models: {ex.Message}");
+                                       generalError.Set($"Failed to connect to endpoint: {ex.Message}");
                                    }
                                    finally
                                    {
                                        isFetchingModels.Set(false);
                                    }
                                })
-                       );
+                        );
             }
 
             // SubStep 1: Model Selection
@@ -391,7 +416,8 @@ public class CodingAgentStepView(
             var hasAvailableModels = availableModels.Count > 0;
             var isCustomMode = useCustomModelNames.Value || !hasAvailableModels;
 
-            var modelOptions = availableModels
+            var sortedModels = ModelCatalogSorter.Sort(availableModels);
+            var modelOptions = sortedModels
                 .Select(m => new Option<string>(m.DisplayName, m.Id))
                 .ToArray<IAnyOption>();
 
@@ -469,163 +495,207 @@ public class CodingAgentStepView(
                    | (testSuccessMessage.Value != null
                        ? Callout.Success(testSuccessMessage.Value)
                        : null!)
-                   | (Layout.Horizontal()
-                       | new Button("Back")
-                           .Ghost()
-                           .OnClick(() =>
-                           {
-                               byoSubStep.Set(0);
-                               deepModelError.Set(null);
-                               balancedModelError.Set(null);
-                               quickModelError.Set(null);
-                               testSuccessMessage.Set(null);
-                               generalError.Set(null);
-                           })
-                       | new Button("Test Endpoint")
-                           .Outline()
-                           .Loading(isTestingModels.Value)
-                           .OnClick(async () =>
-                           {
-                               deepModelError.Set(null);
-                               balancedModelError.Set(null);
-                               quickModelError.Set(null);
-                               testSuccessMessage.Set(null);
-                               generalError.Set(null);
+                    | (Layout.Horizontal()
+                        | new Button("Back")
+                            .Ghost()
+                            .Disabled(isTestingModels.Value)
+                            .OnClick(() =>
+                            {
+                                byoSubStep.Set(0);
+                                deepModelError.Set(null);
+                                balancedModelError.Set(null);
+                                quickModelError.Set(null);
+                                testSuccessMessage.Set(null);
+                                generalError.Set(null);
+                            })
+                        | new Button("Test Endpoint")
+                            .Outline()
+                            .Loading(isTestingModels.Value)
+                            .Disabled(isTestingModels.Value)
+                            .OnClick(async () =>
+                            {
+                                deepModelError.Set(null);
+                                balancedModelError.Set(null);
+                                quickModelError.Set(null);
+                                testSuccessMessage.Set(null);
+                                generalError.Set(null);
 
-                               var dm = isCustomMode
-                                   ? customDeepText.Value.Trim()
-                                   : deepModel.Value;
-                               var bm = isCustomMode
-                                   ? customBalancedText.Value.Trim()
-                                   : balancedModel.Value;
-                               var qm = isCustomMode
-                                   ? customQuickText.Value.Trim()
-                                   : quickModel.Value;
+                                var dm = isCustomMode
+                                    ? customDeepText.Value.Trim()
+                                    : deepModel.Value;
+                                var bm = isCustomMode
+                                    ? customBalancedText.Value.Trim()
+                                    : balancedModel.Value;
+                                var qm = isCustomMode
+                                    ? customQuickText.Value.Trim()
+                                    : quickModel.Value;
 
-                               var hasValidationErr = false;
-                               if (string.IsNullOrWhiteSpace(dm))
-                               {
-                                   deepModelError.Set("Please specify a valid model for Deep profile.");
-                                   hasValidationErr = true;
-                               }
-                               if (string.IsNullOrWhiteSpace(bm))
-                               {
-                                   balancedModelError.Set("Please specify a valid model for Balanced profile.");
-                                   hasValidationErr = true;
-                               }
-                               if (string.IsNullOrWhiteSpace(qm))
-                               {
-                                   quickModelError.Set("Please specify a valid model for Quick profile.");
-                                   hasValidationErr = true;
-                               }
+                                var hasValidationErr = false;
+                                if (string.IsNullOrWhiteSpace(dm))
+                                {
+                                    deepModelError.Set("Please specify a valid model for Deep profile.");
+                                    hasValidationErr = true;
+                                }
+                                if (string.IsNullOrWhiteSpace(bm))
+                                {
+                                    balancedModelError.Set("Please specify a valid model for Balanced profile.");
+                                    hasValidationErr = true;
+                                }
+                                if (string.IsNullOrWhiteSpace(qm))
+                                {
+                                    quickModelError.Set("Please specify a valid model for Quick profile.");
+                                    hasValidationErr = true;
+                                }
 
-                               if (hasValidationErr) return;
+                                if (hasValidationErr) return;
 
-                               var baseUrl = isBergetCard || string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value)
-                                   ? defaultUrl
-                                   : openAiProxyBaseUrl.Value;
+                                var baseUrl = isBergetCard || string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value)
+                                    ? defaultUrl
+                                    : openAiProxyBaseUrl.Value;
 
-                               isTestingModels.Set(true);
-                               try
-                               {
-                                   var tested = new Dictionary<string, (bool Ok, string? Err)>(StringComparer.OrdinalIgnoreCase);
+                                isTestingModels.Set(true);
+                                try
+                                {
+                                    var tested = new Dictionary<string, (bool Ok, string? Err)>(StringComparer.OrdinalIgnoreCase);
 
-                                   async Task<(bool Ok, string? Err)> TestOnceAsync(string modelId)
-                                   {
-                                       if (tested.TryGetValue(modelId, out var existing)) return existing;
-                                       var res = await OpenAiProxyModelCatalog.TestModelEndpointAsync(baseUrl, openAiProxyApiKey.Value, modelId);
-                                       tested[modelId] = res;
-                                       return res;
-                                   }
+                                    async Task<(bool Ok, string? Err)> TestOnceAsync(string modelId)
+                                    {
+                                        if (tested.TryGetValue(modelId, out var existing)) return existing;
+                                        var res = await OpenAiProxyModelCatalog.TestModelEndpointAsync(baseUrl, openAiProxyApiKey.Value, modelId);
+                                        tested[modelId] = res;
+                                        return res;
+                                    }
 
-                                   var deepRes = await TestOnceAsync(dm);
-                                   if (!deepRes.Ok) deepModelError.Set(deepRes.Err);
+                                    var deepRes = await TestOnceAsync(dm);
+                                    if (!deepRes.Ok) deepModelError.Set(deepRes.Err);
 
-                                   var balancedRes = await TestOnceAsync(bm);
-                                   if (!balancedRes.Ok) balancedModelError.Set(balancedRes.Err);
+                                    var balancedRes = await TestOnceAsync(bm);
+                                    if (!balancedRes.Ok) balancedModelError.Set(balancedRes.Err);
 
-                                   var quickRes = await TestOnceAsync(qm);
-                                   if (!quickRes.Ok) quickModelError.Set(quickRes.Err);
+                                    var quickRes = await TestOnceAsync(qm);
+                                    if (!quickRes.Ok) quickModelError.Set(quickRes.Err);
 
-                                   if (deepRes.Ok && balancedRes.Ok && quickRes.Ok)
-                                   {
-                                       testSuccessMessage.Set("All profile models responded successfully!");
-                                   }
-                               }
-                               catch (Exception ex)
-                               {
-                                   generalError.Set($"Test error: {ex.Message}");
-                               }
-                               finally
-                               {
-                                   isTestingModels.Set(false);
-                               }
-                           })
-                       | new Button("Continue")
-                           .Primary()
-                           .OnClick(() =>
-                           {
-                               deepModelError.Set(null);
-                               balancedModelError.Set(null);
-                               quickModelError.Set(null);
-                               generalError.Set(null);
-                               testSuccessMessage.Set(null);
+                                    if (deepRes.Ok && balancedRes.Ok && quickRes.Ok)
+                                    {
+                                        testSuccessMessage.Set("All profile models responded successfully!");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    generalError.Set($"Test error: {ex.Message}");
+                                }
+                                finally
+                                {
+                                    isTestingModels.Set(false);
+                                }
+                            })
+                        | new Button("Continue")
+                            .Primary()
+                            .Loading(isTestingModels.Value)
+                            .Disabled(isTestingModels.Value)
+                            .OnClick(async () =>
+                            {
+                                deepModelError.Set(null);
+                                balancedModelError.Set(null);
+                                quickModelError.Set(null);
+                                generalError.Set(null);
+                                testSuccessMessage.Set(null);
 
-                               var dm = isCustomMode
-                                   ? customDeepText.Value.Trim()
-                                   : deepModel.Value;
-                               var bm = isCustomMode
-                                   ? customBalancedText.Value.Trim()
-                                   : balancedModel.Value;
-                               var qm = isCustomMode
-                                   ? customQuickText.Value.Trim()
-                                   : quickModel.Value;
+                                var dm = isCustomMode
+                                    ? customDeepText.Value.Trim()
+                                    : deepModel.Value;
+                                var bm = isCustomMode
+                                    ? customBalancedText.Value.Trim()
+                                    : balancedModel.Value;
+                                var qm = isCustomMode
+                                    ? customQuickText.Value.Trim()
+                                    : quickModel.Value;
 
-                               var hasValidationErr = false;
-                               if (string.IsNullOrWhiteSpace(dm))
-                               {
-                                   deepModelError.Set("Please specify a valid model for Deep profile.");
-                                   hasValidationErr = true;
-                               }
-                               if (string.IsNullOrWhiteSpace(bm))
-                               {
-                                   balancedModelError.Set("Please specify a valid model for Balanced profile.");
-                                   hasValidationErr = true;
-                               }
-                               if (string.IsNullOrWhiteSpace(qm))
-                               {
-                                   quickModelError.Set("Please specify a valid model for Quick profile.");
-                                   hasValidationErr = true;
-                               }
+                                var hasValidationErr = false;
+                                if (string.IsNullOrWhiteSpace(dm))
+                                {
+                                    deepModelError.Set("Please specify a valid model for Deep profile.");
+                                    hasValidationErr = true;
+                                }
+                                if (string.IsNullOrWhiteSpace(bm))
+                                {
+                                    balancedModelError.Set("Please specify a valid model for Balanced profile.");
+                                    hasValidationErr = true;
+                                }
+                                if (string.IsNullOrWhiteSpace(qm))
+                                {
+                                    quickModelError.Set("Please specify a valid model for Quick profile.");
+                                    hasValidationErr = true;
+                                }
 
-                               if (hasValidationErr) return;
+                                if (hasValidationErr) return;
 
-                               var baseUrl = isBergetCard || string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value)
-                                   ? defaultUrl
-                                   : openAiProxyBaseUrl.Value;
+                                var baseUrl = isBergetCard || string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value)
+                                    ? defaultUrl
+                                    : openAiProxyBaseUrl.Value;
 
-                               var targetAgent = isIvy ? "ivy" : "openaiproxy";
+                                isTestingModels.Set(true);
+                                try
+                                {
+                                    var tested = new Dictionary<string, (bool Ok, string? Err)>(StringComparer.OrdinalIgnoreCase);
 
-                               if (isIvy)
-                               {
-                                   SaveProfiles(config, "ivy", dm, bm, qm);
-                                   SaveIvyApiKey(config, openAiProxyApiKey.Value);
-                                   SaveOpenAiProxyApiKey(config, "");
-                                   SaveOpenAiProxyBaseUrl(config, "");
-                               }
-                               else
-                               {
-                                   SaveProfiles(config, "openaiproxy", dm, bm, qm);
-                                   SaveOpenAiProxyBaseUrl(config, baseUrl);
-                                   SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
-                                   SaveIvyApiKey(config, "");
-                               }
+                                    async Task<(bool Ok, string? Err)> TestOnceAsync(string modelId)
+                                    {
+                                        if (tested.TryGetValue(modelId, out var existing)) return existing;
+                                        var res = await OpenAiProxyModelCatalog.TestModelEndpointAsync(baseUrl, openAiProxyApiKey.Value, modelId);
+                                        tested[modelId] = res;
+                                        return res;
+                                    }
 
-                               config.Settings.CodingAgent = targetAgent;
-                               config.SaveSettings();
-                               _ = RunFlowAsync(targetAgent);
-                           })
-                   );
+                                    var deepRes = await TestOnceAsync(dm);
+                                    if (!deepRes.Ok) deepModelError.Set(deepRes.Err);
+
+                                    var balancedRes = await TestOnceAsync(bm);
+                                    if (!balancedRes.Ok) balancedModelError.Set(balancedRes.Err);
+
+                                    var quickRes = await TestOnceAsync(qm);
+                                    if (!quickRes.Ok) quickModelError.Set(quickRes.Err);
+
+                                    if (!deepRes.Ok || !balancedRes.Ok || !quickRes.Ok)
+                                    {
+                                        generalError.Set("Model validation failed against the endpoint. Please fix the highlighted model names before continuing.");
+                                        return;
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    generalError.Set($"Endpoint validation failed: {ex.Message}");
+                                    return;
+                                }
+                                finally
+                                {
+                                    isTestingModels.Set(false);
+                                }
+
+                                var targetAgent = isIvy ? "ivy" : "openaiproxy";
+
+                                if (isIvy)
+                                {
+                                    SaveProfiles(config, "ivy", dm, bm, qm);
+                                    SaveIvyApiKey(config, openAiProxyApiKey.Value);
+                                    SaveIvyBaseUrl(config, baseUrl);
+                                    SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
+                                    SaveOpenAiProxyBaseUrl(config, baseUrl);
+                                }
+                                else
+                                {
+                                    SaveProfiles(config, "openaiproxy", dm, bm, qm);
+                                    SaveOpenAiProxyBaseUrl(config, baseUrl);
+                                    SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
+                                    SaveIvyApiKey(config, openAiProxyApiKey.Value);
+                                    SaveIvyBaseUrl(config, baseUrl);
+                                }
+
+                                config.Settings.CodingAgent = targetAgent;
+                                config.SaveSettings();
+                                _ = RunFlowAsync(targetAgent);
+                            })
+                    );
         }
 
         var selectedLabel = Agents.FirstOrDefault(a => a.Key == selectedAgent.Value)?.Label
@@ -792,7 +862,7 @@ public class CodingAgentStepView(
         return Layout.Vertical()
                | Text.H3("What is your coding agent?")
                | Text.Muted(
-                   "Tendril is an open source coding orchestrator that runs on top of your own coding agent or bundled open source engines like OpenCode (MIT License). Pick the agent you'd like to use:")
+                   "Tendril is a coding orchestrator that runs on top of your own coding agent. Pick the agent you'd like to use:")
                | (errorMessage != null ? Text.Danger(errorMessage) : null!)
                | grid
                | byoSection;
@@ -882,10 +952,12 @@ public class CodingAgentStepView(
         if (string.IsNullOrEmpty(apiKey))
         {
             ac.EnvironmentVariables.Remove("ANTHROPIC_API_KEY");
+            ac.EnvironmentVariables.Remove("OPENAI_API_KEY");
         }
         else
         {
             ac.EnvironmentVariables["ANTHROPIC_API_KEY"] = apiKey;
+            ac.EnvironmentVariables["OPENAI_API_KEY"] = apiKey;
         }
     }
 
@@ -903,10 +975,14 @@ public class CodingAgentStepView(
         if (string.IsNullOrEmpty(apiKey))
         {
             ac.EnvironmentVariables.Remove("ANTHROPIC_API_KEY");
+            ac.EnvironmentVariables.Remove("OPENAI_API_KEY");
+            ac.EnvironmentVariables.Remove("IVY_API_KEY");
         }
         else
         {
             ac.EnvironmentVariables["ANTHROPIC_API_KEY"] = apiKey;
+            ac.EnvironmentVariables["OPENAI_API_KEY"] = apiKey;
+            ac.EnvironmentVariables["IVY_API_KEY"] = apiKey;
         }
     }
 
@@ -914,8 +990,13 @@ public class CodingAgentStepView(
     {
         var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
             AgentProviderFactory.NormalizeAgentName(a.Name).Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
-        if (ac != null && ac.EnvironmentVariables.TryGetValue("ANTHROPIC_BASE_URL", out var url))
-            return url;
+        if (ac != null)
+        {
+            if (ac.EnvironmentVariables.TryGetValue("ANTHROPIC_BASE_URL", out var url) && !string.IsNullOrEmpty(url))
+                return url;
+            if (ac.EnvironmentVariables.TryGetValue("OPENAI_BASE_URL", out url) && !string.IsNullOrEmpty(url))
+                return url;
+        }
         return "";
     }
 
@@ -933,10 +1014,39 @@ public class CodingAgentStepView(
         if (string.IsNullOrEmpty(url))
         {
             ac.EnvironmentVariables.Remove("ANTHROPIC_BASE_URL");
+            ac.EnvironmentVariables.Remove("OPENAI_BASE_URL");
         }
         else
         {
-            ac.EnvironmentVariables["ANTHROPIC_BASE_URL"] = url;
+            var trimmedBase = url.Trim().TrimEnd('/');
+            ac.EnvironmentVariables["ANTHROPIC_BASE_URL"] = trimmedBase.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? trimmedBase[..^3] : trimmedBase;
+            ac.EnvironmentVariables["OPENAI_BASE_URL"] = trimmedBase.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? trimmedBase : $"{trimmedBase}/v1";
+        }
+    }
+
+    private static void SaveIvyBaseUrl(IConfigService config, string url)
+    {
+        var ac = config.Settings.CodingAgents.FirstOrDefault(a =>
+            AgentProviderFactory.NormalizeAgentName(a.Name).Equals("ivy", StringComparison.OrdinalIgnoreCase));
+
+        if (ac == null)
+        {
+            ac = new AgentConfig { Name = "ivy" };
+            config.Settings.CodingAgents.Add(ac);
+        }
+
+        if (string.IsNullOrEmpty(url))
+        {
+            ac.EnvironmentVariables.Remove("ANTHROPIC_BASE_URL");
+            ac.EnvironmentVariables.Remove("OPENAI_BASE_URL");
+            ac.EnvironmentVariables.Remove("IVY_BASE_URL");
+        }
+        else
+        {
+            var trimmedBase = url.Trim().TrimEnd('/');
+            ac.EnvironmentVariables["ANTHROPIC_BASE_URL"] = trimmedBase.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? trimmedBase[..^3] : trimmedBase;
+            ac.EnvironmentVariables["OPENAI_BASE_URL"] = trimmedBase.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? trimmedBase : $"{trimmedBase}/v1";
+            ac.EnvironmentVariables["IVY_BASE_URL"] = trimmedBase;
         }
     }
 

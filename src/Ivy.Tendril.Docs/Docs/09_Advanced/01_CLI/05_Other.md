@@ -5,7 +5,6 @@ searchHints:
   - tool
   - job
   - status
-  - trash
   - mcp
   - hash
   - password
@@ -142,16 +141,6 @@ server to be running. Agents pass the `TendrilJobId` firmware header value as `<
 | Option | Effect |
 |--------|--------|
 | `--summary` | Body text for the log entry |
-
-## trash
-
-#### trash write
-
-```terminal
->cat content.md | tendril trash write <filename> --stdin
-```
-
-Writes a file to `$TENDRIL_HOME/Trash/` from `--file` or `--stdin`. Used by agents to soft-delete content (e.g. duplicate plan files) instead of permanently removing it. Prints the written file path to stdout.
 
 ## agent-instructions
 

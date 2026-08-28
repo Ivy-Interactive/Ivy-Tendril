@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Agents.Providers.Claude;
 using Ivy.Tendril.Agents.Providers.Codex;
 using Ivy.Tendril.Agents.Providers.Gemini;
@@ -8,6 +9,14 @@ using Ivy.Tendril.Agents.Providers.Ivy;
 using Ivy.Tendril.Agents.Providers.OpenCode;
 
 namespace Ivy.Tendril.Agents.Providers.OpenAiProxy;
+
+public record FetchModelsResult
+{
+    public bool Success { get; init; }
+    public IReadOnlyList<ModelInfo> Models { get; init; } = Array.Empty<ModelInfo>();
+    public bool IsAuthError { get; init; }
+    public string? ErrorMessage { get; init; }
+}
 
 public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
 {
@@ -44,6 +53,10 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
         {
             models = GetStaticModels();
         }
+        else
+        {
+            models = ModelCatalogSorter.Sort(models);
+        }
         return new ModelCatalogResult
         {
             AgentId = AgentId,
@@ -55,118 +68,139 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
 
     public static async Task<IReadOnlyList<ModelInfo>> FetchModelsFromEndpointAsync(string? baseUrl, string? apiKey, CancellationToken ct = default)
     {
+        var result = await FetchModelsDetailedAsync(baseUrl, apiKey, ct);
+        return result.Models;
+    }
+
+    public static async Task<FetchModelsResult> FetchModelsDetailedAsync(string? baseUrl, string? apiKey, CancellationToken ct = default)
+    {
         var url = baseUrl?.Trim().TrimEnd('/') ?? "";
 
         if (string.IsNullOrEmpty(url))
         {
-            return Array.Empty<ModelInfo>();
+            return new FetchModelsResult { Success = false, ErrorMessage = "Base URL is not configured." };
         }
 
         try
         {
-            var fetched = await TryFetchModelsHttpAsync(url, apiKey, ct);
-            if (fetched is { Count: > 0 })
+            var isAnthropic = url.Contains("api.anthropic.com");
+            var urlsToTry = new List<string>();
+
+            if (isAnthropic)
             {
-                var allKnownLookup = new IModelCatalogProvider[] { CodexCatalog, ClaudeCatalog, GeminiCatalog, IvyCatalog, OpenCodeCatalog }
-                    .SelectMany(c => c.GetStaticModels())
-                    .DistinctBy(m => m.Id, StringComparer.OrdinalIgnoreCase)
-                    .ToDictionary(m => m.Id, StringComparer.OrdinalIgnoreCase);
-
-                var result = new List<ModelInfo>();
-                foreach (var (id, name) in fetched)
-                {
-                    if (allKnownLookup.TryGetValue(id, out var known))
-                    {
-                        result.Add(known);
-                    }
-                    else
-                    {
-                        result.Add(new ModelInfo
-                        {
-                            Id = id,
-                            DisplayName = !string.IsNullOrEmpty(name) && name != id ? name : id,
-                            Capabilities = ModelCapabilities.CodeGeneration | ModelCapabilities.ToolUse | ModelCapabilities.Streaming,
-                            SupportedEfforts = EffortLevels.Codex,
-                            Provider = "custom",
-                        });
-                    }
-                }
-
-                return result
-                    .DistinctBy(m => m.Id, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-            }
-        }
-        catch
-        {
-            // Fallback to empty on error
-        }
-
-        return Array.Empty<ModelInfo>();
-    }
-
-    private static async Task<List<(string Id, string? Name)>?> TryFetchModelsHttpAsync(string baseUrl, string? apiKey, CancellationToken ct)
-    {
-        var isAnthropic = baseUrl.Contains("api.anthropic.com");
-        var urlsToTry = new List<string>();
-
-        if (isAnthropic)
-        {
-            urlsToTry.Add("https://api.anthropic.com/v1/models");
-        }
-        else
-        {
-            if (baseUrl.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
-            {
-                urlsToTry.Add($"{baseUrl}/models");
+                urlsToTry.Add("https://api.anthropic.com/v1/models");
             }
             else
             {
-                urlsToTry.Add($"{baseUrl}/v1/models");
-                urlsToTry.Add($"{baseUrl}/models");
-            }
-        }
-
-        foreach (var endpointUrl in urlsToTry)
-        {
-            try
-            {
-                using var request = new HttpRequestMessage(HttpMethod.Get, endpointUrl);
-                if (!string.IsNullOrWhiteSpace(apiKey))
+                if (url.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (isAnthropic)
+                    urlsToTry.Add($"{url}/models");
+                }
+                else
+                {
+                    urlsToTry.Add($"{url}/v1/models");
+                    urlsToTry.Add($"{url}/models");
+                }
+            }
+
+            string? lastError = null;
+            bool isAuthError = false;
+
+            foreach (var endpointUrl in urlsToTry)
+            {
+                try
+                {
+                    using var request = new HttpRequestMessage(HttpMethod.Get, endpointUrl);
+                    if (!string.IsNullOrWhiteSpace(apiKey))
                     {
-                        request.Headers.Add("x-api-key", apiKey);
-                        request.Headers.Add("anthropic-version", "2023-06-01");
-                    }
-                    else
-                    {
-                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-                        if (baseUrl.Contains("ivy.app") || baseUrl.Contains("llmproxy"))
+                        if (isAnthropic)
                         {
                             request.Headers.Add("x-api-key", apiKey);
+                            request.Headers.Add("anthropic-version", "2023-06-01");
+                        }
+                        else
+                        {
+                            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                            if (url.Contains("ivy.app") || url.Contains("llmproxy"))
+                            {
+                                request.Headers.Add("x-api-key", apiKey);
+                            }
                         }
                     }
-                }
 
-                using var response = await HttpClient.SendAsync(request, ct);
-                if (response.IsSuccessStatusCode)
-                {
-                    var json = await response.Content.ReadAsStringAsync(ct);
-                    var models = ParseModelsJson(json);
-                    if (models.Count > 0)
+                    using var response = await HttpClient.SendAsync(request, ct);
+                    var content = await response.Content.ReadAsStringAsync(ct);
+
+                    if (response.IsSuccessStatusCode)
                     {
-                        return models;
+                        var fetched = ParseModelsJson(content);
+                        if (fetched.Count > 0)
+                        {
+                            var allKnownLookup = new IModelCatalogProvider[] { CodexCatalog, ClaudeCatalog, GeminiCatalog, IvyCatalog, OpenCodeCatalog }
+                                .SelectMany(c => c.GetStaticModels())
+                                .DistinctBy(m => m.Id, StringComparer.OrdinalIgnoreCase)
+                                .ToDictionary(m => m.Id, StringComparer.OrdinalIgnoreCase);
+
+                            var result = new List<ModelInfo>();
+                            foreach (var (id, name) in fetched)
+                            {
+                                if (allKnownLookup.TryGetValue(id, out var known))
+                                {
+                                    result.Add(known);
+                                }
+                                else
+                                {
+                                    result.Add(new ModelInfo
+                                    {
+                                        Id = id,
+                                        DisplayName = !string.IsNullOrEmpty(name) && name != id ? name : id,
+                                        Capabilities = ModelCapabilities.CodeGeneration | ModelCapabilities.ToolUse | ModelCapabilities.Streaming,
+                                        SupportedEfforts = EffortLevels.Codex,
+                                        Provider = "custom",
+                                    });
+                                }
+                            }
+
+                            return new FetchModelsResult
+                            {
+                                Success = true,
+                                Models = ModelCatalogSorter.Sort(result.DistinctBy(m => m.Id, StringComparer.OrdinalIgnoreCase).ToList())
+                            };
+                        }
+                    }
+
+                    var errMsg = LlmEndpointTester.ExtractErrorMessage(content, (int)response.StatusCode);
+                    lastError = errMsg;
+                    if (response.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden ||
+                        errMsg.Contains("invalid_api_key", StringComparison.OrdinalIgnoreCase) ||
+                        errMsg.Contains("API_KEY_INVALID", StringComparison.OrdinalIgnoreCase) ||
+                        errMsg.Contains("authentication_error", StringComparison.OrdinalIgnoreCase) ||
+                        errMsg.Contains("unauthorized", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isAuthError = true;
                     }
                 }
+                catch (Exception ex)
+                {
+                    lastError = ex.Message;
+                }
             }
-            catch
-            {
-                // Continue to next URL attempt
-            }
-        }
 
-        return null;
+            return new FetchModelsResult
+            {
+                Success = false,
+                IsAuthError = isAuthError,
+                ErrorMessage = lastError
+            };
+        }
+        catch (Exception ex)
+        {
+            return new FetchModelsResult
+            {
+                Success = false,
+                ErrorMessage = ex.Message
+            };
+        }
     }
 
     private static List<(string Id, string? Name)> ParseModelsJson(string json)
@@ -275,9 +309,9 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
         combined.AddRange(OpenCodeCatalog.GetStaticModels().Where(m => m.Id != "default"));
         combined.AddRange(IvyCatalog.GetStaticModels());
 
-        return combined
+        return ModelCatalogSorter.Sort(combined
             .DistinctBy(m => m.Id, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+            .ToList());
     }
 
     public static async Task<(bool Success, string? ErrorMessage)> TestModelEndpointAsync(
@@ -291,136 +325,7 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
             return (false, "Please specify a valid model name.");
         }
 
-        var url = baseUrl?.Trim().TrimEnd('/') ?? "";
-        if (string.IsNullOrEmpty(url))
-        {
-            url = "https://api.openai.com";
-        }
-
-        var isAnthropic = url.Contains("api.anthropic.com");
-        var isIvy = url.Contains("llmproxy.ivy.app") || url.Contains("ivy.app");
-
-        var endpointsToTry = new List<(string Url, bool IsAnthropic)>();
-        if (isAnthropic)
-        {
-            endpointsToTry.Add(("https://api.anthropic.com/v1/messages", true));
-        }
-        else if (isIvy)
-        {
-            endpointsToTry.Add(($"{url}/v1/chat/completions", false));
-            endpointsToTry.Add(($"{url}/chat/completions", false));
-            endpointsToTry.Add(($"{url}/v1/messages", true));
-        }
-        else
-        {
-            if (url.EndsWith("/v1", StringComparison.OrdinalIgnoreCase))
-            {
-                endpointsToTry.Add(($"{url}/chat/completions", false));
-            }
-            else
-            {
-                endpointsToTry.Add(($"{url}/v1/chat/completions", false));
-                endpointsToTry.Add(($"{url}/chat/completions", false));
-            }
-        }
-
-        string? lastError = null;
-
-        foreach (var (endpointUrl, useAnthropicFormat) in endpointsToTry)
-        {
-            try
-            {
-                using var request = new HttpRequestMessage(HttpMethod.Post, endpointUrl);
-                if (!string.IsNullOrWhiteSpace(apiKey))
-                {
-                    if (useAnthropicFormat)
-                    {
-                        request.Headers.Add("x-api-key", apiKey);
-                        request.Headers.Add("anthropic-version", "2023-06-01");
-                    }
-                    else
-                    {
-                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-                    }
-                }
-
-                object payload = useAnthropicFormat
-                    ? new
-                    {
-                        model,
-                        max_tokens = 5,
-                        messages = new[] { new { role = "user", content = "hi" } }
-                    }
-                    : new
-                    {
-                        model,
-                        max_tokens = 5,
-                        messages = new[] { new { role = "user", content = "hi" } }
-                    };
-
-                var jsonPayload = JsonSerializer.Serialize(payload);
-                request.Content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
-
-                using var response = await HttpClient.SendAsync(request, ct);
-                if (response.IsSuccessStatusCode)
-                {
-                    return (true, null);
-                }
-
-                var errorBody = await response.Content.ReadAsStringAsync(ct);
-                lastError = ExtractErrorMessage(response.StatusCode, errorBody);
-            }
-            catch (Exception ex)
-            {
-                lastError = ex.Message;
-            }
-        }
-
-        return (false, lastError ?? "Failed to connect to endpoint.");
-    }
-
-    private static string ExtractErrorMessage(System.Net.HttpStatusCode statusCode, string responseBody)
-    {
-        if (string.IsNullOrWhiteSpace(responseBody))
-        {
-            return $"HTTP {(int)statusCode} ({statusCode})";
-        }
-
-        try
-        {
-            using var doc = JsonDocument.Parse(responseBody);
-            var root = doc.RootElement;
-            if (root.TryGetProperty("error", out var errorEl))
-            {
-                if (errorEl.ValueKind == JsonValueKind.String)
-                {
-                    return errorEl.GetString() ?? $"HTTP {(int)statusCode}";
-                }
-                if (errorEl.TryGetProperty("message", out var msgEl))
-                {
-                    return msgEl.GetString() ?? $"HTTP {(int)statusCode}";
-                }
-            }
-            if (root.TryGetProperty("message", out var directMsgEl))
-            {
-                return directMsgEl.GetString() ?? $"HTTP {(int)statusCode}";
-            }
-        }
-        catch
-        {
-            var trimmed = responseBody.Trim();
-            var match = System.Text.RegularExpressions.Regex.Match(trimmed, @"['""](?:error|message)['""]\s*:\s*['""]([^'""]+)['""]");
-            if (match.Success)
-            {
-                return match.Groups[1].Value;
-            }
-
-            if (trimmed.Length < 200)
-            {
-                return trimmed;
-            }
-        }
-
-        return $"HTTP {(int)statusCode} ({statusCode})";
+        var res = await LlmEndpointTester.TestModelPromptAsync(baseUrl ?? "", apiKey ?? "", model, ct);
+        return (res.Status == ModelValidationStatus.Ok, res.ErrorMessage);
     }
 }

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Reactive.Disposables;
 using System.Text;
 using System.Text.RegularExpressions;
 using Ivy.Core;
@@ -36,7 +37,10 @@ public class ContentView(
         var issueLabelsState = UseState<string[]>([]);
         var issueCommentState = UseState("");
         var showDirtyDialog = UseState(false);
-        var annotations = UseState(ImmutableList<MarkdownAnnotation>.Empty);
+        var draftAnnotationService = UseService<Ivy.Tendril.Services.Plans.IDraftAnnotationService>();
+        var annotations = UseState(() => selectedPlan != null
+            ? draftAnnotationService.GetAnnotationsForPlan(selectedPlan.FolderPath).ToImmutableList()
+            : ImmutableList<MarkdownAnnotation>.Empty);
         var showAnnotationsDialog = UseState(false);
         var showQuestionsDialog = UseState(false);
         // The revision as the user is editing it. Answers are merged in here and written straight
@@ -44,6 +48,7 @@ public class ContentView(
         // it is filling in a blank the plan left.
         var revisionContent = UseState(() => selectedPlan?.LatestRevisionContent ?? "");
         var pendingWaitJobIds = UseState<List<string>?>((List<string>?)null);
+        var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
         var (runPreflight, isCheckingPreflight, preflightResult) = Context.UsePreflightCheck();
 
         var processView = Context.UseTendrilProcess();
@@ -74,7 +79,7 @@ public class ContentView(
             if (!isOpen.Value) return null;
             return new Sheet(
                 () => isOpen.Set(false),
-                new JobCostSheet(jobId, jobService),
+                new JobCostSheetView(jobId, jobService),
                 "Cost & Tokens"
             ).Width(UxHelper.SheetWidth).Resizable();
         });
@@ -123,6 +128,20 @@ public class ContentView(
         // Navigation effects (was UseNavigationEffects)
         UseEffect(() => { selectedTab.Set(0); }, selectedPlanState);
 
+        UseEffect(() =>
+        {
+            void OnAnnotationsChanged(string folderPath, List<MarkdownAnnotation> updated)
+            {
+                if (selectedPlanRef.Value != null && folderPath == selectedPlanRef.Value.FolderPath)
+                {
+                    annotations.Set(updated.ToImmutableList());
+                }
+            }
+
+            draftAnnotationService.AnnotationsChanged += OnAnnotationsChanged;
+            return Disposable.Create(() => draftAnnotationService.AnnotationsChanged -= OnAnnotationsChanged);
+        });
+
 #pragma warning disable CS8601
         selectedPlanRef.Value = selectedPlan;
 #pragma warning restore CS8601
@@ -131,7 +150,10 @@ public class ContentView(
         {
             lastPlanId.Set(selectedPlan?.Id ?? -1);
             isEditing.Set(false);
-            annotations.Set(ImmutableList<MarkdownAnnotation>.Empty);
+            var loaded = selectedPlan != null
+                ? draftAnnotationService.GetAnnotationsForPlan(selectedPlan.FolderPath).ToImmutableList()
+                : ImmutableList<MarkdownAnnotation>.Empty;
+            annotations.Set(loaded);
             showAnnotationsDialog.Set(false);
             // Left open across a switch, "Execute Anyway" would run the new plan on a confirmation
             // the user gave for the old one.
@@ -145,7 +167,10 @@ public class ContentView(
         if (lastContentHash.Value != contentHash)
         {
             lastContentHash.Set(contentHash);
-            annotations.Set(ImmutableList<MarkdownAnnotation>.Empty);
+            var loaded = selectedPlan != null
+                ? draftAnnotationService.GetAnnotationsForPlan(selectedPlan.FolderPath).ToImmutableList()
+                : ImmutableList<MarkdownAnnotation>.Empty;
+            annotations.Set(loaded);
             revisionContent.Set(selectedPlan?.LatestRevisionContent ?? "");
         }
 
@@ -230,14 +255,25 @@ public class ContentView(
 
         object BuildControls(bool isMobile)
         {
-            var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+            if (shareContext.IsShareMode)
+            {
+                var persona = shareContext.Persona;
+                var initials = Ivy.Tendril.Services.Share.AnonymousPersonaGenerator.GetInitials(persona);
+                var reviewerBadge = Layout.Horizontal().AlignContent(Align.Right)
+                    | new Avatar(initials).Small()
+                    | Text.Block(persona).Small().Bold().NoWrap();
+                return reviewerBadge.Width(isMobile ? Size.Full() : Size.Fit());
+            }
+
+            var rightSide = Layout.Horizontal().AlignContent(Align.Right)
                            | Text.Rich()
                                .NoWrap()
                                .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
                                .Muted("plans", word: true);
 
-            if (annotations.Value.Count > 0 || answeredQuestions > 0)
-                rightSide |= BuildUpdateButton(annotations, answeredQuestions);
+            var activeAnnotationCount = annotations.Value.Count(a => !a.IsResolved);
+            if (activeAnnotationCount > 0 || answeredQuestions > 0)
+                rightSide |= BuildUpdateButton(annotations, answeredQuestions, draftAnnotationService);
 
             rightSide |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
                             .Loading(isCheckingPreflight)
@@ -246,7 +282,7 @@ public class ContentView(
                             {
                                 // Unincorporated work first, then unanswered questions: the former
                                 // would be ignored outright, the latter merely decided for you.
-                                if (annotations.Value.Count > 0 || answeredQuestions > 0)
+                                if (activeAnnotationCount > 0 || answeredQuestions > 0)
                                     showAnnotationsDialog.Set(true);
                                 else if (unansweredQuestions > 0)
                                     showQuestionsDialog.Set(true);
@@ -271,7 +307,8 @@ public class ContentView(
             config,
             annotations,
             revisionContent,
-            ApplyAnswer);
+            ApplyAnswer,
+            shareContext.IsShareMode ? shareContext.Persona : null);
 
         if (planContentQuery.Loading)
         {
@@ -373,7 +410,7 @@ public class ContentView(
 
         var annotationsDialog = BuildAnnotationsGuardDialog(
             annotations, answeredQuestions, unansweredQuestions, showAnnotationsDialog,
-            showQuestionsDialog, preflightResult, pendingWaitJobIds, showDirtyDialog);
+            showQuestionsDialog, preflightResult, pendingWaitJobIds, showDirtyDialog, draftAnnotationService);
 
         var questionsDialog = showQuestionsDialog.Value && unansweredQuestions > 0
             ? new UnansweredQuestionsDialog(
@@ -454,26 +491,30 @@ public class ContentView(
         IState<bool> showQuestionsDialog,
         PreflightResult? preflightResult,
         IState<List<string>?> pendingWaitJobIds,
-        IState<bool> showDirtyDialog)
+        IState<bool> showDirtyDialog,
+        Ivy.Tendril.Services.Plans.IDraftAnnotationService draftAnnotationService)
     {
-        if (!showAnnotationsDialog.Value || (annotations.Value.Count == 0 && answeredQuestions == 0))
+        var activeCount = annotations.Value.Count(a => !a.IsResolved);
+        if (!showAnnotationsDialog.Value || (activeCount == 0 && answeredQuestions == 0))
             return null;
 
         return new PendingAnnotationsDialog(
             showAnnotationsDialog,
-            annotations.Value.Count,
+            activeCount,
             answeredQuestions,
-            onUpdate: () => SubmitAnnotationsUpdate(annotations, answeredQuestions),
+            onUpdate: () => SubmitAnnotationsUpdate(annotations, answeredQuestions, draftAnnotationService),
             // Updating retires the questions it folds in, so there is nothing left to warn about
             // on this path — the warning would be about a state the job is on its way to fixing.
             onUpdateAndExecute: () => ContinueExecute(
-                [SubmitAnnotationsUpdate(annotations, answeredQuestions)], preflightResult, pendingWaitJobIds,
+                [SubmitAnnotationsUpdate(annotations, answeredQuestions, draftAnnotationService)], preflightResult, pendingWaitJobIds,
                 showDirtyDialog),
             onDiscardAndExecute: () =>
             {
                 // Only annotations are discarded. Answers live in the revision file, so executing
                 // without updating leaves them there for the agent to honour as written.
                 annotations.Set(ImmutableList<MarkdownAnnotation>.Empty);
+                if (selectedPlan != null)
+                    _ = draftAnnotationService.ClearAnnotationsAsync(selectedPlan.FolderPath);
 
                 // Declining the update does not settle the open questions, so that warning is still
                 // owed — otherwise having annotations would quietly suppress it.
@@ -631,9 +672,11 @@ public class ContentView(
     /// </summary>
     private Button BuildUpdateButton(
         IState<ImmutableList<MarkdownAnnotation>> annotations,
-        int answeredQuestions)
+        int answeredQuestions,
+        Ivy.Tendril.Services.Plans.IDraftAnnotationService draftAnnotationService)
     {
-        var tooltip = annotations.Value.Count > 0 && answeredQuestions > 0
+        var activeCount = annotations.Value.Count(a => !a.IsResolved);
+        var tooltip = activeCount > 0 && answeredQuestions > 0
             ? "Update the plan from your annotations and answers"
             : answeredQuestions > 0
                 ? "Update the plan from your answers"
@@ -642,21 +685,24 @@ public class ContentView(
         return new Button("Update Plan")
             .Icon(Icons.WandSparkles)
             .Primary()
-            .Badge((annotations.Value.Count + answeredQuestions).ToString())
+            .Badge((activeCount + answeredQuestions).ToString())
             .Disabled(HasActiveJob<UpdatePlanArgs>())
             .Tooltip(tooltip)
-            .OnClick(() => SubmitAnnotationsUpdate(annotations, answeredQuestions));
+            .OnClick(() => SubmitAnnotationsUpdate(annotations, answeredQuestions, draftAnnotationService));
     }
 
     private string SubmitAnnotationsUpdate(
         IState<ImmutableList<MarkdownAnnotation>> annotations,
-        int answeredQuestions)
+        int answeredQuestions,
+        Ivy.Tendril.Services.Plans.IDraftAnnotationService draftAnnotationService)
     {
-        var prompt = BuildUpdatePrompt(annotations.Value, answeredQuestions);
+        var prompt = BuildUpdatePrompt(annotations.Value.Where(a => !a.IsResolved), answeredQuestions);
 
         TransitionPlanOptimistically(PlanStatus.Updating);
         var jobId = jobService.StartJob(new UpdatePlanArgs(selectedPlan!.FolderPath, prompt));
         annotations.Set(ImmutableList<MarkdownAnnotation>.Empty);
+        if (selectedPlan != null)
+            _ = draftAnnotationService.ClearAnnotationsAsync(selectedPlan.FolderPath);
         refreshPlans();
         return jobId;
     }
@@ -699,7 +745,9 @@ public class ContentView(
         foreach (var annotation in annotationList)
         {
             sb.AppendLine();
-            sb.AppendLine($"## Annotation {index}");
+            sb.AppendLine(!string.IsNullOrEmpty(annotation.Author)
+                ? $"## Annotation {index} (by {annotation.Author})"
+                : $"## Annotation {index}");
             sb.AppendLine("Selected text:");
             foreach (var line in annotation.SelectedText.Split('\n'))
                 sb.AppendLine($"> {line.TrimEnd('\r')}");

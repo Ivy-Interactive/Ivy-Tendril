@@ -36,7 +36,6 @@ public class CliDispatcherTests
     [InlineData("project")]
     [InlineData("config")]
     [InlineData("verification")]
-    [InlineData("trash")]
     [InlineData("models")]
     [InlineData("doctor")]
     [InlineData("run")]

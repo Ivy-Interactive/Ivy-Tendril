@@ -1,6 +1,10 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import "@testing-library/jest-dom";
+
+vi.mock("pdfjs-dist", () => ({ GlobalWorkerOptions: {}, getDocument: vi.fn() }));
+vi.mock("pdfjs-dist/build/pdf.worker.mjs?url", () => ({ default: "" }));
+
 import { ChatWidget } from "./ChatWidget";
 
 describe("ChatWidget Queued Messages UI", () => {
@@ -193,5 +197,173 @@ describe("ChatWidget Queued Messages UI", () => {
       "test-chat",
       ["max"]
     );
+  });
+});
+
+describe("ChatWidget File Uploads and Attachments", () => {
+  beforeEach(() => {
+    window.ResizeObserver = class {
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = vi.fn();
+    } as any;
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+  });
+
+  it("attaches non-image files (e.g. PDF and text files) on paste and prevents default text insertion", async () => {
+    render(<ChatWidget id="test-chat" />);
+    const textarea = screen.getByPlaceholderText(/Ask/i);
+
+    const pdfFile = new File(["dummy pdf content"], "sample.pdf", { type: "application/pdf" });
+    const textFile = new File(["line1\nline2\nline3"], "notes.txt", { type: "text/plain" });
+
+    const pasteEvent = {
+      clipboardData: {
+        files: [pdfFile, textFile],
+        items: [],
+      },
+    };
+
+    fireEvent.paste(textarea, pasteEvent);
+
+    await waitFor(() => {
+      expect(screen.getByTitle("sample.pdf")).toBeInTheDocument();
+      expect(screen.getByText("notes.txt")).toBeInTheDocument();
+      expect(screen.getByText("PDF")).toBeInTheDocument();
+      expect(screen.getByText("TXT")).toBeInTheDocument();
+    });
+  });
+
+  it("supports dragging and dropping files onto chat input container with drag styling", async () => {
+    const { container } = render(<ChatWidget id="test-chat" />);
+    const inputBox = container.querySelector(".chat-input-box")!;
+    expect(inputBox).toBeInTheDocument();
+
+    // Drag enter
+    fireEvent.dragEnter(inputBox, {
+      dataTransfer: { dropEffect: "none" },
+    });
+    expect(inputBox).toHaveClass("dragging");
+
+    // Drag leave
+    fireEvent.dragLeave(inputBox);
+    expect(inputBox).not.toHaveClass("dragging");
+
+    // Drag over
+    fireEvent.dragOver(inputBox, {
+      dataTransfer: { dropEffect: "none" },
+    });
+    expect(inputBox).toHaveClass("dragging");
+
+    // Drop file
+    const droppedFile = new File(["test data"], "report.docx", { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+    fireEvent.drop(inputBox, {
+      dataTransfer: { files: [droppedFile] },
+    });
+    expect(inputBox).not.toHaveClass("dragging");
+
+    await waitFor(() => {
+      expect(screen.getByText("report.docx")).toBeInTheDocument();
+      expect(screen.getByText("DOCX")).toBeInTheDocument();
+    });
+  });
+
+  it("supports removing an attached file via its thumbnail remove button", async () => {
+    render(<ChatWidget id="test-chat" />);
+    const textarea = screen.getByPlaceholderText(/Ask/i);
+
+    const file = new File(["content"], "delete-me.txt", { type: "text/plain" });
+    fireEvent.paste(textarea, {
+      clipboardData: { files: [file], items: [] },
+      preventDefault: vi.fn(),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("delete-me.txt")).toBeInTheDocument();
+    });
+
+    const removeBtn = screen.getByRole("button", { name: /Remove attachment/i });
+    fireEvent.click(removeBtn);
+
+    expect(screen.queryByText("delete-me.txt")).not.toBeInTheDocument();
+  });
+
+  it("includes attachments in OnSendMessage event payload", async () => {
+    const handleEvent = vi.fn();
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-1"
+        events={["OnSendMessage"]}
+        eventHandler={handleEvent}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(/Ask/i);
+    const sendBtn = screen.getByRole("button", { name: /Send/i });
+
+    const file = new File(["hello world"], "hello.py", { type: "text/x-python" });
+    fireEvent.paste(textarea, {
+      clipboardData: { files: [file], items: [] },
+      preventDefault: vi.fn(),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("hello.py")).toBeInTheDocument();
+    });
+
+    fireEvent.change(textarea, { target: { value: "Please review this code" } });
+    fireEvent.click(sendBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnSendMessage",
+      "test-chat",
+      expect.arrayContaining([
+        expect.objectContaining({
+          prompt: "Please review this code",
+          sessionId: "sess-1",
+          attachments: expect.arrayContaining([
+            expect.objectContaining({
+              name: "hello.py",
+              contentType: "text/x-python",
+            }),
+          ]),
+        }),
+      ])
+    );
+  });
+
+  it("renders user messages with attachments displaying clean badges instead of raw paths", () => {
+    const session = {
+      id: "sess-1",
+      title: "Chat with Files",
+      agentId: "antigravity",
+      modelId: "gemini-3.7-flash",
+      createdAt: "2026-08-15T12:00:00Z",
+      updatedAt: "2026-08-15T12:30:00Z",
+      messages: [
+        {
+          id: "m-1",
+          role: "user" as const,
+          content: "Here is the log file\n\n[Attached Files]:\n- /path/to/server-error.log\n- /path/to/data-export.csv",
+          timestamp: "12:00",
+        },
+      ],
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-1"
+        sessions={[session]}
+      />
+    );
+
+    expect(screen.getByText("Here is the log file")).toBeInTheDocument();
+    expect(screen.getByText("server-error.log")).toBeInTheDocument();
+    expect(screen.getByText("LOG")).toBeInTheDocument();
+    expect(screen.getByText("data-export.csv")).toBeInTheDocument();
+    expect(screen.getByText("CSV")).toBeInTheDocument();
+    expect(screen.queryByText("[Attached Files]:")).not.toBeInTheDocument();
   });
 });

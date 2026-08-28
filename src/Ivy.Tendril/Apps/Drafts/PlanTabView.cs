@@ -17,10 +17,12 @@ public class PlanTabView(
     IConfigService config,
     IState<ImmutableList<MarkdownAnnotation>> annotations,
     IState<string> revisionContent,
-    Action<QuestionAnswer> onAnswerChanged) : ViewBase
+    Action<QuestionAnswer> onAnswerChanged,
+    string? currentAuthor = null) : ViewBase
 {
     public override object Build()
     {
+        var draftAnnotationService = UseService<Ivy.Tendril.Services.Plans.IDraftAnnotationService>();
         // Brings a question into view when its card entry is clicked. The token is what makes a
         // repeat click work — an unchanged id compares equal and nothing would move.
         var scrollTo = UseState<QuestionScrollTarget?>(() => null);
@@ -77,7 +79,12 @@ public class PlanTabView(
                 .Height(Size.Full())
                 .StickyContent(sticky)
                 .Annotations(annotations.Value)
-                .OnAnnotationsChange(a => annotations.Set(a))
+                .CurrentAuthor(currentAuthor)
+                .OnAnnotationsChange(a =>
+                {
+                    annotations.Set(a);
+                    _ = draftAnnotationService.SaveAnnotationsAsync(selectedPlan.FolderPath, a);
+                })
                 .OnAnswersChange(onAnswerChanged)
                 .ScrollTo(scrollTo.Value)
                 .OnLinkClick(onLinkClick);

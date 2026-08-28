@@ -3,6 +3,7 @@ import {
   getPlainTextOffset,
   getPlainText,
   createRangeFromOffsets,
+  getInitials,
   rangeTouchesQuestions,
   applyAnnotationHighlights,
 } from "./annotationUtils";
@@ -142,6 +143,24 @@ describe("rangeTouchesQuestions", () => {
   });
 });
 
+describe("getInitials", () => {
+  it("extracts 2 initials from a two-word name", () => {
+    expect(getInitials("Calm Niels")).toBe("CN");
+    expect(getInitials("Observant Fox")).toBe("OF");
+  });
+
+  it("extracts first two letters for a single word name", () => {
+    expect(getInitials("Admin")).toBe("AD");
+    expect(getInitials("A")).toBe("A");
+  });
+
+  it("handles empty or whitespace strings", () => {
+    expect(getInitials("")).toBe("");
+    expect(getInitials("   ")).toBe("");
+    expect(getInitials(undefined)).toBe("");
+  });
+});
+
 describe("applyAnnotationHighlights with questions blocks", () => {
   let container: HTMLDivElement;
 
@@ -151,10 +170,6 @@ describe("applyAnnotationHighlights with questions blocks", () => {
   });
 
   it("holds an annotation in place when the block above it renders differently", () => {
-    // The reason questions text is not counted. A block's rendering is not stable: answering a
-    // question adds a Clear button, and an option title YAML had read as a number starts showing.
-    // Either would shift every offset after the block if its text were counted, silently moving
-    // annotations off the words they were put on.
     const prose = "<p>Intro.</p>";
     const trailing = "<p>Trailing prose to highlight.</p>";
     const before = `<div class="pmv-questions"><div class="pmv-question-title">Which one?</div></div>`;
@@ -201,8 +216,6 @@ describe("applyAnnotationHighlights with questions blocks", () => {
   });
 
   it("keeps offsets stable for prose that follows a questions block", () => {
-    // A questions block is invisible to offsets: not highlighted, and not counted. An annotation
-    // on the trailing prose must land on the same characters whether or not a block precedes it.
     container.innerHTML =
       '<p>Intro.</p><div class="pmv-questions"><div class="pmv-questions-content">A question?</div></div><p>Trailing prose to highlight.</p>';
 
@@ -224,5 +237,37 @@ describe("applyAnnotationHighlights with questions blocks", () => {
     const mark = container.querySelector("mark[data-annotation-id]");
     expect(mark).not.toBeNull();
     expect(mark?.textContent).toBe(target);
+  });
+});
+
+describe("applyAnnotationHighlights", () => {
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+  });
+
+  it("attaches initials badge when author is provided", () => {
+    container.textContent = "This is a sample plan for testing.";
+    applyAnnotationHighlights(container, [
+      {
+        id: "a1",
+        startOffset: 10,
+        endOffset: 21,
+        selectedText: "sample plan",
+        comment: "Needs review",
+        author: "Calm Niels",
+      },
+    ]);
+
+    const mark = container.querySelector("mark[data-annotation-id='a1']");
+    expect(mark).not.toBeNull();
+    expect(mark?.title).toBe("[Calm Niels] Needs review");
+
+    const badge = mark?.querySelector(".pmv-annotation-initials-badge");
+    expect(badge).not.toBeNull();
+    expect(badge?.textContent).toBe("CN");
+    expect(badge?.getAttribute("title")).toBe("Calm Niels");
   });
 });

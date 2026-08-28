@@ -7,6 +7,8 @@ using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Widgets;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -37,6 +39,8 @@ public static class TendrilServer
             : tendrilArgs.Quiet ? "Warning"
             : "Information";
 
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, configService);
+
         server.UseWebApplicationBuilder(builder =>
         {
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
@@ -51,6 +55,32 @@ public static class TendrilServer
 
         server.UseWebApplication(app =>
         {
+            if (isBeta)
+            {
+                app.Use(async (context, next) =>
+                {
+                    if (context.Request.Query.ContainsKey("share") ||
+                        string.Equals(context.Request.Query["mode"], "share", StringComparison.OrdinalIgnoreCase) ||
+                        context.Request.Headers.ContainsKey("X-Tendril-Share") ||
+                        context.Request.Cookies.ContainsKey("tendril_share_mode"))
+                    {
+                        context.Items["IsShareMode"] = true;
+
+                        if (!context.Request.Cookies.ContainsKey("tendril_share_mode"))
+                        {
+                            context.Response.Cookies.Append("tendril_share_mode", "1", new CookieOptions
+                            {
+                                HttpOnly = false,
+                                SameSite = SameSiteMode.Lax,
+                                Path = "/",
+                                MaxAge = TimeSpan.FromDays(7)
+                            });
+                        }
+                    }
+                    await next(context);
+                });
+            }
+
             app.UseMiddleware<ApiKeyAuthMiddleware>();
 
             if (!configService.NeedsOnboarding)
@@ -88,8 +118,6 @@ public static class TendrilServer
             });
             app.UseAssets(server.Args, app.Services.GetRequiredService<ILogger<Server>>(), "Assets", "tendril/assets");
         });
-
-        var isBeta = BetaHelper.IsBeta(tendrilArgs, configService);
 
         var assembly = typeof(TendrilServer).Assembly;
         server.AppRepository.AddFactory(() => AppHelpers.GetApps(assembly)
