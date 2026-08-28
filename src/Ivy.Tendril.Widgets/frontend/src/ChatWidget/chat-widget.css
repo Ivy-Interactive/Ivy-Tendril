@@ -222,7 +222,7 @@
 }
 
 .chat-edit-btn:hover {
-  color: var(--foreground);
+  color: var(--accent-foreground);
   background-color: var(--accent);
 }
 
@@ -269,6 +269,7 @@
 
 .chat-header-title-clickable:hover {
   background-color: var(--accent);
+  color: var(--accent-foreground);
 }
 
 .chat-main-title {
@@ -288,7 +289,7 @@
 
 .chat-header-title-clickable:hover .chat-title-pencil {
   opacity: 1;
-  color: var(--foreground);
+  color: var(--accent-foreground);
 }
 
 .chat-header-actions {
@@ -766,8 +767,8 @@
 }
 
 .chat-action-btn:hover {
-  color: var(--foreground);
-  background-color: var(--secondary);
+  color: var(--accent-foreground);
+  background-color: var(--accent);
 }
 
 .chat-cancel-btn {
@@ -880,7 +881,7 @@
 .chat-inline-select-trigger:hover,
 .chat-inline-select-trigger.open {
   background-color: var(--accent);
-  color: var(--foreground);
+  color: var(--accent-foreground);
 }
 
 .chat-select-chevron {
@@ -889,12 +890,12 @@
 }
 
 .chat-inline-select-trigger:hover .chat-select-chevron {
-  color: var(--foreground);
+  color: var(--accent-foreground);
 }
 
 .chat-inline-select-trigger.open .chat-select-chevron {
   transform: rotate(180deg);
-  color: var(--foreground);
+  color: var(--accent-foreground);
 }
 
 /* Custom Portal Dropdown Menu */
@@ -930,7 +931,7 @@
 
 .chat-inline-select-item:hover {
   background-color: var(--accent);
-  color: var(--foreground);
+  color: var(--accent-foreground);
 }
 
 .chat-inline-select-item.selected {
@@ -940,7 +941,7 @@
 }
 
 .chat-select-check {
-  color: var(--muted-foreground);
+  color: var(--accent-foreground);
 }
 
 .chat-voice-btn {
@@ -957,7 +958,7 @@
 }
 
 .chat-voice-btn:hover {
-  color: var(--foreground);
+  color: var(--accent-foreground);
   background-color: var(--accent);
 }
 
