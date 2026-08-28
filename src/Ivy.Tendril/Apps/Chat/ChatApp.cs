@@ -28,8 +28,6 @@ public class ChatApp : ViewBase
         var args = UseArgs<ChatAppArgs>();
         var configService = UseService<IConfigService>();
         var chatService = UseService<IChatHistoryService>();
-        var jobService = UseService<IJobService>();
-        var planService = UseService<IPlanReaderService>();
         var agentRunner = UseService<IAgentRunner>();
         var namingService = UseService<IChatSessionNamingService>();
         var serializer = UseService<IEventSerializer>();
@@ -63,23 +61,13 @@ public class ChatApp : ViewBase
                 sessionVersion.Set(v => v + 1);
                 runningSessionIds.Set(new HashSet<string>(chatService.GetGeneratingSessionIds()));
             }
-            void OnJobsChanged() => sessionVersion.Set(v => v + 1);
 
             chatService.SessionsChanged += OnSessionsChanged;
             chatService.GeneratingSessionsChanged += OnGeneratingSessionsChanged;
-            jobService.JobsChanged += OnJobsChanged;
-            jobService.JobsStructureChanged += OnJobsChanged;
-            jobService.JobPropertyChanged += OnJobsChanged;
-            planService.CountsInvalidated += OnJobsChanged;
-
             return Disposable.Create(() =>
             {
                 chatService.SessionsChanged -= OnSessionsChanged;
                 chatService.GeneratingSessionsChanged -= OnGeneratingSessionsChanged;
-                jobService.JobsChanged -= OnJobsChanged;
-                jobService.JobsStructureChanged -= OnJobsChanged;
-                jobService.JobPropertyChanged -= OnJobsChanged;
-                planService.CountsInvalidated -= OnJobsChanged;
             });
         });
 
@@ -268,8 +256,7 @@ public class ChatApp : ViewBase
                     fullAgentPrompt,
                     modelOverride: selectedModel.Value,
                     effortOverride: effortOverride,
-                    permissionMode: PermissionMode.FullAuto,
-                    chatSessionId: targetSessionId);
+                    permissionMode: PermissionMode.FullAuto);
 
                 var session = await agentRunner.LaunchAsync(context);
                 activeSessionRef.Value = session;
@@ -419,88 +406,6 @@ public class ChatApp : ViewBase
             SendMessage(new ChatSendMessageDto(args.Prompt, null, targetId));
         }
 
-        var trackedJobs = new List<ChatTrackedJobDto>();
-        var trackedPlans = new List<ChatTrackedPlanDto>();
-
-        if (!string.IsNullOrEmpty(activeSessionId.Value))
-        {
-            var matchingJobs = jobService.GetJobs()
-                .Where(j => j.ChatSessionId == activeSessionId.Value)
-                .OrderByDescending(j => j.StartedAt ?? DateTime.MinValue)
-                .ToList();
-
-            var allPlans = planService.GetPlans();
-            var planLookup = allPlans.ToDictionary(p => p.Id.ToString("D5"), p => p);
-
-            foreach (var j in matchingJobs)
-            {
-                var planId = j.ResolvePlanId();
-                string? planTitle = j.ReportedPlanTitle;
-                if (string.IsNullOrEmpty(planTitle) && !string.IsNullOrEmpty(planId) && planLookup.TryGetValue(planId, out var matchedPlan))
-                {
-                    planTitle = matchedPlan.Title;
-                }
-
-                string durationStr = "";
-                if (j.DurationSeconds.HasValue)
-                {
-                    durationStr = $"{j.DurationSeconds.Value}s";
-                }
-                else if (j.StartedAt.HasValue)
-                {
-                    var elapsed = (int)(DateTime.UtcNow - j.StartedAt.Value).TotalSeconds;
-                    durationStr = $"{Math.Max(0, elapsed)}s";
-                }
-
-                trackedJobs.Add(new ChatTrackedJobDto(
-                    j.Id,
-                    j.Type,
-                    planId,
-                    planTitle,
-                    j.Status.ToString(),
-                    j.StatusMessage,
-                    j.StartedAt?.ToString("o"),
-                    durationStr
-                ));
-            }
-
-            var planIds = matchingJobs
-                .Select(j => j.ResolvePlanId())
-                .Where(id => !string.IsNullOrEmpty(id))
-                .Distinct()
-                .ToList();
-
-            foreach (var pId in planIds)
-            {
-                if (planLookup.TryGetValue(pId, out var p))
-                {
-                    trackedPlans.Add(new ChatTrackedPlanDto(
-                        p.Id.ToString("D5"),
-                        p.Title,
-                        p.FolderName,
-                        p.Status.ToString()
-                    ));
-                }
-                else if (Directory.Exists(planService.PlansDirectory))
-                {
-                    var pFolder = Directory.GetDirectories(planService.PlansDirectory, $"{pId}-*").FirstOrDefault();
-                    if (pFolder != null)
-                    {
-                        var diskPlan = planService.GetPlanByFolder(pFolder);
-                        if (diskPlan != null)
-                        {
-                            trackedPlans.Add(new ChatTrackedPlanDto(
-                                diskPlan.Id.ToString("D5"),
-                                diskPlan.Title,
-                                diskPlan.FolderName,
-                                diskPlan.Status.ToString()
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-
         var sidebar = new SidebarView(
             sessions,
             activeSessionId,
@@ -529,12 +434,7 @@ public class ChatApp : ViewBase
             modelDtos,
             currentEffortOptions,
             supportsEffort,
-            trackedJobs,
-            trackedPlans,
             chatService,
-            jobService,
-            planService,
-            configService,
             agentRunner,
             SendMessage
         );

@@ -282,9 +282,7 @@
 .chat-title-pencil {
   color: var(--muted-foreground);
   opacity: 0.4;
-  transition:
-    opacity 0.15s ease,
-    color 0.15s ease;
+  transition: opacity 0.15s ease, color 0.15s ease;
 }
 
 .chat-header-title-clickable:hover .chat-title-pencil {
@@ -309,10 +307,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition:
-    opacity 0.15s ease,
-    color 0.15s ease,
-    background-color 0.15s ease;
+  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
 }
 
 .chat-header-delete-btn:hover {
@@ -591,9 +586,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  transition:
-    border-color 0.15s,
-    transform 0.15s;
+  transition: border-color 0.15s, transform 0.15s;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   flex-shrink: 0;
   overflow: hidden;
@@ -622,10 +615,7 @@
   line-height: 1;
   padding: 0;
   z-index: 10;
-  transition:
-    background-color 0.15s,
-    color 0.15s,
-    border-color 0.15s;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
 }
 
 .chat-thumbnail-card-remove:hover {
@@ -904,9 +894,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius, 6px);
   padding: 0.25rem;
-  box-shadow:
-    0 10px 15px -3px rgba(0, 0, 0, 0.3),
-    0 4px 6px -4px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
@@ -968,15 +956,9 @@
 }
 
 @keyframes pulse {
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.15);
-  }
-  100% {
-    transform: scale(1);
-  }
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
 }
 
 .chat-send-btn {
@@ -1255,302 +1237,6 @@ button[class*="bg-primary"] .text-muted {
   background-color: color-mix(in srgb, var(--destructive) 15%, transparent);
 }
 
-/* Background Activity Tracker Badge & Popover */
-.chat-activity-tracker-container {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-
-.chat-activity-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  padding: 0.25rem 0.625rem;
-  font-size: 0.75rem;
-  font-weight: 500;
-  border-radius: 9999px;
-  border: 1px solid var(--border);
-  background: var(--background);
-  color: var(--foreground);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  outline: none;
-  user-select: none;
-}
-
-.chat-activity-badge:hover {
-  border-color: var(--ring);
-}
-
-.chat-activity-badge.running {
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
-  border-color: color-mix(in srgb, var(--primary) 40%, transparent);
-  color: var(--primary);
-}
-
-.chat-activity-badge.completed {
-  background: color-mix(in srgb, #22c55e 12%, transparent);
-  border-color: color-mix(in srgb, #22c55e 40%, transparent);
-  color: #22c55e;
-}
-
-.chat-activity-badge.failed {
-  background: color-mix(in srgb, var(--destructive) 12%, transparent);
-  border-color: color-mix(in srgb, var(--destructive) 40%, transparent);
-  color: var(--destructive);
-}
-
-.chat-activity-spinner {
-  animation: chat-spin 1s linear infinite;
-}
-
-.chat-activity-chevron {
-  transition: transform 0.15s ease;
-}
-
-.chat-activity-chevron.open {
-  transform: rotate(180deg);
-}
-
-.chat-activity-badge-text {
-  white-space: nowrap;
-}
-
-@keyframes chat-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.chat-activity-popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 320px;
-  max-width: 420px;
-  max-height: 420px;
-  background: var(--popover, var(--card));
-  border: 1px solid var(--border);
-  border-radius: var(--radius, 8px);
-  box-shadow:
-    0 10px 25px -5px rgba(0, 0, 0, 0.2),
-    0 8px 10px -6px rgba(0, 0, 0, 0.2);
-  z-index: 1000;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.chat-activity-popover-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--border);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  background: var(--muted);
-  color: var(--foreground);
-}
-
-.chat-activity-popover-close {
-  background: transparent;
-  border: none;
-  padding: 0.25rem;
-  border-radius: var(--radius, 4px);
-  cursor: pointer;
-  color: var(--muted-foreground);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.chat-activity-popover-close:hover {
-  background: color-mix(in srgb, var(--foreground) 10%, transparent);
-  color: var(--foreground);
-}
-
-.chat-activity-popover-body {
-  padding: 0.5rem;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  max-height: 350px;
-}
-
-.chat-activity-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-}
-
-.chat-activity-section-title {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted-foreground);
-  padding: 0 0.25rem;
-}
-
-.chat-activity-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.chat-activity-item {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.45rem 0.625rem;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius, 6px);
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.15s ease;
-  color: inherit;
-  gap: 0.5rem;
-  font-family: inherit;
-  font-size: 0.8125rem;
-}
-
-.chat-activity-item:hover {
-  background: var(--accent);
-  border-color: var(--ring);
-}
-
-.chat-activity-item-main {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  flex: 1;
-  min-width: 0;
-}
-
-.chat-activity-item-header {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  flex-wrap: wrap;
-}
-
-.chat-activity-item-title {
-  font-weight: 600;
-  color: var(--foreground);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.chat-activity-item-id {
-  font-family: monospace;
-  font-size: 0.75rem;
-  color: var(--muted-foreground);
-}
-
-.chat-activity-plan-id {
-  font-family: monospace;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 12%, transparent);
-  padding: 0.1rem 0.35rem;
-  border-radius: 4px;
-}
-
-.chat-activity-item-details {
-  font-size: 0.75rem;
-  color: var(--muted-foreground);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 260px;
-}
-
-.chat-activity-item-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  flex-shrink: 0;
-  color: var(--muted-foreground);
-  font-size: 0.75rem;
-}
-
-.chat-activity-link-icon {
-  opacity: 0.6;
-  transition: opacity 0.15s ease;
-}
-
-.chat-activity-item:hover .chat-activity-link-icon {
-  opacity: 1;
-  color: var(--primary);
-}
-
-.chat-status-pill {
-  font-size: 0.625rem;
-  font-weight: 600;
-  padding: 0.075rem 0.375rem;
-  border-radius: 9999px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  line-height: 1.2;
-}
-
-.chat-status-pill.status-running {
-  background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
-  border: 1px solid rgba(59, 130, 246, 0.3);
-}
-
-.chat-status-pill.status-completed {
-  background: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
-  border: 1px solid rgba(34, 197, 94, 0.3);
-}
-
-.chat-status-pill.status-failed {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.3);
-}
-
-.chat-status-pill.status-review {
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
-  border: 1px solid rgba(245, 158, 11, 0.3);
-}
-
-.chat-status-pill.status-draft {
-  background: rgba(168, 85, 247, 0.15);
-  color: #a855f7;
-  border: 1px solid rgba(168, 85, 247, 0.3);
-}
-
-.chat-status-pill.status-queued,
-.chat-status-pill.status-blocked,
-.chat-status-pill.status-muted {
-  background: rgba(156, 163, 175, 0.15);
-  color: #9ca3af;
-  border: 1px solid rgba(156, 163, 175, 0.3);
-}
-
-.chat-status-pill.status-default {
-  background: var(--muted);
-  color: var(--muted-foreground);
-  border: 1px solid var(--border);
-}
-
 /* Delete Confirmation Dialog */
 .chat-confirm-overlay {
   position: fixed;
@@ -1680,3 +1366,5 @@ button[class*="bg-primary"] .text-muted {
   padding: 0.1rem 0.3rem;
   border-radius: 3px;
 }
+
+

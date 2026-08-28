@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -1030,8 +1030,7 @@ public class JobService : IJobService
             TypedArgs = args,
             Provider = _configService?.Settings.CodingAgent ?? "claude",
             Priority = priority,
-            WaitForJobIds = args.WaitForJobs,
-            ChatSessionId = args.ChatSessionId
+            WaitForJobIds = args.WaitForJobs
         };
 
         if (args is CreatePlanArgs)

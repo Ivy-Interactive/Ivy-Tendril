@@ -1,20 +1,13 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Ivy;
 using Ivy.Tendril.Agents.Abstractions;
-using Ivy.Tendril.Apps.Jobs.Sheets;
 using Ivy.Tendril.Apps.Views;
-using Ivy.Tendril.Apps.Views.Sheets;
-using Ivy.Tendril.Helpers;
-using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Services.Jobs;
-using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Chat;
@@ -37,45 +30,12 @@ public class ContentView(
     List<ModelOptionDto> modelDtos,
     List<EffortOptionDto> effortDtos,
     bool supportsEffort,
-    List<ChatTrackedJobDto> trackedJobs,
-    List<ChatTrackedPlanDto> trackedPlans,
     IChatHistoryService chatService,
-    IJobService jobService,
-    IPlanReaderService planService,
-    IConfigService configService,
     IAgentRunner agentRunner,
     Action<ChatSendMessageDto> sendMessage) : ViewBase
 {
     public override object Build()
     {
-        var openFile = UseState<string?>(null);
-
-        var (planSheet, showPlan) = UseTrigger<string>((isOpen, planPath) =>
-        {
-            if (!isOpen.Value) return null;
-            var planSheetView = new PlanSheet(planPath, planService, openFile, configService);
-            var sheet = new Sheet(
-                () => isOpen.Set(false),
-                planSheetView.Build(),
-                planSheetView.GetSheetTitle()
-            ).Width(UxHelper.SheetWidth).Resizable();
-            return new Fragment(sheet, new FileSheet(openFile, configService));
-        });
-
-        var (outputSheet, showOutput) = UseTrigger<string>((isOpen, jobId) =>
-        {
-            if (!isOpen.Value) return null;
-            var job = jobService.GetJob(jobId);
-            var title = job is not null ? $"{job.Type} {job.ResolvePlanId()}" : "Job Output";
-            return new Sheet(
-                () => isOpen.Set(false),
-                new OutputSheet(jobId, jobService),
-                title
-            ).Width(UxHelper.SheetWidth).Resizable();
-        });
-
-        var navigateToPlan = Context.UsePlanNavigation(planService, showPlan);
-
         if (activeSession == null)
         {
             var newChatBtn = new Button("Start New Chat")
@@ -99,7 +59,7 @@ public class ContentView(
             ? streamText
             : "";
 
-        var widget = new ChatWidget
+        return new ChatWidget
         {
             ActiveSessionId = activeSessionId.Value,
             StreamingSessionId = streamingSessionId.Value,
@@ -107,8 +67,6 @@ public class ContentView(
             Agents = agentDtos,
             Models = modelDtos,
             Efforts = effortDtos,
-            TrackedJobs = trackedJobs,
-            TrackedPlans = trackedPlans,
             SelectedAgent = selectedAgent.Value,
             SelectedModel = selectedModel.Value,
             SelectedEffort = selectedEffort.Value,
@@ -192,44 +150,10 @@ public class ContentView(
             {
                 selectedEffort.Set(e.Value);
                 return ValueTask.CompletedTask;
-            },
-            OnNavigatePlan = e =>
-            {
-                var target = e.Value;
-                if (!string.IsNullOrEmpty(target))
-                {
-                    if (int.TryParse(target.Length >= 5 ? target[..5] : target, out var planId))
-                    {
-                        navigateToPlan(planId);
-                    }
-                    else
-                    {
-                        var plan = planService.GetPlanByFolder(target);
-                        if (plan != null)
-                        {
-                            navigateToPlan(plan.Id);
-                        }
-                        else
-                        {
-                            showPlan(target);
-                        }
-                    }
-                }
-                return ValueTask.CompletedTask;
-            },
-            OnNavigateJob = e =>
-            {
-                if (!string.IsNullOrEmpty(e.Value))
-                {
-                    showOutput(e.Value);
-                }
-                return ValueTask.CompletedTask;
             }
         }
         .WithLayout()
         .Full()
         .RemoveParentPadding();
-
-        return new Fragment(widget, planSheet, outputSheet);
     }
 }

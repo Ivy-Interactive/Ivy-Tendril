@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Apps.Jobs;
@@ -675,8 +675,8 @@ public class PlanDatabaseService : IPlanDatabaseService
         {
             using var cmd = _connection.CreateCommand();
             cmd.CommandText = """
-                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand, Cleared, ProcessId, ReportedPlanId, ReportedPlanTitle, ReportedFailureReason, Model, InputTokens, OutputTokens, CacheReadTokens, CacheWriteTokens, ReasoningTokens, CostSource, ExecutionProfile, Effort, ChatSessionId)
-                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand, @cleared, @processId, @reportedPlanId, @reportedPlanTitle, @reportedFailureReason, @model, @inputTokens, @outputTokens, @cacheReadTokens, @cacheWriteTokens, @reasoningTokens, @costSource, @executionProfile, @effort, @chatSessionId)
+                              INSERT OR REPLACE INTO Jobs (Id, Type, PlanFile, Project, Status, Provider, SessionId, StartedAt, CompletedAt, DurationSeconds, Cost, Tokens, StatusMessage, Args, TypedArgs, WorkingDirectory, CliCommand, Cleared, ProcessId, ReportedPlanId, ReportedPlanTitle, ReportedFailureReason, Model, InputTokens, OutputTokens, CacheReadTokens, CacheWriteTokens, ReasoningTokens, CostSource, ExecutionProfile, Effort)
+                              VALUES (@id, @type, @planFile, @project, @status, @provider, @sessionId, @startedAt, @completedAt, @durationSeconds, @cost, @tokens, @statusMessage, @args, @typedArgs, @workingDirectory, @cliCommand, @cleared, @processId, @reportedPlanId, @reportedPlanTitle, @reportedFailureReason, @model, @inputTokens, @outputTokens, @cacheReadTokens, @cacheWriteTokens, @reasoningTokens, @costSource, @executionProfile, @effort)
                               """;
             cmd.Parameters.AddWithValue("@id", job.Id);
             cmd.Parameters.AddWithValue("@type", job.Type);
@@ -714,7 +714,6 @@ public class PlanDatabaseService : IPlanDatabaseService
             cmd.Parameters.AddWithValue("@costSource", (object?)job.CostSource ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@executionProfile", (object?)job.ExecutionProfile ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@effort", (object?)job.Effort ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@chatSessionId", (object?)job.ChatSessionId ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
     }
@@ -837,10 +836,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                 : reader.GetString(reader.GetOrdinal("ExecutionProfile")),
             Effort = reader.IsDBNull(reader.GetOrdinal("Effort"))
                 ? null
-                : reader.GetString(reader.GetOrdinal("Effort")),
-            ChatSessionId = reader.IsDBNull(reader.GetOrdinal("ChatSessionId"))
-                ? null
-                : reader.GetString(reader.GetOrdinal("ChatSessionId"))
+                : reader.GetString(reader.GetOrdinal("Effort"))
         };
     }
 
