@@ -130,11 +130,11 @@
 }
 /* Block elements (code blocks, diagrams, tables, images) get generous,
    symmetric vertical spacing so they breathe regardless of neighbours. */
-.pmv-markdown > * + :is(pre, table, img),
+.pmv-markdown > * + :is(pre, table, img, details),
 .pmv-markdown > * + :is(.pmv-code-block, .pmv-diagram-container) {
   margin-top: 1rem;
 }
-.pmv-markdown > :is(pre, table, img) + *,
+.pmv-markdown > :is(pre, table, img, details) + *,
 .pmv-markdown > :is(.pmv-code-block, .pmv-diagram-container) + * {
   margin-top: 1rem;
 }
@@ -388,6 +388,71 @@
   border: 0;
   border-top: 1px solid var(--border);
   margin: 1rem 0;
+}
+
+/* ─── Collapsible sections (<details>/<summary>) ──────────────────────────
+   Tendril promptware emits GitHub-style <details> blocks (the plan "Questions"
+   section), parsed by rehype-raw and sanitised before reaching the DOM — see
+   frontend/src/rawHtml.ts. Mirrors the Ivy framework's `typography.details`
+   and `typography.summary`. */
+.pmv-markdown details {
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--card);
+  overflow: hidden;
+}
+
+.pmv-markdown summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  transition: background 0.15s ease;
+}
+/* Suppress the native disclosure marker in favour of the chevron below. */
+.pmv-markdown summary::-webkit-details-marker {
+  display: none;
+}
+.pmv-markdown summary:hover {
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+/* A summary written with a blank line around it becomes a paragraph; keep it
+   on the same row as the chevron. */
+.pmv-markdown summary > p {
+  display: inline;
+  margin: 0;
+}
+
+/* Chevron drawn as a mask so it inherits the summary's text colour in both
+   themes, and rotates to point down while the section is open. */
+.pmv-markdown summary::before {
+  content: "";
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  background-color: currentColor;
+  -webkit-mask: var(--pmv-chevron) center / contain no-repeat;
+  mask: var(--pmv-chevron) center / contain no-repeat;
+  transition: transform 0.15s ease;
+}
+.pmv-markdown details[open] > summary::before {
+  transform: rotate(90deg);
+}
+.pmv-markdown summary {
+  --pmv-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 5l7 7-7 7'/%3E%3C/svg%3E");
+}
+
+/* The body of an open section. The contextual spacing rules above only reach
+   direct children of .pmv-markdown, so nested content gets its own inset. */
+.pmv-markdown details > :not(summary) {
+  margin: 0.5rem 1rem;
+}
+.pmv-markdown details > :not(summary):last-child {
+  margin-bottom: 1rem;
 }
 
 /* ─── Article variant ───────────────────────────────────────────────────
