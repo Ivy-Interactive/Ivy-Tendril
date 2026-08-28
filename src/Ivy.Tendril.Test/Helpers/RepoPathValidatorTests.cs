@@ -148,4 +148,24 @@ public class RepoPathValidatorTests
     {
         Assert.False(RepoPathValidator.IsLocalPath(input));
     }
+
+    [Theory]
+    [InlineData("Https://github.com/owner/repo", "https://github.com/owner/repo")]
+    [InlineData("HTTPS://GITHUB.COM/owner/repo.git", "https://github.com/owner/repo.git")]
+    [InlineData("Http://GITLAB.COM:8080/org/repo", "http://gitlab.com:8080/org/repo")]
+    [InlineData("GIT@GITHUB.COM:owner/repo.git", "git@github.com:owner/repo.git")]
+    [InlineData("Git@github.com:org/repo", "git@github.com:org/repo")]
+    [InlineData("  https://github.com/owner/repo  ", "https://github.com/owner/repo")]
+    [InlineData("  git@github.com:owner/repo.git  ", "git@github.com:owner/repo.git")]
+    [InlineData("/home/user/repos/myapp", "/home/user/repos/myapp")]
+    [InlineData("~/code/project", "~/code/project")]
+    [InlineData("  /home/user/repos/myapp  ", "/home/user/repos/myapp")]
+    [InlineData("relative/path", "relative/path")]
+    [InlineData("just-a-name", "just-a-name")]
+    [InlineData("", "")]
+    [InlineData("   ", "")]
+    public void Normalize_VariousInputs_ReturnsExpected(string input, string expected)
+    {
+        Assert.Equal(expected, RepoPathValidator.Normalize(input));
+    }
 }

@@ -65,8 +65,8 @@ public class CodingAgentSetupView : ViewBase
                     (openAiProxyBaseUrl.Value.Contains("llmproxy.ivy.app") || openAiProxyBaseUrl.Value.Contains("ivy.app"));
         var isOpenAi = selectedAgent.Value == "openaiproxy_card" && !isIvy;
         var finalAgent = ResolveFinalAgent(selectedAgent.Value, openAiProxyBaseUrl.Value);
-
-        var models = modelsQuery.Value ?? [];
+        var rawModels = modelsQuery.Value ?? [];
+        var models = ModelCatalogSorter.Sort(rawModels);
         var knownModelIds = new HashSet<string>(models.Select(m => m.Id), StringComparer.OrdinalIgnoreCase);
         var extraOptions = new List<Option<string>>();
         foreach (var m in new[] { deepModel.Value, balancedModel.Value, quickModel.Value })
@@ -266,7 +266,7 @@ public class CodingAgentSetupView : ViewBase
         }
 
         var isByo = isIvy || isBerget || isAnthropic || isOpenAi;
-        var hasFetchedModels = models.Length > 0;
+        var hasFetchedModels = models.Count > 0;
         var isCustomMode = isByo && (useCustomModelNames.Value || !hasFetchedModels);
 
         var profileModels = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
@@ -330,32 +330,32 @@ public class CodingAgentSetupView : ViewBase
                                deepModel.Value, deepEffort.Value,
                                balancedModel.Value, balancedEffort.Value,
                                quickModel.Value, quickEffort.Value);
-                            if (isIvy)
-                            {
-                                SaveIvyApiKey(config, openAiProxyApiKey.Value);
-                                SaveIvyBaseUrl(config, openAiProxyBaseUrl.Value);
-                                SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
-                                SaveOpenAiProxyBaseUrl(config, openAiProxyBaseUrl.Value);
-                            }
-                            else if (isBerget)
-                            {
-                                var baseUrl = string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value) || !openAiProxyBaseUrl.Value.Contains("api.berget.ai")
-                                    ? "https://api.berget.ai/v1"
-                                    : openAiProxyBaseUrl.Value;
-                                SaveOpenAiProxyBaseUrl(config, baseUrl);
-                                SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
-                            }
-                            else if (isAnthropic)
-                            {
-                                var baseUrl = string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value) ? "https://api.anthropic.com/v1" : openAiProxyBaseUrl.Value;
-                                SaveOpenAiProxyBaseUrl(config, baseUrl);
-                                SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
-                            }
-                            else if (isOpenAi)
-                            {
-                                SaveOpenAiProxyBaseUrl(config, openAiProxyBaseUrl.Value);
-                                SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
-                            }
+                           if (isIvy)
+                           {
+                               SaveIvyApiKey(config, openAiProxyApiKey.Value);
+                               SaveIvyBaseUrl(config, openAiProxyBaseUrl.Value);
+                               SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
+                               SaveOpenAiProxyBaseUrl(config, openAiProxyBaseUrl.Value);
+                           }
+                           else if (isBerget)
+                           {
+                               var baseUrl = string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value) || !openAiProxyBaseUrl.Value.Contains("api.berget.ai")
+                                   ? "https://api.berget.ai/v1"
+                                   : openAiProxyBaseUrl.Value;
+                               SaveOpenAiProxyBaseUrl(config, baseUrl);
+                               SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
+                           }
+                           else if (isAnthropic)
+                           {
+                               var baseUrl = string.IsNullOrWhiteSpace(openAiProxyBaseUrl.Value) ? "https://api.anthropic.com/v1" : openAiProxyBaseUrl.Value;
+                               SaveOpenAiProxyBaseUrl(config, baseUrl);
+                               SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
+                           }
+                           else if (isOpenAi)
+                           {
+                               SaveOpenAiProxyBaseUrl(config, openAiProxyBaseUrl.Value);
+                               SaveOpenAiProxyApiKey(config, openAiProxyApiKey.Value);
+                           }
                            config.SaveSettings();
                            client.Toast("Coding agent settings saved", "Saved");
                        }))

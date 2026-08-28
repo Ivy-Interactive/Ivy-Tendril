@@ -55,9 +55,9 @@ public record VaultProjectManifest
 
     public string SecurityPreset { get; set; } = "Custom";
     public string OutsideFileAccessPolicy { get; set; } = "Allow";
-    public string TerminalAutoExecution { get; set; } = "Always Proceed";
-    public string SandboxMode { get; set; } = "Inherit General";
-    public string AutoImplementPlans { get; set; } = "Inherit General";
+    public string TerminalAutoExecution { get; set; } = "AlwaysProceed";
+    public string SandboxMode { get; set; } = "InheritGeneral";
+    public string AutoImplementPlans { get; set; } = "InheritGeneral";
 }
 
 public record VaultPermissionsManifest
@@ -66,8 +66,8 @@ public record VaultPermissionsManifest
     public List<NetworkAccessRuleConfig> NetworkAccessRules { get; set; } = new();
     public List<string> AllowedTerminalCommands { get; set; } = new();
     public string OutsideFileAccessPolicy { get; set; } = "Allow";
-    public string TerminalAutoExecution { get; set; } = "Always Proceed";
-    public string SandboxMode { get; set; } = "Inherit General";
+    public string TerminalAutoExecution { get; set; } = "AlwaysProceed";
+    public string SandboxMode { get; set; } = "InheritGeneral";
 }
 
 public record VaultCatalogItem
