@@ -1,0 +1,38 @@
+namespace Ivy.Tendril.Widgets;
+
+[ExternalWidget(
+    "frontend/dist/ivy-tendril-widgets.js",
+    StylePath = "frontend/dist/ivy-tendril-widgets.css",
+    ExportName = "ShellAgentButton",
+    GlobalName = "IvyTendrilWidgets"
+)]
+public record ShellAgentButton : WidgetBase<ShellAgentButton>
+{
+    [Prop] public string Label { get; init; } = "Agent";
+
+    /// <summary>Icon name from AgentBranding.IconFor (e.g. "ClaudeCode"); mapped to a brand SVG client-side.</summary>
+    [Prop] public string? Icon { get; init; }
+
+    [Prop] public string NewChatLabel { get; init; } = "New chat";
+
+    /// <summary>Key combined with the platform command key (Cmd/Ctrl), handled client-side.</summary>
+    [Prop] public string ShortcutKey { get; init; } = "A";
+
+    [Event] public EventHandler<Event<ShellAgentButton>>? OnOpen { get; init; }
+    [Event] public EventHandler<Event<ShellAgentButton>>? OnNewChat { get; init; }
+}
+
+public static class ShellAgentButtonExtensions
+{
+    public static ShellAgentButton Label(this ShellAgentButton w, string label) =>
+        w with { Label = label };
+
+    public static ShellAgentButton Icon(this ShellAgentButton w, string? icon) =>
+        w with { Icon = icon };
+
+    public static ShellAgentButton OnOpen(this ShellAgentButton w, Action handler) =>
+        w with { OnOpen = new(_ => { handler(); return ValueTask.CompletedTask; }) };
+
+    public static ShellAgentButton OnNewChat(this ShellAgentButton w, Action handler) =>
+        w with { OnNewChat = new(_ => { handler(); return ValueTask.CompletedTask; }) };
+}

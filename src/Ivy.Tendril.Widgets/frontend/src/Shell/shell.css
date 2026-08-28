@@ -1,0 +1,818 @@
+/* Tendril app shell — design tokens and component styles.
+   Light values are the exact colors from the Figma prototype (claude-code-prototype);
+   dark values map onto the Ivy theme tokens so the shell follows the host theme. */
+
+.tsh-root {
+  --tsh-bg: #fafafa;
+  --tsh-surface: #ffffff;
+  --tsh-border: #e0e0e0;
+  --tsh-tab-border: #d1d1d1;
+  --tsh-fg: #000000;
+  --tsh-fg-title: #202221;
+  --tsh-row-active: #f0f0f0;
+  --tsh-badge-bg: #f0f0f0;
+  --tsh-badge-bg-active: #e6e6e6;
+  --tsh-cta-bg: #000000;
+  --tsh-cta-fg: #f8f8f8;
+  --tsh-badge-project-bg: #bcd6ff;
+  --tsh-badge-project-fg: #183b75;
+  --tsh-badge-success-bg: #b7e4b9;
+  --tsh-badge-success-fg: #1f4924;
+  --tsh-badge-warning-bg: #fce4b5;
+  --tsh-badge-warning-fg: #6b4e14;
+  --tsh-badge-border: rgba(0, 0, 0, 0.3);
+
+  --tsh-sidebar-width: 320px;
+  --tsh-rail-width: 56px;
+  --tsh-anim: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  font-family: var(--font-sans, "Geist", sans-serif);
+  color: var(--tsh-fg);
+}
+
+.dark .tsh-root {
+  --tsh-bg: var(--background, #000000);
+  --tsh-surface: var(--card, #0a0a0a);
+  --tsh-border: var(--border, #27272a);
+  --tsh-tab-border: var(--border, #27272a);
+  --tsh-fg: var(--foreground, #f8f8f8);
+  --tsh-fg-title: var(--foreground, #f8f8f8);
+  --tsh-row-active: var(--accent, #27272a);
+  --tsh-badge-bg: var(--accent, #27272a);
+  --tsh-badge-bg-active: var(--muted, #18181b);
+  --tsh-cta-bg: var(--primary, #f8f8f8);
+  --tsh-cta-fg: var(--primary-foreground, #000000);
+  --tsh-badge-project-bg: #1e3a6d;
+  --tsh-badge-project-fg: #bcd6ff;
+  --tsh-badge-success-bg: #1f4924;
+  --tsh-badge-success-fg: #b7e4b9;
+  --tsh-badge-warning-bg: #6b4e14;
+  --tsh-badge-warning-fg: #fce4b5;
+  --tsh-badge-border: rgba(255, 255, 255, 0.25);
+}
+
+/* ---------- Shell layout ---------- */
+
+.tsh-root {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--tsh-bg);
+  overflow: hidden;
+}
+
+.tsh-sidebar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: var(--tsh-sidebar-width);
+  height: 100%;
+  min-height: 0;
+  padding: 16px 12px;
+  overflow: hidden;
+  transition: width var(--tsh-anim), padding var(--tsh-anim);
+}
+
+.tsh-root[data-collapsed="true"] .tsh-sidebar {
+  width: var(--tsh-rail-width);
+  padding: 16px 8px;
+}
+
+.tsh-sidebar-header {
+  flex-shrink: 0;
+}
+
+.tsh-sidebar-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.tsh-sidebar-footer {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 45px;
+}
+
+/* ---------- Content area ---------- */
+
+.tsh-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px 16px 0 0;
+}
+
+.tsh-frame {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+  background: var(--tsh-surface);
+  border: 1px solid var(--tsh-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.tsh-frame-pane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* opacity too: visibility alone can be overridden by descendants that set their own */
+.tsh-frame-pane[data-active="false"] {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tsh-tabs-row {
+  flex-shrink: 0;
+}
+
+.tsh-bottom-spacer {
+  flex-shrink: 0;
+  height: 16px;
+}
+
+/* ---------- Sidebar header ---------- */
+
+.tsh-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-top: 18px;
+  overflow: hidden;
+}
+
+.tsh-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.tsh-header-logo {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  transition: width var(--tsh-anim), height var(--tsh-anim);
+}
+
+.tsh-header-text {
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+  transition: opacity 200ms ease, max-width var(--tsh-anim);
+  max-width: 200px;
+  overflow: hidden;
+}
+
+.tsh-header-title {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 21px;
+  color: var(--tsh-fg);
+}
+
+.tsh-header-version {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 18px;
+  color: var(--tsh-fg);
+  opacity: 0.6;
+}
+
+.tsh-header-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-top: -2px;
+  margin-right: -4px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--tsh-fg);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.tsh-header-toggle:hover {
+  opacity: 1;
+  background: var(--tsh-row-active);
+}
+
+.tsh-root[data-collapsed="true"] .tsh-header {
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-header-logo {
+  width: 32px;
+  height: 32px;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-header-text {
+  max-width: 0;
+  opacity: 0;
+  display: none;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-header-toggle {
+  margin: 0;
+}
+
+/* ---------- New Plan button ---------- */
+
+.tsh-newplan-wrap {
+  padding-top: 16px;
+  flex-shrink: 0;
+}
+
+.tsh-newplan {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 40px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--tsh-cta-bg);
+  color: var(--tsh-cta-fg);
+  cursor: pointer;
+  transition: opacity 150ms ease, padding var(--tsh-anim);
+}
+
+.tsh-newplan:hover {
+  opacity: 0.88;
+}
+
+.tsh-newplan-label-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tsh-newplan-label {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 200px;
+  transition: max-width var(--tsh-anim), opacity 200ms ease;
+}
+
+.tsh-kbd {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+  opacity: 0.8;
+  white-space: nowrap;
+  transition: max-width var(--tsh-anim), opacity 200ms ease;
+  max-width: 80px;
+  overflow: hidden;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-newplan {
+  justify-content: center;
+  padding: 4px 0;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-newplan-label,
+.tsh-root[data-collapsed="true"] .tsh-newplan .tsh-kbd {
+  max-width: 0;
+  opacity: 0;
+}
+
+/* ---------- Agent button ---------- */
+
+.tsh-agent-wrap {
+  padding-top: 8px;
+  flex-shrink: 0;
+}
+
+.tsh-agent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 38px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tsh-fg);
+  cursor: pointer;
+  transition: background-color 150ms ease, padding var(--tsh-anim);
+}
+
+.tsh-agent:hover {
+  background: var(--tsh-row-active);
+}
+
+.tsh-agent-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tsh-agent-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tsh-agent-label {
+  font-size: 14px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 160px;
+  transition: max-width var(--tsh-anim), opacity 200ms ease;
+}
+
+.tsh-agent-actions {
+  display: flex;
+  align-items: center;
+  color: var(--tsh-fg);
+  max-width: 160px;
+  overflow: hidden;
+  transition: max-width var(--tsh-anim), opacity 200ms ease;
+}
+
+.tsh-agent-newchat {
+  padding: 3px 6px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--tsh-fg);
+  opacity: 0.6;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.tsh-agent-newchat:hover {
+  opacity: 1;
+  background: var(--tsh-badge-bg-active);
+}
+
+.tsh-agent .tsh-kbd {
+  color: var(--tsh-fg);
+}
+
+.tsh-root[data-collapsed="true"] .tsh-agent {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-agent-label,
+.tsh-root[data-collapsed="true"] .tsh-agent-actions {
+  max-width: 0;
+  opacity: 0;
+}
+
+/* ---------- Nav ---------- */
+
+.tsh-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 24px;
+  flex-shrink: 0;
+}
+
+.tsh-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 38px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tsh-fg);
+  cursor: pointer;
+  transition: background-color 150ms ease, padding var(--tsh-anim);
+}
+
+.tsh-nav-item:hover {
+  background: var(--tsh-row-active);
+}
+
+.tsh-nav-item[data-active="true"] {
+  background: var(--tsh-row-active);
+}
+
+.tsh-nav-item-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  opacity: 0.6;
+  transition: opacity 150ms ease;
+}
+
+.tsh-nav-item:hover .tsh-nav-item-main,
+.tsh-nav-item[data-active="true"] .tsh-nav-item-main {
+  opacity: 1;
+}
+
+.tsh-nav-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tsh-nav-label {
+  font-size: 14px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 200px;
+  transition: max-width var(--tsh-anim), opacity 200ms ease;
+}
+
+.tsh-nav-item[data-active="true"] .tsh-nav-label {
+  font-weight: 500;
+}
+
+.tsh-nav-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--tsh-badge-bg);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 13px;
+  color: var(--tsh-fg);
+  white-space: nowrap;
+  transition: max-width var(--tsh-anim), opacity 200ms ease, padding var(--tsh-anim);
+  max-width: 60px;
+  overflow: hidden;
+}
+
+.tsh-nav-item[data-active="true"] .tsh-nav-badge {
+  background: var(--tsh-badge-bg-active);
+}
+
+.tsh-nav-divider {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.tsh-nav-divider::after {
+  content: "";
+  width: 100%;
+  height: 1px;
+  background: var(--tsh-border);
+}
+
+.tsh-root[data-collapsed="true"] .tsh-nav-item {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-nav-label {
+  max-width: 0;
+  opacity: 0;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-nav-badge {
+  max-width: 0;
+  opacity: 0;
+  padding: 2px 0;
+  min-width: 0;
+}
+
+/* ---------- Sidebar section (plan list) ---------- */
+
+.tsh-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding-top: 16px;
+  overflow: hidden;
+  transition: opacity 200ms ease;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-section {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tsh-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  flex-shrink: 0;
+}
+
+.tsh-section-title {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--tsh-fg);
+  white-space: nowrap;
+}
+
+.tsh-section-search {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-right: -2px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  color: var(--tsh-fg);
+  opacity: 0.7;
+  cursor: pointer;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.tsh-section-search:hover {
+  opacity: 1;
+  background: var(--tsh-row-active);
+}
+
+.tsh-section-list {
+  margin-top: 16px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--tsh-border) transparent;
+}
+
+.tsh-section-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 150ms ease;
+}
+
+.tsh-section-item:hover {
+  background: var(--tsh-row-active);
+}
+
+.tsh-section-item[data-selected="true"] {
+  background: var(--tsh-row-active);
+}
+
+.tsh-section-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.tsh-section-item-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--tsh-fg-title);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tsh-section-item-tag {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--tsh-fg);
+}
+
+.tsh-section-item-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.tsh-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 0.5px solid var(--tsh-badge-border);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+.tsh-badge[data-kind="project"] {
+  background: var(--tsh-badge-project-bg);
+  color: var(--tsh-badge-project-fg);
+}
+
+.tsh-badge[data-kind="success"] {
+  background: var(--tsh-badge-success-bg);
+  color: var(--tsh-badge-success-fg);
+}
+
+.tsh-badge[data-kind="warning"] {
+  background: var(--tsh-badge-warning-bg);
+  color: var(--tsh-badge-warning-fg);
+}
+
+.tsh-badge[data-kind="neutral"] {
+  background: var(--tsh-badge-bg);
+  color: var(--tsh-fg);
+}
+
+.tsh-section-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--tsh-fg);
+  opacity: 0.5;
+}
+
+/* ---------- Settings button ---------- */
+
+.tsh-settings {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tsh-fg);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.tsh-settings:hover {
+  opacity: 1;
+  background: var(--tsh-row-active);
+}
+
+.tsh-settings-label {
+  font-size: 14px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 200px;
+  transition: max-width var(--tsh-anim), opacity 200ms ease;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-settings {
+  justify-content: center;
+  padding: 6px 0;
+  width: 100%;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-settings-label {
+  max-width: 0;
+  opacity: 0;
+}
+
+/* ---------- Session tabs ---------- */
+
+.tsh-tabs {
+  display: flex;
+  align-items: stretch;
+  height: 45px;
+  border-bottom: 1px solid var(--tsh-border);
+}
+
+.tsh-tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 200px;
+  min-width: 0;
+  padding: 12px 16px;
+  border: none;
+  border-right: 1px solid var(--tsh-tab-border);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.tsh-tab:hover {
+  background: var(--tsh-row-active);
+}
+
+.tsh-tab-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--tsh-fg);
+}
+
+.tsh-tab[data-active="false"] .tsh-tab-main {
+  opacity: 0.6;
+}
+
+.tsh-tab-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.tsh-tab-label {
+  font-family: var(--font-mono, "Geist Mono", monospace);
+  font-size: 14px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tsh-tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  border-radius: 3px;
+  color: var(--tsh-fg);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.tsh-tab-close:hover {
+  opacity: 1;
+  background: var(--tsh-badge-bg-active);
+}
+
+.tsh-tab-new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 45px;
+  height: 45px;
+  flex-shrink: 0;
+  border: none;
+  border-right: 1px solid var(--tsh-tab-border);
+  background: transparent;
+  color: var(--tsh-fg);
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.tsh-tab-new:hover {
+  background: var(--tsh-row-active);
+}

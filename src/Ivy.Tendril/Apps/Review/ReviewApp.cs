@@ -1,7 +1,9 @@
 using System.Reactive.Disposables;
+using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Review;
 
@@ -9,6 +11,31 @@ namespace Ivy.Tendril.Apps.Review;
     allowDuplicateTabs: false)]
 public class ReviewApp : ViewBase
 {
+    internal static List<ShellBadgeDto> BuildRowBadges(PlanFile plan)
+    {
+        var verificationsPassed = plan.Verifications.Count > 0
+                                  && plan.Verifications.All(v => v.Status is VerificationStatus.Pass or VerificationStatus.Skipped);
+
+        var badges = new List<ShellBadgeDto> { ShellBadgeDto.Project(plan.Project) };
+        badges.Add(verificationsPassed
+            ? ShellBadgeDto.Success("Verified")
+            : ShellBadgeDto.Warning("Unverified"));
+        // Completed over a failed gate: the deliverable may be missing (plan 00090).
+        if (plan.PartialDelivery)
+            badges.Add(ShellBadgeDto.Warning("Partial"));
+        return badges;
+    }
+
+    internal static ShellSidebarListState BuildSidebarList(List<PlanFile> plans, PlanFile? selected)
+    {
+        var items = plans
+            .Select(p => new ShellSectionItemDto(p.FolderName, p.Title, $"#{p.Id}", BuildRowBadges(p)))
+            .ToList();
+        return new ShellSidebarListState(
+            "review", "Review", items, selected?.FolderName,
+            planId => new ReviewAppArgs(planId));
+    }
+
     public override object Build()
     {
         var planService = UseService<IPlanReaderService>();
@@ -17,11 +44,8 @@ public class ReviewApp : ViewBase
         var gitService = UseService<IGitService>();
         var args = UseArgs<ReviewAppArgs>();
         var selectedPlanState = UseState<PlanFile?>(null);
-        var projectFilter = UseState<string?>(null);
-        var levelFilter = UseState<string?>(null);
-        var textFilter = UseState<string?>("");
-        var filtersOpen = UseState(false);
         var refreshToken = UseRefreshToken();
+        var sidebarListSignal = Context.UseSignal<ShellSidebarListSignal, ShellSidebarListState, Unit>();
 
         Context.UseInboxAutoRefresh(refreshToken);
 
@@ -49,22 +73,22 @@ public class ReviewApp : ViewBase
         var plans = planService.GetPlans()
             .Where(p => p.Status is PlanStatus.Review or PlanStatus.Failed)
             .Where(p => !activePlanFolders.Contains(p.FolderPath))
+            .OrderByDescending(p => p.Id)
             .ToList();
-        var filteredPlans = PlanFilters.ApplyFilters(plans, projectFilter.Value, levelFilter.Value, textFilter.Value).ToList();
 
         // Only auto-select first plan if we didn't navigate here with specific args
-        if (selectedPlanState.Value == null && filteredPlans.Count > 0 && string.IsNullOrEmpty(args?.PlanId))
+        if (selectedPlanState.Value == null && plans.Count > 0 && string.IsNullOrEmpty(args?.PlanId))
         {
-            selectedPlanState.Set(filteredPlans[0]);
+            selectedPlanState.Set(plans[0]);
         }
 
-        if (selectedPlanState.Value is { } selected && filteredPlans.All(p => p.FolderName != selected.FolderName))
+        if (selectedPlanState.Value is { } selected && plans.All(p => p.FolderName != selected.FolderName))
         {
             var oldIndex = previousPlans.Value.FindIndex(p => p.FolderName == selected.FolderName);
-            if (filteredPlans.Count > 0 && oldIndex >= 0)
+            if (plans.Count > 0 && oldIndex >= 0)
             {
-                var newIndex = Math.Min(oldIndex, filteredPlans.Count - 1);
-                selectedPlanState.Set(filteredPlans[newIndex]);
+                var newIndex = Math.Min(oldIndex, plans.Count - 1);
+                selectedPlanState.Set(plans[newIndex]);
             }
             else
             {
@@ -72,21 +96,12 @@ public class ReviewApp : ViewBase
             }
         }
 
+        previousPlans.Value = plans;
 
+        _ = sidebarListSignal.Send(BuildSidebarList(plans, selectedPlanState.Value));
 
-        previousPlans.Value = filteredPlans;
-
-        var sidebar = new SidebarView(plans, selectedPlanState, projectFilter, levelFilter, textFilter, filtersOpen, configService);
-
-        var content = new ContentView(selectedPlanState, filteredPlans, planService, jobService,
+        return new ContentView(selectedPlanState, plans, planService, jobService,
             RefreshPlans, configService, gitService);
-        if (plans.Count == 0)
-            return content;
-
-        return new SidebarLayout(
-            content,
-            sidebar
-        ).SidebarContentScroll(Scroll.None);
 
         void RefreshPlans()
         {

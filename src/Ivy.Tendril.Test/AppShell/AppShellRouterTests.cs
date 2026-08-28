@@ -8,6 +8,15 @@ namespace Ivy.Tendril.Test.AppShell;
 
 public class AppShellRouterTests
 {
+    private static AppDescriptor Descriptor(string id, bool allowDuplicateTabs) => new()
+    {
+        Id = id,
+        Title = id,
+        Group = [],
+        IsVisible = true,
+        AllowDuplicateTabs = allowDuplicateTabs
+    };
+
     [Fact]
     public void RouteForPages_WithAppId_ReturnsOpenPage()
     {
@@ -17,8 +26,7 @@ public class AppShellRouterTests
             AppShellNavigation.Pages,
             "default",
             ImmutableArray<TabState>.Empty,
-            null,
-            false);
+            null);
 
         Assert.Equal(AppShellRouter.RouteAction.OpenPage, result.Action);
         Assert.Equal("plans", result.EffectiveAppId);
@@ -33,18 +41,17 @@ public class AppShellRouterTests
             AppShellNavigation.Pages,
             "default",
             ImmutableArray<TabState>.Empty,
-            null,
-            false);
+            null);
 
         Assert.Equal(AppShellRouter.RouteAction.OpenPage, result.Action);
         Assert.Equal("default", result.EffectiveAppId);
     }
 
     [Fact]
-    public void RouteForTabs_ExistingTabId_ReturnsSwitchToExistingTab()
+    public void RouteHybrid_ExistingTabId_ReturnsSwitchToExistingTab()
     {
         var tabs = ImmutableArray.Create(
-            new TabState("tab1", "plans", "Plans", null!, null, "key1"));
+            new TabState("tab1", "agent", "Claude Code", null!, null, "key1"));
         var router = new AppShellRouter();
 
         var result = router.Route(
@@ -52,8 +59,7 @@ public class AppShellRouterTests
             AppShellNavigation.Tabs,
             null,
             tabs,
-            null,
-            false);
+            null);
 
         Assert.Equal(AppShellRouter.RouteAction.SwitchToExistingTab, result.Action);
         Assert.Equal(0, result.TabIndex);
@@ -61,7 +67,7 @@ public class AppShellRouterTests
     }
 
     [Fact]
-    public void RouteForTabs_MissingTabIdWithPopOp_ReturnsError()
+    public void RouteHybrid_MissingTabIdWithPopOp_ReturnsError()
     {
         var router = new AppShellRouter();
         var result = router.Route(
@@ -69,127 +75,29 @@ public class AppShellRouterTests
             AppShellNavigation.Tabs,
             null,
             ImmutableArray<TabState>.Empty,
-            null,
-            false);
+            null);
 
         Assert.Equal(AppShellRouter.RouteAction.Error, result.Action);
         Assert.Equal("Tab no longer exists.", result.ErrorMessage);
     }
 
     [Fact]
-    public void RouteForTabs_DuplicateAppId_ReturnsSwitchToExistingTab()
+    public void RouteHybrid_RegularApp_ReturnsOpenPage()
     {
-        var tabs = ImmutableArray.Create(
-            new TabState("tab1", "plans", "Plans", null!, null, "key1"));
-        var appDescriptor = new AppDescriptor
-        {
-            Id = "plans",
-            Title = "Plans",
-            Group = [],
-            IsVisible = true,
-            AllowDuplicateTabs = false
-        };
         var router = new AppShellRouter();
-
-        var result = router.Route(
-            new NavigateArgs("plans"),
-            AppShellNavigation.Tabs,
-            null,
-            tabs,
-            appDescriptor,
-            true);
-
-        Assert.Equal(AppShellRouter.RouteAction.SwitchToExistingTab, result.Action);
-        Assert.Equal(0, result.TabIndex);
-    }
-
-    [Fact]
-    public void RouteForTabs_DuplicateAppId_DifferentArgs_ReturnsRefreshExistingTab()
-    {
-        var existingAppHost = new NavigateArgs("review", new ReviewAppArgs("00010-A")).ToAppHost();
-        var tabs = ImmutableArray.Create(
-            new TabState("tab1", "review", "Review", existingAppHost, null, "key1"));
-        var appDescriptor = new AppDescriptor
-        {
-            Id = "review",
-            Title = "Review",
-            Group = [],
-            IsVisible = true,
-            AllowDuplicateTabs = false
-        };
-        var router = new AppShellRouter();
-
-        var result = router.Route(
-            new NavigateArgs("review", new ReviewAppArgs("00020-B")),
-            AppShellNavigation.Tabs,
-            null,
-            tabs,
-            appDescriptor,
-            true);
-
-        Assert.Equal(AppShellRouter.RouteAction.RefreshExistingTab, result.Action);
-        Assert.Equal(0, result.TabIndex);
-        Assert.Equal("tab1", result.TabId);
-    }
-
-    [Fact]
-    public void RouteForTabs_DuplicateAppId_SameArgs_ReturnsSwitchToExistingTab()
-    {
-        var existingAppHost = new NavigateArgs("review", new ReviewAppArgs("00010-A")).ToAppHost();
-        var tabs = ImmutableArray.Create(
-            new TabState("tab1", "review", "Review", existingAppHost, null, "key1"));
-        var appDescriptor = new AppDescriptor
-        {
-            Id = "review",
-            Title = "Review",
-            Group = [],
-            IsVisible = true,
-            AllowDuplicateTabs = false
-        };
-        var router = new AppShellRouter();
-
         var result = router.Route(
             new NavigateArgs("review", new ReviewAppArgs("00010-A")),
             AppShellNavigation.Tabs,
             null,
-            tabs,
-            appDescriptor,
-            true);
+            ImmutableArray<TabState>.Empty,
+            Descriptor("review", allowDuplicateTabs: false));
 
-        Assert.Equal(AppShellRouter.RouteAction.SwitchToExistingTab, result.Action);
-        Assert.Equal(0, result.TabIndex);
+        Assert.Equal(AppShellRouter.RouteAction.OpenPage, result.Action);
+        Assert.Equal("review", result.EffectiveAppId);
     }
 
     [Fact]
-    public void RouteForTabs_DuplicateAppId_NullArgs_ReturnsSwitchToExistingTab()
-    {
-        var existingAppHost = new NavigateArgs("review", new ReviewAppArgs("00010-A")).ToAppHost();
-        var tabs = ImmutableArray.Create(
-            new TabState("tab1", "review", "Review", existingAppHost, null, "key1"));
-        var appDescriptor = new AppDescriptor
-        {
-            Id = "review",
-            Title = "Review",
-            Group = [],
-            IsVisible = true,
-            AllowDuplicateTabs = false
-        };
-        var router = new AppShellRouter();
-
-        var result = router.Route(
-            new NavigateArgs("review"),
-            AppShellNavigation.Tabs,
-            null,
-            tabs,
-            appDescriptor,
-            true);
-
-        Assert.Equal(AppShellRouter.RouteAction.SwitchToExistingTab, result.Action);
-        Assert.Equal(0, result.TabIndex);
-    }
-
-    [Fact]
-    public void RouteForTabs_NewAppId_ReturnsCreateNewTab()
+    public void RouteHybrid_UnknownDescriptor_ReturnsOpenPage()
     {
         var router = new AppShellRouter();
         var result = router.Route(
@@ -197,10 +105,55 @@ public class AppShellRouterTests
             AppShellNavigation.Tabs,
             null,
             ImmutableArray<TabState>.Empty,
+            null);
+
+        Assert.Equal(AppShellRouter.RouteAction.OpenPage, result.Action);
+        Assert.Equal("review", result.EffectiveAppId);
+    }
+
+    [Fact]
+    public void RouteHybrid_SessionApp_ReturnsCreateNewTab()
+    {
+        var router = new AppShellRouter();
+        var result = router.Route(
+            new NavigateArgs("agent"),
+            AppShellNavigation.Tabs,
             null,
-            false);
+            ImmutableArray<TabState>.Empty,
+            Descriptor("agent", allowDuplicateTabs: true));
 
         Assert.Equal(AppShellRouter.RouteAction.CreateNewTab, result.Action);
-        Assert.Equal("review", result.EffectiveAppId);
+        Assert.Equal("agent", result.EffectiveAppId);
+    }
+
+    [Fact]
+    public void RouteHybrid_SessionApp_ExistingTabForSameApp_StillCreatesNewTab()
+    {
+        var tabs = ImmutableArray.Create(
+            new TabState("tab1", "agent", "Claude Code", null!, null, "key1"));
+        var router = new AppShellRouter();
+
+        var result = router.Route(
+            new NavigateArgs("agent"),
+            AppShellNavigation.Tabs,
+            null,
+            tabs,
+            Descriptor("agent", allowDuplicateTabs: true));
+
+        Assert.Equal(AppShellRouter.RouteAction.CreateNewTab, result.Action);
+    }
+
+    [Fact]
+    public void RouteHybrid_NullAppId_ReturnsNoop()
+    {
+        var router = new AppShellRouter();
+        var result = router.Route(
+            new NavigateArgs(null),
+            AppShellNavigation.Tabs,
+            "default",
+            ImmutableArray<TabState>.Empty,
+            null);
+
+        Assert.Equal(AppShellRouter.RouteAction.Noop, result.Action);
     }
 }
