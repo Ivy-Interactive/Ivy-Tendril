@@ -25,7 +25,7 @@ Existing plans on disk are never recreated — they must be migrated in place. I
 
 Tendril uses these environment variables:
 
-- **`TENDRIL_HOME`** (required): Base path for all Tendril data (Plans/, Inbox/, Trash/, config.yaml, etc.)
+- **`TENDRIL_HOME`** (required): Base path for all Tendril data (Plans/, Inbox/, config.yaml, etc.)
   - Must be set before starting Tendril, otherwise onboarding is triggered
   - Example: `/home/user/.tendril` or `C:\Users\User\.tendril`
 
@@ -137,7 +137,7 @@ All paths resolve from environment variables — check these first:
 
 | Variable | Purpose | Fallback |
 |----------|---------|----------|
-| `TENDRIL_HOME` | Config, database, hooks, trash, inbox | Required — onboarding triggers if unset |
+| `TENDRIL_HOME` | Config, database, hooks, inbox | Required — onboarding triggers if unset |
 | `TENDRIL_PLANS` | Plans directory (overrides `TENDRIL_HOME/Plans`) | `TENDRIL_HOME/Plans` |
 | `REPOS_HOME` | Base path for `%REPOS_HOME%` expansion in config.yaml repo paths | None (optional) |
 
@@ -155,7 +155,6 @@ $TENDRIL_HOME/
       verification/    # Verification reports
       artifacts/       # Build artifacts, screenshots
       worktrees/       # Git worktree paths used during execution
-  Trash/               # Deleted/duplicate plans (PlanId-Title.md)
   Inbox/               # Incoming plan requests (.md files, picked up by InboxWatcherService)
   Jobs/                # Every job artifact (see below) plus .counter, the job-ID counter
   Logs/worktrees.log   # Worktree create/remove lifecycle trail (not a job log)
@@ -193,13 +192,12 @@ Jobs flow through: `Pending → Queued → Running → Completed/Failed/Timeout/
 
 1. Agent output doesn't contain a `"PlanId: <id>"` line resolving to a folder on disk (`FindPlanFolderById`)
 2. No plan folder matching `AllocatedPlanId` exists on disk either (`FindPlanFolderById`)
-3. No trash entry for that ID exists either (`FindTrashEntryById`)
+3. Agent output doesn't carry the `identified as duplicate:` marker either (`IsDuplicatePlan`)
 
 When debugging a failed CreatePlan, check in order:
 1. Does the plan folder exist in `$TENDRIL_PLANS/{PlanId}-*`?
-2. Does a trash entry exist in `$TENDRIL_HOME/Trash/{PlanId}-*.md`?
-3. Read the Job Log `$TENDRIL_HOME/Jobs/{JobId}-CreatePlan.md`
-4. Read the raw output `$TENDRIL_HOME/Jobs/{JobId}-CreatePlan.raw.jsonl`
+2. Read the Job Log `$TENDRIL_HOME/Jobs/{JobId}-CreatePlan.md`
+3. Read the raw output `$TENDRIL_HOME/Jobs/{JobId}-CreatePlan.raw.jsonl`
 
 ### CLI Commands
 

@@ -4,7 +4,7 @@ namespace Ivy.Tendril.Services.Plans.Migrations;
 
 /// <summary>
 ///     Renames plan subfolders from lowercase to Title Case for consistency with TENDRIL_HOME folder
-///     naming (Inbox, Trash, Plans, ...). Matters on case-sensitive filesystems where readers expect
+///     naming (Inbox, Plans, ...). Matters on case-sensitive filesystems where readers expect
 ///     <c>Revisions</c>/etc. Operates on the folder only; plan.yaml is returned unchanged.
 /// </summary>
 /// <remarks>

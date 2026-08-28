@@ -52,7 +52,7 @@ Valid statuses: Pending, Pass, Fail, Skipped
 - Runs after CreatePlan agent exits with code 0
 - Checks for `"Plan created: <folder>"` marker in agent output
 - Verifies plan folder exists on disk (`FindPlanFolderById`)
-- Falls back to checking trash (`FindTrashEntryById`)
+- Falls back to the `identified as duplicate:` marker in agent output (`IsDuplicatePlan`)
 - Can change `Completed → Failed` if verification fails
 
 ### JobService.CheckDependencies

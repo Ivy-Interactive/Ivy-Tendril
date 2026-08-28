@@ -11,7 +11,6 @@ using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.ReviewAction;
 using Ivy.Tendril.Apps.Settings;
-using Ivy.Tendril.Apps.Trash;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
@@ -206,7 +205,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             ["jobs"] = status.JobCount,
             ["icebox"] = status.IceboxCount,
             ["recommendations"] = status.RecommendationsCount,
-            ["trash"] = status.TrashCount,
             ["chat"] = status.GeneratingChatSessionsCount,
             ["agent"] = nonChatAgentCount
         };
@@ -657,10 +655,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Tag("$setup")
                 .Icon(Icons.Construction)
                 .OnSelect(() => navigator.Navigate<SettingsApp>()),
-            MenuItem.Default("Trash")
-                .Tag("$trash")
-                .Icon(Icons.Trash2)
-                .OnSelect(() => navigator.Navigate<TrashApp>()),
             MenuItem.Default("Import Issues from GitHub")
                 .Tag("$import-issues")
                 .Icon(Icons.Download)
