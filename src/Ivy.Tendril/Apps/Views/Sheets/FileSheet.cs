@@ -14,9 +14,9 @@ public class FileSheet(
     {
         return url =>
         {
-            if (url.StartsWith("file:///", StringComparison.OrdinalIgnoreCase))
+            var filePath = PathHelper.ExtractPathFromFileUri(url);
+            if (filePath != null)
             {
-                var filePath = url["file:///".Length..];
                 openFileState.Set(filePath);
             }
             else if (url.StartsWith("plan://", StringComparison.OrdinalIgnoreCase))
