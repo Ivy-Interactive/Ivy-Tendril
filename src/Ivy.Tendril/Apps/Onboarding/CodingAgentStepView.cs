@@ -292,6 +292,7 @@ public class CodingAgentStepView(
                        | (Layout.Horizontal()
                            | new Button("Back")
                                .Ghost()
+                               .Disabled(isFetchingModels.Value)
                                .OnClick(() =>
                                {
                                    selectedAgent.Set(null);
@@ -303,6 +304,7 @@ public class CodingAgentStepView(
                            | new Button("Continue")
                                .Primary()
                                .Loading(isFetchingModels.Value)
+                               .Disabled(isFetchingModels.Value)
                                .OnClick(async () =>
                                {
                                    apiKeyError.Set(null);

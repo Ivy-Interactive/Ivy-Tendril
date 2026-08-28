@@ -94,4 +94,57 @@ public class CodingAgentStepViewTests
         var completedContinue = new Button("Continue").Disabled(isTestingModels.Value);
         Assert.False(completedContinue.Disabled);
     }
+
+    [Fact]
+    public void BackButton_WhenFetchingModels_IsDisabled()
+    {
+        var isFetchingModels = new State<bool>(true);
+
+        var button = new Button("Back")
+            .Ghost()
+            .Disabled(isFetchingModels.Value);
+
+        Assert.True(button.Disabled);
+    }
+
+    [Fact]
+    public void BackButton_WhenNotFetchingModels_IsNotDisabled()
+    {
+        var isFetchingModels = new State<bool>(false);
+
+        var button = new Button("Back")
+            .Ghost()
+            .Disabled(isFetchingModels.Value);
+
+        Assert.False(button.Disabled);
+    }
+
+    [Fact]
+    public void ModelFetchLifecycle_TracksDisabledStateCorrectly()
+    {
+        var isFetchingModels = new State<bool>(false);
+
+        // Initial state: not fetching, buttons enabled
+        Assert.False(isFetchingModels.Value);
+        var initialBack = new Button("Back").Disabled(isFetchingModels.Value);
+        var initialContinue = new Button("Continue").Disabled(isFetchingModels.Value);
+        Assert.False(initialBack.Disabled);
+        Assert.False(initialContinue.Disabled);
+
+        // Start fetching: state becomes true, buttons disabled
+        isFetchingModels.Set(true);
+        Assert.True(isFetchingModels.Value);
+        var fetchingBack = new Button("Back").Disabled(isFetchingModels.Value);
+        var fetchingContinue = new Button("Continue").Disabled(isFetchingModels.Value);
+        Assert.True(fetchingBack.Disabled);
+        Assert.True(fetchingContinue.Disabled);
+
+        // Complete fetching (finally block sets false): buttons re-enabled
+        isFetchingModels.Set(false);
+        Assert.False(isFetchingModels.Value);
+        var completedBack = new Button("Back").Disabled(isFetchingModels.Value);
+        var completedContinue = new Button("Continue").Disabled(isFetchingModels.Value);
+        Assert.False(completedBack.Disabled);
+        Assert.False(completedContinue.Disabled);
+    }
 }
