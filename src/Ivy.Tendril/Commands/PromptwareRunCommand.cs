@@ -104,7 +104,25 @@ public class PromptwareRunCommand : Command<PromptwareRunSettings>
         var programMd = Path.Combine(programFolder, "Program.md");
 
         if (!File.Exists(programMd))
-            throw new FileNotFoundException($"Program.md not found at {programMd}", programMd);
+        {
+            if (PromptwareDeployer.IsEmbeddedAvailable())
+            {
+                var promptwaresDir = Path.Combine(configService.TendrilHome, "Promptwares");
+                try
+                {
+                    PromptwareDeployer.Deploy(promptwaresDir);
+                    programFolder = PromptwareHelper.ResolvePromptwareFolder(settings.Promptware, configService.TendrilHome, settings.PromptwarePath);
+                    programMd = Path.Combine(programFolder, "Program.md");
+                }
+                catch
+                {
+                    // Best-effort deployment fallback
+                }
+            }
+
+            if (!File.Exists(programMd))
+                throw new FileNotFoundException($"Program.md not found at {programMd}", programMd);
+        }
 
         var values = BuildFirmwareValues(settings, configService);
 

@@ -171,7 +171,7 @@ public static class LlmEndpointTester
         };
     }
 
-    private static string ExtractErrorMessage(string jsonOrText, int statusCode)
+    public static string ExtractErrorMessage(string jsonOrText, int statusCode)
     {
         if (string.IsNullOrWhiteSpace(jsonOrText))
             return $"HTTP {statusCode}";
@@ -184,32 +184,44 @@ public static class LlmEndpointTester
             if (root.TryGetProperty("error", out var errorProp))
             {
                 if (errorProp.ValueKind == JsonValueKind.String)
-                    return errorProp.GetString()!;
+                    return CleanNestedErrorMessage(errorProp.GetString()!);
                 if (errorProp.ValueKind == JsonValueKind.Object)
                 {
                     if (errorProp.TryGetProperty("message", out var msgProp) && msgProp.ValueKind == JsonValueKind.String)
-                        return msgProp.GetString()!;
-                    return errorProp.GetRawText();
+                        return CleanNestedErrorMessage(msgProp.GetString()!);
+                    return CleanNestedErrorMessage(errorProp.GetRawText());
                 }
             }
 
             if (root.TryGetProperty("detail", out var detailProp))
             {
                 if (detailProp.ValueKind == JsonValueKind.String)
-                    return detailProp.GetString()!;
-                return detailProp.GetRawText();
+                    return CleanNestedErrorMessage(detailProp.GetString()!);
+                return CleanNestedErrorMessage(detailProp.GetRawText());
             }
 
             if (root.TryGetProperty("message", out var messageProp) && messageProp.ValueKind == JsonValueKind.String)
             {
-                return messageProp.GetString()!;
+                return CleanNestedErrorMessage(messageProp.GetString()!);
             }
         }
         catch
         {
-            // Not valid JSON, return text directly
+            // Not valid JSON, try regex match or raw text
         }
 
-        return jsonOrText.Length > 200 ? jsonOrText[..200] + "..." : jsonOrText;
+        return CleanNestedErrorMessage(jsonOrText.Length > 200 ? jsonOrText[..200] + "..." : jsonOrText);
+    }
+
+    private static string CleanNestedErrorMessage(string msg)
+    {
+        if (string.IsNullOrWhiteSpace(msg)) return msg;
+        var trimmed = msg.Trim();
+        var match = System.Text.RegularExpressions.Regex.Match(trimmed, @"['""](?:error|message)['""]\s*:\s*['""](?:/chat/completions:\s*)?([^'""]+)['""]");
+        if (match.Success)
+        {
+            return match.Groups[1].Value.Replace("`", "");
+        }
+        return msg;
     }
 }

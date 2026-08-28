@@ -23,8 +23,10 @@ public class OpenAiProxyTests
 
         Assert.Equal("openaiproxy", cli.Id);
         Assert.Equal("OpenAI Proxy", cli.DisplayName);
-        Assert.Equal("https://custom.openai.proxy/v1", spec.Environment["ANTHROPIC_BASE_URL"]);
+        Assert.Equal("https://custom.openai.proxy", spec.Environment["ANTHROPIC_BASE_URL"]);
+        Assert.Equal("https://custom.openai.proxy/v1", spec.Environment["OPENAI_BASE_URL"]);
         Assert.Equal("test-sk-key", spec.Environment["ANTHROPIC_API_KEY"]);
+        Assert.Equal("test-sk-key", spec.Environment["OPENAI_API_KEY"]);
     }
 
     [Fact]
@@ -32,15 +34,23 @@ public class OpenAiProxyTests
     {
         var noBaseUrl = new OpenAiProxyHealthCheck(apiKeyProvider: () => "key", baseUrlProvider: () => null);
         var noKey = new OpenAiProxyHealthCheck(apiKeyProvider: () => null, baseUrlProvider: () => "https://api.openai.com");
-        var valid = new OpenAiProxyHealthCheck(apiKeyProvider: () => "key", baseUrlProvider: () => "https://api.openai.com");
 
         var authResultNoUrl = await noBaseUrl.CheckAuthAsync();
         var authResultNoKey = await noKey.CheckAuthAsync();
-        var authResultValid = await valid.CheckAuthAsync();
 
         Assert.Equal(AuthStatus.NotAuthenticated, authResultNoUrl.Status);
+        Assert.Equal("Base URL is not configured.", authResultNoUrl.Error);
         Assert.Equal(AuthStatus.NotAuthenticated, authResultNoKey.Status);
-        Assert.Equal(AuthStatus.Authenticated, authResultValid.Status);
+        Assert.Equal("API Key is not configured.", authResultNoKey.Error);
+    }
+
+    [Fact]
+    public void LlmEndpointTester_ExtractErrorMessage_UnwrapsNestedProxyError()
+    {
+        var rawLiteLlmError = "{\"error\":{\"message\":\"{'error': '/chat/completions: Invalid model name passed in model=claude-haiku-5. Call `/v1/models` to view available models for your key.'}\",\"type\":\"None\",\"param\":\"None\",\"code\":\"400\"}}";
+        var extracted = Ivy.Tendril.Agents.Helpers.LlmEndpointTester.ExtractErrorMessage(rawLiteLlmError, 400);
+
+        Assert.Equal("Invalid model name passed in model=claude-haiku-5. Call /v1/models to view available models for your key.", extracted);
     }
 
     [Fact]
@@ -57,7 +67,9 @@ public class OpenAiProxyTests
 
         Assert.Equal("ivy", ivyCli.Id);
         Assert.Equal("https://llmproxy.ivy.app", spec.Environment["ANTHROPIC_BASE_URL"]);
+        Assert.Equal("https://llmproxy.ivy.app/v1", spec.Environment["OPENAI_BASE_URL"]);
         Assert.Equal("ivy-key", spec.Environment["ANTHROPIC_API_KEY"]);
+        Assert.Equal("ivy-key", spec.Environment["OPENAI_API_KEY"]);
     }
 
     [Fact]

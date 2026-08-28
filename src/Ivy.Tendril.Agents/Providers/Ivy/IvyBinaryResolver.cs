@@ -24,21 +24,39 @@ public static class IvyBinaryResolver
             if (File.Exists(bundledBin)) bundled = bundledBin;
         }
 
-        // On macOS inside an app bundle, check Contents/Resources and Contents/Resources/bin
+        // On macOS inside an app bundle, check Contents/MacOS, Contents/Resources, and Contents/Resources/bin
         if (!File.Exists(bundled) && RuntimeInformation.IsOSPlatform(OSPlatform.OSX) && baseDir.Contains(".app/Contents/MacOS"))
         {
-            var macOsBundled = Path.GetFullPath(Path.Combine(baseDir, "..", "Resources", exeName));
-            if (File.Exists(macOsBundled))
+            var macOsDirect = Path.Combine(baseDir, exeName);
+            if (File.Exists(macOsDirect))
             {
-                bundled = macOsBundled;
+                bundled = macOsDirect;
             }
             else
             {
-                var macOsBundledBin = Path.GetFullPath(Path.Combine(baseDir, "..", "Resources", "bin", exeName));
-                if (File.Exists(macOsBundledBin))
+                var macOsBundled = Path.GetFullPath(Path.Combine(baseDir, "..", "Resources", exeName));
+                if (File.Exists(macOsBundled))
                 {
-                    bundled = macOsBundledBin;
+                    bundled = macOsBundled;
                 }
+                else
+                {
+                    var macOsBundledBin = Path.GetFullPath(Path.Combine(baseDir, "..", "Resources", "bin", exeName));
+                    if (File.Exists(macOsBundledBin))
+                    {
+                        bundled = macOsBundledBin;
+                    }
+                }
+            }
+        }
+
+        // Check local development workspace path if running from debug/build tree
+        if (!File.Exists(bundled))
+        {
+            var localDevPath = GetLocalDevBinaryPath(exeName);
+            if (localDevPath != null && File.Exists(localDevPath))
+            {
+                bundled = localDevPath;
             }
         }
 
@@ -48,47 +66,16 @@ public static class IvyBinaryResolver
             return _cachedPath = bundled;
         }
 
-        // 2. Check user profile directory ~/.ivy-agent/bin/ivy-agent or ~/.tendril/bin/ivy-agent
+        // 2. Check Tendril managed binary directory (~/.tendril/bin)
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string[] searchDirs = [
-            Path.Combine(home, ".ivy-agent", "bin"),
-            Path.Combine(home, ".tendril", "bin"),
-            Path.Combine(home, ".local", "bin"),
-        ];
-
-        foreach (var dir in searchDirs)
+        var tendrilManaged = Path.Combine(home, ".tendril", "bin", exeName);
+        if (File.Exists(tendrilManaged))
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                string[] extensions = [".exe", ".cmd", ".bat"];
-                foreach (var ext in extensions)
-                {
-                    var candidate = Path.Combine(dir, "ivy-agent" + ext);
-                    if (File.Exists(candidate))
-                    {
-                        return _cachedPath = candidate;
-                    }
-                }
-            }
-            else
-            {
-                var candidate = Path.Combine(dir, "ivy-agent");
-                if (File.Exists(candidate))
-                {
-                    EnsureExecutable(candidate);
-                    return _cachedPath = candidate;
-                }
-            }
+            EnsureExecutable(tendrilManaged);
+            return _cachedPath = tendrilManaged;
         }
 
-        // 3. Check PATH
-        var path = BinaryResolver.FindOnPath("ivy-agent");
-        if (path != null)
-        {
-            return _cachedPath = path;
-        }
-
-        // Fallback to default name if not found anywhere (do not cache invalid path)
+        // Fallback to default name if not found anywhere (do not check system PATH or external user directories)
         _cachedPath = null;
         return "ivy-agent";
     }
@@ -105,7 +92,7 @@ public static class IvyBinaryResolver
             string arch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x64";
 
             var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var installDir = Path.Combine(home, ".ivy-agent", "bin");
+            var installDir = Path.Combine(home, ".tendril", "bin");
             Directory.CreateDirectory(installDir);
 
             var tempDir = Path.Combine(Path.GetTempPath(), "ivy-agent-ensure-" + Guid.NewGuid().ToString("N")[..8]);
@@ -174,6 +161,29 @@ public static class IvyBinaryResolver
         }
 
         return File.Exists(resolved) ? resolved : null;
+    }
+
+    private static string? GetLocalDevBinaryPath(string exeName)
+    {
+        try
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            string os = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "windows" :
+                        RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "darwin" : "linux";
+            string arch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x64";
+
+            var candidate = Path.Combine(home, "git", "ivy", "ivy-agent-cli", "packages", "ivy-agent", "dist", $"ivy-agent-{os}-{arch}", "bin", exeName);
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+        catch
+        {
+            // Ignore dev path errors
+        }
+
+        return null;
     }
 
     private static void EnsureExecutable(string path)
