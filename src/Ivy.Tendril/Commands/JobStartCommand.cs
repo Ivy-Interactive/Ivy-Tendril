@@ -98,6 +98,10 @@ public class JobStartSettings : CommandSettings
     [CommandOption("--draft")]
     public bool Draft { get; set; }
 
+    [Description("Chat session ID (defaults to TENDRIL_CHAT_SESSION_ID env var)")]
+    [CommandOption("--chat-session-id")]
+    public string? ChatSessionId { get; set; }
+
     public override Spectre.Console.ValidationResult Validate()
     {
         var result = CliValidation.RequireNonEmpty(JobType, "job-type");
@@ -135,9 +139,14 @@ public class JobStartCommand : Command<JobStartSettings>
         }
     }
 
-    private static JobArgsBase BuildJobArgs(JobStartSettings settings)
+    internal static JobArgsBase BuildJobArgs(JobStartSettings settings)
     {
         var jobType = settings.JobType;
+        var chatSessionId = !string.IsNullOrEmpty(settings.ChatSessionId)
+            ? settings.ChatSessionId
+            : Environment.GetEnvironmentVariable("TENDRIL_CHAT_SESSION_ID");
+
+        JobArgsBase args;
 
         if (string.Equals(jobType, Constants.JobTypes.CreatePlan, StringComparison.OrdinalIgnoreCase))
         {
@@ -146,15 +155,14 @@ public class JobStartCommand : Command<JobStartSettings>
             if (string.IsNullOrEmpty(settings.Project))
                 throw new ArgumentException("--project is required for CreatePlan");
 
-            return new CreatePlanArgs(
+            args = new CreatePlanArgs(
                 settings.Description,
                 settings.Project,
                 settings.Priority ?? 0,
                 settings.Force,
                 settings.SourcePath);
         }
-
-        if (string.Equals(jobType, Constants.JobTypes.SyncRepo, StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(jobType, Constants.JobTypes.SyncRepo, StringComparison.OrdinalIgnoreCase))
         {
             if (string.IsNullOrEmpty(settings.RepoPath))
                 throw new ArgumentException("--repo-path is required for SyncRepo");
@@ -166,62 +174,68 @@ public class JobStartCommand : Command<JobStartSettings>
                 throw new ArgumentException(
                     $"Invalid --untracked-policy '{settings.UntrackedPolicy}'. Valid values: Stash, Commit, PullRequest");
 
-            return new SyncRepoArgs(
+            args = new SyncRepoArgs(
                 settings.RepoPath,
                 settings.BaseBranch ?? GitHelper.ResolveDefaultBranch(settings.RepoPath),
                 UntrackedChangesPolicy: policy);
         }
-
-        if (string.IsNullOrEmpty(settings.PlanId))
-            throw new ArgumentException($"<plan-id> is required for {jobType}");
-
-        var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
-
-        if (string.Equals(jobType, Constants.JobTypes.ExecutePlan, StringComparison.OrdinalIgnoreCase))
-            return new ExecutePlanArgs(planFolder, settings.Note);
-
-        if (string.Equals(jobType, Constants.JobTypes.UpdatePlan, StringComparison.OrdinalIgnoreCase))
+        else
         {
-            if (string.IsNullOrEmpty(settings.Instructions))
-                throw new ArgumentException("--instructions is required for UpdatePlan");
-            return new UpdatePlanArgs(planFolder, settings.Instructions);
+            if (string.IsNullOrEmpty(settings.PlanId))
+                throw new ArgumentException($"<plan-id> is required for {jobType}");
+
+            var planFolder = PlanCommandHelpers.ResolvePlanFolder(settings.PlanId);
+
+            if (string.Equals(jobType, Constants.JobTypes.ExecutePlan, StringComparison.OrdinalIgnoreCase))
+            {
+                args = new ExecutePlanArgs(planFolder, settings.Note);
+            }
+            else if (string.Equals(jobType, Constants.JobTypes.UpdatePlan, StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrEmpty(settings.Instructions))
+                    throw new ArgumentException("--instructions is required for UpdatePlan");
+                args = new UpdatePlanArgs(planFolder, settings.Instructions);
+            }
+            else if (string.Equals(jobType, Constants.JobTypes.SplitPlan, StringComparison.OrdinalIgnoreCase))
+            {
+                args = new SplitPlanArgs(planFolder);
+            }
+            else if (string.Equals(jobType, Constants.JobTypes.ExpandPlan, StringComparison.OrdinalIgnoreCase))
+            {
+                args = new ExpandPlanArgs(planFolder);
+            }
+            else if (string.Equals(jobType, Constants.JobTypes.CreateIssue, StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrEmpty(settings.Repo))
+                    throw new ArgumentException("--repo is required for CreateIssue");
+                args = new CreateIssueArgs(planFolder, settings.Repo, settings.Assignee, settings.Comment, settings.Labels);
+            }
+            else if (string.Equals(jobType, Constants.JobTypes.CreatePr, StringComparison.OrdinalIgnoreCase))
+            {
+                var reviewers = settings.Reviewers is { Length: > 0 }
+                    ? settings.Reviewers.SelectMany(r => r.Split(',')).ToArray()
+                    : settings.Assignee is null ? null : [settings.Assignee];
+                args = new CreatePrArgs(
+                    planFolder,
+                    Merge: !settings.NoMerge,
+                    DeleteBranch: !settings.NoDeleteBranch,
+                    IncludeArtifacts: !settings.NoArtifacts,
+                    Reviewers: reviewers,
+                    Comment: settings.Comment,
+                    Draft: settings.Draft);
+            }
+            else if (string.Equals(jobType, Constants.JobTypes.RetryPlan, StringComparison.OrdinalIgnoreCase))
+            {
+                if (string.IsNullOrEmpty(settings.ChangeRequest))
+                    throw new ArgumentException("--change-request is required for RetryPlan");
+                args = new RetryPlanArgs(planFolder, settings.ChangeRequest);
+            }
+            else
+            {
+                throw new ArgumentException($"Unknown job type: {jobType}. Valid types: {string.Join(", ", Constants.JobTypes.BuiltIn)}");
+            }
         }
 
-        if (string.Equals(jobType, Constants.JobTypes.SplitPlan, StringComparison.OrdinalIgnoreCase))
-            return new SplitPlanArgs(planFolder);
-
-        if (string.Equals(jobType, Constants.JobTypes.ExpandPlan, StringComparison.OrdinalIgnoreCase))
-            return new ExpandPlanArgs(planFolder);
-
-        if (string.Equals(jobType, Constants.JobTypes.CreateIssue, StringComparison.OrdinalIgnoreCase))
-        {
-            if (string.IsNullOrEmpty(settings.Repo))
-                throw new ArgumentException("--repo is required for CreateIssue");
-            return new CreateIssueArgs(planFolder, settings.Repo, settings.Assignee, settings.Comment, settings.Labels);
-        }
-
-        if (string.Equals(jobType, Constants.JobTypes.CreatePr, StringComparison.OrdinalIgnoreCase))
-        {
-            var reviewers = settings.Reviewers is { Length: > 0 }
-                ? settings.Reviewers.SelectMany(r => r.Split(',')).ToArray()
-                : settings.Assignee is null ? null : [settings.Assignee];
-            return new CreatePrArgs(
-                planFolder,
-                Merge: !settings.NoMerge,
-                DeleteBranch: !settings.NoDeleteBranch,
-                IncludeArtifacts: !settings.NoArtifacts,
-                Reviewers: reviewers,
-                Comment: settings.Comment,
-                Draft: settings.Draft);
-        }
-
-        if (string.Equals(jobType, Constants.JobTypes.RetryPlan, StringComparison.OrdinalIgnoreCase))
-        {
-            if (string.IsNullOrEmpty(settings.ChangeRequest))
-                throw new ArgumentException("--change-request is required for RetryPlan");
-            return new RetryPlanArgs(planFolder, settings.ChangeRequest);
-        }
-
-        throw new ArgumentException($"Unknown job type: {jobType}. Valid types: {string.Join(", ", Constants.JobTypes.BuiltIn)}");
+        return string.IsNullOrEmpty(chatSessionId) ? args : args with { ChatSessionId = chatSessionId };
     }
 }

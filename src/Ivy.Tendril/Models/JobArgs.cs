@@ -21,6 +21,7 @@ public abstract record JobArgsBase
     [JsonIgnore]
     public virtual string? PlanFolder => null;
     public List<string>? WaitForJobs { get; init; }
+    public string? ChatSessionId { get; init; }
 }
 
 public record CreatePlanArgs(

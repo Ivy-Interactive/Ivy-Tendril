@@ -46,6 +46,24 @@ public record ChatSendMessageDto(
     string? SessionId = null
 );
 
+public record ChatTrackedJobDto(
+    string Id,
+    string Type,
+    string? PlanId = null,
+    string? PlanTitle = null,
+    string Status = "Pending",
+    string? StatusMessage = null,
+    string? StartedAt = null,
+    string? Duration = null
+);
+
+public record ChatTrackedPlanDto(
+    string Id,
+    string Title,
+    string FolderName,
+    string Status = "Draft"
+);
+
 [ExternalWidget(
     "frontend/dist/ivy-tendril-widgets.js",
     StylePath = "frontend/dist/ivy-tendril-widgets.css",
@@ -60,6 +78,8 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Prop] public List<AgentOptionDto> Agents { get; init; } = new();
     [Prop] public List<ModelOptionDto> Models { get; init; } = new();
     [Prop] public List<EffortOptionDto> Efforts { get; init; } = new();
+    [Prop] public List<ChatTrackedJobDto> TrackedJobs { get; init; } = new();
+    [Prop] public List<ChatTrackedPlanDto> TrackedPlans { get; init; } = new();
     [Prop] public string SelectedAgent { get; init; } = "claude";
     [Prop] public string SelectedModel { get; init; } = "opus";
     [Prop] public string SelectedEffort { get; init; } = "default";
@@ -77,4 +97,6 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnAgentChanged { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnModelChanged { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnEffortChanged { get; init; }
+    [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnNavigatePlan { get; init; }
+    [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnNavigateJob { get; init; }
 }

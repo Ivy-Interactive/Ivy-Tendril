@@ -25,7 +25,7 @@ describe("ChatWidget Queued Messages UI", () => {
         isStreaming={true}
         events={["OnSendMessage"]}
         eventHandler={handleEvent}
-      />
+      />,
     );
 
     const textarea = screen.getByPlaceholderText(/Ask/i);
@@ -97,7 +97,7 @@ describe("ChatWidget Queued Messages UI", () => {
         isStreaming={true}
         events={["OnSendMessage"]}
         eventHandler={handleEvent}
-      />
+      />,
     );
 
     const textarea = screen.getByPlaceholderText(/Ask/i);
@@ -125,7 +125,7 @@ describe("ChatWidget Queued Messages UI", () => {
     expect(handleEvent).toHaveBeenCalledWith(
       "OnSendMessage",
       "test-chat",
-      expect.arrayContaining([expect.objectContaining({ prompt: "message to send now" })])
+      expect.arrayContaining([expect.objectContaining({ prompt: "message to send now" })]),
     );
     expect(screen.queryByText("Queued Messages")).not.toBeInTheDocument();
   });
@@ -149,7 +149,7 @@ describe("ChatWidget Queued Messages UI", () => {
         sessions={[session]}
         events={["OnDeleteSession"]}
         eventHandler={handleEvent}
-      />
+      />,
     );
 
     const deleteBtn = screen.getByRole("button", { name: /Delete chat session/i });
@@ -285,7 +285,7 @@ describe("ChatWidget Queued Messages UI", () => {
         supportsEffort={true}
         events={["OnEffortChanged"]}
         eventHandler={handleEvent}
-      />
+      />,
     );
 
     const effortTrigger = screen.getByTitle("Effort Level");
@@ -296,11 +296,7 @@ describe("ChatWidget Queued Messages UI", () => {
     const maxOption = screen.getByRole("button", { name: /Max/i });
     fireEvent.click(maxOption);
 
-    expect(handleEvent).toHaveBeenCalledWith(
-      "OnEffortChanged",
-      "test-chat",
-      ["max"]
-    );
+    expect(handleEvent).toHaveBeenCalledWith("OnEffortChanged", "test-chat", ["max"]);
   });
 });
 
@@ -360,7 +356,9 @@ describe("ChatWidget File Uploads and Attachments", () => {
     expect(inputBox).toHaveClass("dragging");
 
     // Drop file
-    const droppedFile = new File(["test data"], "report.docx", { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+    const droppedFile = new File(["test data"], "report.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
     fireEvent.drop(inputBox, {
       dataTransfer: { files: [droppedFile] },
     });
@@ -400,7 +398,7 @@ describe("ChatWidget File Uploads and Attachments", () => {
         activeSessionId="sess-1"
         events={["OnSendMessage"]}
         eventHandler={handleEvent}
-      />
+      />,
     );
 
     const textarea = screen.getByPlaceholderText(/Ask/i);
@@ -433,7 +431,7 @@ describe("ChatWidget File Uploads and Attachments", () => {
             }),
           ]),
         }),
-      ])
+      ]),
     );
   });
 
@@ -449,19 +447,14 @@ describe("ChatWidget File Uploads and Attachments", () => {
         {
           id: "m-1",
           role: "user" as const,
-          content: "Here is the log file\n\n[Attached Files]:\n- /path/to/server-error.log\n- /path/to/data-export.csv",
+          content:
+            "Here is the log file\n\n[Attached Files]:\n- /path/to/server-error.log\n- /path/to/data-export.csv",
           timestamp: "12:00",
         },
       ],
     };
 
-    render(
-      <ChatWidget
-        id="test-chat"
-        activeSessionId="sess-1"
-        sessions={[session]}
-      />
-    );
+    render(<ChatWidget id="test-chat" activeSessionId="sess-1" sessions={[session]} />);
 
     expect(screen.getByText("Here is the log file")).toBeInTheDocument();
     expect(screen.getByText("server-error.log")).toBeInTheDocument();
@@ -469,5 +462,111 @@ describe("ChatWidget File Uploads and Attachments", () => {
     expect(screen.getByText("data-export.csv")).toBeInTheDocument();
     expect(screen.getByText("CSV")).toBeInTheDocument();
     expect(screen.queryByText("[Attached Files]:")).not.toBeInTheDocument();
+  });
+});
+
+describe("ChatWidget Background Activity Tracking UI", () => {
+  beforeEach(() => {
+    window.ResizeObserver = class {
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = vi.fn();
+    } as any;
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+  });
+
+  it("does not render activity badge when there are no tracked jobs or plans", () => {
+    render(<ChatWidget id="test-chat" trackedJobs={[]} trackedPlans={[]} />);
+    expect(
+      screen.queryByRole("button", { name: /View background jobs and plans/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders activity badge with running status and counts when jobs are running", () => {
+    const trackedJobs = [
+      {
+        id: "00042",
+        type: "ExecutePlan",
+        planId: "00013",
+        planTitle: "Track Background Jobs",
+        status: "Running",
+        statusMessage: "Building project...",
+        duration: "15s",
+      },
+    ];
+    const trackedPlans = [
+      {
+        id: "00013",
+        title: "Track Background Jobs",
+        folderName: "00013-TrackBackgroundJobs",
+        status: "Executing",
+      },
+    ];
+
+    render(<ChatWidget id="test-chat" trackedJobs={trackedJobs} trackedPlans={trackedPlans} />);
+
+    const badge = screen.getByRole("button", { name: /View background jobs and plans/i });
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveClass("running");
+    expect(screen.getByText(/1 Running/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 Job · 1 Plan/i)).toBeInTheDocument();
+  });
+
+  it("opens popover on badge click and triggers navigation events for jobs and plans", () => {
+    const handleEvent = vi.fn();
+    const trackedJobs = [
+      {
+        id: "00042",
+        type: "ExecutePlan",
+        planId: "00013",
+        planTitle: "Track Background Jobs",
+        status: "Running",
+        statusMessage: "Running verifications",
+        duration: "25s",
+      },
+    ];
+    const trackedPlans = [
+      {
+        id: "00013",
+        title: "Track Background Jobs",
+        folderName: "00013-TrackBackgroundJobs",
+        status: "Executing",
+      },
+    ];
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        trackedJobs={trackedJobs}
+        trackedPlans={trackedPlans}
+        events={["OnNavigateJob", "OnNavigatePlan"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    // Click badge to open popover
+    const badge = screen.getByRole("button", { name: /View background jobs and plans/i });
+    fireEvent.click(badge);
+
+    expect(screen.getByText("Background Activity")).toBeInTheDocument();
+    expect(screen.getByText("Jobs (1)")).toBeInTheDocument();
+    expect(screen.getByText("#00042")).toBeInTheDocument();
+    expect(screen.getByText("Running verifications")).toBeInTheDocument();
+    expect(screen.getByText("Plans (1)")).toBeInTheDocument();
+    expect(screen.getByText("00013")).toBeInTheDocument();
+
+    // Click job item to trigger OnNavigateJob
+    const jobButton = screen.getByRole("button", { name: /View job #00042/i });
+    fireEvent.click(jobButton);
+
+    expect(handleEvent).toHaveBeenCalledWith("OnNavigateJob", "test-chat", ["00042"]);
+
+    // Click plan item to trigger OnNavigatePlan
+    const planButton = screen.getByRole("button", { name: /Open plan 00013/i });
+    fireEvent.click(planButton);
+
+    expect(handleEvent).toHaveBeenCalledWith("OnNavigatePlan", "test-chat", [
+      "00013-TrackBackgroundJobs",
+    ]);
   });
 });

@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reactive.Subjects;
 using System.Text.Json.Serialization;
@@ -92,6 +92,7 @@ public record JobItem
     /// of the run, not of the configuration as it stands now.
     /// </summary>
     public string? Effort { get; set; }
+    public string? ChatSessionId { get; set; }
 
     public int Priority { get; init; }
     public List<string>? WaitForJobIds { get; init; }
@@ -361,5 +362,6 @@ public record JobItemRow
     public string Cost { get; init; } = "";
     public string Tokens { get; init; } = "";
     public string StatusMessage { get; init; } = "";
+    public string? ChatSessionId { get; init; }
     public string? ErrorContext { get; init; }  // Multi-line error context for tooltip/expansion
 }

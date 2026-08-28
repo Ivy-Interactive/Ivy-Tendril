@@ -54,7 +54,7 @@ public static class AgentLaunchHelper
         WriteAgentInstructionsIfNeeded(workDir, systemPrompt, pty);
     }
 
-    public static Dictionary<string, string> GetEnvironment(IConfigService config, string? agentId = null)
+    public static Dictionary<string, string> GetEnvironment(IConfigService config, string? agentId = null, string? chatSessionId = null)
     {
         var env = new Dictionary<string, string>();
 
@@ -65,6 +65,11 @@ public static class AgentLaunchHelper
         {
             foreach (var (key, value) in d)
                 env[key] = value;
+        }
+
+        if (!string.IsNullOrEmpty(chatSessionId))
+        {
+            env["TENDRIL_CHAT_SESSION_ID"] = chatSessionId;
         }
 
         // Expose the `tendril` CLI (via shim) and the active config/plans to the agent running in
@@ -129,7 +134,8 @@ public static class AgentLaunchHelper
         string prompt,
         string? modelOverride = null,
         EffortLevel? effortOverride = null,
-        PermissionMode permissionMode = PermissionMode.FullAuto)
+        PermissionMode permissionMode = PermissionMode.FullAuto,
+        string? chatSessionId = null)
     {
         var workDir = GetWorkDir(config, runner, agentId);
         var systemPrompt = CompileSystemPrompt(config);
@@ -137,7 +143,7 @@ public static class AgentLaunchHelper
 
         var resolvedModel = ResolveModel(config, runner, agentId, modelOverride);
         var resolvedEffort = effortOverride ?? ResolveEffort(config, runner, agentId);
-        var env = GetEnvironment(config, agentId);
+        var env = GetEnvironment(config, agentId, chatSessionId);
 
         return new AgentResolutionContext
         {
