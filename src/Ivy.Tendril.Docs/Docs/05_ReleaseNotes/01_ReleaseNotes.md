@@ -14,6 +14,38 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.1.34 (2026-08-25)
+
+### Features
+
+- **Embedded PTY Terminal for Review Actions** - Review actions now execute in a responsive embedded terminal tab powered by Xterm (`ReviewActionApp`) instead of launching external terminal windows.
+- **Bundled Ivy Agent CLI** - Bundled the standalone `ivy-agent` executable directly with the Tendril application installer, removing manual installation requirements.
+- **Bring Your Own LLM (BYO LLM) & Model Catalogs** - Added provider catalogs and model selectors for BYO LLM configurations and Ivy Proxy across onboarding and settings, with support for Gemini 3.7 Flash, Claude models, and OpenAI reasoning models.
+- **Model Reasoning Effort Selection** - Introduced effort level pickers (low, medium, high) for supported reasoning models in coding agent profile settings.
+- **Custom MCP Servers and Agent Skills** - Added support for importing MCP servers and custom skills directly from Git repositories, remote URLs, and local file paths, complete with management UI and validation.
+- **Token and Cost Breakdown Sheet** - Introduced interactive token usage and cost breakdown sheets accessible directly from Job cost cells in the Jobs table.
+- **Multi-Repo Worktree Organization** - Structured plan worktrees under `Worktrees/<owner>/<repo>` paths to support multi-repo setups and complex project layouts.
+- **Keyboard Navigation & Tab Management** - Added `Cmd+W` / `Ctrl+W` shortcut support to close active tabs in standalone Tendril, and polished macOS Command (`⌘`) shortcut indicators across dialogs.
+
+### Improvements
+
+- **Draft & Review Performance Optimization** - Dramatically reduced plan switching latency and tab-switch overhead in both Review and Drafts apps.
+- **Jobs DataTable Scalability** - Optimized DataTable rendering and data sync to seamlessly handle over 100+ active and historical jobs without UI stutter.
+- **Chat Queue and Status Indicators** - Redesigned Chat queued messages panel with inline controls, and added real-time generating status badges in the sidebar.
+- **Draft Annotations Anchoring** - Anchored selection popovers and toolbar highlights to text character offsets in DraftMarkdown to prevent drift when scrolling.
+- **Worktree Base Branch Display** - Displayed upstream base branch fork points in the Review Git tab and added branch tracking in the Pull Requests overview.
+- **Desktop Notification Toast Suppression** - Suppressed redundant in-app toast alerts when native operating system desktop notifications are displayed.
+- **Settings UI Redesign** - Refactored project settings layout with project color swatches, collapsible custom skills/MCP cards, and standardized button sizing.
+
+### Bug Fixes
+
+- **Worktree Unpushed Commit Protection** - Stopped the worktree reaper from orphaning or deleting unpushed plan commits during background cleanup.
+- **Tool Call Header Stickiness** - Ensured agent tool call titles stick to the top of the viewport during long stream outputs.
+- **False Job Failure on Recovered Tool Errors** - Prevented Antigravity jobs from falsely failing when the agent successfully self-heals after an initial tool error.
+- **GitHub PR URL Case Insensitivity** - Supported case-insensitive repository URLs (`Https://`, `Git@`, etc.) during GitHub import and PR operations.
+- **Markdown Link Polisher Span Preservation** - Fixed plan link replacement in markdown polisher from corrupting nested plan spans.
+- **Onboarding Flow Stability** - Fixed onboarding hang when an agent installation fails or when required binaries are temporarily missing.
+
 ## 1.1.19 (2026-07-28)
 
 ### Features
