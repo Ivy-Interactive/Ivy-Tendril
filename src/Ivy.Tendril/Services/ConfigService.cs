@@ -218,6 +218,8 @@ public class TendrilSettings
     public Dictionary<string, PromptwareConfig> Promptwares { get; set; } = new();
     public List<AgentConfig> CodingAgents { get; set; } = new();
     public Tunnel.TunnelConfig? Tunnel { get; set; }
+    public Tunnel.TunnelConfig? ShareTunnel { get; set; }
+    public VaultSettings? Vault { get; set; }
     public bool Telemetry { get; set; } = true;
     public bool DesktopNotifications { get; set; } = true;
     public bool SidebarOpen { get; set; } = true;
@@ -232,6 +234,23 @@ public class TendrilSettings
         new LevelConfig { Name = "Chore", Color = "Slate" },
         new LevelConfig { Name = "Nitpick", Color = "Gray" }
     };
+}
+
+public record ProjectVaultTracking
+{
+    public string InstalledVersion { get; set; } = "";
+    public DateTimeOffset InstalledAt { get; set; } = DateTimeOffset.UtcNow;
+    public Dictionary<string, string> LocalRepoPaths { get; set; } = new();
+}
+
+public class VaultSettings
+{
+    public bool Enabled { get; set; } = false;
+    public string RepoUrl { get; set; } = "";
+    public string LocalPath { get; set; } = "";
+    public bool AlwaysUpToDate { get; set; } = false;
+    public DateTimeOffset? LastSyncedAt { get; set; }
+    public Dictionary<string, ProjectVaultTracking> TrackedProjects { get; set; } = new();
 }
 
 public record ConfigParseError(string Message, string FilePath, Exception? InnerException);

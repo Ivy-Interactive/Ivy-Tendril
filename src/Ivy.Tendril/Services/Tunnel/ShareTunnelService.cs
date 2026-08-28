@@ -5,25 +5,26 @@ using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Tunnel;
 
-public sealed class CloudflaredService : ICloudflaredService, IStartable, IDisposable
+public sealed class ShareTunnelService : IShareTunnelService, IStartable, IDisposable
 {
     private readonly IConfigService _config;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IHostApplicationLifetime _appLifetime;
     private readonly IServer _server;
-    private readonly ILogger<CloudflaredService> _logger;
+    private readonly ILogger<ShareTunnelService> _logger;
     private CancellationTokenSource? _cts;
     private Task? _supervisorTask;
     private TunnelSession? _currentSession;
     private bool _isInstalled;
     private TunnelStatus _status = TunnelStatus.Disabled;
+    private string? _errorMessage;
 
-    public CloudflaredService(
+    public ShareTunnelService(
         IConfigService config,
         IHttpClientFactory httpClientFactory,
         IHostApplicationLifetime appLifetime,
         IServer server,
-        ILogger<CloudflaredService> logger)
+        ILogger<ShareTunnelService> logger)
     {
         _config = config;
         _httpClientFactory = httpClientFactory;
@@ -32,12 +33,23 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         _logger = logger;
     }
 
-    private string? _errorMessage;
     public string? TunnelUrl => _currentSession?.TunnelUrl;
     public TunnelStatus Status => _status;
     public bool IsConnected => _status == TunnelStatus.Connected;
     public bool IsInstalled => _isInstalled;
     public string? ErrorMessage => _errorMessage;
+
+    public int SharePort
+    {
+        get
+        {
+            var mainPort = _config.Settings.Tunnel?.Port ?? 5010;
+            var configuredSharePort = _config.Settings.ShareTunnel?.Port ?? 0;
+            if (configuredSharePort > 0 && configuredSharePort != mainPort)
+                return configuredSharePort;
+            return mainPort + 1;
+        }
+    }
 
     public event Action<TunnelStatus>? StatusChanged;
 
@@ -50,10 +62,10 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
 
     public void Start()
     {
-        var tunnelConfig = _config.Settings.Tunnel;
-        if (tunnelConfig is not { Enabled: true })
+        var shareTunnelConfig = _config.Settings.ShareTunnel;
+        if (shareTunnelConfig is not { Enabled: true })
         {
-            _logger.LogDebug("Tunnel is disabled, skipping");
+            _logger.LogDebug("Share tunnel is disabled, skipping");
             return;
         }
 
@@ -81,8 +93,9 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
     {
         if (IsConnected) return;
 
-        _config.Settings.Tunnel ??= new TunnelConfig();
-        _config.Settings.Tunnel.Enabled = true;
+        _config.Settings.ShareTunnel ??= new TunnelConfig();
+        _config.Settings.ShareTunnel.Enabled = true;
+        _config.Settings.ShareTunnel.Port = SharePort;
         _config.SaveSettings();
 
         StartSupervisor();
@@ -96,9 +109,6 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         var supervisorTask = _supervisorTask;
         if (supervisorTask is not null)
         {
-            // Never block the calling (UI dispatcher) thread: the supervisor's
-            // own event callbacks marshal back to it, so a synchronous .Wait()
-            // here deadlocks until it times out.
             try { await supervisorTask.WaitAsync(TimeSpan.FromSeconds(5)); }
             catch (TimeoutException) { }
             catch (OperationCanceledException) { }
@@ -110,12 +120,25 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         _cts = null;
         _supervisorTask = null;
 
-        _config.Settings.Tunnel ??= new TunnelConfig();
-        _config.Settings.Tunnel.Enabled = false;
+        _config.Settings.ShareTunnel ??= new TunnelConfig();
+        _config.Settings.ShareTunnel.Enabled = false;
         _config.SaveSettings();
 
         _errorMessage = null;
         SetStatus(TunnelStatus.Disabled);
+    }
+
+    public string GetShareUrlForPlan(string planFolderName, bool isReview = true)
+    {
+        var appPath = isReview ? "/review" : "/drafts";
+        var planQuery = $"?planId={Uri.EscapeDataString(planFolderName)}&share=1";
+
+        if (!string.IsNullOrEmpty(TunnelUrl))
+        {
+            return $"{TunnelUrl.TrimEnd('/')}{appPath}{planQuery}";
+        }
+
+        return $"{appPath}{planQuery}";
     }
 
     private void StartSupervisor()
@@ -134,18 +157,14 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
 
     private async Task WaitForTunnelHealthyAsync(string tunnelUrl, CancellationToken ct)
     {
-        using var http = _httpClientFactory.CreateClient("TunnelHealthCheck");
+        using var http = _httpClientFactory.CreateClient("ShareTunnelHealthCheck");
         http.Timeout = TimeSpan.FromSeconds(10);
 
-        // Give cloudflare a moment to publish DNS for the freshly created hostname before
-        // the first probe. Probing too early returns NXDOMAIN, which the OS resolver caches
-        // negatively and then keeps returning for the negative-TTL window even after the
-        // record goes live — making the tunnel look broken far longer than it actually is.
         try { await Task.Delay(HealthCheckInitialDelay, ct); }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
 
         var deadline = DateTime.UtcNow + HealthCheckTimeout;
-        _logger.LogInformation("Waiting for tunnel to become routable: {Url}", tunnelUrl);
+        _logger.LogInformation("Waiting for share tunnel to become routable: {Url}", tunnelUrl);
 
         var attempt = 0;
         while (!ct.IsCancellationRequested)
@@ -156,12 +175,12 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
                 using var response = await http.GetAsync(tunnelUrl, HttpCompletionOption.ResponseHeadersRead, ct);
                 if (!IsTunnelNotReady(response.StatusCode))
                 {
-                    _logger.LogInformation("Tunnel is routable after {Attempts} attempt(s) (HTTP {Status})",
+                    _logger.LogInformation("Share tunnel is routable after {Attempts} attempt(s) (HTTP {Status})",
                         attempt, (int)response.StatusCode);
                     return;
                 }
 
-                _logger.LogDebug("Tunnel not ready yet (HTTP {Status}), attempt {Attempt}",
+                _logger.LogDebug("Share tunnel not ready yet (HTTP {Status}), attempt {Attempt}",
                     (int)response.StatusCode, attempt);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -170,16 +189,14 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
             }
             catch (Exception ex)
             {
-                // Expected early on: DNS for the new hostname has not propagated yet, or the
-                // edge connections are still being established. Keep polling.
-                _logger.LogDebug("Tunnel health check attempt {Attempt} failed: {Error}", attempt, ex.Message);
+                _logger.LogDebug("Share tunnel health check attempt {Attempt} failed: {Error}", attempt, ex.Message);
 
                 // If local DNS fails (e.g. negative cache / NXDOMAIN), verify via Cloudflare 1.1.1.1 DNS
                 if (attempt >= 2 && _currentSession?.IsRegistered == true)
                 {
                     if (await CheckDohRoutableAsync(tunnelUrl, ct))
                     {
-                        _logger.LogInformation("Tunnel verified via Cloudflare DNS after {Attempts} attempt(s)", attempt);
+                        _logger.LogInformation("Share tunnel verified via Cloudflare DNS after {Attempts} attempt(s)", attempt);
                         return;
                     }
                 }
@@ -189,15 +206,12 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
             {
                 if (_currentSession?.IsRegistered == true)
                 {
-                    _logger.LogWarning("Tunnel local probe timed out but cloudflared reported registered connection. Marking connected.");
+                    _logger.LogWarning("Share tunnel local probe timed out but cloudflared reported registered connection. Marking connected.");
                     return;
                 }
 
-                // Never report a tunnel as connected when it isn't actually routable. Throwing
-                // lets the supervisor tear this session down and try a fresh one (new hostname,
-                // no poisoned negative-DNS cache) instead of leaving a dead "Connected" tunnel.
                 throw new TimeoutException(
-                    $"Tunnel did not become routable within {HealthCheckTimeout.TotalSeconds:0}s ({tunnelUrl})");
+                    $"Share tunnel did not become routable within {HealthCheckTimeout.TotalSeconds:0}s ({tunnelUrl})");
             }
 
             await Task.Delay(HealthCheckInterval, ct);
@@ -225,9 +239,6 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
         }
     }
 
-    // Status codes cloudflare returns while a tunnel exists but is not yet routable end to end:
-    // 502 Bad Gateway, 504 Gateway Timeout, and 530 (Argo/Cloudflare Tunnel error, e.g. 1033).
-    // Any other completed response means the request reached our origin through the tunnel.
     private static bool IsTunnelNotReady(System.Net.HttpStatusCode status) =>
         status is System.Net.HttpStatusCode.BadGateway
             or System.Net.HttpStatusCode.GatewayTimeout
@@ -235,13 +246,13 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
 
     private async Task SupervisorLoopAsync(CancellationToken ct)
     {
-        var tunnelConfig = _config.Settings.Tunnel!;
-        var maxRestarts = tunnelConfig.MaxRestarts;
+        var shareTunnelConfig = _config.Settings.ShareTunnel ?? new TunnelConfig();
+        var maxRestarts = shareTunnelConfig.MaxRestarts > 0 ? shareTunnelConfig.MaxRestarts : 10;
 
         string binaryPath;
-        if (!string.IsNullOrEmpty(tunnelConfig.BinaryPath))
+        if (!string.IsNullOrEmpty(shareTunnelConfig.BinaryPath))
         {
-            binaryPath = tunnelConfig.BinaryPath;
+            binaryPath = shareTunnelConfig.BinaryPath;
         }
         else
         {
@@ -252,7 +263,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
 
         if (!_appLifetime.ApplicationStarted.IsCancellationRequested)
         {
-            _logger.LogInformation("Waiting for server before launching tunnel");
+            _logger.LogInformation("Waiting for server before launching share tunnel");
             await Task.Delay(Timeout.Infinite, _appLifetime.ApplicationStarted)
                 .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             if (ct.IsCancellationRequested) return;
@@ -260,9 +271,9 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
 
         var addresses = _server.Features.Get<IServerAddressesFeature>()?.Addresses;
         var originUrl = addresses?.FirstOrDefault()
-            ?? $"http://localhost:{tunnelConfig.Port}";
+            ?? $"http://localhost:{_config.Settings.Tunnel?.Port ?? 5010}";
         originUrl = originUrl.Replace("://localhost:", "://127.0.0.1:");
-        _logger.LogInformation("Tunnel origin URL: {OriginUrl}", originUrl);
+        _logger.LogInformation("Share tunnel origin URL: {OriginUrl}", originUrl);
 
         var consecutiveFailures = 0;
 
@@ -281,7 +292,7 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
 
                 await session.WaitForExitAsync(ct);
                 if (ct.IsCancellationRequested) break;
-                _logger.LogWarning("Tunnel process exited unexpectedly");
+                _logger.LogWarning("Share tunnel process exited unexpectedly");
                 SetStatus(TunnelStatus.Connecting);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -291,21 +302,18 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
             catch (Exception ex)
             {
                 consecutiveFailures++;
-                _errorMessage = $"Tunnel startup failed: {ex.Message}";
+                _errorMessage = $"Share tunnel startup failed: {ex.Message}";
                 if (ex is TimeoutException || ex.Message.Contains("api.trycloudflare.com") || ex.Message.Contains("deadline exceeded") || ex.Message.Contains("Timeout") || ex.Message.Contains("within"))
                 {
-                    _errorMessage += ". This usually indicates that your ISP or network is blocking 'trycloudflare.com'. Try changing your DNS resolver (e.g. to 1.1.1.1 or 8.8.8.8) or using a VPN.";
+                    _errorMessage += ". Network blocked 'trycloudflare.com'. Check DNS or VPN.";
                 }
                 SetStatus(TunnelStatus.Connecting);
                 StatusChanged?.Invoke(TunnelStatus.Connecting);
-                _logger.LogWarning(ex, "Tunnel session failed (attempt {Count}/{Max})",
+                _logger.LogWarning(ex, "Share tunnel session failed (attempt {Count}/{Max})",
                     consecutiveFailures, maxRestarts);
             }
             finally
             {
-                // Tear down only our own session. Guard the shared field so a
-                // superseded supervisor can never dispose or null a newer
-                // generation's session (which would kill a freshly started tunnel).
                 session?.Dispose();
                 if (ReferenceEquals(_currentSession, session))
                     _currentSession = null;
@@ -314,13 +322,13 @@ public sealed class CloudflaredService : ICloudflaredService, IStartable, IDispo
             if (ct.IsCancellationRequested) break;
 
             var delay = TimeSpan.FromSeconds(Math.Min(5 * Math.Pow(2, consecutiveFailures - 1), 60));
-            _logger.LogInformation("Restarting tunnel in {Delay}s", delay.TotalSeconds);
+            _logger.LogInformation("Restarting share tunnel in {Delay}s", delay.TotalSeconds);
             await Task.Delay(delay, ct);
         }
 
         if (consecutiveFailures >= maxRestarts)
         {
-            _logger.LogError("Tunnel exceeded max restarts ({Max}), giving up", maxRestarts);
+            _logger.LogError("Share tunnel exceeded max restarts ({Max}), giving up", maxRestarts);
             SetStatus(TunnelStatus.Disabled);
         }
     }

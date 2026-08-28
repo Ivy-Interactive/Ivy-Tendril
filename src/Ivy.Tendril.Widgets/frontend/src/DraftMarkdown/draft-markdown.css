@@ -429,6 +429,23 @@
   background: hsl(48 80% 20% / 0.5);
 }
 
+.pmv-annotation-initials-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.25rem;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.1;
+  border-radius: 0.25rem;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  vertical-align: middle;
+  user-select: none;
+  cursor: pointer;
+}
+
 /* ─── Annotation popovers ─────────────────────────────────────────────── */
 .pmv-popover {
   position: fixed;
@@ -440,6 +457,36 @@
   color: var(--popover-foreground);
   padding: 0.75rem;
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+}
+
+.pmv-popover-author {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-bottom: 0.5rem;
+}
+
+.pmv-popover-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 9999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 0.625rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.pmv-popover-author-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pmv-popover-quote {
@@ -521,6 +568,62 @@
 
 .pmv-popover-btn--danger:hover {
   background: hsl(0 84% 60% / 0.1);
+}
+
+.pmv-popover-btn--success {
+  background: hsl(142 71% 45% / 0.15);
+  color: hsl(142 76% 36%);
+  border: 1px solid hsl(142 71% 45% / 0.3);
+}
+
+:root.dark .pmv-popover-btn--success {
+  color: hsl(142 76% 56%);
+}
+
+.pmv-popover-btn--success:hover {
+  background: hsl(142 71% 45% / 0.25);
+}
+
+.pmv-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.pmv-popover-header .pmv-popover-author {
+  margin-bottom: 0;
+}
+
+.pmv-resolved-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  border-radius: 0.25rem;
+  background: hsl(142 71% 45% / 0.15);
+  color: hsl(142 76% 36%);
+  border: 1px solid hsl(142 71% 45% / 0.25);
+}
+
+:root.dark .pmv-resolved-badge {
+  color: hsl(142 76% 56%);
+}
+
+.pmv-annotation-highlight.pmv-annotation-resolved {
+  background: hsl(142 60% 70% / 0.35);
+  opacity: 0.7;
+}
+
+:root.dark .pmv-annotation-highlight.pmv-annotation-resolved {
+  background: hsl(142 60% 25% / 0.35);
+}
+
+.pmv-annotation-initials-badge.pmv-badge-resolved {
+  background: hsl(142 70% 45%);
 }
 
 /* ─── Selection toolbar ───────────────────────────────────────────────── */

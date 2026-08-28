@@ -11,12 +11,23 @@ public class ReviewApp : ViewBase
 {
     public override object Build()
     {
+        var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
         var planService = UseService<IPlanReaderService>();
         var jobService = UseService<IJobService>();
         var configService = UseService<IConfigService>();
         var gitService = UseService<IGitService>();
         var args = UseArgs<ReviewAppArgs>();
-        var selectedPlanState = UseState<PlanFile?>(null);
+        var selectedPlanState = UseState<PlanFile?>(() =>
+        {
+            if (!string.IsNullOrEmpty(args?.PlanId))
+            {
+                return planService.GetPlans().FirstOrDefault(x =>
+                    x.FolderName.Equals(args.PlanId, StringComparison.OrdinalIgnoreCase) ||
+                    x.Id.ToString() == args.PlanId ||
+                    x.FolderName.StartsWith(args.PlanId + "-", StringComparison.OrdinalIgnoreCase));
+            }
+            return null;
+        });
         var projectFilter = UseState<string?>(null);
         var levelFilter = UseState<string?>(null);
         var textFilter = UseState<string?>("");
@@ -29,7 +40,10 @@ public class ReviewApp : ViewBase
         {
             if (!string.IsNullOrEmpty(args?.PlanId))
             {
-                var p = planService.GetPlans().FirstOrDefault(x => x.FolderName == args.PlanId);
+                var p = planService.GetPlans().FirstOrDefault(x =>
+                    x.FolderName.Equals(args.PlanId, StringComparison.OrdinalIgnoreCase) ||
+                    x.Id.ToString() == args.PlanId ||
+                    x.FolderName.StartsWith(args.PlanId + "-", StringComparison.OrdinalIgnoreCase));
                 if (p != null && p.FolderName != selectedPlanState.Value?.FolderName)
                 {
                     selectedPlanState.Set(p);
@@ -80,7 +94,8 @@ public class ReviewApp : ViewBase
 
         var content = new ContentView(selectedPlanState, filteredPlans, planService, jobService,
             RefreshPlans, configService, gitService);
-        if (plans.Count == 0)
+        var isShareDirectPlan = shareContext.IsShareMode && !string.IsNullOrEmpty(args?.PlanId);
+        if (plans.Count == 0 || isShareDirectPlan)
             return content;
 
         return new SidebarLayout(
