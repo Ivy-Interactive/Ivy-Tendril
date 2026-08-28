@@ -69,9 +69,9 @@ public record ProjectConfig
 
     public string SecurityPreset { get; set; } = "Custom";
     public string OutsideFileAccessPolicy { get; set; } = "Allow";
-    public string TerminalAutoExecution { get; set; } = "Always Proceed";
-    public string SandboxMode { get; set; } = "Inherit General";
-    public string AutoImplementPlans { get; set; } = "Inherit General";
+    public string TerminalAutoExecution { get; set; } = "AlwaysProceed";
+    public string SandboxMode { get; set; } = "InheritGeneral";
+    public string AutoImplementPlans { get; set; } = "InheritGeneral";
 
     public List<FileAccessRuleConfig> FilePermissions { get; set; } = new();
     public List<NetworkAccessRuleConfig> NetworkAccessRules { get; set; } = new();
@@ -371,6 +371,7 @@ public class ConfigService : IConfigService, IDisposable
 
             MigrateProjectColors();
             MigrateLevelColors();
+            MigrateProjectEnumEncodings();
             CreateConfigBackup();
 
             return (true, settings);
@@ -401,6 +402,9 @@ public class ConfigService : IConfigService, IDisposable
     private void FinalizeConfiguration()
     {
         ValidateSettings();
+        MigrateProjectColors();
+        MigrateLevelColors();
+        MigrateProjectEnumEncodings();
         VariableExpansion.InitializeUserSecrets(_logger);
         ExpandSettingsVariables();
         ExpandRepoPaths();
@@ -666,6 +670,7 @@ public class ConfigService : IConfigService, IDisposable
             ValidateSettings();
             MigrateProjectColors();
             MigrateLevelColors();
+            MigrateProjectEnumEncodings();
             _levelNamesCache = null;
             VariableExpansion.InitializeUserSecrets(_logger);
             ExpandSettingsVariables();
@@ -840,6 +845,7 @@ public class ConfigService : IConfigService, IDisposable
                     Settings = restored;
                     MigrateProjectColors();
                     MigrateLevelColors();
+                    MigrateProjectEnumEncodings();
                     VariableExpansion.InitializeUserSecrets(_logger);
                     ExpandSettingsVariables();
                     ExpandRepoPaths();
@@ -883,6 +889,7 @@ public class ConfigService : IConfigService, IDisposable
             Settings = YamlHelper.Deserializer.Deserialize<TendrilSettings>(yaml) ?? new TendrilSettings();
             MigrateProjectColors();
             MigrateLevelColors();
+            MigrateProjectEnumEncodings();
             CreateConfigBackup();
             ParseError = null;
             NeedsOnboarding = false;
@@ -1043,6 +1050,92 @@ public class ConfigService : IConfigService, IDisposable
         }
     }
 
+    internal static string MigrateTerminalAutoExecution(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "AlwaysProceed";
+        return value.Trim() switch
+        {
+            "Always Proceed" => "AlwaysProceed",
+            "Inherit General" => "InheritGeneral",
+            "Always Ask" => "AlwaysAsk",
+            var s when s.Replace(" ", "") is var cleaned && (cleaned == "AlwaysProceed" || cleaned == "InheritGeneral" || cleaned == "AlwaysAsk") => cleaned,
+            _ => value.Replace(" ", "")
+        };
+    }
+
+    internal static string MigrateSandboxMode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "InheritGeneral";
+        return value.Trim() switch
+        {
+            "Inherit General" => "InheritGeneral",
+            var s when s.Replace(" ", "") is var cleaned && (cleaned == "InheritGeneral" || cleaned == "Disabled" || cleaned == "Enabled") => cleaned,
+            _ => value.Replace(" ", "")
+        };
+    }
+
+    internal static string MigrateAutoImplementPlans(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "InheritGeneral";
+        return value.Trim() switch
+        {
+            "Auto-Implement Plans" or "Auto Implement Plans" or "Auto-implement plans" => "AutoImplementPlans",
+            "Always Ask Review" or "Always Ask" => "AlwaysAskReview",
+            "Inherit General" => "InheritGeneral",
+            var s when s.Replace("-", "").Replace(" ", "") is var cleaned && (cleaned == "AutoImplementPlans" || cleaned == "AlwaysAskReview" || cleaned == "InheritGeneral") => cleaned,
+            _ => value.Replace("-", "").Replace(" ", "")
+        };
+    }
+
+    internal static bool NormalizeProjectEnumEncodings(ProjectConfig project)
+    {
+        if (project == null) return false;
+        var changed = false;
+
+        var term = MigrateTerminalAutoExecution(project.TerminalAutoExecution);
+        if (term != project.TerminalAutoExecution)
+        {
+            project.TerminalAutoExecution = term;
+            changed = true;
+        }
+
+        var sandbox = MigrateSandboxMode(project.SandboxMode);
+        if (sandbox != project.SandboxMode)
+        {
+            project.SandboxMode = sandbox;
+            changed = true;
+        }
+
+        var autoImpl = MigrateAutoImplementPlans(project.AutoImplementPlans);
+        if (autoImpl != project.AutoImplementPlans)
+        {
+            project.AutoImplementPlans = autoImpl;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private void MigrateProjectEnumEncodings()
+    {
+        if (Settings?.Projects == null) return;
+
+        var needsSave = false;
+        foreach (var project in Settings.Projects)
+        {
+            if (NormalizeProjectEnumEncodings(project))
+            {
+                needsSave = true;
+            }
+        }
+
+        if (needsSave && File.Exists(ConfigPath))
+        {
+            var yaml = YamlHelper.SerializerCompact.Serialize(Settings);
+            FileHelper.WriteAllText(ConfigPath, yaml);
+        }
+    }
+
     internal void SetTendrilHome(string tendrilHome)
     {
         TendrilHome = tendrilHome;
@@ -1073,6 +1166,7 @@ public class ConfigService : IConfigService, IDisposable
         ValidateSettings();
         MigrateProjectColors();
         MigrateLevelColors();
+        MigrateProjectEnumEncodings();
         _levelNamesCache = null;
         VariableExpansion.InitializeUserSecrets(_logger);
         ExpandSettingsVariables();

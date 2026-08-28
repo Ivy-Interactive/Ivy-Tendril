@@ -40,12 +40,12 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
         },
         new()
         {
-            Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5",
+            Id = "claude-opus-4-7", DisplayName = "Claude Opus 4.7",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
         },
         new()
         {
-            Id = "claude-opus-4-7", DisplayName = "Claude Opus 4.7",
+            Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
         },
         new()
@@ -76,7 +76,7 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
         return await ParseModelsListAsync(stdout, ct);
     }
 
-    private static Task<IReadOnlyList<ModelInfo>?> ParseModelsListAsync(string output, CancellationToken ct)
+    internal static Task<IReadOnlyList<ModelInfo>?> ParseModelsListAsync(string output, CancellationToken ct = default)
     {
         var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (lines.Length == 0) return Task.FromResult<IReadOnlyList<ModelInfo>?>(null);
@@ -110,7 +110,8 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
             first = false;
         }
 
-        return Task.FromResult<IReadOnlyList<ModelInfo>?>(results.Count > 0 ? results : null);
+        var sorted = ModelCatalogSorter.Sort(results);
+        return Task.FromResult<IReadOnlyList<ModelInfo>?>(sorted.Count > 0 ? sorted : null);
     }
 
     private static string ExtractProvider(string modelId)

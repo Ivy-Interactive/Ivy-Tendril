@@ -172,4 +172,41 @@ public class PathHelperTests
         PathHelper.EnsureWindowsCliSetup();
         PathHelper.EnsureCliSymlink();
     }
+
+    [Theory]
+    [InlineData("file:///Users/username/file.cs", "/Users/username/file.cs")]
+    [InlineData("file:///Users/username/My%20Folder/file.cs", "/Users/username/My Folder/file.cs")]
+    [InlineData("file:///Users/username/file.cs#L10", "/Users/username/file.cs")]
+    [InlineData("file:///Users/username/file.cs#10", "/Users/username/file.cs")]
+    [InlineData("file:///Users/username/file.cs#L10-20", "/Users/username/file.cs")]
+    [InlineData("file:///Users/username/file.cs:42", "/Users/username/file.cs")]
+    [InlineData("file:///Users/username/file.cs:10-20", "/Users/username/file.cs")]
+    [InlineData("file:///C:/project/file.cs", "C:/project/file.cs")]
+    [InlineData("file:////C:/project/file.cs", "C:/project/file.cs")]
+    [InlineData("file:///C:/My%20Project/file.cs", "C:/My Project/file.cs")]
+    [InlineData("file:///C:/project/file.cs#L42", "C:/project/file.cs")]
+    [InlineData("file:///C:/project/file.cs:42", "C:/project/file.cs")]
+    [InlineData("file://Users/username/file.cs", "/Users/username/file.cs")]
+    [InlineData("file://localhost/Users/username/file.cs", "/Users/username/file.cs")]
+    [InlineData("FILE:///Users/username/file.cs", "/Users/username/file.cs")]
+    [InlineData("FILE:///D:/test/readme.md", "D:/test/readme.md")]
+    public void ExtractPathFromFileUri_ValidFileUris_ExtractsExpectedPath(string uri, string expected)
+    {
+        var result = PathHelper.ExtractPathFromFileUri(uri);
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("http://example.com/page")]
+    [InlineData("https://example.com/page")]
+    [InlineData("plan://01234")]
+    [InlineData("ftp://example.com/file.txt")]
+    public void ExtractPathFromFileUri_InvalidOrNonFileUri_ReturnsNull(string? uri)
+    {
+        var result = PathHelper.ExtractPathFromFileUri(uri);
+        Assert.Null(result);
+    }
 }

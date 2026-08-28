@@ -28,6 +28,7 @@ public class AntigravityCliTests
                        AgentCapabilities.EffortControl |
                        AgentCapabilities.DirectoryRestriction |
                        AgentCapabilities.HealthCheck |
+                       AgentCapabilities.CostInOutput |
                        AgentCapabilities.ExtraArgPassthrough;
 
         Assert.Equal(expected, _cli.Capabilities);
