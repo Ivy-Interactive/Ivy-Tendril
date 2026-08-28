@@ -243,7 +243,7 @@ These commands are for internal use by other promptwares (e.g., a verification s
 | `tendril config get <key>` | Print a top-level config value |
 | `tendril config set <key> <value>` | Set a top-level config value (use `--file`/`--stdin` for multiline values) |
 
-Valid keys: `codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate`. Example: `tendril config get planTemplate` prints the configured Plan Template.
+Valid keys: `codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate`, `theme`. Example: `tendril config get planTemplate` prints the configured Plan Template.
 
 ## Adding & Configuring Projects
 

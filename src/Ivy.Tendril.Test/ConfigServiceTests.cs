@@ -1982,6 +1982,55 @@ sidebarOpen: false
         }
     }
 
+    [Fact]
+    public void Theme_Setting_DefaultsAndPersists()
+    {
+        var yaml = @"
+theme: cupcake
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        PathHelper.DefaultTendrilHomeOverride = tempDir;
+        try
+        {
+            using var service = new ConfigService();
+            Assert.Equal("cupcake", service.Settings.Theme);
+
+            service.Settings.Theme = "dracula";
+            service.SaveSettings();
+
+            var yamlOnDisk = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
+            Assert.Contains("theme: dracula", yamlOnDisk);
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("invalid_theme_name")]
+    public void Theme_Setting_InvalidOrEmpty_FallsBackToDefault(string theme)
+    {
+        var yaml = $@"
+theme: {theme}
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        PathHelper.DefaultTendrilHomeOverride = tempDir;
+        try
+        {
+            using var service = new ConfigService();
+            Assert.Equal("default", service.Settings.Theme);
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+            Directory.Delete(tempDir, true);
+        }
+    }
+
     [Theory]
     [InlineData("Always Proceed", "AlwaysProceed")]
     [InlineData("Inherit General", "InheritGeneral")]

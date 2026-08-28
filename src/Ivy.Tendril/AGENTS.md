@@ -69,7 +69,7 @@ The server runs over stdio and exposes these tools:
 - **`tendril_list_plans`** — Query plans by state, project, or date range (returns up to 50 results)
 - **`tendril_inbox`** — Create a new plan by writing to the Tendril inbox (picked up by InboxWatcherService)
 - **`tendril_transition_plan`** — Change a plan's state (e.g., Draft → Executing)
-- **`tendril_get_config`** — Get a top-level config value (`codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate`)
+- **`tendril_get_config`** — Get a top-level config value (`codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate`, `theme`)
 - **`tendril_set_config`** — Set a top-level config value (integer fields are bounds-checked)
 
 ### Authentication

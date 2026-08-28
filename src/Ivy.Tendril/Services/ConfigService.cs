@@ -1,4 +1,5 @@
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Themes;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
@@ -223,6 +224,7 @@ public class TendrilSettings
     public bool Telemetry { get; set; } = true;
     public bool DesktopNotifications { get; set; } = true;
     public bool SidebarOpen { get; set; } = true;
+    public string Theme { get; set; } = "default";
     public bool Beta { get; set; } = false;
     public string? DismissedUpdateVersion { get; set; }
 
@@ -536,6 +538,16 @@ public class ConfigService : IConfigService, IDisposable
             _logger.LogWarning("MaxConcurrentJobs {Value} is out of bounds (1-512). Using default 20.",
                 Settings.MaxConcurrentJobs);
             Settings.MaxConcurrentJobs = 20;
+        }
+
+        // Theme: fallback to default if null, empty, or unrecognised
+        if (string.IsNullOrWhiteSpace(Settings.Theme))
+        {
+            Settings.Theme = "default";
+        }
+        else
+        {
+            Settings.Theme = TendrilThemes.GetTheme(Settings.Theme).Id;
         }
     }
 
