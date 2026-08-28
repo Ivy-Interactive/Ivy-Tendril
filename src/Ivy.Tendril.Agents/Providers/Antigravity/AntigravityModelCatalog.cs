@@ -32,6 +32,8 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
             SupportedEfforts = EffortLevels.Antigravity,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
+            InputPerMillion = 0.15m, OutputPerMillion = 0.60m,
+            CacheWritePerMillion = 0m, CacheReadPerMillion = 0.0375m,
         },
         new()
         {
@@ -40,6 +42,8 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
             SupportedEfforts = EffortLevels.Antigravity,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
+            InputPerMillion = 0.15m, OutputPerMillion = 0.60m,
+            CacheWritePerMillion = 0m, CacheReadPerMillion = 0.0375m,
         },
         new()
         {
@@ -48,6 +52,8 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
             SupportedEfforts = EffortLevels.Antigravity,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
+            InputPerMillion = 0.15m, OutputPerMillion = 0.60m,
+            CacheWritePerMillion = 0m, CacheReadPerMillion = 0.0375m,
         },
         new()
         {
@@ -56,6 +62,8 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
             SupportedEfforts = EffortLevels.Antigravity,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
+            InputPerMillion = 1.25m, OutputPerMillion = 10.00m,
+            CacheWritePerMillion = 0m, CacheReadPerMillion = 0.315m,
         },
         new()
         {
@@ -64,6 +72,8 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
             SupportedEfforts = EffortLevels.Claude,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "anthropic",
+            InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
+            CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
         },
         new()
         {
@@ -72,6 +82,8 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
             SupportedEfforts = EffortLevels.Claude,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "anthropic",
+            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
+            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
         },
         new()
         {
@@ -80,6 +92,8 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
             SupportedEfforts = EffortLevels.Claude,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "anthropic",
+            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
+            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
         },
         new()
         {
@@ -88,6 +102,8 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
             SupportedEfforts = EffortLevels.Claude,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "anthropic",
+            InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
+            CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
         },
         new()
         {
@@ -96,6 +112,8 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
             SupportedEfforts = EffortLevels.Antigravity,
             ContextWindow = 128_000, MaxOutputTokens = 32_768,
             Provider = "openai",
+            InputPerMillion = 0.15m, OutputPerMillion = 0.60m,
+            CacheWritePerMillion = 0m, CacheReadPerMillion = 0m,
         },
     ];
 
