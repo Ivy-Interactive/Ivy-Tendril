@@ -347,6 +347,7 @@ export function ChatWidget({
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null);
   const [editingQueuedText, setEditingQueuedText] = useState("");
   const [pendingRenames, setPendingRenames] = useState<Record<string, string>>({});
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -355,6 +356,47 @@ export function ChatWidget({
   const initialPromptRef = useRef<string>("");
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
+
+  useEffect(() => {
+    setShowDeleteConfirm(false);
+  }, [activeSessionId]);
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (activeSession) {
+      emit("OnDeleteSession", activeSession.id);
+    }
+    setShowDeleteConfirm(false);
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+  };
+
+  useEffect(() => {
+    if (!showDeleteConfirm) return;
+
+    const handleDialogKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        handleDeleteConfirm();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        handleDeleteCancel();
+      }
+    };
+
+    window.addEventListener("keydown", handleDialogKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", handleDialogKeyDown, true);
+    };
+  }, [showDeleteConfirm, activeSession]);
 
   // Clear pending renames once they appear in props
   useEffect(() => {
@@ -754,10 +796,7 @@ export function ChatWidget({
               <button
                 type="button"
                 className="chat-header-delete-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  emit("OnDeleteSession", activeSession.id);
-                }}
+                onClick={handleDeleteClick}
                 title="Delete chat session"
                 aria-label="Delete chat session"
               >
@@ -1132,6 +1171,60 @@ export function ChatWidget({
           </div>
         </div>
       </div>
+
+      {showDeleteConfirm &&
+        activeSession &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="chat-confirm-overlay"
+            onClick={handleDeleteCancel}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="chat-delete-confirm-title"
+          >
+            <div
+              className="chat-confirm-modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="chat-confirm-header">
+                <h3 id="chat-delete-confirm-title" className="chat-confirm-title">
+                  Delete Chat
+                </h3>
+              </div>
+              <div className="chat-confirm-body">
+                <p className="chat-confirm-desc">
+                  Are you sure you want to delete{" "}
+                  {activeSession.title ? (
+                    <strong>&ldquo;{activeSession.title}&rdquo;</strong>
+                  ) : (
+                    "this chat session"
+                  )}
+                  ? This action cannot be undone.
+                </p>
+              </div>
+              <div className="chat-confirm-actions">
+                <button
+                  type="button"
+                  className="chat-confirm-btn cancel"
+                  onClick={handleDeleteCancel}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="chat-confirm-btn delete"
+                  onClick={handleDeleteConfirm}
+                  autoFocus
+                >
+                  <span>Delete</span>
+                  <kbd className="chat-shortcut-hint">Ctrl+Enter</kbd>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
