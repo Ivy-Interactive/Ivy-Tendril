@@ -2,14 +2,17 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Markdown, { defaultUrlTransform } from "react-markdown";
 import "./draft-markdown.css";
 import { getHeight, getWidth } from "../styles";
-import { CodeBlock } from "../CodeBlock";
+import { BlockHandler } from "../BlockHandler";
 import type { MarkdownAnnotation } from "./annotationUtils";
-import { applyAnnotationHighlights, getPlainTextOffset } from "./annotationUtils";
+import { applyAnnotationHighlights, getPlainTextOffset, QUESTIONS_SELECTOR, rangeTouchesQuestions } from "./annotationUtils";
 import { AddAnnotationPopover, EditAnnotationPopover, SelectionToolbar } from "./AnnotationPopover";
 import { AlertBlockquote } from "./AlertBlockquote";
 import { ImageRenderer } from "./ImageRenderer";
 import { isLocalFileUrl, transformLocalFileUrl } from "./localFiles";
 import { getMarkdownPlugins } from "../math";
+import { tagQuestionBlocks } from "./questionsSource";
+import { QuestionsAnswerContext } from "./questionsContext";
+import type { AnswerCallback } from "./questionsContext";
 import { useAnchoredPosition } from "./useAnchoredPosition";
 
 type IvyEventHandler = (eventName: string, widgetId: string, args: unknown[]) => void;
@@ -22,6 +25,7 @@ interface DraftMarkdownProps {
   article?: boolean;
   dangerouslyAllowLocalFiles?: boolean;
   annotations?: MarkdownAnnotation[];
+  scrollTo?: { questionId: string; token: number } | null;
   currentAuthor?: string;
   events?: string[];
   eventHandler?: IvyEventHandler;
@@ -47,6 +51,7 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
   article = false,
   dangerouslyAllowLocalFiles = false,
   annotations = EMPTY_ANNOTATIONS,
+  scrollTo,
   currentAuthor,
   events = EMPTY_EVENTS,
   eventHandler,
@@ -66,6 +71,28 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
   const editAnchor = useAnchoredPosition(contentRef, shellRef, editPopover);
 
   const annotationsEnabled = events.includes("OnAnnotationsChange");
+  const questionsEnabled = events.includes("OnAnswersChange");
+
+  // Reports one changed question. `Answer` carries all three states without a sentinel: null
+  // clears the question back to unanswered, an empty list is an explicit skip, and a non-empty
+  // list is the answer itself. The document is never merged here — the host decides how and
+  // whether to persist it.
+  const handleAnswer = useCallback<AnswerCallback>(
+    (questionId, answer) => {
+      if (!eventHandler) return;
+
+      const value =
+        answer === undefined ? null : answer === null ? [] : Array.isArray(answer) ? answer : [answer];
+
+      // camelCase on the wire: the server deserializes event args with a camelCase naming policy
+      // and no case-insensitive fallback, so PascalCase keys would bind to nothing.
+      eventHandler("OnAnswersChange", id, [{ questionId, answer: value }]);
+    },
+    [eventHandler, id],
+  );
+
+  // undefined puts every callout in read-only mode, mirroring how annotations gate on their event.
+  const answerCallback = questionsEnabled ? handleAnswer : undefined;
 
   const fireAnnotationsChange = useCallback(
     (newAnnotations: MarkdownAnnotation[]) => {
@@ -83,6 +110,35 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
     }
   }, [annotations, content, annotationsEnabled]);
 
+  // Bring a question into view when the host asks. Keyed on the token as well as the id, so
+  // asking for the same question twice scrolls twice.
+  const scrollQuestionId = scrollTo?.questionId;
+  const scrollToken = scrollTo?.token;
+  useEffect(() => {
+    if (!scrollQuestionId) return;
+
+    const shell = shellRef.current;
+    const container = contentRef.current;
+    if (!shell || !container) return;
+
+    // Compared rather than interpolated into a selector: an id is whatever the document said, and
+    // this needs no escaping and no CSS.escape (which jsdom does not provide).
+    const question = Array.from(container.querySelectorAll("[data-question-id]")).find(
+      (el) => el.getAttribute("data-question-id") === scrollQuestionId,
+    );
+    if (!question) return;
+
+    // Scroll the whole block, not just the question: a question is only answerable in the context
+    // of the fence it sits in, and landing mid-block hides that.
+    const block = question.closest(QUESTIONS_SELECTOR) ?? question;
+    const margin = 16;
+    const delta = block.getBoundingClientRect().top - shell.getBoundingClientRect().top - margin;
+
+    // The widget owns its own scroll, so move that rather than calling scrollIntoView, which would
+    // also drag every scrollable ancestor of the host page along with it.
+    shell.scrollTo({ top: shell.scrollTop + delta, behavior: "smooth" });
+  }, [scrollQuestionId, scrollToken]);
+
   // Detect text selection
   useEffect(() => {
     if (!annotationsEnabled) return;
@@ -97,6 +153,10 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
 
       const range = selection.getRangeAt(0);
       if (!container.contains(range.commonAncestorContainer)) {
+        return;
+      }
+
+      if (rangeTouchesQuestions(container, range)) {
         return;
       }
 
@@ -266,9 +326,54 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
     [dangerouslyAllowLocalFiles],
   );
 
+  // react-markdown wraps an overridden `code` element in a `pre`. A question form is flow content
+  // and does not belong inside one — inputs there inherit the monospace stack — so the wrapper is
+  // dropped for questions blocks only.
+  const pre = useCallback((props: React.HTMLAttributes<HTMLPreElement>) => {
+    const { children, ...rest } = props;
+    const only = React.Children.count(children) === 1 ? React.Children.toArray(children)[0] : null;
+
+    if (React.isValidElement<{ className?: string }>(only)) {
+      if (/(^|\s)language-questions(_\d+)?(\s|$)/.test(String(only.props.className ?? ""))) {
+        return <>{children}</>;
+      }
+    }
+
+    return <pre {...rest}>{children}</pre>;
+  }, []);
+
   // Math plugins are added only when the content actually contains math
   // delimiters, so plain plan markdown skips the extra KaTeX pass entirely.
   const plugins = useMemo(() => getMarkdownPlugins(content), [content]);
+
+  // Each top-level `questions` fence gets its index stamped onto its info line, which is how the
+  // renderer learns which block it is dispatching. The info line is never rendered, so annotation
+  // offsets — computed over rendered text — are unaffected.
+  const tagged = useMemo(() => tagQuestionBlocks(content), [content]);
+
+  // Held by identity so React can skip the whole markdown subtree on renders that did not touch
+  // it. Re-parsing and re-rendering a long plan to answer a scroll request — or to move a popover
+  // — is work nobody asked for. Every dependency here is already stable (useCallback/useMemo), so
+  // this only rebuilds when the document or the rendering of it actually changes.
+  const markdownTree = useMemo(
+    () => (
+      <Markdown
+        remarkPlugins={plugins.remarkPlugins}
+        rehypePlugins={plugins.rehypePlugins}
+        urlTransform={urlTransform}
+        components={{
+          a: anchor,
+          code: BlockHandler,
+          pre,
+          blockquote: AlertBlockquote,
+          img: ImageRenderer,
+        }}
+      >
+        {tagged}
+      </Markdown>
+    ),
+    [plugins, urlTransform, anchor, pre, tagged],
+  );
 
   const fixed = slots?.StickyContent;
   const hasFixed = !!fixed && React.Children.count(fixed) > 0;
@@ -282,19 +387,7 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
     <div ref={shellRef} className="pmv-shell" style={shellStyle}>
       <div className="pmv-body">
         <div ref={contentRef} className={article ? "pmv-markdown pmv-article" : "pmv-markdown"}>
-          <Markdown
-            remarkPlugins={plugins.remarkPlugins}
-            rehypePlugins={plugins.rehypePlugins}
-            urlTransform={urlTransform}
-            components={{
-              a: anchor,
-              code: CodeBlock,
-              blockquote: AlertBlockquote,
-              img: ImageRenderer,
-            }}
-          >
-            {content}
-          </Markdown>
+          <QuestionsAnswerContext.Provider value={answerCallback}>{markdownTree}</QuestionsAnswerContext.Provider>
         </div>
       </div>
       {hasFixed && <div className="pmv-sticky">{fixed}</div>}

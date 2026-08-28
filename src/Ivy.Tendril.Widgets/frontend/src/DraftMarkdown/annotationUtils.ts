@@ -15,6 +15,29 @@ export function getInitials(name?: string): string {
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
+export const QUESTIONS_SELECTOR = ".pmv-questions";
+
+/**
+ * Whether a text node belongs to a `questions` block.
+ *
+ * Such text is invisible to annotation offsets entirely — not highlighted, and not counted. It has
+ * to be both: a block's rendered text is not stable. Answering a question makes a Clear button
+ * appear, and an option title that YAML had read as a number can start rendering; either shifts
+ * every offset after the block and silently moves annotations off the words they were put on.
+ * Counting only prose keeps an annotation anchored to the prose it was made against.
+ */
+function isInQuestions(node: Node): boolean {
+  const element = node.parentElement;
+  return !!element?.closest(QUESTIONS_SELECTOR);
+}
+
+export function rangeTouchesQuestions(container: HTMLElement, range: Range): boolean {
+  for (const block of container.querySelectorAll(QUESTIONS_SELECTOR)) {
+    if (range.intersectsNode(block)) return true;
+  }
+  return false;
+}
+
 export function getPlainTextOffset(
   container: Node,
   targetNode: Node,
@@ -28,19 +51,24 @@ export function getPlainTextOffset(
     if (node === targetNode) {
       return offset + targetOffset;
     }
-    offset += node.textContent?.length ?? 0;
+    if (!isInQuestions(node)) {
+      offset += node.textContent?.length ?? 0;
+    }
     node = walker.nextNode();
   }
 
   return offset;
 }
 
+/** The text annotation offsets are measured against — prose only, questions blocks excluded. */
 export function getPlainText(container: Node): string {
   let text = "";
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
   let node = walker.nextNode();
   while (node) {
-    text += node.textContent ?? "";
+    if (!isInQuestions(node)) {
+      text += node.textContent ?? "";
+    }
     node = walker.nextNode();
   }
   return text;
@@ -61,6 +89,14 @@ export function getTextNodesInRange(
     const length = textNode.textContent?.length ?? 0;
     const nodeStart = currentOffset;
     const nodeEnd = currentOffset + length;
+
+    // Callout text is skipped outright: not highlighted, and not counted toward the offsets, which
+    // is what keeps an annotation anchored when a block's own rendering changes underneath it.
+    // getPlainTextOffset skips it the same way, so the two agree on what an offset means.
+    if (isInQuestions(node)) {
+      node = walker.nextNode();
+      continue;
+    }
 
     if (nodeEnd > startOffset && nodeStart < endOffset) {
       const start = Math.max(0, startOffset - nodeStart);

@@ -6,7 +6,7 @@ import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { AgentViewer } from "../AgentViewer";
 import { getMarkdownPlugins } from "../math";
-import { CodeBlock } from "../CodeBlock";
+import { BlockHandler } from "../BlockHandler";
 import { AlertBlockquote } from "../DraftMarkdown/AlertBlockquote";
 import "./chat-widget.css";
 
@@ -863,7 +863,7 @@ export function ChatWidget({
                       <div className="chat-markdown-body">
                         <ReactMarkdown
                           {...getMarkdownPlugins(msg.content)}
-                          components={{ code: CodeBlock, blockquote: AlertBlockquote }}
+                          components={{ code: BlockHandler, blockquote: AlertBlockquote }}
                         >
                           {msg.content}
                         </ReactMarkdown>

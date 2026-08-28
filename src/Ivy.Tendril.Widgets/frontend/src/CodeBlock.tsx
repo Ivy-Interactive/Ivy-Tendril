@@ -1,9 +1,15 @@
-import React, { lazy, Suspense, useCallback, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { prismTheme } from "./prismTheme";
 
-const MermaidRenderer = lazy(() => import("./DraftMarkdown/MermaidRenderer").then((m) => ({ default: m.MermaidRenderer })));
-const GraphvizRenderer = lazy(() => import("./DraftMarkdown/GraphvizRenderer").then((m) => ({ default: m.GraphvizRenderer })));
+/**
+ * A highlighted code block with a copy button — the plain-fence rendering, with no dispatch on the
+ * language.
+ *
+ * It lives in its own module rather than inside `BlockHandler` because `QuestionsCallout` renders
+ * code blocks too, and importing `BlockHandler` from there would close a cycle (`BlockHandler`
+ * already imports `QuestionsCallout`). Same reasoning as `questionsContext.ts`.
+ */
 
 const CopyIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -18,7 +24,7 @@ const CheckIcon = () => (
   </svg>
 );
 
-const codeBlockPreStyle: React.CSSProperties = {
+export const codeBlockPreStyle: React.CSSProperties = {
   margin: 0,
   borderRadius: 0,
   background: "transparent",
@@ -29,9 +35,11 @@ const codeBlockPreStyle: React.CSSProperties = {
   overflowWrap: "break-word",
 };
 
-export const CodeBlock: React.FC<React.HTMLAttributes<HTMLElement>> = ({ className, children, style: _style, ...rest }) => {
-  const match = /language-(\w+)/.exec(String(className || ""));
-  const content = String(children).replace(/\n$/, "");
+/** Prism's own name for the markup family, which several fence languages map onto. */
+export const normalizeLanguage = (lang: string): string =>
+  lang === "xml" || lang === "html" || lang === "svg" ? "markup" : lang;
+
+const CopyButton: React.FC<{ content: string }> = ({ content }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(() => {
@@ -41,70 +49,40 @@ export const CodeBlock: React.FC<React.HTMLAttributes<HTMLElement>> = ({ classNa
     });
   }, [content]);
 
-  if (match) {
-    const lang = match[1];
-
-    if (lang === "mermaid") {
-      return (
-        <Suspense fallback={<div className="pmv-diagram-loading"><span>Loading diagram...</span></div>}>
-          <MermaidRenderer content={content} />
-        </Suspense>
-      );
-    }
-
-    if (lang === "graphviz" || lang === "dot") {
-      return (
-        <Suspense fallback={<div className="pmv-diagram-loading"><span>Loading diagram...</span></div>}>
-          <GraphvizRenderer content={content} />
-        </Suspense>
-      );
-    }
-
-    const normalizedLang = lang === "xml" || lang === "html" || lang === "svg" ? "markup" : lang;
-
-    return (
-      <div className="pmv-code-block">
-        <button
-          className={`pmv-code-copy${copied ? " pmv-code-copy--copied" : ""}`}
-          onClick={handleCopy}
-          aria-label="Copy to clipboard"
-        >
-          {copied ? <CheckIcon /> : <CopyIcon />}
-        </button>
-        <SyntaxHighlighter
-          style={prismTheme as unknown as { [key: string]: React.CSSProperties }}
-          language={normalizedLang}
-          PreTag="pre"
-          customStyle={codeBlockPreStyle}
-          wrapLongLines={false}
-        >
-          {content}
-        </SyntaxHighlighter>
-      </div>
-    );
-  }
-
-  // No language match - check if block-level (multi-line) or inline
-  const isBlock = String(children).includes("\n");
-  if (isBlock) {
-    return (
-      <div className="pmv-code-block">
-        <button
-          className={`pmv-code-copy${copied ? " pmv-code-copy--copied" : ""}`}
-          onClick={handleCopy}
-          aria-label="Copy to clipboard"
-        >
-          {copied ? <CheckIcon /> : <CopyIcon />}
-        </button>
-        <pre style={codeBlockPreStyle}>
-          <code>{children}</code>
-        </pre>
-      </div>
-    );
-  }
   return (
-    <code className={className} {...rest}>
-      {children}
-    </code>
+    <button
+      className={`pmv-code-copy${copied ? " pmv-code-copy--copied" : ""}`}
+      onClick={handleCopy}
+      aria-label="Copy to clipboard"
+    >
+      {copied ? <CheckIcon /> : <CopyIcon />}
+    </button>
   );
 };
+
+interface CodeBlockProps {
+  content: string;
+  /** Fence language, or undefined for a fence that named none. */
+  language?: string;
+}
+
+export const CodeBlock: React.FC<CodeBlockProps> = ({ content, language }) => (
+  <div className="pmv-code-block">
+    <CopyButton content={content} />
+    {language ? (
+      <SyntaxHighlighter
+        style={prismTheme as unknown as { [key: string]: React.CSSProperties }}
+        language={normalizeLanguage(language)}
+        PreTag="pre"
+        customStyle={codeBlockPreStyle}
+        wrapLongLines={false}
+      >
+        {content}
+      </SyntaxHighlighter>
+    ) : (
+      <pre style={codeBlockPreStyle}>
+        <code>{content}</code>
+      </pre>
+    )}
+  </div>
+);
