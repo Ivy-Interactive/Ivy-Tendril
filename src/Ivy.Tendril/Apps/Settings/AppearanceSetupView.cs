@@ -30,7 +30,7 @@ public class AppearanceSetupView : ViewBase
         }, selectedTheme);
 
         var themeOptions = TendrilThemes.All
-            .Select(t => new Option<string>($"{t.Name} ({(t.IsDark ? "Dark" : "Light")})", t.Id))
+            .Select(t => new Option<string>(t.Name, t.Id))
             .ToArray<IAnyOption>();
 
         var activeTheme = TendrilThemes.GetTheme(selectedTheme.Value);
@@ -43,9 +43,7 @@ public class AppearanceSetupView : ViewBase
 
         var themeSelector = Layout.Vertical().Gap(2)
             | selectedTheme.ToSelectInput(themeOptions)
-            | (Layout.Horizontal().Gap(2).AlignContent(Align.Center)
-                | swatches
-                | Text.Muted(activeTheme.Description).Small());
+            | swatches;
 
         var isSidebarOpen = config.Settings.SidebarOpen;
 
