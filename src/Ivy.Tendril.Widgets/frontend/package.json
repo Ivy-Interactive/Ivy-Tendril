@@ -23,7 +23,8 @@
     "rehype-katex": "7.0.1",
     "remark-gfm": "4.0.1",
     "remark-math": "6.0.0",
-    "unidiff": "^1.0.4"
+    "unidiff": "^1.0.4",
+    "yaml": "2.9.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

@@ -1,0 +1,230 @@
+import { describe, it, expect } from "vitest";
+import {
+  answerEntries,
+  otherEntry,
+  parseQuestions,
+} from "./questionsSchema";
+
+const body = (...lines: string[]) => lines.join("\n");
+
+const SINGLE_SELECT = body(
+  "questions:",
+  "  - id: budget",
+  "    title: Should the retry budget be per-request or per-session?",
+  "    header: Retry scope",
+  "    description: Affects how a burst of failures is absorbed.",
+  "    other: false",
+  "    options:",
+  "      - title: Per request",
+  "        description: Each call gets its **own** budget.",
+  "        value: per-request",
+  "      - title: Per session",
+  "        value: per-session",
+  "        recommended: true",
+  "      - title: Both",
+  "        value: both",
+);
+
+const MULTI_SELECT = body(
+  "questions:",
+  "  - id: channels",
+  "    title: Which channels ship first?",
+  "    multiple: true",
+  "    options:",
+  "      - title: In-app",
+  "        value: in-app",
+  "      - title: Email",
+  "        value: email",
+  "      - title: Push",
+  "        value: push",
+  "      - title: SMS",
+  "        value: sms",
+);
+
+const FREE_TEXT = body(
+  "questions:",
+  "  - id: name",
+  "    title: What should the feature be called?",
+  "  - id: owner",
+  "    title: Who owns the rollout?",
+);
+
+describe("parseQuestions shapes", () => {
+  it("reads the single-select fixed set", () => {
+    const parsed = parseQuestions(SINGLE_SELECT);
+
+    expect(parsed.kind).toBe("questions");
+    if (parsed.kind !== "questions") return;
+
+    const [question] = parsed.questions;
+    expect(question.id).toBe("budget");
+    expect(question.header).toBe("Retry scope");
+    expect(question.description).toBe("Affects how a burst of failures is absorbed.");
+    expect(question.other).toBe(false);
+    expect(question.multiple).toBe(false);
+    expect(question.options).toHaveLength(3);
+    expect(question.options?.[0].description).toBe("Each call gets its **own** budget.");
+    expect(question.options?.[1].recommended).toBe(true);
+    expect(question.options?.[0].recommended).toBe(false);
+  });
+
+  it("reads the multi-select open set", () => {
+    const parsed = parseQuestions(MULTI_SELECT);
+
+    expect(parsed.kind).toBe("questions");
+    if (parsed.kind !== "questions") return;
+
+    const [question] = parsed.questions;
+    expect(question.multiple).toBe(true);
+    expect(question.options).toHaveLength(4);
+  });
+
+  it("reads the pure free-text shape", () => {
+    const parsed = parseQuestions(FREE_TEXT);
+
+    expect(parsed.kind).toBe("questions");
+    if (parsed.kind !== "questions") return;
+
+    expect(parsed.questions).toHaveLength(2);
+    expect(parsed.questions[0].options).toBeUndefined();
+    expect(parsed.questions.map((q) => q.id)).toEqual(["name", "owner"]);
+  });
+});
+
+describe("YAML scalars that are not strings", () => {
+  // The schema calls these fields strings, but YAML disagrees: `4.2` is a number and `yes` is a
+  // boolean. The C# validator coerces them, so a block using them lints clean and must render.
+  const NUMERIC = body(
+    "questions:",
+    "  - id: release",
+    "    title: 4.2",
+    "    options:",
+    "      - title: 4.2",
+    "        value: 42",
+    "      - title: 4.3",
+    "        value: 43",
+    "    answer: 43",
+  );
+
+  it("reads a numeric title and value as the text the author wrote", () => {
+    const parsed = parseQuestions(NUMERIC);
+    if (parsed.kind !== "questions") throw new Error("expected questions");
+
+    const question = parsed.questions[0];
+    expect(question.title).toBe("4.2");
+    expect(question.options!.map((o) => o.title)).toEqual(["4.2", "4.3"]);
+    expect(question.options!.map((o) => o.value)).toEqual(["42", "43"]);
+  });
+
+  it("matches a numeric answer against the option it names", () => {
+    const parsed = parseQuestions(NUMERIC);
+    if (parsed.kind !== "questions") throw new Error("expected questions");
+
+    expect(answerEntries(parsed.questions[0])).toEqual(["43"]);
+  });
+
+  it("reads a numeric id, so the question is still addressable", () => {
+    const parsed = parseQuestions(body("questions:", "  - id: 2024", "    title: Which year?"));
+    if (parsed.kind !== "questions") throw new Error("expected questions");
+
+    expect(parsed.questions[0].id).toBe("2024");
+  });
+});
+
+describe("parseQuestions defaults", () => {
+  it("treats other as true and multiple as false when absent", () => {
+    const parsed = parseQuestions(MULTI_SELECT);
+
+    expect(parsed.kind).toBe("questions");
+    if (parsed.kind !== "questions") return;
+    expect(parsed.questions[0].other).toBe(true);
+
+    const free = parseQuestions(FREE_TEXT);
+    if (free.kind !== "questions") return;
+    expect(free.questions[0].other).toBe(true);
+    expect(free.questions[0].multiple).toBe(false);
+  });
+});
+
+describe("parseQuestions answer states", () => {
+  const withAnswer = (line: string) =>
+    parseQuestions(body("questions:", "  - id: q", "    title: T", line));
+
+  it("reads an explicit null as unanswered, since there is no third state", () => {
+    // `answer: null` used to mean "deliberately skipped". A question that need not be answered is
+    // `optional: true` now, so a leftover null is just an unanswered question.
+    const parsed = parseQuestions(
+      body("questions:", "  - id: q", "    title: Which one?", "    answer: null"),
+    );
+    if (parsed.kind !== "questions") throw new Error("expected questions");
+
+    expect(parsed.questions[0].answerPresent).toBe(false);
+    expect(answerEntries(parsed.questions[0])).toEqual([]);
+  });
+
+  it("reads a scalar answer and a list answer", () => {
+    const scalar = withAnswer("    answer: per-session");
+    if (scalar.kind !== "questions") throw new Error("expected questions");
+    expect(scalar.questions[0].answerPresent).toBe(true);
+    expect(answerEntries(scalar.questions[0])).toEqual(["per-session"]);
+
+    const list = parseQuestions(
+      body("questions:", "  - id: q", "    title: T", "    answer:", "      - a", "      - b"),
+    );
+    if (list.kind !== "questions") throw new Error("expected questions");
+    expect(answerEntries(list.questions[0])).toEqual(["a", "b"]);
+  });
+
+  it("reports the entry matching no option as the user's own text", () => {
+    const parsed = parseQuestions(`${MULTI_SELECT}\n    answer:\n      - email\n      - carrier pigeon`);
+    if (parsed.kind !== "questions") throw new Error("expected questions");
+
+    expect(otherEntry(parsed.questions[0])).toBe("carrier pigeon");
+  });
+
+  it("reports no other entry when every entry is an option value", () => {
+    const parsed = parseQuestions(`${MULTI_SELECT}\n    answer:\n      - email`);
+    if (parsed.kind !== "questions") throw new Error("expected questions");
+
+    expect(otherEntry(parsed.questions[0])).toBeUndefined();
+  });
+});
+
+describe("parseQuestions tolerance", () => {
+  it("reports a prose body as invalid rather than throwing", () => {
+    expect(parseQuestions("Should the retry budget be per-request?\nAnd what about jitter?")).toEqual({
+      kind: "invalid",
+    });
+  });
+
+  it("reports valid YAML with no questions key as invalid", () => {
+    expect(parseQuestions("title: not a question block\ncount: 3")).toEqual({ kind: "invalid" });
+  });
+
+  it("reports malformed YAML as invalid rather than throwing", () => {
+    expect(parseQuestions("questions:\n  - id: [unclosed\n   bad: : :")).toEqual({ kind: "invalid" });
+  });
+
+  it("reports an empty body as invalid", () => {
+    expect(parseQuestions("")).toEqual({ kind: "invalid" });
+  });
+
+  it("reports a missing id as invalid", () => {
+    expect(parseQuestions(body("questions:", "  - title: No id here"))).toEqual({ kind: "invalid" });
+    expect(parseQuestions(body("questions:", "  - id: ''", "    title: Empty id"))).toEqual({
+      kind: "invalid",
+    });
+  });
+
+  it("reports two questions sharing an id within the block as invalid", () => {
+    const duplicate = body(
+      "questions:",
+      "  - id: same",
+      "    title: First",
+      "  - id: same",
+      "    title: Second",
+    );
+
+    expect(parseQuestions(duplicate)).toEqual({ kind: "invalid" });
+  });
+});

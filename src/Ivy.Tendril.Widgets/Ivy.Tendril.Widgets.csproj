@@ -14,6 +14,10 @@
     <PackageReference Include="Ivy" Version="1.3.21" />
   </ItemGroup>
   <ItemGroup>
+    <!-- QuestionAnswers.cs merges an answer back into a `questions` fence. Same version as Ivy.Tendril. -->
+    <PackageReference Include="YamlDotNet" Version="17.0.0" />
+  </ItemGroup>
+  <ItemGroup>
     <WidgetsFrontendSourceFiles Include="frontend/src/**/*" />
     <WidgetsFrontendSourceFiles Include="frontend/package.json" />
     <WidgetsFrontendSourceFiles Include="frontend/pnpm-lock.yaml" Condition="Exists('frontend/pnpm-lock.yaml')" />
