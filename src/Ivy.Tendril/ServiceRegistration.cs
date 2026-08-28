@@ -263,6 +263,25 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<IStartable>(sp =>
             sp.GetRequiredService<Services.Tunnel.CloudflaredService>());
 
+        server.Services.AddSingleton<Services.Tunnel.ShareTunnelService>(sp =>
+        {
+            var config = sp.GetRequiredService<IConfigService>();
+            var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var appLifetime = sp.GetRequiredService<Microsoft.Extensions.Hosting.IHostApplicationLifetime>();
+            var svr = sp.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>();
+            var logger = sp.GetRequiredService<ILogger<Services.Tunnel.ShareTunnelService>>();
+            return new Services.Tunnel.ShareTunnelService(config, httpFactory, appLifetime, svr, logger);
+        });
+        server.Services.AddSingleton<Services.Tunnel.IShareTunnelService>(sp =>
+            sp.GetRequiredService<Services.Tunnel.ShareTunnelService>());
+        server.Services.AddSingleton<IStartable>(sp =>
+            sp.GetRequiredService<Services.Tunnel.ShareTunnelService>());
+
+        server.Services.AddSingleton<Services.Plans.IDraftAnnotationService, Services.Plans.DraftAnnotationService>();
+        server.Services.AddSingleton<Services.Plans.IDraftDiffCommentService, Services.Plans.DraftDiffCommentService>();
+        server.Services.AddTransient<Services.Share.IShareContext, Services.Share.ShareContext>();
+        server.Services.AddSingleton<Services.Vault.IVaultService, Services.Vault.VaultService>();
+
         server.Services.AddSingleton<Services.Telemetry.ModelPricingWarmupService>();
         server.Services.AddSingleton<IStartable>(sp =>
             sp.GetRequiredService<Services.Telemetry.ModelPricingWarmupService>());

@@ -86,25 +86,25 @@ public class GeminiCliTests
     }
 
     [Fact]
-    public void DefaultProfiles_DeepHasNoModel()
+    public void DefaultProfiles_DeepHasCorrectModel()
     {
         var deep = _cli.DefaultProfiles.First(p => p.Tier == ProfileTier.Deep);
-        Assert.Null(deep.Model);
+        Assert.Equal("gemini-3.7-flash", deep.Model);
         Assert.Null(deep.Effort);
     }
 
     [Fact]
-    public void DefaultProfiles_BalancedHasNoModel()
+    public void DefaultProfiles_BalancedHasCorrectModel()
     {
         var balanced = _cli.DefaultProfiles.First(p => p.Tier == ProfileTier.Balanced);
-        Assert.Null(balanced.Model);
+        Assert.Equal("gemini-3.7-flash", balanced.Model);
     }
 
     [Fact]
-    public void DefaultProfiles_QuickHasNoModel()
+    public void DefaultProfiles_QuickHasCorrectModel()
     {
         var quick = _cli.DefaultProfiles.First(p => p.Tier == ProfileTier.Quick);
-        Assert.Null(quick.Model);
+        Assert.Equal("gemini-3.7-flash", quick.Model);
     }
 
     [Fact]

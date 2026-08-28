@@ -118,6 +118,23 @@
   font-family: var(--font-sans, sans-serif) !important;
 }
 
+.pmv-comment-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 9px;
+  text-transform: uppercase;
+  user-select: none;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
 /* Hover plus button strictly on active, non-empty line gutters when the gutter itself is hovered */
 td.diff-gutter-normal,
 td.diff-gutter-insert,

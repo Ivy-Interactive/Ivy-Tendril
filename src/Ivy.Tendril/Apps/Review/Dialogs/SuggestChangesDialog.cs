@@ -31,6 +31,7 @@ public class SuggestChangesDialog(
     public override object? Build()
     {
         var configService = UseService<IConfigService>();
+        var draftDiffCommentService = UseService<Ivy.Tendril.Services.Plans.IDraftDiffCommentService>();
         var isCreating = UseState(false);
         var suggestText = UseState("");
         var uploadSessionId = UseState(() => Guid.NewGuid().ToString("N"));
@@ -61,7 +62,8 @@ public class SuggestChangesDialog(
 
         if (!_dialogOpen.Value) return null;
 
-        var commentCount = _draftComments?.Count ?? 0;
+        var activeComments = _draftComments?.Where(c => !c.IsResolved).ToList() ?? [];
+        var commentCount = activeComments.Count;
 
         void HandleSubmit()
         {
@@ -76,17 +78,19 @@ public class SuggestChangesDialog(
                 sb.AppendLine();
             }
 
-            if (_draftComments != null && _draftComments.Count > 0)
+            if (activeComments.Count > 0)
             {
                 var repos = _selectedPlan.GetEffectiveRepoPaths(configService);
                 var repoPath = repos.FirstOrDefault() ?? "";
 
                 sb.AppendLine("Line-by-line feedback:");
-                foreach (var c in _draftComments)
+                foreach (var c in activeComments)
                 {
                     var absolutePath = Path.Combine(repoPath, c.FilePath).Replace('\\', '/');
                     var fileLink = $"file:///{absolutePath.TrimStart('/')}";
-                    sb.AppendLine($"- **In [{c.FilePath}]({fileLink}#L{c.LineNumber}) line {c.LineNumber}**:");
+                    sb.AppendLine(!string.IsNullOrEmpty(c.Author)
+                        ? $"- **In [{c.FilePath}]({fileLink}#L{c.LineNumber}) line {c.LineNumber}** (by {c.Author}):"
+                        : $"- **In [{c.FilePath}]({fileLink}#L{c.LineNumber}) line {c.LineNumber}**:");
                     sb.AppendLine($"  {c.Content}");
                 }
             }
@@ -102,6 +106,7 @@ public class SuggestChangesDialog(
             {
                 _draftCommentsState.Set(new List<DraftComment>());
             }
+            _ = draftDiffCommentService.ClearDraftCommentsAsync(_selectedPlan.FolderPath);
             _refreshPlans();
             _dialogOpen.Set(false);
         }

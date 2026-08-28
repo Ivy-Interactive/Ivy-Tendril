@@ -90,16 +90,28 @@ public class AntigravityEventParserTests
     }
 
     [Fact]
-    public void ParseLine_ResultJson_WithError_SetsErrorAndIsSuccessFalse()
+    public void ParseLine_ResultJson_WithRecoveredToolErrorAndResponse_SetsIsSuccessTrueAndErrorNull()
     {
         var json = "{\"event\":\"result\",\"result\":{\"conversation_id\":\"c-123\",\"status\":\"ERROR\",\"error\":\"declaring permissions: cortex tool write_to_file: path is not valid\",\"response\":\"I have finished the plan execution\",\"duration_seconds\":15.2}}";
         var events = _parser.ParseLine(json);
 
         Assert.Single(events);
         var resultEvent = Assert.IsType<ResultEvent>(events[0]);
-        Assert.False(resultEvent.IsSuccess);
-        Assert.Equal("declaring permissions: cortex tool write_to_file: path is not valid", resultEvent.Error);
+        Assert.True(resultEvent.IsSuccess);
+        Assert.Null(resultEvent.Error);
         Assert.Equal("I have finished the plan execution", resultEvent.Response);
+    }
+
+    [Fact]
+    public void ParseLine_ResultJson_WithFatalErrorAndNoResponse_SetsErrorAndIsSuccessFalse()
+    {
+        var json = "{\"event\":\"result\",\"result\":{\"conversation_id\":\"c-123\",\"status\":\"ERROR\",\"error\":\"fatal: unhandled exception\",\"response\":\"\",\"duration_seconds\":5.0}}";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var resultEvent = Assert.IsType<ResultEvent>(events[0]);
+        Assert.False(resultEvent.IsSuccess);
+        Assert.Equal("fatal: unhandled exception", resultEvent.Error);
     }
 
     [Fact]

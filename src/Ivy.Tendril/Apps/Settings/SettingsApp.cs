@@ -19,6 +19,7 @@ public class SettingsApp : ViewBase
     private const string TagLevels = "levels";
     private const string TagPromptwares = "promptwares";
     internal const string TagProjects = "projects";
+    private const string TagVault = "vault";
     private const string TagTunnel = "tunnel";
     private const string TagAdvanced = "advanced";
     private const string TagNewsletter = "newsletter";
@@ -43,6 +44,7 @@ public class SettingsApp : ViewBase
             }));
 
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
+        Context.TryUseService<TendrilArgs>(out var tendrilArgs);
 
         UseEffect(() =>
         {
@@ -53,6 +55,7 @@ public class SettingsApp : ViewBase
 
         _ = refreshToken.Token;
         var isDesktop = desktopWindow != null;
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
         var capturedHost = ConfigYamlUiHelper.CaptureHost(httpContextAccessor);
 
         var projects = config.Settings.Projects;
@@ -64,13 +67,22 @@ public class SettingsApp : ViewBase
             ("Plans", TagPlans, Icons.Feather),
             ("Appearance", TagAppearance, Icons.Sun),
             ("Projects", TagProjects, Icons.Folder),
+        };
+
+        if (isBeta)
+        {
+            sections.Add(("Team Vault", TagVault, Icons.FolderGit2));
+        }
+
+        sections.AddRange(new (string Label, string Tag, Icons Icon)[]
+        {
             ("Promptwares", TagPromptwares, Icons.Wand),
             ("Levels", TagLevels, Icons.ListOrdered),
             ("Notifications", TagNotifications, Icons.Bell),
-            ("Tunnel", TagSecurity, Icons.Lock),
+            ("Security & Tunneling", TagSecurity, Icons.Lock),
             ("Advanced", TagAdvanced, Icons.Cog),
             ("Newsletter", TagNewsletter, Icons.Mail),
-        };
+        });
 
         var rows = new List<object>
         {
@@ -109,10 +121,15 @@ public class SettingsApp : ViewBase
             rows.Add(SidebarListRow.BuildSubItem("Add Project", Icons.Plus, () => openAddProjectDialog(), false));
         }
 
+        if (isBeta)
+        {
+            rows.Add(SidebarListRow.Build("Team Vault", Icons.FolderGit2, () => selected.Set(TagVault), selectedTag == TagVault));
+        }
+
         rows.Add(SidebarListRow.Build("Promptwares", Icons.Wand, () => selected.Set(TagPromptwares), selectedTag == TagPromptwares));
         rows.Add(SidebarListRow.Build("Levels", Icons.ListOrdered, () => selected.Set(TagLevels), selectedTag == TagLevels));
         rows.Add(SidebarListRow.Build("Notifications", Icons.Bell, () => selected.Set(TagNotifications), selectedTag == TagNotifications));
-        rows.Add(SidebarListRow.Build("Tunnel", Icons.Lock, () => selected.Set(TagSecurity), selectedTag == TagSecurity || selectedTag == TagTunnel));
+        rows.Add(SidebarListRow.Build("Security & Tunneling", Icons.Lock, () => selected.Set(TagSecurity), selectedTag == TagSecurity || selectedTag == TagTunnel));
         rows.Add(SidebarListRow.Build("Advanced", Icons.Cog, () => selected.Set(TagAdvanced), selectedTag == TagAdvanced));
         rows.Add(SidebarListRow.Build("Newsletter", Icons.Mail, () => selected.Set(TagNewsletter), selectedTag == TagNewsletter));
         rows.Add(SidebarListRow.Build("Open config.yaml", Icons.FileText, () => ConfigYamlUiHelper.OpenOrNavigate(config, navigator, client, isDesktop, capturedHost), false));
@@ -161,6 +178,7 @@ public class SettingsApp : ViewBase
                 TagTunnel => new SecuritySetupView(),
                 TagLevels => new LevelsSetupView(),
                 TagPromptwares => new PromptwaresSetupView(),
+                TagVault when isBeta => new VaultSetupView(),
                 TagProjects => projects.Count > 0
                     ? new ProjectDetailView(0, projects, config, client, refreshToken).Key($"project:{projects[0].Name}")
                     : new CodingAgentSetupView(),
