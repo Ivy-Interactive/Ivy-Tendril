@@ -57,11 +57,9 @@ public class AppearanceSetupView : ViewBase
                       .OnClick(() => client.SetThemeMode(ThemeMode.Dark))
                   | new Button("System").Variant(ButtonVariant.Outline).Icon(Icons.SunMoon)
                       .OnClick(() => client.SetThemeMode(ThemeMode.System)))
-               | new Separator()
                | Text.Block("Theme").Bold()
                | Text.Muted("Choose a color scheme preset for Tendril.").Small()
                | themeSelector
-               | new Separator()
                | Text.Block("Main Sidebar").Bold()
                | Text.Muted("Choose the default state for the main sidebar on startup.").Small()
                | (Layout.Horizontal()
