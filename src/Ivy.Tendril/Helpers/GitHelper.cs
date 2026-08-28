@@ -45,6 +45,7 @@ public static class GitHelper
         if (string.IsNullOrWhiteSpace(repoPathOrUrl))
             return "main";
 
+        repoPathOrUrl = RepoPathValidator.Normalize(repoPathOrUrl);
         var expanded = VariableExpansion.ExpandVariables(repoPathOrUrl, tendrilHome);
         if (_defaultBranchCache.TryGetValue(expanded, out var cached))
             return cached;
@@ -175,6 +176,7 @@ public static class GitHelper
         if (string.IsNullOrWhiteSpace(repoPath) || string.IsNullOrWhiteSpace(branchName))
             return false;
 
+        repoPath = RepoPathValidator.Normalize(repoPath);
         var expandedPath = VariableExpansion.ExpandVariables(repoPath, tendrilHome);
         var kind = RepoPathValidator.Classify(expandedPath);
         if (kind == RepoPathKind.Invalid)
