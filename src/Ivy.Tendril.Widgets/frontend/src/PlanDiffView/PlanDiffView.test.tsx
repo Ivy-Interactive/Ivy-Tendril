@@ -176,6 +176,7 @@ describe("PlanDiffView", () => {
         content: "New comment by reviewer",
         lineNumber: 1,
         author: "Calm Niels",
+        isResolved: false,
       },
     ]);
   });
