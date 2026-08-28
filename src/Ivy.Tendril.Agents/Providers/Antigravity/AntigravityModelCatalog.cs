@@ -67,6 +67,14 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
         },
         new()
         {
+            Id = "claude-opus-4-6", DisplayName = "Claude Opus 4.6",
+            Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "anthropic",
+        },
+        new()
+        {
             Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5",
             Capabilities = FullCaps,
             SupportedEfforts = EffortLevels.Claude,
@@ -76,14 +84,6 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
         new()
         {
             Id = "claude-sonnet-4-6", DisplayName = "Claude Sonnet 4.6",
-            Capabilities = FullCaps,
-            SupportedEfforts = EffortLevels.Claude,
-            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
-            Provider = "anthropic",
-        },
-        new()
-        {
-            Id = "claude-opus-4-6", DisplayName = "Claude Opus 4.6",
             Capabilities = FullCaps,
             SupportedEfforts = EffortLevels.Claude,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,

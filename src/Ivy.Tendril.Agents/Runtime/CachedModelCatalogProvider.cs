@@ -1,4 +1,5 @@
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 
 namespace Ivy.Tendril.Agents.Runtime;
 
@@ -47,6 +48,7 @@ public abstract class CachedModelCatalogProvider : IModelCatalogProvider
             source = current is null ? ModelCatalogSource.Static : ModelCatalogSource.Fallback;
         }
 
+        models = ModelCatalogSorter.Sort(models);
         models = await EnrichWithModelsDevAsync(models, ct);
 
         var result = new ModelCatalogResult
