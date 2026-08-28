@@ -19,7 +19,6 @@ public class TendrilProcessStatusServiceTests : IDisposable
     {
         _plansDir = Path.Combine(_tempDir.Path, "Plans");
         Directory.CreateDirectory(_plansDir);
-        Directory.CreateDirectory(Path.Combine(_tempDir.Path, "Trash"));
 
         var settings = new TendrilSettings();
         _configService = new ConfigService(settings, _tempDir.Path);
@@ -61,7 +60,7 @@ public class TendrilProcessStatusServiceTests : IDisposable
     private TendrilProcessStatusService CreateService()
     {
         return new TendrilProcessStatusService(
-            _planReader, _jobService, _planWatcher, _configService,
+            _planReader, _jobService, _planWatcher,
             NullLogger<TendrilProcessStatusService>.Instance);
     }
 
@@ -75,7 +74,6 @@ public class TendrilProcessStatusServiceTests : IDisposable
         Assert.Equal(0, service.Current.ReviewCount);
         Assert.Equal(0, service.Current.IceboxCount);
         Assert.Equal(0, service.Current.RecommendationsCount);
-        Assert.Equal(0, service.Current.TrashCount);
     }
 
     [Fact]
@@ -148,18 +146,6 @@ public class TendrilProcessStatusServiceTests : IDisposable
         Assert.Equal(3, service.Current.UpdatingPlansCount);
         Assert.Equal(1, service.Current.CreatingPrCount);
         Assert.Equal(7, service.Current.JobCount);
-    }
-
-    [Fact]
-    public void Current_CountsTrashFiles()
-    {
-        var trashDir = Path.Combine(_tempDir.Path, "Trash");
-        File.WriteAllText(Path.Combine(trashDir, "trash1.md"), "---\ndate: 2026-01-01\n---\n# Trash");
-        File.WriteAllText(Path.Combine(trashDir, "trash2.md"), "---\ndate: 2026-01-02\n---\n# Trash");
-
-        using var service = CreateService();
-
-        Assert.Equal(2, service.Current.TrashCount);
     }
 
     [Fact]

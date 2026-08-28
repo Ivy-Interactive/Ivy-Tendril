@@ -141,16 +141,6 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
         },
         new()
         {
-            Id = "claude-haiku-5", DisplayName = "Claude Haiku 5",
-            Capabilities = LiteCaps,
-            SupportedEfforts = EffortLevels.Claude,
-            ContextWindow = 200_000, MaxOutputTokens = 64_000,
-            Provider = "anthropic",
-            InputPerMillion = 1.00m, OutputPerMillion = 5.00m,
-            CacheWritePerMillion = 1.25m, CacheReadPerMillion = 0.10m,
-        },
-        new()
-        {
             Id = "claude-haiku-4-5", DisplayName = "Claude Haiku 4.5",
             Capabilities = LiteCaps,
             SupportedEfforts = EffortLevels.Claude,

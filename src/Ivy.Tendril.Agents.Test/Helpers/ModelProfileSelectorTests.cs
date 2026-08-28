@@ -135,7 +135,7 @@ public sealed class ModelProfileSelectorTests
         var (deepAnt, balancedAnt, quickAnt) = ModelProfileSelector.SelectDefaults(null, isAnthropic: true);
         Assert.Equal("claude-opus-5", deepAnt);
         Assert.Equal("claude-sonnet-5", balancedAnt);
-        Assert.Equal("claude-haiku-5", quickAnt);
+        Assert.Equal("claude-haiku-4-5", quickAnt);
 
         var (deepGoogle, balancedGoogle, quickGoogle) = ModelProfileSelector.SelectDefaults(null, isGoogle: true);
         Assert.Equal("gemini-3.7-flash", deepGoogle);
@@ -146,5 +146,30 @@ public sealed class ModelProfileSelectorTests
         Assert.Equal("gpt-5.6-sol", deepOpenAi);
         Assert.Equal("gpt-5.6-terra", balancedOpenAi);
         Assert.Equal("gpt-5.6-luna", quickOpenAi);
+    }
+
+    [Fact]
+    public void SelectDefaults_ProviderEnum_SelectsAccurately()
+    {
+        var (deepBerget, balancedBerget, quickBerget) = ModelProfileSelector.SelectDefaults(null, ModelProviderKind.Berget);
+        Assert.Equal("moonshotai/Kimi-K3", deepBerget);
+        Assert.Equal("moonshotai/Kimi-K3", balancedBerget);
+        Assert.Equal("moonshotai/Kimi-K3", quickBerget);
+
+        var (deepCode, balancedCode, quickCode) = ModelProfileSelector.SelectDefaults(null, ModelProviderKind.OpenCode);
+        Assert.Equal("claude-opus-5", deepCode);
+        Assert.Equal("gemini-3.7-flash", balancedCode);
+        Assert.Equal("gemini-3.7-flash", quickCode);
+    }
+
+    [Fact]
+    public void DetectProvider_IdentifiesFromUrl()
+    {
+        Assert.Equal(ModelProviderKind.Ivy, ModelProfileSelector.DetectProvider("https://llmproxy.ivy.app/v1"));
+        Assert.Equal(ModelProviderKind.Anthropic, ModelProfileSelector.DetectProvider("https://api.anthropic.com/v1"));
+        Assert.Equal(ModelProviderKind.Google, ModelProfileSelector.DetectProvider("https://generativelanguage.googleapis.com/v1beta"));
+        Assert.Equal(ModelProviderKind.Berget, ModelProfileSelector.DetectProvider("https://api.berget.ai/v1"));
+        Assert.Equal(ModelProviderKind.OpenAi, ModelProfileSelector.DetectProvider("https://api.openai.com/v1"));
+        Assert.Equal(ModelProviderKind.Generic, ModelProfileSelector.DetectProvider("https://custom.proxy.local/v1"));
     }
 }

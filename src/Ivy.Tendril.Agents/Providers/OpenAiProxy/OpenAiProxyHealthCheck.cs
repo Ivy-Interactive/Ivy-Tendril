@@ -34,36 +34,58 @@ public sealed class OpenAiProxyHealthCheck : IAgentHealthCheck
         return new AgentInstallStatus { IsInstalled = true, Version = version, BinaryPath = path };
     }
 
-    public Task<AgentAuthResult> CheckAuthAsync(CancellationToken ct = default)
+    public async Task<AgentAuthResult> CheckAuthAsync(CancellationToken ct = default)
     {
         var baseUrl = _baseUrlProvider();
         var apiKey = _apiKeyProvider();
 
         if (string.IsNullOrEmpty(baseUrl))
         {
-            return Task.FromResult(new AgentAuthResult
+            return new AgentAuthResult
             {
                 Status = AuthStatus.NotAuthenticated,
                 Error = "Base URL is not configured.",
                 SignInHint = "Specify the API Base URL under Settings -> Coding Agent."
-            });
+            };
         }
 
         if (string.IsNullOrEmpty(apiKey))
         {
-            return Task.FromResult(new AgentAuthResult
+            return new AgentAuthResult
             {
                 Status = AuthStatus.NotAuthenticated,
                 Error = "API Key is not configured.",
                 SignInHint = "Specify an API Key under Settings -> Coding Agent."
-            });
+            };
         }
 
-        return Task.FromResult(new AgentAuthResult
+        var testResult = await LlmEndpointTester.TestModelPromptAsync(baseUrl, apiKey, "default", ct);
+        if (testResult.Status == ModelValidationStatus.AuthError)
+        {
+            return new AgentAuthResult
+            {
+                Status = AuthStatus.NotAuthenticated,
+                Error = testResult.ErrorMessage ?? "Invalid API key.",
+                SignInHint = "Please check your API key in Settings -> Coding Agent."
+            };
+        }
+
+        if (testResult.Status == ModelValidationStatus.Unknown && !string.IsNullOrEmpty(testResult.ErrorMessage) &&
+            testResult.ErrorMessage.Contains("connect", StringComparison.OrdinalIgnoreCase))
+        {
+            return new AgentAuthResult
+            {
+                Status = AuthStatus.CheckFailed,
+                Error = testResult.ErrorMessage,
+                SignInHint = "Please check your API Base URL and network connection."
+            };
+        }
+
+        return new AgentAuthResult
         {
             Status = AuthStatus.Authenticated,
             Provider = "Configured Endpoint"
-        });
+        };
     }
 
     public async Task<string?> GetVersionAsync(CancellationToken ct = default)
