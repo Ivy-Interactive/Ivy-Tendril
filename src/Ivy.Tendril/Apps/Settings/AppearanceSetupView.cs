@@ -34,20 +34,20 @@ public class AppearanceSetupView : ViewBase
             .ToArray<IAnyOption>();
 
         var activeTheme = TendrilThemes.GetTheme(selectedTheme.Value);
-        var swatches = Layout.Horizontal().Gap(1)
+        var swatches = Layout.Horizontal()
             | activeTheme.PreviewColors.Select(color =>
                 new Svg($"<svg width='20' height='20' viewBox='0 0 20 20'><circle cx='10' cy='10' r='9' fill='{color}' stroke='rgba(128,128,128,0.3)' stroke-width='1.5'/></svg>")
                     .Width(Size.Px(20))
                     .Height(Size.Px(20))
             ).ToArray();
 
-        var themeSelector = Layout.Vertical().Gap(2)
+        var themeSelector = Layout.Vertical()
             | selectedTheme.ToSelectInput(themeOptions)
             | swatches;
 
         var isSidebarOpen = config.Settings.SidebarOpen;
 
-        return Layout.Vertical().Width(Size.Auto().Max(Size.Units(120))).Gap(4)
+        return Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
                | Text.Block("Appearance").Bold()
                | Text.Muted("Choose how Tendril appears. System matches your OS setting.").Small()
                | (Layout.Horizontal()
@@ -59,7 +59,7 @@ public class AppearanceSetupView : ViewBase
                       .OnClick(() => client.SetThemeMode(ThemeMode.System)))
                | new Separator()
                | Text.Block("Theme").Bold()
-               | Text.Muted("Choose a DaisyUI-inspired color scheme preset for Tendril.").Small()
+               | Text.Muted("Choose a color scheme preset for Tendril.").Small()
                | themeSelector
                | new Separator()
                | Text.Block("Main Sidebar").Bold()
