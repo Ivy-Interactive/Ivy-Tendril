@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { useShell } from "./ShellContext";
-import { ShellWidgetProps, isModKey, modKeyLabel } from "./types";
+import { ShellWidgetProps, isEditableTarget, isModKey, modKeyLabel } from "./types";
 import "./shell.css";
 
 interface ShellNewPlanButtonProps extends ShellWidgetProps {
@@ -24,7 +24,13 @@ export const ShellNewPlanButton: React.FC<ShellNewPlanButtonProps> = ({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (isModKey(e) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === shortcutKey.toLowerCase()) {
+      if (
+        isModKey(e) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        e.key.toLowerCase() === shortcutKey.toLowerCase() &&
+        !isEditableTarget(e)
+      ) {
         e.preventDefault();
         fire();
       }

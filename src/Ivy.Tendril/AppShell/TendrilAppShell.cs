@@ -472,7 +472,15 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
 
             selectedIndex.Set(newIndex);
-            lastSessionIndex.Value = newIndex;
+
+            // The last-visited pointer tracks its own tab, not the selection: renumber it for
+            // the removal and only drop it when the tab it pointed at is the one closing.
+            if (lastSessionIndex.Value is { } lastTracked)
+            {
+                if (lastTracked == closedIndex) lastSessionIndex.Value = wasSelected ? newIndex : null;
+                else if (lastTracked > closedIndex) lastSessionIndex.Value = lastTracked - 1;
+            }
+
             tabs.Set(newTabs);
 
             if (!wasSelected) return;
