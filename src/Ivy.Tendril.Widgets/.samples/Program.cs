@@ -1,11 +1,11 @@
 using Ivy;
-using WidgetSamples;
+using Ivy.Tendril.Widgets;
 
 var server = new Server();
 server.UseAppShell();
-// WebViewer proxy/capture/service-worker endpoints (same origin as the app).
-server.ReservePaths("/__proxy", "/__view", "/__capture", "/__captures", "/__lib", "/sw.js");
-server.UseWebApplication(app => app.MapWebViewerProxy(System.AppContext.BaseDirectory));
+// WebViewer proxy/capture/service-worker endpoints, hosted on the same origin as the app.
+server.ReservePaths(WebViewerProxy.ReservedPaths);
+server.UseWebApplication(app => app.MapWebViewerProxy());
 server.AddAppsFromAssembly();
 server.DangerouslyAllowLocalFiles();
 await server.RunAsync();

@@ -74,6 +74,28 @@ npm test         # vitest unit tests
 
 The bundle is built by MSBuild (via the WidgetsBuildFrontend target) and embedded from `dist/`, which is gitignored.
 
+## WebViewer proxy
+
+The `WebViewer` widget renders only the iframe. The endpoints it depends on (`/__proxy`, `/__view`,
+`/__capture`, `/__captures`, `/__lib`, `/sw.js`) are part of the library: `WebViewerProxy.cs` plus
+the assets in `proxy-assets/` (injected page agent, service worker, snapDOM), embedded into the DLL.
+Host them on the consuming app's own origin:
+
+```csharp
+server.ReservePaths(WebViewerProxy.ReservedPaths);
+server.UseWebApplication(app => app.MapWebViewerProxy());
+```
+
+The service worker registers at scope `/__view/`, so it controls the proxied iframe and never
+sees the host app's own traffic; the host page is therefore uncontrolled, and the widget talks
+to the worker through the registration rather than `navigator.serviceWorker.controller`.
+Worker state that must outlive an idle teardown is kept in the Cache API.
+
+`WebViewerRewriter.cs` maps every URL in proxied HTML and CSS into view-space
+(`/__view/<absolute-url>`). HTML goes through AngleSharp, never pattern matching — entity
+decoding, script bodies and comment boundaries are the parser's job. Tests live in
+`src/Ivy.Tendril.Test/Widgets/WebViewerRewriterTests.cs`.
+
 ## Markdown raw HTML
 
 `frontend/src/math.ts` builds the remark/rehype plugin lists for every markdown surface

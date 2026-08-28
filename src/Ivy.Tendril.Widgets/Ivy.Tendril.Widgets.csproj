@@ -7,6 +7,18 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- WebViewerProxy hosts endpoints on the consuming app's origin. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!-- Proxied HTML is rewritten through a real parser, not pattern matching. -->
+    <PackageReference Include="AngleSharp" Version="1.7.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Served by WebViewerProxy: injected page agent, service worker, screenshot library. -->
+    <EmbeddedResource Include="proxy-assets/agent.js" LogicalName="Ivy.Tendril.Widgets.proxy-assets.agent.js" />
+    <EmbeddedResource Include="proxy-assets/sw.js" LogicalName="Ivy.Tendril.Widgets.proxy-assets.sw.js" />
+    <EmbeddedResource Include="proxy-assets/snapdom.mjs" LogicalName="Ivy.Tendril.Widgets.proxy-assets.snapdom.mjs" />
+  </ItemGroup>
   <ItemGroup Condition="'$(IvySource)' == 'true'">
     <ProjectReference Include="../../../Ivy-Framework/src/Ivy/Ivy.csproj" />
   </ItemGroup>
