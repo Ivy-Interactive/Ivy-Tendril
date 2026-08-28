@@ -1,6 +1,26 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Mic, Bot, Cpu, Zap, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square, ArrowRight, Trash2 } from "lucide-react";
+import {
+  Mic,
+  Bot,
+  Cpu,
+  Zap,
+  MessageSquare,
+  ChevronDown,
+  Check,
+  Pencil,
+  Paperclip,
+  X,
+  Square,
+  ArrowRight,
+  Trash2,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  ExternalLink,
+  Activity,
+  Layers,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
@@ -81,7 +101,18 @@ const PdfThumbnail: React.FC<{ url: string }> = ({ url }) => {
     );
   }
 
-  return <canvas ref={canvasRef} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top", display: "block" }} />;
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        objectPosition: "top",
+        display: "block",
+      }}
+    />
+  );
 };
 
 const isImageFile = (nameOrType: string) => {
@@ -180,6 +211,24 @@ export interface ChatAttachmentDto {
   previewUrl?: string;
 }
 
+export interface ChatTrackedJobDto {
+  id: string;
+  type: string;
+  planId?: string;
+  planTitle?: string;
+  status: string;
+  statusMessage?: string;
+  startedAt?: string;
+  duration?: string;
+}
+
+export interface ChatTrackedPlanDto {
+  id: string;
+  title: string;
+  folderName: string;
+  status: string;
+}
+
 type IvyEventHandler = (eventName: string, widgetId: string, args: unknown[]) => void;
 
 export interface ChatWidgetProps {
@@ -190,6 +239,8 @@ export interface ChatWidgetProps {
   agents?: AgentOptionDto[];
   models?: ModelOptionDto[];
   efforts?: EffortOptionDto[];
+  trackedJobs?: ChatTrackedJobDto[];
+  trackedPlans?: ChatTrackedPlanDto[];
   selectedAgent?: string;
   selectedModel?: string;
   selectedEffort?: string;
@@ -200,6 +251,27 @@ export interface ChatWidgetProps {
   subscribeToStream?: (streamId: string, onData: (data: unknown) => void) => () => void;
   events?: string[];
   eventHandler?: IvyEventHandler;
+}
+
+function getJobStatusClass(status: string): string {
+  const s = (status || "").toLowerCase();
+  if (s === "running") return "status-running";
+  if (s === "completed") return "status-completed";
+  if (s === "failed" || s === "timeout") return "status-failed";
+  if (s === "queued" || s === "pending") return "status-queued";
+  if (s === "blocked") return "status-blocked";
+  return "status-default";
+}
+
+function getPlanStatusClass(status: string): string {
+  const s = (status || "").toLowerCase();
+  if (s === "draft") return "status-draft";
+  if (s === "creating" || s === "updating" || s === "executing") return "status-running";
+  if (s === "review") return "status-review";
+  if (s === "completed") return "status-completed";
+  if (s === "failed") return "status-failed";
+  if (s === "blocked" || s === "skipped" || s === "icebox") return "status-muted";
+  return "status-default";
 }
 
 interface InlineSelectOption {
@@ -298,7 +370,7 @@ function InlineSelect({ icon, value, options, onChange, title }: InlineSelectPro
               );
             })}
           </div>,
-          document.body
+          document.body,
         )}
     </div>
   );
@@ -326,6 +398,8 @@ export function ChatWidget({
   agents = [],
   models = [],
   efforts = [],
+  trackedJobs = [],
+  trackedPlans = [],
   selectedAgent = "claude",
   selectedModel = "opus",
   selectedEffort = "default",
@@ -347,12 +421,33 @@ export function ChatWidget({
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null);
   const [editingQueuedText, setEditingQueuedText] = useState("");
   const [pendingRenames, setPendingRenames] = useState<Record<string, string>>({});
+  const [activityPopoverOpen, setActivityPopoverOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const initialPromptRef = useRef<string>("");
+  const activityBadgeRef = useRef<HTMLDivElement>(null);
+  const activityPopoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!activityPopoverOpen) return;
+    const onMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        activityBadgeRef.current?.contains(target) ||
+        activityPopoverRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setActivityPopoverOpen(false);
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+    };
+  }, [activityPopoverOpen]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
 
@@ -379,7 +474,7 @@ export function ChatWidget({
   useEffect(() => {
     if (activeSession?.messages) {
       setQueuedMessages((prev) =>
-        prev.filter((q) => !activeSession.messages.some((m) => m.content === q.prompt))
+        prev.filter((q) => !activeSession.messages.some((m) => m.content === q.prompt)),
       );
     }
   }, [activeSession?.messages]);
@@ -405,7 +500,11 @@ export function ChatWidget({
   };
 
   const saveHeaderTitleEdit = () => {
-    if (activeSession && editingTitleText.trim() && editingTitleText.trim() !== activeSession.title) {
+    if (
+      activeSession &&
+      editingTitleText.trim() &&
+      editingTitleText.trim() !== activeSession.title
+    ) {
       const newTitle = editingTitleText.trim();
       setPendingRenames((prev) => ({ ...prev, [activeSession.id]: newTitle }));
       emit("OnRenameSession", activeSession.id, newTitle);
@@ -442,7 +541,11 @@ export function ChatWidget({
     const item = queuedMessages.find((q) => q.id === queueId);
     if (!item) return;
 
-    const payload = { prompt: item.prompt, attachments: item.attachments, sessionId: activeSessionId };
+    const payload = {
+      prompt: item.prompt,
+      attachments: item.attachments,
+      sessionId: activeSessionId,
+    };
     emit("OnSendMessage", payload);
     setQueuedMessages((prev) => prev.filter((q) => q.id !== queueId));
   };
@@ -458,7 +561,7 @@ export function ChatWidget({
       handleDeleteQueued(queueId);
     } else {
       setQueuedMessages((prev) =>
-        prev.map((q) => (q.id === queueId ? { ...q, prompt: trimmed } : q))
+        prev.map((q) => (q.id === queueId ? { ...q, prompt: trimmed } : q)),
       );
     }
     setEditingQueuedId(null);
@@ -686,9 +789,7 @@ export function ChatWidget({
         speechTranscript += event.results[i][0].transcript;
       }
       const base = initialPromptRef.current.trim();
-      const nextText = base
-        ? `${base} ${speechTranscript.trimStart()}`
-        : speechTranscript;
+      const nextText = base ? `${base} ${speechTranscript.trimStart()}` : speechTranscript;
       setPromptText(nextText);
       setTimeout(adjustTextareaHeight, 0);
     };
@@ -711,6 +812,35 @@ export function ChatWidget({
   const handleEffortChange = (effortId: string) => {
     emit("OnEffortChanged", effortId);
   };
+
+  const hasTracked =
+    (trackedJobs && trackedJobs.length > 0) || (trackedPlans && trackedPlans.length > 0);
+  const jobsCount = trackedJobs?.length || 0;
+  const plansCount = trackedPlans?.length || 0;
+  const runningCount = (trackedJobs || []).filter(
+    (j) => j.status === "Running" || j.status === "Queued" || j.status === "Pending",
+  ).length;
+  const failedCount = (trackedJobs || []).filter(
+    (j) => j.status === "Failed" || j.status === "Timeout",
+  ).length;
+
+  const activityStatus: "running" | "failed" | "completed" =
+    runningCount > 0 ? "running" : failedCount > 0 ? "failed" : "completed";
+
+  const getBadgeLabel = () => {
+    if (runningCount > 0) {
+      if (jobsCount === 1 && plansCount === 0) return "1 Running";
+      const parts: string[] = [];
+      if (jobsCount > 0) parts.push(`${jobsCount} Job${jobsCount !== 1 ? "s" : ""}`);
+      if (plansCount > 0) parts.push(`${plansCount} Plan${plansCount !== 1 ? "s" : ""}`);
+      return `${runningCount} Running · ${parts.join(" · ")}`;
+    }
+    const parts: string[] = [];
+    if (jobsCount > 0) parts.push(`${jobsCount} Job${jobsCount !== 1 ? "s" : ""}`);
+    if (plansCount > 0) parts.push(`${plansCount} Plan${plansCount !== 1 ? "s" : ""}`);
+    return parts.join(" · ") || "Activity";
+  };
+  const badgeLabel = getBadgeLabel();
 
   return (
     <div className="chat-widget-root">
@@ -741,16 +871,149 @@ export function ChatWidget({
                 autoFocus
               />
             ) : (
-              <div className="chat-header-title-clickable" onClick={startHeaderTitleEdit} title="Click to rename chat">
+              <div
+                className="chat-header-title-clickable"
+                onClick={startHeaderTitleEdit}
+                title="Click to rename chat"
+              >
                 <h1 className="chat-main-title">
-                  {(activeSession && pendingRenames[activeSession.id]) || activeSession?.title || "New Chat"}
+                  {(activeSession && pendingRenames[activeSession.id]) ||
+                    activeSession?.title ||
+                    "New Chat"}
                 </h1>
                 <Pencil size={13} className="chat-title-pencil" />
               </div>
             )}
           </div>
-          {activeSession && (
-            <div className="chat-header-actions">
+          <div className="chat-header-actions">
+            {hasTracked && (
+              <div className="chat-activity-tracker-container" ref={activityBadgeRef}>
+                <button
+                  type="button"
+                  className={`chat-activity-badge ${activityStatus} ${activityPopoverOpen ? "open" : ""}`}
+                  onClick={() => setActivityPopoverOpen((v) => !v)}
+                  title="View background jobs and plans"
+                  aria-label="View background jobs and plans"
+                >
+                  {activityStatus === "running" ? (
+                    <Loader2 size={13} className="chat-activity-spinner" />
+                  ) : activityStatus === "failed" ? (
+                    <AlertCircle size={13} className="chat-activity-icon-failed" />
+                  ) : (
+                    <CheckCircle2 size={13} className="chat-activity-icon-completed" />
+                  )}
+                  <span className="chat-activity-badge-text">{badgeLabel}</span>
+                  <ChevronDown
+                    size={12}
+                    className={`chat-activity-chevron ${activityPopoverOpen ? "open" : ""}`}
+                  />
+                </button>
+
+                {activityPopoverOpen && (
+                  <div className="chat-activity-popover" ref={activityPopoverRef}>
+                    <div className="chat-activity-popover-header">
+                      <span className="chat-activity-popover-title">Background Activity</span>
+                      <button
+                        type="button"
+                        className="chat-activity-popover-close"
+                        onClick={() => setActivityPopoverOpen(false)}
+                        aria-label="Close"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+
+                    <div className="chat-activity-popover-body">
+                      {trackedJobs.length > 0 && (
+                        <div className="chat-activity-section">
+                          <div className="chat-activity-section-title">
+                            <Activity size={12} />
+                            <span>Jobs ({trackedJobs.length})</span>
+                          </div>
+                          <div className="chat-activity-list">
+                            {trackedJobs.map((j) => (
+                              <button
+                                key={j.id}
+                                type="button"
+                                className="chat-activity-item job-item"
+                                onClick={() => {
+                                  emit("OnNavigateJob", j.id);
+                                }}
+                                title="View job output"
+                                aria-label={`View job #${j.id}`}
+                              >
+                                <div className="chat-activity-item-main">
+                                  <div className="chat-activity-item-header">
+                                    <span className="chat-activity-item-title">{j.type}</span>
+                                    <span className="chat-activity-item-id">#{j.id}</span>
+                                    <span
+                                      className={`chat-status-pill ${getJobStatusClass(j.status)}`}
+                                    >
+                                      {j.status}
+                                    </span>
+                                  </div>
+                                  {(j.statusMessage || j.planTitle) && (
+                                    <div className="chat-activity-item-details">
+                                      {j.statusMessage || j.planTitle}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="chat-activity-item-meta">
+                                  {j.duration && (
+                                    <span className="chat-activity-duration">{j.duration}</span>
+                                  )}
+                                  <ExternalLink size={12} className="chat-activity-link-icon" />
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {trackedPlans.length > 0 && (
+                        <div className="chat-activity-section">
+                          <div className="chat-activity-section-title">
+                            <Layers size={12} />
+                            <span>Plans ({trackedPlans.length})</span>
+                          </div>
+                          <div className="chat-activity-list">
+                            {trackedPlans.map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                className="chat-activity-item plan-item"
+                                onClick={() => {
+                                  emit("OnNavigatePlan", p.folderName);
+                                }}
+                                title={`Open plan ${p.id}`}
+                                aria-label={`Open plan ${p.id}`}
+                              >
+                                <div className="chat-activity-item-main">
+                                  <div className="chat-activity-item-header">
+                                    <span className="chat-activity-plan-id">{p.id}</span>
+                                    <span className="chat-activity-item-title">{p.title}</span>
+                                    <span
+                                      className={`chat-status-pill ${getPlanStatusClass(p.status)}`}
+                                    >
+                                      {p.status}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="chat-activity-item-meta">
+                                  <ExternalLink size={12} className="chat-activity-link-icon" />
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeSession && (
               <button
                 type="button"
                 className="chat-header-delete-btn"
@@ -763,8 +1026,8 @@ export function ChatWidget({
               >
                 <Trash2 size={16} />
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Message List Container */}
@@ -772,7 +1035,14 @@ export function ChatWidget({
           {activeSession && activeSession.messages && activeSession.messages.length > 0 ? (
             activeSession.messages.map((msg) => (
               <div key={msg.id} className={`chat-message-row ${msg.role}`}>
-                <div className="chat-message-bubble" style={msg.role === "assistant" && msg.rawStream ? { width: "85%", maxWidth: "85%" } : undefined}>
+                <div
+                  className="chat-message-bubble"
+                  style={
+                    msg.role === "assistant" && msg.rawStream
+                      ? { width: "85%", maxWidth: "85%" }
+                      : undefined
+                  }
+                >
                   {msg.role === "assistant" && (
                     <div className="chat-message-header">
                       <Bot size={13} className="chat-message-author" />
@@ -785,18 +1055,18 @@ export function ChatWidget({
                       const { prompt, attachedPaths } = parseUserMessageContent(msg.content);
                       return (
                         <div className="chat-user-message-body">
-                          {prompt && (
-                            <div className="chat-user-prompt-text">
-                              {prompt}
-                            </div>
-                          )}
+                          {prompt && <div className="chat-user-prompt-text">{prompt}</div>}
                           {attachedPaths.length > 0 && (
                             <div className="chat-user-message-attachments">
                               {attachedPaths.map((filePath, idx) => {
                                 const fileName = filePath.split(/[/\\]/).pop() || filePath;
                                 const ext = fileName.split(".").pop()?.toUpperCase() || "FILE";
                                 return (
-                                  <div key={idx} className="chat-user-attachment-badge" title={filePath}>
+                                  <div
+                                    key={idx}
+                                    className="chat-user-attachment-badge"
+                                    title={filePath}
+                                  >
                                     <Paperclip size={12} className="chat-user-attachment-icon" />
                                     <span className="chat-user-attachment-name">{fileName}</span>
                                     <span className="chat-user-attachment-ext">{ext}</span>
@@ -837,7 +1107,9 @@ export function ChatWidget({
           ) : (
             <div className="chat-empty-state">
               <MessageSquare size={44} strokeWidth={1.5} />
-              <h3 style={{ margin: 0, fontSize: "17px", color: "var(--foreground)" }}>Start a conversation</h3>
+              <h3 style={{ margin: 0, fontSize: "17px", color: "var(--foreground)" }}>
+                Start a conversation
+              </h3>
               <p style={{ margin: 0, fontSize: "13px" }}>
                 Choose an agent and model below to begin chatting.
               </p>
@@ -865,7 +1137,6 @@ export function ChatWidget({
             </div>
           )}
 
-
           <div ref={messagesEndRef} />
         </div>
 
@@ -885,9 +1156,14 @@ export function ChatWidget({
                     className="chat-queued-toggle-btn"
                     onClick={() => setCollapsedQueue(!collapsedQueue)}
                     title={collapsedQueue ? "Expand queued messages" : "Collapse queued messages"}
-                    aria-label={collapsedQueue ? "Expand queued messages" : "Collapse queued messages"}
+                    aria-label={
+                      collapsedQueue ? "Expand queued messages" : "Collapse queued messages"
+                    }
                   >
-                    <ChevronDown className={`chat-queued-chevron ${collapsedQueue ? "collapsed" : ""}`} size={16} />
+                    <ChevronDown
+                      className={`chat-queued-chevron ${collapsedQueue ? "collapsed" : ""}`}
+                      size={16}
+                    />
                   </button>
                 </div>
               </div>
@@ -989,8 +1265,15 @@ export function ChatWidget({
                 {attachments.map((att, idx) => {
                   const isImage = isImageFile(att.contentType || att.name);
                   const isPdf = isPdfFile(att.contentType || att.name);
-                  const previewSrc = att.previewUrl || (att.base64Data && att.base64Data.startsWith("data:") ? att.base64Data : undefined);
-                  const metaText = att.lineCount !== undefined ? `${att.lineCount} lines` : formatFileSize(att.size);
+                  const previewSrc =
+                    att.previewUrl ||
+                    (att.base64Data && att.base64Data.startsWith("data:")
+                      ? att.base64Data
+                      : undefined);
+                  const metaText =
+                    att.lineCount !== undefined
+                      ? `${att.lineCount} lines`
+                      : formatFileSize(att.size);
                   const badge = getFileExtBadge(att.name);
 
                   return (
@@ -999,7 +1282,11 @@ export function ChatWidget({
                       {(isImage || isPdf) && previewSrc && (
                         <div className="chat-thumbnail-preview-container">
                           {isImage ? (
-                            <img className="chat-thumbnail-image-preview" src={previewSrc} alt={att.name} />
+                            <img
+                              className="chat-thumbnail-image-preview"
+                              src={previewSrc}
+                              alt={att.name}
+                            />
                           ) : (
                             <PdfThumbnail url={previewSrc} />
                           )}
@@ -1022,7 +1309,9 @@ export function ChatWidget({
                       <div className="chat-thumbnail-content">
                         {!(previewSrc && (isImage || isPdf)) ? (
                           <div style={{ minWidth: 0 }}>
-                            <div className="chat-thumbnail-doc-name" title={att.name}>{att.name}</div>
+                            <div className="chat-thumbnail-doc-name" title={att.name}>
+                              {att.name}
+                            </div>
                             <div className="chat-thumbnail-doc-meta">{metaText}</div>
                           </div>
                         ) : (
