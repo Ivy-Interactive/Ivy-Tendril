@@ -7,7 +7,6 @@ public static class FileSystemAssertions
         Assert.True(Directory.Exists(tendrilHome), $"TENDRIL_HOME not found: {tendrilHome}");
         Assert.True(Directory.Exists(Path.Combine(tendrilHome, "Plans")), "Plans/ directory missing");
         Assert.True(Directory.Exists(Path.Combine(tendrilHome, "Inbox")), "Inbox/ directory missing");
-        Assert.True(Directory.Exists(Path.Combine(tendrilHome, "Trash")), "Trash/ directory missing");
         Assert.True(Directory.Exists(Path.Combine(tendrilHome, "Promptwares")), "Promptwares/ directory missing");
         Assert.True(Directory.Exists(Path.Combine(tendrilHome, "Hooks")), "Hooks/ directory missing");
         Assert.True(File.Exists(Path.Combine(tendrilHome, "config.yaml")), "config.yaml missing");

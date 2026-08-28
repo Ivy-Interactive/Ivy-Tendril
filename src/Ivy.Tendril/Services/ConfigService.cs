@@ -421,7 +421,6 @@ public class ConfigService : IConfigService, IDisposable
     {
         Directory.CreateDirectory(TendrilHome);
         Directory.CreateDirectory(Path.Combine(TendrilHome, "Inbox"));
-        Directory.CreateDirectory(Path.Combine(TendrilHome, "Trash"));
         Directory.CreateDirectory(PlanFolder);
         Directory.CreateDirectory(Path.Combine(TendrilHome, "Promptwares"));
         Directory.CreateDirectory(Path.Combine(TendrilHome, "Hooks"));

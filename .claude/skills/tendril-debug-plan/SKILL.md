@@ -131,7 +131,7 @@ This is the core debugging focus. Examine:
 
 **CheckResult / completion verification (JobService):**
 
-* For CreatePlan: did `VerifyCreatePlanResult` find the plan folder or trash entry?
+* For CreatePlan: did `VerifyCreatePlanResult` find the plan folder or the `identified as duplicate:` marker?
 * Did `CheckDependencies` correctly evaluate dependency plan states?
 * Did `TryBlockForDependencies` transition appropriately?
 
