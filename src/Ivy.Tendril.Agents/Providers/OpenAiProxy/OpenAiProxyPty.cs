@@ -1,4 +1,5 @@
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Agents.Providers.Ivy;
 using Ivy.Tendril.Agents.Providers.OpenCode;
 
@@ -79,42 +80,23 @@ public sealed class OpenAiProxyPty : IAgentPty
     public AgentPtySpec BuildPtySpec(AgentPtyConfig config)
     {
         var baseUrl = _baseUrlProvider();
-        var model = config.Model;
-        if (string.IsNullOrEmpty(model) || model == "default")
-        {
-            if (baseUrl != null && baseUrl.Contains("llmproxy.ivy.app"))
-            {
-                config = config with { Model = "claude-opus-5" };
-            }
-            else if (baseUrl != null && baseUrl.Contains("api.anthropic.com"))
-            {
-                config = config with { Model = "claude-sonnet-5" };
-            }
-            else if (baseUrl != null && (baseUrl.Contains("generativelanguage.googleapis.com") || baseUrl.Contains("gemini") || baseUrl.Contains("google")))
-            {
-                config = config with { Model = "gemini-3.7-flash" };
-            }
-            else if (baseUrl != null && baseUrl.Contains("api.berget.ai"))
-            {
-                config = config with { Model = "moonshotai/Kimi-K3" };
-            }
-            else
-            {
-                config = config with { Model = "gpt-5.6-terra" };
-            }
-        }
+        var model = OpenCodeModelHelper.FormatModel(config.Model, baseUrl);
+        config = config with { Model = model };
 
         var spec = _inner.BuildPtySpec(config);
 
         var env = new Dictionary<string, string>(spec.Environment);
         if (!string.IsNullOrEmpty(baseUrl))
         {
-            env["ANTHROPIC_BASE_URL"] = baseUrl;
+            var trimmedBase = baseUrl.Trim().TrimEnd('/');
+            env["ANTHROPIC_BASE_URL"] = trimmedBase.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? trimmedBase[..^3] : trimmedBase;
+            env["OPENAI_BASE_URL"] = trimmedBase.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? trimmedBase : $"{trimmedBase}/v1";
         }
 
         var apiKey = _apiKeyProvider();
         if (!string.IsNullOrEmpty(apiKey))
         {
+            env["OPENAI_API_KEY"] = apiKey;
             env["ANTHROPIC_API_KEY"] = apiKey;
         }
 
@@ -138,7 +120,15 @@ public sealed class OpenAiProxyPty : IAgentPty
         var baseUrl = _baseUrlProvider();
         if (!string.IsNullOrEmpty(baseUrl))
         {
-            env["ANTHROPIC_BASE_URL"] = baseUrl;
+            var trimmedBase = baseUrl.Trim().TrimEnd('/');
+            env["ANTHROPIC_BASE_URL"] = trimmedBase.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? trimmedBase[..^3] : trimmedBase;
+            env["OPENAI_BASE_URL"] = trimmedBase.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? trimmedBase : $"{trimmedBase}/v1";
+        }
+        var apiKey = _apiKeyProvider();
+        if (!string.IsNullOrEmpty(apiKey))
+        {
+            env["OPENAI_API_KEY"] = apiKey;
+            env["ANTHROPIC_API_KEY"] = apiKey;
         }
         return env;
     }

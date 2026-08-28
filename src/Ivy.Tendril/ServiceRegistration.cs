@@ -79,10 +79,13 @@ internal static class ServiceRegistration
                     if (config?.Settings != null)
                     {
                         var openAiProxyAgent = config.Settings.CodingAgents.FirstOrDefault(a =>
-                            a.Name.Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
-                        if (openAiProxyAgent != null && openAiProxyAgent.EnvironmentVariables.TryGetValue("ANTHROPIC_API_KEY", out var key) && !string.IsNullOrEmpty(key))
+                            a.Name.Equals("openaiproxy", StringComparison.OrdinalIgnoreCase) ||
+                            a.Name.Equals("ivy", StringComparison.OrdinalIgnoreCase));
+                        if (openAiProxyAgent != null)
                         {
-                            return key;
+                            if (openAiProxyAgent.EnvironmentVariables.TryGetValue("ANTHROPIC_API_KEY", out var key) && !string.IsNullOrEmpty(key)) return key;
+                            if (openAiProxyAgent.EnvironmentVariables.TryGetValue("OPENAI_API_KEY", out key) && !string.IsNullOrEmpty(key)) return key;
+                            if (openAiProxyAgent.EnvironmentVariables.TryGetValue("IVY_API_KEY", out key) && !string.IsNullOrEmpty(key)) return key;
                         }
                     }
                     return null;
@@ -97,10 +100,13 @@ internal static class ServiceRegistration
                     if (config?.Settings != null)
                     {
                         var openAiProxyAgent = config.Settings.CodingAgents.FirstOrDefault(a =>
-                            a.Name.Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
-                        if (openAiProxyAgent != null && openAiProxyAgent.EnvironmentVariables.TryGetValue("ANTHROPIC_BASE_URL", out var url) && !string.IsNullOrEmpty(url))
+                            a.Name.Equals("openaiproxy", StringComparison.OrdinalIgnoreCase) ||
+                            a.Name.Equals("ivy", StringComparison.OrdinalIgnoreCase));
+                        if (openAiProxyAgent != null)
                         {
-                            return url;
+                            if (openAiProxyAgent.EnvironmentVariables.TryGetValue("ANTHROPIC_BASE_URL", out var url) && !string.IsNullOrEmpty(url)) return url;
+                            if (openAiProxyAgent.EnvironmentVariables.TryGetValue("OPENAI_BASE_URL", out url) && !string.IsNullOrEmpty(url)) return url;
+                            if (openAiProxyAgent.EnvironmentVariables.TryGetValue("IVY_BASE_URL", out url) && !string.IsNullOrEmpty(url)) return url;
                         }
                     }
                     return null;

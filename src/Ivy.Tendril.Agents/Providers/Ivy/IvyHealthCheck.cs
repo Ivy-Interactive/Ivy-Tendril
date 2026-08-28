@@ -43,6 +43,17 @@ public sealed class IvyHealthCheck : IAgentHealthCheck
         var apiKey = _apiKeyProvider();
         if (!string.IsNullOrEmpty(apiKey))
         {
+            var testResult = await LlmEndpointTester.TestModelPromptAsync("https://llmproxy.ivy.app/v1", apiKey, "default", ct);
+            if (testResult.Status == ModelValidationStatus.AuthError)
+            {
+                return new AgentAuthResult
+                {
+                    Status = AuthStatus.NotAuthenticated,
+                    Error = testResult.ErrorMessage ?? "Invalid Ivy proxy API key.",
+                    SignInHint = "Please check your Ivy proxy API key under Settings -> Coding Agent."
+                };
+            }
+
             return new AgentAuthResult { Status = AuthStatus.Authenticated, Provider = "API Key" };
         }
 
