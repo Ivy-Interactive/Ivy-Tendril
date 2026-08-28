@@ -537,10 +537,13 @@ public class ContentView(
         var minimalDropdownItems = new List<MenuItem>
         {
             new MenuItem("Reset to Draft", Icon: Icons.RotateCcw, Tag: "ResetToDraft").OnSelect(showResetToDraftDialog),
-            new MenuItem(requestChangesMenuLabel, Icon: Icons.MessageSquare, Tag: "RequestChanges").OnSelect(showSuggestChangesDialog),
-            new MenuItem("Share", Icon: Icons.Share2, Tag: "Share").OnSelect(HandleSharePlan),
-            new MenuItem("Discard", Icon: Icons.Trash, Tag: "Discard").OnSelect(showDiscardDialog)
+            new MenuItem(requestChangesMenuLabel, Icon: Icons.MessageSquare, Tag: "RequestChanges").OnSelect(showSuggestChangesDialog)
         };
+        if (isBeta)
+        {
+            minimalDropdownItems.Add(new MenuItem("Share", Icon: Icons.Share2, Tag: "Share").OnSelect(HandleSharePlan));
+        }
+        minimalDropdownItems.Add(new MenuItem("Discard", Icon: Icons.Trash, Tag: "Discard").OnSelect(showDiscardDialog));
         minimalDropdownItems.AddRange(standardOverflowItems);
 
         var requestChangesBtn = new Button("Request Changes")
@@ -562,9 +565,15 @@ public class ContentView(
         var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                 | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r")
                     .OnClick(showResetToDraftDialog).CompactUp()
-                | requestChangesBtn
-                | new Button("Share").Icon(Icons.Share2).Outline()
-                    .OnClick(HandleSharePlan).CompactUp()
+                | requestChangesBtn;
+
+        if (isBeta)
+        {
+            actionBar |= new Button("Share").Icon(Icons.Share2).Outline()
+                .OnClick(HandleSharePlan).CompactUp();
+        }
+
+        actionBar = actionBar
                 | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
                     .OnClick(showDiscardDialog).FullOnly()
                 | ActionBarResponsive.DropdownAtFull(

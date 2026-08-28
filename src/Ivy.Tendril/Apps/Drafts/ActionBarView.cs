@@ -211,15 +211,21 @@ public class ActionBarView(
             new MenuItem("Edit", Icon: Icons.Pencil, Tag: "Edit")
                 .OnSelect(() => isEditingState.Set(true)),
             new MenuItem("Update", Icon: Icons.WandSparkles, Tag: "Update")
-                .OnSelect(showUpdateDialog),
-            new MenuItem("Share", Icon: Icons.Share2, Tag: "Share")
-                .OnSelect(HandleShareDraft),
+                .OnSelect(showUpdateDialog)
+        };
+        if (isBeta)
+        {
+            minimalDropdownItems.Add(new MenuItem("Share", Icon: Icons.Share2, Tag: "Share")
+                .OnSelect(HandleShareDraft));
+        }
+        minimalDropdownItems.AddRange(new[]
+        {
             new MenuItem("Split", Icon: Icons.Scissors, Tag: "Split")
                 .OnSelect(StartSplit).Disabled(hasActiveSplitJob),
             new MenuItem("Expand", Icon: Icons.UnfoldVertical, Tag: "Expand")
                 .OnSelect(StartExpand).Disabled(hasActiveExpandJob),
             new MenuItem("Delete", Icon: Icons.Trash, Tag: "Delete").OnSelect(showDeleteDialog)
-        };
+        });
         minimalDropdownItems.AddRange(standardOverflowItems);
 
         // Action bar without .Wrap() - single row layout with progressive collapse.
@@ -227,9 +233,15 @@ public class ActionBarView(
                | new Button("Edit").Icon(Icons.Pencil).Outline().ShortcutKey("E")
                    .OnClick(() => isEditingState.Set(true)).CompactUp()
                | new Button("Update").Icon(Icons.WandSparkles).Outline().ShortcutKey("u")
-                   .OnClick(showUpdateDialog).CompactUp()
-               | new Button("Share").Icon(Icons.Share2).Outline()
-                   .OnClick(HandleShareDraft).CompactUp()
+                   .OnClick(showUpdateDialog).CompactUp();
+
+        if (isBeta)
+        {
+            actionBar |= new Button("Share").Icon(Icons.Share2).Outline()
+                .OnClick(HandleShareDraft).CompactUp();
+        }
+
+        actionBar = actionBar
                | new Button("Split").Icon(Icons.Scissors).Outline()
                    .OnClick(StartSplit).Disabled(hasActiveSplitJob).FullOnly()
                | new Button("Expand").Icon(Icons.UnfoldVertical).Outline()
@@ -249,6 +261,6 @@ public class ActionBarView(
                    new Button().Icon(Icons.EllipsisVertical).Ghost(),
                    minimalDropdownItems.ToArray());
 
-        return new Fragment(actionBar, shareModal);
+        return isBeta || isShareMode ? new Fragment(actionBar, shareModal) : actionBar;
     }
 }
