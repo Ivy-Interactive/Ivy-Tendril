@@ -17,6 +17,26 @@ export const ShellSidebarHeader: React.FC<ShellSidebarHeaderProps> = ({
 }) => {
   const { collapsed, toggle } = useShell();
 
+  if (collapsed) {
+    // In the rail the logo doubles as the expand control: hovering fades the
+    // logo out and reveals the panel icon in its place.
+    return (
+      <div className="tsh-header">
+        <button
+          className="tsh-logo-toggle"
+          onClick={toggle}
+          aria-label="Open sidebar"
+          title="Open sidebar (Ctrl+B)"
+        >
+          {logoUrl && <img className="tsh-header-logo" src={logoUrl} alt="" />}
+          <span className="tsh-logo-toggle-icon">
+            <PanelLeftOpen size={16} />
+          </span>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="tsh-header">
       <div className="tsh-header-brand">
@@ -29,10 +49,10 @@ export const ShellSidebarHeader: React.FC<ShellSidebarHeaderProps> = ({
       <button
         className="tsh-header-toggle"
         onClick={toggle}
-        aria-label={collapsed ? "Open sidebar" : "Close sidebar"}
-        title={collapsed ? "Open sidebar (Ctrl+B)" : "Close sidebar (Ctrl+B)"}
+        aria-label="Close sidebar"
+        title="Close sidebar (Ctrl+B)"
       >
-        {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+        <PanelLeftClose size={16} />
       </button>
     </div>
   );

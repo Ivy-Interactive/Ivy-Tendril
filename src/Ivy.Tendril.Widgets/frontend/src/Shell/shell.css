@@ -107,7 +107,7 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
-  padding: 16px 16px 16px 0;
+  padding: 12px 12px 12px 0;
 }
 
 /* One bordered rounded card holds the white content surface and, inside its
@@ -229,8 +229,7 @@
 .tsh-root[data-collapsed="true"] .tsh-header {
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding-top: 8px;
+  padding-top: 12px;
 }
 
 .tsh-root[data-collapsed="true"] .tsh-header-logo {
@@ -244,14 +243,53 @@
   display: none;
 }
 
-.tsh-root[data-collapsed="true"] .tsh-header-toggle {
-  margin: 0;
+/* Rail header: the logo doubles as the expand control — hovering it fades the
+   logo out and the panel icon in (Lovable-style). */
+.tsh-logo-toggle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  padding: 0;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--tsh-fg);
+  cursor: pointer;
+}
+
+.tsh-logo-toggle .tsh-header-logo {
+  transition: opacity 150ms ease;
+}
+
+.tsh-logo-toggle-icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.tsh-logo-toggle:hover .tsh-header-logo {
+  opacity: 0;
+}
+
+.tsh-logo-toggle:hover .tsh-logo-toggle-icon {
+  opacity: 1;
+}
+
+.tsh-logo-toggle:hover {
+  background: var(--tsh-row-active);
 }
 
 /* ---------- New Plan button ---------- */
 
 .tsh-newplan-wrap {
-  padding-top: 16px;
+  padding-top: 12px;
   flex-shrink: 0;
 }
 
@@ -279,6 +317,7 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+  transition: gap var(--tsh-anim);
 }
 
 .tsh-newplan-label {
@@ -315,6 +354,13 @@
   opacity: 0;
 }
 
+.tsh-root[data-collapsed="true"] .tsh-newplan-label-group,
+.tsh-root[data-collapsed="true"] .tsh-agent-brand,
+.tsh-root[data-collapsed="true"] .tsh-nav-item-main,
+.tsh-root[data-collapsed="true"] .tsh-settings {
+  gap: 0;
+}
+
 /* ---------- Agent button ---------- */
 
 .tsh-agent-wrap {
@@ -346,6 +392,7 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+  transition: gap var(--tsh-anim);
 }
 
 .tsh-agent-icon {
@@ -415,7 +462,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding-top: 24px;
+  padding-top: 12px;
   flex-shrink: 0;
 }
 
@@ -448,7 +495,7 @@
   gap: 8px;
   min-width: 0;
   opacity: 0.6;
-  transition: opacity 150ms ease;
+  transition: opacity 150ms ease, gap var(--tsh-anim);
 }
 
 .tsh-nav-item:hover .tsh-nav-item-main,
@@ -501,7 +548,7 @@
 }
 
 .tsh-nav-divider {
-  height: 28px;
+  height: 20px;
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -538,7 +585,7 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  padding-top: 16px;
+  padding-top: 6px;
   overflow: hidden;
   transition: opacity 200ms ease;
 }
@@ -595,7 +642,7 @@
 }
 
 .tsh-section-list {
-  margin-top: 16px;
+  margin-top: 10px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -746,7 +793,7 @@
 .tsh-tabs {
   display: flex;
   align-items: stretch;
-  height: 45px;
+  height: 40px;
 }
 
 .tsh-tab {
@@ -755,7 +802,7 @@
   justify-content: space-between;
   width: 200px;
   min-width: 0;
-  padding: 12px 16px;
+  padding: 10px 16px;
   border: none;
   border-right: 1px solid var(--tsh-tab-border);
   background: transparent;
@@ -819,8 +866,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 45px;
-  height: 45px;
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
   border: none;
   border-right: 1px solid var(--tsh-tab-border);
