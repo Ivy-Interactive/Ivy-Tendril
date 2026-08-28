@@ -14,6 +14,26 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.1.35 (2026-08-28)
+
+### Features
+
+- **Share Mode Tunnel & External Sharing `[Beta]`** - Securely share plan and draft links externally over Cloudflare tunnels with automatic share URL generation and copy actions, gated behind the beta flag (`beta: true` in settings or `TENDRIL_BETA`).
+- **Session Protection for Shared Mode** - Added password session protection with Argon2 hashing in Settings under a unified "Security & Tunneling" section.
+- **Anonymous Reviewer Personas** - Generated friendly anonymous personas with initialed avatars for external collaborators reviewing shared plans.
+- **Draft & Plan Diff Inline Comments** - Added real-time inline reviewer commenting on diff chunks in Review mode (`DraftDiffCommentService`) with a dedicated "Request Changes" action and badge counts.
+- **Draft Text Selection Annotations** - Added text selection highlighting and popovers anchored to character offsets in `DraftMarkdown` (`DraftAnnotationService`).
+- **Team Configuration Vault `[Beta]`** - Introduced centralized team configuration sync backed by Git repositories (`VaultService`, accessible under beta flag), allowing teams to create, connect, import, and push project configs to remote vaults with automated secret sanitization (`VaultSecretSanitizer`).
+
+### Improvements
+
+- **Job Provenance & Profile Recording** - Recorded execution profiles per job and structured cost sheet provenance as facts.
+- **Beta Feature Isolation** - Ensured Share buttons, tunnel controls, and vault configurations are cleanly isolated behind beta flags in both UI and command layers.
+
+### Bug Fixes
+
+- **Windows Desktop Packaging** - Fixed packaging failure by using junk-path zip extraction for bundled `ivy-agent.exe` on Windows x64 and arm64 builds.
+
 ## 1.1.34 (2026-08-25)
 
 ### Features
