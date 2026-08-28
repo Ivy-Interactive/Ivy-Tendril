@@ -14,6 +14,20 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.1.36 (2026-08-28)
+
+### Features
+
+- **Live Onboarding Model Testing & Auth Verification** - Onboarding now actively tests endpoint credentials and profile models (`Deep`, `Balanced`, `Quick`) with live prompt requests before allowing navigation, blocking invalid model names and unwrapping nested proxy error payloads into clear messages.
+- **Model Profile Priority Constants & Provider Enums** - Replaced ternary cascades with declarative priority tables (`ModelProfilePriorities`) and enums (`ModelProviderKind`, `ModelProfileKind`) for consistent default and candidate model resolution across onboarding and settings.
+- **On-Demand Promptware Deployment Fallback** - Added automatic fallback deployment in `PromptwareRunner` and `PromptwareRunCommand` to extract missing promptwares from embedded resources on demand if `Program.md` is absent.
+
+### Improvements
+
+- **Bundled Ivy Agent Binary Priority** - Enforced resolution of bundled or Tendril-managed `ivy-agent` binaries (`~/.tendril/bin`), preventing unmanaged system `PATH` executables from interfering with agent execution.
+- **Settings Custom Model Input Persistence** - Fixed custom model name inputs reverting on Enter or re-render in `CodingAgentSetupView`.
+- **Trash Feature Removal** - Removed the obsolete Trash app and command suite, replacing trash markers with clean duplicate rejection handling in `CreatePlan`.
+
 ## 1.1.35 (2026-08-28)
 
 ### Features
