@@ -90,6 +90,42 @@ public class AntigravityEventParserTests
     }
 
     [Fact]
+    public void ParseLine_ResultJson_WithFullUsageAndCost_ExtractsAllFields()
+    {
+        var json = "{\"event\":\"result\",\"result\":{\"conversation_id\":\"c-123\",\"status\":\"SUCCESS\",\"model\":\"gemini-3.7-flash\",\"total_cost_usd\":0.0125,\"usage\":{\"input_tokens\":1000,\"output_tokens\":500,\"cache_read_tokens\":200,\"cache_write_tokens\":50,\"reasoning_tokens\":80}}}";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var resultEvent = Assert.IsType<ResultEvent>(events[0]);
+        Assert.NotNull(resultEvent.Usage);
+        Assert.Equal(1000, resultEvent.Usage.InputTokens);
+        Assert.Equal(500, resultEvent.Usage.OutputTokens);
+        Assert.Equal(200, resultEvent.Usage.CacheReadTokens);
+        Assert.Equal(50, resultEvent.Usage.CacheWriteTokens);
+        Assert.Equal(80, resultEvent.Usage.ReasoningTokens);
+        Assert.Equal(0.0125m, resultEvent.Usage.CostUsd);
+        Assert.Equal("gemini-3.7-flash", resultEvent.Usage.Model);
+    }
+
+    [Fact]
+    public void ParseLine_InitFollowedByResultWithoutModel_AttachesInitModelToResultUsage()
+    {
+        var parser = new AntigravityEventParser();
+        var initJson = "{\"event\":\"init\",\"conversation_id\":\"c-123\",\"init\":{\"model\":\"gemini-3.6-flash\"}}";
+        var resultJson = "{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\",\"usage\":{\"input_tokens\":200,\"output_tokens\":100}}}";
+
+        parser.ParseLine(initJson);
+        var events = parser.ParseLine(resultJson);
+
+        Assert.Single(events);
+        var resultEvent = Assert.IsType<ResultEvent>(events[0]);
+        Assert.NotNull(resultEvent.Usage);
+        Assert.Equal("gemini-3.6-flash", resultEvent.Usage.Model);
+        Assert.Equal(200, resultEvent.Usage.InputTokens);
+        Assert.Equal(100, resultEvent.Usage.OutputTokens);
+    }
+
+    [Fact]
     public void ParseLine_ResultJson_WithRecoveredToolErrorAndResponse_SetsIsSuccessTrueAndErrorNull()
     {
         var json = "{\"event\":\"result\",\"result\":{\"conversation_id\":\"c-123\",\"status\":\"ERROR\",\"error\":\"declaring permissions: cortex tool write_to_file: path is not valid\",\"response\":\"I have finished the plan execution\",\"duration_seconds\":15.2}}";
