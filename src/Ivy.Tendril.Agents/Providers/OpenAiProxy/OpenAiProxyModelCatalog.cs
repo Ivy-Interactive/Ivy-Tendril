@@ -53,6 +53,10 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
         {
             models = GetStaticModels();
         }
+        else
+        {
+            models = ModelCatalogSorter.Sort(models);
+        }
         return new ModelCatalogResult
         {
             AgentId = AgentId,
@@ -160,7 +164,7 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
                             return new FetchModelsResult
                             {
                                 Success = true,
-                                Models = result.DistinctBy(m => m.Id, StringComparer.OrdinalIgnoreCase).ToList()
+                                Models = ModelCatalogSorter.Sort(result.DistinctBy(m => m.Id, StringComparer.OrdinalIgnoreCase).ToList())
                             };
                         }
                     }
@@ -305,9 +309,9 @@ public sealed class OpenAiProxyModelCatalog : IModelCatalogProvider
         combined.AddRange(OpenCodeCatalog.GetStaticModels().Where(m => m.Id != "default"));
         combined.AddRange(IvyCatalog.GetStaticModels());
 
-        return combined
+        return ModelCatalogSorter.Sort(combined
             .DistinctBy(m => m.Id, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+            .ToList());
     }
 
     public static async Task<(bool Success, string? ErrorMessage)> TestModelEndpointAsync(

@@ -414,7 +414,8 @@ public class CodingAgentStepView(
             var hasAvailableModels = availableModels.Count > 0;
             var isCustomMode = useCustomModelNames.Value || !hasAvailableModels;
 
-            var modelOptions = availableModels
+            var sortedModels = ModelCatalogSorter.Sort(availableModels);
+            var modelOptions = sortedModels
                 .Select(m => new Option<string>(m.DisplayName, m.Id))
                 .ToArray<IAnyOption>();
 

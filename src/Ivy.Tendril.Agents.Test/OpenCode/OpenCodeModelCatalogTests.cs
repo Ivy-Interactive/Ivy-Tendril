@@ -30,4 +30,32 @@ public class OpenCodeModelCatalogTests
         Assert.Equal("opencode", result.AgentId);
         Assert.NotEmpty(result.Models);
     }
+
+    [Fact]
+    public async Task ParseModelsListAsync_ReturnsDiscoveredModelsSortedDescending()
+    {
+        var output = """
+            claude-3-5-sonnet
+            claude-opus-4-5
+            claude-opus-5
+            claude-sonnet-5
+            gpt-4.1
+            gpt-5.5
+            gpt-5.6-terra
+            """;
+
+        var models = await OpenCodeModelCatalog.ParseModelsListAsync(output);
+
+        Assert.NotNull(models);
+        var ids = models.Select(m => m.Id).ToArray();
+        Assert.Equal([
+            "claude-opus-5",
+            "claude-opus-4-5",
+            "claude-sonnet-5",
+            "claude-3-5-sonnet",
+            "gpt-5.6-terra",
+            "gpt-5.5",
+            "gpt-4.1",
+        ], ids);
+    }
 }

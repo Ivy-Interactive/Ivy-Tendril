@@ -482,7 +482,8 @@ public class ChatApp : ViewBase
                 var asyncResult = catalog.GetModelsAsync().GetAwaiter().GetResult();
                 if (asyncResult != null && asyncResult.Models.Count > 0)
                 {
-                    return asyncResult.Models.Select(m => (m.Id, m.DisplayName ?? m.Id)).ToList();
+                    var sorted = ModelCatalogSorter.Sort(asyncResult.Models);
+                    return sorted.Select(m => (m.Id, m.DisplayName ?? m.Id)).ToList();
                 }
             }
             catch
@@ -493,7 +494,8 @@ public class ChatApp : ViewBase
             var staticModels = catalog.GetStaticModels();
             if (staticModels != null && staticModels.Count > 0)
             {
-                return staticModels.Select(m => (m.Id, m.DisplayName ?? m.Id)).ToList();
+                var sorted = ModelCatalogSorter.Sort(staticModels);
+                return sorted.Select(m => (m.Id, m.DisplayName ?? m.Id)).ToList();
             }
         }
 
