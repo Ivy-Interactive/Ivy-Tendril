@@ -34,16 +34,20 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
     if (events.includes("OnSearch")) eventHandler("OnSearch", id, []);
   };
 
+  const hasHeader = !!title || searchable;
+
   return (
-    <div className="tsh-section">
-      <div className="tsh-section-header">
-        <span className="tsh-section-title">{title}</span>
-        {searchable && (
-          <button className="tsh-section-search" onClick={openSearch} aria-label="Search plans">
-            <Search size={16} />
-          </button>
-        )}
-      </div>
+    <div className="tsh-section" data-headerless={!hasHeader}>
+      {hasHeader && (
+        <div className="tsh-section-header">
+          <span className="tsh-section-title">{title}</span>
+          {searchable && (
+            <button className="tsh-section-search" onClick={openSearch} aria-label="Search plans">
+              <Search size={16} />
+            </button>
+          )}
+        </div>
+      )}
       <div className="tsh-section-list">
         {items.length === 0 && emptyText && <div className="tsh-section-empty">{emptyText}</div>}
         {items.map((item) => (

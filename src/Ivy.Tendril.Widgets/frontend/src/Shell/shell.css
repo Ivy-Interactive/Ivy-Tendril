@@ -107,7 +107,21 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
-  padding: 16px 16px 0 0;
+  padding: 16px 16px 16px 0;
+}
+
+/* One bordered rounded card holds the white content surface and, inside its
+   bottom edge, the session tab strip (matching the prototype's Frame 233). */
+.tsh-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  background: var(--tsh-bg);
+  border: 1px solid var(--tsh-border);
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .tsh-frame {
@@ -116,8 +130,8 @@
   min-width: 0;
   position: relative;
   background: var(--tsh-surface);
-  border: 1px solid var(--tsh-border);
-  border-radius: 12px;
+  border-bottom: 1px solid var(--tsh-border);
+  border-radius: 0 0 12px 12px;
   overflow: hidden;
 }
 
@@ -139,11 +153,6 @@
 
 .tsh-tabs-row {
   flex-shrink: 0;
-}
-
-.tsh-bottom-spacer {
-  flex-shrink: 0;
-  height: 16px;
 }
 
 /* ---------- Sidebar header ---------- */
@@ -534,6 +543,15 @@
   transition: opacity 200ms ease;
 }
 
+/* Headerless usage (e.g. inside the plan search dialog): plain list, no inset. */
+.tsh-section[data-headerless="true"] {
+  padding-top: 0;
+}
+
+.tsh-section[data-headerless="true"] .tsh-section-list {
+  margin-top: 0;
+}
+
 .tsh-root[data-collapsed="true"] .tsh-section {
   opacity: 0;
   pointer-events: none;
@@ -729,7 +747,6 @@
   display: flex;
   align-items: stretch;
   height: 45px;
-  border-bottom: 1px solid var(--tsh-border);
 }
 
 .tsh-tab {

@@ -4,7 +4,7 @@ using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Icebox;
 
-[App(title: "Icebox", icon: Icons.Snowflake, group: ["Apps"], order: Constants.Icebox)]
+[App(title: "Icebox", icon: Icons.Snowflake, group: ["Apps"], order: Constants.Icebox, isVisible: false)]
 public class IceboxApp : ViewBase
 {
     public override object Build()

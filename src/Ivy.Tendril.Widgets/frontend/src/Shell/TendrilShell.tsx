@@ -13,15 +13,19 @@ interface TendrilShellProps extends ShellWidgetProps {
     Content?: React.ReactNode;
     SessionContents?: React.ReactNode;
     Tabs?: React.ReactNode;
+    Hidden?: React.ReactNode;
   };
 }
 
 /**
- * The Tendril app chrome: sidebar (expanded / icon rail), the rounded content
- * frame, and the session tab strip below it. Collapse is client-side for a
- * smooth animation; the server is notified through OnCollapsedChanged so the
- * state can be persisted. Session panes all stay mounted — only the active one
- * is visible — so agent terminals keep their buffers when switching tabs.
+ * The Tendril app chrome: sidebar (expanded / icon rail) and one rounded,
+ * bordered container holding the white content surface with the session tab
+ * strip inside its bottom edge. Collapse is client-side for a smooth
+ * animation; the server is notified through OnCollapsedChanged so the state
+ * can be persisted. Session panes all stay mounted — only the active one is
+ * visible — so agent terminals keep their buffers when switching tabs. The
+ * Hidden slot hosts zero-size utility widgets (shortcut ghosts, chunk
+ * warm-ups) without letting them paint.
  */
 export const TendrilShell: React.FC<TendrilShellProps> = ({
   id,
@@ -65,30 +69,32 @@ export const TendrilShell: React.FC<TendrilShellProps> = ({
 
   return (
     <ShellContext.Provider value={{ collapsed, toggle }}>
-      <div className="tsh-root" data-collapsed={collapsed}>
+      <div className="tsh-root remove-parent-padding" data-collapsed={collapsed}>
         <div className="tsh-sidebar">
           <div className="tsh-sidebar-header">{slots?.SidebarHeader}</div>
           <div className="tsh-sidebar-body">{slots?.SidebarBody}</div>
           <div className="tsh-sidebar-footer">{slots?.SidebarFooter}</div>
         </div>
         <div className="tsh-main">
-          <div className="tsh-frame">
-            <div className="tsh-frame-pane" data-active={!hasActiveSession}>
-              {slots?.Content}
-            </div>
-            {sessionPanes.map((pane, index) => (
-              <div
-                className="tsh-frame-pane"
-                data-active={hasActiveSession && index === activeSessionIndex}
-                key={(React.isValidElement(pane) && pane.key) || index}
-              >
-                {pane}
+          <div className="tsh-container">
+            <div className="tsh-frame">
+              <div className="tsh-frame-pane" data-active={!hasActiveSession}>
+                {slots?.Content}
               </div>
-            ))}
+              {sessionPanes.map((pane, index) => (
+                <div
+                  className="tsh-frame-pane"
+                  data-active={hasActiveSession && index === activeSessionIndex}
+                  key={(React.isValidElement(pane) && pane.key) || index}
+                >
+                  {pane}
+                </div>
+              ))}
+            </div>
+            {slots?.Tabs && <div className="tsh-tabs-row">{slots.Tabs}</div>}
           </div>
-          {slots?.Tabs && <div className="tsh-tabs-row">{slots.Tabs}</div>}
-          <div className="tsh-bottom-spacer" />
         </div>
+        {slots?.Hidden && <div style={{ display: "none" }}>{slots.Hidden}</div>}
       </div>
     </ShellContext.Provider>
   );

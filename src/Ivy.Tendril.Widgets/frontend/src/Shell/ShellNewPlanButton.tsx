@@ -1,58 +1,46 @@
-import React, { useCallback, useEffect } from "react";
+import React from "react";
 import { Plus } from "lucide-react";
 import { useShell } from "./ShellContext";
-import { ShellWidgetProps, isEditableTarget, isModKey, modKeyLabel } from "./types";
+import { ShellWidgetProps, isMac } from "./types";
 import "./shell.css";
 
 interface ShellNewPlanButtonProps extends ShellWidgetProps {
   label?: string;
-  shortcutKey?: string;
 }
 
+/**
+ * The primary New Plan CTA. The keyboard shortcut (Ctrl+Alt+N) is bound by
+ * the server through the framework's ShortcutKey mechanism — this widget only
+ * displays the hint and fires OnClick.
+ */
 export const ShellNewPlanButton: React.FC<ShellNewPlanButtonProps> = ({
   id,
   events = [],
   eventHandler,
   label = "New Plan",
-  shortcutKey = "K",
 }) => {
   const { collapsed } = useShell();
+  const hintKeys = isMac() ? ["⌘", "⌥", "N"] : ["Ctrl", "Alt", "N"];
 
-  const fire = useCallback(() => {
+  const fire = () => {
     if (events.includes("OnClick")) eventHandler("OnClick", id, []);
-  }, [events, eventHandler, id]);
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (
-        isModKey(e) &&
-        !e.shiftKey &&
-        !e.altKey &&
-        e.key.toLowerCase() === shortcutKey.toLowerCase() &&
-        !isEditableTarget(e)
-      ) {
-        e.preventDefault();
-        fire();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [fire, shortcutKey]);
+  };
 
   return (
     <div className="tsh-newplan-wrap">
       <button
         className="tsh-newplan"
         onClick={fire}
-        title={collapsed ? `${label} (${modKeyLabel()}${shortcutKey})` : undefined}
+        title={collapsed ? `${label} (${hintKeys.join("+")})` : undefined}
       >
         <span className="tsh-newplan-label-group">
           <Plus size={16} />
           <span className="tsh-newplan-label">{label}</span>
         </span>
         <span className="tsh-kbd">
-          <span>{modKeyLabel()}</span>
-          <span>{shortcutKey}</span>
+          {hintKeys.map((key) => (
+            <span key={key}>{key}</span>
+          ))}
         </span>
       </button>
     </div>

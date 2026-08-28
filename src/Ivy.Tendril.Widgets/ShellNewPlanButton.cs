@@ -10,9 +10,6 @@ public record ShellNewPlanButton : WidgetBase<ShellNewPlanButton>
 {
     [Prop] public string Label { get; init; } = "New Plan";
 
-    /// <summary>Key combined with the platform command key (Cmd/Ctrl), handled client-side.</summary>
-    [Prop] public string ShortcutKey { get; init; } = "K";
-
     [Event] public EventHandler<Event<ShellNewPlanButton>>? OnClick { get; init; }
 }
 

@@ -7,7 +7,9 @@ using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.Agent;
+using Ivy.Tendril.Apps.Icebox;
 using Ivy.Tendril.Apps.Onboarding;
+using Ivy.Tendril.Apps.PullRequest;
 using Ivy.Tendril.Apps.ReviewAction;
 using Ivy.Tendril.Apps.Settings;
 using Ivy.Tendril.Apps.Trash;
@@ -517,6 +519,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Tag("$trash")
                 .Icon(Icons.Trash2)
                 .OnSelect(() => navigator.Navigate<TrashApp>()),
+            MenuItem.Default("Pull Requests")
+                .Tag("$pull-requests")
+                .Icon(Icons.GitPullRequest)
+                .OnSelect(() => navigator.Navigate<PullRequestApp>()),
+            MenuItem.Default("Icebox")
+                .Tag("$icebox")
+                .Icon(Icons.Snowflake)
+                .OnSelect(() => navigator.Navigate<IceboxApp>()),
             MenuItem.Default("Import Issues from GitHub")
                 .Tag("$import-issues")
                 .Icon(Icons.Download)
@@ -686,7 +696,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 sidebarFooter: settingsMenu,
                 content: pageContent,
                 sessionContents: sessionContents,
-                tabs: tabsWidget)
+                tabs: tabsWidget,
+                hidden: [selectInputWarmup, closeTabShortcut])
             .Collapsed(!sidebarOpen.Value)
             .ActiveSessionIndex(selectedIndex.Value)
             .OnCollapsedChanged(collapsed =>
@@ -697,12 +708,10 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             });
 
         return new Fragment(
-            selectInputWarmup,
             shell,
             importIssuesDialog,
             updateDialog,
-            planSearchDialog,
-            closeTabShortcut
+            planSearchDialog
         );
     }
 

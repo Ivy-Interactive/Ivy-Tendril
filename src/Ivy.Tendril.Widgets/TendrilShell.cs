@@ -12,6 +12,7 @@ namespace Ivy.Tendril.Widgets;
 [Slot("Content")]
 [Slot("SessionContents")]
 [Slot("Tabs")]
+[Slot("Hidden")]
 public record TendrilShell : WidgetBase<TendrilShell>
 {
     public TendrilShell(
@@ -20,21 +21,23 @@ public record TendrilShell : WidgetBase<TendrilShell>
         object? sidebarFooter = null,
         object? content = null,
         object?[]? sessionContents = null,
-        object? tabs = null)
-        : base(BuildSlots(sidebarHeader, sidebarBody, sidebarFooter, content, sessionContents, tabs))
+        object? tabs = null,
+        object?[]? hidden = null)
+        : base(BuildSlots(sidebarHeader, sidebarBody, sidebarFooter, content, sessionContents, tabs, hidden))
     {
     }
 
     private static object[] BuildSlots(
         object? sidebarHeader, object?[]? sidebarBody, object? sidebarFooter,
-        object? content, object?[]? sessionContents, object? tabs) =>
+        object? content, object?[]? sessionContents, object? tabs, object?[]? hidden) =>
     [
         sidebarHeader != null ? new Slot("SidebarHeader", sidebarHeader) : new Slot("SidebarHeader"),
         new Slot("SidebarBody", (sidebarBody ?? []).Where(c => c != null).Cast<object>().ToArray()),
         sidebarFooter != null ? new Slot("SidebarFooter", sidebarFooter) : new Slot("SidebarFooter"),
         content != null ? new Slot("Content", content) : new Slot("Content"),
         new Slot("SessionContents", (sessionContents ?? []).Where(c => c != null).Cast<object>().ToArray()),
-        tabs != null ? new Slot("Tabs", tabs) : new Slot("Tabs")
+        tabs != null ? new Slot("Tabs", tabs) : new Slot("Tabs"),
+        new Slot("Hidden", (hidden ?? []).Where(c => c != null).Cast<object>().ToArray())
     ];
 
     [Prop] public bool Collapsed { get; init; }

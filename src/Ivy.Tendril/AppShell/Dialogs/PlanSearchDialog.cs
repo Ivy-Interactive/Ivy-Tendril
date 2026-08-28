@@ -1,21 +1,22 @@
 using Ivy.Tendril.Apps.Drafts;
 using Ivy.Tendril.Apps.Icebox;
 using Ivy.Tendril.Apps.Review;
-using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
-using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Plans;
+using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.AppShell.Dialogs;
 
 /// <summary>
 ///     Full-text plan search over the plan database (FTS5 with LIKE fallback),
-///     opened from the sidebar section's search icon. Selecting a result navigates
-///     to the app that owns the plan's current status.
+///     opened from the sidebar section's search icon. Rows render through the same
+///     ShellSidebarSection widget and per-app badge builders as the sidebar lists,
+///     so a plan looks identical here and there. Selecting a result navigates to
+///     the app that owns the plan's current status.
 /// </summary>
 public class PlanSearchDialog(IState<bool> dialogOpen) : ViewBase
 {
-    private const int MaxResults = 25;
+    private const int MaxResults = 15;
 
     internal static (Type App, object? Args) ResolveTarget(PlanFile plan) => plan.Status switch
     {
@@ -24,10 +25,19 @@ public class PlanSearchDialog(IState<bool> dialogOpen) : ViewBase
         _ => (typeof(ReviewApp), new ReviewAppArgs(plan.FolderName))
     };
 
+    /// <summary>Badges as the plan's owning sidebar list would show them; other statuses get a status badge.</summary>
+    internal static List<ShellBadgeDto> BuildRowBadges(PlanFile plan) => plan.Status switch
+    {
+        PlanStatus.Review or PlanStatus.Failed => ReviewApp.BuildRowBadges(plan),
+        PlanStatus.Draft or PlanStatus.Blocked => DraftsApp.BuildRowBadges(plan),
+        PlanStatus.Completed =>
+            [ShellBadgeDto.Project(plan.Project), ShellBadgeDto.Success(plan.Status.ToString())],
+        _ => [ShellBadgeDto.Project(plan.Project), new ShellBadgeDto(plan.Status.ToString())]
+    };
+
     public override object Build()
     {
         var database = UseService<IPlanDatabaseService>();
-        var configService = UseService<IConfigService>();
         var navigator = UseNavigation();
         var query = UseState("");
 
@@ -35,38 +45,31 @@ public class PlanSearchDialog(IState<bool> dialogOpen) : ViewBase
             ? []
             : database.SearchPlans(query.Value.Trim()).Take(MaxResults).ToList();
 
-        object body = Layout.Vertical().Gap(2)
+        var body = Layout.Vertical().Gap(2)
             | query.ToSearchInput().Placeholder("Search plans").Width(Size.Full());
 
         if (!string.IsNullOrWhiteSpace(query.Value))
         {
             if (results.Count == 0)
             {
-                body = Layout.Vertical().Gap(2)
-                    | query.ToSearchInput().Placeholder("Search plans").Width(Size.Full())
-                    | Text.Muted("No plans found.");
+                body |= Text.Muted("No plans found.");
             }
             else
             {
-                var rows = new List(results.Select(plan =>
-                {
-                    var clickablePlan = plan;
-                    var badges = Layout.Horizontal().Gap(1)
-                        | new Badge(plan.Project).Variant(BadgeVariant.Outline).Small()
-                            .WithProjectColor(configService, plan.Project)
-                        | new Badge(plan.Status.ToString()).Variant(BadgeVariant.Secondary).Small();
+                var resultsByFolder = results.ToDictionary(p => p.FolderName);
+                var items = results
+                    .Select(p => new ShellSectionItemDto(p.FolderName, p.Title, $"#{p.Id}", BuildRowBadges(p)))
+                    .ToList();
 
-                    return SidebarListRow.Build($"#{plan.Id} {plan.Title}", badges, () =>
+                body |= new ShellSidebarSection()
+                    .Items(items)
+                    .OnSelectItem(folderName =>
                     {
+                        if (!resultsByFolder.TryGetValue(folderName, out var plan)) return;
                         dialogOpen.Set(false);
-                        var (app, appArgs) = ResolveTarget(clickablePlan);
+                        var (app, appArgs) = ResolveTarget(plan);
                         navigator.Navigate(app, appArgs);
                     });
-                }));
-
-                body = Layout.Vertical().Gap(2)
-                    | query.ToSearchInput().Placeholder("Search plans").Width(Size.Full())
-                    | rows;
             }
         }
 
