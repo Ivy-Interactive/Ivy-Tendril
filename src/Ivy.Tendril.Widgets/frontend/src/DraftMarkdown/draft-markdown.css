@@ -130,11 +130,11 @@
 }
 /* Block elements (code blocks, diagrams, tables, images) get generous,
    symmetric vertical spacing so they breathe regardless of neighbours. */
-.pmv-markdown > * + :is(pre, table, img),
+.pmv-markdown > * + :is(pre, table, img, details),
 .pmv-markdown > * + :is(.pmv-code-block, .pmv-diagram-container) {
   margin-top: 1rem;
 }
-.pmv-markdown > :is(pre, table, img) + *,
+.pmv-markdown > :is(pre, table, img, details) + *,
 .pmv-markdown > :is(.pmv-code-block, .pmv-diagram-container) + * {
   margin-top: 1rem;
 }
@@ -388,6 +388,71 @@
   border: 0;
   border-top: 1px solid var(--border);
   margin: 1rem 0;
+}
+
+/* ─── Collapsible sections (<details>/<summary>) ──────────────────────────
+   Tendril promptware emits GitHub-style <details> blocks (the plan "Questions"
+   section), parsed by rehype-raw and sanitised before reaching the DOM — see
+   frontend/src/rawHtml.ts. Mirrors the Ivy framework's `typography.details`
+   and `typography.summary`. */
+.pmv-markdown details {
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--card);
+  overflow: hidden;
+}
+
+.pmv-markdown summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  transition: background 0.15s ease;
+}
+/* Suppress the native disclosure marker in favour of the chevron below. */
+.pmv-markdown summary::-webkit-details-marker {
+  display: none;
+}
+.pmv-markdown summary:hover {
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+/* A summary written with a blank line around it becomes a paragraph; keep it
+   on the same row as the chevron. */
+.pmv-markdown summary > p {
+  display: inline;
+  margin: 0;
+}
+
+/* Chevron drawn as a mask so it inherits the summary's text colour in both
+   themes, and rotates to point down while the section is open. */
+.pmv-markdown summary::before {
+  content: "";
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  background-color: currentColor;
+  -webkit-mask: var(--pmv-chevron) center / contain no-repeat;
+  mask: var(--pmv-chevron) center / contain no-repeat;
+  transition: transform 0.15s ease;
+}
+.pmv-markdown details[open] > summary::before {
+  transform: rotate(90deg);
+}
+.pmv-markdown summary {
+  --pmv-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 5l7 7-7 7'/%3E%3C/svg%3E");
+}
+
+/* The body of an open section. The contextual spacing rules above only reach
+   direct children of .pmv-markdown, so nested content gets its own inset. */
+.pmv-markdown details > :not(summary) {
+  margin: 0.5rem 1rem;
+}
+.pmv-markdown details > :not(summary):last-child {
+  margin-bottom: 1rem;
 }
 
 /* ─── Article variant ───────────────────────────────────────────────────
@@ -778,6 +843,249 @@
 }
 .pmv-alert--caution .pmv-alert-header {
   color: var(--destructive, #ef4444);
+}
+
+/* ─── Questions callout ─────────────────────────────────────────────────
+   Rendered by BlockHandler for ```questions fences. DraftMarkdown overrides
+   `pre` to render these bare, so there is no UA `pre` styling to reset — a
+   question form is flow content and must not sit inside a `pre` at all. */
+.pmv-questions {
+  position: relative;
+  border-radius: 0.375rem;
+  border: 1px solid;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  border-color: hsl(199 89% 48% / 0.3);
+  background: hsl(199 89% 48% / 0.08);
+}
+
+.pmv-questions-content {
+  white-space: pre-wrap;
+}
+
+/* ─── Interactive question picker ───────────────────────────────────────
+   Shown instead of .pmv-questions-content when the block parses as the
+   structured schema and the host subscribed to OnAnswersChange.
+
+   Every question in a block is stacked on screen at once. A rule between
+   them is what keeps two adjacent option lists from reading as one. */
+.pmv-question + .pmv-question {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid hsl(199 89% 48% / 0.25);
+}
+
+/* One Clear for the block, in the corner and out of flow. It comes and goes as answers do, and a
+   row of its own would shift the whole block every time it did. */
+.pmv-questions-actions {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.5rem;
+}
+
+/* Only the first question sits under the button, so only it keeps out of its way. Padding rather
+   than margin: it must not change the block's height either. */
+.pmv-questions-actions + .pmv-question .pmv-question-header,
+.pmv-questions-actions + .pmv-question .pmv-question-title {
+  padding-right: 4rem;
+}
+
+/* The former tab chip label, now an eyebrow over the question it names. */
+.pmv-question-header {
+  color: var(--text-secondary);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.15rem;
+}
+
+/* Sized like a markdown h3: a question is a heading for everything under it, and at body size it
+   read as just another line of the callout. */
+.pmv-question-title {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.pmv-question-description {
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+/* Reads as an aside to the title rather than part of it, at the title's baseline. */
+.pmv-question-optional {
+  margin-left: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 400;
+  font-style: italic;
+  vertical-align: middle;
+}
+
+/* ─── Read-only answers ─────────────────────────────────────────────────
+   Shown instead of the picker when the host did not subscribe: a plan under
+   review wants the decisions, not the controls. */
+.pmv-question-answer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.25rem;
+}
+
+.pmv-question-answer-value {
+  padding: 0.15rem 0.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid hsl(199 89% 48% / 0.35);
+  background: hsl(199 89% 48% / 0.12);
+  font-weight: 500;
+}
+
+.pmv-question-answer--none {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.pmv-question-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.pmv-question-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid hsl(199 89% 48% / 0.25);
+  border-radius: 0.375rem;
+  background: var(--background, hsl(0 0% 100% / 0.5));
+}
+
+/* Only the radio and title are the label. The description sits outside it so a code block's
+   copy button cannot toggle the option on its way through. */
+.pmv-question-option-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.pmv-question-option:hover {
+  border-color: hsl(199 89% 48% / 0.5);
+}
+
+.pmv-question-option--selected {
+  border-color: hsl(199 89% 48%);
+  background: hsl(199 89% 48% / 0.12);
+}
+
+.pmv-question-check {
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+  accent-color: hsl(199 89% 48%);
+}
+
+.pmv-question-option-title {
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pmv-question-option-recommended {
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: hsl(199 89% 48% / 0.18);
+  color: hsl(199 89% 38%);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* Descriptions are full block markdown, so they need real block spacing — and the option's own
+   description is indented past the radio to sit under its title. */
+.pmv-question-option-description {
+  color: var(--text-secondary);
+  font-weight: 400;
+  padding-left: 1.375rem;
+}
+
+.pmv-question-description > * + *,
+.pmv-question-option-description > * + * {
+  margin-top: 0.5rem;
+}
+
+.pmv-question-description ul,
+.pmv-question-option-description ul {
+  list-style: disc outside;
+  padding-inline-start: 1.25rem;
+}
+
+.pmv-question-description ol,
+.pmv-question-option-description ol {
+  list-style: decimal outside;
+  padding-inline-start: 1.5rem;
+}
+
+/* A snippet inside a description reads as an inset sample, not as a page-width code block. */
+.pmv-question-description .pmv-code-block,
+.pmv-question-option-description .pmv-code-block {
+  background: var(--background, hsl(0 0% 100% / 0.6));
+}
+
+.pmv-question-description .pmv-code-block pre,
+.pmv-question-option-description .pmv-code-block pre {
+  padding: 0.625rem 2.5rem 0.625rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.pmv-question-option--other {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.pmv-question-other-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.pmv-question-other-input {
+  width: 100%;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid hsl(199 89% 48% / 0.35);
+  border-radius: 0.25rem;
+  background: var(--background, hsl(0 0% 100%));
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.pmv-question-other-input:focus {
+  outline: 2px solid hsl(199 89% 48% / 0.4);
+  outline-offset: -1px;
+}
+
+.pmv-question-clear {
+  padding: 0.25rem 0.5rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.pmv-question-clear:hover {
+  background: hsl(199 89% 48% / 0.1);
+  color: hsl(199 89% 48%);
 }
 
 /* Image viewer */

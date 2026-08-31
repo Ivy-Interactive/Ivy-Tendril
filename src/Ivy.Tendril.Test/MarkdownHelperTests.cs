@@ -25,7 +25,8 @@ public class MarkdownHelperTests : IDisposable
         var tempFile = Path.GetTempFileName();
         try
         {
-            var markdown = $"[test.txt](file:///{tempFile.Replace("\\", "/")})";
+            var tempUrlPath = tempFile.Replace("\\", "/").TrimStart('/');
+            var markdown = $"[test.txt](file:///{tempUrlPath})";
             var result = MarkdownHelper.AnnotateBrokenFileLinks(markdown);
             Assert.DoesNotContain("⚠️", result);
             Assert.Equal(markdown, result);
@@ -37,12 +38,47 @@ public class MarkdownHelperTests : IDisposable
     }
 
     [Fact]
+    public void AnnotateBrokenFileLinks_ValidLinkWithAnchor_RemainsUnchanged()
+    {
+        var tempFile = Path.GetTempFileName();
+        try
+        {
+            var tempUrlPath = tempFile.Replace("\\", "/").TrimStart('/');
+            var markdown = $"[test.txt:42](file:///{tempUrlPath}#L42)";
+            var result = MarkdownHelper.AnnotateBrokenFileLinks(markdown);
+            Assert.DoesNotContain("⚠️", result);
+            Assert.Equal(markdown, result);
+        }
+        finally
+        {
+            File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public void AnnotateBrokenFileLinks_ValidLinkWithSpacesAndPercentEncoding_RemainsUnchanged()
+    {
+        var subDir = Path.Combine(_tempDir.Path, "My Folder");
+        Directory.CreateDirectory(subDir);
+        var tempFile = Path.Combine(subDir, "test file.txt");
+        File.WriteAllText(tempFile, "hello");
+
+        var tempUrlPath = tempFile.Replace("\\", "/").TrimStart('/');
+        var encodedUrlPath = string.Join("/", tempUrlPath.Split('/').Select(Uri.EscapeDataString));
+        var markdown = $"[test file.txt](file:///{encodedUrlPath})";
+        var result = MarkdownHelper.AnnotateBrokenFileLinks(markdown);
+        Assert.DoesNotContain("⚠️", result);
+        Assert.Equal(markdown, result);
+    }
+
+    [Fact]
     public void AnnotateBrokenFileLinks_MixedLinks_OnlyAnnotatesBroken()
     {
         var tempFile = Path.GetTempFileName();
         try
         {
-            var validLink = $"[valid.txt](file:///{tempFile.Replace("\\", "/")})";
+            var tempUrlPath = tempFile.Replace("\\", "/").TrimStart('/');
+            var validLink = $"[valid.txt](file:///{tempUrlPath})";
             var brokenLink = "[broken.cs](file:///C:/nonexistent/broken.cs)";
             var markdown = $"See {validLink} and {brokenLink} for details.";
 
@@ -118,7 +154,8 @@ public class MarkdownHelperTests : IDisposable
         try
         {
             Directory.CreateDirectory(tempPlansDir);
-            var validFileLink = $"[valid.txt](file:///{tempFile.Replace("\\", "/")})";
+            var tempUrlPath = tempFile.Replace("\\", "/").TrimStart('/');
+            var validFileLink = $"[valid.txt](file:///{tempUrlPath})";
             var brokenPlanLink = "[Plan 99999](plan://99999)";
             var markdown = $"See {validFileLink} and {brokenPlanLink}";
 
@@ -174,7 +211,8 @@ public class MarkdownHelperTests : IDisposable
         try
         {
             Directory.CreateDirectory(Path.Combine(tempPlansDir, "01234-TestPlan"));
-            var validFileLink = $"[valid.txt](file:///{tempFile.Replace("\\", "/")})";
+            var tempUrlPath = tempFile.Replace("\\", "/").TrimStart('/');
+            var validFileLink = $"[valid.txt](file:///{tempUrlPath})";
             var validPlanLink = "[Plan 01234](plan://01234)";
             var markdown = $"See {validFileLink} and {validPlanLink}";
 

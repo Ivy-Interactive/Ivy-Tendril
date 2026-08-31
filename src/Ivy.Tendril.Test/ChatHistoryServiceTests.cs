@@ -56,7 +56,7 @@ public class ChatHistoryServiceTests
             var updatedSession = service.GetSession(session.Id);
             Assert.NotNull(updatedSession);
             Assert.Single(updatedSession.Messages);
-            Assert.Equal("Hello agent", updatedSession.Title);
+            Assert.Equal("New Chat", updatedSession.Title);
         }
         finally
         {

@@ -42,6 +42,11 @@ public class ContentView(
             ? draftAnnotationService.GetAnnotationsForPlan(selectedPlan.FolderPath).ToImmutableList()
             : ImmutableList<MarkdownAnnotation>.Empty);
         var showAnnotationsDialog = UseState(false);
+        var showQuestionsDialog = UseState(false);
+        // The revision as the user is editing it. Answers are merged in here and written straight
+        // back to the same revision file — answering a question is not a new revision of the plan,
+        // it is filling in a blank the plan left.
+        var revisionContent = UseState(() => selectedPlan?.LatestRevisionContent ?? "");
         var pendingWaitJobIds = UseState<List<string>?>((List<string>?)null);
         var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
         var (runPreflight, isCheckingPreflight, preflightResult) = Context.UsePreflightCheck();
@@ -150,6 +155,9 @@ public class ContentView(
                 : ImmutableList<MarkdownAnnotation>.Empty;
             annotations.Set(loaded);
             showAnnotationsDialog.Set(false);
+            // Left open across a switch, "Execute Anyway" would run the new plan on a confirmation
+            // the user gave for the old one.
+            showQuestionsDialog.Set(false);
             pendingWaitJobIds.Set((List<string>?)null);
         }
 
@@ -163,12 +171,36 @@ public class ContentView(
                 ? draftAnnotationService.GetAnnotationsForPlan(selectedPlan.FolderPath).ToImmutableList()
                 : ImmutableList<MarkdownAnnotation>.Empty;
             annotations.Set(loaded);
+            revisionContent.Set(selectedPlan?.LatestRevisionContent ?? "");
         }
 
         if (selectedPlan is null)
             return BuildNoSelectionView(processView);
 
         var currentIndex = allPlans.FindIndex(p => p.FolderName == selectedPlan.FolderName);
+
+        var questions = QuestionAnswers.Read(revisionContent.Value);
+        var answeredQuestions = questions.Count(q => q.HasAnswer);
+        // Optional questions are never outstanding: the plan is complete without them.
+        var unansweredQuestions = questions.Count(q => !q.HasAnswer && !q.IsOptional);
+
+        void ApplyAnswer(QuestionAnswer answer)
+        {
+            if (!QuestionAnswers.TryApply(revisionContent.Value, answer, out var merged))
+                return;
+
+            revisionContent.Set(merged);
+
+            // The plan snapshot has to carry the write as well. The guard above compares against
+            // `selectedPlan`, which nothing else re-reads after a content write — leaving it stale
+            // makes the guard fire on the very next render and revert the answer we just made.
+            // Advancing both together keeps the guard quiet, which is what we want here: an answer
+            // lands inside a fence, so the passages annotations point at have not moved.
+            selectedPlanState.Set(selectedPlan with { LatestRevisionContent = merged });
+            lastContentHash.Set(merged.GetHashCode());
+
+            planService.UpdateLatestRevision(selectedPlan.FolderName, merged);
+        }
 
         object BuildTitleArea(bool isMobile)
         {
@@ -240,16 +272,20 @@ public class ContentView(
                                .Muted("plans", word: true);
 
             var activeAnnotationCount = annotations.Value.Count(a => !a.IsResolved);
-            if (activeAnnotationCount > 0)
-                rightSide |= BuildAnnotationsUpdateButton(annotations, draftAnnotationService);
+            if (activeAnnotationCount > 0 || answeredQuestions > 0)
+                rightSide |= BuildUpdateButton(annotations, answeredQuestions, draftAnnotationService);
 
             rightSide |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
                             .Loading(isCheckingPreflight)
                             .Disabled(isCheckingPreflight)
                             .OnClick(() => runPreflight(selectedPlan.Project, result =>
                             {
-                                if (activeAnnotationCount > 0)
+                                // Unincorporated work first, then unanswered questions: the former
+                                // would be ignored outright, the latter merely decided for you.
+                                if (activeAnnotationCount > 0 || answeredQuestions > 0)
                                     showAnnotationsDialog.Set(true);
+                                else if (unansweredQuestions > 0)
+                                    showQuestionsDialog.Set(true);
                                 else
                                     ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
                             }));
@@ -270,6 +306,8 @@ public class ContentView(
             planService,
             config,
             annotations,
+            revisionContent,
+            ApplyAnswer,
             shareContext.IsShareMode ? shareContext.Persona : null);
 
         if (planContentQuery.Loading)
@@ -371,7 +409,15 @@ public class ContentView(
             : null;
 
         var annotationsDialog = BuildAnnotationsGuardDialog(
-            annotations, showAnnotationsDialog, preflightResult, pendingWaitJobIds, showDirtyDialog, draftAnnotationService);
+            annotations, answeredQuestions, unansweredQuestions, showAnnotationsDialog,
+            showQuestionsDialog, preflightResult, pendingWaitJobIds, showDirtyDialog, draftAnnotationService);
+
+        var questionsDialog = showQuestionsDialog.Value && unansweredQuestions > 0
+            ? new UnansweredQuestionsDialog(
+                showQuestionsDialog,
+                unansweredQuestions,
+                onContinue: () => ContinueExecute(null, preflightResult, pendingWaitJobIds, showDirtyDialog))
+            : null;
 
         var elements = new List<object>
         {
@@ -388,6 +434,9 @@ public class ContentView(
 
         if (annotationsDialog is not null)
             elements.Add(annotationsDialog);
+
+        if (questionsDialog is not null)
+            elements.Add(questionsDialog);
 
         elements.Add(new FileSheet(openFile, config));
 
@@ -436,27 +485,43 @@ public class ContentView(
 
     private PendingAnnotationsDialog? BuildAnnotationsGuardDialog(
         IState<ImmutableList<MarkdownAnnotation>> annotations,
+        int answeredQuestions,
+        int unansweredQuestions,
         IState<bool> showAnnotationsDialog,
+        IState<bool> showQuestionsDialog,
         PreflightResult? preflightResult,
         IState<List<string>?> pendingWaitJobIds,
         IState<bool> showDirtyDialog,
         Ivy.Tendril.Services.Plans.IDraftAnnotationService draftAnnotationService)
     {
         var activeCount = annotations.Value.Count(a => !a.IsResolved);
-        if (!showAnnotationsDialog.Value || activeCount == 0) return null;
+        if (!showAnnotationsDialog.Value || (activeCount == 0 && answeredQuestions == 0))
+            return null;
 
         return new PendingAnnotationsDialog(
             showAnnotationsDialog,
             activeCount,
-            onUpdate: () => SubmitAnnotationsUpdate(annotations, draftAnnotationService),
+            answeredQuestions,
+            onUpdate: () => SubmitAnnotationsUpdate(annotations, answeredQuestions, draftAnnotationService),
+            // Updating retires the questions it folds in, so there is nothing left to warn about
+            // on this path — the warning would be about a state the job is on its way to fixing.
             onUpdateAndExecute: () => ContinueExecute(
-                [SubmitAnnotationsUpdate(annotations, draftAnnotationService)], preflightResult, pendingWaitJobIds, showDirtyDialog),
+                [SubmitAnnotationsUpdate(annotations, answeredQuestions, draftAnnotationService)], preflightResult, pendingWaitJobIds,
+                showDirtyDialog),
             onDiscardAndExecute: () =>
             {
+                // Only annotations are discarded. Answers live in the revision file, so executing
+                // without updating leaves them there for the agent to honour as written.
                 annotations.Set(ImmutableList<MarkdownAnnotation>.Empty);
                 if (selectedPlan != null)
                     _ = draftAnnotationService.ClearAnnotationsAsync(selectedPlan.FolderPath);
-                ContinueExecute(null, preflightResult, pendingWaitJobIds, showDirtyDialog);
+
+                // Declining the update does not settle the open questions, so that warning is still
+                // owed — otherwise having annotations would quietly suppress it.
+                if (unansweredQuestions > 0)
+                    showQuestionsDialog.Set(true);
+                else
+                    ContinueExecute(null, preflightResult, pendingWaitJobIds, showDirtyDialog);
             });
     }
 
@@ -601,21 +666,37 @@ public class ContentView(
             j.TypedArgs.PlanFolder.Equals(selectedPlan!.FolderPath, StringComparison.OrdinalIgnoreCase));
     }
 
-    private Button BuildAnnotationsUpdateButton(IState<ImmutableList<MarkdownAnnotation>> annotations, IDraftAnnotationService draftAnnotationService)
+    /// <summary>
+    ///     Both kinds of pending work go through one button, because one job answers both: an
+    ///     UpdatePlan that folds them into the plan. The badge counts them together.
+    /// </summary>
+    private Button BuildUpdateButton(
+        IState<ImmutableList<MarkdownAnnotation>> annotations,
+        int answeredQuestions,
+        Ivy.Tendril.Services.Plans.IDraftAnnotationService draftAnnotationService)
     {
         var activeCount = annotations.Value.Count(a => !a.IsResolved);
+        var tooltip = activeCount > 0 && answeredQuestions > 0
+            ? "Update the plan from your annotations and answers"
+            : answeredQuestions > 0
+                ? "Update the plan from your answers"
+                : "Update the plan from your annotations";
+
         return new Button("Update Plan")
             .Icon(Icons.WandSparkles)
             .Primary()
-            .Badge(activeCount.ToString())
+            .Badge((activeCount + answeredQuestions).ToString())
             .Disabled(HasActiveJob<UpdatePlanArgs>())
-            .Tooltip("Update the plan from your annotations")
-            .OnClick(() => SubmitAnnotationsUpdate(annotations, draftAnnotationService));
+            .Tooltip(tooltip)
+            .OnClick(() => SubmitAnnotationsUpdate(annotations, answeredQuestions, draftAnnotationService));
     }
 
-    private string SubmitAnnotationsUpdate(IState<ImmutableList<MarkdownAnnotation>> annotations, IDraftAnnotationService draftAnnotationService)
+    private string SubmitAnnotationsUpdate(
+        IState<ImmutableList<MarkdownAnnotation>> annotations,
+        int answeredQuestions,
+        Ivy.Tendril.Services.Plans.IDraftAnnotationService draftAnnotationService)
     {
-        var prompt = BuildAnnotationsPrompt(annotations.Value.Where(a => !a.IsResolved));
+        var prompt = BuildUpdatePrompt(annotations.Value.Where(a => !a.IsResolved), answeredQuestions);
 
         TransitionPlanOptimistically(PlanStatus.Updating);
         var jobId = jobService.StartJob(new UpdatePlanArgs(selectedPlan!.FolderPath, prompt));
@@ -626,15 +707,42 @@ public class ContentView(
         return jobId;
     }
 
-    internal static string BuildAnnotationsPrompt(IEnumerable<MarkdownAnnotation> annotations)
+    /// <summary>
+    ///     Instructions for the update job. Annotations have to be quoted here because they live
+    ///     only in the UI; answers do not, because they are already written into the revision the
+    ///     agent is about to read. It only needs telling that they are there, and what to do with
+    ///     the questions that were left alone.
+    /// </summary>
+    internal static string BuildUpdatePrompt(
+        IEnumerable<MarkdownAnnotation> annotations,
+        int answeredQuestions = 0)
     {
+        var annotationList = annotations.ToList();
         var sb = new StringBuilder();
+
+        if (answeredQuestions > 0)
+        {
+            var noun = answeredQuestions == 1 ? "question" : "questions";
+            sb.AppendLine($"I answered {answeredQuestions} {noun} in this plan's `questions` blocks.");
+            sb.AppendLine("The answers are already in the revision as `answer` keys. Treat each one as my");
+            sb.AppendLine("decision: fold it into the plan as concrete prose or steps, then delete that");
+            sb.AppendLine("question from its block, dropping the block once its last question goes.");
+            sb.AppendLine("Carry any question I left unanswered forward unchanged — do not answer it for");
+            sb.AppendLine("me, and do not reword it.");
+
+            if (annotationList.Count > 0)
+                sb.AppendLine();
+        }
+
+        if (annotationList.Count == 0)
+            return sb.ToString().TrimEnd();
+
         sb.AppendLine("I reviewed the plan and left inline annotations on specific passages.");
         sb.AppendLine("Revise the plan to address every annotation below. Each item quotes the");
         sb.AppendLine("passage I selected, followed by my comment about it.");
 
         var index = 1;
-        foreach (var annotation in annotations)
+        foreach (var annotation in annotationList)
         {
             sb.AppendLine();
             sb.AppendLine(!string.IsNullOrEmpty(annotation.Author)

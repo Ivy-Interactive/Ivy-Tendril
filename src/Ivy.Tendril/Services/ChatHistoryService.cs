@@ -235,18 +235,8 @@ public class ChatHistoryService : IChatHistoryService
 
             var updatedMessages = new List<ChatMessageModel>(session.Messages) { msg };
 
-            // Auto update title from first user message if title is "New Chat"
-            var title = CleanTitle(session.Title);
-            if ((title == "New Chat" || string.IsNullOrWhiteSpace(title)) && role == "user" && !string.IsNullOrWhiteSpace(content))
-            {
-                var firstLine = content.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? content;
-                var clean = firstLine.Trim();
-                title = clean.Length > 50 ? clean[..50].Trim() : clean;
-            }
-
             var updatedSession = session with
             {
-                Title = title,
                 UpdatedAt = DateTimeOffset.UtcNow,
                 AgentId = agentId ?? session.AgentId,
                 ModelId = modelId ?? session.ModelId,

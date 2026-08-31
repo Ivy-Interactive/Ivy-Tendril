@@ -15,6 +15,7 @@ using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Themes;
 using Ivy.Widgets.Internal;
 using Microsoft.Extensions.Logging;
 
@@ -287,14 +288,21 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, status.Value, config, agentRunner, shareContext.IsShareMode)); },
             appRepository.Reloaded.ToTrigger(), status);
 
-        // Rebuild the menu when settings are saved (e.g. the coding agent changes), so the
-        // branded "Agent" item updates immediately without needing a reload.
+        // Apply configured theme on mount
+        UseEffect(() =>
+        {
+            TendrilThemes.ApplyTheme(client, config.Settings.Theme);
+        });
+
+        // Rebuild the menu and reapply theme when settings are saved (e.g. the coding agent or theme changes),
+        // so the UI updates immediately without needing a reload.
         UseEffect(() =>
         {
             void OnSettingsReloaded(object? sender, EventArgs e)
             {
                 menuItems.Set(BuildMenuItems(appRepository, status.Value, config, agentRunner, shareContext.IsShareMode));
                 sidebarOpen.Set(config.Settings.SidebarOpen);
+                TendrilThemes.ApplyTheme(client, config.Settings.Theme);
             }
             config.SettingsReloaded += OnSettingsReloaded;
             return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);
@@ -712,7 +720,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             .Content(
                 Layout.Horizontal().AlignContent(Align.Left)
                 | Icons.Settings.ToIcon()
-                | Text.P("Settings").Small().Muted()
+                | Text.Literal("Settings")
             )
             .Variant(ButtonVariant.Ghost).Width(Size.Full());
 

@@ -292,6 +292,7 @@ public class CodingAgentStepView(
                        | (Layout.Horizontal()
                            | new Button("Back")
                                .Ghost()
+                               .Disabled(isFetchingModels.Value)
                                .OnClick(() =>
                                {
                                    selectedAgent.Set(null);
@@ -303,6 +304,7 @@ public class CodingAgentStepView(
                            | new Button("Continue")
                                .Primary()
                                .Loading(isFetchingModels.Value)
+                               .Disabled(isFetchingModels.Value)
                                .OnClick(async () =>
                                {
                                    apiKeyError.Set(null);
@@ -325,87 +327,87 @@ public class CodingAgentStepView(
                                        return;
                                    }
 
-                                    isFetchingModels.Set(true);
+                                   isFetchingModels.Set(true);
 
-                                    try
-                                    {
-                                        var fetchResult = await OpenAiProxyModelCatalog.FetchModelsDetailedAsync(baseUrl, openAiProxyApiKey.Value);
+                                   try
+                                   {
+                                       var fetchResult = await OpenAiProxyModelCatalog.FetchModelsDetailedAsync(baseUrl, openAiProxyApiKey.Value);
 
-                                        if (fetchResult.IsAuthError)
-                                        {
-                                            apiKeyError.Set(fetchResult.ErrorMessage ?? "Invalid API Key or unauthorized for this endpoint.");
-                                            return;
-                                        }
+                                       if (fetchResult.IsAuthError)
+                                       {
+                                           apiKeyError.Set(fetchResult.ErrorMessage ?? "Invalid API Key or unauthorized for this endpoint.");
+                                           return;
+                                       }
 
-                                        var isGoogleCard = !isIvy && !isAnthropicCard && !isBergetCard && (baseUrl.Contains("generativelanguage.googleapis.com") || baseUrl.Contains("gemini") || baseUrl.Contains("google"));
+                                       var isGoogleCard = !isIvy && !isAnthropicCard && !isBergetCard && (baseUrl.Contains("generativelanguage.googleapis.com") || baseUrl.Contains("gemini") || baseUrl.Contains("google"));
 
-                                        if (fetchResult.Success && fetchResult.Models is { Count: > 0 })
-                                        {
-                                            fetchedModels.Set(fetchResult.Models);
-                                            useCustomModelNames.Set(false);
+                                       if (fetchResult.Success && fetchResult.Models is { Count: > 0 })
+                                       {
+                                           fetchedModels.Set(fetchResult.Models);
+                                           useCustomModelNames.Set(false);
 
-                                            var (deep, balanced, quick) = ModelProfileSelector.SelectDefaults(
-                                                fetchResult.Models,
-                                                isIvy: isIvy,
-                                                isAnthropic: isAnthropicCard,
-                                                isBerget: isBergetCard,
-                                                isGoogle: isGoogleCard,
-                                                isOpenAi: !isIvy && !isAnthropicCard && !isBergetCard && !isGoogleCard);
+                                           var (deep, balanced, quick) = ModelProfileSelector.SelectDefaults(
+                                               fetchResult.Models,
+                                               isIvy: isIvy,
+                                               isAnthropic: isAnthropicCard,
+                                               isBerget: isBergetCard,
+                                               isGoogle: isGoogleCard,
+                                               isOpenAi: !isIvy && !isAnthropicCard && !isBergetCard && !isGoogleCard);
 
-                                            deepModel.Set(deep);
-                                            balancedModel.Set(balanced);
-                                            quickModel.Set(quick);
-                                            customDeepText.Set(deep);
-                                            customBalancedText.Set(balanced);
-                                            customQuickText.Set(quick);
-                                            byoSubStep.Set(1);
-                                        }
-                                        else
-                                        {
-                                            var (fallbackDeep, fallbackBalanced, fallbackQuick) = ModelProfileSelector.SelectDefaults(
-                                                null,
-                                                isIvy: isIvy,
-                                                isAnthropic: isAnthropicCard,
-                                                isBerget: isBergetCard,
-                                                isGoogle: isGoogleCard,
-                                                isOpenAi: !isIvy && !isAnthropicCard && !isBergetCard && !isGoogleCard);
+                                           deepModel.Set(deep);
+                                           balancedModel.Set(balanced);
+                                           quickModel.Set(quick);
+                                           customDeepText.Set(deep);
+                                           customBalancedText.Set(balanced);
+                                           customQuickText.Set(quick);
+                                           byoSubStep.Set(1);
+                                       }
+                                       else
+                                       {
+                                           var (fallbackDeep, fallbackBalanced, fallbackQuick) = ModelProfileSelector.SelectDefaults(
+                                               null,
+                                               isIvy: isIvy,
+                                               isAnthropic: isAnthropicCard,
+                                               isBerget: isBergetCard,
+                                               isGoogle: isGoogleCard,
+                                               isOpenAi: !isIvy && !isAnthropicCard && !isBergetCard && !isGoogleCard);
 
-                                            var testPing = await LlmEndpointTester.TestModelPromptAsync(baseUrl, openAiProxyApiKey.Value, fallbackBalanced);
-                                            if (testPing.Status == ModelValidationStatus.AuthError)
-                                            {
-                                                apiKeyError.Set(testPing.ErrorMessage ?? "Invalid API Key for this endpoint.");
-                                                return;
-                                            }
+                                           var testPing = await LlmEndpointTester.TestModelPromptAsync(baseUrl, openAiProxyApiKey.Value, fallbackBalanced);
+                                           if (testPing.Status == ModelValidationStatus.AuthError)
+                                           {
+                                               apiKeyError.Set(testPing.ErrorMessage ?? "Invalid API Key for this endpoint.");
+                                               return;
+                                           }
 
-                                            if (testPing.Status == ModelValidationStatus.Unknown && !string.IsNullOrEmpty(testPing.ErrorMessage) &&
-                                                (testPing.ErrorMessage.Contains("connect", StringComparison.OrdinalIgnoreCase) || testPing.ErrorMessage.Contains("HTTP", StringComparison.OrdinalIgnoreCase)))
-                                            {
-                                                baseUrlError.Set(testPing.ErrorMessage);
-                                                return;
-                                            }
+                                           if (testPing.Status == ModelValidationStatus.Unknown && !string.IsNullOrEmpty(testPing.ErrorMessage) &&
+                                               (testPing.ErrorMessage.Contains("connect", StringComparison.OrdinalIgnoreCase) || testPing.ErrorMessage.Contains("HTTP", StringComparison.OrdinalIgnoreCase)))
+                                           {
+                                               baseUrlError.Set(testPing.ErrorMessage);
+                                               return;
+                                           }
 
-                                            fetchedModels.Set(Array.Empty<ModelInfo>());
-                                            useCustomModelNames.Set(true);
+                                           fetchedModels.Set(Array.Empty<ModelInfo>());
+                                           useCustomModelNames.Set(true);
 
-                                            if (string.IsNullOrWhiteSpace(customDeepText.Value))
-                                                customDeepText.Set(fallbackDeep);
-                                            if (string.IsNullOrWhiteSpace(customBalancedText.Value))
-                                                customBalancedText.Set(fallbackBalanced);
-                                            if (string.IsNullOrWhiteSpace(customQuickText.Value))
-                                                customQuickText.Set(fallbackQuick);
+                                           if (string.IsNullOrWhiteSpace(customDeepText.Value))
+                                               customDeepText.Set(fallbackDeep);
+                                           if (string.IsNullOrWhiteSpace(customBalancedText.Value))
+                                               customBalancedText.Set(fallbackBalanced);
+                                           if (string.IsNullOrWhiteSpace(customQuickText.Value))
+                                               customQuickText.Set(fallbackQuick);
 
-                                            byoSubStep.Set(1);
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        generalError.Set($"Failed to connect to endpoint: {ex.Message}");
-                                    }
-                                    finally
-                                    {
-                                        isFetchingModels.Set(false);
-                                    }
-                                })
+                                           byoSubStep.Set(1);
+                                       }
+                                   }
+                                   catch (Exception ex)
+                                   {
+                                       generalError.Set($"Failed to connect to endpoint: {ex.Message}");
+                                   }
+                                   finally
+                                   {
+                                       isFetchingModels.Set(false);
+                                   }
+                               })
                         );
             }
 
@@ -414,7 +416,8 @@ public class CodingAgentStepView(
             var hasAvailableModels = availableModels.Count > 0;
             var isCustomMode = useCustomModelNames.Value || !hasAvailableModels;
 
-            var modelOptions = availableModels
+            var sortedModels = ModelCatalogSorter.Sort(availableModels);
+            var modelOptions = sortedModels
                 .Select(m => new Option<string>(m.DisplayName, m.Id))
                 .ToArray<IAnyOption>();
 
@@ -492,9 +495,10 @@ public class CodingAgentStepView(
                    | (testSuccessMessage.Value != null
                        ? Callout.Success(testSuccessMessage.Value)
                        : null!)
-                   | (Layout.Horizontal()
+                    | (Layout.Horizontal()
                         | new Button("Back")
                             .Ghost()
+                            .Disabled(isTestingModels.Value)
                             .OnClick(() =>
                             {
                                 byoSubStep.Set(0);
@@ -507,6 +511,7 @@ public class CodingAgentStepView(
                         | new Button("Test Endpoint")
                             .Outline()
                             .Loading(isTestingModels.Value)
+                            .Disabled(isTestingModels.Value)
                             .OnClick(async () =>
                             {
                                 deepModelError.Set(null);
@@ -587,6 +592,7 @@ public class CodingAgentStepView(
                         | new Button("Continue")
                             .Primary()
                             .Loading(isTestingModels.Value)
+                            .Disabled(isTestingModels.Value)
                             .OnClick(async () =>
                             {
                                 deepModelError.Set(null);

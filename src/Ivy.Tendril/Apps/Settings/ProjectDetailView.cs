@@ -9,6 +9,7 @@ using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Vault;
 
 namespace Ivy.Tendril.Apps.Settings;
 
@@ -30,7 +31,11 @@ public class ProjectDetailView(
         var projectColor = UseState<Colors?>(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count && Enum.TryParse<Colors>(config.Settings.Projects[projectIndex].Color, true, out var c) ? c : Colors.Slate);
 
         // Agent Behavior State
-        var autoImplement = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? (config.Settings.Projects[projectIndex].AutoImplementPlans == "Auto-Implement Plans" ? "Auto-Implement Plans" : "Always Ask Review") : "Always Ask Review");
+        var autoImplement = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count
+            ? (config.Settings.Projects[projectIndex].AutoImplementPlans is "AutoImplementPlans" or "Auto-Implement Plans"
+                ? "AutoImplementPlans"
+                : "AlwaysAskReview")
+            : "AlwaysAskReview");
 
         // Repositories State
         var repos = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? new List<RepoRef>(config.Settings.Projects[projectIndex].Repos) : new List<RepoRef>());
@@ -191,6 +196,39 @@ public class ProjectDetailView(
         // Color Picker Control at the top
         var colorInput = projectColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker);
 
+        // Vault Tracking Info
+        VaultSettings? linkedVault = null;
+        ProjectVaultTracking? trackedProject = null;
+
+        foreach (var v in config.Settings.Vaults)
+        {
+            if (v.TrackedProjects.TryGetValue(project.Name, out var tp))
+            {
+                linkedVault = v;
+                trackedProject = tp;
+                break;
+            }
+        }
+
+        if (linkedVault == null && config.Settings.Vault != null && config.Settings.Vault.TrackedProjects.TryGetValue(project.Name, out var vtp))
+        {
+            linkedVault = config.Settings.Vault;
+            trackedProject = vtp;
+        }
+
+        object? vaultBadge = null;
+        if (linkedVault != null)
+        {
+            var vaultLabel = VaultService.ExtractRepoName(!string.IsNullOrEmpty(linkedVault.Name) && linkedVault.Name.Contains('/') ? linkedVault.Name : linkedVault.RepoUrl);
+            var versionText = trackedProject != null && !string.IsNullOrEmpty(trackedProject.InstalledVersion)
+                ? $" • v{trackedProject.InstalledVersion}"
+                : "";
+
+            vaultBadge = Layout.Horizontal().AlignContent(Align.Left)
+                | Icons.FolderGit2.ToIcon()
+                | new Badge($"Vault: {vaultLabel}{versionText}").Variant(BadgeVariant.Secondary).Small();
+        }
+
         // Title Header with Inline Editing & Color Picker
         var nameHeader = isEditingName.Value
             ? (Layout.Horizontal().AlignContent(Align.Left)
@@ -221,7 +259,12 @@ public class ProjectDetailView(
                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Rename Project").OnClick(() => isEditingName.Set(true)));
 
         // Agent Behavior Dropdown
-        var autoImplementSelect = autoImplement.ToSelectInput(new[] { "Auto-Implement Plans", "Always Ask Review" })
+        var autoImplementOptions = new[]
+        {
+            new Option<string>("Auto-Implement Plans", "AutoImplementPlans"),
+            new Option<string>("Always Ask Review", "AlwaysAskReview")
+        };
+        var autoImplementSelect = autoImplement.ToSelectInput(autoImplementOptions)
             .WithField().Label("Artifact Review / Auto-Implement Policy");
 
         Func<RepoRef, Task<RepoRef?>> cloneRemoteOnAdd = async draft =>
@@ -249,6 +292,7 @@ public class ProjectDetailView(
         var innerContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(160)))
             // Section 1: Header (Color Picker + Name)
             | nameHeader
+            | vaultBadge
 
             // Section 2: Repositories
             | Text.H4("Repositories").Bold()

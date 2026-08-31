@@ -273,6 +273,145 @@ The initial revision is created by CreatePlan using the `planTemplate` from `con
 
 Subsequent revisions are written by ExpandPlan, UpdatePlan, or SplitPlan agents.
 
+## Question Blocks
+
+Promptwares run headless and cannot ask the user anything mid-run. A planning agent that hits a
+genuine ambiguity instead emits one or more fenced `questions` blocks in the revision markdown. The
+user answers them in the UI, which writes the answers back into the same blocks; UpdatePlan then
+folds those answers into the plan and retires the questions.
+
+Emit a block only for an ambiguity that research cannot settle and that changes what gets built. A
+question you can answer by reading the code is not a question, it is research you skipped.
+
+A block holds 1-4 questions. There is no cap on how many blocks a revision may contain. Place each
+block wherever it makes the most sense — right after the `# {title}` H1 for a question about overall
+scope, or inline under the `## Solution` subsection it concerns for a question about one design
+decision.
+
+````
+```questions
+questions:                    # 1-4 items
+  - id:          string       # required, stable, unique across the whole revision
+    title:       string       # required, the question
+    header:      string       # optional, <=12 char label shown as an eyebrow above the title
+    description: markdown     # optional, block markdown shown under the question
+    multiple:    bool         # optional, default false; true = multi-select
+    other:       bool         # optional, default true; user may type a free value
+    optional:    bool         # optional, default false; true = answering is not expected
+    options:                  # 2-4 items; omit entirely for a pure free-text question
+      - title:       string   # required, 1-5 words
+        description: markdown # optional, block markdown expanding on this option
+        value:       slug     # required, stable id used by `answer`; ^[a-z0-9][a-z0-9-]*$
+        recommended: bool     # optional, max one per question
+    answer:      value | [values] | string   # filled in on response
+```
+````
+
+Every question carries an `id` — a short, stable handle such as `retry-scope`. It is how an answer is
+addressed: the UI reports an answer as that id and a value, with no block or position alongside it.
+So an `id` must be unique across the **whole revision**, not merely within its own block, and must
+keep its meaning across revisions — rewording a question is fine, renaming its `id` orphans an answer
+already given for it.
+
+### Descriptions
+
+Both `description` fields render as full block markdown — paragraphs, lists, tables and fenced code
+all work. Reach for a snippet or a table when it settles the question faster than another sentence
+would: an option that proposes an API is clearer showing the call than describing it.
+
+A fence inside a description needs the `questions` fence to be *longer* than the one it contains,
+which is ordinary CommonMark. Open the block with four backticks and the descriptions can use three:
+
+`````
+````questions
+questions:
+  - id: retry-scope
+    title: Should the retry budget be per-request or per-session?
+    options:
+      - title: Per session
+        description: |
+          One budget shared by every call in the session.
+
+          ```csharp
+          using var session = client.OpenSession(new RetryBudget(maxAttempts: 3));
+          ```
+        value: per-session
+````
+`````
+
+Use a `|` block scalar for any description spanning more than one line, so blank lines and
+indentation survive YAML parsing intact.
+
+Three shapes fall out of `multiple` / `other` / the presence of `options`:
+
+| Shape | How |
+|---|---|
+| Single-select, fixed set | `other: false` plus options |
+| Multi-select, open set | `multiple: true` plus options |
+| Pure free text | no options at all |
+
+### Answer semantics
+
+- An entry that matches an option's `value` is that option.
+- An entry that matches nothing is the user's own text. Legal when `other` is true, or when there are
+  no options.
+- `multiple: true` means `answer` is always a list, even with one selection.
+- `answer` absent means not yet answered. UpdatePlan carries the block forward unchanged.
+- There is no third state. `answer` is either absent or a value — **never `null`**. A question that
+  does not need answering is marked `optional: true` when it is written, which is a property of the
+  question rather than a thing the user does to it.
+
+An unanswered question never blocks execution. ExecutePlan and RetryPlan resolve one themselves —
+taking the `recommended` option when there is one, otherwise the most reasonable answer they can
+defend — and log the choice. Leaving a question unanswered is a way of saying "you decide", not a
+way of stopping the plan. That is why `recommended: true` matters: it is the default execution will
+actually take.
+
+### Optional questions
+
+`optional: true` says the plan is complete without an answer: the question is worth putting to the
+user, but not worth their time if they have none to give. Everything else about it is unchanged —
+it renders and answers like any other question, and an answer to it is honoured like any other.
+
+The difference is what it tells the reader. The UI lists an optional question as answered-for-now,
+so what remains unstruck is what still wants a human. Mark a question optional when you would be
+comfortable shipping your `recommended` option without ever hearing back, and leave it required
+when you would not.
+
+### Lint rules
+
+`tendril plan write-revision` rejects a revision whose blocks break any of these, prints every
+problem at once prefixed with the line of the opening fence, and writes nothing — so a rejected
+revision does not consume a revision number. Fix the reported lines and retry.
+
+| Rule | Message |
+|---|---|
+| Every question has a non-empty `id` | `question N: id is required` |
+| `id` unique across the whole revision, blocks included | `question N: duplicate question id '<id>'` |
+| At most one `recommended: true` per question | `question N: more than one option is recommended` |
+| No hand-authored option titled "Other", "Something else", "Custom" | `question N: option '<title>' duplicates what other: true provides` |
+| `other: false` with no options | `question N: other: false with no options is unanswerable` |
+| `answer` is a list iff `multiple: true` | `question N: multiple: true requires a list answer` / `question N: answer must be a scalar when multiple is false` |
+| `value` unique within a question | `question N: duplicate option value '<value>'` |
+| `other: false` and an answer entry matches no option value | `question N: answer '<entry>' matches no option and other is false` |
+| `answer` is present but null | `question N: answer: null is not a state; omit the key, or mark the question optional` |
+
+Schema bounds are enforced too: 1-4 questions, a required `id` and `title`, a `header` of at most 12
+characters, 2-4 options when `options` is present, a required `title` and slug `value` on each
+option, and no unknown keys anywhere.
+
+Blocks are numbered by position in the document, so a revision with several of them gets a
+`block 1:` / `block 2:` prefix on top of the `question N:` prefix.
+
+A `questions` fence written inside a longer fence is documentation, not a question — this document
+is itself an example — so it is neither validated nor rendered.
+
+**Legacy blocks.** A fence whose body is not a YAML mapping with a `questions` key is the plain-text
+form that predates this schema. It produces a warning, never an error, and is never rewritten.
+
+`--no-question-check` on `write-revision` skips this validation. It is the escape hatch for scripted
+and test use; promptwares should never reach for it.
+
 ## Logs
 
 `logs/{NNN}-{Action}.md` per promptware run (Completed time, status, …).

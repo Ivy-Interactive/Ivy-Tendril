@@ -1981,4 +1981,195 @@ sidebarOpen: false
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void Theme_Setting_DefaultsAndPersists()
+    {
+        var yaml = @"
+theme: cupcake
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        PathHelper.DefaultTendrilHomeOverride = tempDir;
+        try
+        {
+            using var service = new ConfigService();
+            Assert.Equal("cupcake", service.Settings.Theme);
+
+            service.Settings.Theme = "dracula";
+            service.SaveSettings();
+
+            var yamlOnDisk = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
+            Assert.Contains("theme: dracula", yamlOnDisk);
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("invalid_theme_name")]
+    public void Theme_Setting_InvalidOrEmpty_FallsBackToDefault(string theme)
+    {
+        var yaml = $@"
+theme: {theme}
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        PathHelper.DefaultTendrilHomeOverride = tempDir;
+        try
+        {
+            using var service = new ConfigService();
+            Assert.Equal("default", service.Settings.Theme);
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Theory]
+    [InlineData("Always Proceed", "AlwaysProceed")]
+    [InlineData("Inherit General", "InheritGeneral")]
+    [InlineData("Always Ask", "AlwaysAsk")]
+    [InlineData("AlwaysProceed", "AlwaysProceed")]
+    [InlineData("", "AlwaysProceed")]
+    [InlineData(null, "AlwaysProceed")]
+    public void MigrateTerminalAutoExecution_HandlesVariousInputs(string? input, string expected)
+    {
+        var result = ConfigService.MigrateTerminalAutoExecution(input);
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("Inherit General", "InheritGeneral")]
+    [InlineData("InheritGeneral", "InheritGeneral")]
+    [InlineData("Disabled", "Disabled")]
+    [InlineData("Enabled", "Enabled")]
+    [InlineData("", "InheritGeneral")]
+    [InlineData(null, "InheritGeneral")]
+    public void MigrateSandboxMode_HandlesVariousInputs(string? input, string expected)
+    {
+        var result = ConfigService.MigrateSandboxMode(input);
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData("Auto-Implement Plans", "AutoImplementPlans")]
+    [InlineData("Auto Implement Plans", "AutoImplementPlans")]
+    [InlineData("Auto-implement plans", "AutoImplementPlans")]
+    [InlineData("Always Ask Review", "AlwaysAskReview")]
+    [InlineData("Always Ask", "AlwaysAskReview")]
+    [InlineData("Inherit General", "InheritGeneral")]
+    [InlineData("AutoImplementPlans", "AutoImplementPlans")]
+    [InlineData("AlwaysAskReview", "AlwaysAskReview")]
+    [InlineData("InheritGeneral", "InheritGeneral")]
+    [InlineData("", "InheritGeneral")]
+    [InlineData(null, "InheritGeneral")]
+    public void MigrateAutoImplementPlans_HandlesVariousInputs(string? input, string expected)
+    {
+        var result = ConfigService.MigrateAutoImplementPlans(input);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void Should_Normalize_Legacy_Space_Separated_Enum_Values_On_Load()
+    {
+        var yaml = @"
+projects:
+  - name: LegacyProject
+    terminalAutoExecution: Always Proceed
+    sandboxMode: Inherit General
+    autoImplementPlans: Always Ask Review
+    repos: []
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            Assert.NotNull(service.Settings);
+            Assert.Single(service.Settings.Projects);
+
+            var project = service.Settings.Projects[0];
+            Assert.Equal("AlwaysProceed", project.TerminalAutoExecution);
+            Assert.Equal("InheritGeneral", project.SandboxMode);
+            Assert.Equal("AlwaysAskReview", project.AutoImplementPlans);
+
+            var savedYaml = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
+            Assert.Contains("terminalAutoExecution: AlwaysProceed", savedYaml);
+            Assert.Contains("sandboxMode: InheritGeneral", savedYaml);
+            Assert.Contains("autoImplementPlans: AlwaysAskReview", savedYaml);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Should_Normalize_AutoImplementPlans_Legacy_Variations_On_Load()
+    {
+        var yaml = @"
+projects:
+  - name: AutoProject
+    autoImplementPlans: Auto-Implement Plans
+    repos: []
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        var service = new ConfigService(new TendrilSettings());
+
+        try
+        {
+            service.SetTendrilHome(tempDir);
+
+            Assert.NotNull(service.Settings);
+            var project = service.Settings.Projects[0];
+            Assert.Equal("AutoImplementPlans", project.AutoImplementPlans);
+
+            var savedYaml = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
+            Assert.Contains("autoImplementPlans: AutoImplementPlans", savedYaml);
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Should_Serialize_And_Deserialize_ProjectConfig_With_SpaceFree_Enum_Values()
+    {
+        var settings = new TendrilSettings
+        {
+            Projects = new List<ProjectConfig>
+            {
+                new()
+                {
+                    Name = "ModernProject",
+                    TerminalAutoExecution = "AlwaysProceed",
+                    SandboxMode = "InheritGeneral",
+                    AutoImplementPlans = "AutoImplementPlans"
+                }
+            }
+        };
+
+        var yaml = YamlHelper.SerializerCompact.Serialize(settings);
+        Assert.Contains("terminalAutoExecution: AlwaysProceed", yaml);
+        Assert.Contains("sandboxMode: InheritGeneral", yaml);
+        Assert.Contains("autoImplementPlans: AutoImplementPlans", yaml);
+
+        var deserialized = YamlHelper.Deserializer.Deserialize<TendrilSettings>(yaml);
+        Assert.NotNull(deserialized);
+        Assert.Single(deserialized.Projects);
+        var project = deserialized.Projects[0];
+        Assert.Equal("AlwaysProceed", project.TerminalAutoExecution);
+        Assert.Equal("InheritGeneral", project.SandboxMode);
+        Assert.Equal("AutoImplementPlans", project.AutoImplementPlans);
+    }
 }
+
