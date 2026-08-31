@@ -187,10 +187,9 @@
 }
 
 .tsh-header-logo {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
-  transition: width var(--tsh-anim), height var(--tsh-anim);
 }
 
 .tsh-header-text {
@@ -244,11 +243,6 @@
   flex-direction: column;
   align-items: center;
   padding-top: 12px;
-}
-
-.tsh-root[data-collapsed="true"] .tsh-header-logo {
-  width: 32px;
-  height: 32px;
 }
 
 .tsh-root[data-collapsed="true"] .tsh-header-text {
@@ -586,7 +580,7 @@
 }
 
 /* Collapsed rail: the label is gone, so the count rides the icon's top-right
-   corner instead of sitting at the end of the row. */
+   corner — same look as the expanded badge, inverted colors. */
 .tsh-root[data-collapsed="true"] .tsh-nav-item {
   position: relative;
 }
@@ -596,11 +590,6 @@
   position: absolute;
   top: 3px;
   right: 4px;
-  min-width: 0;
-  max-width: none;
-  padding: 0 3px;
-  font-size: 9px;
-  line-height: 12px;
   background: var(--tsh-rail-badge-bg);
   color: var(--tsh-rail-badge-fg);
 }
@@ -626,9 +615,72 @@
   margin-top: 0;
 }
 
-.tsh-root[data-collapsed="true"] .tsh-section {
-  opacity: 0;
-  pointer-events: none;
+/* Collapsed rail variant: search button on top, then each plan's ID tag as a
+   narrow chip (rendered by ShellSidebarSection when the shell is collapsed). */
+.tsh-section-rail {
+  align-items: stretch;
+}
+
+.tsh-rail-search {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  color: var(--tsh-fg);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.tsh-rail-search:hover {
+  opacity: 1;
+  background: var(--tsh-row-active);
+}
+
+.tsh-rail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+.tsh-rail-item {
+  flex-shrink: 0;
+  width: 100%;
+  padding: 6px 2px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tsh-fg);
+  opacity: 0.6;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.tsh-rail-item:hover {
+  opacity: 1;
+  background: var(--tsh-row-active);
+}
+
+.tsh-rail-item[data-selected="true"] {
+  opacity: 1;
+  background: var(--tsh-row-active);
 }
 
 .tsh-section-header {

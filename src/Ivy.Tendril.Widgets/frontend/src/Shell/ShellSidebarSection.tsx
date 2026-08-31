@@ -1,5 +1,6 @@
 import React from "react";
 import { Search } from "lucide-react";
+import { useShell } from "./ShellContext";
 import { ShellSectionItemDto, ShellWidgetProps } from "./types";
 import "./shell.css";
 
@@ -13,8 +14,8 @@ interface ShellSidebarSectionProps extends ShellWidgetProps {
 
 /**
  * The contextual list under the nav — plans for Review/Drafts, recommendations,
- * etc. Published by the active app; hidden entirely in the collapsed rail
- * (via CSS) since there is no icon-only representation of a plan list.
+ * etc. Published by the active app. In the collapsed rail the list shrinks to
+ * narrow ID chips (the row tags, e.g. "#40") with the search button above.
  */
 export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
   id,
@@ -34,7 +35,42 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
     if (events.includes("OnSearch")) eventHandler("OnSearch", id, []);
   };
 
+  const { collapsed } = useShell();
+
   const hasHeader = !!title || searchable;
+
+  if (collapsed) {
+    return (
+      <div className="tsh-section tsh-section-rail">
+        {searchable && (
+          <button
+            className="tsh-rail-search"
+            onClick={openSearch}
+            aria-label="Search plans"
+            title="Search plans"
+          >
+            <Search size={16} />
+          </button>
+        )}
+        <div className="tsh-rail-list">
+          {items.map(
+            (item) =>
+              item.tag && (
+                <button
+                  key={item.id}
+                  className="tsh-rail-item"
+                  data-selected={item.id === selectedId}
+                  onClick={() => select(item.id)}
+                  title={item.title}
+                >
+                  {item.tag}
+                </button>
+              )
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="tsh-section" data-headerless={!hasHeader}>
