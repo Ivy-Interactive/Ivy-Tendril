@@ -71,6 +71,35 @@ public class PushProjectHeaderBadge(
     }
 }
 
+public class PushCategoryActionsHeader(
+    string title,
+    int count,
+    List<string> allItems,
+    string projName,
+    IState<Dictionary<string, HashSet<string>>> dictState) : ViewBase
+{
+    public override object Build()
+    {
+        if (count == 0) return Text.Block($"No {title.ToLowerInvariant()} available").Small().Muted();
+
+        return Layout.Horizontal().AlignContent(Align.SpaceBetween)
+            | Text.Block($"{title} ({count})").Bold().Small()
+            | (Layout.Horizontal().AlignContent(Align.Right)
+                | new Button("Select All").Small().Ghost().OnClick(() =>
+                {
+                    var nextDict = new Dictionary<string, HashSet<string>>(dictState.Value);
+                    nextDict[projName] = new HashSet<string>(allItems, StringComparer.OrdinalIgnoreCase);
+                    dictState.Set(nextDict);
+                })
+                | new Button("Deselect All").Small().Ghost().OnClick(() =>
+                {
+                    var nextDict = new Dictionary<string, HashSet<string>>(dictState.Value);
+                    nextDict[projName] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    dictState.Set(nextDict);
+                }));
+    }
+}
+
 public class PushAssetItemRow(
     string name,
     string projName,
@@ -135,11 +164,24 @@ public class PushToVaultDialog(
     string? defaultProject,
     IVaultService vaultService,
     IClientProvider client,
-    Action onPushed) : ViewBase
+    Action onPushed,
+    string? initialVaultId = null) : ViewBase
 {
     public override object? Build()
     {
         var config = UseService<IConfigService>();
+
+        var targetVaultState = UseState(() =>
+        {
+            var enabledVaults = config.Settings.Vaults.Where(v => v.Enabled).ToList();
+            if (enabledVaults.Count == 0 && config.Settings.Vault != null && config.Settings.Vault.Enabled)
+            {
+                enabledVaults.Add(config.Settings.Vault);
+            }
+            return !string.IsNullOrEmpty(initialVaultId)
+                ? initialVaultId
+                : (enabledVaults.FirstOrDefault()?.Id ?? "");
+        });
 
         var selectedProjects = UseState(() =>
             !string.IsNullOrEmpty(defaultProject)
@@ -266,6 +308,7 @@ public class PushToVaultDialog(
 
             var request = new VaultExportRequest
             {
+                TargetVaultId = targetVaultState.Value,
                 ProjectNames = projectList,
                 Version = version.Value,
                 Changelog = changelog.Value.Trim(),
@@ -280,7 +323,7 @@ public class PushToVaultDialog(
                 SyncPermissions = syncPermissions.Value
             };
 
-            var result = await vaultService.PushAndCreatePrAsync(request);
+            var result = await vaultService.PushAndCreatePrAsync(request, targetVaultState.Value);
             isLoading.Set(false);
 
             if (result.Success)
@@ -354,6 +397,7 @@ public class PushToVaultDialog(
             var skillsList = Layout.Vertical();
             if (projSkills.Count > 0)
             {
+                skillsList |= new PushCategoryActionsHeader("Skills", projSkills.Count, projSkills, projName, selectedSkills);
                 foreach (var sName in projSkills)
                     skillsList |= new PushAssetItemRow(sName, projName, selectedSkills, "Skill");
             }
@@ -367,6 +411,7 @@ public class PushToVaultDialog(
             var mcpsList = Layout.Vertical();
             if (projMcps.Count > 0)
             {
+                mcpsList |= new PushCategoryActionsHeader("MCP Servers", projMcps.Count, projMcps, projName, selectedMcps);
                 foreach (var mName in projMcps)
                     mcpsList |= new PushAssetItemRow(mName, projName, selectedMcps, "MCP");
             }
@@ -380,6 +425,7 @@ public class PushToVaultDialog(
             var memsList = Layout.Vertical();
             if (projMemories.Count > 0)
             {
+                memsList |= new PushCategoryActionsHeader("Project Memories", projMemories.Count, projMemories, projName, selectedMemories);
                 foreach (var memName in projMemories)
                     memsList |= new PushAssetItemRow(memName, projName, selectedMemories, "Memory");
             }
@@ -393,6 +439,7 @@ public class PushToVaultDialog(
             var actionsList = Layout.Vertical();
             if (projActions.Count > 0)
             {
+                actionsList |= new PushCategoryActionsHeader("Review Actions", projActions.Count, projActions, projName, selectedReviewActions);
                 foreach (var aName in projActions)
                     actionsList |= new PushAssetItemRow(aName, projName, selectedReviewActions, "Action");
             }
@@ -406,6 +453,7 @@ public class PushToVaultDialog(
             var verifsList = Layout.Vertical();
             if (projVerifs.Count > 0)
             {
+                verifsList |= new PushCategoryActionsHeader("Verifications", projVerifs.Count, projVerifs, projName, selectedVerifications);
                 foreach (var vName in projVerifs)
                     verifsList |= new PushAssetItemRow(vName, projName, selectedVerifications, "Verification");
             }
@@ -425,7 +473,24 @@ public class PushToVaultDialog(
             projectSelectorList |= projectCard;
         }
 
+        var enabledVaults = config.Settings.Vaults.Where(v => v.Enabled).ToList();
+        if (enabledVaults.Count == 0 && config.Settings.Vault != null && config.Settings.Vault.Enabled)
+        {
+            enabledVaults.Add(config.Settings.Vault);
+        }
+
+        object? vaultSelector = null;
+        if (enabledVaults.Count > 1)
+        {
+            var vaultOptions = enabledVaults
+                .Select(v => new Option<string>($"{v.Name} ({v.RepoUrl})", v.Id))
+                .ToArray();
+            vaultSelector = targetVaultState.ToSelectInput(vaultOptions)
+                .WithField().Label("Target Vault Repository");
+        }
+
         var form = Layout.Vertical()
+            | vaultSelector
             | Text.Block("Projects & Assets to Publish").Small().Bold()
             | projectSelectorList
             | Text.Block("Release Details").Small().Bold()

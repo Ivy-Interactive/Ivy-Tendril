@@ -28,24 +28,50 @@ public class VaultSetupView : ViewBase
         var selectedPushProject = UseState<string?>(null);
         var isSyncing = UseState(false);
 
-        var autoSyncState = UseState(() => config.Settings.Vault?.AlwaysUpToDate ?? false);
+        var selectedVaultId = UseState<string>(() =>
+        {
+            var active = config.Settings.Vaults.FirstOrDefault(v => v.Enabled);
+            return active?.Id ?? config.Settings.Vault?.Id ?? "";
+        });
+
+        var autoSyncState = UseState(() =>
+        {
+            var cur = config.Settings.Vaults.FirstOrDefault(v => v.Id == selectedVaultId.Value) ?? config.Settings.Vault;
+            return cur?.AlwaysUpToDate ?? false;
+        });
+
+        var vaultsQuery = UseQuery<List<VaultStatus>, string>(
+            "all",
+            async (_, _) => await vaultService.GetVaultsAsync());
 
         var statusQuery = UseQuery<VaultStatus, string>(
-            "vault_status",
-            async (_, _) => await vaultService.GetStatusAsync());
+            selectedVaultId.Value,
+            async (vaultId, _) => await vaultService.GetStatusAsync(vaultId));
 
         var catalogQuery = UseQuery<VaultCatalog, string>(
-            "vault_catalog",
-            async (_, _) => await vaultService.GetCatalogAsync());
+            selectedVaultId.Value,
+            async (vaultId, _) => await vaultService.GetCatalogAsync(vaultId));
+
+        var vaultsList = vaultsQuery.Value ?? new List<VaultStatus>();
+
+        UseEffect(() =>
+        {
+            if ((string.IsNullOrEmpty(selectedVaultId.Value) || !vaultsList.Any(v => v.Id == selectedVaultId.Value)) && vaultsList.Count > 0)
+            {
+                selectedVaultId.Set(vaultsList[0].Id);
+            }
+        }, vaultsQuery);
 
         UseEffect(() =>
         {
             void OnVaultChanged()
             {
                 refreshToken.Refresh();
+                vaultsQuery.Mutator.Revalidate();
                 statusQuery.Mutator.Revalidate();
                 catalogQuery.Mutator.Revalidate();
-                autoSyncState.Set(config.Settings.Vault?.AlwaysUpToDate ?? false);
+                var cur = config.Settings.Vaults.FirstOrDefault(v => v.Id == selectedVaultId.Value) ?? config.Settings.Vault;
+                autoSyncState.Set(cur?.AlwaysUpToDate ?? false);
             }
             vaultService.VaultChanged += OnVaultChanged;
             return Disposable.Create(() => vaultService.VaultChanged -= OnVaultChanged);
@@ -53,33 +79,59 @@ public class VaultSetupView : ViewBase
 
         UseEffect(() =>
         {
-            _ = vaultService.SetAlwaysUpToDateAsync(autoSyncState.Value);
+            var cur = config.Settings.Vaults.FirstOrDefault(v => v.Id == selectedVaultId.Value) ?? config.Settings.Vault;
+            if (cur != null && cur.AlwaysUpToDate != autoSyncState.Value)
+            {
+                _ = vaultService.SetAlwaysUpToDateAsync(autoSyncState.Value, selectedVaultId.Value);
+            }
         }, autoSyncState);
 
         _ = refreshToken.Token;
 
         var status = statusQuery.Value ?? new VaultStatus();
         var catalog = catalogQuery.Value ?? new VaultCatalog();
+        var currentVault = config.Settings.Vaults.FirstOrDefault(v => v.Id == selectedVaultId.Value) ?? config.Settings.Vault;
 
         var localProjectNames = config.Settings.Projects.Select(p => p.Name).ToList();
 
         var createDialog = new CreateVaultDialog(
             openCreateDialog, vaultService, client,
-            onCreated: () => { statusQuery.Mutator.Revalidate(); catalogQuery.Mutator.Revalidate(); });
+            onCreated: () =>
+            {
+                vaultsQuery.Mutator.Revalidate();
+                statusQuery.Mutator.Revalidate();
+                catalogQuery.Mutator.Revalidate();
+            });
 
         var connectDialog = new ConnectVaultDialog(
             openConnectDialog, vaultService, client,
-            onConnected: () => { statusQuery.Mutator.Revalidate(); catalogQuery.Mutator.Revalidate(); });
+            onConnected: () =>
+            {
+                vaultsQuery.Mutator.Revalidate();
+                statusQuery.Mutator.Revalidate();
+                catalogQuery.Mutator.Revalidate();
+            });
 
         var pushDialog = new PushToVaultDialog(
             openPushDialog, localProjectNames, selectedPushProject.Value, vaultService, client,
-            onPushed: () => { statusQuery.Mutator.Revalidate(); catalogQuery.Mutator.Revalidate(); });
+            onPushed: () =>
+            {
+                vaultsQuery.Mutator.Revalidate();
+                statusQuery.Mutator.Revalidate();
+                catalogQuery.Mutator.Revalidate();
+            },
+            initialVaultId: selectedVaultId.Value);
 
         var importDialog = new ImportFromVaultDialog(
             openImportDialog, selectedImportItem.Value, vaultService, client,
-            onImported: () => { statusQuery.Mutator.Revalidate(); catalogQuery.Mutator.Revalidate(); });
+            onImported: () =>
+            {
+                vaultsQuery.Mutator.Revalidate();
+                statusQuery.Mutator.Revalidate();
+                catalogQuery.Mutator.Revalidate();
+            });
 
-        if (!status.IsConfigured)
+        if (vaultsList.Count == 0 && !status.IsConfigured)
         {
             var notConfiguredLayout = Layout.Vertical().Width(Size.Auto().Max(Size.Units(200)))
                 | Text.Block("Team Configuration Vault").Bold()
@@ -101,7 +153,7 @@ public class VaultSetupView : ViewBase
         {
             if (isSyncing.Value) return;
             isSyncing.Set(true);
-            var result = await vaultService.PullLatestAsync();
+            var result = await vaultService.PullLatestAsync(selectedVaultId.Value);
             isSyncing.Set(false);
 
             if (result.Success)
@@ -116,13 +168,54 @@ public class VaultSetupView : ViewBase
             }
         }
 
+        object? vaultSwitcher = null;
+        if (vaultsList.Count > 1)
+        {
+            var vaultOptions = vaultsList
+                .Select(v => new Option<string>($"{v.Name} ({v.RepoUrl})", v.Id))
+                .ToArray();
+
+            vaultSwitcher = Layout.Horizontal().AlignContent(Align.SpaceBetween)
+                | (Layout.Horizontal().AlignContent(Align.Left)
+                    | Text.Block("Active Vault:").Bold().Small()
+                    | selectedVaultId.ToSelectInput(vaultOptions).Small())
+                | (Layout.Horizontal().AlignContent(Align.Right)
+                    | new Button("Connect Another Vault")
+                        .Icon(Icons.Plus)
+                        .Outline()
+                        .Small()
+                        .OnClick(() => openConnectDialog.Set(true))
+                    | new Button("Create Vault")
+                        .Icon(Icons.GitBranch)
+                        .Outline()
+                        .Small()
+                        .OnClick(() => openCreateDialog.Set(true)));
+        }
+        else
+        {
+            vaultSwitcher = Layout.Horizontal().AlignContent(Align.Right)
+                | new Button("Connect Another Vault")
+                    .Icon(Icons.Plus)
+                    .Outline()
+                    .Small()
+                    .OnClick(() => openConnectDialog.Set(true))
+                | new Button("Create Vault")
+                    .Icon(Icons.GitBranch)
+                    .Outline()
+                    .Small()
+                    .OnClick(() => openCreateDialog.Set(true));
+        }
+
         var connectionSection = Layout.Vertical()
+            | vaultSwitcher
             | Text.Block("Vault Connection").Bold()
             | (Layout.Horizontal().AlignContent(Align.SpaceBetween)
                 | (Layout.Horizontal().AlignContent(Align.Left)
                     | Icons.FolderGit2.ToIcon()
-                    | Text.Monospaced(status.RepoUrl).Bold()
-                    | new Badge(status.CurrentBranch).Variant(BadgeVariant.Secondary).Small())
+                    | Text.Monospaced(!string.IsNullOrEmpty(status.RepoUrl) ? status.RepoUrl : status.Name).Bold()
+                    | new Badge(status.CurrentBranch).Variant(BadgeVariant.Secondary).Small()
+                    | (status.CommitsBehind > 0 ? new Badge($"{status.CommitsBehind} behind").Variant(BadgeVariant.Warning).Small() : null)
+                    | (status.CommitsAhead > 0 ? new Badge($"{status.CommitsAhead} ahead").Variant(BadgeVariant.Secondary).Small() : null))
                 | (Layout.Horizontal().AlignContent(Align.Right)
                     | new Button("Sync / Pull Latest")
                         .Icon(Icons.RefreshCw)
@@ -146,20 +239,11 @@ public class VaultSetupView : ViewBase
 
         var tableRows = catalog.Projects.Select((p, i) =>
         {
-            var parts = new List<string>();
-            if (p.ReposCount > 0) parts.Add($"{p.ReposCount} repos");
-            if (p.SkillsCount > 0) parts.Add($"{p.SkillsCount} skills");
-            if (p.McpsCount > 0) parts.Add($"{p.McpsCount} MCPs");
-            if (p.MemoriesCount > 0) parts.Add($"{p.MemoriesCount} memories");
-            if (p.ReviewActionsCount > 0) parts.Add($"{p.ReviewActionsCount} actions");
-            if (p.VerificationsCount > 0) parts.Add($"{p.VerificationsCount} verifs");
-            var contentsStr = parts.Count > 0 ? string.Join(" • ", parts) : $"{p.ReposCount} repos";
-
             return new VaultProjectTableRow(
                 p.Name,
                 !string.IsNullOrEmpty(p.RemoteVersion) ? $"v{p.RemoteVersion}" : (!string.IsNullOrEmpty(p.LocalVersion) ? $"v{p.LocalVersion}" : "-"),
                 p.SyncStatus,
-                contentsStr,
+                p,
                 p.LatestChangelog ?? (!string.IsNullOrEmpty(p.Description) ? p.Description : "-"),
                 i
             );
@@ -184,9 +268,28 @@ public class VaultSetupView : ViewBase
                 VaultItemSyncStatus.UpdateAvailable => new Badge("Update Available").Variant(BadgeVariant.Destructive).Small(),
                 VaultItemSyncStatus.LocalOnly => new Badge("Local Only").Variant(BadgeVariant.Outline).Small(),
                 VaultItemSyncStatus.NotImported => new Badge("Not Imported").Variant(BadgeVariant.Outline).Small(),
+                VaultItemSyncStatus.Conflict => new Badge("Name Conflict").Variant(BadgeVariant.Destructive).Small(),
                 _ => new Badge("In Vault").Variant(BadgeVariant.Secondary).Small()
             }))
-            .Header(t => t.Contents, "Contents")
+            .Header(t => t.Item, "Contents")
+            .Builder(t => t.Item, f => f.Func<VaultProjectTableRow, VaultCatalogItem>(item =>
+            {
+                var badges = Layout.Horizontal().AlignContent(Align.Left);
+                if (item.ReposCount > 0)
+                    badges |= new Badge($"{item.ReposCount} {(item.ReposCount == 1 ? "repo" : "repos")}").Variant(BadgeVariant.Secondary).Small();
+                if (item.SkillsCount > 0)
+                    badges |= new Badge($"{item.SkillsCount} {(item.SkillsCount == 1 ? "skill" : "skills")}").Variant(BadgeVariant.Secondary).Small();
+                if (item.McpsCount > 0)
+                    badges |= new Badge($"{item.McpsCount} MCPs").Variant(BadgeVariant.Secondary).Small();
+                if (item.MemoriesCount > 0)
+                    badges |= new Badge($"{item.MemoriesCount} {(item.MemoriesCount == 1 ? "memory" : "memories")}").Variant(BadgeVariant.Secondary).Small();
+                if (item.ReviewActionsCount > 0)
+                    badges |= new Badge($"{item.ReviewActionsCount} {(item.ReviewActionsCount == 1 ? "action" : "actions")}").Variant(BadgeVariant.Secondary).Small();
+                if (item.VerificationsCount > 0)
+                    badges |= new Badge($"{item.VerificationsCount} {(item.VerificationsCount == 1 ? "verif" : "verifs")}").Variant(BadgeVariant.Secondary).Small();
+
+                return badges;
+            }))
             .Header(t => t.Changelog, "Changelog / Context")
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<VaultProjectTableRow, int>(idx =>
@@ -204,15 +307,25 @@ public class VaultSetupView : ViewBase
                             openImportDialog.Set(true);
                         }),
 
+                    VaultItemSyncStatus.Conflict => new Button("Import As...")
+                        .Icon(Icons.Download)
+                        .Primary()
+                        .Small()
+                        .OnClick(() =>
+                        {
+                            selectedImportItem.Set(item);
+                            openImportDialog.Set(true);
+                        }),
+
                     VaultItemSyncStatus.UpdateAvailable => new Button("Update")
                         .Icon(Icons.CircleArrowUp)
                         .Primary()
                         .Small()
                         .OnClick(async () =>
                         {
-                            var tracking = config.Settings.Vault?.TrackedProjects.TryGetValue(item.Name, out var t) == true ? t : null;
+                            var tracking = currentVault?.TrackedProjects.TryGetValue(item.Name, out var t) == true ? t : null;
                             var mappings = tracking?.LocalRepoPaths ?? new();
-                            var res = await vaultService.ImportProjectAsync(item.Name, mappings);
+                            var res = await vaultService.ImportProjectAsync(item.Name, mappings, selectedVaultId.Value);
                             if (res.Success)
                             {
                                 client.Toast(res.Message, "Updated");
@@ -222,16 +335,6 @@ public class VaultSetupView : ViewBase
 
                     VaultItemSyncStatus.LocalOnly => new Button("Publish")
                         .Icon(Icons.Upload)
-                        .Outline()
-                        .Small()
-                        .OnClick(() =>
-                        {
-                            selectedPushProject.Set(item.Name);
-                            openPushDialog.Set(true);
-                        }),
-
-                    VaultItemSyncStatus.UpToDate => new Button("Publish PR")
-                        .Icon(Icons.GitPullRequest)
                         .Outline()
                         .Small()
                         .OnClick(() =>
@@ -254,11 +357,12 @@ public class VaultSetupView : ViewBase
 
         var disconnectSection = Layout.Vertical()
             | Text.Block("Danger Zone").Bold()
-            | Text.Block("Disconnect this Tendril instance from the shared team vault.").Muted().Small()
+            | Text.Block($"Disconnect this Tendril instance from '{status.Name}' ({status.RepoUrl}).").Muted().Small()
             | (Layout.Horizontal().AlignContent(Align.Left)
                 | new Button("Disconnect Vault").Destructive().Outline().OnClick(async () =>
                 {
-                    await vaultService.DisconnectVaultAsync();
+                    await vaultService.DisconnectVaultAsync(selectedVaultId.Value);
+                    vaultsQuery.Mutator.Revalidate();
                     statusQuery.Mutator.Revalidate();
                     catalogQuery.Mutator.Revalidate();
                 }));
@@ -283,7 +387,7 @@ public class VaultSetupView : ViewBase
         string Name,
         string Version,
         VaultItemSyncStatus SyncStatus,
-        string Contents,
+        VaultCatalogItem Item,
         string Changelog,
         int Index
     );

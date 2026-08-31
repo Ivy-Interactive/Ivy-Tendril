@@ -5,13 +5,15 @@ using System.Linq;
 using System.Threading.Tasks;
 using Ivy;
 using Ivy.Core.Hooks;
+using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Vault;
 
 namespace Ivy.Tendril.Apps.Settings.Dialogs;
 
 public class ImportRepoPathRow(
     VaultRepoRef repoRef,
-    IState<Dictionary<string, string>> repoMappings) : ViewBase
+    IState<Dictionary<string, string>> repoMappings,
+    List<ProjectConfig> existingProjects) : ViewBase
 {
     public override object Build()
     {
@@ -46,11 +48,43 @@ public class ImportRepoPathRow(
             ? $"{repoKey} ({repoRef.RemoteUrl})"
             : repoKey;
 
+        // Check if any other existing project is already using this path
+        var sharingProject = existingProjects.FirstOrDefault(p =>
+            !string.IsNullOrWhiteSpace(inputState.Value) &&
+            p.Repos.Any(r => r.Path.TrimEnd('/', '\\').Equals(inputState.Value.TrimEnd('/', '\\'), StringComparison.OrdinalIgnoreCase)));
+
         return Layout.Vertical()
             | inputState.ToTextInput().WithField().Label(label)
             | (!exists && !string.IsNullOrWhiteSpace(repoRef.RemoteUrl)
                 ? Text.Block("⚡ Folder not found locally — will auto-clone from remote repository upon import.").Small().Muted()
+                : null)
+            | (sharingProject != null
+                ? Text.Block($"ℹ Folder is also used by existing project '{sharingProject.Name}'. Both projects will point to the same directory.").Small().Muted()
                 : null);
+    }
+}
+
+public class ImportCategoryActionsHeader(
+    string title,
+    int count,
+    List<string> allItems,
+    IState<HashSet<string>> selectedSet) : ViewBase
+{
+    public override object Build()
+    {
+        if (count == 0) return Text.Block($"No {title.ToLowerInvariant()} in this vault project.").Small().Muted();
+
+        return Layout.Horizontal().AlignContent(Align.SpaceBetween)
+            | Text.Block($"{title} ({count})").Bold().Small()
+            | (Layout.Horizontal().AlignContent(Align.Right)
+                | new Button("Select All").Small().Ghost().OnClick(() =>
+                {
+                    selectedSet.Set(new HashSet<string>(allItems, StringComparer.OrdinalIgnoreCase));
+                })
+                | new Button("Deselect All").Small().Ghost().OnClick(() =>
+                {
+                    selectedSet.Set(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                }));
     }
 }
 
@@ -90,6 +124,25 @@ public class ImportFromVaultDialog(
 {
     public override object? Build()
     {
+        var config = UseService<IConfigService>();
+
+        var targetProjectName = UseState(() =>
+        {
+            if (projectItem == null) return "";
+            var existingProjects = config.Settings.Projects;
+            var hasExisting = existingProjects.Any(p => p.Name.Equals(projectItem.Name, StringComparison.OrdinalIgnoreCase));
+            if (hasExisting && projectItem.SyncStatus == VaultItemSyncStatus.Conflict)
+            {
+                int index = 2;
+                while (existingProjects.Any(p => p.Name.Equals($"{projectItem.Name}-{index}", StringComparison.OrdinalIgnoreCase)))
+                {
+                    index++;
+                }
+                return $"{projectItem.Name}-{index}";
+            }
+            return projectItem.Name;
+        });
+
         var repoMappings = UseState(() =>
         {
             var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -133,15 +186,25 @@ public class ImportFromVaultDialog(
                 : new HashSet<string>(StringComparer.OrdinalIgnoreCase));
 
         var importPermissions = UseState(true);
-
         var isLoading = UseState(false);
         var errorMessage = UseState<string?>(null);
 
         if (!dialogOpen.Value || projectItem == null) return null;
 
+        var existingProjects = config.Settings.Projects;
+        var hasExistingName = existingProjects.Any(p => p.Name.Equals(projectItem.Name, StringComparison.OrdinalIgnoreCase));
+
         async Task HandleImport()
         {
-            if (isLoading.Value) return;
+            var finalName = targetProjectName.Value.Trim();
+            if (isLoading.Value || string.IsNullOrWhiteSpace(finalName)) return;
+
+            // Prevent importing with a conflicting name without user awareness
+            if (hasExistingName && finalName.Equals(projectItem.Name, StringComparison.OrdinalIgnoreCase) && projectItem.SyncStatus == VaultItemSyncStatus.Conflict)
+            {
+                errorMessage.Set($"A local project named '{projectItem.Name}' already exists. Please choose a different local project name above.");
+                return;
+            }
 
             isLoading.Set(true);
             errorMessage.Set(null);
@@ -149,6 +212,8 @@ public class ImportFromVaultDialog(
             var request = new VaultImportRequest
             {
                 ProjectName = projectItem.Name,
+                TargetLocalProjectName = finalName,
+                SourceVaultId = projectItem.SourceVaultId,
                 LocalRepoMappings = repoMappings.Value,
                 SelectedSkills = selectedSkills.Value.ToList(),
                 SelectedMcps = selectedMcps.Value.ToList(),
@@ -158,7 +223,7 @@ public class ImportFromVaultDialog(
                 ImportPermissions = importPermissions.Value
             };
 
-            var result = await vaultService.ImportProjectAsync(request);
+            var result = await vaultService.ImportProjectAsync(request, projectItem.SourceVaultId);
             isLoading.Set(false);
 
             if (result.Success)
@@ -179,7 +244,7 @@ public class ImportFromVaultDialog(
             repoInputs |= Text.Block("Local Folder Mappings").Small().Bold();
             foreach (var repo in projectItem.Repos)
             {
-                repoInputs |= new ImportRepoPathRow(repo, repoMappings);
+                repoInputs |= new ImportRepoPathRow(repo, repoMappings, existingProjects);
             }
         }
 
@@ -189,6 +254,7 @@ public class ImportFromVaultDialog(
         var skillsList = Layout.Vertical();
         if (projectItem.SkillNames.Count > 0)
         {
+            skillsList |= new ImportCategoryActionsHeader("Skills", projectItem.SkillNames.Count, projectItem.SkillNames, selectedSkills);
             foreach (var s in projectItem.SkillNames)
                 skillsList |= new ImportAssetItemRow(s, selectedSkills, "Skill");
         }
@@ -202,6 +268,7 @@ public class ImportFromVaultDialog(
         var mcpsList = Layout.Vertical();
         if (projectItem.McpServerNames.Count > 0)
         {
+            mcpsList |= new ImportCategoryActionsHeader("MCP Servers", projectItem.McpServerNames.Count, projectItem.McpServerNames, selectedMcps);
             foreach (var m in projectItem.McpServerNames)
                 mcpsList |= new ImportAssetItemRow(m, selectedMcps, "MCP");
         }
@@ -215,6 +282,7 @@ public class ImportFromVaultDialog(
         var memsList = Layout.Vertical();
         if (projectItem.MemoryFileNames.Count > 0)
         {
+            memsList |= new ImportCategoryActionsHeader("Project Memories", projectItem.MemoryFileNames.Count, projectItem.MemoryFileNames, selectedMemories);
             foreach (var mem in projectItem.MemoryFileNames)
                 memsList |= new ImportAssetItemRow(mem, selectedMemories, "Memory");
         }
@@ -228,6 +296,7 @@ public class ImportFromVaultDialog(
         var actionsList = Layout.Vertical();
         if (projectItem.ReviewActionNames.Count > 0)
         {
+            actionsList |= new ImportCategoryActionsHeader("Review Actions", projectItem.ReviewActionNames.Count, projectItem.ReviewActionNames, selectedReviewActions);
             foreach (var a in projectItem.ReviewActionNames)
                 actionsList |= new ImportAssetItemRow(a, selectedReviewActions, "Action");
         }
@@ -241,6 +310,7 @@ public class ImportFromVaultDialog(
         var verifsList = Layout.Vertical();
         if (projectItem.VerificationNames.Count > 0)
         {
+            verifsList |= new ImportCategoryActionsHeader("Verifications", projectItem.VerificationNames.Count, projectItem.VerificationNames, selectedVerifications);
             foreach (var v in projectItem.VerificationNames)
                 verifsList |= new ImportAssetItemRow(v, selectedVerifications, "Verification");
         }
@@ -253,10 +323,16 @@ public class ImportFromVaultDialog(
         // Permissions
         assetChecklist |= importPermissions.ToBoolInput("Import Security & Permissions Policies");
 
+        var conflictCallout = (hasExistingName && projectItem.SyncStatus == VaultItemSyncStatus.Conflict)
+            ? Callout.Warning($"A local project named '{projectItem.Name}' already exists. We've suggested '{targetProjectName.Value}' as the local project name to avoid overwriting your existing project.")
+            : null;
+
         var form = Layout.Vertical()
+            | conflictCallout
+            | targetProjectName.ToTextInput().WithField().Label("Local Project Name")
             | (Layout.Horizontal().AlignContent(Align.Left)
-                | Text.Block($"Project: {projectItem.Name}").Bold()
-                | new Badge($"v{projectItem.RemoteVersion}").Variant(BadgeVariant.Secondary))
+                | Text.Block($"Vault Source: {projectItem.Name}").Bold().Small()
+                | new Badge($"v{projectItem.RemoteVersion}").Variant(BadgeVariant.Secondary).Small())
             | (!string.IsNullOrEmpty(projectItem.Description) ? Text.P(projectItem.Description).Small().Muted() : null)
             | (!string.IsNullOrEmpty(projectItem.LatestChangelog) ? Text.P($"Changelog: {projectItem.LatestChangelog}").Small().Muted() : null)
             | repoInputs
@@ -274,7 +350,7 @@ public class ImportFromVaultDialog(
                     .Icon(Icons.Download)
                     .Primary()
                     .Loading(isLoading.Value)
-                    .Disabled(isLoading.Value)
+                    .Disabled(isLoading.Value || string.IsNullOrWhiteSpace(targetProjectName.Value))
                     .OnClick(async () => await HandleImport())
             )
         );

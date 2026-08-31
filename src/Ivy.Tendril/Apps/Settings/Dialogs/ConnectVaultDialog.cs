@@ -15,6 +15,7 @@ public class ConnectVaultDialog(
     public override object? Build()
     {
         var repoUrl = UseState("");
+        var customName = UseState("");
         var isLoading = UseState(false);
         var errorMessage = UseState<string?>(null);
 
@@ -27,7 +28,7 @@ public class ConnectVaultDialog(
             isLoading.Set(true);
             errorMessage.Set(null);
 
-            var result = await vaultService.ConnectVaultAsync(repoUrl.Value.Trim());
+            var result = await vaultService.ConnectVaultAsync(repoUrl.Value.Trim(), customName.Value.Trim());
             isLoading.Set(false);
 
             if (result.Success)
@@ -46,6 +47,8 @@ public class ConnectVaultDialog(
             | Text.P("Enter the Git clone URL of an existing Tendril Vault repository.").Small().Muted()
             | repoUrl.ToTextInput("https://github.com/my-org/Tendril-Vault.git")
                 .WithField().Label("Git Repository URL")
+            | customName.ToTextInput("e.g. Core Team Vault (optional)")
+                .WithField().Label("Display Name (Optional)")
             | (errorMessage.Value != null
                 ? Text.Block(errorMessage.Value).Color(Colors.Destructive).Small()
                 : null);

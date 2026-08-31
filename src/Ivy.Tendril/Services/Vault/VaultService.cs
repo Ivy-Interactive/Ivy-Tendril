@@ -29,25 +29,135 @@ public class VaultService : IVaultService
         return DateTime.UtcNow.ToString("yyyy.MM.dd.HHmmss");
     }
 
-    private string GetVaultDirectory()
+    private void EnsureVaultsInitialized()
     {
-        if (_config.Settings.Vault != null && !string.IsNullOrEmpty(_config.Settings.Vault.LocalPath))
+        var settings = _config.Settings;
+        if (settings.Vaults.Count == 0 && settings.Vault != null && !string.IsNullOrEmpty(settings.Vault.RepoUrl))
         {
-            return _config.Settings.Vault.LocalPath;
+            if (string.IsNullOrEmpty(settings.Vault.Id))
+            {
+                settings.Vault.Id = Guid.NewGuid().ToString("N")[..8];
+            }
+            if (string.IsNullOrEmpty(settings.Vault.Name))
+            {
+                settings.Vault.Name = ExtractRepoName(settings.Vault.RepoUrl);
+            }
+            settings.Vaults.Add(settings.Vault);
+        }
+
+        if (settings.Vaults.Count > 0)
+        {
+            foreach (var v in settings.Vaults)
+            {
+                if (string.IsNullOrEmpty(v.Id)) v.Id = Guid.NewGuid().ToString("N")[..8];
+                if (string.IsNullOrEmpty(v.Name)) v.Name = ExtractRepoName(v.RepoUrl);
+            }
+
+            if (settings.Vault == null || !settings.Vault.Enabled)
+            {
+                settings.Vault = settings.Vaults.FirstOrDefault(v => v.Enabled) ?? settings.Vaults[0];
+            }
+        }
+    }
+
+    private VaultSettings? GetVaultSettings(string? vaultId = null)
+    {
+        EnsureVaultsInitialized();
+        var vaults = _config.Settings.Vaults;
+
+        if (!string.IsNullOrEmpty(vaultId))
+        {
+            var found = vaults.FirstOrDefault(v =>
+                v.Id.Equals(vaultId, StringComparison.OrdinalIgnoreCase) ||
+                v.RepoUrl.Equals(vaultId, StringComparison.OrdinalIgnoreCase) ||
+                v.Name.Equals(vaultId, StringComparison.OrdinalIgnoreCase));
+            if (found != null) return found;
+        }
+
+        return vaults.FirstOrDefault(v => v.Enabled) ?? _config.Settings.Vault;
+    }
+
+    private string GetVaultDirectory(VaultSettings? vault)
+    {
+        if (vault != null && !string.IsNullOrEmpty(vault.LocalPath))
+        {
+            return vault.LocalPath;
+        }
+
+        if (vault != null && !string.IsNullOrEmpty(vault.Id))
+        {
+            return Path.Combine(_config.TendrilHome, "Vaults", vault.Id);
         }
 
         return Path.Combine(_config.TendrilHome, "Vault");
     }
 
-    public async Task<VaultStatus> GetStatusAsync()
+    public static string NormalizeRepoUrl(string? url)
     {
-        var settings = _config.Settings.Vault;
-        var vaultDir = GetVaultDirectory();
+        if (string.IsNullOrWhiteSpace(url)) return "";
+        var trimmed = url.Trim().TrimEnd('/');
+        if (trimmed.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed[..^4];
+        }
+
+        var scpMatch = Regex.Match(trimmed, @"^git@([^:]+):(.+)$");
+        if (scpMatch.Success)
+        {
+            var host = scpMatch.Groups[1].Value;
+            var path = scpMatch.Groups[2].Value;
+            return $"https://{host}/{path}".ToLowerInvariant();
+        }
+
+        return trimmed.ToLowerInvariant();
+    }
+
+    private static string ExtractRepoName(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return "Tendril-Vault";
+        var norm = NormalizeRepoUrl(url);
+        var lastSlash = norm.LastIndexOf('/');
+        if (lastSlash >= 0 && lastSlash < norm.Length - 1)
+        {
+            var name = norm[(lastSlash + 1)..];
+            return !string.IsNullOrEmpty(name) ? name : "Tendril-Vault";
+        }
+        return "Tendril-Vault";
+    }
+
+    public async Task<List<VaultStatus>> GetVaultsAsync()
+    {
+        EnsureVaultsInitialized();
+        var statuses = new List<VaultStatus>();
+
+        foreach (var vault in _config.Settings.Vaults)
+        {
+            if (vault.Enabled)
+            {
+                var status = await GetStatusForVaultAsync(vault);
+                statuses.Add(status);
+            }
+        }
+
+        return statuses;
+    }
+
+    public async Task<VaultStatus> GetStatusAsync(string? vaultId = null)
+    {
+        var settings = GetVaultSettings(vaultId);
+        return await GetStatusForVaultAsync(settings);
+    }
+
+    private async Task<VaultStatus> GetStatusForVaultAsync(VaultSettings? settings)
+    {
+        var vaultDir = GetVaultDirectory(settings);
 
         if (settings == null || !settings.Enabled || string.IsNullOrEmpty(settings.RepoUrl) || !Directory.Exists(vaultDir))
         {
             return new VaultStatus
             {
+                Id = settings?.Id ?? "",
+                Name = settings?.Name ?? (settings != null ? ExtractRepoName(settings.RepoUrl) : ""),
                 IsConfigured = false,
                 RepoUrl = settings?.RepoUrl ?? "",
                 LocalPath = vaultDir,
@@ -93,6 +203,8 @@ public class VaultService : IVaultService
 
         return new VaultStatus
         {
+            Id = settings.Id,
+            Name = settings.Name,
             IsConfigured = true,
             RepoUrl = settings.RepoUrl,
             LocalPath = vaultDir,
@@ -105,16 +217,17 @@ public class VaultService : IVaultService
         };
     }
 
-    public Task<VaultCatalog> GetCatalogAsync()
+    public Task<VaultCatalog> GetCatalogAsync(string? vaultId = null)
     {
-        var vaultDir = GetVaultDirectory();
+        var vault = GetVaultSettings(vaultId);
+        var vaultDir = GetVaultDirectory(vault);
         var catalog = new VaultCatalog();
 
         if (!Directory.Exists(vaultDir))
         {
             foreach (var localProj in _config.Settings.Projects)
             {
-                catalog.Projects.Add(BuildLocalCatalogItem(localProj));
+                catalog.Projects.Add(BuildLocalCatalogItem(localProj, vault));
             }
             return Task.FromResult(catalog);
         }
@@ -194,13 +307,30 @@ public class VaultService : IVaultService
                 var verificationNames = manifest?.Verifications.Select(v => v.Name).ToList() ?? new();
 
                 var remoteVersion = manifest?.Version ?? "";
-                var localVersion = GetTrackedVersion(projName);
-                var isImported = _config.Settings.Projects.Any(p => p.Name.Equals(projName, StringComparison.OrdinalIgnoreCase));
+                var localVersion = GetTrackedVersion(projName, vault);
+                var localMatchingProj = _config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projName, StringComparison.OrdinalIgnoreCase));
+                var isImported = localMatchingProj != null;
+
+                bool isTrackedToThisVault = false;
+                if (vault != null && vault.TrackedProjects.TryGetValue(projName, out var tracking))
+                {
+                    isTrackedToThisVault = string.IsNullOrEmpty(tracking.VaultId) || tracking.VaultId.Equals(vault.Id, StringComparison.OrdinalIgnoreCase);
+                }
 
                 VaultItemSyncStatus syncStatus;
+                bool hasConflict = false;
+                string? conflictReason = null;
+
                 if (!isImported)
                 {
                     syncStatus = VaultItemSyncStatus.NotImported;
+                }
+                else if (!isTrackedToThisVault)
+                {
+                    // A project with this name already exists locally, but was not imported from this vault!
+                    syncStatus = VaultItemSyncStatus.Conflict;
+                    hasConflict = true;
+                    conflictReason = "A local project with this name already exists (created locally or imported from another vault).";
                 }
                 else if (string.IsNullOrEmpty(localVersion) || string.IsNullOrEmpty(remoteVersion))
                 {
@@ -238,7 +368,11 @@ public class VaultService : IVaultService
                     ReviewActionNames = reviewActionNames,
                     VerificationNames = verificationNames,
                     SyncStatus = syncStatus,
-                    Repos = manifest?.Repos ?? new()
+                    Repos = manifest?.Repos ?? new(),
+                    HasLocalConflict = hasConflict,
+                    ConflictReason = conflictReason,
+                    SourceVaultId = vault?.Id,
+                    SourceVaultName = vault?.Name
                 });
             }
         }
@@ -247,14 +381,14 @@ public class VaultService : IVaultService
         {
             if (!vaultProjects.Contains(localProj.Name))
             {
-                catalog.Projects.Add(BuildLocalCatalogItem(localProj));
+                catalog.Projects.Add(BuildLocalCatalogItem(localProj, vault));
             }
         }
 
         return Task.FromResult(catalog);
     }
 
-    private VaultCatalogItem BuildLocalCatalogItem(ProjectConfig localProj)
+    private VaultCatalogItem BuildLocalCatalogItem(ProjectConfig localProj, VaultSettings? vault)
     {
         var localSkillsDir = ProjectPathHelper.GetSkillsDir(_config.TendrilHome, localProj.Name);
         var skillNames = new HashSet<string>(localProj.Skills.Select(s => s.Name), StringComparer.OrdinalIgnoreCase);
@@ -284,7 +418,7 @@ public class VaultService : IVaultService
             Description = localProj.Context,
             Color = localProj.Color,
             StackHash = localProj.StackHash,
-            LocalVersion = GetTrackedVersion(localProj.Name),
+            LocalVersion = GetTrackedVersion(localProj.Name, vault),
             RemoteVersion = "",
             SyncStatus = VaultItemSyncStatus.LocalOnly,
             Repos = repos,
@@ -299,7 +433,9 @@ public class VaultService : IVaultService
             MemoryFileNames = memoryNames,
             ReviewActionNames = reviewActionNames,
             VerificationNames = verificationNames,
-            UpdatedAt = DateTimeOffset.UtcNow
+            UpdatedAt = DateTimeOffset.UtcNow,
+            SourceVaultId = vault?.Id,
+            SourceVaultName = vault?.Name
         };
     }
 
@@ -334,7 +470,7 @@ public class VaultService : IVaultService
 
     public async Task<VaultResult> CreateVaultRepoAsync(string repoName, bool isPrivate = true, string? org = null)
     {
-        var vaultDir = GetVaultDirectory();
+        EnsureVaultsInitialized();
 
         repoName = repoName.Trim();
         if (!string.IsNullOrWhiteSpace(org))
@@ -350,23 +486,21 @@ public class VaultService : IVaultService
         var targetRepo = !string.IsNullOrWhiteSpace(org) ? $"{org}/{repoName}" : repoName;
         var visibilityFlag = isPrivate ? "--private" : "--public";
 
-        // Check if the repository already exists on GitHub first
         var (urlOut, urlErr) = await RunGhCliAsync($"api repos/{targetRepo} --jq .html_url");
         var existingUrl = urlOut?.Trim();
         if (!string.IsNullOrWhiteSpace(existingUrl) && urlErr == null)
         {
-            return await ConnectVaultAsync(existingUrl);
+            return await ConnectVaultAsync(existingUrl, repoName);
         }
 
         var (createOut, createErr) = await RunGhCliAsync($"repo create {targetRepo} {visibilityFlag}");
         if (createErr != null && !createErr.Contains("already exists", StringComparison.OrdinalIgnoreCase))
         {
-            // If creation failed but repo exists via API, connect
             var (retryUrlOut, retryUrlErr) = await RunGhCliAsync($"api repos/{targetRepo} --jq .html_url");
             var retryUrl = retryUrlOut?.Trim();
             if (!string.IsNullOrWhiteSpace(retryUrl) && retryUrlErr == null)
             {
-                return await ConnectVaultAsync(retryUrl);
+                return await ConnectVaultAsync(retryUrl, repoName);
             }
 
             return new VaultResult(false, "Failed to create GitHub repository", createErr);
@@ -382,6 +516,9 @@ public class VaultService : IVaultService
                 repoUrl = $"https://github.com/{targetRepo}.git";
             }
         }
+
+        var vaultId = Guid.NewGuid().ToString("N")[..8];
+        var vaultDir = Path.Combine(_config.TendrilHome, "Vaults", vaultId);
 
         _logger.LogInformation("[Vault] Initializing local git repo in '{VaultDir}' for '{RepoUrl}'", vaultDir, repoUrl);
 
@@ -409,26 +546,42 @@ public class VaultService : IVaultService
         await RunGitCommandAsync(vaultDir, "commit -m \"Initial Tendril Vault setup\"");
         await RunGitCommandAsync(vaultDir, "push -u origin main");
 
-        _config.Settings.Vault = new VaultSettings
+        var newVault = new VaultSettings
         {
+            Id = vaultId,
+            Name = repoName,
             Enabled = true,
             RepoUrl = repoUrl,
             LocalPath = vaultDir,
             LastSyncedAt = DateTimeOffset.UtcNow,
             AlwaysUpToDate = false
         };
+
+        _config.Settings.Vaults.Add(newVault);
+        _config.Settings.Vault = newVault;
         _config.SaveSettings();
         VaultChanged?.Invoke();
 
         return new VaultResult(true, $"Created and connected vault repository '{targetRepo}'");
     }
 
-    public async Task<VaultResult> ConnectVaultAsync(string repoUrl)
+    public async Task<VaultResult> ConnectVaultAsync(string repoUrl, string? customName = null)
     {
         if (string.IsNullOrWhiteSpace(repoUrl))
             return new VaultResult(false, "Repository URL cannot be empty", "Empty URL");
 
-        var vaultDir = GetVaultDirectory();
+        EnsureVaultsInitialized();
+
+        var normalizedUrl = NormalizeRepoUrl(repoUrl);
+        var existingVault = _config.Settings.Vaults.FirstOrDefault(v => NormalizeRepoUrl(v.RepoUrl) == normalizedUrl);
+        if (existingVault != null)
+        {
+            return new VaultResult(false, $"This repository is already connected as '{existingVault.Name}'.", "Duplicate vault connection");
+        }
+
+        var vaultId = Guid.NewGuid().ToString("N")[..8];
+        var vaultDir = Path.Combine(_config.TendrilHome, "Vaults", vaultId);
+
         if (Directory.Exists(vaultDir))
         {
             Directory.Delete(vaultDir, true);
@@ -443,45 +596,90 @@ public class VaultService : IVaultService
             return new VaultResult(false, "Failed to clone vault repository", cloneErr);
         }
 
-        _config.Settings.Vault = new VaultSettings
+        var vaultName = !string.IsNullOrWhiteSpace(customName) ? customName.Trim() : ExtractRepoName(repoUrl);
+        var manifestPath = Path.Combine(vaultDir, "vault.yaml");
+        if (File.Exists(manifestPath))
         {
+            try
+            {
+                var yaml = File.ReadAllText(manifestPath);
+                var manifest = YamlHelper.Deserializer.Deserialize<VaultManifest>(yaml);
+                if (!string.IsNullOrWhiteSpace(manifest?.Name))
+                {
+                    vaultName = manifest.Name;
+                }
+            }
+            catch { }
+        }
+
+        var newVault = new VaultSettings
+        {
+            Id = vaultId,
+            Name = vaultName,
             Enabled = true,
             RepoUrl = repoUrl,
             LocalPath = vaultDir,
             LastSyncedAt = DateTimeOffset.UtcNow,
             AlwaysUpToDate = false
         };
+
+        _config.Settings.Vaults.Add(newVault);
+        _config.Settings.Vault = newVault;
         _config.SaveSettings();
         VaultChanged?.Invoke();
 
-        return new VaultResult(true, "Successfully connected to vault repository");
+        return new VaultResult(true, $"Successfully connected to vault repository '{vaultName}'");
     }
 
-    public Task<VaultResult> DisconnectVaultAsync()
+    public Task<VaultResult> DisconnectVaultAsync(string? vaultId = null)
     {
-        if (_config.Settings.Vault != null)
+        EnsureVaultsInitialized();
+        var targetVault = GetVaultSettings(vaultId);
+
+        if (targetVault != null)
         {
-            _config.Settings.Vault.Enabled = false;
+            _config.Settings.Vaults.Remove(targetVault);
+            if (_config.Settings.Vault?.Id == targetVault.Id)
+            {
+                _config.Settings.Vault = _config.Settings.Vaults.FirstOrDefault(v => v.Enabled);
+            }
             _config.SaveSettings();
         }
+
         VaultChanged?.Invoke();
         return Task.FromResult(new VaultResult(true, "Disconnected from vault"));
     }
 
-    public Task<VaultResult> SetAlwaysUpToDateAsync(bool alwaysUpToDate)
+    public Task<VaultResult> SetAlwaysUpToDateAsync(bool alwaysUpToDate, string? vaultId = null)
     {
-        if (_config.Settings.Vault != null)
+        EnsureVaultsInitialized();
+        var vault = GetVaultSettings(vaultId);
+
+        if (vault != null)
         {
-            _config.Settings.Vault.AlwaysUpToDate = alwaysUpToDate;
+            vault.AlwaysUpToDate = alwaysUpToDate;
+            if (_config.Settings.Vault?.Id == vault.Id)
+            {
+                _config.Settings.Vault.AlwaysUpToDate = alwaysUpToDate;
+            }
             _config.SaveSettings();
         }
+
         VaultChanged?.Invoke();
         return Task.FromResult(new VaultResult(true, $"Auto-sync is now {(alwaysUpToDate ? "enabled" : "disabled")}"));
     }
 
-    public async Task<VaultPrResult> PushAndCreatePrAsync(VaultExportRequest request)
+    public async Task<VaultPrResult> PushAndCreatePrAsync(VaultExportRequest request, string? vaultId = null)
     {
-        var vaultDir = GetVaultDirectory();
+        EnsureVaultsInitialized();
+        var targetVault = GetVaultSettings(request.TargetVaultId ?? vaultId);
+
+        if (targetVault == null)
+        {
+            return new VaultPrResult(false, ErrorMessage: "No vault configured to push updates.");
+        }
+
+        var vaultDir = GetVaultDirectory(targetVault);
         if (!Directory.Exists(Path.Combine(vaultDir, ".git")))
         {
             return new VaultPrResult(false, ErrorMessage: "Vault repository is not initialized locally.");
@@ -539,7 +737,7 @@ public class VaultService : IVaultService
                 var repoPath = r.Path;
                 var remoteUrl = "";
                 var owner = "default";
-                var repoName = Path.GetFileName(repoPath.TrimEnd('/', '\\'));
+                var rName = Path.GetFileName(repoPath.TrimEnd('/', '\\'));
 
                 if (Directory.Exists(repoPath))
                 {
@@ -551,7 +749,7 @@ public class VaultService : IVaultService
                         if (match.Success)
                         {
                             owner = match.Groups[1].Value;
-                            repoName = match.Groups[2].Value;
+                            rName = match.Groups[2].Value;
                         }
                     }
                 }
@@ -559,7 +757,7 @@ public class VaultService : IVaultService
                 repoRefs.Add(new VaultRepoRef
                 {
                     Owner = owner,
-                    Name = repoName,
+                    Name = rName,
                     BaseBranch = r.BaseBranch,
                     RemoteUrl = !string.IsNullOrEmpty(remoteUrl) ? remoteUrl : null
                 });
@@ -649,22 +847,21 @@ public class VaultService : IVaultService
             }
 
             // Update local tracking
-            if (_config.Settings.Vault != null)
+            targetVault.TrackedProjects[proj.Name] = new ProjectVaultTracking
             {
-                _config.Settings.Vault.TrackedProjects[proj.Name] = new ProjectVaultTracking
-                {
-                    InstalledVersion = version,
-                    InstalledAt = DateTimeOffset.UtcNow,
-                    LocalRepoPaths = proj.Repos.ToDictionary(r => Path.GetFileName(r.Path.TrimEnd('/', '\\')), r => r.Path)
-                };
-            }
+                InstalledVersion = version,
+                InstalledAt = DateTimeOffset.UtcNow,
+                VaultId = targetVault.Id,
+                VaultRepoUrl = targetVault.RepoUrl,
+                LocalRepoPaths = proj.Repos.ToDictionary(r => Path.GetFileName(r.Path.TrimEnd('/', '\\')), r => r.Path)
+            };
 
             exportedProjects.Add(proj.Name);
         }
 
         var rootManifest = new VaultManifest
         {
-            Name = _config.Settings.Vault?.RepoUrl != null ? Path.GetFileNameWithoutExtension(_config.Settings.Vault.RepoUrl) : "Tendril-Vault",
+            Name = targetVault.Name,
             Version = version,
             UpdatedAt = DateTimeOffset.UtcNow
         };
@@ -695,35 +892,40 @@ public class VaultService : IVaultService
         var (prOut, prErr) = await RunGhCliAsync(ghPrCmd, vaultDir);
         var prUrl = prOut?.Trim();
 
-        if (_config.Settings.Vault != null)
-        {
-            _config.Settings.Vault.LastSyncedAt = DateTimeOffset.UtcNow;
-        }
-
+        targetVault.LastSyncedAt = DateTimeOffset.UtcNow;
         _config.SaveSettings();
         VaultChanged?.Invoke();
 
         return new VaultPrResult(true, PrUrl: prUrl, BranchName: branchName);
     }
 
-    public Task<VaultResult> ImportProjectAsync(string projectName, Dictionary<string, string> localRepoMappings)
+    public Task<VaultResult> ImportProjectAsync(string projectName, Dictionary<string, string> localRepoMappings, string? vaultId = null)
     {
         return ImportProjectAsync(new VaultImportRequest
         {
             ProjectName = projectName,
-            LocalRepoMappings = localRepoMappings
-        });
+            LocalRepoMappings = localRepoMappings,
+            SourceVaultId = vaultId
+        }, vaultId);
     }
 
-    public async Task<VaultResult> ImportProjectAsync(VaultImportRequest request)
+    public async Task<VaultResult> ImportProjectAsync(VaultImportRequest request, string? vaultId = null)
     {
+        EnsureVaultsInitialized();
+        var vault = GetVaultSettings(request.SourceVaultId ?? vaultId);
+
+        if (vault == null)
+        {
+            return new VaultResult(false, "No vault configured for import.", "Vault not found");
+        }
+
         var projectName = request.ProjectName;
-        var vaultDir = GetVaultDirectory();
+        var vaultDir = GetVaultDirectory(vault);
         var projDir = Path.Combine(vaultDir, "projects", projectName);
 
         if (!Directory.Exists(projDir))
         {
-            return new VaultResult(false, $"Project '{projectName}' was not found in vault.", "Directory not found");
+            return new VaultResult(false, $"Project '{projectName}' was not found in vault '{vault.Name}'.", "Directory not found");
         }
 
         var projManifestPath = Path.Combine(projDir, "project.yaml");
@@ -734,6 +936,10 @@ public class VaultService : IVaultService
 
         var yaml = await File.ReadAllTextAsync(projManifestPath);
         var manifest = YamlHelper.Deserializer.Deserialize<VaultProjectManifest>(yaml);
+
+        var finalLocalProjectName = !string.IsNullOrWhiteSpace(request.TargetLocalProjectName)
+            ? request.TargetLocalProjectName.Trim()
+            : manifest.Name;
 
         // 1. Merge verification definitions if present
         if (manifest.VerificationDefinitions != null)
@@ -812,7 +1018,7 @@ public class VaultService : IVaultService
 
         var projectConfig = new ProjectConfig
         {
-            Name = manifest.Name,
+            Name = finalLocalProjectName,
             Color = manifest.Color,
             Context = manifest.Context,
             StackHash = manifest.StackHash,
@@ -834,7 +1040,7 @@ public class VaultService : IVaultService
             AllowedTerminalCommands = request.ImportPermissions ? (permManifest?.AllowedTerminalCommands ?? new()) : new()
         };
 
-        var existingIdx = _config.Settings.Projects.FindIndex(p => p.Name.Equals(projectName, StringComparison.OrdinalIgnoreCase));
+        var existingIdx = _config.Settings.Projects.FindIndex(p => p.Name.Equals(finalLocalProjectName, StringComparison.OrdinalIgnoreCase));
         if (existingIdx >= 0)
         {
             _config.Settings.Projects[existingIdx] = projectConfig;
@@ -844,11 +1050,11 @@ public class VaultService : IVaultService
             _config.Settings.Projects.Add(projectConfig);
         }
 
-        ProjectPathHelper.EnsureProjectDirectories(_config.TendrilHome, projectName);
+        ProjectPathHelper.EnsureProjectDirectories(_config.TendrilHome, finalLocalProjectName);
 
         // Copy skills
         var vaultSkillsDir = Path.Combine(projDir, "skills");
-        var localSkillsDir = ProjectPathHelper.GetSkillsDir(_config.TendrilHome, projectName);
+        var localSkillsDir = ProjectPathHelper.GetSkillsDir(_config.TendrilHome, finalLocalProjectName);
 
         if (Directory.Exists(vaultSkillsDir))
         {
@@ -864,7 +1070,7 @@ public class VaultService : IVaultService
 
         // Copy memories
         var vaultMemoryDir = Path.Combine(projDir, "memory");
-        var localMemoryDir = ProjectPathHelper.GetMemoryDir(_config.TendrilHome, projectName);
+        var localMemoryDir = ProjectPathHelper.GetMemoryDir(_config.TendrilHome, finalLocalProjectName);
 
         if (Directory.Exists(vaultMemoryDir))
         {
@@ -878,73 +1084,100 @@ public class VaultService : IVaultService
             }
         }
 
-        if (_config.Settings.Vault != null)
+        vault.TrackedProjects[finalLocalProjectName] = new ProjectVaultTracking
         {
-            _config.Settings.Vault.TrackedProjects[projectName] = new ProjectVaultTracking
+            InstalledVersion = manifest.Version,
+            InstalledAt = DateTimeOffset.UtcNow,
+            VaultId = vault.Id,
+            VaultRepoUrl = vault.RepoUrl,
+            LocalRepoPaths = request.LocalRepoMappings
+        };
+
+        _config.SaveSettings();
+        VaultChanged?.Invoke();
+
+        return new VaultResult(true, $"Successfully imported project '{finalLocalProjectName}' (v{manifest.Version})");
+    }
+
+    public async Task<VaultSyncResult> PullLatestAsync(string? vaultId = null)
+    {
+        EnsureVaultsInitialized();
+        var vaultsToSync = !string.IsNullOrEmpty(vaultId)
+            ? _config.Settings.Vaults.Where(v => v.Id.Equals(vaultId, StringComparison.OrdinalIgnoreCase) || v.RepoUrl.Equals(vaultId, StringComparison.OrdinalIgnoreCase)).ToList()
+            : _config.Settings.Vaults.Where(v => v.Enabled).ToList();
+
+        if (vaultsToSync.Count == 0 && _config.Settings.Vault != null && _config.Settings.Vault.Enabled)
+        {
+            vaultsToSync.Add(_config.Settings.Vault);
+        }
+
+        if (vaultsToSync.Count == 0)
+        {
+            return new VaultSyncResult(false, Message: "No vaults are configured.");
+        }
+
+        int totalUpdated = 0;
+        string? firstError = null;
+
+        foreach (var vault in vaultsToSync)
+        {
+            var vaultDir = GetVaultDirectory(vault);
+            if (!Directory.Exists(Path.Combine(vaultDir, ".git")))
             {
-                InstalledVersion = manifest.Version,
-                InstalledAt = DateTimeOffset.UtcNow,
-                LocalRepoPaths = request.LocalRepoMappings
-            };
+                continue;
+            }
+
+            var (pullOut, pullErr) = await RunGitCommandAsync(vaultDir, "pull --rebase origin main");
+            if (pullErr != null && pullErr.Contains("error", StringComparison.OrdinalIgnoreCase))
+            {
+                firstError ??= pullErr;
+                continue;
+            }
+
+            vault.LastSyncedAt = DateTimeOffset.UtcNow;
+
+            if (vault.AlwaysUpToDate)
+            {
+                var catalog = await GetCatalogAsync(vault.Id);
+                foreach (var item in catalog.Projects)
+                {
+                    if (item.SyncStatus == VaultItemSyncStatus.UpdateAvailable)
+                    {
+                        var tracking = vault.TrackedProjects.TryGetValue(item.Name, out var t) ? t : null;
+                        var mappings = tracking?.LocalRepoPaths ?? new();
+                        await ImportProjectAsync(new VaultImportRequest
+                        {
+                            ProjectName = item.Name,
+                            LocalRepoMappings = mappings,
+                            SourceVaultId = vault.Id
+                        }, vault.Id);
+                        totalUpdated++;
+                    }
+                }
+            }
         }
 
         _config.SaveSettings();
         VaultChanged?.Invoke();
 
-        return new VaultResult(true, $"Successfully imported project '{projectName}' (v{manifest.Version})");
+        if (firstError != null && totalUpdated == 0)
+        {
+            return new VaultSyncResult(false, Message: "Failed to pull latest vault changes", ErrorMessage: firstError);
+        }
+
+        return new VaultSyncResult(true, UpdatedProjectsCount: totalUpdated, Message: "Vaults synchronized successfully");
     }
 
-    public async Task<VaultSyncResult> PullLatestAsync()
+    private string? GetTrackedVersion(string projectName, VaultSettings? vault)
     {
-        var vaultDir = GetVaultDirectory();
-        if (!Directory.Exists(Path.Combine(vaultDir, ".git")))
-        {
-            return new VaultSyncResult(false, Message: "Vault is not configured or cloned locally.");
-        }
-
-        var (pullOut, pullErr) = await RunGitCommandAsync(vaultDir, "pull --rebase origin main");
-        if (pullErr != null && pullErr.Contains("error", StringComparison.OrdinalIgnoreCase))
-        {
-            return new VaultSyncResult(false, Message: "Failed to pull latest vault changes", ErrorMessage: pullErr);
-        }
-
-        if (_config.Settings.Vault != null)
-        {
-            _config.Settings.Vault.LastSyncedAt = DateTimeOffset.UtcNow;
-            _config.SaveSettings();
-        }
-
-        int updatedCount = 0;
-
-        if (_config.Settings.Vault?.AlwaysUpToDate == true)
-        {
-            var catalog = await GetCatalogAsync();
-            foreach (var item in catalog.Projects)
-            {
-                if (item.SyncStatus == VaultItemSyncStatus.UpdateAvailable)
-                {
-                    var tracking = _config.Settings.Vault.TrackedProjects.TryGetValue(item.Name, out var t) ? t : null;
-                    var mappings = tracking?.LocalRepoPaths ?? new();
-                    await ImportProjectAsync(new VaultImportRequest
-                    {
-                        ProjectName = item.Name,
-                        LocalRepoMappings = mappings
-                    });
-                    updatedCount++;
-                }
-            }
-        }
-
-        VaultChanged?.Invoke();
-        return new VaultSyncResult(true, UpdatedProjectsCount: updatedCount, Message: "Vault synchronized successfully");
-    }
-
-    private string? GetTrackedVersion(string projectName)
-    {
-        if (_config.Settings.Vault != null &&
-            _config.Settings.Vault.TrackedProjects.TryGetValue(projectName, out var tracking))
+        if (vault != null && vault.TrackedProjects.TryGetValue(projectName, out var tracking))
         {
             return tracking.InstalledVersion;
+        }
+
+        if (_config.Settings.Vault != null && _config.Settings.Vault.TrackedProjects.TryGetValue(projectName, out var mainTracking))
+        {
+            return mainTracking.InstalledVersion;
         }
 
         return null;
