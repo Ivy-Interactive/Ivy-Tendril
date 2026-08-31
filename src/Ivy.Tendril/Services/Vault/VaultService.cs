@@ -349,42 +349,66 @@ public class VaultService : IVaultService
                 var verificationNames = manifest?.Verifications.Select(v => v.Name).ToList() ?? new();
 
                 var remoteVersion = manifest?.Version ?? "";
-                var localVersion = GetTrackedVersion(projName, vault);
-                var localMatchingProj = _config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projName, StringComparison.OrdinalIgnoreCase));
-                var isImported = localMatchingProj != null;
 
-                bool isTrackedToThisVault = false;
-                if (vault != null && vault.TrackedProjects.TryGetValue(projName, out var tracking))
+                // Find if this vault project is tracked locally in this vault
+                ProjectVaultTracking? matchedTracking = null;
+                string? matchedLocalProjectName = null;
+
+                if (vault != null)
                 {
-                    isTrackedToThisVault = string.IsNullOrEmpty(tracking.VaultId) || tracking.VaultId.Equals(vault.Id, StringComparison.OrdinalIgnoreCase);
+                    foreach (var kvp in vault.TrackedProjects)
+                    {
+                        var targetVaultProjName = !string.IsNullOrEmpty(kvp.Value.VaultProjectName) ? kvp.Value.VaultProjectName : kvp.Key;
+                        if (targetVaultProjName.Equals(projName, StringComparison.OrdinalIgnoreCase) ||
+                            kvp.Key.Equals(projName, StringComparison.OrdinalIgnoreCase) ||
+                            kvp.Key.StartsWith(projName + "-", StringComparison.OrdinalIgnoreCase) ||
+                            kvp.Key.StartsWith(projName + "_", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (_config.Settings.Projects.Any(p => p.Name.Equals(kvp.Key, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                matchedTracking = kvp.Value;
+                                matchedLocalProjectName = kvp.Key;
+                                if (string.IsNullOrEmpty(kvp.Value.VaultProjectName))
+                                {
+                                    kvp.Value.VaultProjectName = projName;
+                                }
+                                break;
+                            }
+                        }
+                    }
                 }
 
                 VaultItemSyncStatus syncStatus;
                 bool hasConflict = false;
                 string? conflictReason = null;
+                string? localVersion = matchedTracking?.InstalledVersion;
 
-                if (!isImported)
+                if (matchedTracking != null)
                 {
-                    syncStatus = VaultItemSyncStatus.NotImported;
-                }
-                else if (!isTrackedToThisVault)
-                {
-                    // A project with this name already exists locally, but was not imported from this vault!
-                    syncStatus = VaultItemSyncStatus.Conflict;
-                    hasConflict = true;
-                    conflictReason = "A local project with this name already exists (created locally or imported from another vault).";
-                }
-                else if (string.IsNullOrEmpty(localVersion) || string.IsNullOrEmpty(remoteVersion))
-                {
-                    syncStatus = VaultItemSyncStatus.UpToDate;
-                }
-                else if (string.Equals(localVersion, remoteVersion, StringComparison.OrdinalIgnoreCase))
-                {
-                    syncStatus = VaultItemSyncStatus.UpToDate;
+                    // This vault project is imported and tracked locally!
+                    if (string.IsNullOrEmpty(localVersion) || string.IsNullOrEmpty(remoteVersion) || string.Equals(localVersion, remoteVersion, StringComparison.OrdinalIgnoreCase))
+                    {
+                        syncStatus = VaultItemSyncStatus.UpToDate;
+                    }
+                    else
+                    {
+                        syncStatus = VaultItemSyncStatus.UpdateAvailable;
+                    }
                 }
                 else
                 {
-                    syncStatus = VaultItemSyncStatus.UpdateAvailable;
+                    // Not tracked to this vault. Check if an unassociated local project with this name already exists.
+                    var nameClashProj = _config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projName, StringComparison.OrdinalIgnoreCase));
+                    if (nameClashProj != null)
+                    {
+                        syncStatus = VaultItemSyncStatus.Conflict;
+                        hasConflict = true;
+                        conflictReason = "A local project with this name already exists (created locally or imported from another vault).";
+                    }
+                    else
+                    {
+                        syncStatus = VaultItemSyncStatus.NotImported;
+                    }
                 }
 
                 catalog.Projects.Add(new VaultCatalogItem
@@ -1076,9 +1100,26 @@ public class VaultService : IVaultService
         var yaml = await File.ReadAllTextAsync(projManifestPath);
         var manifest = YamlHelper.Deserializer.Deserialize<VaultProjectManifest>(yaml);
 
-        var finalLocalProjectName = !string.IsNullOrWhiteSpace(request.TargetLocalProjectName)
-            ? request.TargetLocalProjectName.Trim()
-            : manifest.Name;
+        string finalLocalProjectName;
+        if (!string.IsNullOrWhiteSpace(request.TargetLocalProjectName))
+        {
+            finalLocalProjectName = request.TargetLocalProjectName.Trim();
+        }
+        else
+        {
+            var existingTracking = vault.TrackedProjects.FirstOrDefault(kvp =>
+                (!string.IsNullOrEmpty(kvp.Value.VaultProjectName) && kvp.Value.VaultProjectName.Equals(projectName, StringComparison.OrdinalIgnoreCase)) ||
+                kvp.Key.Equals(projectName, StringComparison.OrdinalIgnoreCase));
+
+            if (!string.IsNullOrEmpty(existingTracking.Key) && _config.Settings.Projects.Any(p => p.Name.Equals(existingTracking.Key, StringComparison.OrdinalIgnoreCase)))
+            {
+                finalLocalProjectName = existingTracking.Key;
+            }
+            else
+            {
+                finalLocalProjectName = manifest.Name;
+            }
+        }
 
         // 1. Merge verification definitions if present
         if (manifest.VerificationDefinitions != null)
@@ -1225,6 +1266,7 @@ public class VaultService : IVaultService
 
         vault.TrackedProjects[finalLocalProjectName] = new ProjectVaultTracking
         {
+            VaultProjectName = projectName,
             InstalledVersion = manifest.Version,
             InstalledAt = DateTimeOffset.UtcNow,
             VaultId = vault.Id,
@@ -1404,14 +1446,38 @@ public class VaultService : IVaultService
 
     private string? GetTrackedVersion(string projectName, VaultSettings? vault)
     {
-        if (vault != null && vault.TrackedProjects.TryGetValue(projectName, out var tracking))
+        if (vault != null)
         {
-            return tracking.InstalledVersion;
+            if (vault.TrackedProjects.TryGetValue(projectName, out var directTracking))
+            {
+                return directTracking.InstalledVersion;
+            }
+
+            foreach (var kvp in vault.TrackedProjects)
+            {
+                var targetVaultProjName = !string.IsNullOrEmpty(kvp.Value.VaultProjectName) ? kvp.Value.VaultProjectName : kvp.Key;
+                if (targetVaultProjName.Equals(projectName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return kvp.Value.InstalledVersion;
+                }
+            }
         }
 
-        if (_config.Settings.Vault != null && _config.Settings.Vault.TrackedProjects.TryGetValue(projectName, out var mainTracking))
+        if (_config.Settings.Vault != null)
         {
-            return mainTracking.InstalledVersion;
+            if (_config.Settings.Vault.TrackedProjects.TryGetValue(projectName, out var mainTracking))
+            {
+                return mainTracking.InstalledVersion;
+            }
+
+            foreach (var kvp in _config.Settings.Vault.TrackedProjects)
+            {
+                var targetVaultProjName = !string.IsNullOrEmpty(kvp.Value.VaultProjectName) ? kvp.Value.VaultProjectName : kvp.Key;
+                if (targetVaultProjName.Equals(projectName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return kvp.Value.InstalledVersion;
+                }
+            }
         }
 
         return null;

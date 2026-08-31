@@ -241,6 +241,7 @@ public class TendrilSettings
 
 public record ProjectVaultTracking
 {
+    public string? VaultProjectName { get; set; }
     public string InstalledVersion { get; set; } = "";
     public DateTimeOffset InstalledAt { get; set; } = DateTimeOffset.UtcNow;
     public string? VaultId { get; set; }

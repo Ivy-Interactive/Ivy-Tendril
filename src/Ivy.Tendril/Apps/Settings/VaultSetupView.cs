@@ -390,7 +390,8 @@ public class VaultSetupView : ViewBase
                             .Small()
                             .OnClick(async () =>
                             {
-                                var tracking = currentVault?.TrackedProjects.TryGetValue(item.Name, out var t) == true ? t : null;
+                                var tracking = currentVault?.TrackedProjects.Values.FirstOrDefault(tr => !string.IsNullOrEmpty(tr.VaultProjectName) && tr.VaultProjectName.Equals(item.Name, StringComparison.OrdinalIgnoreCase))
+                                    ?? (currentVault?.TrackedProjects.TryGetValue(item.Name, out var t) == true ? t : null);
                                 var mappings = tracking?.LocalRepoPaths ?? new();
                                 var res = await vaultService.ImportProjectAsync(item.Name, mappings, selectedVaultId.Value);
                                 if (res.Success)
