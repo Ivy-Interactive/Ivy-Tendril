@@ -291,14 +291,14 @@ public class VaultSetupView : ViewBase
                     | new Button().Icon(Icons.ExternalLink).Ghost().Small().Tooltip("Open on GitHub").OnClick(() => client.OpenUrl(url));
             }))
             .Builder(x => x.Branch, f => f.Func((string b) =>
-                new Badge(b).Variant(BadgeVariant.Secondary).Small()
+                Text.Monospaced(b).Small()
             ))
             .Builder(x => x.GitStatus, f => f.Func((string s) =>
                 status.CommitsBehind > 0
-                    ? new Badge(s).Variant(BadgeVariant.Warning).Small()
+                    ? Text.Block(s).Color(Colors.Destructive).Small()
                     : (status.CommitsAhead > 0
-                        ? new Badge(s).Variant(BadgeVariant.Secondary).Small()
-                        : new Badge("✓ " + s).Variant(BadgeVariant.Secondary).Small())
+                        ? Text.Block(s).Small()
+                        : Text.Block("✓ " + s).Muted().Small())
             ))
             .Builder(x => x.LastSynced, f => f.Func((string ls) =>
                 Text.Block(ls).Muted().Small()
