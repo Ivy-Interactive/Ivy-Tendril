@@ -186,7 +186,7 @@ public class ImportFromVaultDialog(
         var repoSection = Layout.Vertical();
         if (projectItem.Repos.Count > 0)
         {
-            repoSection |= Text.Block("Repositories").Small().Bold();
+            var repoList = Layout.Vertical();
             var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             foreach (var repo in projectItem.Repos)
             {
@@ -196,15 +196,19 @@ public class ImportFromVaultDialog(
                     ? $"{repo.Owner}/{repo.Name}"
                     : repo.Name;
 
-                repoSection |= Layout.Horizontal().AlignContent(Align.SpaceBetween)
+                repoList |= Layout.Horizontal().AlignContent(Align.SpaceBetween)
                     | (Layout.Horizontal().AlignContent(Align.Left)
                         | Icons.FolderGit2.ToIcon()
                         | Text.Block(repoTitle).Bold()
                         | Text.Monospaced(localPath).Small().Muted())
                     | (exists
-                        ? new Badge("Found Locally").Variant(BadgeVariant.Secondary).Small()
-                        : new Badge("Will Auto-Clone").Variant(BadgeVariant.Outline).Small());
+                        ? new Badge("✓ Existing Local Folder").Variant(BadgeVariant.Secondary).Small()
+                        : new Badge("Will Clone from GitHub").Variant(BadgeVariant.Outline).Small());
             }
+
+            repoSection |= Text.Block("Repositories").Small().Bold();
+            repoSection |= Text.Block("Will link to existing local folders on disk or auto-clone missing repositories from GitHub.").Small().Muted();
+            repoSection |= repoList;
         }
 
         var assetChecklist = Layout.Vertical();
