@@ -5,30 +5,37 @@
 .tsh-root,
 .tsh-section,
 .tsh-rail-tooltip {
-  --tsh-bg: #fafafa;
-  --tsh-surface: #ffffff;
+  /* Every token derives from the host theme's variables so alternate themes
+     (Retro, etc.) recolor the shell; the literals are only fallbacks for when
+     the widget renders outside a themed host, and match the Figma prototype. */
+  --tsh-bg: color-mix(in srgb, var(--foreground, #000000) 3%, var(--background, #fafafa));
+  --tsh-surface: var(--card, #ffffff);
   /* Tab strip and popovers track the shell/card colors independently of the
      bg/surface pair, which dark theme swaps. */
-  --tsh-shell-chrome: #fafafa;
-  --tsh-popover: #ffffff;
-  --tsh-border: #e0e0e0;
-  --tsh-tab-border: #d1d1d1;
-  --tsh-fg: #000000;
-  --tsh-fg-title: #202221;
-  --tsh-row-active: #f0f0f0;
-  --tsh-badge-bg: #f0f0f0;
-  --tsh-badge-bg-active: #e6e6e6;
-  --tsh-rail-badge-bg: #000000;
-  --tsh-rail-badge-fg: #ffffff;
-  --tsh-cta-bg: #000000;
-  --tsh-cta-fg: #f8f8f8;
-  --tsh-badge-project-bg: #bcd6ff;
-  --tsh-badge-project-fg: #183b75;
-  --tsh-badge-success-bg: #b7e4b9;
-  --tsh-badge-success-fg: #1f4924;
-  --tsh-badge-warning-bg: #fce4b5;
-  --tsh-badge-warning-fg: #6b4e14;
-  --tsh-badge-border: rgba(0, 0, 0, 0.3);
+  --tsh-shell-chrome: color-mix(in srgb, var(--foreground, #000000) 3%, var(--background, #fafafa));
+  --tsh-popover: var(--popover, #ffffff);
+  --tsh-border: var(--border, #e0e0e0);
+  --tsh-tab-border: var(--border, #d1d1d1);
+  --tsh-fg: var(--foreground, #000000);
+  --tsh-fg-title: var(--foreground, #202221);
+  --tsh-row-active: color-mix(in srgb, var(--accent, #f0f0f0) 22%, color-mix(in srgb, var(--foreground, #000000) 6%, var(--background, #ffffff)));
+  --tsh-row-active-fg: var(--foreground, #000000);
+  --tsh-badge-bg: var(--muted, #f0f0f0);
+  --tsh-badge-bg-active: color-mix(in srgb, var(--accent, #e6e6e6) 45%, var(--background, #ffffff));
+  --tsh-rail-badge-bg: var(--primary, #000000);
+  --tsh-rail-badge-fg: var(--primary-foreground, #ffffff);
+  --tsh-cta-bg: var(--primary, #000000);
+  --tsh-cta-fg: var(--primary-foreground, #f8f8f8);
+  /* Status chips are pale fills with the status color as text: themes pair
+     e.g. warning #d97706 with a white foreground, which is unreadable at this
+     size, so the raw color is tinted toward the surface instead. */
+  --tsh-badge-project-bg: color-mix(in srgb, var(--info, #bcd6ff) 18%, var(--card, #ffffff));
+  --tsh-badge-project-fg: color-mix(in srgb, var(--info, #183b75) 40%, var(--foreground, #000000));
+  --tsh-badge-success-bg: color-mix(in srgb, var(--success, #b7e4b9) 18%, var(--card, #ffffff));
+  --tsh-badge-success-fg: color-mix(in srgb, var(--success, #1f4924) 40%, var(--foreground, #000000));
+  --tsh-badge-warning-bg: color-mix(in srgb, var(--warning, #fce4b5) 18%, var(--card, #ffffff));
+  --tsh-badge-warning-fg: color-mix(in srgb, var(--warning, #6b4e14) 40%, var(--foreground, #000000));
+  --tsh-badge-border: color-mix(in srgb, var(--foreground, #000000) 30%, transparent);
 
   --tsh-sidebar-width: 320px;
   --tsh-rail-width: 56px;
@@ -52,20 +59,21 @@
   --tsh-tab-border: var(--border, #27272a);
   --tsh-fg: var(--foreground, #f8f8f8);
   --tsh-fg-title: var(--foreground, #f8f8f8);
-  --tsh-row-active: var(--accent, #27272a);
-  --tsh-badge-bg: var(--accent, #27272a);
-  --tsh-badge-bg-active: var(--muted, #18181b);
-  --tsh-rail-badge-bg: #ffffff;
-  --tsh-rail-badge-fg: #000000;
+  --tsh-row-active: color-mix(in srgb, var(--accent, #27272a) 30%, color-mix(in srgb, var(--foreground, #f8f8f8) 8%, var(--background, #000000)));
+  --tsh-row-active-fg: var(--foreground, #f8f8f8);
+  --tsh-badge-bg: var(--muted, #27272a);
+  --tsh-badge-bg-active: color-mix(in srgb, var(--accent, #18181b) 55%, var(--background, #000000));
+  --tsh-rail-badge-bg: var(--primary, #ffffff);
+  --tsh-rail-badge-fg: var(--primary-foreground, #000000);
   --tsh-cta-bg: var(--primary, #f8f8f8);
   --tsh-cta-fg: var(--primary-foreground, #000000);
-  --tsh-badge-project-bg: #1e3a6d;
-  --tsh-badge-project-fg: #bcd6ff;
-  --tsh-badge-success-bg: #1f4924;
-  --tsh-badge-success-fg: #b7e4b9;
-  --tsh-badge-warning-bg: #6b4e14;
-  --tsh-badge-warning-fg: #fce4b5;
-  --tsh-badge-border: rgba(255, 255, 255, 0.25);
+  --tsh-badge-project-bg: color-mix(in srgb, var(--info, #1e3a6d) 28%, var(--card, #000000));
+  --tsh-badge-project-fg: color-mix(in srgb, var(--info, #bcd6ff) 40%, var(--foreground, #ffffff));
+  --tsh-badge-success-bg: color-mix(in srgb, var(--success, #1f4924) 28%, var(--card, #000000));
+  --tsh-badge-success-fg: color-mix(in srgb, var(--success, #b7e4b9) 40%, var(--foreground, #ffffff));
+  --tsh-badge-warning-bg: color-mix(in srgb, var(--warning, #6b4e14) 28%, var(--card, #000000));
+  --tsh-badge-warning-fg: color-mix(in srgb, var(--warning, #fce4b5) 40%, var(--foreground, #ffffff));
+  --tsh-badge-border: color-mix(in srgb, var(--foreground, #ffffff) 25%, transparent);
 }
 
 .tsh-root *,
@@ -253,6 +261,7 @@
 .tsh-header-toggle:hover {
   opacity: 1;
   background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
 }
 
 .tsh-root[data-collapsed="true"] .tsh-header {
@@ -307,6 +316,7 @@
 
 .tsh-logo-toggle:hover {
   background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
 }
 
 /* ---------- New Plan button ---------- */
@@ -409,6 +419,7 @@
 .tsh-agent:hover,
 .tsh-agent[data-active="true"] {
   background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
 }
 
 .tsh-agent[data-active="true"] .tsh-agent-label {
@@ -511,10 +522,12 @@
 
 .tsh-nav-item:hover {
   background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
 }
 
 .tsh-nav-item[data-active="true"] {
   background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
 }
 
 .tsh-nav-item-main {
@@ -573,6 +586,7 @@
 
 .tsh-nav-item[data-active="true"] .tsh-nav-badge {
   background: var(--tsh-badge-bg-active);
+  color: inherit;
 }
 
 .tsh-nav-divider {
@@ -667,6 +681,7 @@
 .tsh-rail-search:hover {
   opacity: 1;
   background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
 }
 
 .tsh-rail-list {
@@ -703,11 +718,13 @@
 .tsh-rail-item:hover {
   opacity: 1;
   background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
 }
 
 .tsh-rail-item[data-selected="true"] {
   opacity: 1;
   background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
 }
 
 /* Hover flyout for a rail plan chip: title plus the row badges. Fixed-position
@@ -722,7 +739,7 @@
   border-radius: 8px;
   background: var(--tsh-popover);
   color: var(--tsh-fg);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--foreground, #000000) 12%, transparent);
   pointer-events: none;
   font-family: var(--font-sans, "Geist", sans-serif);
 }
@@ -775,6 +792,7 @@
 .tsh-section-search:hover {
   opacity: 1;
   background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
 }
 
 .tsh-section-list {
@@ -803,10 +821,19 @@
 
 .tsh-section-item:hover {
   background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
 }
 
 .tsh-section-item[data-selected="true"] {
   background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+.tsh-section-item:hover .tsh-section-item-title,
+.tsh-section-item:hover .tsh-section-item-tag,
+.tsh-section-item[data-selected="true"] .tsh-section-item-title,
+.tsh-section-item[data-selected="true"] .tsh-section-item-tag {
+  color: inherit;
 }
 
 .tsh-section-item-top {
@@ -903,6 +930,7 @@
 .tsh-settings:hover {
   opacity: 1;
   background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
 }
 
 .tsh-settings-label {
@@ -949,6 +977,7 @@
 
 .tsh-tab:hover {
   background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
 }
 
 .tsh-tab-main {
@@ -1016,4 +1045,5 @@
 
 .tsh-tab-new:hover {
   background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
 }
