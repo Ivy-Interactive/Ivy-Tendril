@@ -15,6 +15,15 @@ public enum VaultItemSyncStatus
 
 public record GitHubAccountOption(string Login, string Type);
 
+public record DiscoveredVaultRepo(
+    string FullName,
+    string RepoUrl,
+    string Owner,
+    string Name,
+    bool IsPrivate,
+    string AccountType = "Organization"
+);
+
 public record VaultManifest
 {
     public int SchemaVersion { get; set; } = 1;

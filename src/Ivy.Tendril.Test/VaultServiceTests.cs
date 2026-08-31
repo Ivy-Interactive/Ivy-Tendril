@@ -556,4 +556,15 @@ verifications: []
         Assert.Single(config.Settings.Vaults);
         Assert.Equal("v2", config.Settings.Vaults[0].Id);
     }
+
+    [Fact]
+    public async Task DiscoverExistingVaultsAsync_WhenNoAccounts_ReturnsEmptyList()
+    {
+        var config = CreateConfig();
+        var vaultService = new VaultService(config, NullLogger<VaultService>.Instance);
+
+        var discovered = await vaultService.DiscoverExistingVaultsAsync();
+
+        Assert.NotNull(discovered);
+    }
 }

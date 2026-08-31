@@ -486,6 +486,84 @@ public class VaultService : IVaultService
         return list;
     }
 
+    public async Task<List<DiscoveredVaultRepo>> DiscoverExistingVaultsAsync()
+    {
+        EnsureVaultsInitialized();
+        var results = new List<DiscoveredVaultRepo>();
+        var seenUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var v in _config.Settings.Vaults)
+        {
+            if (!string.IsNullOrWhiteSpace(v.RepoUrl))
+            {
+                seenUrls.Add(NormalizeRepoUrl(v.RepoUrl));
+            }
+        }
+
+        var accounts = await GetGitHubAccountsAndOrgsAsync();
+
+        foreach (var acc in accounts)
+        {
+            // 1. Direct check for Tendril-Vault
+            var (directOut, directErr) = await RunGhCliAsync($"api repos/{acc.Login}/Tendril-Vault --jq \"{{fullName: .full_name, url: .html_url, isPrivate: .private}}\"");
+            if (directErr == null && !string.IsNullOrWhiteSpace(directOut))
+            {
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(directOut);
+                    var root = doc.RootElement;
+                    var fullName = root.GetProperty("fullName").GetString() ?? $"{acc.Login}/Tendril-Vault";
+                    var url = root.GetProperty("url").GetString() ?? $"https://github.com/{fullName}.git";
+                    var isPriv = root.TryGetProperty("isPrivate", out var p) && p.GetBoolean();
+
+                    var normalized = NormalizeRepoUrl(url);
+                    if (!seenUrls.Contains(normalized))
+                    {
+                        seenUrls.Add(normalized);
+                        results.Add(new DiscoveredVaultRepo(fullName, url, acc.Login, "Tendril-Vault", isPriv, acc.Type));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed parsing Tendril-Vault for account {Login}", acc.Login);
+                }
+            }
+
+            // 2. Search account repos for any repo with 'vault' in the name
+            var (listOut, listErr) = await RunGhCliAsync($"repo list {acc.Login} --limit 30 --json nameWithOwner,url,isPrivate,name");
+            if (listErr == null && !string.IsNullOrWhiteSpace(listOut))
+            {
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(listOut);
+                    if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        foreach (var elem in doc.RootElement.EnumerateArray())
+                        {
+                            var name = elem.GetProperty("name").GetString() ?? "";
+                            var fullName = elem.GetProperty("nameWithOwner").GetString() ?? "";
+                            var url = elem.GetProperty("url").GetString() ?? "";
+                            var isPriv = elem.TryGetProperty("isPrivate", out var p) && p.GetBoolean();
+
+                            if ((name.Contains("vault", StringComparison.OrdinalIgnoreCase) || name.Contains("tendril", StringComparison.OrdinalIgnoreCase)) &&
+                                !seenUrls.Contains(NormalizeRepoUrl(url)))
+                            {
+                                seenUrls.Add(NormalizeRepoUrl(url));
+                                results.Add(new DiscoveredVaultRepo(fullName, url, acc.Login, name, isPriv, acc.Type));
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Failed parsing repo list for account {Login}", acc.Login);
+                }
+            }
+        }
+
+        return results;
+    }
+
     public async Task<VaultResult> CreateVaultRepoAsync(string repoName, bool isPrivate = true, string? org = null)
     {
         EnsureVaultsInitialized();
