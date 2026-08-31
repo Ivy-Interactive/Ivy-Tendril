@@ -647,25 +647,6 @@
    narrow chip (rendered by ShellSidebarSection when the shell is collapsed). */
 .tsh-section-rail {
   align-items: stretch;
-  position: relative;
-}
-
-/* Off-screen measuring copies of the rail chips (see useRailWidth). Laid out
-   so they have a real width, but taken out of flow and never painted. */
-.tsh-rail-ruler {
-  position: absolute;
-  visibility: hidden;
-  pointer-events: none;
-  top: 0;
-  left: 0;
-  height: 0;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.tsh-rail-ruler .tsh-rail-item {
-  display: block;
-  width: auto;
 }
 
 .tsh-rail-search {

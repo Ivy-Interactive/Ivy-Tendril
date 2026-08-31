@@ -4,12 +4,6 @@ import { useShell } from "./ShellContext";
 import { ShellSectionItemDto, ShellWidgetProps } from "./types";
 import "./shell.css";
 
-/** The icon-only rail width from shell.css; the measured rail never goes below it. */
-const RAIL_MIN_WIDTH = 56;
-
-/** Upper bound on the measured rail, so one very long ID cannot dominate the shell. */
-const RAIL_MAX_WIDTH = 160;
-
 interface ShellSidebarSectionProps extends ShellWidgetProps {
   title?: string;
   items?: ShellSectionItemDto[];
@@ -19,60 +13,9 @@ interface ShellSidebarSectionProps extends ShellWidgetProps {
 }
 
 /**
- * Widens the collapsed rail so the longest plan ID fits instead of being
- * ellipsised. The chips are measured off-screen in the rail's own font, and the
- * result is published as --tsh-rail-width on .tsh-root, which .tsh-sidebar
- * already consumes. Falls back to the CSS default when there is nothing to
- * measure, and the property is cleared on unmount so a section without tags
- * cannot leave the rail stretched.
- */
-const useRailWidth = (tags: string[], enabled: boolean) => {
-  const ruler = React.useRef<HTMLDivElement | null>(null);
-  // Remembered separately from the ruler: the ruler unmounts when the shell
-  // expands, and the cleanup still needs the root to reset the property.
-  const rootRef = React.useRef<HTMLElement | null>(null);
-  const key = tags.join("\u0000");
-
-  React.useLayoutEffect(() => {
-    const root = (ruler.current?.closest(".tsh-root") as HTMLElement | null) ?? rootRef.current;
-    if (!root) return;
-    rootRef.current = root;
-
-    const reset = () => {
-      root.style.removeProperty("--tsh-rail-width");
-    };
-    if (!enabled || !ruler.current) {
-      reset();
-      return;
-    }
-
-    const chips = Array.from(ruler.current.children) as HTMLElement[];
-    const widest = chips.reduce((max, chip) => Math.max(max, chip.getBoundingClientRect().width), 0);
-    if (widest === 0) {
-      reset();
-      return;
-    }
-
-    // Chip padding (2px each side) plus the sidebar's 8px collapsed padding,
-    // clamped so a pathologically long ID cannot swallow the content area — a
-    // chip past the cap still ellipsises and the hover flyout shows it in full.
-    const width = Math.min(
-      RAIL_MAX_WIDTH,
-      Math.max(RAIL_MIN_WIDTH, Math.ceil(widest) + 4 + 16)
-    );
-    root.style.setProperty("--tsh-rail-width", `${width}px`);
-
-    return reset;
-  }, [key, enabled]);
-
-  return ruler;
-};
-
-/**
  * The contextual list under the nav — plans for Review/Drafts, recommendations,
  * etc. Published by the active app. In the collapsed rail the list shrinks to
- * narrow ID chips (the row tags, e.g. "#40") with the search button above. IDs
- * can be long, so the rail widens to fit the widest chip (see useRailWidth).
+ * narrow ID chips (the row tags, e.g. "#40") with the search button above.
  */
 export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
   id,
@@ -104,20 +47,9 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
 
   const hasHeader = !!title || searchable;
 
-  const tags = items.map((item) => item.tag).filter((tag): tag is string => !!tag);
-  const ruler = useRailWidth(tags, collapsed);
-
   if (collapsed) {
     return (
       <div className="tsh-section tsh-section-rail">
-        {/* Off-screen copies of the chips, measured to size the rail. */}
-        <div className="tsh-rail-ruler" aria-hidden="true" ref={ruler}>
-          {tags.map((tag, i) => (
-            <span key={i} className="tsh-rail-item">
-              {tag}
-            </span>
-          ))}
-        </div>
         {searchable && (
           <button
             className="tsh-rail-search"
