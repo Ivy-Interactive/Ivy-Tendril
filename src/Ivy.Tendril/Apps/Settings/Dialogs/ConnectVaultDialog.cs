@@ -18,7 +18,7 @@ public class ConnectVaultDialog(
     {
         var repoUrl = UseState("");
         var customName = UseState("");
-        var selectedDetectedVault = UseState("");
+        var selectedDetectedVault = UseState<string?>(() => null);
         var isLoading = UseState(false);
         var errorMessage = UseState<string?>(null);
 
@@ -32,25 +32,37 @@ public class ConnectVaultDialog(
         {
             if (!string.IsNullOrEmpty(selectedDetectedVault.Value))
             {
-                var matched = discoveredList.FirstOrDefault(d => d.RepoUrl == selectedDetectedVault.Value);
+                var list = discoveredQuery.Value ?? new List<DiscoveredVaultRepo>();
+                var matched = list.FirstOrDefault(d => d.RepoUrl == selectedDetectedVault.Value);
                 if (matched != null)
                 {
                     repoUrl.Set(matched.RepoUrl);
-                    customName.Set(matched.FullName);
+                    if (string.IsNullOrWhiteSpace(customName.Value) || list.Any(d => d.FullName == customName.Value))
+                    {
+                        customName.Set(matched.FullName);
+                    }
+                }
+                else
+                {
+                    repoUrl.Set(selectedDetectedVault.Value);
                 }
             }
         }, selectedDetectedVault);
 
         if (!dialogOpen.Value) return null;
 
+        var effectiveUrl = !string.IsNullOrWhiteSpace(repoUrl.Value)
+            ? repoUrl.Value.Trim()
+            : (!string.IsNullOrWhiteSpace(selectedDetectedVault.Value) ? selectedDetectedVault.Value.Trim() : "");
+
         async Task HandleConnect()
         {
-            if (isLoading.Value || string.IsNullOrWhiteSpace(repoUrl.Value)) return;
+            if (isLoading.Value || string.IsNullOrWhiteSpace(effectiveUrl)) return;
 
             isLoading.Set(true);
             errorMessage.Set(null);
 
-            var result = await vaultService.ConnectVaultAsync(repoUrl.Value.Trim(), customName.Value.Trim());
+            var result = await vaultService.ConnectVaultAsync(effectiveUrl, customName.Value.Trim());
             isLoading.Set(false);
 
             if (result.Success)
@@ -72,17 +84,13 @@ public class ConnectVaultDialog(
         }
         else if (discoveredList.Count > 0)
         {
-            var selectOptions = new List<Option<string>>
-            {
-                new Option<string>("-- Choose a detected GitHub vault (optional) --", "")
-            };
-            foreach (var d in discoveredList)
-            {
-                var label = $"{d.FullName} ({d.AccountType}{(d.IsPrivate ? ", private" : "")})";
-                selectOptions.Add(new Option<string>(label, d.RepoUrl));
-            }
+            var selectOptions = discoveredList
+                .Select(d => new Option<string>($"{d.FullName} ({d.AccountType}{(d.IsPrivate ? ", private" : "")})", d.RepoUrl))
+                .ToArray();
 
-            detectedSelector = selectedDetectedVault.ToSelectInput(selectOptions.ToArray())
+            detectedSelector = selectedDetectedVault.ToSelectInput(selectOptions)
+                .Placeholder("Select Repository")
+                .Nullable()
                 .WithField().Label("Detected GitHub Vaults");
         }
 
@@ -97,11 +105,13 @@ public class ConnectVaultDialog(
                 ? Text.Block(errorMessage.Value).Color(Colors.Destructive).Small()
                 : null);
 
+        var isSubmitDisabled = isLoading.Value || string.IsNullOrWhiteSpace(effectiveUrl);
+
         var actions = Layout.Horizontal().AlignContent(Align.Right)
             | new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false))
             | new Button("Connect Vault").Primary()
                 .Loading(isLoading.Value)
-                .Disabled(isLoading.Value || string.IsNullOrWhiteSpace(repoUrl.Value))
+                .Disabled(isSubmitDisabled)
                 .OnClick(async () => await HandleConnect());
 
         return new Dialog(
