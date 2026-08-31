@@ -230,6 +230,11 @@ public class VaultSetupView : ViewBase
             }
         }
 
+        bool hasChangesToPublish = catalog.Projects.Any(p =>
+            p.SyncStatus == VaultItemSyncStatus.LocalOnly ||
+            p.SyncStatus == VaultItemSyncStatus.UpdateAvailable)
+            || status.CommitsAhead > 0;
+
         var headerToolbar = Layout.Horizontal().AlignContent(Align.Right)
             | new Button("Sync")
                 .Icon(Icons.RefreshCw)
@@ -237,15 +242,17 @@ public class VaultSetupView : ViewBase
                 .Small()
                 .Loading(isSyncing.Value)
                 .OnClick(async () => await HandleSync())
-            | new Button("Publish Update (PR)")
-                .Icon(Icons.GitPullRequest)
-                .Primary()
-                .Small()
-                .OnClick(() =>
-                {
-                    selectedPushProject.Set(null);
-                    openPushDialog.Set(true);
-                })
+            | (hasChangesToPublish
+                ? new Button("Publish Update (PR)")
+                    .Icon(Icons.GitPullRequest)
+                    .Outline()
+                    .Small()
+                    .OnClick(() =>
+                    {
+                        selectedPushProject.Set(null);
+                        openPushDialog.Set(true);
+                    })
+                : null)
             | new Button("Connect Vault")
                 .Icon(Icons.Plus)
                 .Outline()
