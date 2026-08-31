@@ -32,8 +32,26 @@ public class VaultService : IVaultService
     private void EnsureVaultsInitialized()
     {
         var settings = _config.Settings;
+        if (settings.Vaults == null)
+        {
+            settings.Vaults = new List<VaultSettings>();
+        }
+
+        // Auto-heal any corrupted RepoUrl that saved JSON error payload
+        foreach (var v in settings.Vaults)
+        {
+            if (!string.IsNullOrWhiteSpace(v.RepoUrl) && v.RepoUrl.Trim().StartsWith("{"))
+            {
+                v.RepoUrl = $"https://github.com/{v.Name}.git";
+            }
+        }
+
         if (settings.Vaults.Count == 0 && settings.Vault != null && !string.IsNullOrEmpty(settings.Vault.RepoUrl))
         {
+            if (settings.Vault.RepoUrl.Trim().StartsWith("{"))
+            {
+                settings.Vault.RepoUrl = $"https://github.com/{settings.Vault.Name}.git";
+            }
             if (string.IsNullOrEmpty(settings.Vault.Id))
             {
                 settings.Vault.Id = Guid.NewGuid().ToString("N")[..8];
@@ -486,35 +504,36 @@ public class VaultService : IVaultService
         var targetRepo = !string.IsNullOrWhiteSpace(org) ? $"{org}/{repoName}" : repoName;
         var visibilityFlag = isPrivate ? "--private" : "--public";
 
-        var (urlOut, urlErr) = await RunGhCliAsync($"api repos/{targetRepo} --jq .html_url");
-        var existingUrl = urlOut?.Trim();
-        if (!string.IsNullOrWhiteSpace(existingUrl) && urlErr == null)
+        // Check if repo already exists on GitHub
+        var (checkOut, checkErr) = await RunGhCliAsync($"api repos/{targetRepo} --jq .html_url");
+        if (checkErr == null && !string.IsNullOrWhiteSpace(checkOut) && checkOut.Trim().StartsWith("http", StringComparison.OrdinalIgnoreCase))
         {
-            return await ConnectVaultAsync(existingUrl, repoName);
+            return await ConnectVaultAsync(checkOut.Trim(), repoName);
         }
 
+        // Create remote repo on GitHub
         var (createOut, createErr) = await RunGhCliAsync($"repo create {targetRepo} {visibilityFlag}");
         if (createErr != null && !createErr.Contains("already exists", StringComparison.OrdinalIgnoreCase))
         {
             var (retryUrlOut, retryUrlErr) = await RunGhCliAsync($"api repos/{targetRepo} --jq .html_url");
-            var retryUrl = retryUrlOut?.Trim();
-            if (!string.IsNullOrWhiteSpace(retryUrl) && retryUrlErr == null)
+            if (retryUrlErr == null && !string.IsNullOrWhiteSpace(retryUrlOut) && retryUrlOut.Trim().StartsWith("http", StringComparison.OrdinalIgnoreCase))
             {
-                return await ConnectVaultAsync(retryUrl, repoName);
+                return await ConnectVaultAsync(retryUrlOut.Trim(), repoName);
             }
 
             return new VaultResult(false, "Failed to create GitHub repository", createErr);
         }
 
-        var repoUrl = existingUrl;
-        if (string.IsNullOrWhiteSpace(repoUrl))
+        // Resolve clone / remote URL
+        string repoUrl = $"https://github.com/{targetRepo}.git";
+        var (newUrlOut, newUrlErr) = await RunGhCliAsync($"api repos/{targetRepo} --jq .html_url");
+        if (newUrlErr == null && !string.IsNullOrWhiteSpace(newUrlOut) && newUrlOut.Trim().StartsWith("http", StringComparison.OrdinalIgnoreCase))
         {
-            var (newUrlOut, _) = await RunGhCliAsync($"api repos/{targetRepo} --jq .html_url");
-            repoUrl = newUrlOut?.Trim();
-            if (string.IsNullOrWhiteSpace(repoUrl))
-            {
-                repoUrl = $"https://github.com/{targetRepo}.git";
-            }
+            repoUrl = newUrlOut.Trim();
+        }
+        else if (!string.IsNullOrWhiteSpace(createOut) && createOut.Trim().StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            repoUrl = createOut.Trim();
         }
 
         var vaultId = Guid.NewGuid().ToString("N")[..8];
@@ -1259,7 +1278,13 @@ public class VaultService : IVaultService
             var stderr = await proc.StandardError.ReadToEndAsync();
             await proc.WaitForExitAsync();
 
-            return proc.ExitCode == 0 ? (stdout, null) : (stdout, stderr);
+            if (proc.ExitCode != 0)
+            {
+                var err = !string.IsNullOrWhiteSpace(stderr) ? stderr.Trim() : stdout?.Trim();
+                return (null, err);
+            }
+
+            return (stdout, null);
         }
         catch (Exception ex)
         {
@@ -1294,7 +1319,13 @@ public class VaultService : IVaultService
             var stderr = await proc.StandardError.ReadToEndAsync();
             await proc.WaitForExitAsync();
 
-            return proc.ExitCode == 0 ? (stdout, null) : (stdout, stderr);
+            if (proc.ExitCode != 0)
+            {
+                var err = !string.IsNullOrWhiteSpace(stderr) ? stderr.Trim() : stdout?.Trim();
+                return (null, err);
+            }
+
+            return (stdout, null);
         }
         catch (Exception ex)
         {
