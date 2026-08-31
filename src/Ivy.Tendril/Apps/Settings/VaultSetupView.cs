@@ -337,6 +337,29 @@ public class VaultSetupView : ViewBase
             ))
             .Width(Size.Fit());
 
+        var hasActions = catalog.Projects.Any(p => p.SyncStatus switch
+        {
+            VaultItemSyncStatus.NotImported => true,
+            VaultItemSyncStatus.Conflict => true,
+            VaultItemSyncStatus.UpdateAvailable => true,
+            VaultItemSyncStatus.LocalOnly => true,
+            _ => false
+        });
+
+        var hasChangelog = catalog.Projects.Any(p =>
+            !string.IsNullOrWhiteSpace(p.LatestChangelog) ||
+            !string.IsNullOrWhiteSpace(p.Description));
+
+        if (!hasActions)
+        {
+            projectsTable.Remove(t => t.Action);
+        }
+
+        if (!hasChangelog)
+        {
+            projectsTable.Remove(t => t.Changelog);
+        }
+
         var projectsSection = Layout.Vertical()
             | (tableRows.Count > 0
                 ? projectsTable
