@@ -7,6 +7,10 @@
 .tsh-rail-tooltip {
   --tsh-bg: #fafafa;
   --tsh-surface: #ffffff;
+  /* Tab strip and popovers track the shell/card colors independently of the
+     bg/surface pair, which dark theme swaps. */
+  --tsh-shell-chrome: #fafafa;
+  --tsh-popover: #ffffff;
   --tsh-border: #e0e0e0;
   --tsh-tab-border: #d1d1d1;
   --tsh-fg: #000000;
@@ -37,8 +41,13 @@
 .dark .tsh-root,
 .dark .tsh-section,
 .dark .tsh-rail-tooltip {
-  --tsh-bg: var(--background, #000000);
-  --tsh-surface: var(--card, #0a0a0a);
+  /* Dark theme swaps these two roles relative to light: the shell backdrop
+     takes the lighter grey and the content frame sits darker inside it, so the
+     frame reads as inset rather than as a lighter card on black. */
+  --tsh-bg: var(--card, #0a0a0a);
+  --tsh-surface: var(--background, #000000);
+  --tsh-shell-chrome: var(--card, #0a0a0a);
+  --tsh-popover: var(--card, #0a0a0a);
   --tsh-border: var(--border, #27272a);
   --tsh-tab-border: var(--border, #27272a);
   --tsh-fg: var(--foreground, #f8f8f8);
@@ -134,7 +143,7 @@
   flex: 1;
   min-height: 0;
   min-width: 0;
-  background: var(--tsh-bg);
+  background: var(--tsh-shell-chrome);
   border: 1px solid var(--tsh-border);
   border-radius: 12px;
   overflow: hidden;
@@ -701,7 +710,7 @@
   padding: 8px 10px;
   border: 1px solid var(--tsh-border);
   border-radius: 8px;
-  background: var(--tsh-surface);
+  background: var(--tsh-popover);
   color: var(--tsh-fg);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   pointer-events: none;
