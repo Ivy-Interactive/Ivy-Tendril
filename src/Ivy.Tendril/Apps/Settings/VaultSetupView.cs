@@ -355,7 +355,7 @@ public class VaultSetupView : ViewBase
                     case VaultItemSyncStatus.NotImported:
                         actionButtons |= new Button("Import")
                             .Icon(Icons.Download)
-                            .Primary()
+                            .Outline()
                             .Small()
                             .OnClick(() =>
                             {
@@ -367,7 +367,7 @@ public class VaultSetupView : ViewBase
                     case VaultItemSyncStatus.Conflict:
                         actionButtons |= new Button("Import As...")
                             .Icon(Icons.Download)
-                            .Primary()
+                            .Outline()
                             .Small()
                             .OnClick(() =>
                             {
@@ -379,7 +379,7 @@ public class VaultSetupView : ViewBase
                     case VaultItemSyncStatus.UpdateAvailable:
                         actionButtons |= new Button("Update")
                             .Icon(Icons.CircleArrowUp)
-                            .Primary()
+                            .Outline()
                             .Small()
                             .OnClick(async () =>
                             {
@@ -409,8 +409,7 @@ public class VaultSetupView : ViewBase
 
                 actionButtons |= new Button()
                     .Icon(Icons.Trash2)
-                    .Destructive()
-                    .Ghost()
+                    .Outline()
                     .Small()
                     .Tooltip($"Delete '{item.Name}' from vault")
                     .OnClick(() =>
@@ -474,7 +473,7 @@ public class VaultSetupView : ViewBase
                 | (Layout.Horizontal().AlignContent(Align.Left)
                     | new Button("Add Tracked Project")
                         .Icon(Icons.Plus)
-                        .Primary()
+                        .Outline()
                         .Small()
                         .OnClick(() =>
                         {
