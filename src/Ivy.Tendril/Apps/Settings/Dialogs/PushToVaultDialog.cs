@@ -167,18 +167,6 @@ public class PushToVaultDialog(
     {
         var config = UseService<IConfigService>();
 
-        var targetVaultState = UseState(() =>
-        {
-            var enabledVaults = config.Settings.Vaults.Where(v => v.Enabled).ToList();
-            if (enabledVaults.Count == 0 && config.Settings.Vault != null && config.Settings.Vault.Enabled)
-            {
-                enabledVaults.Add(config.Settings.Vault);
-            }
-            return !string.IsNullOrEmpty(initialVaultId)
-                ? initialVaultId
-                : (enabledVaults.FirstOrDefault()?.Id ?? "");
-        });
-
         var selectedProjects = UseState(() =>
             !string.IsNullOrEmpty(defaultProject)
                 ? new HashSet<string>(StringComparer.OrdinalIgnoreCase) { defaultProject }
@@ -287,6 +275,15 @@ public class PushToVaultDialog(
 
         if (!dialogOpen.Value) return null;
 
+        var targetVault = config.Settings.Vaults.FirstOrDefault(v => v.Id.Equals(initialVaultId, StringComparison.OrdinalIgnoreCase))
+            ?? config.Settings.Vaults.FirstOrDefault(v => v.Enabled)
+            ?? config.Settings.Vault;
+
+        var targetVaultId = targetVault?.Id ?? initialVaultId ?? "";
+        var vaultDisplayName = targetVault != null
+            ? VaultService.ExtractRepoName(!string.IsNullOrWhiteSpace(targetVault.Name) && targetVault.Name.Contains('/') ? targetVault.Name : targetVault.RepoUrl)
+            : "Team Vault";
+
         async Task HandlePush()
         {
             if (isLoading.Value || selectedProjects.Value.Count == 0) return;
@@ -304,7 +301,7 @@ public class PushToVaultDialog(
 
             var request = new VaultExportRequest
             {
-                TargetVaultId = targetVaultState.Value,
+                TargetVaultId = targetVaultId,
                 ProjectNames = projectList,
                 Version = version.Value,
                 Changelog = changelog.Value.Trim(),
@@ -319,7 +316,7 @@ public class PushToVaultDialog(
                 SyncPermissions = syncPermissions.Value
             };
 
-            var result = await vaultService.PushAndCreatePrAsync(request, targetVaultState.Value);
+            var result = await vaultService.PushAndCreatePrAsync(request, targetVaultId);
             isLoading.Set(false);
 
             if (result.Success)
@@ -489,24 +486,7 @@ public class PushToVaultDialog(
             projectSelectorList |= Callout.Info("All local projects are already tracked by a vault. Create a new local project first to add it here.");
         }
 
-        var enabledVaults = config.Settings.Vaults.Where(v => v.Enabled).ToList();
-        if (enabledVaults.Count == 0 && config.Settings.Vault != null && config.Settings.Vault.Enabled)
-        {
-            enabledVaults.Add(config.Settings.Vault);
-        }
-
-        object? vaultSelector = null;
-        if (enabledVaults.Count > 1)
-        {
-            var vaultOptions = enabledVaults
-                .Select(v => new Option<string>(!string.IsNullOrWhiteSpace(v.Name) ? v.Name : v.RepoUrl.Split('/').Last().Replace(".git", ""), v.Id))
-                .ToArray();
-            vaultSelector = targetVaultState.ToSelectInput(vaultOptions)
-                .WithField().Label("Target Vault");
-        }
-
         var form = Layout.Vertical()
-            | vaultSelector
             | Text.Block("Projects & Assets to Publish").Small().Bold()
             | projectSelectorList
             | Text.Block("Release Details").Small().Bold()
@@ -522,7 +502,7 @@ public class PushToVaultDialog(
 
         return new Dialog(
             _ => dialogOpen.Set(false),
-            new DialogHeader("Publish to Team Vault (Create PR)"),
+            new DialogHeader($"Add Project to {vaultDisplayName} (Create PR)"),
             new DialogBody(form),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false)),
