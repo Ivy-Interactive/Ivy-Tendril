@@ -383,10 +383,24 @@ public class VaultService : IVaultService
                 string? conflictReason = null;
                 string? localVersion = matchedTracking?.InstalledVersion;
 
-                if (matchedTracking != null)
+                if (matchedTracking != null && matchedLocalProjectName != null)
                 {
+                    var localMemoryDir = ProjectPathHelper.GetMemoryDir(_config.TendrilHome, matchedLocalProjectName);
+                    var localMemoryFiles = Directory.Exists(localMemoryDir)
+                        ? Directory.GetFiles(localMemoryDir, "*.md").Select(Path.GetFileName).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase)
+                        : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    var localSkillsDir = ProjectPathHelper.GetSkillsDir(_config.TendrilHome, matchedLocalProjectName);
+                    var localSkillFiles = Directory.Exists(localSkillsDir)
+                        ? Directory.GetFiles(localSkillsDir, "*.md").Select(Path.GetFileNameWithoutExtension).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase)
+                        : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    bool isMissingMemories = memoryNames.Any(m => !localMemoryFiles.Contains(m));
+                    bool isMissingSkills = skillNames.Any(s => !localSkillFiles.Contains(s));
+
                     // This vault project is imported and tracked locally!
-                    if (string.IsNullOrEmpty(localVersion) || string.IsNullOrEmpty(remoteVersion) || string.Equals(localVersion, remoteVersion, StringComparison.OrdinalIgnoreCase))
+                    if (!isMissingMemories && !isMissingSkills &&
+                        (string.IsNullOrEmpty(localVersion) || string.IsNullOrEmpty(remoteVersion) || string.Equals(localVersion, remoteVersion, StringComparison.OrdinalIgnoreCase)))
                     {
                         syncStatus = VaultItemSyncStatus.UpToDate;
                     }
@@ -1412,23 +1426,26 @@ public class VaultService : IVaultService
 
             vault.LastSyncedAt = DateTimeOffset.UtcNow;
 
-            if (vault.AlwaysUpToDate)
+            // Sync and reconcile all locally tracked projects from this vault
+            var catalog = await GetCatalogAsync(vault.Id);
+            foreach (var item in catalog.Projects)
             {
-                var catalog = await GetCatalogAsync(vault.Id);
-                foreach (var item in catalog.Projects)
+                var trackingKvp = vault.TrackedProjects.FirstOrDefault(kvp =>
+                    (!string.IsNullOrEmpty(kvp.Value.VaultProjectName) && kvp.Value.VaultProjectName.Equals(item.Name, StringComparison.OrdinalIgnoreCase)) ||
+                    kvp.Key.Equals(item.Name, StringComparison.OrdinalIgnoreCase));
+
+                if (!string.IsNullOrEmpty(trackingKvp.Key) && _config.Settings.Projects.Any(p => p.Name.Equals(trackingKvp.Key, StringComparison.OrdinalIgnoreCase)))
                 {
-                    if (item.SyncStatus == VaultItemSyncStatus.UpdateAvailable)
+                    var mappings = trackingKvp.Value.LocalRepoPaths ?? new();
+                    await ImportProjectAsync(new VaultImportRequest
                     {
-                        var tracking = vault.TrackedProjects.TryGetValue(item.Name, out var t) ? t : null;
-                        var mappings = tracking?.LocalRepoPaths ?? new();
-                        await ImportProjectAsync(new VaultImportRequest
-                        {
-                            ProjectName = item.Name,
-                            LocalRepoMappings = mappings,
-                            SourceVaultId = vault.Id
-                        }, vault.Id);
-                        totalUpdated++;
-                    }
+                        ProjectName = item.Name,
+                        TargetLocalProjectName = trackingKvp.Key,
+                        LocalRepoMappings = mappings,
+                        SourceVaultId = vault.Id,
+                        ImportPermissions = true
+                    }, vault.Id);
+                    totalUpdated++;
                 }
             }
         }
