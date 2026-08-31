@@ -555,6 +555,37 @@ verifications: []
     }
 
     [Fact]
+    public async Task DeleteProjectFromVaultAsync_DeletesProjectDirectory_AndUpdatesTracking()
+    {
+        var config = CreateConfig();
+        var vaultDir = Path.Combine(_tempDir.Path, "Vault");
+        var projectDir = Path.Combine(vaultDir, "projects", "DeletableApp");
+        Directory.CreateDirectory(projectDir);
+        File.WriteAllText(Path.Combine(projectDir, "project.yaml"), "name: DeletableApp");
+
+        config.Settings.Vaults = new List<VaultSettings>
+        {
+            new VaultSettings
+            {
+                Id = "v1",
+                Name = "Test-Vault",
+                Enabled = true,
+                RepoUrl = "https://github.com/team/test-vault.git",
+                LocalPath = vaultDir,
+                TrackedProjects = new() { ["DeletableApp"] = new ProjectVaultTracking() }
+            }
+        };
+
+        var vaultService = new VaultService(config, NullLogger<VaultService>.Instance);
+
+        var result = await vaultService.DeleteProjectFromVaultAsync("DeletableApp", "v1");
+
+        Assert.True(result.Success);
+        Assert.False(Directory.Exists(projectDir));
+        Assert.DoesNotContain("DeletableApp", config.Settings.Vaults[0].TrackedProjects.Keys);
+    }
+
+    [Fact]
     public async Task DiscoverExistingVaultsAsync_WhenNoAccounts_ReturnsEmptyList()
     {
         var config = CreateConfig();

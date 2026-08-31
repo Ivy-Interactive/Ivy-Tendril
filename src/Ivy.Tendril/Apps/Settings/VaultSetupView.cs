@@ -27,6 +27,9 @@ public class VaultSetupView : ViewBase
         var selectedImportItem = UseState<VaultCatalogItem?>(null);
         var selectedPushProject = UseState<string?>(null);
         var isSyncing = UseState(false);
+        var projectToDelete = UseState<string?>(null);
+        var openDeleteConfirm = UseState(false);
+        var isDeleting = UseState(false);
 
         var selectedVaultId = UseState(() =>
         {
@@ -153,6 +156,40 @@ public class VaultSetupView : ViewBase
                 catalogQuery.Mutator.Revalidate();
             });
 
+        var confirmDeleteDialog = (openDeleteConfirm.Value && !string.IsNullOrEmpty(projectToDelete.Value))
+            ? new Dialog(
+                _ => openDeleteConfirm.Set(false),
+                new DialogHeader($"Delete '{projectToDelete.Value}' from Vault?"),
+                new DialogBody(Layout.Vertical()
+                    | Callout.Destructive($"This will remove project '{projectToDelete.Value}' and all its associated manifests, skills, MCP configs, and memories from the vault repository.")
+                    | Text.Block("This action commits and pushes the deletion to the vault repository.")),
+                new DialogFooter(
+                    new Button("Cancel").Outline().OnClick(() => openDeleteConfirm.Set(false)),
+                    new Button("Delete from Vault")
+                        .Icon(Icons.Trash2)
+                        .Destructive()
+                        .Loading(isDeleting.Value)
+                        .OnClick(async () =>
+                        {
+                            isDeleting.Set(true);
+                            var res = await vaultService.DeleteProjectFromVaultAsync(projectToDelete.Value!, selectedVaultId.Value);
+                            isDeleting.Set(false);
+                            openDeleteConfirm.Set(false);
+                            if (res.Success)
+                            {
+                                client.Toast(res.Message, "Project Deleted");
+                                catalogQuery.Mutator.Revalidate();
+                                statusQuery.Mutator.Revalidate();
+                            }
+                            else
+                            {
+                                client.Toast(res.ErrorMessage ?? res.Message, "Delete Failed").Destructive();
+                            }
+                        })
+                )
+            )
+            : null;
+
         if (vaultsList.Count == 0 && !status.IsConfigured)
         {
             var notConfiguredLayout = Layout.Vertical().Width(Size.Auto().Max(Size.Units(200)))
@@ -258,9 +295,9 @@ public class VaultSetupView : ViewBase
             return new VaultProjectTableRow(
                 p.Name,
                 !string.IsNullOrEmpty(p.RemoteVersion) ? $"v{p.RemoteVersion}" : (!string.IsNullOrEmpty(p.LocalVersion) ? $"v{p.LocalVersion}" : "-"),
+                i,
                 p.SyncStatus,
                 p,
-                i,
                 p.LatestChangelog ?? (!string.IsNullOrEmpty(p.Description) ? p.Description : "-")
             );
         }).ToList();
@@ -278,6 +315,84 @@ public class VaultSetupView : ViewBase
             .Builder(t => t.Version, f => f.Func<VaultProjectTableRow, string>(v =>
                 new Badge(v).Variant(BadgeVariant.Secondary).Small()
             ))
+            .Header(t => t.Action, "Actions")
+            .Builder(t => t.Action, f => f.Func<VaultProjectTableRow, int>(idx =>
+            {
+                var item = catalog.Projects[idx];
+                var actionButtons = Layout.Horizontal().AlignContent(Align.Left);
+
+                switch (item.SyncStatus)
+                {
+                    case VaultItemSyncStatus.NotImported:
+                        actionButtons |= new Button("Import")
+                            .Icon(Icons.Download)
+                            .Primary()
+                            .Small()
+                            .OnClick(() =>
+                            {
+                                selectedImportItem.Set(item);
+                                openImportDialog.Set(true);
+                            });
+                        break;
+
+                    case VaultItemSyncStatus.Conflict:
+                        actionButtons |= new Button("Import As...")
+                            .Icon(Icons.Download)
+                            .Primary()
+                            .Small()
+                            .OnClick(() =>
+                            {
+                                selectedImportItem.Set(item);
+                                openImportDialog.Set(true);
+                            });
+                        break;
+
+                    case VaultItemSyncStatus.UpdateAvailable:
+                        actionButtons |= new Button("Update")
+                            .Icon(Icons.CircleArrowUp)
+                            .Primary()
+                            .Small()
+                            .OnClick(async () =>
+                            {
+                                var tracking = currentVault?.TrackedProjects.TryGetValue(item.Name, out var t) == true ? t : null;
+                                var mappings = tracking?.LocalRepoPaths ?? new();
+                                var res = await vaultService.ImportProjectAsync(item.Name, mappings, selectedVaultId.Value);
+                                if (res.Success)
+                                {
+                                    client.Toast(res.Message, "Updated");
+                                    catalogQuery.Mutator.Revalidate();
+                                }
+                            });
+                        break;
+
+                    case VaultItemSyncStatus.LocalOnly:
+                        actionButtons |= new Button("Publish")
+                            .Icon(Icons.Upload)
+                            .Outline()
+                            .Small()
+                            .OnClick(() =>
+                            {
+                                selectedPushProject.Set(item.Name);
+                                openPushDialog.Set(true);
+                            });
+                        break;
+                }
+
+                actionButtons |= new Button()
+                    .Icon(Icons.Trash2)
+                    .Destructive()
+                    .Ghost()
+                    .Small()
+                    .Tooltip($"Delete '{item.Name}' from vault")
+                    .OnClick(() =>
+                    {
+                        projectToDelete.Set(item.Name);
+                        openDeleteConfirm.Set(true);
+                    });
+
+                return actionButtons;
+            }))
+            .Header(t => t.SyncStatus, "Sync Status")
             .Builder(t => t.SyncStatus, f => f.Func<VaultProjectTableRow, VaultItemSyncStatus>(s => s switch
             {
                 VaultItemSyncStatus.UpToDate => new Badge("✓ In Sync").Variant(BadgeVariant.Secondary).Small(),
@@ -306,84 +421,15 @@ public class VaultSetupView : ViewBase
 
                 return badges;
             }))
-            .Header(t => t.Action, "")
-            .Builder(t => t.Action, f => f.Func<VaultProjectTableRow, int>(idx =>
-            {
-                var item = catalog.Projects[idx];
-                return item.SyncStatus switch
-                {
-                    VaultItemSyncStatus.NotImported => new Button("Import")
-                        .Icon(Icons.Download)
-                        .Primary()
-                        .Small()
-                        .OnClick(() =>
-                        {
-                            selectedImportItem.Set(item);
-                            openImportDialog.Set(true);
-                        }),
-
-                    VaultItemSyncStatus.Conflict => new Button("Import As...")
-                        .Icon(Icons.Download)
-                        .Primary()
-                        .Small()
-                        .OnClick(() =>
-                        {
-                            selectedImportItem.Set(item);
-                            openImportDialog.Set(true);
-                        }),
-
-                    VaultItemSyncStatus.UpdateAvailable => new Button("Update")
-                        .Icon(Icons.CircleArrowUp)
-                        .Primary()
-                        .Small()
-                        .OnClick(async () =>
-                        {
-                            var tracking = currentVault?.TrackedProjects.TryGetValue(item.Name, out var t) == true ? t : null;
-                            var mappings = tracking?.LocalRepoPaths ?? new();
-                            var res = await vaultService.ImportProjectAsync(item.Name, mappings, selectedVaultId.Value);
-                            if (res.Success)
-                            {
-                                client.Toast(res.Message, "Updated");
-                                catalogQuery.Mutator.Revalidate();
-                            }
-                        }),
-
-                    VaultItemSyncStatus.LocalOnly => new Button("Publish")
-                        .Icon(Icons.Upload)
-                        .Outline()
-                        .Small()
-                        .OnClick(() =>
-                        {
-                            selectedPushProject.Set(item.Name);
-                            openPushDialog.Set(true);
-                        }),
-
-                    _ => null
-                };
-            }))
             .Header(t => t.Changelog, "Changelog / Context")
             .Builder(t => t.Changelog, f => f.Func<VaultProjectTableRow, string>(c =>
                 Text.Block(c).Small().Muted()
             ))
             .Width(Size.Fit());
 
-        var hasActions = catalog.Projects.Any(p => p.SyncStatus switch
-        {
-            VaultItemSyncStatus.NotImported => true,
-            VaultItemSyncStatus.Conflict => true,
-            VaultItemSyncStatus.UpdateAvailable => true,
-            VaultItemSyncStatus.LocalOnly => true,
-            _ => false
-        });
-
         var hasChangelog = catalog.Projects.Any(p =>
             !string.IsNullOrWhiteSpace(p.LatestChangelog) ||
             !string.IsNullOrWhiteSpace(p.Description));
-
-        if (!hasActions)
-        {
-            projectsTable.Remove(t => t.Action);
-        }
 
         if (!hasChangelog)
         {
@@ -433,16 +479,17 @@ public class VaultSetupView : ViewBase
             createDialog,
             connectDialog,
             pushDialog,
-            importDialog
+            importDialog,
+            confirmDeleteDialog
         );
     }
 
     private record VaultProjectTableRow(
         string Name,
         string Version,
+        int Action,
         VaultItemSyncStatus SyncStatus,
         VaultCatalogItem Contents,
-        int Action,
         string Changelog
     );
 }

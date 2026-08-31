@@ -1212,6 +1212,61 @@ public class VaultService : IVaultService
         return new VaultResult(true, $"Successfully imported project '{finalLocalProjectName}' (v{manifest.Version})");
     }
 
+    public async Task<VaultResult> DeleteProjectFromVaultAsync(string projectName, string? vaultId = null)
+    {
+        EnsureVaultsInitialized();
+        var vault = GetVaultSettings(vaultId);
+
+        if (vault == null)
+        {
+            return new VaultResult(false, "No vault configured for deletion.", "Vault not found");
+        }
+
+        var vaultDir = GetVaultDirectory(vault);
+        var projDir = Path.Combine(vaultDir, "projects", projectName);
+
+        if (Directory.Exists(projDir))
+        {
+            try
+            {
+                Directory.Delete(projDir, true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to delete directory {Dir}", projDir);
+                return new VaultResult(false, $"Failed to delete project directory: {ex.Message}", ex.ToString());
+            }
+        }
+
+        vault.TrackedProjects.Remove(projectName);
+        if (_config.Settings.Vault != null && _config.Settings.Vault.Id == vault.Id)
+        {
+            _config.Settings.Vault.TrackedProjects.Remove(projectName);
+        }
+
+        _config.SaveSettings();
+
+        if (Directory.Exists(Path.Combine(vaultDir, ".git")))
+        {
+            try
+            {
+                await RunGitCommandAsync(vaultDir, "add -A");
+                var (_, commitErr) = await RunGitCommandAsync(vaultDir, $"commit -m \"chore(vault): delete {projectName}\"");
+                if (commitErr == null || !commitErr.Contains("nothing to commit", StringComparison.OrdinalIgnoreCase))
+                {
+                    await RunGitCommandAsync(vaultDir, "push origin main");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to push deletion commit for {Project}", projectName);
+            }
+        }
+
+        VaultChanged?.Invoke();
+        return new VaultResult(true, $"Successfully deleted project '{projectName}' from vault '{vault.Name}'.");
+    }
+
     public async Task<VaultSyncResult> PullLatestAsync(string? vaultId = null)
     {
         EnsureVaultsInitialized();
