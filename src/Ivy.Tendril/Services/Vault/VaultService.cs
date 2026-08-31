@@ -725,6 +725,27 @@ public class VaultService : IVaultService
             catch { }
         }
 
+        // If repo is completely empty, initialize main branch with initial setup
+        var (headCheckOut, headCheckErr) = await RunGitCommandAsync(vaultDir, "rev-parse --verify HEAD");
+        if (headCheckErr != null || string.IsNullOrWhiteSpace(headCheckOut))
+        {
+            await RunGitCommandAsync(vaultDir, "checkout -B main");
+            var initialManifest = new VaultManifest
+            {
+                Name = vaultName,
+                Version = GenerateVersionTimestamp(),
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            File.WriteAllText(Path.Combine(vaultDir, "vault.yaml"), YamlHelper.SerializerCompact.Serialize(initialManifest));
+            File.WriteAllText(Path.Combine(vaultDir, "README.md"), $"# {vaultName}\n\nTendril Team Configuration Vault.\n");
+            File.WriteAllText(Path.Combine(vaultDir, ".gitignore"), ".DS_Store\n*.local.yaml\n");
+            Directory.CreateDirectory(Path.Combine(vaultDir, "projects"));
+            Directory.CreateDirectory(Path.Combine(vaultDir, "global", "skills"));
+            await RunGitCommandAsync(vaultDir, "add -A");
+            await RunGitCommandAsync(vaultDir, "commit -m \"Initial Tendril Vault setup\"");
+            await RunGitCommandAsync(vaultDir, "push -u origin main");
+        }
+
         var newVault = new VaultSettings
         {
             Id = vaultId,
@@ -805,8 +826,32 @@ public class VaultService : IVaultService
         var timestampId = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
         var branchName = $"vault/update-{timestampId}";
 
-        await RunGitCommandAsync(vaultDir, "checkout main");
-        await RunGitCommandAsync(vaultDir, "pull origin main");
+        // Ensure main branch exists and has an initial commit before creating PR branch
+        var (headCheckOut, headCheckErr) = await RunGitCommandAsync(vaultDir, "rev-parse --verify HEAD");
+        if (headCheckErr != null || string.IsNullOrWhiteSpace(headCheckOut))
+        {
+            await RunGitCommandAsync(vaultDir, "checkout -B main");
+            var initialManifest = new VaultManifest
+            {
+                Name = targetVault.Name,
+                Version = GenerateVersionTimestamp(),
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            File.WriteAllText(Path.Combine(vaultDir, "vault.yaml"), YamlHelper.SerializerCompact.Serialize(initialManifest));
+            File.WriteAllText(Path.Combine(vaultDir, "README.md"), $"# {targetVault.Name}\n\nTendril Team Configuration Vault.\n");
+            File.WriteAllText(Path.Combine(vaultDir, ".gitignore"), ".DS_Store\n*.local.yaml\n");
+            Directory.CreateDirectory(Path.Combine(vaultDir, "projects"));
+            Directory.CreateDirectory(Path.Combine(vaultDir, "global", "skills"));
+            await RunGitCommandAsync(vaultDir, "add -A");
+            await RunGitCommandAsync(vaultDir, "commit -m \"Initial Tendril Vault setup\"");
+            await RunGitCommandAsync(vaultDir, "push -u origin main");
+        }
+        else
+        {
+            await RunGitCommandAsync(vaultDir, "checkout main");
+            await RunGitCommandAsync(vaultDir, "pull origin main");
+        }
+
         await RunGitCommandAsync(vaultDir, $"checkout -B {branchName}");
 
         var exportedProjects = new List<string>();
@@ -996,14 +1041,25 @@ public class VaultService : IVaultService
             ? request.PrBody
             : $"### Vault Version Update: v{version}\n\n**Changelog:**\n{request.Changelog}\n\n**Projects:**\n{string.Join("\n", exportedProjects.Select(p => $"- {p}"))}";
 
-        var ghPrCmd = $"pr create --title \"{prTitle.Replace("\"", "\\\"")}\" --body \"{prBody.Replace("\"", "\\\"")}\" --head \"{branchName}\"";
+        var ghPrCmd = $"pr create --title \"{prTitle.Replace("\"", "\\\"")}\" --body \"{prBody.Replace("\"", "\\\"")}\" --base main --head \"{branchName}\"";
         if (request.Reviewers.Count > 0)
         {
             ghPrCmd += $" --reviewer \"{string.Join(",", request.Reviewers)}\"";
         }
 
-        var (prOut, prErr) = await RunGhCliAsync(ghPrCmd, vaultDir);
+        var (prOut, _) = await RunGhCliAsync(ghPrCmd, vaultDir);
         var prUrl = prOut?.Trim();
+
+        if (string.IsNullOrWhiteSpace(prUrl) || !prUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            var match = Regex.Match(targetVault.RepoUrl, @"[:/]([^/]+)/([^/]+?)(?:\.git)?$");
+            if (match.Success)
+            {
+                var owner = match.Groups[1].Value;
+                var rName = match.Groups[2].Value;
+                prUrl = $"https://github.com/{owner}/{rName}/compare/main...{branchName}?expand=1";
+            }
+        }
 
         targetVault.LastSyncedAt = DateTimeOffset.UtcNow;
         _config.SaveSettings();
@@ -1261,9 +1317,20 @@ public class VaultService : IVaultService
             var prTitle = $"Delete {projectName} from vault (v{version})";
             var prBody = $"### Vault Project Deletion\n\nThis PR removes the **{projectName}** project and its assets from the vault.";
 
-            var ghPrCmd = $"pr create --title \"{prTitle.Replace("\"", "\\\"")}\" --body \"{prBody.Replace("\"", "\\\"")}\" --head \"{branchName}\"";
+            var ghPrCmd = $"pr create --title \"{prTitle.Replace("\"", "\\\"")}\" --body \"{prBody.Replace("\"", "\\\"")}\" --base main --head \"{branchName}\"";
             var (prOut, _) = await RunGhCliAsync(ghPrCmd, vaultDir);
             var prUrl = prOut?.Trim();
+
+            if (string.IsNullOrWhiteSpace(prUrl) || !prUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                var match = Regex.Match(vault.RepoUrl, @"[:/]([^/]+)/([^/]+?)(?:\.git)?$");
+                if (match.Success)
+                {
+                    var owner = match.Groups[1].Value;
+                    var rName = match.Groups[2].Value;
+                    prUrl = $"https://github.com/{owner}/{rName}/compare/main...{branchName}?expand=1";
+                }
+            }
 
             vault.TrackedProjects.Remove(projectName);
             if (_config.Settings.Vault != null && _config.Settings.Vault.Id == vault.Id)
