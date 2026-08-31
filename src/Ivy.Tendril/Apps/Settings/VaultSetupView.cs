@@ -13,7 +13,7 @@ namespace Ivy.Tendril.Apps.Settings;
 
 public class VaultSetupView : ViewBase
 {
-    public override object Build()
+    public override object? Build()
     {
         var config = UseService<IConfigService>();
         var vaultService = UseService<IVaultService>();
@@ -168,74 +168,60 @@ public class VaultSetupView : ViewBase
             }
         }
 
-        object? vaultSwitcher = null;
-        if (vaultsList.Count > 1)
-        {
-            var vaultOptions = vaultsList
-                .Select(v => new Option<string>($"{v.Name} ({v.RepoUrl})", v.Id))
-                .ToArray();
+        var headerToolbar = Layout.Horizontal().AlignContent(Align.Right)
+            | new Button("Sync / Pull Latest")
+                .Icon(Icons.RefreshCw)
+                .Outline()
+                .Small()
+                .Loading(isSyncing.Value)
+                .OnClick(async () => await HandleSync())
+            | new Button("Publish Update (PR)")
+                .Icon(Icons.GitPullRequest)
+                .Primary()
+                .Small()
+                .OnClick(() =>
+                {
+                    selectedPushProject.Set(null);
+                    openPushDialog.Set(true);
+                })
+            | new Button("Connect Another Vault")
+                .Icon(Icons.Plus)
+                .Outline()
+                .Small()
+                .OnClick(() => openConnectDialog.Set(true))
+            | new Button("Create Vault")
+                .Icon(Icons.GitBranch)
+                .Outline()
+                .Small()
+                .OnClick(() => openCreateDialog.Set(true));
 
-            vaultSwitcher = Layout.Horizontal().AlignContent(Align.SpaceBetween)
-                | (Layout.Horizontal().AlignContent(Align.Left)
-                    | Text.Block("Active Vault:").Bold().Small()
-                    | selectedVaultId.ToSelectInput(vaultOptions).Small())
-                | (Layout.Horizontal().AlignContent(Align.Right)
-                    | new Button("Connect Another Vault")
-                        .Icon(Icons.Plus)
-                        .Outline()
-                        .Small()
-                        .OnClick(() => openConnectDialog.Set(true))
-                    | new Button("Create Vault")
-                        .Icon(Icons.GitBranch)
-                        .Outline()
-                        .Small()
-                        .OnClick(() => openCreateDialog.Set(true)));
-        }
-        else
-        {
-            vaultSwitcher = Layout.Horizontal().AlignContent(Align.Right)
-                | new Button("Connect Another Vault")
-                    .Icon(Icons.Plus)
-                    .Outline()
-                    .Small()
-                    .OnClick(() => openConnectDialog.Set(true))
-                | new Button("Create Vault")
-                    .Icon(Icons.GitBranch)
-                    .Outline()
-                    .Small()
-                    .OnClick(() => openCreateDialog.Set(true));
-        }
+        var topHeader = Layout.Horizontal().AlignContent(Align.SpaceBetween)
+            | (Layout.Horizontal().AlignContent(Align.Left)
+                | Text.Block("Team Configuration Vault").Bold()
+                | (vaultsList.Count > 1
+                    ? selectedVaultId.ToSelectInput(vaultsList.Select(v => new Option<string>($"{v.Name} ({v.RepoUrl})", v.Id)).ToArray()).Small()
+                    : null))
+            | headerToolbar;
 
-        var connectionSection = Layout.Vertical()
-            | vaultSwitcher
-            | Text.Block("Vault Connection").Bold()
-            | (Layout.Horizontal().AlignContent(Align.SpaceBetween)
-                | (Layout.Horizontal().AlignContent(Align.Left)
-                    | Icons.FolderGit2.ToIcon()
-                    | Text.Monospaced(!string.IsNullOrEmpty(status.RepoUrl) ? status.RepoUrl : status.Name).Bold()
-                    | new Badge(status.CurrentBranch).Variant(BadgeVariant.Secondary).Small()
-                    | (status.CommitsBehind > 0 ? new Badge($"{status.CommitsBehind} behind").Variant(BadgeVariant.Warning).Small() : null)
-                    | (status.CommitsAhead > 0 ? new Badge($"{status.CommitsAhead} ahead").Variant(BadgeVariant.Secondary).Small() : null))
-                | (Layout.Horizontal().AlignContent(Align.Right)
-                    | new Button("Sync / Pull Latest")
-                        .Icon(Icons.RefreshCw)
-                        .Outline()
-                        .Small()
-                        .Loading(isSyncing.Value)
-                        .OnClick(async () => await HandleSync())
-                    | new Button("Publish Update (PR)")
-                        .Icon(Icons.GitPullRequest)
-                        .Primary()
-                        .Small()
-                        .OnClick(() =>
-                        {
-                            selectedPushProject.Set(null);
-                            openPushDialog.Set(true);
-                        })))
-            | (status.LastSyncedAt.HasValue && status.LastSyncedAt.Value.Year > 1
-                ? Text.Muted($"Last synced: {status.LastSyncedAt.Value:MMM d, yyyy HH:mm} UTC").Small()
-                : null)
-            | autoSyncState.ToBoolInput("Always keep local configuration in sync with remote");
+        var vaultInfoStrip = Layout.Horizontal().AlignContent(Align.SpaceBetween)
+            | (Layout.Horizontal().AlignContent(Align.Left)
+                | Icons.FolderGit2.ToIcon()
+                | Text.Monospaced(!string.IsNullOrEmpty(status.RepoUrl) ? status.RepoUrl : status.Name).Bold().Small()
+                | new Badge(status.CurrentBranch).Variant(BadgeVariant.Secondary).Small()
+                | (status.CommitsBehind > 0 ? new Badge($"{status.CommitsBehind} behind").Variant(BadgeVariant.Warning).Small() : null)
+                | (status.CommitsAhead > 0 ? new Badge($"{status.CommitsAhead} ahead").Variant(BadgeVariant.Secondary).Small() : null)
+                | (status.LastSyncedAt.HasValue && status.LastSyncedAt.Value.Year > 1
+                    ? Text.Muted($"Synced {status.LastSyncedAt.Value:MMM d, HH:mm} UTC").Small()
+                    : null))
+            | (Layout.Horizontal().AlignContent(Align.Right)
+                | autoSyncState.ToBoolInput("Always in sync")
+                | new Button("Disconnect").Destructive().Ghost().Small().OnClick(async () =>
+                {
+                    await vaultService.DisconnectVaultAsync(selectedVaultId.Value);
+                    vaultsQuery.Mutator.Revalidate();
+                    statusQuery.Mutator.Revalidate();
+                    catalogQuery.Mutator.Revalidate();
+                }));
 
         var tableRows = catalog.Projects.Select((p, i) =>
         {
@@ -244,8 +230,8 @@ public class VaultSetupView : ViewBase
                 !string.IsNullOrEmpty(p.RemoteVersion) ? $"v{p.RemoteVersion}" : (!string.IsNullOrEmpty(p.LocalVersion) ? $"v{p.LocalVersion}" : "-"),
                 p.SyncStatus,
                 p,
-                p.LatestChangelog ?? (!string.IsNullOrEmpty(p.Description) ? p.Description : "-"),
-                i
+                i,
+                p.LatestChangelog ?? (!string.IsNullOrEmpty(p.Description) ? p.Description : "-")
             );
         }).ToList();
 
@@ -271,8 +257,8 @@ public class VaultSetupView : ViewBase
                 VaultItemSyncStatus.Conflict => new Badge("Name Conflict").Variant(BadgeVariant.Destructive).Small(),
                 _ => new Badge("In Vault").Variant(BadgeVariant.Secondary).Small()
             }))
-            .Header(t => t.Item, "Contents")
-            .Builder(t => t.Item, f => f.Func<VaultProjectTableRow, VaultCatalogItem>(item =>
+            .Header(t => t.Contents, "Contents")
+            .Builder(t => t.Contents, f => f.Func<VaultProjectTableRow, VaultCatalogItem>(item =>
             {
                 var badges = Layout.Horizontal().AlignContent(Align.Left);
                 if (item.ReposCount > 0)
@@ -290,9 +276,8 @@ public class VaultSetupView : ViewBase
 
                 return badges;
             }))
-            .Header(t => t.Changelog, "Changelog / Context")
-            .Header(t => t.Index, "")
-            .Builder(t => t.Index, f => f.Func<VaultProjectTableRow, int>(idx =>
+            .Header(t => t.Action, "")
+            .Builder(t => t.Action, f => f.Func<VaultProjectTableRow, int>(idx =>
             {
                 var item = catalog.Projects[idx];
                 return item.SyncStatus switch
@@ -346,33 +331,21 @@ public class VaultSetupView : ViewBase
                     _ => null
                 };
             }))
+            .Header(t => t.Changelog, "Changelog / Context")
+            .Builder(t => t.Changelog, f => f.Func<VaultProjectTableRow, string>(c =>
+                Text.Block(c).Small().Muted()
+            ))
             .Width(Size.Fit());
 
         var projectsSection = Layout.Vertical()
-            | Text.Block("Shared Projects").Bold()
-            | Text.Block("Projects tracked in the team vault and their local sync status.").Muted().Small()
             | (tableRows.Count > 0
                 ? projectsTable
                 : Text.Muted("No projects found in the vault yet. Click 'Publish Update (PR)' above to share your local projects.").Small());
 
-        var disconnectSection = Layout.Vertical()
-            | Text.Block("Danger Zone").Bold()
-            | Text.Block($"Disconnect this Tendril instance from '{status.Name}' ({status.RepoUrl}).").Muted().Small()
-            | (Layout.Horizontal().AlignContent(Align.Left)
-                | new Button("Disconnect Vault").Destructive().Outline().OnClick(async () =>
-                {
-                    await vaultService.DisconnectVaultAsync(selectedVaultId.Value);
-                    vaultsQuery.Mutator.Revalidate();
-                    statusQuery.Mutator.Revalidate();
-                    catalogQuery.Mutator.Revalidate();
-                }));
-
         var mainLayout = Layout.Vertical().Width(Size.Auto().Max(Size.Units(200)))
-            | Text.Block("Team Configuration Vault").Bold()
-            | Text.Block("Share and synchronize Tendril projects, custom skills, MCP servers, and security rules across your team.").Muted().Small()
-            | connectionSection
-            | projectsSection
-            | disconnectSection;
+            | topHeader
+            | vaultInfoStrip
+            | projectsSection;
 
         return new Fragment(
             mainLayout,
@@ -387,8 +360,8 @@ public class VaultSetupView : ViewBase
         string Name,
         string Version,
         VaultItemSyncStatus SyncStatus,
-        VaultCatalogItem Item,
-        string Changelog,
-        int Index
+        VaultCatalogItem Contents,
+        int Action,
+        string Changelog
     );
 }
