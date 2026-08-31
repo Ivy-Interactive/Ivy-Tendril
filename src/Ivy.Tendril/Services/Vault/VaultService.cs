@@ -1061,6 +1061,10 @@ public class VaultService : IVaultService
             }
         }
 
+        // Return local clone to main
+        await RunGitCommandAsync(vaultDir, "checkout main");
+        await RunGitCommandAsync(vaultDir, "pull origin main");
+
         targetVault.LastSyncedAt = DateTimeOffset.UtcNow;
         _config.SaveSettings();
         VaultChanged?.Invoke();
@@ -1219,14 +1223,13 @@ public class VaultService : IVaultService
             _config.Settings.Projects.Add(projectConfig);
         }
 
-        ProjectPathHelper.EnsureProjectDirectories(_config.TendrilHome, finalLocalProjectName);
-
         // Copy skills
         var vaultSkillsDir = Path.Combine(projDir, "skills");
         var localSkillsDir = ProjectPathHelper.GetSkillsDir(_config.TendrilHome, finalLocalProjectName);
 
         if (Directory.Exists(vaultSkillsDir))
         {
+            Directory.CreateDirectory(localSkillsDir);
             foreach (var file in Directory.GetFiles(vaultSkillsDir, "*.md"))
             {
                 var skillName = Path.GetFileNameWithoutExtension(file);
@@ -1243,6 +1246,7 @@ public class VaultService : IVaultService
 
         if (Directory.Exists(vaultMemoryDir))
         {
+            Directory.CreateDirectory(localMemoryDir);
             foreach (var file in Directory.GetFiles(vaultMemoryDir, "*.md"))
             {
                 var memName = Path.GetFileName(file);
@@ -1296,8 +1300,12 @@ public class VaultService : IVaultService
 
         try
         {
-            await RunGitCommandAsync(vaultDir, "checkout main");
-            await RunGitCommandAsync(vaultDir, "pull origin main");
+            var (headCheckOut, headCheckErr) = await RunGitCommandAsync(vaultDir, "rev-parse --verify HEAD");
+            if (headCheckErr == null && !string.IsNullOrWhiteSpace(headCheckOut))
+            {
+                await RunGitCommandAsync(vaultDir, "checkout main");
+                await RunGitCommandAsync(vaultDir, "pull origin main");
+            }
             await RunGitCommandAsync(vaultDir, $"checkout -B {branchName}");
 
             Directory.Delete(projDir, true);
@@ -1331,6 +1339,10 @@ public class VaultService : IVaultService
                     prUrl = $"https://github.com/{owner}/{rName}/compare/main...{branchName}?expand=1";
                 }
             }
+
+            // Return local clone to main
+            await RunGitCommandAsync(vaultDir, "checkout main");
+            await RunGitCommandAsync(vaultDir, "pull origin main");
 
             vault.TrackedProjects.Remove(projectName);
             if (_config.Settings.Vault != null && _config.Settings.Vault.Id == vault.Id)
@@ -1379,6 +1391,8 @@ public class VaultService : IVaultService
                 continue;
             }
 
+            await RunGitCommandAsync(vaultDir, "checkout main");
+            await RunGitCommandAsync(vaultDir, "fetch origin");
             var (pullOut, pullErr) = await RunGitCommandAsync(vaultDir, "pull --rebase origin main");
             if (pullErr != null && pullErr.Contains("error", StringComparison.OrdinalIgnoreCase))
             {

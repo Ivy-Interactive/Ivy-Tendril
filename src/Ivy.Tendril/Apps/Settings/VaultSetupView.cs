@@ -283,10 +283,13 @@ public class VaultSetupView : ViewBase
             .Label(x => x.GitStatus, "Status")
             .Label(x => x.LastSynced, "Last Synced")
             .Builder(x => x.Vault, f => f.Func((string repo) =>
-                Layout.Horizontal().AlignContent(Align.Left)
+            {
+                var url = !string.IsNullOrEmpty(status.RepoUrl) ? status.RepoUrl : $"https://github.com/{repo}";
+                return Layout.Horizontal().AlignContent(Align.Left)
                     | Icons.FolderGit2.ToIcon()
-                    | Text.Monospaced(repo).Bold()
-            ))
+                    | new Button(repo).Link().Small().OnClick(() => client.OpenUrl(url))
+                    | new Button().Icon(Icons.ExternalLink).Ghost().Small().Tooltip("Open on GitHub").OnClick(() => client.OpenUrl(url));
+            }))
             .Builder(x => x.Branch, f => f.Func((string b) =>
                 new Badge(b).Variant(BadgeVariant.Secondary).Small()
             ))
