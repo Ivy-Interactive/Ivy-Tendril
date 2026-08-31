@@ -263,7 +263,7 @@ public class VaultSetupView : ViewBase
 
         var topHeader = Layout.Horizontal().AlignContent(Align.SpaceBetween)
             | (Layout.Horizontal().AlignContent(Align.Left)
-                | (vaultsList.Count > 0 ? selectedVaultId.ToSelectInput(vaultOptions) : Text.H2("Team Vault").Bold()))
+                | (vaultsList.Count > 0 ? selectedVaultId.ToSelectInput(vaultOptions).Width(Size.Fit()) : Text.H2("Team Vault").Bold()))
             | headerToolbar;
 
         var repoDisplay = !string.IsNullOrEmpty(status.RepoUrl)
