@@ -716,9 +716,19 @@
   line-height: 14px;
   white-space: nowrap;
   overflow: hidden;
+  /* Plan IDs run #0000-#1000 and share a leading "#", so a right-side ellipsis
+     would hide the digits that actually differ. RTL direction moves the
+     ellipsis to the left; the inner span is isolated back to LTR so the digits
+     keep their real order and only the head is clipped ("…123", not "321…"). */
+  direction: rtl;
   text-overflow: ellipsis;
   cursor: pointer;
   transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.tsh-rail-item-text {
+  unicode-bidi: isolate;
+  direction: ltr;
 }
 
 .tsh-rail-item:hover {

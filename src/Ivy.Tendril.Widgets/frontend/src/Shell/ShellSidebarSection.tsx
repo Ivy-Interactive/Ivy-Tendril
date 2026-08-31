@@ -143,7 +143,7 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
                   }}
                   onMouseLeave={() => setFlyout(null)}
                 >
-                  {item.tag}
+                  <span className="tsh-rail-item-text">{item.tag}</span>
                 </button>
               )
           )}
