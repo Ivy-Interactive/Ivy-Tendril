@@ -169,7 +169,7 @@ public class VaultSetupView : ViewBase
         }
 
         var headerToolbar = Layout.Horizontal().AlignContent(Align.Right)
-            | new Button("Sync / Pull Latest")
+            | new Button("Sync")
                 .Icon(Icons.RefreshCw)
                 .Outline()
                 .Small()
@@ -184,7 +184,7 @@ public class VaultSetupView : ViewBase
                     selectedPushProject.Set(null);
                     openPushDialog.Set(true);
                 })
-            | new Button("Connect Another Vault")
+            | new Button("Connect Vault")
                 .Icon(Icons.Plus)
                 .Outline()
                 .Small()
@@ -195,19 +195,27 @@ public class VaultSetupView : ViewBase
                 .Small()
                 .OnClick(() => openCreateDialog.Set(true));
 
+        var vaultOptions = vaultsList
+            .Select(v => new Option<string>(!string.IsNullOrWhiteSpace(v.Name) ? v.Name : (!string.IsNullOrWhiteSpace(v.RepoUrl) ? v.RepoUrl.Split('/').Last().Replace(".git", "") : "Vault"), v.Id))
+            .ToArray();
+
         var topHeader = Layout.Horizontal().AlignContent(Align.SpaceBetween)
             | (Layout.Horizontal().AlignContent(Align.Left)
-                | Text.Block("Team Configuration Vault").Bold()
+                | Text.H2("Team Vault").Bold()
                 | (vaultsList.Count > 1
-                    ? selectedVaultId.ToSelectInput(vaultsList.Select(v => new Option<string>($"{v.Name} ({v.RepoUrl})", v.Id)).ToArray()).Small()
+                    ? selectedVaultId.ToSelectInput(vaultOptions).Small()
                     : null))
             | headerToolbar;
+
+        var repoDisplay = !string.IsNullOrEmpty(status.RepoUrl)
+            ? status.RepoUrl.Replace("https://github.com/", "").Replace(".git", "")
+            : (!string.IsNullOrEmpty(status.Name) ? status.Name : "Team Vault");
 
         var vaultInfoStrip = Layout.Horizontal().AlignContent(Align.SpaceBetween)
             | (Layout.Horizontal().AlignContent(Align.Left)
                 | Icons.FolderGit2.ToIcon()
-                | Text.Monospaced(!string.IsNullOrEmpty(status.RepoUrl) ? status.RepoUrl : status.Name).Bold().Small()
-                | new Badge(status.CurrentBranch).Variant(BadgeVariant.Secondary).Small()
+                | Text.Monospaced(repoDisplay).Bold().Small()
+                | (!string.IsNullOrEmpty(status.CurrentBranch) ? new Badge(status.CurrentBranch).Variant(BadgeVariant.Secondary).Small() : null)
                 | (status.CommitsBehind > 0 ? new Badge($"{status.CommitsBehind} behind").Variant(BadgeVariant.Warning).Small() : null)
                 | (status.CommitsAhead > 0 ? new Badge($"{status.CommitsAhead} ahead").Variant(BadgeVariant.Secondary).Small() : null)
                 | (status.LastSyncedAt.HasValue && status.LastSyncedAt.Value.Year > 1
