@@ -9,6 +9,7 @@ using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Vault;
 
 namespace Ivy.Tendril.Apps.Settings;
 
@@ -195,6 +196,39 @@ public class ProjectDetailView(
         // Color Picker Control at the top
         var colorInput = projectColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker);
 
+        // Vault Tracking Info
+        VaultSettings? linkedVault = null;
+        ProjectVaultTracking? trackedProject = null;
+
+        foreach (var v in config.Settings.Vaults)
+        {
+            if (v.TrackedProjects.TryGetValue(project.Name, out var tp))
+            {
+                linkedVault = v;
+                trackedProject = tp;
+                break;
+            }
+        }
+
+        if (linkedVault == null && config.Settings.Vault != null && config.Settings.Vault.TrackedProjects.TryGetValue(project.Name, out var vtp))
+        {
+            linkedVault = config.Settings.Vault;
+            trackedProject = vtp;
+        }
+
+        object? vaultBadge = null;
+        if (linkedVault != null)
+        {
+            var vaultLabel = !string.IsNullOrEmpty(linkedVault.Name) ? linkedVault.Name : "Team Vault";
+            var versionText = trackedProject != null && !string.IsNullOrEmpty(trackedProject.InstalledVersion)
+                ? $" • v{trackedProject.InstalledVersion}"
+                : "";
+
+            vaultBadge = Layout.Horizontal().AlignContent(Align.Right)
+                | Icons.FolderGit2.ToIcon()
+                | new Badge($"Vault: {vaultLabel}{versionText}").Variant(BadgeVariant.Secondary).Small();
+        }
+
         // Title Header with Inline Editing & Color Picker
         var nameHeader = isEditingName.Value
             ? (Layout.Horizontal().AlignContent(Align.Left)
@@ -219,10 +253,12 @@ public class ProjectDetailView(
                    editName.Set(project.Name);
                    isEditingName.Set(false);
                }))
-            : (Layout.Horizontal().AlignContent(Align.Left)
-               | colorInput
-               | Text.H2(project.Name).Bold()
-               | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Rename Project").OnClick(() => isEditingName.Set(true)));
+            : (Layout.Horizontal().AlignContent(Align.SpaceBetween)
+               | (Layout.Horizontal().AlignContent(Align.Left)
+                   | colorInput
+                   | Text.H2(project.Name).Bold()
+                   | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Rename Project").OnClick(() => isEditingName.Set(true)))
+               | vaultBadge);
 
         // Agent Behavior Dropdown
         var autoImplementOptions = new[]
