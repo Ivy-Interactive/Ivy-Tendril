@@ -262,36 +262,57 @@ public class VaultSetupView : ViewBase
             .ToArray();
 
         var topHeader = Layout.Horizontal().AlignContent(Align.SpaceBetween)
-            | (Layout.Horizontal().AlignContent(Align.Left)
-                | Text.H2("Team Vault").Bold()
-                | (vaultsList.Count > 1
-                    ? selectedVaultId.ToSelectInput(vaultOptions).Small()
-                    : null))
+            | Text.H2("Team Vault").Bold()
             | headerToolbar;
 
         var repoDisplay = !string.IsNullOrEmpty(status.RepoUrl)
             ? status.RepoUrl.Replace("https://github.com/", "").Replace(".git", "")
             : (!string.IsNullOrEmpty(status.Name) ? status.Name : "Team Vault");
 
-        var vaultInfoStrip = Layout.Horizontal().AlignContent(Align.SpaceBetween)
-            | (Layout.Horizontal().AlignContent(Align.Left)
-                | Icons.FolderGit2.ToIcon()
-                | Text.Monospaced(repoDisplay).Bold().Small()
-                | (!string.IsNullOrEmpty(status.CurrentBranch) ? new Badge(status.CurrentBranch).Variant(BadgeVariant.Secondary).Small() : null)
-                | (status.CommitsBehind > 0 ? new Badge($"{status.CommitsBehind} behind").Variant(BadgeVariant.Warning).Small() : null)
-                | (status.CommitsAhead > 0 ? new Badge($"{status.CommitsAhead} ahead").Variant(BadgeVariant.Secondary).Small() : null)
-                | (status.LastSyncedAt.HasValue && status.LastSyncedAt.Value.Year > 1
-                    ? Text.Muted($"Synced {status.LastSyncedAt.Value:MMM d, HH:mm} UTC").Small()
-                    : null))
-            | (Layout.Horizontal().AlignContent(Align.Right)
-                | autoSyncState.ToBoolInput("Always in sync")
-                | new Button("Disconnect").Destructive().Ghost().Small().OnClick(async () =>
-                {
-                    await vaultService.DisconnectVaultAsync(selectedVaultId.Value);
-                    vaultsQuery.Mutator.Revalidate();
-                    statusQuery.Mutator.Revalidate();
-                    catalogQuery.Mutator.Revalidate();
-                }));
+        var detailsData = new VaultDetailsData(
+            Vault: repoDisplay,
+            Branch: !string.IsNullOrEmpty(status.CurrentBranch) ? status.CurrentBranch : "main",
+            GitStatus: status.CommitsBehind > 0 ? $"{status.CommitsBehind} behind" : (status.CommitsAhead > 0 ? $"{status.CommitsAhead} ahead" : "In sync"),
+            LastSynced: status.LastSyncedAt.HasValue && status.LastSyncedAt.Value.Year > 1 ? $"{status.LastSyncedAt.Value:MMM d, yyyy HH:mm} UTC" : "Never",
+            Settings: ""
+        );
+
+        var vaultDetails = detailsData.ToDetails()
+            .Label(x => x.Vault, "Vault")
+            .Label(x => x.Branch, "Branch")
+            .Label(x => x.GitStatus, "Status")
+            .Label(x => x.LastSynced, "Last Synced")
+            .Label(x => x.Settings, "Options")
+            .Builder(x => x.Vault, f => f.Func((string repo) =>
+                Layout.Horizontal().AlignContent(Align.Left)
+                    | Icons.FolderGit2.ToIcon()
+                    | Text.Monospaced(repo).Bold()
+                    | (vaultsList.Count > 1 ? selectedVaultId.ToSelectInput(vaultOptions).Small() : null)
+            ))
+            .Builder(x => x.Branch, f => f.Func((string b) =>
+                new Badge(b).Variant(BadgeVariant.Secondary).Small()
+            ))
+            .Builder(x => x.GitStatus, f => f.Func((string s) =>
+                status.CommitsBehind > 0
+                    ? new Badge(s).Variant(BadgeVariant.Warning).Small()
+                    : (status.CommitsAhead > 0
+                        ? new Badge(s).Variant(BadgeVariant.Secondary).Small()
+                        : new Badge("✓ " + s).Variant(BadgeVariant.Secondary).Small())
+            ))
+            .Builder(x => x.LastSynced, f => f.Func((string ls) =>
+                Text.Block(ls).Muted().Small()
+            ))
+            .Builder(x => x.Settings, f => f.Func((string _) =>
+                Layout.Horizontal().AlignContent(Align.Left)
+                    | autoSyncState.ToBoolInput("Always in sync")
+                    | new Button("Disconnect").Destructive().Ghost().Small().OnClick(async () =>
+                    {
+                        await vaultService.DisconnectVaultAsync(selectedVaultId.Value);
+                        vaultsQuery.Mutator.Revalidate();
+                        statusQuery.Mutator.Revalidate();
+                        catalogQuery.Mutator.Revalidate();
+                    })
+            ));
 
         var tableRows = catalog.Projects.Select((p, i) =>
         {
@@ -472,9 +493,10 @@ public class VaultSetupView : ViewBase
                         }));
         }
 
-        var mainLayout = Layout.Vertical().Width(Size.Auto().Max(Size.Units(200)))
+        var mainLayout = Layout.Vertical().Width(Size.Full().Max(Size.Units(240)))
             | topHeader
-            | vaultInfoStrip
+            | vaultDetails
+            | Text.H4("Shared Projects").Bold()
             | projectsSection;
 
         return new Fragment(
@@ -486,6 +508,14 @@ public class VaultSetupView : ViewBase
             confirmDeleteDialog
         );
     }
+
+    private record VaultDetailsData(
+        string Vault,
+        string Branch,
+        string GitStatus,
+        string LastSynced,
+        string Settings
+    );
 
     private record VaultProjectTableRow(
         string Name,
