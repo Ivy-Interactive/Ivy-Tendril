@@ -13,8 +13,6 @@ public record ShellAgentButton : WidgetBase<ShellAgentButton>
     /// <summary>Icon name from AgentBranding.IconFor (e.g. "ClaudeCode"); mapped to a brand SVG client-side.</summary>
     [Prop] public string? Icon { get; init; }
 
-    [Prop] public string NewChatLabel { get; init; } = "New chat";
-
     /// <summary>Key combined with the platform command key (Cmd/Ctrl), handled client-side.</summary>
     [Prop] public string ShortcutKey { get; init; } = "A";
 

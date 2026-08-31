@@ -6,15 +6,14 @@ import "./shell.css";
 interface ShellAgentButtonProps extends ShellWidgetProps {
   label?: string;
   icon?: string;
-  newChatLabel?: string;
   shortcutKey?: string;
   isActive?: boolean;
 }
 
 /**
- * The coding-agent row: clicking it opens the latest agent session, the
- * "New chat" action (or Cmd/Ctrl+shortcutKey) starts a new one. The shortcut
- * is ignored while typing so it never fights select-all in inputs.
+ * The coding-agent row: clicking it opens the latest agent session, and
+ * Cmd/Ctrl+shortcutKey starts a new one. The shortcut is ignored while typing
+ * so it never fights select-all in inputs.
  */
 export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
   id,
@@ -22,7 +21,6 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
   eventHandler,
   label = "Agent",
   icon,
-  newChatLabel = "New chat",
   shortcutKey = "A",
   isActive = false,
 }) => {
@@ -66,17 +64,6 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
           <span className="tsh-agent-label">{label}</span>
         </span>
         <span className="tsh-agent-actions">
-          <span
-            className="tsh-agent-newchat"
-            role="button"
-            tabIndex={-1}
-            onClick={(e) => {
-              e.stopPropagation();
-              fireNewChat();
-            }}
-          >
-            {newChatLabel}
-          </span>
           <span className="tsh-kbd">
             <span>{modKeyLabel()}</span>
             <span>{shortcutKey}</span>

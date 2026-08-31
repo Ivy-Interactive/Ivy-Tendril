@@ -326,6 +326,12 @@
   flex-shrink: 0;
 }
 
+/* The rail drops the header text above this row, so it needs a little more
+   breathing room than the expanded sidebar. */
+.tsh-root[data-collapsed="true"] .tsh-newplan-wrap {
+  padding-top: 16px;
+}
+
 .tsh-newplan {
   display: flex;
   align-items: center;
@@ -459,25 +465,6 @@
   max-width: 160px;
   overflow: hidden;
   transition: max-width var(--tsh-anim), opacity 200ms ease;
-}
-
-.tsh-agent-newchat {
-  padding: 3px 6px;
-  border: none;
-  background: transparent;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--tsh-fg);
-  opacity: 0.6;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: opacity 150ms ease, background-color 150ms ease;
-}
-
-.tsh-agent-newchat:hover {
-  opacity: 1;
-  background: var(--tsh-badge-bg-active);
 }
 
 .tsh-agent .tsh-kbd {
@@ -660,6 +647,25 @@
    narrow chip (rendered by ShellSidebarSection when the shell is collapsed). */
 .tsh-section-rail {
   align-items: stretch;
+  position: relative;
+}
+
+/* Off-screen measuring copies of the rail chips (see useRailWidth). Laid out
+   so they have a real width, but taken out of flow and never painted. */
+.tsh-rail-ruler {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  top: 0;
+  left: 0;
+  height: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tsh-rail-ruler .tsh-rail-item {
+  display: block;
+  width: auto;
 }
 
 .tsh-rail-search {
@@ -999,7 +1005,6 @@
 }
 
 .tsh-tab-label {
-  font-family: var(--font-mono, "Geist Mono", monospace);
   font-size: 14px;
   font-weight: 400;
   white-space: nowrap;
