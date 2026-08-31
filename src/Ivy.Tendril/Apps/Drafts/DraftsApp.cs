@@ -39,7 +39,17 @@ public class DraftsApp : ViewBase
         var configService = UseService<IConfigService>();
         var gitService = UseService<IGitService>();
         var args = UseArgs<DraftsAppArgs>();
-        var selectedPlanState = UseState<PlanFile?>(null);
+        var selectedPlanState = UseState<PlanFile?>(() =>
+        {
+            if (!string.IsNullOrEmpty(args?.PlanId))
+            {
+                return planService.GetPlans().FirstOrDefault(x =>
+                    x.FolderName.Equals(args.PlanId, StringComparison.OrdinalIgnoreCase) ||
+                    x.Id.ToString() == args.PlanId ||
+                    x.FolderName.StartsWith(args.PlanId + "-", StringComparison.OrdinalIgnoreCase));
+            }
+            return null;
+        });
         var refreshToken = UseRefreshToken();
         var sidebarListSignal = Context.UseSignal<ShellSidebarListSignal, ShellSidebarListState, Unit>();
 
@@ -49,7 +59,10 @@ public class DraftsApp : ViewBase
         {
             if (!string.IsNullOrEmpty(args?.PlanId))
             {
-                var p = planService.GetPlans().FirstOrDefault(x => x.FolderName == args.PlanId);
+                var p = planService.GetPlans().FirstOrDefault(x =>
+                    x.FolderName.Equals(args.PlanId, StringComparison.OrdinalIgnoreCase) ||
+                    x.Id.ToString() == args.PlanId ||
+                    x.FolderName.StartsWith(args.PlanId + "-", StringComparison.OrdinalIgnoreCase));
                 if (p != null && p.FolderName != selectedPlanState.Value?.FolderName)
                 {
                     selectedPlanState.Set(p);

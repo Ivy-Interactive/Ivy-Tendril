@@ -17,6 +17,45 @@ public static class RepoPathValidator
         @"^https?://[\w.\-]+(:\d+)?(/[\w.\-~%]+)+(?:\.git)?$",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    public static string Normalize(string? input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return (input ?? string.Empty).Trim();
+
+        var trimmed = input.Trim();
+
+        if (IsHttpUrl(trimmed))
+        {
+            var schemeIdx = trimmed.IndexOf("://", StringComparison.Ordinal);
+            if (schemeIdx > 0)
+            {
+                var scheme = trimmed[..schemeIdx].ToLowerInvariant();
+                var rest = trimmed[(schemeIdx + 3)..];
+                var slashIdx = rest.IndexOf('/');
+                if (slashIdx >= 0)
+                {
+                    var hostPort = rest[..slashIdx].ToLowerInvariant();
+                    var path = rest[slashIdx..];
+                    return $"{scheme}://{hostPort}{path}";
+                }
+                return $"{scheme}://{rest.ToLowerInvariant()}";
+            }
+        }
+
+        if (IsSshUrl(trimmed))
+        {
+            var colonIdx = trimmed.IndexOf(':');
+            if (colonIdx > 0)
+            {
+                var prefixHost = trimmed[..colonIdx].ToLowerInvariant();
+                var path = trimmed[colonIdx..];
+                return $"{prefixHost}{path}";
+            }
+        }
+
+        return trimmed;
+    }
+
     public static RepoPathKind Classify(string input)
     {
         if (string.IsNullOrWhiteSpace(input))

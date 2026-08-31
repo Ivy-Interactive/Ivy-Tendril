@@ -46,9 +46,9 @@ projects:
   skills: []
   securityPreset: Custom
   outsideFileAccessPolicy: Allow
-  terminalAutoExecution: Always Proceed
-  sandboxMode: Inherit General
-  autoImplementPlans: Always Ask Review
+  terminalAutoExecution: AlwaysProceed
+  sandboxMode: InheritGeneral
+  autoImplementPlans: AlwaysAskReview
   filePermissions: []
   networkAccessRules: []
   allowedTerminalCommands: []
@@ -87,9 +87,9 @@ projects:
   skills: []
   securityPreset: Custom
   outsideFileAccessPolicy: Allow
-  terminalAutoExecution: Always Proceed
-  sandboxMode: Inherit General
-  autoImplementPlans: Inherit General
+  terminalAutoExecution: AlwaysProceed
+  sandboxMode: InheritGeneral
+  autoImplementPlans: InheritGeneral
   filePermissions: []
   networkAccessRules: []
   allowedTerminalCommands: []
@@ -127,9 +127,9 @@ projects:
   skills: []
   securityPreset: Custom
   outsideFileAccessPolicy: Allow
-  terminalAutoExecution: Always Proceed
-  sandboxMode: Inherit General
-  autoImplementPlans: Inherit General
+  terminalAutoExecution: AlwaysProceed
+  sandboxMode: InheritGeneral
+  autoImplementPlans: InheritGeneral
   filePermissions: []
   networkAccessRules: []
   allowedTerminalCommands: []
@@ -159,9 +159,9 @@ projects:
   skills: []
   securityPreset: Custom
   outsideFileAccessPolicy: Allow
-  terminalAutoExecution: Always Proceed
-  sandboxMode: Inherit General
-  autoImplementPlans: Inherit General
+  terminalAutoExecution: AlwaysProceed
+  sandboxMode: InheritGeneral
+  autoImplementPlans: InheritGeneral
   filePermissions: []
   networkAccessRules: []
   allowedTerminalCommands: []
@@ -195,9 +195,9 @@ projects:
   skills: []
   securityPreset: Custom
   outsideFileAccessPolicy: Allow
-  terminalAutoExecution: Always Proceed
-  sandboxMode: Inherit General
-  autoImplementPlans: Inherit General
+  terminalAutoExecution: AlwaysProceed
+  sandboxMode: InheritGeneral
+  autoImplementPlans: InheritGeneral
   filePermissions: []
   networkAccessRules: []
   allowedTerminalCommands: []
@@ -235,9 +235,9 @@ projects:
   skills: []
   securityPreset: Custom
   outsideFileAccessPolicy: Allow
-  terminalAutoExecution: Always Proceed
-  sandboxMode: Inherit General
-  autoImplementPlans: Inherit General
+  terminalAutoExecution: AlwaysProceed
+  sandboxMode: InheritGeneral
+  autoImplementPlans: InheritGeneral
   filePermissions: []
   networkAccessRules: []
   allowedTerminalCommands: []
@@ -278,9 +278,9 @@ projects:
   skills: []
   securityPreset: Custom
   outsideFileAccessPolicy: Allow
-  terminalAutoExecution: Always Proceed
-  sandboxMode: Inherit General
-  autoImplementPlans: Inherit General
+  terminalAutoExecution: AlwaysProceed
+  sandboxMode: InheritGeneral
+  autoImplementPlans: InheritGeneral
   filePermissions: []
   networkAccessRules: []
   allowedTerminalCommands: []

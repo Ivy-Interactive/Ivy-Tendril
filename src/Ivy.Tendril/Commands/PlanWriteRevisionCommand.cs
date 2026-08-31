@@ -24,6 +24,10 @@ public class PlanWriteRevisionSettings : CommandSettings
     [CommandOption("--no-duplicate-check")]
     public bool NoDuplicateCheck { get; set; }
 
+    [Description("Skip validation of questions blocks (for scripted and test use)")]
+    [CommandOption("--no-question-check")]
+    public bool NoQuestionCheck { get; set; }
+
     public int SourceCount => CliValidation.CountSources(Stdin, FilePath, "");
 
     public override Spectre.Console.ValidationResult Validate()
@@ -46,13 +50,42 @@ public class PlanWriteRevisionCommand : Command<PlanWriteRevisionSettings>
         if (string.IsNullOrWhiteSpace(content))
             throw new ArgumentException("No content provided (use --file or --stdin)");
 
-        var filePath = RevisionWriter.WriteNext(planFolder, content, new ConfigService());
+        string filePath;
+        IReadOnlyList<QuestionIssue> questionWarnings;
+        try
+        {
+            filePath = RevisionWriter.WriteNext(planFolder, content, new ConfigService(),
+                out questionWarnings, !settings.NoQuestionCheck);
+        }
+        catch (QuestionValidationException ex)
+        {
+            // Nothing was written, so the agent can fix the source and retry without re-sending it.
+            Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+
         Console.Write(filePath);
+
+        WarnAboutQuestionBlocks(questionWarnings);
 
         if (!settings.NoDuplicateCheck)
             WarnAboutDuplicateCandidates(planFolder);
 
         return 0;
+    }
+
+    /// <summary>
+    ///     Prints non-blocking question-block warnings to stderr. Like the duplicate warning below,
+    ///     the exit code stays 0 — a pre-schema free-text block is legal and must not fail a write.
+    /// </summary>
+    private static void WarnAboutQuestionBlocks(IReadOnlyList<QuestionIssue> warnings)
+    {
+        if (warnings.Count == 0)
+            return;
+
+        Console.Error.WriteLine();
+        foreach (var warning in warnings)
+            Console.Error.WriteLine($"warning: {warning}");
     }
 
     /// <summary>

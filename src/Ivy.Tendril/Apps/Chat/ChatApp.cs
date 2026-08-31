@@ -29,6 +29,7 @@ public class ChatApp : ViewBase
         var configService = UseService<IConfigService>();
         var chatService = UseService<IChatHistoryService>();
         var agentRunner = UseService<IAgentRunner>();
+        var namingService = UseService<IChatSessionNamingService>();
         var serializer = UseService<IEventSerializer>();
 
         var activeSessionId = UseState<string?>(args?.SessionId);
@@ -183,10 +184,14 @@ public class ChatApp : ViewBase
                 {
                     try
                     {
-                        var filePath = Path.Combine(attachDir, att.Name);
-                        if (!string.IsNullOrEmpty(att.Base64Data) && att.Base64Data.Contains(","))
+                        var rawName = Path.GetFileName(att.Name);
+                        var fileName = !string.IsNullOrWhiteSpace(rawName) ? rawName : $"file_{Guid.NewGuid():N}.bin";
+                        var filePath = Path.Combine(attachDir, fileName);
+                        if (!string.IsNullOrEmpty(att.Base64Data))
                         {
-                            var base64 = att.Base64Data[(att.Base64Data.IndexOf(",") + 1)..];
+                            var base64 = att.Base64Data.Contains(",")
+                                ? att.Base64Data[(att.Base64Data.IndexOf(",") + 1)..]
+                                : att.Base64Data;
                             var bytes = Convert.FromBase64String(base64);
                             File.WriteAllBytes(filePath, bytes);
                         }
@@ -295,6 +300,28 @@ public class ChatApp : ViewBase
                     if (rawLines.Count > 0) fullRawStream = string.Join("\n", rawLines);
                 }
                 chatService.AddMessage(targetSessionId, "assistant", responseContent, selectedAgent.Value, selectedModel.Value, rawStream: fullRawStream, effort: selectedEffort.Value);
+
+                var currentSession = chatService.GetSession(targetSessionId);
+                if (currentSession != null &&
+                    (currentSession.Title == "New Chat" || string.IsNullOrWhiteSpace(currentSession.Title)) &&
+                    currentSession.Messages.Count == 2)
+                {
+                    var firstUserMsg = currentSession.Messages.FirstOrDefault(m => m.Role == "user")?.Content;
+                    if (!string.IsNullOrWhiteSpace(firstUserMsg))
+                    {
+                        var agentId = selectedAgent.Value;
+                        var modelId = selectedModel.Value;
+                        _ = Task.Run(async () =>
+                        {
+                            await namingService.GenerateAndSetTitleAsync(
+                                targetSessionId,
+                                firstUserMsg,
+                                responseContent,
+                                agentId,
+                                modelId);
+                        });
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -478,7 +505,8 @@ public class ChatApp : ViewBase
                 var asyncResult = catalog.GetModelsAsync().GetAwaiter().GetResult();
                 if (asyncResult != null && asyncResult.Models.Count > 0)
                 {
-                    return asyncResult.Models.Select(m => (m.Id, m.DisplayName ?? m.Id)).ToList();
+                    var sorted = ModelCatalogSorter.Sort(asyncResult.Models);
+                    return sorted.Select(m => (m.Id, m.DisplayName ?? m.Id)).ToList();
                 }
             }
             catch
@@ -489,7 +517,8 @@ public class ChatApp : ViewBase
             var staticModels = catalog.GetStaticModels();
             if (staticModels != null && staticModels.Count > 0)
             {
-                return staticModels.Select(m => (m.Id, m.DisplayName ?? m.Id)).ToList();
+                var sorted = ModelCatalogSorter.Sort(staticModels);
+                return sorted.Select(m => (m.Id, m.DisplayName ?? m.Id)).ToList();
             }
         }
 

@@ -9,7 +9,38 @@ public record MarkdownAnnotation
     public int EndOffset { get; init; }
     public string SelectedText { get; init; } = "";
     public string Comment { get; init; } = "";
+    public string? Author { get; init; }
+    public bool IsResolved { get; init; }
 }
+
+/// <summary>
+/// A single question's answer, identified by the question's <c>id</c> in the <c>questions</c>
+/// YAML schema. <c>null</c> or an empty <see cref="Answer" /> clears the question back to
+/// unanswered (removing the <c>answer</c> key); a non-empty list is the answer itself — one entry
+/// for a single-select or free-text question, several when the question's <c>multiple</c> is
+/// <c>true</c>. There is no third state: a question that need not be answered is marked
+/// <c>optional: true</c> where it is written.
+/// <para>
+/// Merging this back into the block's YAML is the host's job: find the question by <c>id</c> and
+/// set or delete its <c>answer</c> key. <see cref="QuestionAnswers.Apply" /> does exactly that and
+/// is what a host should reach for; <c>setAnswer</c> in <c>questionsSource.ts</c> is the same merge
+/// expressed client-side.
+/// </para>
+/// </summary>
+public sealed record QuestionAnswer(string QuestionId, IReadOnlyList<string>? Answer);
+
+/// <summary>
+/// Asks the widget to bring one question into view, so a host can put an index of them beside a
+/// long plan.
+/// <para>
+/// <see cref="Token" /> is what makes the request repeatable: the widget scrolls when the target
+/// changes, and clicking the same entry twice has to work. Bump it on every request — the id alone
+/// would compare equal the second time and nothing would move.
+/// </para>
+/// </summary>
+/// <param name="QuestionId">The question's <c>id</c>. Unknown ids are ignored.</param>
+/// <param name="Token">Any value that differs from the previous request.</param>
+public sealed record QuestionScrollTarget(string QuestionId, int Token);
 
 /// <summary>
 /// Renders plan markdown in its own internal scroll container, alongside a
@@ -45,15 +76,33 @@ public record DraftMarkdown : WidgetBase<DraftMarkdown>
     /// <summary>Text annotations (highlights with comments) applied to the markdown content.</summary>
     [Prop] public ImmutableList<MarkdownAnnotation> Annotations { get; init; } = [];
 
+    /// <summary>
+    /// Scrolls the question with this id into view, block and all, whenever the value changes.
+    /// Setting it does not re-render the markdown — only the scroll runs.
+    /// </summary>
+    [Prop] public QuestionScrollTarget? ScrollTo { get; init; }
+
+    /// <summary>The current author/persona leaving annotations.</summary>
+    [Prop] public string? CurrentAuthor { get; init; }
+
     /// <summary>Fired when a link inside the markdown is clicked; the payload is the href.</summary>
     [Event] public EventHandler<Event<DraftMarkdown, string>>? OnLinkClick { get; init; }
 
     /// <summary>Fired when annotations are added, edited, or removed.</summary>
     [Event] public EventHandler<Event<DraftMarkdown, List<MarkdownAnnotation>>>? OnAnnotationsChange { get; init; }
+
+    /// <summary>
+    /// Fired when the user answers, skips, or clears a question in a <c>questions</c> block.
+    /// Subscribing is also what switches those blocks from a read-only callout to an interactive
+    /// picker; a host that does not subscribe renders exactly as before.
+    /// </summary>
+    [Event] public EventHandler<Event<DraftMarkdown, QuestionAnswer>>? OnAnswersChange { get; init; }
 }
 
 public static class DraftMarkdownExtensions
 {
+    public static DraftMarkdown CurrentAuthor(this DraftMarkdown w, string? author) =>
+        w with { CurrentAuthor = author };
     public static DraftMarkdown Article(this DraftMarkdown w, bool article = true) =>
         w with { Article = article };
 
@@ -72,6 +121,10 @@ public static class DraftMarkdownExtensions
 
     public static DraftMarkdown Annotations(this DraftMarkdown w, IEnumerable<MarkdownAnnotation> annotations) =>
         w with { Annotations = annotations.ToImmutableList() };
+
+    /// <summary>Brings a question into view. See <see cref="QuestionScrollTarget" /> on repeat requests.</summary>
+    public static DraftMarkdown ScrollTo(this DraftMarkdown w, QuestionScrollTarget? target) =>
+        w with { ScrollTo = target };
 
     public static DraftMarkdown OnLinkClick(
         this DraftMarkdown w,
@@ -99,6 +152,21 @@ public static class DraftMarkdownExtensions
             OnAnnotationsChange = new(e =>
             {
                 handler(e.Value.ToImmutableList());
+                return ValueTask.CompletedTask;
+            }),
+        };
+
+    public static DraftMarkdown OnAnswersChange(
+        this DraftMarkdown w,
+        Func<Event<DraftMarkdown, QuestionAnswer>, ValueTask> handler
+    ) => w with { OnAnswersChange = new(handler) };
+
+    public static DraftMarkdown OnAnswersChange(this DraftMarkdown w, Action<QuestionAnswer> handler) =>
+        w with
+        {
+            OnAnswersChange = new(e =>
+            {
+                handler(e.Value);
                 return ValueTask.CompletedTask;
             }),
         };

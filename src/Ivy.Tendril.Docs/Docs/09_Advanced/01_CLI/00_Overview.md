@@ -170,5 +170,5 @@ Refreshes the embedded promptware templates from the bundled source. Run after u
 - [Project commands](02_Project.md) — configure projects, repos, and review actions
 - [Verification commands](03_Verification.md) — manage global verification definitions
 - [Database commands](04_Database.md) — migrations, schema version, and reset
-- [Other commands](05_Other.md) — promptware, job, trash, MCP, and utilities
+- [Other commands](05_Other.md) — promptware, job, MCP, and utilities
 - [Config commands](06_Config.md) — read and update top-level `config.yaml` settings

@@ -33,6 +33,8 @@ public class ProjectRepoPickerView(
             var path = (inputValue.Value ?? "").Trim();
             if (string.IsNullOrWhiteSpace(path)) return;
 
+            path = RepoPathValidator.Normalize(path);
+
             if (!RepoPathValidator.IsValid(path))
             {
                 addingError.Set("Invalid repository path.");

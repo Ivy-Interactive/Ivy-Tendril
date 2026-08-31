@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json;
 using Ivy;
 using Ivy.Tendril.Widgets;
 using WebViewerWidget = Ivy.Tendril.Widgets.WebViewer;
@@ -93,8 +94,14 @@ public class DemoApp : ViewBase
             | new Button("Screenshot").Small().OnClick(() => commands.Write(new CaptureCommand("viewport")));
 
         // ---- dev-tools panel -----------------------------------------------
+        // One tab per event kind in the OnEvent firehose, so each payload is rendered
+        // with the columns that actually matter for it.
         var all = events.Value;
-        var consoleItems = all.Where(IsConsoleLike).ToImmutableList();
+        var consoleItems = all.OfType<ConsoleEvent>().ToImmutableList();
+        var clickItems = all.OfType<ClickEvent>().ToImmutableList();
+        var commentItems = all.OfType<CommentEvent>().ToImmutableList();
+        var drawItems = all.OfType<DrawEvent>().ToImmutableList();
+        var navItems = all.OfType<NavigateEvent>().ToImmutableList();
         var netItems = all.OfType<HttpEvent>().ToImmutableList();
         var capItems = all.OfType<CaptureEvent>().ToImmutableList();
 
@@ -106,20 +113,37 @@ public class DemoApp : ViewBase
 
         var tabs = Layout.Horizontal().Gap(1)
             | Tab("console", "Console", consoleItems.Count)
+            | Tab("clicks", "Clicks", clickItems.Count)
+            | Tab("comments", "Comments", commentItems.Count)
+            | Tab("draw", "Draw", drawItems.Count)
+            | Tab("navigate", "Navigate", navItems.Count)
             | Tab("network", "Network", netItems.Count)
             | Tab("captures", "Captures", capItems.Count)
             | new Button("Clear").Small().Ghost().Destructive()
                 .OnClick(() => events.Set(ImmutableList<WebViewerEvent>.Empty));
 
-        object panelBody = activeTab.Value switch
+        // Keyed by tab. The table tabs render structurally identical subtrees — a data table in
+        // the same slot — so without a distinct key Ivy reconciles them as the same view and
+        // the first table's columns and rows stay on screen whichever tab is selected. The
+        // vertical layout doubles as the flex parent a data table needs in order to grow.
+        object panelBody = (Layout.Vertical().Height(Size.Full()) | (object)(activeTab.Value switch
         {
+            "clicks" => RenderClicks(clickItems),
+            "comments" => RenderComments(commentItems),
+            "draw" => RenderDraw(drawItems),
+            "navigate" => RenderNavigate(navItems),
             "network" => RenderNetwork(netItems),
             "captures" => RenderCaptures(capItems),
             _ => RenderConsole(consoleItems),
-        };
+        })).Key(activeTab.Value);
 
-        // Dev-tools tabs in their own header; the active panel body scrolls below.
+        // Dev-tools tabs in their own header. Tabs showing a data table turn the header's own
+        // scrolling off: with it on, the content wrapper is sized to its content, so a table
+        // asking for Size.Full() has no height to fill and collapses to a few rows. The table
+        // scrolls itself. The list-style tabs keep the header's scrolling.
+        var showsTable = activeTab.Value is "clicks" or "draw" or "navigate" or "network";
         var panel = new HeaderLayout(tabs, panelBody).Height(Size.Full());
+        if (showsTable) panel = panel.Scroll(Scroll.None);
 
         // Toolbar in the header; the viewport (70%) and dev-tools panel (30%) share a
         // vertical resizable split.
@@ -133,34 +157,80 @@ public class DemoApp : ViewBase
     }
 
     // ---- rendering helpers ----------------------------------------------------
-    private static bool IsConsoleLike(WebViewerEvent e) =>
-        e is ConsoleEvent or ClickEvent or CommentEvent;
-
-    private static object RenderConsole(ImmutableList<WebViewerEvent> items)
+    private static object RenderConsole(ImmutableList<ConsoleEvent> items)
     {
         if (items.Count == 0) return Text.Muted("No messages");
-        var rows = Recent(items).Select(e => (object)RenderConsoleRow(e));
+        var rows = Recent(items).Select(c =>
+        {
+            var text = Text.Block($"{c.Level}: {c.Text}");
+            if (c.Level == "error") text = text.Color(Colors.Red);
+            else if (c.Level == "warn") text = text.Color(Colors.Amber);
+            return (object)text;
+        });
         return Layout.Vertical().Gap(1) | rows;
     }
 
-    private static object RenderConsoleRow(WebViewerEvent e)
+    private record ClickRow(string Tag, string Text, string Selector, string Button, string Position, string Source);
+
+    private static object RenderClicks(ImmutableList<ClickEvent> items)
     {
-        switch (e)
-        {
-            case ConsoleEvent c:
-                {
-                    var text = Text.Block($"{c.Level}: {c.Text}");
-                    if (c.Level == "error") text = text.Color(Colors.Red);
-                    else if (c.Level == "warn") text = text.Color(Colors.Amber);
-                    return text;
-                }
-            case ClickEvent c:
-                return Text.Block($"🖱 {c.Tag} {(c.Text is { Length: > 0 } ? $"“{c.Text}” " : "")}· {c.Selector}").Color(Colors.Muted);
-            case CommentEvent c:
-                return Text.Block($"💬 {c.Comment}  ·  {c.Tag} {c.Selector}").Color(Colors.Blue);
-            default:
-                return Text.Block(e.ToString() ?? "");
-        }
+        if (items.Count == 0) return Text.Muted("No clicks — click anywhere in the page");
+        var rows = Recent(items)
+            .Select(c => new ClickRow(
+                c.Tag,
+                string.IsNullOrEmpty(c.Text) ? "—" : c.Text,
+                c.Selector,
+                ButtonName(c.Button),
+                $"{c.X:0}, {c.Y:0}",
+                ComponentName(c.DebugJson)))
+            .ToList();
+        return rows.AsQueryable().ToDataTable().Width(Size.Full());
+    }
+
+    private static object RenderComments(ImmutableList<CommentEvent> items)
+    {
+        if (items.Count == 0) return Text.Muted("No comments — press Select, then pick an element");
+        var rows = Recent(items).Select(c => (object)(
+            Layout.Vertical().Gap(0)
+            | Text.Block(c.Comment).Color(Colors.Blue)
+            | Text.Muted($"{c.Tag} · {c.Selector} · {ComponentName(c.DebugJson)}")
+            | Text.Muted(c.Xpath)
+        ));
+        return Layout.Vertical().Gap(2) | rows;
+    }
+
+    private record DrawRow(string Points, string Start, string End, string Element);
+
+    private static object RenderDraw(ImmutableList<DrawEvent> items)
+    {
+        if (items.Count == 0) return Text.Muted("No strokes — press Draw and drag over the page");
+        var rows = Recent(items)
+            .Select(d =>
+            {
+                // PointsJson is the raw per-point array the injected agent produced;
+                // unpacking it here is what a real consumer would do with the stroke.
+                var pts = ParsePoints(d.PointsJson);
+                var first = pts.FirstOrDefault();
+                var last = pts.LastOrDefault();
+                return new DrawRow(
+                    d.PointCount.ToString(),
+                    first is null ? "—" : $"{first.X}, {first.Y}",
+                    last is null ? "—" : $"{last.X}, {last.Y}",
+                    string.IsNullOrEmpty(first?.Selector) ? "—" : first.Selector);
+            })
+            .ToList();
+        return rows.AsQueryable().ToDataTable().Width(Size.Full());
+    }
+
+    private record NavigateRow(string Url, string Back, string Forward);
+
+    private static object RenderNavigate(ImmutableList<NavigateEvent> items)
+    {
+        if (items.Count == 0) return Text.Muted("No navigations");
+        var rows = Recent(items)
+            .Select(n => new NavigateRow(n.Url, YesNo(n.CanGoBack), YesNo(n.CanGoForward)))
+            .ToList();
+        return rows.AsQueryable().ToDataTable().Width(Size.Full());
     }
 
     private record NetworkRow(string Name, string Method, string Status, string Type, string Size, string Time);
@@ -177,7 +247,7 @@ public class DemoApp : ViewBase
                 FmtSize(h.Size),
                 $"{h.Time} ms"))
             .ToList();
-        return rows.AsQueryable().ToDataTable();
+        return rows.AsQueryable().ToDataTable().Width(Size.Full());
     }
 
     private static object RenderCaptures(ImmutableList<CaptureEvent> items)
@@ -216,5 +286,58 @@ public class DemoApp : ViewBase
         if (bytes < 1024) return $"{bytes} B";
         if (bytes < 1024 * 1024) return $"{bytes / 1024.0:0.0} KB";
         return $"{bytes / (1024.0 * 1024.0):0.0} MB";
+    }
+
+    private static string ButtonName(int button) => button switch
+    {
+        0 => "left",
+        1 => "middle",
+        2 => "right",
+        _ => button.ToString(),
+    };
+
+    private static string YesNo(bool value) => value ? "yes" : "no";
+
+    // The widget hands attribution over as a JSON string (see ClickEvent.DebugJson). Show
+    // the resolved source location when there is one, else the owning component name —
+    // whichever tier answered, that is what a reviewer recognises.
+    private static string ComponentName(string? debugJson)
+    {
+        if (string.IsNullOrEmpty(debugJson)) return "—";
+        try
+        {
+            using var doc = JsonDocument.Parse(debugJson);
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("source", out var source) && source.ValueKind == JsonValueKind.Object
+                && source.TryGetProperty("file", out var file) && file.GetString() is { Length: > 0 } path)
+            {
+                var line = source.TryGetProperty("line", out var l) && l.ValueKind == JsonValueKind.Number
+                    ? $":{l.GetInt32()}" : "";
+                return $"{path}{line}";
+            }
+
+            if (root.TryGetProperty("ownerChain", out var owners) && owners.ValueKind == JsonValueKind.Array
+                && owners.GetArrayLength() > 0
+                && owners[0].TryGetProperty("name", out var name))
+            {
+                return name.GetString() ?? "—";
+            }
+        }
+        catch (JsonException) { /* not a payload we understand */ }
+        return "—";
+    }
+
+    private sealed record DrawPoint(int X, int Y, string? Selector);
+
+    private static readonly JsonSerializerOptions PointsJsonOptions = new(JsonSerializerDefaults.Web);
+
+    private static IReadOnlyList<DrawPoint> ParsePoints(string pointsJson)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<List<DrawPoint>>(pointsJson, PointsJsonOptions) ?? [];
+        }
+        catch (JsonException) { return []; }
     }
 }

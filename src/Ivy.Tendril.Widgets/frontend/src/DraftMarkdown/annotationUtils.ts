@@ -4,6 +4,38 @@ export interface MarkdownAnnotation {
   endOffset: number;
   selectedText: string;
   comment: string;
+  author?: string;
+  isResolved?: boolean;
+}
+
+export function getInitials(name?: string): string {
+  if (!name || !name.trim()) return "";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+export const QUESTIONS_SELECTOR = ".pmv-questions";
+
+/**
+ * Whether a text node belongs to a `questions` block.
+ *
+ * Such text is invisible to annotation offsets entirely — not highlighted, and not counted. It has
+ * to be both: a block's rendered text is not stable. Answering a question makes a Clear button
+ * appear, and an option title that YAML had read as a number can start rendering; either shifts
+ * every offset after the block and silently moves annotations off the words they were put on.
+ * Counting only prose keeps an annotation anchored to the prose it was made against.
+ */
+function isInQuestions(node: Node): boolean {
+  const element = node.parentElement;
+  return !!element?.closest(QUESTIONS_SELECTOR);
+}
+
+export function rangeTouchesQuestions(container: HTMLElement, range: Range): boolean {
+  for (const block of container.querySelectorAll(QUESTIONS_SELECTOR)) {
+    if (range.intersectsNode(block)) return true;
+  }
+  return false;
 }
 
 export function getPlainTextOffset(
@@ -19,64 +51,64 @@ export function getPlainTextOffset(
     if (node === targetNode) {
       return offset + targetOffset;
     }
-    offset += node.textContent?.length ?? 0;
+    if (!isInQuestions(node)) {
+      offset += node.textContent?.length ?? 0;
+    }
     node = walker.nextNode();
   }
 
   return offset;
 }
 
+/** The text annotation offsets are measured against — prose only, questions blocks excluded. */
 export function getPlainText(container: Node): string {
   let text = "";
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
   let node = walker.nextNode();
   while (node) {
-    text += node.textContent ?? "";
+    if (!isInQuestions(node)) {
+      text += node.textContent ?? "";
+    }
     node = walker.nextNode();
   }
   return text;
 }
 
-interface TextNodeRange {
-  node: Text;
-  start: number;
-  end: number;
-}
-
-function getTextNodesInRange(
+export function getTextNodesInRange(
   container: Node,
   startOffset: number,
   endOffset: number,
-): TextNodeRange[] {
-  const ranges: TextNodeRange[] = [];
+): Array<{ node: Text; start: number; end: number }> {
+  const result: Array<{ node: Text; start: number; end: number }> = [];
+  let currentOffset = 0;
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  let offset = 0;
 
   let node = walker.nextNode();
-  while (node) {
-    const nodeLen = node.textContent?.length ?? 0;
-    const nodeStart = offset;
-    const nodeEnd = offset + nodeLen;
+  while (node && currentOffset < endOffset) {
+    const textNode = node as Text;
+    const length = textNode.textContent?.length ?? 0;
+    const nodeStart = currentOffset;
+    const nodeEnd = currentOffset + length;
 
-    if (nodeEnd > startOffset && nodeStart < endOffset) {
-      const sliceStart = Math.max(0, startOffset - nodeStart);
-      const sliceEnd = Math.min(nodeLen, endOffset - nodeStart);
-      const slice = node.textContent?.slice(sliceStart, sliceEnd) ?? "";
-      if (slice.trim().length > 0) {
-        ranges.push({
-          node: node as Text,
-          start: sliceStart,
-          end: sliceEnd,
-        });
-      }
+    // Callout text is skipped outright: not highlighted, and not counted toward the offsets, which
+    // is what keeps an annotation anchored when a block's own rendering changes underneath it.
+    // getPlainTextOffset skips it the same way, so the two agree on what an offset means.
+    if (isInQuestions(node)) {
+      node = walker.nextNode();
+      continue;
     }
 
-    if (nodeStart >= endOffset) break;
-    offset = nodeEnd;
+    if (nodeEnd > startOffset && nodeStart < endOffset) {
+      const start = Math.max(0, startOffset - nodeStart);
+      const end = Math.min(length, endOffset - nodeStart);
+      result.push({ node: textNode, start, end });
+    }
+
+    currentOffset = nodeEnd;
     node = walker.nextNode();
   }
 
-  return ranges;
+  return result;
 }
 
 /**
@@ -114,11 +146,14 @@ export function getOffsetRect(
   return createRangeFromOffsets(container, startOffset, endOffset)?.getBoundingClientRect() ?? null;
 }
 
+export const getSelectionBoundingRect = getOffsetRect;
+
 export function applyAnnotationHighlights(
   container: HTMLElement,
   annotations: MarkdownAnnotation[],
 ): void {
   container.querySelectorAll("mark[data-annotation-id]").forEach((mark) => {
+    mark.querySelectorAll(".pmv-annotation-initials-badge").forEach((b) => b.remove());
     const parent = mark.parentNode;
     if (parent) {
       while (mark.firstChild) {
@@ -136,17 +171,37 @@ export function applyAnnotationHighlights(
   for (const annotation of sorted) {
     const textNodes = getTextNodesInRange(container, annotation.startOffset, annotation.endOffset);
 
-    for (const { node, start, end } of textNodes) {
+    for (let i = 0; i < textNodes.length; i++) {
+      const { node, start, end } = textNodes[i];
       const range = document.createRange();
       range.setStart(node, start);
       range.setEnd(node, end);
 
       const mark = document.createElement("mark");
       mark.dataset.annotationId = annotation.id;
-      mark.className = "pmv-annotation-highlight";
-      mark.title = annotation.comment;
+      mark.className = annotation.isResolved
+        ? "pmv-annotation-highlight pmv-annotation-resolved"
+        : "pmv-annotation-highlight";
+      const author = annotation.author?.trim();
+      const statusPrefix = annotation.isResolved ? "[Resolved] " : "";
+      mark.title = author
+        ? `${statusPrefix}[${author}] ${annotation.comment}`
+        : `${statusPrefix}${annotation.comment}`;
 
       range.surroundContents(mark);
+
+      if (i === textNodes.length - 1 && author) {
+        const initials = getInitials(author);
+        if (initials) {
+          const badge = document.createElement("span");
+          badge.className = annotation.isResolved
+            ? "pmv-annotation-initials-badge pmv-badge-resolved"
+            : "pmv-annotation-initials-badge";
+          badge.textContent = initials;
+          badge.title = annotation.isResolved ? `[Resolved] ${author}` : author;
+          mark.appendChild(badge);
+        }
+      }
     }
   }
 }

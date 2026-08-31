@@ -65,6 +65,11 @@ class AnnotationsApp : ViewBase
             > **Note:** This spec is subject to review by the platform team
             > before implementation begins.
 
+            ```questions
+            Should the retry budget be per-request or per-session?
+            What is the retention policy for read notifications?
+            ```
+
             ## Appendix: Rollout Plan
 
             The rollout proceeds in four phases, each gated on the previous phase's

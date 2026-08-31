@@ -12,12 +12,13 @@ using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.PullRequest;
 using Ivy.Tendril.Apps.ReviewAction;
 using Ivy.Tendril.Apps.Settings;
-using Ivy.Tendril.Apps.Trash;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Themes;
 using Ivy.Tendril.Widgets;
+using Ivy.Widgets.Internal;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.AppShell;
@@ -117,8 +118,47 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     // The Agent app id (and its menu-item Tag) collapses to "agent" via AppHelpers.GetApp.
     private const string AgentAppId = "agent";
 
-    private static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status)
+    private static readonly HashSet<string> ShareAllowedAppIds = new(StringComparer.OrdinalIgnoreCase)
     {
+        "review", "drafts"
+    };
+
+    private static MenuItem? FilterMenuItemForShare(MenuItem item, HashSet<string> allowedTags)
+    {
+        if (item.Children is { Length: > 0 } children)
+        {
+            var filteredChildren = children
+                .Select(c => FilterMenuItemForShare(c, allowedTags))
+                .Where(c => c != null)
+                .Select(c => c!)
+                .ToArray();
+
+            if (filteredChildren.Length == 0)
+                return null;
+
+            return item with { Children = filteredChildren };
+        }
+
+        if (item.Tag is string tag && allowedTags.Contains(tag))
+        {
+            return item;
+        }
+
+        return null;
+    }
+
+    private static string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "R";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1) return parts[0][..Math.Min(2, parts[0].Length)].ToUpperInvariant();
+        return string.Concat(parts.Take(2).Select(p => char.ToUpperInvariant(p[0])));
+    }
+
+    private static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status,
+        IAgentRunner runner, bool isShareMode = false)
+    {
+        var nonChatAgentCount = Math.Max(0, runner.ActiveSessions.Count - status.GeneratingChatSessionsCount);
         var badges = new Dictionary<string, int>
         {
             ["drafts"] = status.DraftCount,
@@ -126,12 +166,21 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             ["jobs"] = status.JobCount,
             ["icebox"] = status.IceboxCount,
             ["recommendations"] = status.RecommendationsCount,
-            ["trash"] = status.TrashCount,
-            ["chat"] = status.GeneratingChatSessionsCount
+            ["chat"] = status.GeneratingChatSessionsCount,
+            ["agent"] = nonChatAgentCount
         };
-        return repo.GetMenuItems()
-            .Select(m => AddBadge(m, badges))
-            .ToArray();
+        var items = repo.GetMenuItems()
+            .Select(m => AddBadge(m, badges));
+
+        if (isShareMode)
+        {
+            items = items
+                .Select(m => FilterMenuItemForShare(m, ShareAllowedAppIds))
+                .Where(m => m != null)
+                .Select(m => m!);
+        }
+
+        return items.ToArray();
     }
 
     /// <summary>
@@ -172,6 +221,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     {
         // All hooks must be at the top level of Build()
         var config = UseService<IConfigService>();
+        var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
         var logger = UseService<ILogger<TendrilAppShell>>();
         var tabs = UseState(ImmutableArray.Create<TabState>);
         var selectedIndex = UseState<int?>();
@@ -181,9 +231,9 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var currentApp = UseState<AppHost?>();
         var statusService = UseService<ITendrilProcessStatusService>();
         var agentRunner = UseService<IAgentRunner>();
-        var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current));
+        var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current, agentRunner, shareContext.IsShareMode));
         var status = UseState(() => statusService.Current);
-        var sidebarOpen = UseState(config.Settings.SidebarOpen);
+        var sidebarOpen = UseState(() => config.Settings.SidebarOpen);
         var sidebarList = UseState<ShellSidebarListState?>(() => null);
         var lastSessionIndex = UseRef<int?>(null);
         var args = UseService<AppContext>();
@@ -213,6 +263,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             return new PlanSearchDialog(isOpen);
         });
 
+        var isShareMode = shareContext.IsShareMode;
+
         UseEffect(() =>
         {
             var subscription = statusService.Status.Subscribe(s => status.Set(s));
@@ -233,23 +285,28 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             return sidebarListSignal.Receive(state => sidebarList.Set(state));
         });
 
-        UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, status.Value)); },
+        UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, status.Value, agentRunner, shareContext.IsShareMode)); },
             appRepository.Reloaded.ToTrigger(), status);
 
-        // Rebuild the menu when settings are saved (e.g. the coding agent changes), so the
-        // branded agent button updates immediately without needing a reload.
+        // Apply configured theme on mount
+        UseEffect(() =>
+        {
+            TendrilThemes.ApplyTheme(client, config.Settings.Theme);
+        });
+
+        // Rebuild the menu and reapply theme when settings are saved (e.g. the coding agent or theme changes),
+        // so the UI updates immediately without needing a reload.
         UseEffect(() =>
         {
             void OnSettingsReloaded(object? sender, EventArgs e)
             {
-                menuItems.Set(BuildMenuItems(appRepository, status.Value));
+                menuItems.Set(BuildMenuItems(appRepository, status.Value, agentRunner, shareContext.IsShareMode));
                 sidebarOpen.Set(config.Settings.SidebarOpen);
+                TendrilThemes.ApplyTheme(client, config.Settings.Theme);
             }
             config.SettingsReloaded += OnSettingsReloaded;
             return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);
         });
-
-        var isDesktop = desktopWindow != null;
 
         UseEffect(() =>
         {
@@ -257,7 +314,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             {
                 // Read the setting at notification time: the user can toggle it in Settings while
                 // the shell is mounted, and the effect does not re-subscribe on that change.
-                if (!ShouldShowInAppToast(isDesktop, config.Settings.DesktopNotifications))
+                if (!ShouldShowInAppToast(desktopWindow != null, config.Settings.DesktopNotifications))
                     return;
 
                 if (notification.IsSuccess)
@@ -270,26 +327,31 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             return Disposable.Create(() => jobService.NotificationReady -= OnNotification);
         });
 
+
         UseEffect(async () =>
         {
-            if (config.NeedsOnboarding) return;
+            if (config.NeedsOnboarding && !shareContext.IsShareMode) return;
 
-            var initialAppId = args.NavigationAppId ?? settings.DefaultAppId;
+            var defaultAppId = shareContext.IsShareMode ? "review" : settings.DefaultAppId;
+            var initialAppId = args.NavigationAppId ?? defaultAppId;
             var targetAppId = initialAppId;
             if (!string.IsNullOrWhiteSpace(targetAppId))
             {
                 // Force redirect from onboarding if it's already done
                 if (!config.NeedsOnboarding && OnboardingAppIds.Contains(targetAppId))
-                    targetAppId = settings.DefaultAppId;
+                    targetAppId = defaultAppId;
 
                 var appArgs = args.GetArgs<object>();
                 OpenApp(new NavigateArgs(targetAppId, appArgs), true);
             }
             else
             {
-                client.Redirect("/", true);
+                client.Redirect(shareContext.IsShareMode ? "/review" : "/", true);
             }
         });
+
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
+        var isDesktop = desktopWindow != null;
 
         // Auto-default: if there's exactly one visible app, select it and close sidebar
         var visibleApps = appRepository.GetMenuItems().FlattenWithPath().ToArray();
@@ -334,6 +396,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         {
             try
             {
+                if (isShareMode && navigateArgs.AppId != null && !ShareAllowedAppIds.Contains(navigateArgs.AppId))
+                {
+                    navigateArgs = navigateArgs with { AppId = "review" };
+                }
+
                 var router = new AppShellRouter();
                 var appDescriptor = navigateArgs.AppId != null
                     ? appRepository.GetApp(navigateArgs.AppId)
@@ -507,18 +574,12 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
         }
 
-        var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
-
         var settingsMenuItems = new[]
         {
             MenuItem.Default("Configuration")
                 .Tag("$setup")
                 .Icon(Icons.Construction)
                 .OnSelect(() => navigator.Navigate<SettingsApp>()),
-            MenuItem.Default("Trash")
-                .Tag("$trash")
-                .Icon(Icons.Trash2)
-                .OnSelect(() => navigator.Navigate<TrashApp>()),
             MenuItem.Default("Pull Requests")
                 .Tag("$pull-requests")
                 .Icon(Icons.GitPullRequest)
@@ -583,7 +644,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         if (config.ParseError != null)
             return new ConfigErrorApp(config);
 
-        if (config.NeedsOnboarding) return new OnboardingApp();
+        if (config.NeedsOnboarding && !isShareMode) return new OnboardingApp();
 
         // ----- Sidebar -----
 
@@ -690,10 +751,43 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 | noop.ToSelectInput(new[] { "_" }.ToOptions()).Disabled();
         });
 
+        // Share mode: reviewers get a read-only shell — no plan creation, and the footer
+        // identifies the reviewer instead of exposing the settings menu.
+        var reviewerPersona = shareContext.Persona;
+        var reviewerInitials = GetInitials(reviewerPersona);
+
+        object sidebarFooter = isShareMode
+            ? Layout.Horizontal().AlignContent(Align.Left).Height(Size.Auto()).Width(Size.Full())
+                | new Avatar(reviewerInitials).Small()
+                | Text.Block(reviewerPersona).Small().Bold().Overflow(Overflow.Ellipsis)
+            : settingsMenu;
+
+        // A shared link that points straight at one plan renders that plan alone, with no shell
+        // chrome around it.
+        if (isShareMode && HasDirectPlanId(args))
+        {
+            var selectedApp = tabs.Value.Length > 0
+                ? (selectedIndex.Value is { } shareIndex && CheckTabExists(shareIndex)
+                    ? tabs.Value[shareIndex].AppHost
+                    : tabs.Value[0].AppHost)
+                : pageContent;
+
+            return new Fragment(
+                selectInputWarmup,
+                selectedApp ?? null!,
+                importIssuesDialog,
+                updateDialog,
+                planSearchDialog,
+                closeTabShortcut
+            );
+        }
+
         var shell = new TendrilShell(
                 sidebarHeader: sidebarHeader,
-                sidebarBody: [newPlanButton, agentButton, nav, section],
-                sidebarFooter: settingsMenu,
+                sidebarBody: isShareMode
+                    ? [nav, section]
+                    : [newPlanButton, agentButton, nav, section],
+                sidebarFooter: sidebarFooter,
                 content: pageContent,
                 sessionContents: sessionContents,
                 tabs: tabsWidget,
@@ -713,6 +807,26 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             updateDialog,
             planSearchDialog
         );
+    }
+
+    internal static bool HasDirectPlanId(AppContext? appContext)
+    {
+        if (appContext == null) return false;
+        try
+        {
+            var reviewArgs = appContext.GetArgs<Ivy.Tendril.Apps.Review.ReviewAppArgs>();
+            if (!string.IsNullOrEmpty(reviewArgs?.PlanId)) return true;
+        }
+        catch { }
+
+        try
+        {
+            var draftsArgs = appContext.GetArgs<Ivy.Tendril.Apps.Drafts.DraftsAppArgs>();
+            if (!string.IsNullOrEmpty(draftsArgs?.PlanId)) return true;
+        }
+        catch { }
+
+        return false;
     }
 
     internal record TabState(string Id, string AppId, string Title, AppHost AppHost, Icons? Icon, string RefreshToken);

@@ -179,21 +179,6 @@ internal static class PlanYamlHelper
         }
     }
 
-    internal static string? FindTrashEntryById(string trashDir, string planId)
-    {
-        if (!Directory.Exists(trashDir)) return null;
-
-        try
-        {
-            var matches = Directory.GetFiles(trashDir, $"{planId}-*.md");
-            return matches.Length > 0 ? matches[0] : null;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
     internal static void LogCostToCsv(string planFolder, string jobType, int tokens, double cost)
     {
         if (!Directory.Exists(planFolder)) return;

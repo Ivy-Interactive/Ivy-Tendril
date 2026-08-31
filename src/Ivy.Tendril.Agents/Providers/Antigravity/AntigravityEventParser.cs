@@ -11,6 +11,7 @@ public sealed class AntigravityEventParser : IEventParser
 
     private static readonly IReadOnlyList<AgentEvent> Empty = Array.Empty<AgentEvent>();
     private const string StderrPrefix = "[stderr] ";
+    private string? _currentModel;
 
     public IReadOnlyList<AgentEvent> ParseLine(string rawLine)
     {
@@ -67,7 +68,7 @@ public sealed class AntigravityEventParser : IEventParser
 
     public IEventParser CreateFresh() => new AntigravityEventParser();
 
-    private static IReadOnlyList<AgentEvent> ParseInit(JsonElement root, string rawLine)
+    private IReadOnlyList<AgentEvent> ParseInit(JsonElement root, string rawLine)
     {
         var convId = root.TryGetProperty("conversation_id", out var cid) ? cid.GetString() ?? "" : "";
         string? model = null;
@@ -85,6 +86,9 @@ public sealed class AntigravityEventParser : IEventParser
                 }
             }
         }
+
+        if (model != null)
+            _currentModel = model;
 
         return [new SessionInitEvent
         {
@@ -195,24 +199,81 @@ public sealed class AntigravityEventParser : IEventParser
         return Empty;
     }
 
-    private static IReadOnlyList<AgentEvent> ParseResult(JsonElement root, string rawLine)
+    private IReadOnlyList<AgentEvent> ParseResult(JsonElement root, string rawLine)
     {
         if (!root.TryGetProperty("result", out var res)) return Empty;
 
         var status = res.TryGetProperty("status", out var sp) ? sp.GetString() : "SUCCESS";
-        var isSuccess = !string.Equals(status, "ERROR", StringComparison.OrdinalIgnoreCase);
         var responseText = res.TryGetProperty("response", out var rp) ? rp.GetString() : null;
         var errorText = res.TryGetProperty("error", out var ep) ? ep.GetString() : null;
         var durationSec = res.TryGetProperty("duration_seconds", out var dp) ? dp.GetDouble() : 0;
 
+        // If the agent completed its run and produced a response, treat it as successful
+        // even if Antigravity flagged a non-fatal recovered mid-turn tool error with status: ERROR.
+        var hasResponse = !string.IsNullOrWhiteSpace(responseText);
+        var isSuccess = !string.Equals(status, "ERROR", StringComparison.OrdinalIgnoreCase) || hasResponse;
+        var effectiveError = isSuccess ? null : errorText;
+
+        decimal? costUsd = null;
+        if (res.TryGetProperty("total_cost_usd", out var cp) ||
+            res.TryGetProperty("cost_usd", out cp) ||
+            res.TryGetProperty("total_cost", out cp) ||
+            root.TryGetProperty("total_cost_usd", out cp) ||
+            root.TryGetProperty("cost_usd", out cp) ||
+            root.TryGetProperty("total_cost", out cp))
+        {
+            costUsd = cp.GetDecimal();
+        }
+
+        string? model = res.TryGetProperty("model", out var rm) ? rm.GetString() :
+                        root.TryGetProperty("model", out var rtm) ? rtm.GetString() :
+                        _currentModel;
+
         AgentUsage? usage = null;
-        if (res.TryGetProperty("usage", out var usageEl))
+        if (res.TryGetProperty("usage", out var usageEl) || root.TryGetProperty("usage", out usageEl))
+        {
+            if (costUsd == null &&
+                (usageEl.TryGetProperty("total_cost_usd", out var ucp) ||
+                 usageEl.TryGetProperty("cost_usd", out ucp) ||
+                 usageEl.TryGetProperty("total_cost", out ucp)))
+            {
+                costUsd = ucp.GetDecimal();
+            }
+
+            if (model == null && usageEl.TryGetProperty("model", out var um))
+            {
+                model = um.GetString();
+            }
+
+            var inputTokens = usageEl.TryGetProperty("input_tokens", out var it) ? it.GetInt32() :
+                              usageEl.TryGetProperty("prompt_tokens", out it) ? it.GetInt32() : 0;
+            var outputTokens = usageEl.TryGetProperty("output_tokens", out var ot) ? ot.GetInt32() :
+                               usageEl.TryGetProperty("completion_tokens", out ot) ? ot.GetInt32() : 0;
+            var cacheReadTokens = usageEl.TryGetProperty("cache_read_tokens", out var cr) ? cr.GetInt32() :
+                                  usageEl.TryGetProperty("cache_read_input_tokens", out cr) ? cr.GetInt32() : 0;
+            var cacheWriteTokens = usageEl.TryGetProperty("cache_write_tokens", out var cw) ? cw.GetInt32() :
+                                   usageEl.TryGetProperty("cache_creation_tokens", out cw) ? cw.GetInt32() :
+                                   usageEl.TryGetProperty("cache_creation_input_tokens", out cw) ? cw.GetInt32() : 0;
+            var reasoningTokens = usageEl.TryGetProperty("reasoning_tokens", out var rt) ? rt.GetInt32() :
+                                  usageEl.TryGetProperty("thinking_tokens", out rt) ? rt.GetInt32() : 0;
+
+            usage = new AgentUsage
+            {
+                InputTokens = inputTokens,
+                OutputTokens = outputTokens,
+                CacheReadTokens = cacheReadTokens,
+                CacheWriteTokens = cacheWriteTokens,
+                ReasoningTokens = reasoningTokens,
+                CostUsd = costUsd,
+                Model = model,
+            };
+        }
+        else if (costUsd != null || model != null)
         {
             usage = new AgentUsage
             {
-                InputTokens = usageEl.TryGetProperty("input_tokens", out var it) ? it.GetInt32() : 0,
-                OutputTokens = usageEl.TryGetProperty("output_tokens", out var ot) ? ot.GetInt32() : 0,
-                CacheReadTokens = usageEl.TryGetProperty("cache_read_tokens", out var cr) ? cr.GetInt32() : 0,
+                CostUsd = costUsd,
+                Model = model,
             };
         }
 
@@ -220,7 +281,7 @@ public sealed class AntigravityEventParser : IEventParser
         {
             Kind = AgentEventKind.Result,
             Response = responseText,
-            Error = errorText,
+            Error = effectiveError,
             IsSuccess = isSuccess,
             Duration = durationSec > 0 ? TimeSpan.FromSeconds(durationSec) : null,
             Usage = usage,

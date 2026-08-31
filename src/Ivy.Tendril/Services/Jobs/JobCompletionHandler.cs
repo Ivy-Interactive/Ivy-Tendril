@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -59,7 +59,6 @@ internal class JobCompletionHandler
         HandlePlanStateTransition(job, isSuccess);
         TrackTelemetry(job, isSuccess);
         CleanupInboxFile(job);
-        CleanupOldTrashFiles();
         WriteJobLog(job);
         NotifyPlanWatcher(job);
         ScheduleCostCalculation(job, jobs, persistJob, raisePropertyChanged);
@@ -182,31 +181,43 @@ internal class JobCompletionHandler
         if (isSuccess)
             TrackSuccessTelemetry(job);
 
-        _telemetryService?.TrackJobCompleted(job.Type, job.Status, job.DurationSeconds, job.Provider);
+        _telemetryService?.TrackJobCompleted(job.Type, job.Status, job.DurationSeconds, job.Provider,
+            job.ResolvePlanId());
         FlushTelemetryAsync();
     }
 
     private void TrackSuccessTelemetry(JobItem job)
     {
-        if (job.TypedArgs is CreatePlanArgs)
+        if (job.TypedArgs is CreatePlanArgs createPlanArgs)
         {
-            var planFolder = job.TypedArgs?.PlanFolder ?? "";
+            // CreatePlanArgs has no PlanFolder — the folder does not exist yet when the job starts.
+            // VerifyCreatePlanResult (which runs earlier in HandleCompletion) records the resolved
+            // folder *name* in job.PlanFile, so resolve it against the plans directory here.
+            var plansDir = _planReaderService?.PlansDirectory;
+            var planFolder = !string.IsNullOrEmpty(plansDir) && !string.IsNullOrEmpty(job.PlanFile)
+                ? Path.Combine(plansDir, job.PlanFile)
+                : "";
+
             var level = "Feature";
-            string? stackHash = null;
+            // Fall back to the project the job was queued for, so stack_hash still lands even when
+            // the plan folder cannot be resolved.
+            var stackHash = _configService?.GetProject(createPlanArgs.Project)?.StackHash;
             if (Directory.Exists(planFolder))
             {
                 var plan = PlanYamlHelper.ReadPlanYaml(planFolder);
                 if (plan != null)
                 {
                     level = plan.Level;
-                    stackHash = _configService?.GetProject(plan.Project)?.StackHash;
+                    stackHash = _configService?.GetProject(plan.Project)?.StackHash ?? stackHash;
                 }
             }
-            _telemetryService?.TrackPlanCreated(new PlanCreatedContext(level, job.DurationSeconds, job.Provider, stackHash));
+            _telemetryService?.TrackPlanCreated(new PlanCreatedContext(level, job.DurationSeconds, job.Provider,
+                stackHash, job.ResolvePlanId()));
         }
         else if (job.TypedArgs is CreatePrArgs)
         {
-            _telemetryService?.TrackPrCreated(new PrCreatedContext(job.DurationSeconds, job.Provider));
+            _telemetryService?.TrackPrCreated(new PrCreatedContext(job.DurationSeconds, job.Provider,
+                job.ResolvePlanId()));
         }
     }
 
@@ -685,7 +696,7 @@ internal class JobCompletionHandler
                 return;
             }
 
-            if (IsDuplicatePlan(job) || IsInTrash(job)) return;
+            if (IsDuplicatePlan(job)) return;
 
             MarkCreatePlanFailed(job);
         }
@@ -796,7 +807,7 @@ internal class JobCompletionHandler
     private static void MarkCreatePlanFailed(JobItem job)
     {
         job.EnqueueSystemOutput(
-            "[Tendril] WARNING: CreatePlan completed but no plan folder or trash entry was found.");
+            "[Tendril] WARNING: CreatePlan completed but no plan folder was found.");
         job.Status = JobStatus.Failed;
         job.StatusMessage = JobFailureAnalyzer.TryReadFailureArtifact(job.OutputLines.ToList())
             ?? job.StatusMessage
@@ -818,7 +829,7 @@ internal class JobCompletionHandler
             }
         }
 
-        return IsDuplicatePlan(job) || IsInTrash(job);
+        return IsDuplicatePlan(job);
     }
 
     private static bool TryVerifyByReportedId(JobItem job, string plansDir)
@@ -854,10 +865,15 @@ internal class JobCompletionHandler
         return true;
     }
 
+    // CreatePlan signals a deliberate duplicate rejection by ending its final message with
+    // "identified as duplicate: <folder>". The negative lookahead skips the documented template
+    // form, whose placeholder is angle-bracketed, so an agent that reads or quotes Program.md
+    // mid-run cannot echo the marker and suppress a genuine "no plan produced" failure.
+    // OutputLines holds re-serialized JSON, so the '<' arrives escaped as < — match both.
     private static bool IsDuplicatePlan(JobItem job)
     {
         var outputText = string.Join("\n", job.OutputLines);
-        return Regex.IsMatch(outputText, "identified as duplicate:");
+        return Regex.IsMatch(outputText, @"identified as duplicate:\s*(?!<|\\u003[Cc])\S");
     }
 
     private static bool TryVerifyByFilesystem(JobItem job, string plansDir)
@@ -870,18 +886,6 @@ internal class JobCompletionHandler
             return true;
         }
         return false;
-    }
-
-    private bool IsInTrash(JobItem job)
-    {
-        var planId = job.ReportedPlanId ?? job.AllocatedPlanId;
-        var trashDir = _configService != null
-            ? Path.Combine(_configService.TendrilHome, "Trash")
-            : null;
-        var trashEntry = trashDir != null && !string.IsNullOrEmpty(planId)
-            ? PlanYamlHelper.FindTrashEntryById(trashDir, planId)
-            : null;
-        return trashEntry != null;
     }
 
     /// <summary>
@@ -997,28 +1001,6 @@ internal class JobCompletionHandler
         {
             if (File.Exists(job.InboxFile))
                 File.Delete(job.InboxFile);
-        }
-        catch
-        {
-        }
-    }
-
-    private static void CleanupOldTrashFiles()
-    {
-        var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME");
-        if (string.IsNullOrEmpty(tendrilHome)) return;
-
-        var trashDir = Path.Combine(tendrilHome, "Trash");
-        if (!Directory.Exists(trashDir)) return;
-
-        try
-        {
-            var cutoff = DateTime.UtcNow - TimeSpan.FromDays(7);
-            foreach (var file in Directory.GetFiles(trashDir))
-            {
-                if (File.GetLastWriteTimeUtc(file) < cutoff)
-                    File.Delete(file);
-            }
         }
         catch
         {

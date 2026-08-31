@@ -94,8 +94,10 @@ public abstract record WebViewerEvent;
 /// <summary>A console.log/warn/error (or an uncaught error) from the proxied page.</summary>
 public record ConsoleEvent(string Level, string Text, string? Stack) : WebViewerEvent;
 
-/// <summary>A click anywhere in the proxied page. <paramref name="ReactJson"/> is the
-/// detected component/source info as a JSON string (null if none).</summary>
+/// <summary>A click anywhere in the proxied page. <paramref name="DebugJson"/> is the
+/// source-attribution payload as a JSON string (null if none): where available it names the
+/// original file/line behind the element, with a provenance and confidence saying how it was
+/// derived. See the collector in proxy-assets/agent.js and the /__resolve endpoint.</summary>
 public record ClickEvent(
     string Tag,
     string? Text,
@@ -104,7 +106,7 @@ public record ClickEvent(
     int Button,
     double X,
     double Y,
-    string? ReactJson) : WebViewerEvent;
+    string? DebugJson) : WebViewerEvent;
 
 /// <summary>A completed comment: the user picked an element and submitted text.</summary>
 public record CommentEvent(
@@ -112,7 +114,7 @@ public record CommentEvent(
     string Xpath,
     string Selector,
     string Comment,
-    string? ReactJson) : WebViewerEvent;
+    string? DebugJson) : WebViewerEvent;
 
 /// <summary>A red-pen stroke. <paramref name="PointsJson"/> is the raw points array as JSON.</summary>
 public record DrawEvent(int PointCount, string PointsJson) : WebViewerEvent;

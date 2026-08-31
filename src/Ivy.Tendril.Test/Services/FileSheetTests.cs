@@ -38,6 +38,41 @@ public class FileSheetTests
     }
 
     [Fact]
+    public void CreateLinkClickHandler_CapturesUnixFilePath_WhenUnixFileUrlProvided()
+    {
+        var state = new TestState<string?>(null);
+        var handler = FileSheet.CreateLinkClickHandler(state);
+
+        handler("file:///Users/username/repo/file.cs");
+
+        Assert.Equal("/Users/username/repo/file.cs", state.Value);
+    }
+
+    [Fact]
+    public void CreateLinkClickHandler_UnescapesPercentEncodedSpaces()
+    {
+        var state = new TestState<string?>(null);
+        var handler = FileSheet.CreateLinkClickHandler(state);
+
+        handler("file:///Users/username/My%20Project/file.cs");
+
+        Assert.Equal("/Users/username/My Project/file.cs", state.Value);
+    }
+
+    [Fact]
+    public void CreateLinkClickHandler_StripsAnchorOrLineNumber()
+    {
+        var state = new TestState<string?>(null);
+        var handler = FileSheet.CreateLinkClickHandler(state);
+
+        handler("file:///Users/username/file.cs#L42");
+        Assert.Equal("/Users/username/file.cs", state.Value);
+
+        handler("file:///Users/username/file.cs:42");
+        Assert.Equal("/Users/username/file.cs", state.Value);
+    }
+
+    [Fact]
     public void CreateLinkClickHandler_InvokesPlanCallback_WhenPlanUrlProvided()
     {
         var fileState = new TestState<string?>(null);

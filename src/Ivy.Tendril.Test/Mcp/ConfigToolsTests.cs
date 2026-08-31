@@ -146,4 +146,21 @@ public class ConfigToolsTests : IDisposable
         Assert.StartsWith("Error:", result);
         Assert.Contains("Valid fields", result);
     }
+
+    [Fact]
+    public void SetConfig_Theme_UpdatesAndPersists()
+    {
+        var result = _tools.SetConfig("theme", "cupcake");
+        Assert.StartsWith("Updated theme", result);
+        Assert.Equal("cupcake", _tools.GetConfig("theme"));
+        Assert.Equal("cupcake", new ConfigService().Settings.Theme);
+    }
+
+    [Fact]
+    public void SetConfig_Theme_Unknown_ReturnsError()
+    {
+        var result = _tools.SetConfig("theme", "nonexistent");
+        Assert.StartsWith("Error:", result);
+        Assert.Contains("Valid themes", result);
+    }
 }

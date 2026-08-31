@@ -78,7 +78,26 @@ public class PromptwareRunner : IPromptwareRunner
         var programMd = Path.Combine(programFolder, "Program.md");
 
         if (!File.Exists(programMd))
-            throw new FileNotFoundException($"Program.md not found at {programMd}", programMd);
+        {
+            if (PromptwareDeployer.IsEmbeddedAvailable())
+            {
+                var promptwaresDir = Path.Combine(_configService.TendrilHome, "Promptwares");
+                _logger.LogInformation("Promptware Program.md missing at {Path}, attempting on-demand deployment to {TargetDir}", programMd, promptwaresDir);
+                try
+                {
+                    PromptwareDeployer.Deploy(promptwaresDir);
+                    programFolder = PromptwareHelper.ResolvePromptwareFolder(options.Promptware, _configService.TendrilHome, options.PromptwarePath);
+                    programMd = Path.Combine(programFolder, "Program.md");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed on-demand deployment of promptwares");
+                }
+            }
+
+            if (!File.Exists(programMd))
+                throw new FileNotFoundException($"Program.md not found at {programMd}", programMd);
+        }
 
         var values = new Dictionary<string, string>(options.Values);
 

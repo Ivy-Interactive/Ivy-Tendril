@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Agents.Providers.OpenCode;
 
 namespace Ivy.Tendril.Agents.Providers.Ivy;
@@ -35,11 +36,7 @@ public sealed class IvyCli : IAgentCli
 
     public AgentProcessSpec BuildProcessSpec(AgentLaunchConfig config)
     {
-        var model = config.Model;
-        if (string.IsNullOrEmpty(model) || model == "default")
-        {
-            model = "claude-opus-5";
-        }
+        var model = OpenCodeModelHelper.FormatModel(config.Model, "https://llmproxy.ivy.app");
         config = config with { Model = model };
 
         var spec = _inner.BuildProcessSpec(config);

@@ -650,4 +650,53 @@ public static class PathHelper
 
         return Path.GetFullPath(path);
     }
+
+    /// <summary>
+    /// Extracts a local filesystem path from a file:/// URI, handling cross-platform differences
+    /// between Windows and Unix/macOS, stripping line number/anchor suffixes, decoding percent-encoded
+    /// characters, and normalizing paths.
+    /// </summary>
+    public static string? ExtractPathFromFileUri(string? uri)
+    {
+        if (string.IsNullOrWhiteSpace(uri))
+            return null;
+
+        var trimmed = uri.Trim();
+        string rawPath;
+        if (trimmed.StartsWith("file:///", StringComparison.OrdinalIgnoreCase))
+        {
+            rawPath = trimmed["file:///".Length..];
+        }
+        else if (trimmed.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+        {
+            rawPath = trimmed["file://".Length..];
+        }
+        else
+        {
+            return null;
+        }
+
+        if (rawPath.StartsWith("localhost/", StringComparison.OrdinalIgnoreCase))
+        {
+            rawPath = rawPath["localhost".Length..];
+        }
+
+        // Remove trailing anchor or line number suffix (such as #L\d+, #\d+, :\d+, #L\d+-\d+, etc.)
+        rawPath = Regex.Replace(rawPath, @"(?:(?:#L?|:)\d+(?:-\d+)?|#.*)$", "", RegexOptions.IgnoreCase);
+
+        // Decode percent-encoded characters
+        rawPath = Uri.UnescapeDataString(rawPath);
+
+        // Strip extraneous leading slashes before a Windows drive letter (e.g., "/C:/..." or "///C:/...")
+        rawPath = Regex.Replace(rawPath, @"^/+(?=[a-zA-Z]:)", "");
+
+        // If not starting with a Windows drive letter (e.g. "C:"), ensure Unix absolute path starts with '/'
+        var isWindowsDrive = Regex.IsMatch(rawPath, @"^[a-zA-Z]:");
+        if (!isWindowsDrive && !rawPath.StartsWith('/'))
+        {
+            rawPath = "/" + rawPath;
+        }
+
+        return rawPath;
+    }
 }

@@ -67,7 +67,7 @@ public sealed class OpenCodeCli : IAgentCli
         if (!string.IsNullOrEmpty(config.Model))
         {
             args.Add("--model");
-            args.Add(config.Model);
+            args.Add(Helpers.OpenCodeModelHelper.FormatModel(config.Model));
         }
 
         if (config.Effort is not null)

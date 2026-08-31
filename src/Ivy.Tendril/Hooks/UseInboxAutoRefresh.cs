@@ -6,10 +6,10 @@ namespace Ivy.Tendril.Hooks;
 public static class UseInboxAutoRefreshExtensions
 {
     /// <summary>
-    ///     Refreshes the view whenever plan/job/trash state changes. Subscribes to the debounced
+    ///     Refreshes the view whenever plan/job state changes. Subscribes to the debounced
     ///     <see cref="ITendrilProcessStatusService.Status" /> observable (the same signal the
-    ///     sidebar badges use, fed by PlansChanged, CountsInvalidated, JobsStructureChanged and
-    ///     the Trash watcher) plus <see cref="IPlanWatcherService.PlansChanged" /> directly, which
+    ///     sidebar badges use, fed by PlansChanged, CountsInvalidated and JobsStructureChanged)
+    ///     plus <see cref="IPlanWatcherService.PlansChanged" /> directly, which
     ///     covers content changes where the counts stay equal (Status dedupes by record equality).
     /// </summary>
     public static void UseInboxAutoRefresh(this IViewContext context, RefreshToken refreshToken)

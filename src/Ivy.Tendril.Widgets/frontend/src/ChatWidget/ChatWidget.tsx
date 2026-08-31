@@ -2,11 +2,135 @@ import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { Mic, Bot, Cpu, Zap, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square, ArrowRight, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { AgentViewer } from "../AgentViewer";
 import { getMarkdownPlugins } from "../math";
-import { CodeBlock } from "../CodeBlock";
+import { BlockHandler } from "../BlockHandler";
 import { AlertBlockquote } from "../DraftMarkdown/AlertBlockquote";
 import "./chat-widget.css";
+
+if (typeof window !== "undefined") {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+}
+
+const PdfThumbnail: React.FC<{ url: string }> = ({ url }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const renderPdf = async () => {
+      try {
+        const loadingTask = pdfjsLib.getDocument({ url });
+        const pdf = await loadingTask.promise;
+        if (!active) return;
+        const page = await pdf.getPage(1);
+        if (!active) return;
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const context = canvas.getContext("2d");
+        if (!context) return;
+
+        const unscaledViewport = page.getViewport({ scale: 1.0 });
+        const scaleX = 140 / unscaledViewport.width;
+        const scaleY = 105 / unscaledViewport.height;
+        const baseScale = Math.max(scaleX, scaleY);
+        const scale = baseScale * 3;
+        const viewport = page.getViewport({ scale });
+
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport,
+          canvas: canvas,
+        };
+        await page.render(renderContext).promise;
+      } catch (err) {
+        console.error("PDF.js render failed:", err);
+        if (active) setError(true);
+      }
+    };
+
+    renderPdf();
+
+    return () => {
+      active = false;
+    };
+  }, [url]);
+
+  if (error) {
+    return (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "1.5rem",
+          background: "var(--muted)",
+        }}
+      >
+        📄
+      </div>
+    );
+  }
+
+  return <canvas ref={canvasRef} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top", display: "block" }} />;
+};
+
+const isImageFile = (nameOrType: string) => {
+  const lower = nameOrType.toLowerCase();
+  if (lower.startsWith("image/")) return true;
+  const ext = lower.split(".").pop() || "";
+  return ["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(ext);
+};
+
+const isPdfFile = (nameOrType: string) => {
+  const lower = nameOrType.toLowerCase();
+  return lower === "application/pdf" || lower.endsWith(".pdf");
+};
+
+const getFileExtBadge = (name: string): string => {
+  const ext = name.split(".").pop()?.toUpperCase() || "FILE";
+  return ext.length > 5 ? ext.slice(0, 5) : ext;
+};
+
+const parseUserMessageContent = (content: string) => {
+  if (!content) return { prompt: "", attachedPaths: [] };
+  const marker = "\n\n[Attached Files]:";
+  const markerIndex = content.indexOf(marker);
+  if (markerIndex !== -1) {
+    const prompt = content.substring(0, markerIndex).trim();
+    const filesSection = content.substring(markerIndex + marker.length);
+    const paths = filesSection
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith("- "))
+      .map((l) => l.substring(2).trim())
+      .filter(Boolean);
+    return { prompt, attachedPaths: paths };
+  }
+  const altMarker = "[Attached Files]:";
+  const altIndex = content.indexOf(altMarker);
+  if (altIndex !== -1) {
+    const prompt = content.substring(0, altIndex).trim();
+    const filesSection = content.substring(altIndex + altMarker.length);
+    const paths = filesSection
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith("- "))
+      .map((l) => l.substring(2).trim())
+      .filter(Boolean);
+    return { prompt, attachedPaths: paths };
+  }
+  return { prompt: content, attachedPaths: [] };
+};
 
 export interface ChatMessageDto {
   id: string;
@@ -52,6 +176,8 @@ export interface ChatAttachmentDto {
   size: number;
   base64Data?: string;
   localPath?: string;
+  lineCount?: number;
+  previewUrl?: string;
 }
 
 type IvyEventHandler = (eventName: string, widgetId: string, args: unknown[]) => void;
@@ -221,6 +347,7 @@ export function ChatWidget({
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null);
   const [editingQueuedText, setEditingQueuedText] = useState("");
   const [pendingRenames, setPendingRenames] = useState<Record<string, string>>({});
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -229,6 +356,47 @@ export function ChatWidget({
   const initialPromptRef = useRef<string>("");
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
+
+  useEffect(() => {
+    setShowDeleteConfirm(false);
+  }, [activeSessionId]);
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (activeSession) {
+      emit("OnDeleteSession", activeSession.id);
+    }
+    setShowDeleteConfirm(false);
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+  };
+
+  useEffect(() => {
+    if (!showDeleteConfirm) return;
+
+    const handleDialogKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        handleDeleteConfirm();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        handleDeleteCancel();
+      }
+    };
+
+    window.addEventListener("keydown", handleDialogKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", handleDialogKeyDown, true);
+    };
+  }, [showDeleteConfirm, activeSession]);
 
   // Clear pending renames once they appear in props
   useEffect(() => {
@@ -352,89 +520,168 @@ export function ChatWidget({
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProcessFiles = async (filesList: FileList | File[]) => {
+    const list = Array.from(filesList);
+    if (list.length === 0) return;
+
+    const newAttachments: ChatAttachmentDto[] = [];
+
+    for (let i = 0; i < list.length; i++) {
+      const file = list[i];
+      const mimeType = file.type || "application/octet-stream";
+      const ext = mimeType.split("/")[1] || file.name?.split(".").pop() || "bin";
+      const fileName =
+        file.name && file.name.trim() !== "" && file.name !== "blob"
+          ? file.name
+          : `file_${Date.now()}_${i}.${ext}`;
+
+      let lineCount: number | undefined;
+      if (
+        (mimeType.startsWith("text/") ||
+          fileName.endsWith(".txt") ||
+          fileName.endsWith(".log") ||
+          fileName.endsWith(".json") ||
+          fileName.endsWith(".csv") ||
+          fileName.endsWith(".md") ||
+          fileName.endsWith(".cs") ||
+          fileName.endsWith(".ts") ||
+          fileName.endsWith(".tsx") ||
+          fileName.endsWith(".js") ||
+          fileName.endsWith(".py") ||
+          fileName.endsWith(".yaml") ||
+          fileName.endsWith(".yml") ||
+          fileName.endsWith(".xml") ||
+          fileName.endsWith(".html")) &&
+        typeof file.text === "function"
+      ) {
+        try {
+          const textContent = await file.text();
+          lineCount = textContent.split("\n").length;
+        } catch {
+          // ignore
+        }
+      }
+
+      let previewUrl: string | undefined;
+      if (isImageFile(mimeType || fileName) || isPdfFile(mimeType || fileName)) {
+        try {
+          if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
+            previewUrl = URL.createObjectURL(file);
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      let base64Data = "";
+      try {
+        if (typeof FileReader !== "undefined") {
+          base64Data = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              resolve((evt.target?.result as string) || "");
+            };
+            reader.onerror = () => resolve("");
+            reader.readAsDataURL(file);
+          });
+        }
+      } catch {
+        base64Data = "";
+      }
+
+      newAttachments.push({
+        name: fileName,
+        contentType: mimeType,
+        size: file.size || 0,
+        base64Data,
+        lineCount,
+        previewUrl,
+      });
+    }
+
+    setAttachments((prev) => [...prev, ...newAttachments]);
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        const base64Data = evt.target?.result as string;
-        setAttachments((prev) => [
-          ...prev,
-          {
-            name: file.name,
-            contentType: file.type || "application/octet-stream",
-            size: file.size,
-            base64Data,
-          },
-        ]);
-      };
-      reader.readAsDataURL(file);
-    });
-
+    await handleProcessFiles(files);
     e.target.value = "";
   };
 
   const removeAttachment = (index: number) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
+    setAttachments((prev) => {
+      const target = prev[index];
+      if (target?.previewUrl) {
+        try {
+          URL.revokeObjectURL(target.previewUrl);
+        } catch {
+          // ignore
+        }
+      }
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData?.items;
     const files = e.clipboardData?.files;
 
-    let hasImage = false;
+    const pastedFiles: File[] = [];
 
     if (files && files.length > 0) {
-      Array.from(files).forEach((file) => {
-        if (file.type.startsWith("image/")) {
-          hasImage = true;
-          const reader = new FileReader();
-          reader.onload = (evt) => {
-            const base64Data = evt.target?.result as string;
-            setAttachments((prev) => [
-              ...prev,
-              {
-                name: file.name || `screenshot-${Date.now()}.png`,
-                contentType: file.type || "image/png",
-                size: file.size,
-                base64Data,
-              },
-            ]);
-          };
-          reader.readAsDataURL(file);
-        }
-      });
-    }
-
-    if (!hasImage && items && items.length > 0) {
-      Array.from(items).forEach((item) => {
-        if (item.type.startsWith("image/")) {
-          hasImage = true;
-          const file = item.getAsFile();
+      for (let i = 0; i < files.length; i++) {
+        pastedFiles.push(files[i]);
+      }
+    } else if (items && items.length > 0) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].kind === "file") {
+          const file = items[i].getAsFile();
           if (file) {
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-              const base64Data = evt.target?.result as string;
-              setAttachments((prev) => [
-                ...prev,
-                {
-                  name: file.name || `screenshot-${Date.now()}.png`,
-                  contentType: file.type || "image/png",
-                  size: file.size,
-                  base64Data,
-                },
-              ]);
-            };
-            reader.readAsDataURL(file);
+            pastedFiles.push(file);
           }
         }
-      });
+      }
     }
 
-    if (hasImage) {
+    if (pastedFiles.length > 0) {
       e.preventDefault();
+      await handleProcessFiles(pastedFiles);
+    }
+  };
+
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = "copy";
+    }
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = "copy";
+    }
+    setIsDragging(true);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await handleProcessFiles(e.dataTransfer.files);
     }
   };
 
@@ -549,10 +796,7 @@ export function ChatWidget({
               <button
                 type="button"
                 className="chat-header-delete-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  emit("OnDeleteSession", activeSession.id);
-                }}
+                onClick={handleDeleteClick}
                 title="Delete chat session"
                 aria-label="Delete chat session"
               >
@@ -576,7 +820,33 @@ export function ChatWidget({
                     </div>
                   )}
                   {msg.role === "user" ? (
-                    <div>{msg.content}</div>
+                    (() => {
+                      const { prompt, attachedPaths } = parseUserMessageContent(msg.content);
+                      return (
+                        <div className="chat-user-message-body">
+                          {prompt && (
+                            <div className="chat-user-prompt-text">
+                              {prompt}
+                            </div>
+                          )}
+                          {attachedPaths.length > 0 && (
+                            <div className="chat-user-message-attachments">
+                              {attachedPaths.map((filePath, idx) => {
+                                const fileName = filePath.split(/[/\\]/).pop() || filePath;
+                                const ext = fileName.split(".").pop()?.toUpperCase() || "FILE";
+                                return (
+                                  <div key={idx} className="chat-user-attachment-badge" title={filePath}>
+                                    <Paperclip size={12} className="chat-user-attachment-icon" />
+                                    <span className="chat-user-attachment-name">{fileName}</span>
+                                    <span className="chat-user-attachment-ext">{ext}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()
                   ) : msg.rawStream ? (
                     <AgentViewer
                       id={`msg-${msg.id}`}
@@ -593,7 +863,7 @@ export function ChatWidget({
                       <div className="chat-markdown-body">
                         <ReactMarkdown
                           {...getMarkdownPlugins(msg.content)}
-                          components={{ code: CodeBlock, blockquote: AlertBlockquote }}
+                          components={{ code: BlockHandler, blockquote: AlertBlockquote }}
                         >
                           {msg.content}
                         </ReactMarkdown>
@@ -745,24 +1015,63 @@ export function ChatWidget({
               )}
             </div>
           )}
-          <div className="chat-input-box">
-            {/* Attachment preview pills */}
+          <div
+            className={`chat-input-box ${isDragging ? "dragging" : ""}`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            {/* Attachment preview cards */}
             {attachments.length > 0 && (
               <div className="chat-attachments-row">
-                {attachments.map((att, idx) => (
-                  <div key={idx} className="chat-attachment-chip">
-                    <Paperclip size={12} />
-                    <span className="chat-attachment-name">{att.name}</span>
-                    <span className="chat-attachment-size">({formatFileSize(att.size)})</span>
-                    <button
-                      type="button"
-                      className="chat-attachment-remove"
-                      onClick={() => removeAttachment(idx)}
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
+                {attachments.map((att, idx) => {
+                  const isImage = isImageFile(att.contentType || att.name);
+                  const isPdf = isPdfFile(att.contentType || att.name);
+                  const previewSrc = att.previewUrl || (att.base64Data && att.base64Data.startsWith("data:") ? att.base64Data : undefined);
+                  const metaText = att.lineCount !== undefined ? `${att.lineCount} lines` : formatFileSize(att.size);
+                  const badge = getFileExtBadge(att.name);
+
+                  return (
+                    <div key={idx} className="chat-thumbnail-card" title={att.name}>
+                      {/* Background Preview for images/PDFs */}
+                      {(isImage || isPdf) && previewSrc && (
+                        <div className="chat-thumbnail-preview-container">
+                          {isImage ? (
+                            <img className="chat-thumbnail-image-preview" src={previewSrc} alt={att.name} />
+                          ) : (
+                            <PdfThumbnail url={previewSrc} />
+                          )}
+                          <div className="chat-thumbnail-preview-overlay" />
+                        </div>
+                      )}
+
+                      {/* Overlaid Close Button */}
+                      <button
+                        type="button"
+                        className="chat-thumbnail-card-remove"
+                        onClick={() => removeAttachment(idx)}
+                        title="Remove file"
+                        aria-label="Remove attachment"
+                      >
+                        <X size={12} />
+                      </button>
+
+                      {/* Overlaid File Metadata & Badge */}
+                      <div className="chat-thumbnail-content">
+                        {!(previewSrc && (isImage || isPdf)) ? (
+                          <div style={{ minWidth: 0 }}>
+                            <div className="chat-thumbnail-doc-name" title={att.name}>{att.name}</div>
+                            <div className="chat-thumbnail-doc-meta">{metaText}</div>
+                          </div>
+                        ) : (
+                          <div />
+                        )}
+                        <div className="chat-thumbnail-doc-badge">{badge}</div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -862,6 +1171,60 @@ export function ChatWidget({
           </div>
         </div>
       </div>
+
+      {showDeleteConfirm &&
+        activeSession &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="chat-confirm-overlay"
+            onClick={handleDeleteCancel}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="chat-delete-confirm-title"
+          >
+            <div
+              className="chat-confirm-modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="chat-confirm-header">
+                <h3 id="chat-delete-confirm-title" className="chat-confirm-title">
+                  Delete Chat
+                </h3>
+              </div>
+              <div className="chat-confirm-body">
+                <p className="chat-confirm-desc">
+                  Are you sure you want to delete{" "}
+                  {activeSession.title ? (
+                    <strong>&ldquo;{activeSession.title}&rdquo;</strong>
+                  ) : (
+                    "this chat session"
+                  )}
+                  ? This action cannot be undone.
+                </p>
+              </div>
+              <div className="chat-confirm-actions">
+                <button
+                  type="button"
+                  className="chat-confirm-btn cancel"
+                  onClick={handleDeleteCancel}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="chat-confirm-btn delete"
+                  onClick={handleDeleteConfirm}
+                  autoFocus
+                >
+                  <span>Delete</span>
+                  <kbd className="chat-shortcut-hint">Ctrl+Enter</kbd>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

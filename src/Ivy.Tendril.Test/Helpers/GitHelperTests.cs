@@ -195,6 +195,8 @@ public class GitHelperTests : IDisposable
 
     [Theory]
     [InlineData("https://github.com/Ivy-Interactive/Ivy-Framework", "development")]
+    [InlineData("Https://github.com/Ivy-Interactive/Ivy-Framework", "development")]
+    [InlineData("HTTPS://GITHUB.COM/Ivy-Interactive/Tendril-Test-Runner", "main")]
     [InlineData("https://github.com/Ivy-Interactive/Tendril-Test-Runner", "main")]
     [InlineData("https://github.com/nielsbosma/SeoTools-for-Excel-Connectors", "master")]
     public async Task ResolveDefaultBranch_KnownRemoteUrl_DetectsDefaultBranch(string url, string expectedBranch)

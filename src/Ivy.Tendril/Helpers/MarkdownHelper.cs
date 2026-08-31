@@ -22,9 +22,9 @@ public static partial class MarkdownHelper
         {
             var linkText = match.Groups[1].Value;
             var url = match.Groups[2].Value;
-            var filePath = url["file:///".Length..];
+            var filePath = PathHelper.ExtractPathFromFileUri(url);
 
-            if (File.Exists(filePath))
+            if (filePath != null && File.Exists(filePath))
                 return match.Value;
 
             return $"[{linkText} \u26a0\ufe0f]({url})";

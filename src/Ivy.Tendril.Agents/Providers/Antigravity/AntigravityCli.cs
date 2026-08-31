@@ -17,6 +17,7 @@ public sealed class AntigravityCli : IAgentCli
         AgentCapabilities.EffortControl |
         AgentCapabilities.DirectoryRestriction |
         AgentCapabilities.HealthCheck |
+        AgentCapabilities.CostInOutput |
         AgentCapabilities.ExtraArgPassthrough;
 
     public TransportKind SupportedTransports => TransportKind.CliSpawn;
