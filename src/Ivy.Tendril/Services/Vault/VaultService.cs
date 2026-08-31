@@ -1212,59 +1212,76 @@ public class VaultService : IVaultService
         return new VaultResult(true, $"Successfully imported project '{finalLocalProjectName}' (v{manifest.Version})");
     }
 
-    public async Task<VaultResult> DeleteProjectFromVaultAsync(string projectName, string? vaultId = null)
+    public async Task<VaultPrResult> DeleteProjectFromVaultAsync(string projectName, string? vaultId = null)
     {
         EnsureVaultsInitialized();
         var vault = GetVaultSettings(vaultId);
 
         if (vault == null)
         {
-            return new VaultResult(false, "No vault configured for deletion.", "Vault not found");
+            return new VaultPrResult(false, ErrorMessage: "No vault configured for deletion.");
         }
 
         var vaultDir = GetVaultDirectory(vault);
+        if (!Directory.Exists(Path.Combine(vaultDir, ".git")))
+        {
+            return new VaultPrResult(false, ErrorMessage: "Vault repository is not initialized locally.");
+        }
+
         var projDir = Path.Combine(vaultDir, "projects", projectName);
-
-        if (Directory.Exists(projDir))
+        if (!Directory.Exists(projDir))
         {
-            try
-            {
-                Directory.Delete(projDir, true);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to delete directory {Dir}", projDir);
-                return new VaultResult(false, $"Failed to delete project directory: {ex.Message}", ex.ToString());
-            }
+            return new VaultPrResult(false, ErrorMessage: $"Project '{projectName}' was not found in vault '{vault.Name}'.");
         }
 
-        vault.TrackedProjects.Remove(projectName);
-        if (_config.Settings.Vault != null && _config.Settings.Vault.Id == vault.Id)
+        var version = GenerateVersionTimestamp();
+        var timestampId = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+        var branchName = $"vault/delete-{projectName.ToLowerInvariant()}-{timestampId}";
+
+        try
         {
-            _config.Settings.Vault.TrackedProjects.Remove(projectName);
+            await RunGitCommandAsync(vaultDir, "checkout main");
+            await RunGitCommandAsync(vaultDir, "pull origin main");
+            await RunGitCommandAsync(vaultDir, $"checkout -B {branchName}");
+
+            Directory.Delete(projDir, true);
+
+            var rootManifest = new VaultManifest
+            {
+                Name = vault.Name,
+                Version = version,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            File.WriteAllText(Path.Combine(vaultDir, "vault.yaml"), YamlHelper.SerializerCompact.Serialize(rootManifest));
+
+            await RunGitCommandAsync(vaultDir, "add -A");
+            await RunGitCommandAsync(vaultDir, $"commit -m \"chore(vault): delete {projectName} from vault (v{version})\"");
+            await RunGitCommandAsync(vaultDir, $"push -u origin {branchName}");
+
+            var prTitle = $"Delete {projectName} from vault (v{version})";
+            var prBody = $"### Vault Project Deletion\n\nThis PR removes the **{projectName}** project and its assets from the vault.";
+
+            var ghPrCmd = $"pr create --title \"{prTitle.Replace("\"", "\\\"")}\" --body \"{prBody.Replace("\"", "\\\"")}\" --head \"{branchName}\"";
+            var (prOut, _) = await RunGhCliAsync(ghPrCmd, vaultDir);
+            var prUrl = prOut?.Trim();
+
+            vault.TrackedProjects.Remove(projectName);
+            if (_config.Settings.Vault != null && _config.Settings.Vault.Id == vault.Id)
+            {
+                _config.Settings.Vault.TrackedProjects.Remove(projectName);
+            }
+
+            vault.LastSyncedAt = DateTimeOffset.UtcNow;
+            _config.SaveSettings();
+            VaultChanged?.Invoke();
+
+            return new VaultPrResult(true, PrUrl: prUrl, BranchName: branchName);
         }
-
-        _config.SaveSettings();
-
-        if (Directory.Exists(Path.Combine(vaultDir, ".git")))
+        catch (Exception ex)
         {
-            try
-            {
-                await RunGitCommandAsync(vaultDir, "add -A");
-                var (_, commitErr) = await RunGitCommandAsync(vaultDir, $"commit -m \"chore(vault): delete {projectName}\"");
-                if (commitErr == null || !commitErr.Contains("nothing to commit", StringComparison.OrdinalIgnoreCase))
-                {
-                    await RunGitCommandAsync(vaultDir, "push origin main");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to push deletion commit for {Project}", projectName);
-            }
+            _logger.LogError(ex, "Failed to create PR for deleting project {Project}", projectName);
+            return new VaultPrResult(false, ErrorMessage: ex.Message);
         }
-
-        VaultChanged?.Invoke();
-        return new VaultResult(true, $"Successfully deleted project '{projectName}' from vault '{vault.Name}'.");
     }
 
     public async Task<VaultSyncResult> PullLatestAsync(string? vaultId = null)

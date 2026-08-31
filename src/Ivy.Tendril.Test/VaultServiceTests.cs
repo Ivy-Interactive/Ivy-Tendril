@@ -559,6 +559,7 @@ verifications: []
     {
         var config = CreateConfig();
         var vaultDir = Path.Combine(_tempDir.Path, "Vault");
+        Directory.CreateDirectory(Path.Combine(vaultDir, ".git"));
         var projectDir = Path.Combine(vaultDir, "projects", "DeletableApp");
         Directory.CreateDirectory(projectDir);
         File.WriteAllText(Path.Combine(projectDir, "project.yaml"), "name: DeletableApp");
@@ -583,6 +584,7 @@ verifications: []
         Assert.True(result.Success);
         Assert.False(Directory.Exists(projectDir));
         Assert.DoesNotContain("DeletableApp", config.Settings.Vaults[0].TrackedProjects.Keys);
+        Assert.StartsWith("vault/delete-deletableapp-", result.BranchName);
     }
 
     [Fact]

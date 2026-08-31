@@ -162,11 +162,11 @@ public class VaultSetupView : ViewBase
                 new DialogHeader($"Delete '{projectToDelete.Value}' from Vault?"),
                 new DialogBody(Layout.Vertical()
                     | Callout.Destructive($"This will remove project '{projectToDelete.Value}' and all its associated manifests, skills, MCP configs, and memories from the vault repository.")
-                    | Text.Block("This action commits and pushes the deletion to the vault repository.")),
+                    | Text.Block("A new branch and pull request will be opened against the vault repository to perform this deletion.")),
                 new DialogFooter(
                     new Button("Cancel").Outline().OnClick(() => openDeleteConfirm.Set(false)),
-                    new Button("Delete from Vault")
-                        .Icon(Icons.Trash2)
+                    new Button("Create Deletion PR")
+                        .Icon(Icons.GitPullRequest)
                         .Destructive()
                         .Loading(isDeleting.Value)
                         .OnClick(async () =>
@@ -177,13 +177,16 @@ public class VaultSetupView : ViewBase
                             openDeleteConfirm.Set(false);
                             if (res.Success)
                             {
-                                client.Toast(res.Message, "Project Deleted");
+                                var msg = !string.IsNullOrEmpty(res.PrUrl)
+                                    ? $"Created PR: {res.PrUrl}"
+                                    : $"Created deletion branch {res.BranchName}";
+                                client.Toast(msg, "Deletion PR Created");
                                 catalogQuery.Mutator.Revalidate();
                                 statusQuery.Mutator.Revalidate();
                             }
                             else
                             {
-                                client.Toast(res.ErrorMessage ?? res.Message, "Delete Failed").Destructive();
+                                client.Toast(res.ErrorMessage ?? "Failed to delete project from vault", "Delete Failed").Destructive();
                             }
                         })
                 )

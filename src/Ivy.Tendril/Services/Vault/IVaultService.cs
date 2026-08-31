@@ -32,7 +32,7 @@ public interface IVaultService
 
     Task<VaultResult> ImportProjectAsync(string projectName, Dictionary<string, string> localRepoMappings, string? vaultId = null);
 
-    Task<VaultResult> DeleteProjectFromVaultAsync(string projectName, string? vaultId = null);
+    Task<VaultPrResult> DeleteProjectFromVaultAsync(string projectName, string? vaultId = null);
 
     Task<VaultSyncResult> PullLatestAsync(string? vaultId = null);
 
