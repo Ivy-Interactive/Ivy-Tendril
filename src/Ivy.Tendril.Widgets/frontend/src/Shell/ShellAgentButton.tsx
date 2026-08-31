@@ -8,6 +8,7 @@ interface ShellAgentButtonProps extends ShellWidgetProps {
   icon?: string;
   newChatLabel?: string;
   shortcutKey?: string;
+  isActive?: boolean;
 }
 
 /**
@@ -23,6 +24,7 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
   icon,
   newChatLabel = "New chat",
   shortcutKey = "A",
+  isActive = false,
 }) => {
   const fireOpen = useCallback(() => {
     if (events.includes("OnOpen")) eventHandler("OnOpen", id, []);
@@ -51,7 +53,12 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
 
   return (
     <div className="tsh-agent-wrap">
-      <button className="tsh-agent" onClick={fireOpen} title={label}>
+      <button
+        className="tsh-agent"
+        data-active={isActive}
+        onClick={fireOpen}
+        title={label}
+      >
         <span className="tsh-agent-brand">
           <span className="tsh-agent-icon">
             <BrandIcon name={icon} size={16} />

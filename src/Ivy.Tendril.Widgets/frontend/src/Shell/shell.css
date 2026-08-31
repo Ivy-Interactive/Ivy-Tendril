@@ -155,9 +155,14 @@
   min-width: 0;
   position: relative;
   background: var(--tsh-surface);
-  border-bottom: 1px solid var(--tsh-border);
   border-radius: 0 0 12px 12px;
   overflow: hidden;
+}
+
+/* The bottom border only exists to separate the frame from the tab strip, so it
+   appears only while there are tabs to separate from. */
+.tsh-frame[data-has-tabs="true"] {
+  border-bottom: 1px solid var(--tsh-border);
 }
 
 .tsh-frame-pane {
@@ -401,8 +406,13 @@
   transition: background-color 150ms ease, padding var(--tsh-anim);
 }
 
-.tsh-agent:hover {
+.tsh-agent:hover,
+.tsh-agent[data-active="true"] {
   background: var(--tsh-row-active);
+}
+
+.tsh-agent[data-active="true"] .tsh-agent-label {
+  font-weight: 500;
 }
 
 .tsh-agent-brand {

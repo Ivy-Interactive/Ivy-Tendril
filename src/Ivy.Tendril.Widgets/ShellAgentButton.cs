@@ -18,6 +18,9 @@ public record ShellAgentButton : WidgetBase<ShellAgentButton>
     /// <summary>Key combined with the platform command key (Cmd/Ctrl), handled client-side.</summary>
     [Prop] public string ShortcutKey { get; init; } = "A";
 
+    /// <summary>Highlights the row while an agent session is the visible pane.</summary>
+    [Prop] public bool IsActive { get; init; }
+
     [Event] public EventHandler<Event<ShellAgentButton>>? OnOpen { get; init; }
     [Event] public EventHandler<Event<ShellAgentButton>>? OnNewChat { get; init; }
 }
@@ -29,6 +32,9 @@ public static class ShellAgentButtonExtensions
 
     public static ShellAgentButton Icon(this ShellAgentButton w, string? icon) =>
         w with { Icon = icon };
+
+    public static ShellAgentButton IsActive(this ShellAgentButton w, bool isActive) =>
+        w with { IsActive = isActive };
 
     public static ShellAgentButton OnOpen(this ShellAgentButton w, Action handler) =>
         w with { OnOpen = new(_ => { handler(); return ValueTask.CompletedTask; }) };

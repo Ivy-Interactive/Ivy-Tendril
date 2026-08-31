@@ -666,8 +666,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .OnClick(() => open())
         ));
 
+        // While a session pane is visible the agent row is the selected item, so the
+        // nav must not keep highlighting the page app behind it.
+        var sessionIsActive = selectedIndex.Value is { } activeSession && CheckTabExists(activeSession);
+        var activeNavAppId = sessionIsActive ? null : currentApp.Value?.AppId;
+
         var (agentLabel, _) = AgentBranding.For(config.Settings.CodingAgent, agentRunner, config);
         var agentButton = new ShellAgentButton()
+            .IsActive(sessionIsActive)
             .Label(agentLabel)
             .Icon(AgentBranding.IconFor(config.Settings.CodingAgent, config).ToString())
             .OnOpen(() =>
@@ -700,7 +706,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         }
 
         var nav = new ShellNav()
-            .Items(BuildNavItems(menuItems.Value, currentApp.Value?.AppId))
+            .Items(BuildNavItems(menuItems.Value, activeNavAppId))
             .ShowDivider(section != null)
             .OnSelect(appId => OpenApp(new NavigateArgs(appId)));
 
@@ -793,6 +799,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 tabs: tabsWidget,
                 hidden: [selectInputWarmup, closeTabShortcut])
             .Collapsed(!sidebarOpen.Value)
+            .HasTabs(tabs.Value.Length > 0)
             .ActiveSessionIndex(selectedIndex.Value)
             .OnCollapsedChanged(collapsed =>
             {

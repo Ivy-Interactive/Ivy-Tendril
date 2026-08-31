@@ -6,6 +6,7 @@ import "./shell.css";
 interface TendrilShellProps extends ShellWidgetProps {
   collapsed?: boolean;
   activeSessionIndex?: number | null;
+  hasTabs?: boolean;
   slots?: {
     SidebarHeader?: React.ReactNode;
     SidebarBody?: React.ReactNode;
@@ -33,6 +34,7 @@ export const TendrilShell: React.FC<TendrilShellProps> = ({
   eventHandler,
   collapsed: collapsedProp = false,
   activeSessionIndex,
+  hasTabs = false,
   slots,
 }) => {
   const [collapsed, setCollapsed] = useState(collapsedProp);
@@ -77,7 +79,7 @@ export const TendrilShell: React.FC<TendrilShellProps> = ({
         </div>
         <div className="tsh-main">
           <div className="tsh-container">
-            <div className="tsh-frame">
+            <div className="tsh-frame" data-has-tabs={hasTabs}>
               <div className="tsh-frame-pane" data-active={!hasActiveSession}>
                 {slots?.Content}
               </div>
@@ -91,7 +93,7 @@ export const TendrilShell: React.FC<TendrilShellProps> = ({
                 </div>
               ))}
             </div>
-            {slots?.Tabs && <div className="tsh-tabs-row">{slots.Tabs}</div>}
+            {hasTabs && slots?.Tabs && <div className="tsh-tabs-row">{slots.Tabs}</div>}
           </div>
         </div>
         {slots?.Hidden && <div style={{ display: "none" }}>{slots.Hidden}</div>}

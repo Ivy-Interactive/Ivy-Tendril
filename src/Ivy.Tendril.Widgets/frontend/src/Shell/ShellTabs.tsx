@@ -20,6 +20,11 @@ export const ShellTabs: React.FC<ShellTabsProps> = ({
     if (events.includes(eventName)) eventHandler(eventName, id, args);
   };
 
+  // With no sessions open the strip would be an empty band with a lone "+",
+  // so it stays hidden until the first tab exists (new sessions start from the
+  // sidebar agent row instead).
+  if (tabs.length === 0) return null;
+
   return (
     <div className="tsh-tabs">
       {tabs.map((tab) => (
