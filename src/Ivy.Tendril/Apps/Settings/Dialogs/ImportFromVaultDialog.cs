@@ -10,27 +10,23 @@ using Ivy.Tendril.Services.Vault;
 
 namespace Ivy.Tendril.Apps.Settings.Dialogs;
 
-public class ImportCategoryActionsHeader(
-    string title,
-    int count,
+public class CategorySelectionToolbar(
     List<string> allItems,
     IState<HashSet<string>> selectedSet) : ViewBase
 {
-    public override object Build()
+    public override object? Build()
     {
-        if (count == 0) return Text.Block($"No {title.ToLowerInvariant()} in this vault project.").Small().Muted();
+        if (allItems.Count <= 1) return null;
 
-        return Layout.Horizontal().AlignContent(Align.SpaceBetween)
-            | Text.Block($"{title} ({count})").Bold().Small()
-            | (Layout.Horizontal().AlignContent(Align.Right)
-                | new Button("Select All").Small().Ghost().OnClick(() =>
-                {
-                    selectedSet.Set(new HashSet<string>(allItems, StringComparer.OrdinalIgnoreCase));
-                })
-                | new Button("Deselect All").Small().Ghost().OnClick(() =>
-                {
-                    selectedSet.Set(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-                }));
+        return Layout.Horizontal().AlignContent(Align.Right)
+            | new Button("Select All").Small().Ghost().OnClick(() =>
+            {
+                selectedSet.Set(new HashSet<string>(allItems, StringComparer.OrdinalIgnoreCase));
+            })
+            | new Button("Deselect All").Small().Ghost().OnClick(() =>
+            {
+                selectedSet.Set(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+            });
     }
 }
 
@@ -243,10 +239,13 @@ public class ImportFromVaultDialog(
         var assetChecklist = Layout.Vertical();
 
         // Skills
+        var skillsHeader = Layout.Horizontal().AlignContent(Align.Left)
+            | Text.Block("Skills")
+            | new Badge(projectItem.SkillNames.Count.ToString()).Variant(BadgeVariant.Secondary).Small();
         var skillsList = Layout.Vertical();
         if (projectItem.SkillNames.Count > 0)
         {
-            skillsList |= new ImportCategoryActionsHeader("Skills", projectItem.SkillNames.Count, projectItem.SkillNames, selectedSkills);
+            skillsList |= new CategorySelectionToolbar(projectItem.SkillNames, selectedSkills);
             foreach (var s in projectItem.SkillNames)
                 skillsList |= new ImportAssetItemRow(s, selectedSkills, "Skill");
         }
@@ -254,13 +253,16 @@ public class ImportFromVaultDialog(
         {
             skillsList |= Text.Block("No custom skills in this vault project.").Small().Muted();
         }
-        assetChecklist |= new Expandable($"Skills ({projectItem.SkillNames.Count})", skillsList).Small().Open(projectItem.SkillNames.Count > 0);
+        assetChecklist |= new Expandable(skillsHeader, skillsList).Small().Open(projectItem.SkillNames.Count > 0);
 
         // MCP Servers
+        var mcpsHeader = Layout.Horizontal().AlignContent(Align.Left)
+            | Text.Block("MCP Servers")
+            | new Badge(projectItem.McpServerNames.Count.ToString()).Variant(BadgeVariant.Secondary).Small();
         var mcpsList = Layout.Vertical();
         if (projectItem.McpServerNames.Count > 0)
         {
-            mcpsList |= new ImportCategoryActionsHeader("MCP Servers", projectItem.McpServerNames.Count, projectItem.McpServerNames, selectedMcps);
+            mcpsList |= new CategorySelectionToolbar(projectItem.McpServerNames, selectedMcps);
             foreach (var m in projectItem.McpServerNames)
                 mcpsList |= new ImportAssetItemRow(m, selectedMcps, "MCP");
         }
@@ -268,13 +270,16 @@ public class ImportFromVaultDialog(
         {
             mcpsList |= Text.Block("No MCP servers in this vault project.").Small().Muted();
         }
-        assetChecklist |= new Expandable($"MCP Servers ({projectItem.McpServerNames.Count})", mcpsList).Small().Open(projectItem.McpServerNames.Count > 0);
+        assetChecklist |= new Expandable(mcpsHeader, mcpsList).Small().Open(projectItem.McpServerNames.Count > 0);
 
         // Memories
+        var memsHeader = Layout.Horizontal().AlignContent(Align.Left)
+            | Text.Block("Project Memories")
+            | new Badge(projectItem.MemoryFileNames.Count.ToString()).Variant(BadgeVariant.Secondary).Small();
         var memsList = Layout.Vertical();
         if (projectItem.MemoryFileNames.Count > 0)
         {
-            memsList |= new ImportCategoryActionsHeader("Project Memories", projectItem.MemoryFileNames.Count, projectItem.MemoryFileNames, selectedMemories);
+            memsList |= new CategorySelectionToolbar(projectItem.MemoryFileNames, selectedMemories);
             foreach (var mem in projectItem.MemoryFileNames)
                 memsList |= new ImportAssetItemRow(mem, selectedMemories, "Memory");
         }
@@ -282,13 +287,16 @@ public class ImportFromVaultDialog(
         {
             memsList |= Text.Block("No project memory markdown files in this vault project.").Small().Muted();
         }
-        assetChecklist |= new Expandable($"Project Memories ({projectItem.MemoryFileNames.Count})", memsList).Small().Open(projectItem.MemoryFileNames.Count > 0);
+        assetChecklist |= new Expandable(memsHeader, memsList).Small().Open(projectItem.MemoryFileNames.Count > 0);
 
         // Review Actions
+        var actionsHeader = Layout.Horizontal().AlignContent(Align.Left)
+            | Text.Block("Review Actions")
+            | new Badge(projectItem.ReviewActionNames.Count.ToString()).Variant(BadgeVariant.Secondary).Small();
         var actionsList = Layout.Vertical();
         if (projectItem.ReviewActionNames.Count > 0)
         {
-            actionsList |= new ImportCategoryActionsHeader("Review Actions", projectItem.ReviewActionNames.Count, projectItem.ReviewActionNames, selectedReviewActions);
+            actionsList |= new CategorySelectionToolbar(projectItem.ReviewActionNames, selectedReviewActions);
             foreach (var a in projectItem.ReviewActionNames)
                 actionsList |= new ImportAssetItemRow(a, selectedReviewActions, "Action");
         }
@@ -296,13 +304,16 @@ public class ImportFromVaultDialog(
         {
             actionsList |= Text.Block("No review actions in this vault project.").Small().Muted();
         }
-        assetChecklist |= new Expandable($"Review Actions ({projectItem.ReviewActionNames.Count})", actionsList).Small().Open(projectItem.ReviewActionNames.Count > 0);
+        assetChecklist |= new Expandable(actionsHeader, actionsList).Small().Open(projectItem.ReviewActionNames.Count > 0);
 
         // Verifications
+        var verifsHeader = Layout.Horizontal().AlignContent(Align.Left)
+            | Text.Block("Verifications")
+            | new Badge(projectItem.VerificationNames.Count.ToString()).Variant(BadgeVariant.Secondary).Small();
         var verifsList = Layout.Vertical();
         if (projectItem.VerificationNames.Count > 0)
         {
-            verifsList |= new ImportCategoryActionsHeader("Verifications", projectItem.VerificationNames.Count, projectItem.VerificationNames, selectedVerifications);
+            verifsList |= new CategorySelectionToolbar(projectItem.VerificationNames, selectedVerifications);
             foreach (var v in projectItem.VerificationNames)
                 verifsList |= new ImportAssetItemRow(v, selectedVerifications, "Verification");
         }
@@ -310,7 +321,7 @@ public class ImportFromVaultDialog(
         {
             verifsList |= Text.Block("No verifications in this vault project.").Small().Muted();
         }
-        assetChecklist |= new Expandable($"Verifications ({projectItem.VerificationNames.Count})", verifsList).Small().Open(projectItem.VerificationNames.Count > 0);
+        assetChecklist |= new Expandable(verifsHeader, verifsList).Small().Open(projectItem.VerificationNames.Count > 0);
 
         // Permissions
         assetChecklist |= importPermissions.ToBoolInput("Import Security & Permissions Policies");
