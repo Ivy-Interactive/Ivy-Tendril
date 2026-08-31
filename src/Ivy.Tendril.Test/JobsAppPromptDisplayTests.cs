@@ -349,6 +349,16 @@ public class JobsAppPromptDisplayTests
             return new DashboardModels(0, 0, 0, 0, 0, 0, 0, [], []);
         }
 
+        public DashboardActivityStats GetDashboardActivity(int monthsBack = 24)
+        {
+            return new DashboardActivityStats([], 0);
+        }
+
+        public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days)
+        {
+            return [];
+        }
+
         public decimal GetPlanTotalCost(string folderPath)
         {
             return 0;

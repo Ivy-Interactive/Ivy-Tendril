@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Apps.Jobs;
@@ -249,6 +249,9 @@ public class PlanDatabaseService : IPlanDatabaseService
 
     public DashboardModels GetDashboardData(string? projectFilter) =>
         _dashboardRepository.GetDashboardData(projectFilter);
+
+    public DashboardActivityStats GetActivityStats(int monthsBack = 24) =>
+        _dashboardRepository.GetActivityStats(monthsBack);
 
     public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30)
     {

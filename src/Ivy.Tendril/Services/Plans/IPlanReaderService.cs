@@ -38,6 +38,8 @@ public interface IPlanReaderService
     void SavePlan(string folderName, string fullContent);
     void UpdateLatestRevision(string folderName, string content);
     DashboardModels GetDashboardData(string? projectFilter);
+    DashboardActivityStats GetDashboardActivity(int monthsBack = 24);
+    List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days);
     decimal GetPlanTotalCost(string folderPath);
     int GetPlanTotalTokens(string folderPath);
     List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null);

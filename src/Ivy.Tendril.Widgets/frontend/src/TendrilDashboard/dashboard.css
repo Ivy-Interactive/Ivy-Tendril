@@ -1,0 +1,533 @@
+/* Tendril dashboard — design tokens and component styles.
+   Light values are the exact colors from the Figma design (tendril-redesign-4,
+   node 217:2363); dark values map onto the Ivy theme tokens so the dashboard
+   follows the host theme. */
+
+.tdb-root {
+  --tdb-bg: var(--background, #ffffff);
+  --tdb-block-bg: color-mix(in srgb, var(--foreground, #000000) 2%, var(--background, #ffffff));
+  --tdb-block-border: color-mix(in srgb, var(--foreground, #000000) 6%, var(--background, #ffffff));
+  --tdb-fg: var(--foreground, #000000);
+  --tdb-muted: color-mix(in srgb, var(--foreground, #000000) 60%, transparent);
+  --tdb-faint: color-mix(in srgb, var(--foreground, #000000) 28%, transparent);
+  --tdb-divider: color-mix(in srgb, var(--foreground, #000000) 20%, transparent);
+  --tdb-pill-bg: color-mix(in srgb, var(--foreground, #000000) 6%, transparent);
+  --tdb-popover: var(--popover, #ffffff);
+
+  /* Grey intensity ramp shared by the activity grid and the PR bars.
+     Mixing from the foreground keeps it legible in both themes. */
+  --tdb-ramp-1: color-mix(in srgb, var(--foreground, #000000) 10%, transparent);
+  --tdb-ramp-2: color-mix(in srgb, var(--foreground, #000000) 26%, transparent);
+  --tdb-ramp-3: color-mix(in srgb, var(--foreground, #000000) 60%, transparent);
+  --tdb-ramp-4: var(--foreground, #000000);
+
+  /* Comparison (last year) line. */
+  --tdb-compare: #a0bce8;
+
+  /* KPI card pastels from the Figma design. */
+  --tdb-kpi-mint: #ccf5e9;
+  --tdb-kpi-sage: #cddbd6;
+  --tdb-kpi-teal: #66e0be;
+  --tdb-kpi-grey: #e6edeb;
+
+  font-family: var(--font-sans, "Geist", sans-serif);
+  color: var(--tdb-fg);
+  background: var(--tdb-bg);
+  container-type: inline-size;
+  container-name: tdb;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.dark .tdb-root {
+  --tdb-block-bg: color-mix(in srgb, var(--foreground, #f8f8f8) 4%, var(--background, #000000));
+  --tdb-block-border: color-mix(in srgb, var(--foreground, #f8f8f8) 10%, var(--background, #000000));
+  --tdb-kpi-mint: color-mix(in srgb, #ccf5e9 16%, var(--tdb-block-bg));
+  --tdb-kpi-sage: color-mix(in srgb, #cddbd6 16%, var(--tdb-block-bg));
+  --tdb-kpi-teal: color-mix(in srgb, #66e0be 26%, var(--tdb-block-bg));
+  --tdb-kpi-grey: color-mix(in srgb, #e6edeb 12%, var(--tdb-block-bg));
+}
+
+.tdb-root * {
+  box-sizing: border-box;
+}
+
+.tdb-inner {
+  max-width: 1420px;
+  margin: 0 auto;
+  padding: 16px 16px 24px;
+}
+
+/* ---------- Header ---------- */
+
+.tdb-header {
+  padding: 8px 16px 0;
+}
+
+.tdb-date {
+  font-size: 14px;
+  color: var(--tdb-muted);
+  margin-bottom: 10px;
+}
+
+.tdb-greeting {
+  font-size: 32px;
+  line-height: 1.19;
+  font-weight: 600;
+  color: var(--tdb-faint);
+}
+
+.tdb-headline {
+  font-size: 32px;
+  line-height: 1.19;
+  font-weight: 600;
+  color: var(--tdb-fg);
+}
+
+/* ---------- Layout ---------- */
+
+.tdb-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 421px);
+  gap: 28px 32px;
+  align-items: start;
+  margin-top: 32px;
+  padding: 0 16px;
+}
+
+.tdb-col {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-width: 0;
+}
+
+.tdb-col-side {
+  gap: 12px;
+}
+
+.tdb-block {
+  background: var(--tdb-block-bg);
+  border: 1px solid var(--tdb-block-border);
+  border-radius: 16px;
+}
+
+.tdb-block-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--tdb-fg);
+}
+
+/* ---------- Status strip ---------- */
+
+.tdb-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  min-height: 74px;
+  padding: 14px 32px;
+}
+
+.tdb-status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.tdb-status-item svg {
+  color: var(--tdb-fg);
+  flex-shrink: 0;
+}
+
+.tdb-status-count {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--tdb-fg);
+}
+
+.tdb-status-label {
+  font-size: 15px;
+  color: var(--tdb-muted);
+}
+
+.tdb-status-sep {
+  width: 1px;
+  height: 24px;
+  background: var(--tdb-divider);
+  flex-shrink: 0;
+}
+
+/* ---------- KPI cards ---------- */
+
+.tdb-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 28px;
+}
+
+.tdb-kpi {
+  border-radius: 16px;
+  padding: 22px 24px;
+  min-height: 110px;
+  color: var(--tdb-fg);
+}
+
+.tdb-kpi[data-tone="0"] { background: var(--tdb-kpi-mint); }
+.tdb-kpi[data-tone="1"] { background: var(--tdb-kpi-sage); }
+.tdb-kpi[data-tone="2"] { background: var(--tdb-kpi-teal); }
+.tdb-kpi[data-tone="3"] { background: var(--tdb-kpi-grey); }
+
+.tdb-kpi-label {
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.tdb-kpi-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tdb-kpi-value {
+  font-size: 30px;
+  line-height: 36px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tdb-kpi-delta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tdb-kpi-delta svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------- Trend chart block ---------- */
+
+.tdb-trend {
+  padding: 24px;
+  min-height: 330px;
+}
+
+.tdb-trend-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.tdb-tabs {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.tdb-tab {
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--tdb-faint);
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.tdb-tab[data-active="true"] {
+  background: var(--tdb-pill-bg);
+  color: var(--tdb-fg);
+}
+
+.tdb-trend-sep {
+  width: 1px;
+  height: 24px;
+  background: var(--tdb-divider);
+}
+
+.tdb-legend {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.tdb-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--tdb-muted);
+}
+
+.tdb-legend-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--tdb-fg);
+}
+
+.tdb-legend-dash {
+  width: 10px;
+  height: 0;
+  border-top: 2px dashed var(--tdb-compare);
+}
+
+.tdb-trend-chart {
+  margin-top: 16px;
+}
+
+/* ---------- SVG charts (shared) ---------- */
+
+.tdb-chart-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.tdb-chart-wrap svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.tdb-axis-text {
+  font-size: 12px;
+  fill: var(--tdb-muted);
+  font-family: inherit;
+}
+
+.tdb-trend-line {
+  fill: none;
+  stroke: var(--tdb-fg);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tdb-trend-compare {
+  fill: none;
+  stroke: var(--tdb-compare);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tdb-chart-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--tdb-popover);
+  border: 1px solid var(--tdb-block-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--tdb-fg) 10%, transparent);
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--tdb-fg);
+  white-space: nowrap;
+  transform: translate(-50%, calc(-100% - 10px));
+  z-index: 5;
+}
+
+.tdb-chart-tooltip-title {
+  color: var(--tdb-muted);
+  margin-bottom: 4px;
+}
+
+.tdb-chart-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------- Side blocks ---------- */
+
+.tdb-side-block {
+  padding: 24px;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tdb-side-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  margin-top: 16px;
+  min-height: 0;
+}
+
+/* ---------- Activity grid ---------- */
+
+.tdb-activity-scroll {
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-right: 16px;
+}
+
+.tdb-activity {
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+  min-height: 166px;
+}
+
+.tdb-activity-col {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  flex: 1 0 13px;
+  min-width: 13px;
+}
+
+.tdb-activity-cell {
+  width: 100%;
+  max-width: 22px;
+  aspect-ratio: 1;
+  border-radius: 4px;
+}
+
+.tdb-activity-cell[data-level="0"] { background: color-mix(in srgb, var(--tdb-fg) 5%, transparent); }
+.tdb-activity-cell[data-level="1"] { background: var(--tdb-ramp-1); }
+.tdb-activity-cell[data-level="2"] { background: var(--tdb-ramp-2); }
+.tdb-activity-cell[data-level="3"] { background: var(--tdb-ramp-3); }
+.tdb-activity-cell[data-level="4"] { background: var(--tdb-ramp-4); }
+
+.tdb-activity-labels {
+  display: flex;
+  gap: 7px;
+  margin-top: 16px;
+}
+
+.tdb-activity-label {
+  flex: 1 0 13px;
+  min-width: 13px;
+  font-size: 12px;
+  color: var(--tdb-muted);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tdb-empty-note {
+  font-size: 13px;
+  color: var(--tdb-faint);
+  align-self: center;
+  margin: auto 0;
+}
+
+/* ---------- Pull request bars ---------- */
+
+.tdb-bars {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+}
+
+.tdb-bars-y {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--tdb-muted);
+  text-align: left;
+  padding-bottom: 26px;
+}
+
+.tdb-bars-plot {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.tdb-bar-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.tdb-bar-track {
+  width: 100%;
+  max-width: 49px;
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+}
+
+.tdb-bar {
+  width: 100%;
+  border-radius: 999px;
+  min-height: 6px;
+}
+
+.tdb-bar[data-level="0"] { background: color-mix(in srgb, var(--tdb-fg) 5%, transparent); }
+.tdb-bar[data-level="1"] { background: var(--tdb-ramp-1); }
+.tdb-bar[data-level="2"] { background: var(--tdb-ramp-2); }
+.tdb-bar[data-level="3"] { background: var(--tdb-ramp-3); }
+.tdb-bar[data-level="4"] { background: var(--tdb-ramp-4); }
+
+.tdb-bar-label {
+  font-size: 12px;
+  color: var(--tdb-muted);
+}
+
+/* ---------- Software factory ---------- */
+
+.tdb-factory {
+  padding: 24px;
+  min-height: 276px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tdb-factory-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.tdb-factory-body .tpv-container {
+  padding-top: 3.5rem;
+  padding-bottom: 1.5rem;
+  font-family: inherit;
+}
+
+/* ---------- Responsive ---------- */
+
+@container tdb (max-width: 1080px) {
+  .tdb-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container tdb (max-width: 860px) {
+  .tdb-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tdb-status {
+    justify-content: flex-start;
+  }
+
+  .tdb-status-sep {
+    display: none;
+  }
+}
