@@ -219,12 +219,12 @@ public class ProjectDetailView(
         object? vaultBadge = null;
         if (linkedVault != null)
         {
-            var vaultLabel = !string.IsNullOrEmpty(linkedVault.Name) ? linkedVault.Name : "Team Vault";
+            var vaultLabel = VaultService.ExtractRepoName(!string.IsNullOrEmpty(linkedVault.Name) && linkedVault.Name.Contains('/') ? linkedVault.Name : linkedVault.RepoUrl);
             var versionText = trackedProject != null && !string.IsNullOrEmpty(trackedProject.InstalledVersion)
                 ? $" • v{trackedProject.InstalledVersion}"
                 : "";
 
-            vaultBadge = Layout.Horizontal().AlignContent(Align.Right)
+            vaultBadge = Layout.Horizontal().AlignContent(Align.Left)
                 | Icons.FolderGit2.ToIcon()
                 | new Badge($"Vault: {vaultLabel}{versionText}").Variant(BadgeVariant.Secondary).Small();
         }
@@ -253,12 +253,10 @@ public class ProjectDetailView(
                    editName.Set(project.Name);
                    isEditingName.Set(false);
                }))
-            : (Layout.Horizontal().AlignContent(Align.SpaceBetween)
-               | (Layout.Horizontal().AlignContent(Align.Left)
-                   | colorInput
-                   | Text.H2(project.Name).Bold()
-                   | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Rename Project").OnClick(() => isEditingName.Set(true)))
-               | vaultBadge);
+            : (Layout.Horizontal().AlignContent(Align.Left)
+               | colorInput
+               | Text.H2(project.Name).Bold()
+               | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Rename Project").OnClick(() => isEditingName.Set(true)));
 
         // Agent Behavior Dropdown
         var autoImplementOptions = new[]
@@ -294,6 +292,7 @@ public class ProjectDetailView(
         var innerContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(160)))
             // Section 1: Header (Color Picker + Name)
             | nameHeader
+            | vaultBadge
 
             // Section 2: Repositories
             | Text.H4("Repositories").Bold()
