@@ -484,6 +484,11 @@ public class PushToVaultDialog(
             projectSelectorList |= projectCard;
         }
 
+        if (availableProjects.Count == 0)
+        {
+            projectSelectorList |= Callout.Info("All local projects are already tracked by a vault. Create a new local project first to add it here.");
+        }
+
         var enabledVaults = config.Settings.Vaults.Where(v => v.Enabled).ToList();
         if (enabledVaults.Count == 0 && config.Settings.Vault != null && config.Settings.Vault.Enabled)
         {
@@ -494,10 +499,10 @@ public class PushToVaultDialog(
         if (enabledVaults.Count > 1)
         {
             var vaultOptions = enabledVaults
-                .Select(v => new Option<string>($"{v.Name} ({v.RepoUrl})", v.Id))
+                .Select(v => new Option<string>(!string.IsNullOrWhiteSpace(v.Name) ? v.Name : v.RepoUrl.Split('/').Last().Replace(".git", ""), v.Id))
                 .ToArray();
             vaultSelector = targetVaultState.ToSelectInput(vaultOptions)
-                .WithField().Label("Target Vault Repository");
+                .WithField().Label("Target Vault");
         }
 
         var form = Layout.Vertical()

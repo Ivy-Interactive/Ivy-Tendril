@@ -243,10 +243,6 @@ public class VaultService : IVaultService
 
         if (!Directory.Exists(vaultDir))
         {
-            foreach (var localProj in _config.Settings.Projects)
-            {
-                catalog.Projects.Add(BuildLocalCatalogItem(localProj, vault));
-            }
             return Task.FromResult(catalog);
         }
 
@@ -392,14 +388,6 @@ public class VaultService : IVaultService
                     SourceVaultId = vault?.Id,
                     SourceVaultName = vault?.Name
                 });
-            }
-        }
-
-        foreach (var localProj in _config.Settings.Projects)
-        {
-            if (!vaultProjects.Contains(localProj.Name))
-            {
-                catalog.Projects.Add(BuildLocalCatalogItem(localProj, vault));
             }
         }
 

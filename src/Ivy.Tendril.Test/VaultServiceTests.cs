@@ -72,17 +72,14 @@ verifications: []
     }
 
     [Fact]
-    public async Task GetCatalogAsync_WhenVaultEmpty_ListsLocalOnlyProjects()
+    public async Task GetCatalogAsync_WhenVaultEmpty_ReturnsEmptyProjectsList()
     {
         var config = CreateConfig();
         var vaultService = new VaultService(config, NullLogger<VaultService>.Instance);
 
         var catalog = await vaultService.GetCatalogAsync();
 
-        Assert.Single(catalog.Projects);
-        var proj = catalog.Projects[0];
-        Assert.Equal("LocalApp", proj.Name);
-        Assert.Equal(VaultItemSyncStatus.LocalOnly, proj.SyncStatus);
+        Assert.Empty(catalog.Projects);
     }
 
     [Fact]
@@ -112,7 +109,7 @@ verifications: []
         var vaultService = new VaultService(config, NullLogger<VaultService>.Instance);
         var catalog = await vaultService.GetCatalogAsync();
 
-        Assert.Equal(2, catalog.Projects.Count);
+        Assert.Single(catalog.Projects);
 
         var remoteProj = catalog.Projects.Find(p => p.Name == "RemoteWeb");
         Assert.NotNull(remoteProj);

@@ -91,8 +91,30 @@ public class VaultSetupView : ViewBase
         var status = statusQuery.Value ?? new VaultStatus();
         var catalog = catalogQuery.Value ?? new VaultCatalog();
         var currentVault = config.Settings.Vaults.FirstOrDefault(v => v.Id == selectedVaultId.Value) ?? config.Settings.Vault;
+        var trackedProjectNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var v in config.Settings.Vaults)
+        {
+            foreach (var k in v.TrackedProjects.Keys)
+                trackedProjectNames.Add(k);
+        }
+        if (config.Settings.Vault != null)
+        {
+            foreach (var k in config.Settings.Vault.TrackedProjects.Keys)
+                trackedProjectNames.Add(k);
+        }
+        foreach (var cp in catalog.Projects)
+        {
+            trackedProjectNames.Add(cp.Name);
+        }
 
-        var localProjectNames = config.Settings.Projects.Select(p => p.Name).ToList();
+        var untrackedLocalProjects = config.Settings.Projects
+            .Where(p => !trackedProjectNames.Contains(p.Name))
+            .Select(p => p.Name)
+            .ToList();
+
+        var availablePushProjects = !string.IsNullOrEmpty(selectedPushProject.Value) && !untrackedLocalProjects.Contains(selectedPushProject.Value)
+            ? untrackedLocalProjects.Concat(new[] { selectedPushProject.Value }).ToList()
+            : untrackedLocalProjects;
 
         var createDialog = new CreateVaultDialog(
             openCreateDialog, vaultService, client,
@@ -113,7 +135,7 @@ public class VaultSetupView : ViewBase
             });
 
         var pushDialog = new PushToVaultDialog(
-            openPushDialog, localProjectNames, selectedPushProject.Value, vaultService, client,
+            openPushDialog, availablePushProjects, selectedPushProject.Value, vaultService, client,
             onPushed: () =>
             {
                 vaultsQuery.Mutator.Revalidate();
@@ -368,10 +390,38 @@ public class VaultSetupView : ViewBase
             projectsTable.Remove(t => t.Changelog);
         }
 
-        var projectsSection = Layout.Vertical()
-            | (tableRows.Count > 0
-                ? projectsTable
-                : Text.Muted("No projects found in the vault yet. Click 'Publish Update (PR)' above to share your local projects.").Small());
+        object projectsSection;
+        if (tableRows.Count == 0)
+        {
+            projectsSection = Layout.Vertical().AlignContent(Align.Left)
+                | Text.Block("No Shared Projects").Bold()
+                | Text.Block("This vault does not contain any shared projects yet. Add a local project to share it with your team.").Small().Muted()
+                | (Layout.Horizontal().AlignContent(Align.Left)
+                    | new Button("Add Tracked Project")
+                        .Icon(Icons.Plus)
+                        .Primary()
+                        .Small()
+                        .OnClick(() =>
+                        {
+                            selectedPushProject.Set(null);
+                            openPushDialog.Set(true);
+                        }));
+        }
+        else
+        {
+            projectsSection = Layout.Vertical()
+                | projectsTable
+                | (Layout.Horizontal().AlignContent(Align.Left)
+                    | new Button("Add Tracked Project")
+                        .Icon(Icons.Plus)
+                        .Outline()
+                        .Small()
+                        .OnClick(() =>
+                        {
+                            selectedPushProject.Set(null);
+                            openPushDialog.Set(true);
+                        }));
+        }
 
         var mainLayout = Layout.Vertical().Width(Size.Auto().Max(Size.Units(200)))
             | topHeader
