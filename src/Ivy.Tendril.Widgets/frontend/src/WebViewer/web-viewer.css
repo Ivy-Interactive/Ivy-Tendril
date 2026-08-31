@@ -219,3 +219,36 @@
 .wvr-btn--primary:hover {
   opacity: 0.9;
 }
+
+.wvr-btn--danger {
+  background: transparent;
+  color: var(--destructive);
+}
+
+.wvr-btn--danger:hover {
+  background: var(--destructive);
+  color: var(--destructive-foreground, var(--background));
+}
+
+/* Pushed away from Save/Cancel: deleting a comment is not undoable. */
+.wvr-comment-delete {
+  margin-right: auto;
+}
+
+/* The number the pin in the page is showing, so the box and the page agree at a glance.
+   Deliberately the pin's own yellow rather than a theme token: it is the same object. */
+.wvr-comment-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: 0.375rem;
+  border-radius: 50%;
+  border: 1px solid #a16207;
+  background: #facc15;
+  color: #1c1917;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  vertical-align: middle;
+}

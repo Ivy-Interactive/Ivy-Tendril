@@ -23,14 +23,41 @@ interface WebViewerProps {
   events?: string[];
 }
 
+// The comment box, open over a freshly picked element ("create") or over the pin of one
+// that already has a comment ("edit").
 interface PendingComment {
-  id: number;
+  seq: number;
+  mode: "create" | "edit";
+  markerId?: string;
   xpath: string;
   selector: string;
   meta: { tag?: string; text?: string } | null;
   debug: DebugPayload | null;
   resolving: boolean;
 }
+
+// A submitted comment, and the pin that marks its element in the page. This list is the
+// widget's own state: the page cannot hold it (a reload wipes the document) and Ivy does not
+// have to (it is told about every change and may do as it likes with them). The agent is
+// handed the whole list whenever it changes, and again after every load.
+interface CommentMarker {
+  id: string;
+  number: number;
+  xpath: string;
+  selector: string;
+  tag: string;
+  text: string | null;
+  comment: string;
+  debug: DebugPayload | null;
+}
+
+let markerSeq = 0;
+const nextMarkerId = () => `c${Date.now().toString(36)}${(markerSeq++).toString(36)}`;
+
+// Numbers are positions, not identities: after a delete the rest close ranks, which is what
+// makes a column of pins read 1, 2, 3 rather than 1, 3, 7.
+const renumber = (list: CommentMarker[]): CommentMarker[] =>
+  list.map((marker, i) => (marker.number === i + 1 ? marker : { ...marker, number: i + 1 }));
 
 // Source attribution collected in the page (see proxy-assets/agent.js). `frames` are raw
 // JS positions inside the served bundle; /__resolve turns those into original file/line.
@@ -70,8 +97,18 @@ function normalizeUrl(input: string): string {
 
 const VIEW_PREFIX = "/__view/";
 
-function toViewUrl(realUrl: string): string {
-  return `/__view/${realUrl}`;
+// Every mounted viewer gets an id, and it rides in the URL of the document it frames:
+// /__view/@v3.mobile/https://example.com/. Several viewers share one page, one origin and
+// therefore one service worker, and the worker has no other way to tell whose request it is
+// holding — which device to emulate for it, and which viewer should report it. Subresources
+// are rewritten without the token and resolved through the client that asked. The grammar is
+// spelled out in ViewToken.cs, and parsed identically in sw.js and agent.js.
+let viewerSeq = 0;
+const nextViewerId = () => `v${(viewerSeq = (viewerSeq + 1) % 1_000_000)}`;
+
+function toViewUrl(realUrl: string, viewerId: string, devKey: string): string {
+  const device = devKey && devKey !== "desktop" ? `.${devKey}` : "";
+  return `${VIEW_PREFIX}@${viewerId}${device}/${realUrl}`;
 }
 
 // Short quoted snippet of an element's text, for identifying it at a glance.
@@ -235,10 +272,15 @@ export const WebViewer: React.FC<WebViewerProps> = ({
   const [swReady, setSwReady] = useState(false);
   const [pending, setPending] = useState<PendingComment | null>(null);
   const [comment, setComment] = useState("");
+  const [comments, setComments] = useState<CommentMarker[]>([]);
+
+  // Fixed for the life of this mount, and part of every URL this viewer's frame loads.
+  const viewerIdRef = useRef("");
+  if (!viewerIdRef.current) viewerIdRef.current = nextViewerId();
+  const viewerId = viewerIdRef.current;
 
   const frameRef = useRef<HTMLIFrameElement>(null);
   const commentRef = useRef<HTMLTextAreaElement>(null);
-  const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
   const selectionSeq = useRef(0);
   const codeRef = useRef<HTMLPreElement>(null);
 
@@ -308,6 +350,29 @@ export const WebViewer: React.FC<WebViewerProps> = ({
     frameRef.current?.contentWindow?.postMessage(msg, "*");
   }, []);
 
+  // ---- comment pins -------------------------------------------------------
+  // The page is told the whole set, never a delta: the agent that renders the pins is
+  // re-injected on every load with no memory of what it drew last time.
+  const commentsRef = useRef<CommentMarker[]>([]);
+  commentsRef.current = comments;
+
+  const pushMarkers = useCallback(() => {
+    postToFrame({
+      __proxyCmd: "markers-set",
+      markers: commentsRef.current.map(({ id, number, xpath, selector, comment: text }) => ({
+        id,
+        number,
+        xpath,
+        selector,
+        comment: text,
+      })),
+    });
+  }, [postToFrame]);
+
+  useEffect(() => {
+    pushMarkers();
+  }, [comments, pushMarkers]);
+
   // A hydrated page can navigate itself with script — a nav button calling location.assign,
   // a router falling back to a hard navigation — to a path outside view-space. The worker is
   // scoped to /__view/, so such a navigation is out of its scope entirely, never intercepted,
@@ -326,7 +391,7 @@ export const WebViewer: React.FC<WebViewerProps> = ({
       if (!current) return;
 
       const upstream = new URL(location.pathname + location.search + location.hash, current);
-      location.replace(toViewUrl(upstream.href));
+      location.replace(toViewUrl(upstream.href, viewerId, devKey));
     } catch {
       // Reading the frame threw, so it is no longer on our origin: the page navigated itself
       // somewhere else entirely and there is nothing left to read or repair. Some sites do
@@ -342,7 +407,7 @@ export const WebViewer: React.FC<WebViewerProps> = ({
         stack: null,
       });
     }
-  }, [emit]);
+  }, [emit, viewerId, devKey]);
 
   // Navigate when the `url` prop changes to something we're not already showing
   // (this also makes syncing the prop from NavigateEvent a no-op — no loop).
@@ -370,9 +435,8 @@ export const WebViewer: React.FC<WebViewerProps> = ({
     }
     let cancelled = false;
     acquireProxyWorker()
-      .then((registration) => {
+      .then(() => {
         if (cancelled) return;
-        registrationRef.current = registration;
         setSwReady(true);
       })
       .catch((err) =>
@@ -384,32 +448,16 @@ export const WebViewer: React.FC<WebViewerProps> = ({
       );
     return () => {
       cancelled = true;
-      registrationRef.current = null;
       releaseProxyWorker();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Tell the SW which device to emulate, then reload so the new UA takes effect. The
-  // worker does not control this page, so the message goes to the registration's worker
-  // rather than to navigator.serviceWorker.controller (which is always null here).
-  useEffect(() => {
-    if (!swReady) return;
-    const registration = registrationRef.current;
-    const worker = registration?.active ?? registration?.waiting;
-    worker?.postMessage({
-      __proxySetDevice: devKey === "desktop" ? null : devKey,
-    });
-  }, [devKey, swReady]);
-
-  const deviceInit = useRef(true);
-  useEffect(() => {
-    if (deviceInit.current) {
-      deviceInit.current = false;
-      return;
-    }
-    setReloadKey((k) => k + 1);
-  }, [devKey]);
+  // The emulated device is carried in the frame's own URL rather than set on the worker.
+  // Telling the worker would make it global — the last viewer to mount would pick the
+  // User-Agent for every viewer on the page — and it would have to be re-sent after each of
+  // the worker's idle teardowns. In the URL it is per-frame, survives a restart for free,
+  // and changing it re-points the iframe, which is the reload the new UA needs anyway.
 
   // ---- screenshot save ----------------------------------------------------
   const saveCapture = useCallback(
@@ -445,6 +493,10 @@ export const WebViewer: React.FC<WebViewerProps> = ({
     function onMessage(e: MessageEvent) {
       const data = e.data;
       if (!data || data.__proxy !== true) return;
+      // Only from OUR frame. Every viewer on the page shares this window, so without this
+      // each one reports the others' clicks and console output as its own — and any other
+      // frame or opened window could forge the whole event stream.
+      if (e.source !== frameRef.current?.contentWindow) return;
 
       switch (data.type) {
         case "console":
@@ -480,7 +532,8 @@ export const WebViewer: React.FC<WebViewerProps> = ({
           const picked = (data.debug as DebugPayload) || null;
           const needsResolve = !!picked?.frames?.length && !picked.source;
           setPending({
-            id: selectionId,
+            seq: selectionId,
+            mode: "create",
             xpath: data.xpath,
             selector: data.selector,
             meta: data.meta || {},
@@ -492,12 +545,30 @@ export const WebViewer: React.FC<WebViewerProps> = ({
             // Discard a late answer if the user has already picked something else.
             void resolveSource(picked).then((enriched) =>
               setPending((prev) =>
-                prev && prev.id === selectionId
+                prev && prev.seq === selectionId
                   ? { ...prev, debug: enriched, resolving: false }
                   : prev,
               ),
             );
           }
+          return;
+        }
+        case "marker-click": {
+          // A pin was clicked in the page: reopen its comment for editing or deletion.
+          // Attribution was resolved when it was created, so there is nothing to look up.
+          const marker = commentsRef.current.find((m) => m.id === data.id);
+          if (!marker) return;
+          setPending({
+            seq: ++selectionSeq.current,
+            mode: "edit",
+            markerId: marker.id,
+            xpath: marker.xpath,
+            selector: marker.selector,
+            meta: { tag: marker.tag, text: marker.text ?? undefined },
+            debug: marker.debug,
+            resolving: false,
+          });
+          setComment(marker.comment);
           return;
         }
         case "select-cancelled":
@@ -537,6 +608,11 @@ export const WebViewer: React.FC<WebViewerProps> = ({
     function onMsg(e: MessageEvent) {
       const d = e.data;
       if (!d || !d.__proxyNet || !d.entry) return;
+      // The worker serves every viewer on the page and broadcasts to the one window they
+      // share, so each entry names the viewer it belongs to. A request the worker could not
+      // place (a speculative fetch with no client and no referrer) carries no name, and is
+      // only safe to claim when there is nobody else it could belong to.
+      if (d.viewer ? d.viewer !== viewerId : proxyWorkerUsers > 1) return;
       const entry = d.entry;
       emit("http", {
         url: entry.request?.url || "",
@@ -549,7 +625,7 @@ export const WebViewer: React.FC<WebViewerProps> = ({
     }
     navigator.serviceWorker.addEventListener("message", onMsg);
     return () => navigator.serviceWorker.removeEventListener("message", onMsg);
-  }, [emit]);
+  }, [emit, viewerId]);
 
   // ---- imperative command stream (Ivy -> widget) --------------------------
   const actionsRef = useRef({ reload, goBack, goForward, postToFrame });
@@ -602,20 +678,61 @@ export const WebViewer: React.FC<WebViewerProps> = ({
   function submitComment() {
     if (!pending) return;
     const meta = pending.meta || {};
-    const { xpath, selector, debug } = pending;
+    const { mode, markerId, xpath, selector, debug } = pending;
     const text = comment || "";
     setPending(null);
     setComment("");
 
-    void resolveSource(debug).then((enriched) =>
+    if (mode === "edit" && markerId) {
+      const existing = commentsRef.current.find((m) => m.id === markerId);
+      if (!existing) return;
+      setComments((prev) => prev.map((m) => (m.id === markerId ? { ...m, comment: text } : m)));
+      emit("comment-updated", { id: markerId, number: existing.number, comment: text });
+      return;
+    }
+
+    // A new pin. It goes up immediately — resolving a source map can take a moment, and a
+    // pin that appeared a second after the box closed would read as a glitch — but the event
+    // waits for the answer, so what Ivy is handed already names the file behind the element.
+    const id = nextMarkerId();
+    const number = commentsRef.current.length + 1;
+    const marker: CommentMarker = {
+      id,
+      number,
+      xpath,
+      selector,
+      tag: meta.tag || "",
+      text: meta.text ?? null,
+      comment: text,
+      debug,
+    };
+    setComments((prev) => renumber([...prev, marker]));
+
+    void resolveSource(debug).then((enriched) => {
+      if (enriched !== debug) {
+        setComments((prev) => prev.map((m) => (m.id === id ? { ...m, debug: enriched } : m)));
+      }
       emit("comment", {
+        id,
+        number,
         tag: meta.tag || "",
         xpath,
         selector,
         comment: text,
         debugJson: enriched ? JSON.stringify(enriched) : null,
-      }),
-    );
+      });
+    });
+  }
+
+  function deleteComment() {
+    const markerId = pending?.markerId;
+    if (!markerId) return;
+    const existing = commentsRef.current.find((m) => m.id === markerId);
+    setPending(null);
+    setComment("");
+    if (!existing) return;
+    setComments((prev) => renumber(prev.filter((m) => m.id !== markerId)));
+    emit("comment-deleted", { id: markerId, number: existing.number });
   }
 
   function cancelComment() {
@@ -645,12 +762,17 @@ export const WebViewer: React.FC<WebViewerProps> = ({
         ) : swReady && frameSrc ? (
           <iframe
             ref={frameRef}
-            key={`${frameSrc}#${reloadKey}`}
+            key={`${frameSrc}#${devKey}#${reloadKey}`}
             className="wvr-frame"
-            src={toViewUrl(frameSrc)}
+            src={toViewUrl(frameSrc, viewerId, devKey)}
             title="Web content"
             style={iframeStyle}
-            onLoad={healEscapedFrame}
+            onLoad={() => {
+              healEscapedFrame();
+              // The document that just loaded has no pins yet: the agent is injected fresh
+              // on every load and knows nothing of what the last one drew.
+              pushMarkers();
+            }}
           />
         ) : (
           <div className="wvr-empty">Starting proxy…</div>
@@ -661,6 +783,11 @@ export const WebViewer: React.FC<WebViewerProps> = ({
         <div className="wvr-overlay" onMouseDown={cancelComment}>
           <div className="wvr-comment-box" onMouseDown={(e) => e.stopPropagation()}>
             <div className="wvr-comment-title">
+              {pending.mode === "edit" && (
+                <span className="wvr-comment-pin">
+                  {comments.find((m) => m.id === pending.markerId)?.number}
+                </span>
+              )}
               Comment on
               {pending.meta?.tag && <span className="wvr-comment-tag">{pending.meta.tag}</span>}
               {pending.meta?.text && (
@@ -732,11 +859,21 @@ export const WebViewer: React.FC<WebViewerProps> = ({
               rows={4}
             />
             <div className="wvr-comment-actions">
+              {pending.mode === "edit" && (
+                // Left of the gap, away from Save: this one cannot be undone.
+                <button
+                  type="button"
+                  className="wvr-btn wvr-btn--danger wvr-comment-delete"
+                  onClick={deleteComment}
+                >
+                  Delete
+                </button>
+              )}
               <button type="button" className="wvr-btn wvr-btn--ghost" onClick={cancelComment}>
                 Cancel
               </button>
               <button type="button" className="wvr-btn wvr-btn--primary" onClick={submitComment}>
-                Add
+                {pending.mode === "edit" ? "Save" : "Add"}
               </button>
             </div>
           </div>

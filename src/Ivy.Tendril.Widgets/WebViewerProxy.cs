@@ -37,11 +37,20 @@ public sealed class WebViewerProxyOptions
 /// Endpoints:
 /// <list type="bullet">
 /// <item><c>/__proxy?url=&lt;abs&gt;&amp;dev=&lt;mobile|tablet&gt;</c> — fetch + rewrite (used by the service worker)</item>
-/// <item><c>/__view/&lt;abs&gt;</c> — the same, with the target carried in the path (bootstrap + navigations)</item>
+/// <item><c>/__view/[@&lt;viewer&gt;[.&lt;device&gt;]/]&lt;abs&gt;</c> — the same, with the target carried in the
+/// path (bootstrap + navigations); the optional token names the mounted widget and its device</item>
 /// <item><c>/__lib/snapdom.mjs</c> — the screenshot library, loaded inside the proxied page</item>
 /// <item><c>POST /__capture</c> — store a screenshot; <c>/__captures/&lt;file&gt;</c> serves it back</item>
+/// <item><c>POST /__resolve</c> — raw JS frames in, original file:line + code frame out</item>
 /// <item><c>/sw.js</c> — the service worker</item>
 /// </list>
+///
+/// <para><b>No cookies, in either direction.</b> Requests go upstream without them and
+/// <c>Set-Cookie</c> is not relayed back, so a site that needs a session cannot be reviewed
+/// signed in — point the viewer at a dev server, or at pages that render logged out. This is
+/// not an oversight: every proxied site is served from the Ivy app's single origin, so one
+/// cookie jar would be shared by all of them and readable by script on any page any viewer is
+/// pointed at, and the app's own cookies would ride along on every upstream request.</para>
 /// </summary>
 public static class WebViewerProxy
 {
@@ -74,11 +83,18 @@ public static class WebViewerProxy
             "iPad", false, "\"iOS\""),
     };
 
-    // One client for the lifetime of the process: redirects followed and content decompressed,
-    // because we re-emit a rewritten body rather than relaying the original bytes.
+    // One client for the lifetime of the process. Content is decompressed because we re-emit
+    // a rewritten body rather than relaying the original bytes.
+    //
+    // Redirects are NOT followed here: each hop is a URL the upstream chose, and WebViewerHttp
+    // is where every one of them goes past IsUrlAllowed.
+    //
+    // Cookies are off, and no Set-Cookie is relayed back — see the remarks on
+    // MapWebViewerProxy. Every proxied site shares the Ivy app's single origin, so one cookie
+    // jar would be one jar for all of them, readable by any page any viewer is pointed at.
     private static readonly HttpClient Upstream = new(new SocketsHttpHandler
     {
-        AllowAutoRedirect = true,
+        AllowAutoRedirect = false,
         AutomaticDecompression = DecompressionMethods.All,
         UseCookies = false,
     });
@@ -105,13 +121,17 @@ public static class WebViewerProxy
         });
 
         // Bootstrap path: the target rides in the path, so the browser's own relative-URL
-        // resolution keeps working before the service worker controls the iframe.
+        // resolution keeps working before the service worker controls the iframe. An
+        // optional "@<viewer>[.<device>]/" token in front of it names the mounted WebViewer
+        // the document belongs to and the device it emulates (see ViewToken).
         app.MapMethods("/__view/{**rest}", AllMethods, (HttpContext ctx) =>
         {
             var path = ctx.Request.Path.Value ?? "";
             var raw = path.Length > ViewPrefix.Length ? path[ViewPrefix.Length..] : "";
+            var token = ViewToken.Match(raw);
+            if (token.Success) raw = raw[token.Length..];
             var target = WebViewerRewriter.FixProtocol(raw) + ctx.Request.QueryString;
-            return HandleProxy(ctx, target, DeviceFor(ctx), settings);
+            return HandleProxy(ctx, target, Devices.GetValueOrDefault(token.Device ?? "") ?? DeviceFor(ctx), settings);
         });
 
         app.MapGet("/__lib/{file}", async (HttpContext ctx, string file) =>
@@ -163,27 +183,32 @@ public static class WebViewerProxy
             return;
         }
 
-        using var req = new HttpRequestMessage(new HttpMethod(ctx.Request.Method), targetUri);
+        byte[]? body = null;
         if (!HttpMethods.IsGet(ctx.Request.Method) && !HttpMethods.IsHead(ctx.Request.Method))
         {
             using var buffer = new MemoryStream();
             await ctx.Request.Body.CopyToAsync(buffer, ctx.RequestAborted);
-            req.Content = new ByteArrayContent(buffer.ToArray());
+            body = buffer.ToArray();
         }
 
-        req.Headers.TryAddWithoutValidation("User-Agent", device?.Ua ?? Header(ctx, "User-Agent") ?? "Mozilla/5.0");
-        req.Headers.TryAddWithoutValidation("Accept", Header(ctx, "Accept") ?? "*/*");
-        req.Headers.TryAddWithoutValidation("Accept-Language", Header(ctx, "Accept-Language") ?? "en-US,en;q=0.9");
-        if (device is not null)
+        void AddHeaders(HttpRequestMessage req)
         {
-            req.Headers.TryAddWithoutValidation("sec-ch-ua-mobile", device.Mobile ? "?1" : "?0");
-            req.Headers.TryAddWithoutValidation("sec-ch-ua-platform", device.ChPlatform);
+            req.Headers.TryAddWithoutValidation("User-Agent", device?.Ua ?? Header(ctx, "User-Agent") ?? "Mozilla/5.0");
+            req.Headers.TryAddWithoutValidation("Accept", Header(ctx, "Accept") ?? "*/*");
+            req.Headers.TryAddWithoutValidation("Accept-Language", Header(ctx, "Accept-Language") ?? "en-US,en;q=0.9");
+            if (device is not null)
+            {
+                req.Headers.TryAddWithoutValidation("sec-ch-ua-mobile", device.Mobile ? "?1" : "?0");
+                req.Headers.TryAddWithoutValidation("sec-ch-ua-platform", device.ChPlatform);
+            }
         }
 
         HttpResponseMessage res;
         try
         {
-            res = await Upstream.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
+            res = await WebViewerHttp.SendAsync(
+                Upstream, new HttpMethod(ctx.Request.Method), targetUri, body, AddHeaders,
+                settings.IsUrlAllowed, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
         }
         catch (OperationCanceledException) { return; }
         catch (HttpRequestException e) { await Text(ctx, 502, "Proxy fetch failed: " + e.Message); return; }

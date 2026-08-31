@@ -55,8 +55,17 @@ public sealed class SourceMapReader(HttpClient httpClient, long cacheByteBudget 
     private static readonly string[] VendorMarkers =
         ["node_modules", "webpack/bootstrap", "webpack-internal:", "/~/", "\\node_modules\\"];
 
-    private readonly ConcurrentDictionary<string, Task<SourceMap?>> _cache = new();
+    private readonly ConcurrentDictionary<string, Task<MapLoad>> _cache = new();
     private long _cachedBytes;
+
+    /// <summary>
+    /// The outcome of one load. <paramref name="Cacheable"/> separates a settled answer —
+    /// this script has no map, or one we cannot use — from a transient failure. Only settled
+    /// answers stay in the cache: a map whose fetch was cancelled because the user navigated
+    /// away, or lost to one network blip, would otherwise answer "no source" for every click
+    /// on that bundle for the rest of the process.
+    /// </summary>
+    private sealed record MapLoad(SourceMap? Map, bool Cacheable);
 
     /// <summary>Largest map we will download and parse. Bundles can emit enormous maps.</summary>
     public int MaxMapBytes { get; init; } = 32 * 1024 * 1024;
@@ -92,16 +101,33 @@ public sealed class SourceMapReader(HttpClient httpClient, long cacheByteBudget 
         return resolved;
     }
 
-    private Task<SourceMap?> GetMapAsync(Uri scriptUri, Func<Uri, bool>? isUrlAllowed, CancellationToken ct) =>
-        _cache.GetOrAdd(scriptUri.AbsoluteUri, _ => LoadMapAsync(scriptUri, isUrlAllowed, ct));
-
-    private async Task<SourceMap?> LoadMapAsync(Uri scriptUri, Func<Uri, bool>? isUrlAllowed, CancellationToken ct)
+    private async Task<SourceMap?> GetMapAsync(Uri scriptUri, Func<Uri, bool>? isUrlAllowed, CancellationToken ct)
     {
+        var key = scriptUri.AbsoluteUri;
+        var load = _cache.GetOrAdd(key, _ => LoadMapAsync(scriptUri, isUrlAllowed, ct));
+        var result = await load;
+
+        // Drop a transient failure so the next click tries again — and only if nobody has
+        // replaced the entry since, which is what the pair overload checks.
+        if (!result.Cacheable) _cache.TryRemove(new KeyValuePair<string, Task<MapLoad>>(key, load));
+        return result.Map;
+    }
+
+    private async Task<MapLoad> LoadMapAsync(Uri scriptUri, Func<Uri, bool>? isUrlAllowed, CancellationToken ct)
+    {
+        // "There is nothing here" is an answer worth keeping: most production bundles ship no
+        // map at all, and re-fetching the whole script on every click would be the real cost.
+        var settled = new MapLoad(null, true);
         try
         {
-            var script = await httpClient.GetStringAsync(scriptUri, ct);
+            using var scriptResponse = await WebViewerHttp.SendAsync(
+                httpClient, HttpMethod.Get, scriptUri, null, null, isUrlAllowed,
+                HttpCompletionOption.ResponseContentRead, ct);
+            if (!scriptResponse.IsSuccessStatusCode) return new MapLoad(null, false);
+
+            var script = await scriptResponse.Content.ReadAsStringAsync(ct);
             var match = SourceMappingUrl.Matches(script).LastOrDefault();
-            if (match is null) return null;
+            if (match is null) return settled;
 
             var reference = match.Groups["url"].Value.Trim();
             string json;
@@ -109,7 +135,7 @@ public sealed class SourceMapReader(HttpClient httpClient, long cacheByteBudget 
             if (reference.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
             {
                 var comma = reference.IndexOf(',');
-                if (comma < 0) return null;
+                if (comma < 0) return settled;
                 var payload = reference[(comma + 1)..];
                 json = reference[..comma].Contains("base64", StringComparison.OrdinalIgnoreCase)
                     ? Encoding.UTF8.GetString(Convert.FromBase64String(payload))
@@ -117,25 +143,35 @@ public sealed class SourceMapReader(HttpClient httpClient, long cacheByteBudget 
             }
             else
             {
-                if (!Uri.TryCreate(scriptUri, reference, out var mapUri)) return null;
-                if (isUrlAllowed is not null && !isUrlAllowed(mapUri)) return null;
+                if (!Uri.TryCreate(scriptUri, reference, out var mapUri)) return settled;
+                if (isUrlAllowed is not null && !isUrlAllowed(mapUri)) return settled;
 
-                using var response = await httpClient.GetAsync(mapUri, HttpCompletionOption.ResponseHeadersRead, ct);
-                if (!response.IsSuccessStatusCode) return null;
-                if (response.Content.Headers.ContentLength > MaxMapBytes) return null;
+                using var response = await WebViewerHttp.SendAsync(
+                    httpClient, HttpMethod.Get, mapUri, null, null, isUrlAllowed,
+                    HttpCompletionOption.ResponseHeadersRead, ct);
+                // A map the server would not give us may well be there on the next try.
+                if (!response.IsSuccessStatusCode) return new MapLoad(null, false);
+                if (response.Content.Headers.ContentLength > MaxMapBytes) return settled;
                 json = await response.Content.ReadAsStringAsync(ct);
             }
 
-            if (json.Length > MaxMapBytes) return null;
+            if (json.Length > MaxMapBytes) return settled;
 
             var map = SourceMap.Parse(json);
             if (map is not null) TrackCacheSize(json.Length);
-            return map;
+            return new MapLoad(map, true);
         }
-        catch (Exception e) when (e is HttpRequestException or JsonException or FormatException
-                                    or OperationCanceledException or TaskCanceledException)
+        // A payload we cannot read is not going to read any better next time.
+        catch (Exception e) when (e is JsonException or FormatException)
         {
-            return null;
+            return settled;
+        }
+        // A transport failure might. Cancellation is the common one: the caller navigated away
+        // mid-resolve, and the map itself is probably fine.
+        catch (Exception e) when (e is HttpRequestException or OperationCanceledException
+                                    or TaskCanceledException)
+        {
+            return new MapLoad(null, false);
         }
     }
 

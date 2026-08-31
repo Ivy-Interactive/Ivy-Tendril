@@ -7,13 +7,23 @@
 // because a worker sees the traffic of the clients it controls whatever the URL,
 // and routed through the server proxy endpoint (/__proxy?url=<absolute target>).
 //
-// "View-space" is /__view/<absolute-url>: the absolute target is carried unencoded
-// in the path so the browser's own relative-URL resolution keeps working. Root-
-// relative ("/foo") and cross-origin requests are mapped back to the right upstream
-// using the requesting client's view-space URL.
+// "View-space" is /__view/[@<viewer>[.<device>]/]<absolute-url>: the absolute target
+// is carried unencoded in the path so the browser's own relative-URL resolution keeps
+// working. Root-relative ("/foo") and cross-origin requests are mapped back to the
+// right upstream using the requesting client's view-space URL.
+//
+// The optional token names the mounted WebViewer a document belongs to and the device
+// it emulates. It exists because several viewers can share one Ivy page — and therefore
+// one worker: a global "current device" would have the last viewer to mount decide the
+// User-Agent for all of them, and an untagged network entry would be reported by every
+// viewer on the page. Only DOCUMENT urls carry it (the parent builds them); rewritten
+// subresources stay bare and are resolved through the client that asked for them.
+// Same grammar in agent.js and WebViewerProxy.cs.
 
 const PROXY = '/__proxy?url='
 const VIEW = '/__view/'
+const VIEW_TOKEN_RE = /^@([A-Za-z0-9]{1,16})(?:\.(mobile|tablet))?\//
+const NO_VIEW = { viewer: null, device: null, token: '' }
 
 // ---- durable state -------------------------------------------------------
 //
@@ -26,14 +36,13 @@ const VIEW = '/__view/'
 const STATE_CACHE = 'webviewer-proxy-state'
 const STATE_KEY = '/__proxy-state'
 
-// device:     mobile / tablet / null for desktop.
 // clients:    clientId -> the document's own upstream origin. Per document rather than one
 //             global "last origin used", so a page pulling assets from a second host never
 //             has its requests answered by whichever host was proxied most recently.
 // assetHosts: document origin -> other origins that document has loaded assets from, keyed
 //             by SITE rather than by client so it outlives navigation, client-id churn and
 //             worker restarts. This is what lets a root-relative bundle URL be recovered.
-const state = { device: null, clients: {}, assetHosts: {} }
+const state = { clients: {}, assetHosts: {} }
 
 const clientInfo = new Map()
 const assetHosts = new Map()
@@ -89,7 +98,6 @@ function clientOrigin(id) {
   return (id && clientInfo.get(id)) || null
 }
 
-let deviceSetThisRun = false
 let restorePromise = null
 
 function restoreState() {
@@ -100,8 +108,6 @@ function restoreState() {
       .then((res) => (res ? res.json() : null))
       .then((saved) => {
         if (!saved) return
-        // Anything set since this restart wins over what was persisted before it.
-        if (!deviceSetThisRun) state.device = saved.device ?? null
         for (const [id, origin] of Object.entries(saved.clients || {})) {
           if (!clientInfo.has(id) && typeof origin === 'string') clientInfo.set(id, origin)
         }
@@ -140,29 +146,88 @@ function persistState() {
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()))
 
-self.addEventListener('message', (e) => {
-  if (e.data && e.data.__proxySetDevice !== undefined) {
-    state.device = e.data.__proxySetDevice || null
-    deviceSetThisRun = true
-    persistState()
-  }
-})
-
 // Re-insert the "//" some path normalizers drop after the scheme.
 function fixProto(s) {
   return s.replace(/^(https?:)\/(?!\/)/, '$1//')
 }
 
+function stripViewToken(rest) {
+  return rest.replace(VIEW_TOKEN_RE, '')
+}
+
 // Extract the absolute target from a view-space URL.
 function viewTarget(url) {
-  return fixProto(url.pathname.slice(VIEW.length)) + url.search
+  return fixProto(stripViewToken(url.pathname.slice(VIEW.length))) + url.search
+}
+
+// The viewer/device token a view-space URL was loaded under, or null for anything else.
+function tokenFromHref(href) {
+  try {
+    const u = new URL(href, self.location.origin)
+    if (u.origin !== self.location.origin || !u.pathname.startsWith(VIEW)) return null
+    const m = VIEW_TOKEN_RE.exec(u.pathname.slice(VIEW.length))
+    return m ? { viewer: m[1], device: m[2] || null, token: m[0] } : null
+  } catch {
+    return null
+  }
+}
+
+// clientId -> the token its document was loaded under. A memo for the clients.get() below,
+// but it also outlasts the answer it caches: a proxied SPA that replaceState()s its way to a
+// root-relative path takes its own document URL out of view-space, and from then on the URL
+// says nothing about which viewer the client belongs to.
+const clientViews = new Map()
+
+function rememberClientView(id, view) {
+  if (!id || !view) return
+  clientViews.set(id, view)
+  while (clientViews.size > MAX_TRACKED_CLIENTS) {
+    clientViews.delete(clientViews.keys().next().value)
+  }
+}
+
+// Which viewer a request belongs to. A document names itself; everything else is answered by
+// the client that asked, and a clientless speculative fetch by its referrer — which is the
+// document URL, token and all.
+async function viewContext(req, event) {
+  const id = event.clientId || event.resultingClientId
+
+  const own = tokenFromHref(req.url)
+  if (own) {
+    // A navigation names the client it is about to create, which is how the documents that
+    // follow it are placed without another lookup.
+    rememberClientView(id, own)
+    return own
+  }
+
+  if (id) {
+    const known = clientViews.get(id)
+    if (known) return known
+    try {
+      const client = await self.clients.get(id)
+      const fromClient = client && tokenFromHref(client.url)
+      if (fromClient) {
+        rememberClientView(id, fromClient)
+        return fromClient
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const fromReferrer = tokenFromHref(req.referrer || '')
+  if (fromReferrer) {
+    rememberClientView(id, fromReferrer)
+    return fromReferrer
+  }
+  return NO_VIEW
 }
 
 function upstreamOriginFromUrl(href) {
   try {
     const u = new URL(href)
     if (u.pathname.startsWith(VIEW)) {
-      return new URL(fixProto(u.pathname.slice(VIEW.length))).origin
+      return new URL(fixProto(stripViewToken(u.pathname.slice(VIEW.length)))).origin
     }
   } catch {
     /* ignore */
@@ -207,9 +272,15 @@ async function broadcast(message) {
 }
 
 // Build a HAR 1.2 entry and send it to the parent app.
+//
+// Every viewer on the page shares one parent window, so the message has to say which one
+// it belongs to — the viewer token, resolved from the requesting client. Untagged entries
+// (a request we could not place) are still broadcast; the parent only trusts those when it
+// is the single mounted viewer.
 function emitEntry(o) {
   broadcast({
     __proxyNet: true,
+    viewer: o.viewer || null,
     entry: {
       startedDateTime: o.startISO,
       time: Math.round(o.time),
@@ -265,10 +336,10 @@ function asViewSpaceResponse(res) {
 
 // Fetch an absolute target through the server proxy. Records the upstream
 // origin for this client, times the request, and emits a HAR entry.
-async function proxyFetch(req, target, event) {
-  // Safe to await here — this already runs inside respondWith's promise, so the
-  // emulated device is whatever the parent last set even across a worker restart.
+async function proxyFetch(req, target, event, context) {
+  // Safe to await here — this already runs inside respondWith's promise.
   await restoreState()
+  const view = context || (await viewContext(req, event))
 
   const absolute = fixProto(target)
   try {
@@ -294,7 +365,7 @@ async function proxyFetch(req, target, event) {
   const t0 = Date.now()
   const startISO = new Date(t0).toISOString()
 
-  const devParam = state.device ? '&dev=' + encodeURIComponent(state.device) : ''
+  const devParam = view.device ? '&dev=' + encodeURIComponent(view.device) : ''
   let res
   try {
     res = await fetch(PROXY + encodeURIComponent(absolute) + devParam, init)
@@ -312,6 +383,7 @@ async function proxyFetch(req, target, event) {
       size: -1,
       mimeType: '',
       resourceType,
+      viewer: view.viewer,
     })
     throw err
   }
@@ -331,6 +403,7 @@ async function proxyFetch(req, target, event) {
     resHeaders: upstreamHeaders ? headersFromObject(upstreamHeaders) : headersToArray(res.headers),
     mimeType: res.headers.get('content-type') || '',
     resourceType,
+    viewer: view.viewer,
   }
 
   // Prefer the real upstream content-length; otherwise measure the body.
@@ -354,15 +427,18 @@ function upstreamTarget(url, upstream) {
 }
 
 async function respondForUpstream(req, url, upstream, event) {
+  const view = await viewContext(req, event)
+
   // A navigation (link click / location change) inside proxied content: bounce it into
-  // view-space so the document URL keeps carrying the target.
+  // view-space so the document URL keeps carrying the target — and this viewer's token,
+  // so the page it lands on stays in the same viewer with the same emulated device.
   if (req.mode === 'navigate') {
-    const target = upstreamTarget(url, upstream)
+    const target = view.token + upstreamTarget(url, upstream)
     return Response.redirect(new URL(VIEW + target, self.location.origin).href, 302)
   }
 
   const retryable = url.origin === self.location.origin && (req.method === 'GET' || req.method === 'HEAD')
-  const first = await proxyFetch(retryable ? req.clone() : req, upstreamTarget(url, upstream), event)
+  const first = await proxyFetch(retryable ? req.clone() : req, upstreamTarget(url, upstream), event, view)
   if (first.status !== 404 || !retryable) return first
 
   // Sites that serve their bundle from a second host (theguardian.com + assets.guim.co.uk,
@@ -375,7 +451,7 @@ async function respondForUpstream(req, url, upstream, event) {
     if (origin !== upstream && !alternates.includes(origin)) alternates.push(origin)
   }
   for (const origin of alternates) {
-    const retry = await proxyFetch(req.clone(), upstreamTarget(url, origin), event)
+    const retry = await proxyFetch(req.clone(), upstreamTarget(url, origin), event, view)
     if (retry.status < 400) return retry
   }
   return first
@@ -416,6 +492,19 @@ async function upstreamFromControlledClients(event) {
   }
 }
 
+// A request that already names its target. The one thing worth intercepting first is a
+// NAVIGATION into bare view-space: server-rewritten links carry no token, so following one
+// would land the next document in a viewer-less view-space — desktop User-Agent, network
+// entries no viewer will claim. Put this client's token back before the document loads.
+async function handleViewRequest(req, url, event) {
+  const view = await viewContext(req, event)
+  if (req.mode === 'navigate' && view.token && !tokenFromHref(req.url)) {
+    const target = view.token + viewTarget(url)
+    return Response.redirect(new URL(VIEW + target, self.location.origin).href, 302)
+  }
+  return proxyFetch(req, viewTarget(url), event, view)
+}
+
 async function resolveThenFetch(req, url, event) {
   await restoreState()
   const upstream =
@@ -446,7 +535,7 @@ self.addEventListener('fetch', (event) => {
 
   // Explicit view-space request (the iframe document, or a resolved relative resource).
   if (sameOrigin && url.pathname.startsWith(VIEW)) {
-    event.respondWith(proxyFetch(req, viewTarget(url), event))
+    event.respondWith(handleViewRequest(req, url, event))
     return
   }
 

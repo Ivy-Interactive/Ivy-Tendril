@@ -65,7 +65,22 @@ public class WebViewerRewriterTests
 
         Assert.Contains("/__view/https://example.com/app.css", result);
         Assert.DoesNotContain("integrity", result);
-        Assert.DoesNotContain("crossorigin", result);
+        // The hash covers bytes we rewrote. The fetch MODE is not ours to change.
+        Assert.Contains("crossorigin=\"anonymous\"", result);
+    }
+
+    // A font is fetched in CORS mode whatever its origin, so a preload stripped of its
+    // crossorigin no longer matches the load it was meant to serve and the font is
+    // downloaded a second time.
+    [Fact]
+    public void RewriteHtml_KeepsCrossoriginOnAPreload()
+    {
+        const string html = """<html><head><link rel="preload" as="font" href="/f.woff2" crossorigin=""></head><body></body></html>""";
+
+        var result = WebViewerRewriter.RewriteHtml(html, PageUrl);
+
+        Assert.Contains("/__view/https://example.com/f.woff2", result);
+        Assert.Contains("crossorigin", result);
     }
 
     // A chunk runtime identifies a chunk by the path it was served under, so a same-origin
@@ -282,6 +297,35 @@ public class WebViewerRewriterTests
     public void BaseHref_PointsAtTheDirectoryOfThePage(string url, string expected)
     {
         Assert.Equal(expected, WebViewerRewriter.BaseHref(url));
+    }
+
+    // The token that keeps several viewers on one page apart. Parsed identically in sw.js and
+    // agent.js, so the cases below are the contract all three share.
+    [Theory]
+    [InlineData("@v1/https://example.com/", "v1", null)]
+    [InlineData("@v12.mobile/https://example.com/", "v12", "mobile")]
+    [InlineData("@v3.tablet/https://example.com/", "v3", "tablet")]
+    public void ViewToken_ReadsTheViewerAndItsDevice(string rest, string viewer, string? device)
+    {
+        var token = ViewToken.Match(rest);
+
+        Assert.True(token.Success);
+        Assert.Equal(viewer, token.Viewer);
+        Assert.Equal(device, token.Device);
+        Assert.Equal("https://example.com/", rest[token.Length..]);
+    }
+
+    [Theory]
+    [InlineData("https://example.com/")]          // no token: the plain view-space form
+    [InlineData("@v1.watch/https://example.com/")] // a device we do not emulate
+    [InlineData("@/https://example.com/")]
+    [InlineData("@v1https://example.com/")]
+    public void ViewToken_LeavesAnythingElseAlone(string rest)
+    {
+        var token = ViewToken.Match(rest);
+
+        Assert.False(token.Success);
+        Assert.Equal(0, token.Length);
     }
 
     [Fact]

@@ -22,6 +22,9 @@ public class DemoApp : ViewBase
         var currentUrl = UseState(home); // value bound to the widget's Url prop
         var device = UseState(WebViewerDevice.Desktop);
         var events = UseState(ImmutableList<WebViewerEvent>.Empty);
+        // Comments are the one event stream that is not append-only: a pin can be edited or
+        // removed from inside the page, so the live set is kept apart from the raw log.
+        var comments = UseState(ImmutableList<CommentEvent>.Empty);
         var activeTab = UseState("console");
         var canGoBack = UseState(false);
         var canGoForward = UseState(false);
@@ -44,8 +47,22 @@ public class DemoApp : ViewBase
                         canGoBack.Set(nav.CanGoBack);
                         canGoForward.Set(nav.CanGoForward);
                         break;
-                    case CommentEvent:
+                    case CommentEvent c:
+                        comments.Set(prev => prev.Add(c));
                         selecting.Set(false); // the agent stops select mode after a pick
+                        break;
+                    case CommentUpdatedEvent u:
+                        comments.Set(prev => prev
+                            .Select(x => x.Id == u.Id ? x with { Comment = u.Comment } : x)
+                            .ToImmutableList());
+                        break;
+                    case CommentDeletedEvent d:
+                        // Numbers are positions, so the remaining pins renumber themselves —
+                        // in the page and here. Keeping arrival order is all it takes.
+                        comments.Set(prev => prev
+                            .RemoveAll(x => x.Id == d.Id)
+                            .Select((x, i) => x with { Number = i + 1 })
+                            .ToImmutableList());
                         break;
                 }
             })
@@ -99,7 +116,7 @@ public class DemoApp : ViewBase
         var all = events.Value;
         var consoleItems = all.OfType<ConsoleEvent>().ToImmutableList();
         var clickItems = all.OfType<ClickEvent>().ToImmutableList();
-        var commentItems = all.OfType<CommentEvent>().ToImmutableList();
+        var commentItems = comments.Value;
         var drawItems = all.OfType<DrawEvent>().ToImmutableList();
         var navItems = all.OfType<NavigateEvent>().ToImmutableList();
         var netItems = all.OfType<HttpEvent>().ToImmutableList();
@@ -119,6 +136,8 @@ public class DemoApp : ViewBase
             | Tab("navigate", "Navigate", navItems.Count)
             | Tab("network", "Network", netItems.Count)
             | Tab("captures", "Captures", capItems.Count)
+            // The log only. The comments are still pinned in the page, and a panel that
+            // disagreed with what the viewer is showing would be worse than a full log.
             | new Button("Clear").Small().Ghost().Destructive()
                 .OnClick(() => events.Set(ImmutableList<WebViewerEvent>.Empty));
 
@@ -187,12 +206,14 @@ public class DemoApp : ViewBase
         return rows.AsQueryable().ToDataTable().Width(Size.Full());
     }
 
+    // The live set, in pin order — not the event log. Editing or deleting a pin in the page
+    // rewrites this list, which is the whole point of the id/number pair on the events.
     private static object RenderComments(ImmutableList<CommentEvent> items)
     {
         if (items.Count == 0) return Text.Muted("No comments — press Select, then pick an element");
-        var rows = Recent(items).Select(c => (object)(
+        var rows = items.Select(c => (object)(
             Layout.Vertical().Gap(0)
-            | Text.Block(c.Comment).Color(Colors.Blue)
+            | Text.Block($"{c.Number}. {c.Comment}").Color(Colors.Blue)
             | Text.Muted($"{c.Tag} · {c.Selector} · {ComponentName(c.DebugJson)}")
             | Text.Muted(c.Xpath)
         ));

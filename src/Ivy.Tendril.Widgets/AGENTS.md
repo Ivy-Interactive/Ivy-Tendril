@@ -15,6 +15,7 @@ frontend/             React/Vite bundle (npm run build → dist/)
     DraftMarkdown/    AnnotationsApp, CollapsibleApp, ComparisonApp, MathApp, StickyContentApp
     AgentViewer/      ErrorApp, LiveStreamApp, PreBufferedApp, TableOutputApp
     TendrilProcessViewer/  DemoApp
+    WebViewer/        DemoApp (inspector), SideBySideApp (two viewers on one page)
 
 .tests/               Playwright E2E tests
   widgets/            Test specs grouped by widget
@@ -95,6 +96,51 @@ Worker state that must outlive an idle teardown is kept in the Cache API.
 (`/__view/<absolute-url>`). HTML goes through AngleSharp, never pattern matching — entity
 decoding, script bodies and comment boundaries are the parser's job. Tests live in
 `src/Ivy.Tendril.Test/Widgets/WebViewerRewriterTests.cs`.
+
+### Several viewers on one page
+
+Mounted WebViewers share an origin and therefore a single service worker, which has no other
+way to tell whose request it is holding. Each viewer's frame carries a token in its own URL —
+`/__view/@v3.mobile/<absolute-url>` — naming the viewer and the device it emulates. Only
+DOCUMENT urls carry it; rewritten subresources stay bare and the worker resolves them through
+the client that asked (`viewContext` in `sw.js`, memoised per client id). `ViewToken` in
+`WebViewerRewriter.cs` is the grammar, and `sw.js` and `agent.js` each parse the same thing.
+
+Three consequences worth keeping:
+
+- device emulation is a property of the frame's URL, not of the worker. Setting it on the
+  worker made it global (last viewer to mount wins) and had to be re-sent after every idle
+  teardown;
+- the worker tags each HAR broadcast with the viewer it belongs to, because all viewers share
+  one parent window. An untagged entry is only claimed when a single viewer is mounted;
+- the parent ignores any `postMessage` whose `source` is not its own frame — otherwise every
+  viewer reports its neighbours' clicks and console output as its own.
+
+`.samples/Apps/WebViewer/SideBySideApp.cs` mounts two of them and is where to check this.
+
+### Comment pins
+
+A submitted comment leaves a numbered yellow pin on its element, clickable to edit or delete.
+Placement lives in `agent.js` (only the page can resolve an xpath after a re-render, and pins
+are positioned in document coordinates, repositioned on scroll/resize/ResizeObserver); the
+LIST lives in the widget, which replaces the whole set through `markers-set` on every change
+and on every load — the agent is re-injected per document and remembers nothing.
+
+Ivy sees `CommentEvent` / `CommentUpdatedEvent` / `CommentDeletedEvent`. `Id` is the identity;
+`Number` is only a 1-based position, so a delete renumbers the survivors with no event of its
+own — keep the list in arrival order and the numbers follow.
+
+### Fetching on a caller's behalf
+
+`/__proxy` and `/__resolve` fetch URLs the caller names, gated by
+`WebViewerProxyOptions.IsUrlAllowed` (null by default: an open relay, which is what makes it
+useful against localhost). Redirects are followed by `WebViewerHttp`, one hop at a time,
+through the same gate — the shared `HttpClient` follows none of its own, since a redirect is a
+URL the caller did not name and the allow-list would never see it.
+
+No cookies travel in either direction, and `Set-Cookie` is not relayed: every proxied site is
+served from the Ivy app's one origin, so a single cookie jar would be shared by all of them.
+Sites that need a session cannot be reviewed signed in.
 
 ## Markdown raw HTML
 

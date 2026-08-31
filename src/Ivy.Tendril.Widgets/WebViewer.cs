@@ -14,10 +14,18 @@ public enum WebViewerDevice
 /// A thin viewport widget that loads any URL into a proxied sandbox iframe and surfaces
 /// everything (console, clicks, comments, network, navigation, screenshots) through a
 /// single typed <see cref="OnEvent"/> firehose. All UI (toolbar, DevTools panels) is
-/// meant to be built in Ivy code; the widget owns only the iframe and the comment overlay.
+/// meant to be built in Ivy code; the widget owns only the iframe, the comment overlay
+/// and the numbered pins that mark commented elements.
 ///
-/// The proxy/capture/service-worker endpoints (/__proxy, /__view, /__capture, /__lib,
-/// /sw.js) must be hosted by the Ivy app on the same origin (see .samples/WebViewerProxy.cs).
+/// <para>The endpoints it depends on ship in this library, in
+/// <see cref="WebViewerProxy"/>, and must be hosted by the Ivy app on the same origin:</para>
+/// <code>
+/// server.ReservePaths(WebViewerProxy.ReservedPaths);
+/// server.UseWebApplication(app => app.MapWebViewerProxy());
+/// </code>
+///
+/// <para>Several viewers may be mounted on one page; each keeps its own device emulation,
+/// network log and comment pins.</para>
 /// </summary>
 [ExternalWidget(
     "frontend/dist/ivy-tendril-widgets.js",
@@ -85,6 +93,8 @@ public record DrawModeCommand(bool Enabled) : WebViewerCommand;
 [JsonDerivedType(typeof(ConsoleEvent), "console")]
 [JsonDerivedType(typeof(ClickEvent), "click")]
 [JsonDerivedType(typeof(CommentEvent), "comment")]
+[JsonDerivedType(typeof(CommentUpdatedEvent), "comment-updated")]
+[JsonDerivedType(typeof(CommentDeletedEvent), "comment-deleted")]
 [JsonDerivedType(typeof(DrawEvent), "draw")]
 [JsonDerivedType(typeof(HttpEvent), "http")]
 [JsonDerivedType(typeof(NavigateEvent), "navigate")]
@@ -108,13 +118,33 @@ public record ClickEvent(
     double Y,
     string? DebugJson) : WebViewerEvent;
 
-/// <summary>A completed comment: the user picked an element and submitted text.</summary>
+/// <summary>
+/// A completed comment: the user picked an element and submitted text. The widget marks the
+/// element with a numbered pin and keeps it anchored there for the rest of the session,
+/// through re-renders, scrolling and reloads.
+///
+/// <para><paramref name="Id"/> is the pin's stable identity — it is what the follow-up
+/// <see cref="CommentUpdatedEvent"/> and <see cref="CommentDeletedEvent"/> name, and the only
+/// field worth storing as a key. <paramref name="Number"/> is what the pin SHOWS, which is
+/// just its 1-based position: delete pin 2 of 3 and the last one renumbers to 2, with no
+/// event of its own. Keep the comments in arrival order and the numbers fall out of the
+/// order; do not treat a number as an identity.</para>
+/// </summary>
 public record CommentEvent(
+    string Id,
+    int Number,
     string Tag,
     string Xpath,
     string Selector,
     string Comment,
     string? DebugJson) : WebViewerEvent;
+
+/// <summary>The text of an existing comment was edited in place (the user clicked its pin).</summary>
+public record CommentUpdatedEvent(string Id, int Number, string Comment) : WebViewerEvent;
+
+/// <summary>A comment was deleted from its pin. Remaining pins renumber; see
+/// <see cref="CommentEvent"/>.</summary>
+public record CommentDeletedEvent(string Id, int Number) : WebViewerEvent;
 
 /// <summary>A red-pen stroke. <paramref name="PointsJson"/> is the raw points array as JSON.</summary>
 public record DrawEvent(int PointCount, string PointsJson) : WebViewerEvent;

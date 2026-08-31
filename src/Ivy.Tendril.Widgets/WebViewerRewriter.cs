@@ -94,10 +94,15 @@ public static class WebViewerRewriter
 
             // Subresource integrity hashes cover the untouched upstream bytes. We rewrite those
             // bytes, so a surviving hash makes the browser refuse the script or stylesheet.
+            //
+            // "crossorigin" stays. Every rewritten URL is same-origin now, where the attribute
+            // is a no-op for the fetch itself — but dropping it changes the request's MODE, and
+            // a preload only satisfies the real load when the two modes agree. A font is always
+            // fetched in CORS mode, so stripping it from <link rel=preload as=font crossorigin>
+            // leaves a preload that matches nothing and the font downloads twice.
             if (rewroteResourceUrl)
             {
                 el.RemoveAttribute("integrity");
-                el.RemoveAttribute("crossorigin");
             }
         }
 
@@ -427,4 +432,38 @@ public static class WebViewerRewriter
     /// </summary>
     public static string FixProtocol(string value) =>
         Regex.Replace(value, "^(https?:)/(?!/)", "$1//");
+}
+
+/// <summary>
+/// The optional <c>@&lt;viewer&gt;[.&lt;device&gt;]/</c> segment that may sit between
+/// <see cref="WebViewerRewriter.ViewPrefix"/> and the absolute URL — for example
+/// <c>/__view/@v3.mobile/https://example.com/</c>.
+///
+/// It exists because several WebViewers can be mounted on one Ivy page, sharing one origin
+/// and therefore one service worker. The token is what tells them apart: it names the widget
+/// a document belongs to (so a network entry is reported by that viewer alone) and the device
+/// it emulates (so one viewer's phone viewport is not every viewer's).
+///
+/// Only DOCUMENT urls carry it — the parent widget builds those. Rewritten subresource URLs
+/// stay bare, and the service worker resolves them through the client that asked. The same
+/// grammar is implemented in <c>proxy-assets/sw.js</c> and <c>proxy-assets/agent.js</c>.
+/// </summary>
+public static class ViewToken
+{
+    private static readonly Regex Pattern = new(
+        @"^@(?<viewer>[A-Za-z0-9]{1,16})(?:\.(?<device>mobile|tablet))?/",
+        RegexOptions.Compiled);
+
+    /// <summary>A parsed token. <paramref name="Length"/> is what to strip off the front.</summary>
+    public readonly record struct Result(bool Success, int Length, string? Viewer, string? Device);
+
+    /// <summary>Read a token off the front of a view-space path (the part after the prefix).</summary>
+    public static Result Match(string rest)
+    {
+        var m = Pattern.Match(rest);
+        return m.Success
+            ? new Result(true, m.Length, m.Groups["viewer"].Value,
+                m.Groups["device"].Success ? m.Groups["device"].Value : null)
+            : default;
+    }
 }
