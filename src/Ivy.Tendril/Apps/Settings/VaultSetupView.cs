@@ -262,7 +262,8 @@ public class VaultSetupView : ViewBase
             .ToArray();
 
         var topHeader = Layout.Horizontal().AlignContent(Align.SpaceBetween)
-            | Text.H2("Team Vault").Bold()
+            | (Layout.Horizontal().AlignContent(Align.Left)
+                | (vaultsList.Count > 0 ? selectedVaultId.ToSelectInput(vaultOptions) : Text.H2("Team Vault").Bold()))
             | headerToolbar;
 
         var repoDisplay = !string.IsNullOrEmpty(status.RepoUrl)
@@ -287,7 +288,6 @@ public class VaultSetupView : ViewBase
                 Layout.Horizontal().AlignContent(Align.Left)
                     | Icons.FolderGit2.ToIcon()
                     | Text.Monospaced(repo).Bold()
-                    | (vaultsList.Count > 1 ? selectedVaultId.ToSelectInput(vaultOptions).Small() : null)
             ))
             .Builder(x => x.Branch, f => f.Func((string b) =>
                 new Badge(b).Variant(BadgeVariant.Secondary).Small()
