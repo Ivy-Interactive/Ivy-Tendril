@@ -59,7 +59,7 @@ public class ImportAssetItemRow(string name, IState<HashSet<string>> selectedSet
 
 public class ImportFromVaultDialog(
     IState<bool> dialogOpen,
-    VaultCatalogItem? projectItem,
+    IState<VaultCatalogItem?> selectedProjectItem,
     IVaultService vaultService,
     IClientProvider client,
     Action onImported) : ViewBase
@@ -81,71 +81,37 @@ public class ImportFromVaultDialog(
 
     public override object? Build()
     {
-        var config = UseService<IConfigService>();
-
-        var targetProjectName = UseState(() =>
-        {
-            if (projectItem == null) return "";
-            return ComputeSuggestedName(projectItem.Name, config.Settings.Projects);
-        });
-
-        var repoMappings = UseState(() =>
-        {
-            var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var initialMappings = new Dictionary<string, string>();
-            if (projectItem != null)
-            {
-                foreach (var repo in projectItem.Repos)
-                {
-                    var repoKey = !string.IsNullOrEmpty(repo.Owner) && repo.Owner != "local" && repo.Owner != "default"
-                        ? $"{repo.Owner}/{repo.Name}"
-                        : repo.Name;
-                    initialMappings[repoKey] = Path.Combine(homeDir, "git", repo.Name);
-                }
-            }
-            return initialMappings;
-        });
-
-        var selectedSkills = UseState<HashSet<string>>(() =>
-            projectItem != null
-                ? new HashSet<string>(projectItem.SkillNames, StringComparer.OrdinalIgnoreCase)
-                : new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-
-        var selectedMcps = UseState<HashSet<string>>(() =>
-            projectItem != null
-                ? new HashSet<string>(projectItem.McpServerNames, StringComparer.OrdinalIgnoreCase)
-                : new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-
-        var selectedMemories = UseState<HashSet<string>>(() =>
-            projectItem != null
-                ? new HashSet<string>(projectItem.MemoryFileNames, StringComparer.OrdinalIgnoreCase)
-                : new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-
-        var selectedReviewActions = UseState<HashSet<string>>(() =>
-            projectItem != null
-                ? new HashSet<string>(projectItem.ReviewActionNames, StringComparer.OrdinalIgnoreCase)
-                : new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-
-        var selectedVerifications = UseState<HashSet<string>>(() =>
-            projectItem != null
-                ? new HashSet<string>(projectItem.VerificationNames, StringComparer.OrdinalIgnoreCase)
-                : new HashSet<string>(StringComparer.OrdinalIgnoreCase));
-
+        var targetProjectName = UseState("");
+        var repoMappings = UseState<Dictionary<string, string>>(() => new());
+        var selectedSkills = UseState<HashSet<string>>(() => new(StringComparer.OrdinalIgnoreCase));
+        var selectedMcps = UseState<HashSet<string>>(() => new(StringComparer.OrdinalIgnoreCase));
+        var selectedMemories = UseState<HashSet<string>>(() => new(StringComparer.OrdinalIgnoreCase));
+        var selectedReviewActions = UseState<HashSet<string>>(() => new(StringComparer.OrdinalIgnoreCase));
+        var selectedVerifications = UseState<HashSet<string>>(() => new(StringComparer.OrdinalIgnoreCase));
         var importPermissions = UseState(true);
         var isLoading = UseState(false);
         var errorMessage = UseState<string?>(null);
 
+        var config = UseService<IConfigService>();
+        var projectItem = selectedProjectItem.Value;
+
+        var defaultSuggested = projectItem != null
+            ? ComputeSuggestedName(projectItem.Name, config.Settings.Projects)
+            : "";
+
         UseEffect(() =>
         {
-            if (dialogOpen.Value && projectItem != null)
+            if (dialogOpen.Value && selectedProjectItem.Value != null)
             {
+                var item = selectedProjectItem.Value;
                 var existing = config.Settings.Projects;
-                var suggested = ComputeSuggestedName(projectItem.Name, existing);
+                var suggested = ComputeSuggestedName(item.Name, existing);
+                targetProjectName.Set(suggested);
                 targetProjectName.Set(suggested);
 
                 var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
                 var initialMappings = new Dictionary<string, string>();
-                foreach (var repo in projectItem.Repos)
+                foreach (var repo in item.Repos)
                 {
                     var repoKey = !string.IsNullOrEmpty(repo.Owner) && repo.Owner != "local" && repo.Owner != "default"
                         ? $"{repo.Owner}/{repo.Name}"
@@ -154,24 +120,28 @@ public class ImportFromVaultDialog(
                 }
                 repoMappings.Set(initialMappings);
 
-                selectedSkills.Set(new HashSet<string>(projectItem.SkillNames, StringComparer.OrdinalIgnoreCase));
-                selectedMcps.Set(new HashSet<string>(projectItem.McpServerNames, StringComparer.OrdinalIgnoreCase));
-                selectedMemories.Set(new HashSet<string>(projectItem.MemoryFileNames, StringComparer.OrdinalIgnoreCase));
-                selectedReviewActions.Set(new HashSet<string>(projectItem.ReviewActionNames, StringComparer.OrdinalIgnoreCase));
-                selectedVerifications.Set(new HashSet<string>(projectItem.VerificationNames, StringComparer.OrdinalIgnoreCase));
+                selectedSkills.Set(new HashSet<string>(item.SkillNames, StringComparer.OrdinalIgnoreCase));
+                selectedMcps.Set(new HashSet<string>(item.McpServerNames, StringComparer.OrdinalIgnoreCase));
+                selectedMemories.Set(new HashSet<string>(item.MemoryFileNames, StringComparer.OrdinalIgnoreCase));
+                selectedReviewActions.Set(new HashSet<string>(item.ReviewActionNames, StringComparer.OrdinalIgnoreCase));
+                selectedVerifications.Set(new HashSet<string>(item.VerificationNames, StringComparer.OrdinalIgnoreCase));
                 errorMessage.Set(null);
             }
-        }, dialogOpen);
+        }, dialogOpen, selectedProjectItem);
 
         if (!dialogOpen.Value || projectItem == null) return null;
 
+        var effectiveProjectName = !string.IsNullOrWhiteSpace(targetProjectName.Value)
+            ? targetProjectName.Value.Trim()
+            : defaultSuggested;
+
         var existingProjects = config.Settings.Projects;
-        var isNameInUse = existingProjects.Any(p => p.Name.Equals(targetProjectName.Value.Trim(), StringComparison.OrdinalIgnoreCase));
+        var isNameInUse = existingProjects.Any(p => p.Name.Equals(effectiveProjectName, StringComparison.OrdinalIgnoreCase));
         var hasOriginalCollision = existingProjects.Any(p => p.Name.Equals(projectItem.Name, StringComparison.OrdinalIgnoreCase));
 
         async Task HandleImport()
         {
-            var finalName = targetProjectName.Value.Trim();
+            var finalName = !string.IsNullOrWhiteSpace(targetProjectName.Value) ? targetProjectName.Value.Trim() : defaultSuggested;
             if (isLoading.Value || string.IsNullOrWhiteSpace(finalName)) return;
 
             if (isNameInUse && projectItem.SyncStatus != VaultItemSyncStatus.UpdateAvailable)
@@ -203,6 +173,7 @@ public class ImportFromVaultDialog(
             if (result.Success)
             {
                 dialogOpen.Set(false);
+                targetProjectName.Set("");
                 client.Toast(result.Message, "Project Imported");
                 onImported();
             }
@@ -326,13 +297,16 @@ public class ImportFromVaultDialog(
         // Permissions
         assetChecklist |= importPermissions.ToBoolInput("Import Security & Permissions Policies");
 
-        var collisionNotice = (hasOriginalCollision && targetProjectName.Value != projectItem.Name)
-            ? Callout.Info($"A local project named '{projectItem.Name}' already exists. We've suggested '{targetProjectName.Value}' for this import to avoid conflicts.")
+        var collisionNotice = (hasOriginalCollision && effectiveProjectName != projectItem.Name)
+            ? Callout.Info($"A local project named '{projectItem.Name}' already exists. We've suggested '{effectiveProjectName}' for this import to avoid conflicts.")
             : null;
+
+        var nameInput = targetProjectName.ToTextInput(defaultSuggested)
+            .WithField().Label("Local Project Name");
 
         var form = Layout.Vertical()
             | collisionNotice
-            | targetProjectName.ToTextInput().WithField().Label("Local Project Name")
+            | nameInput
             | (Layout.Horizontal().AlignContent(Align.Left)
                 | Text.Block($"Vault Source: {projectItem.Name}").Bold().Small()
                 | new Badge($"v{projectItem.RemoteVersion}").Variant(BadgeVariant.Secondary).Small())
@@ -353,7 +327,7 @@ public class ImportFromVaultDialog(
                     .Icon(Icons.Download)
                     .Primary()
                     .Loading(isLoading.Value)
-                    .Disabled(isLoading.Value || string.IsNullOrWhiteSpace(targetProjectName.Value))
+                    .Disabled(isLoading.Value || string.IsNullOrWhiteSpace(effectiveProjectName))
                     .OnClick(async () => await HandleImport())
             )
         );

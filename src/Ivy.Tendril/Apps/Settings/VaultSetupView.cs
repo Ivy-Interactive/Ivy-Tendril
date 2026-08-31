@@ -123,7 +123,7 @@ public class VaultSetupView : ViewBase
             initialVaultId: selectedVaultId.Value);
 
         var importDialog = new ImportFromVaultDialog(
-            openImportDialog, selectedImportItem.Value, vaultService, client,
+            openImportDialog, selectedImportItem, vaultService, client,
             onImported: () =>
             {
                 vaultsQuery.Mutator.Revalidate();
