@@ -9,10 +9,20 @@ public enum VaultItemSyncStatus
     UpToDate,
     UpdateAvailable,
     LocalOnly,
-    Modified
+    Modified,
+    Conflict
 }
 
 public record GitHubAccountOption(string Login, string Type);
+
+public record DiscoveredVaultRepo(
+    string FullName,
+    string RepoUrl,
+    string Owner,
+    string Name,
+    bool IsPrivate,
+    string AccountType = "Organization"
+);
 
 public record VaultManifest
 {
@@ -94,6 +104,11 @@ public record VaultCatalogItem
     public List<string> VerificationNames { get; set; } = new();
     public VaultItemSyncStatus SyncStatus { get; set; }
     public List<VaultRepoRef> Repos { get; set; } = new();
+    public bool HasLocalConflict { get; set; }
+    public string? ConflictReason { get; set; }
+    public string? LinkedVaultId { get; set; }
+    public string? SourceVaultId { get; set; }
+    public string? SourceVaultName { get; set; }
 }
 
 public record VaultCatalog
@@ -106,6 +121,8 @@ public record VaultCatalog
 
 public record VaultStatus
 {
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
     public bool IsConfigured { get; set; }
     public string RepoUrl { get; set; } = "";
     public string LocalPath { get; set; } = "";
@@ -119,6 +136,7 @@ public record VaultStatus
 
 public record VaultExportRequest
 {
+    public string? TargetVaultId { get; set; }
     public List<string> ProjectNames { get; set; } = new();
     public string Version { get; set; } = "";
     public string Changelog { get; set; } = "";
@@ -135,7 +153,9 @@ public record VaultExportRequest
 
 public record VaultImportRequest
 {
+    public string? SourceVaultId { get; set; }
     public string ProjectName { get; set; } = "";
+    public string? TargetLocalProjectName { get; set; }
     public Dictionary<string, string> LocalRepoMappings { get; set; } = new();
     public List<string>? SelectedSkills { get; set; }
     public List<string>? SelectedMcps { get; set; }

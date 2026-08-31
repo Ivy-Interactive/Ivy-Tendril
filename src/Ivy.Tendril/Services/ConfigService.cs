@@ -221,6 +221,7 @@ public class TendrilSettings
     public Tunnel.TunnelConfig? Tunnel { get; set; }
     public Tunnel.TunnelConfig? ShareTunnel { get; set; }
     public VaultSettings? Vault { get; set; }
+    public List<VaultSettings> Vaults { get; set; } = new();
     public bool Telemetry { get; set; } = true;
     public bool DesktopNotifications { get; set; } = true;
     public bool SidebarOpen { get; set; } = true;
@@ -240,14 +241,19 @@ public class TendrilSettings
 
 public record ProjectVaultTracking
 {
+    public string? VaultProjectName { get; set; }
     public string InstalledVersion { get; set; } = "";
     public DateTimeOffset InstalledAt { get; set; } = DateTimeOffset.UtcNow;
+    public string? VaultId { get; set; }
+    public string? VaultRepoUrl { get; set; }
     public Dictionary<string, string> LocalRepoPaths { get; set; } = new();
 }
 
 public class VaultSettings
 {
-    public bool Enabled { get; set; } = false;
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Name { get; set; } = "";
+    public bool Enabled { get; set; } = true;
     public string RepoUrl { get; set; } = "";
     public string LocalPath { get; set; } = "";
     public bool AlwaysUpToDate { get; set; } = false;

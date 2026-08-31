@@ -71,6 +71,31 @@ public class PushProjectHeaderBadge(
     }
 }
 
+public class PushCategorySelectionToolbar(
+    List<string> allItems,
+    string projName,
+    IState<Dictionary<string, HashSet<string>>> dictState) : ViewBase
+{
+    public override object? Build()
+    {
+        if (allItems.Count <= 1) return null;
+
+        return Layout.Horizontal().AlignContent(Align.Right)
+            | new Button("Select All").Small().Ghost().OnClick(() =>
+            {
+                var nextDict = new Dictionary<string, HashSet<string>>(dictState.Value);
+                nextDict[projName] = new HashSet<string>(allItems, StringComparer.OrdinalIgnoreCase);
+                dictState.Set(nextDict);
+            })
+            | new Button("Deselect All").Small().Ghost().OnClick(() =>
+            {
+                var nextDict = new Dictionary<string, HashSet<string>>(dictState.Value);
+                nextDict[projName] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                dictState.Set(nextDict);
+            });
+    }
+}
+
 public class PushAssetItemRow(
     string name,
     string projName,
@@ -135,7 +160,8 @@ public class PushToVaultDialog(
     string? defaultProject,
     IVaultService vaultService,
     IClientProvider client,
-    Action onPushed) : ViewBase
+    Action onPushed,
+    string? initialVaultId = null) : ViewBase
 {
     public override object? Build()
     {
@@ -249,6 +275,15 @@ public class PushToVaultDialog(
 
         if (!dialogOpen.Value) return null;
 
+        var targetVault = config.Settings.Vaults.FirstOrDefault(v => v.Id.Equals(initialVaultId, StringComparison.OrdinalIgnoreCase))
+            ?? config.Settings.Vaults.FirstOrDefault(v => v.Enabled)
+            ?? config.Settings.Vault;
+
+        var targetVaultId = targetVault?.Id ?? initialVaultId ?? "";
+        var vaultDisplayName = targetVault != null
+            ? VaultService.ExtractRepoName(!string.IsNullOrWhiteSpace(targetVault.Name) && targetVault.Name.Contains('/') ? targetVault.Name : targetVault.RepoUrl)
+            : "Team Vault";
+
         async Task HandlePush()
         {
             if (isLoading.Value || selectedProjects.Value.Count == 0) return;
@@ -266,6 +301,7 @@ public class PushToVaultDialog(
 
             var request = new VaultExportRequest
             {
+                TargetVaultId = targetVaultId,
                 ProjectNames = projectList,
                 Version = version.Value,
                 Changelog = changelog.Value.Trim(),
@@ -280,7 +316,7 @@ public class PushToVaultDialog(
                 SyncPermissions = syncPermissions.Value
             };
 
-            var result = await vaultService.PushAndCreatePrAsync(request);
+            var result = await vaultService.PushAndCreatePrAsync(request, targetVaultId);
             isLoading.Set(false);
 
             if (result.Success)
@@ -351,9 +387,13 @@ public class PushToVaultDialog(
             var assetContent = Layout.Vertical();
 
             // Skills Section
+            var skillsHeader = Layout.Horizontal().AlignContent(Align.Left)
+                | Text.Block("Skills")
+                | new Badge(projSkills.Count.ToString()).Variant(BadgeVariant.Secondary).Small();
             var skillsList = Layout.Vertical();
             if (projSkills.Count > 0)
             {
+                skillsList |= new PushCategorySelectionToolbar(projSkills, projName, selectedSkills);
                 foreach (var sName in projSkills)
                     skillsList |= new PushAssetItemRow(sName, projName, selectedSkills, "Skill");
             }
@@ -361,12 +401,16 @@ public class PushToVaultDialog(
             {
                 skillsList |= Text.Block("No custom skills configured for this project.").Small().Muted();
             }
-            assetContent |= new Expandable($"Skills ({projSkills.Count})", skillsList).Small().Open(projSkills.Count > 0);
+            assetContent |= new Expandable(skillsHeader, skillsList).Small().Open(projSkills.Count > 0);
 
             // MCP Servers Section
+            var mcpsHeader = Layout.Horizontal().AlignContent(Align.Left)
+                | Text.Block("MCP Servers")
+                | new Badge(projMcps.Count.ToString()).Variant(BadgeVariant.Secondary).Small();
             var mcpsList = Layout.Vertical();
             if (projMcps.Count > 0)
             {
+                mcpsList |= new PushCategorySelectionToolbar(projMcps, projName, selectedMcps);
                 foreach (var mName in projMcps)
                     mcpsList |= new PushAssetItemRow(mName, projName, selectedMcps, "MCP");
             }
@@ -374,12 +418,16 @@ public class PushToVaultDialog(
             {
                 mcpsList |= Text.Block("No MCP servers configured for this project.").Small().Muted();
             }
-            assetContent |= new Expandable($"MCP Servers ({projMcps.Count})", mcpsList).Small().Open(projMcps.Count > 0);
+            assetContent |= new Expandable(mcpsHeader, mcpsList).Small().Open(projMcps.Count > 0);
 
             // Memories Section
+            var memsHeader = Layout.Horizontal().AlignContent(Align.Left)
+                | Text.Block("Project Memories")
+                | new Badge(projMemories.Count.ToString()).Variant(BadgeVariant.Secondary).Small();
             var memsList = Layout.Vertical();
             if (projMemories.Count > 0)
             {
+                memsList |= new PushCategorySelectionToolbar(projMemories, projName, selectedMemories);
                 foreach (var memName in projMemories)
                     memsList |= new PushAssetItemRow(memName, projName, selectedMemories, "Memory");
             }
@@ -387,12 +435,16 @@ public class PushToVaultDialog(
             {
                 memsList |= Text.Block("No memory markdown files found in .tendril/Projects/<Project>/Memory/.").Small().Muted();
             }
-            assetContent |= new Expandable($"Project Memories ({projMemories.Count})", memsList).Small().Open(projMemories.Count > 0);
+            assetContent |= new Expandable(memsHeader, memsList).Small().Open(projMemories.Count > 0);
 
             // Review Actions Section
+            var actionsHeader = Layout.Horizontal().AlignContent(Align.Left)
+                | Text.Block("Review Actions")
+                | new Badge(projActions.Count.ToString()).Variant(BadgeVariant.Secondary).Small();
             var actionsList = Layout.Vertical();
             if (projActions.Count > 0)
             {
+                actionsList |= new PushCategorySelectionToolbar(projActions, projName, selectedReviewActions);
                 foreach (var aName in projActions)
                     actionsList |= new PushAssetItemRow(aName, projName, selectedReviewActions, "Action");
             }
@@ -400,12 +452,16 @@ public class PushToVaultDialog(
             {
                 actionsList |= Text.Block("No review actions configured for this project.").Small().Muted();
             }
-            assetContent |= new Expandable($"Review Actions ({projActions.Count})", actionsList).Small().Open(projActions.Count > 0);
+            assetContent |= new Expandable(actionsHeader, actionsList).Small().Open(projActions.Count > 0);
 
             // Verifications Section
+            var verifsHeader = Layout.Horizontal().AlignContent(Align.Left)
+                | Text.Block("Verifications")
+                | new Badge(projVerifs.Count.ToString()).Variant(BadgeVariant.Secondary).Small();
             var verifsList = Layout.Vertical();
             if (projVerifs.Count > 0)
             {
+                verifsList |= new PushCategorySelectionToolbar(projVerifs, projName, selectedVerifications);
                 foreach (var vName in projVerifs)
                     verifsList |= new PushAssetItemRow(vName, projName, selectedVerifications, "Verification");
             }
@@ -413,7 +469,7 @@ public class PushToVaultDialog(
             {
                 verifsList |= Text.Block("No verifications configured for this project.").Small().Muted();
             }
-            assetContent |= new Expandable($"Verifications ({projVerifs.Count})", verifsList).Small().Open(projVerifs.Count > 0);
+            assetContent |= new Expandable(verifsHeader, verifsList).Small().Open(projVerifs.Count > 0);
 
             // Permissions Policy
             assetContent |= new PushProjectPermissionsRow(projName, syncPermissions);
@@ -423,6 +479,11 @@ public class PushToVaultDialog(
                 .Open(isProjectChecked);
 
             projectSelectorList |= projectCard;
+        }
+
+        if (availableProjects.Count == 0)
+        {
+            projectSelectorList |= Callout.Info("All local projects are already tracked by a vault. Create a new local project first to add it here.");
         }
 
         var form = Layout.Vertical()
@@ -441,7 +502,7 @@ public class PushToVaultDialog(
 
         return new Dialog(
             _ => dialogOpen.Set(false),
-            new DialogHeader("Publish to Team Vault (Create PR)"),
+            new DialogHeader($"Add Project to {vaultDisplayName} (Create PR)"),
             new DialogBody(form),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false)),
