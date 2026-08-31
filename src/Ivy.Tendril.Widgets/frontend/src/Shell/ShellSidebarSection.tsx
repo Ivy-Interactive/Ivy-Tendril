@@ -37,6 +37,14 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
 
   const { collapsed } = useShell();
 
+  // Rail chips get a hover flyout (title + badges) since the chip itself only
+  // shows the ID. Fixed-position and portaled so the rail cannot clip it.
+  const [flyout, setFlyout] = React.useState<{
+    item: ShellSectionItemDto;
+    top: number;
+    left: number;
+  } | null>(null);
+
   const hasHeader = !!title || searchable;
 
   if (collapsed) {
@@ -52,7 +60,7 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
             <Search size={16} />
           </button>
         )}
-        <div className="tsh-rail-list">
+        <div className="tsh-rail-list" onScroll={() => setFlyout(null)}>
           {items.map(
             (item) =>
               item.tag && (
@@ -61,13 +69,34 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
                   className="tsh-rail-item"
                   data-selected={item.id === selectedId}
                   onClick={() => select(item.id)}
-                  title={item.title}
+                  onMouseEnter={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    setFlyout({ item, top: r.top + r.height / 2, left: r.right + 10 });
+                  }}
+                  onMouseLeave={() => setFlyout(null)}
                 >
                   {item.tag}
                 </button>
               )
           )}
         </div>
+        {flyout && (
+          <div
+            className="tsh-rail-tooltip"
+            style={{ top: flyout.top, left: flyout.left }}
+          >
+            <div className="tsh-rail-tooltip-title">{flyout.item.title}</div>
+            {flyout.item.badges && flyout.item.badges.length > 0 && (
+              <div className="tsh-rail-tooltip-badges">
+                {flyout.item.badges.map((badge, i) => (
+                  <span key={i} className="tsh-badge" data-kind={badge.kind}>
+                    {badge.label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
@@ -78,7 +107,12 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
         <div className="tsh-section-header">
           <span className="tsh-section-title">{title}</span>
           {searchable && (
-            <button className="tsh-section-search" onClick={openSearch} aria-label="Search plans">
+            <button
+              className="tsh-section-search"
+              onClick={openSearch}
+              aria-label="Search plans"
+              title="Search plans"
+            >
               <Search size={16} />
             </button>
           )}

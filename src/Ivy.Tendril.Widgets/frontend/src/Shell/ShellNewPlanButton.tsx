@@ -1,6 +1,5 @@
 import React from "react";
 import { Plus } from "lucide-react";
-import { useShell } from "./ShellContext";
 import { ShellWidgetProps, isMac } from "./types";
 import "./shell.css";
 
@@ -19,7 +18,6 @@ export const ShellNewPlanButton: React.FC<ShellNewPlanButtonProps> = ({
   eventHandler,
   label = "New Plan",
 }) => {
-  const { collapsed } = useShell();
   const hintKeys = isMac() ? ["⌘", "⌥", "N"] : ["Ctrl", "Alt", "N"];
 
   const fire = () => {
@@ -31,7 +29,7 @@ export const ShellNewPlanButton: React.FC<ShellNewPlanButtonProps> = ({
       <button
         className="tsh-newplan"
         onClick={fire}
-        title={collapsed ? `${label} (${hintKeys.join("+")})` : undefined}
+        title={`${label} (${hintKeys.join("+")})`}
       >
         <span className="tsh-newplan-label-group">
           <Plus size={16} />

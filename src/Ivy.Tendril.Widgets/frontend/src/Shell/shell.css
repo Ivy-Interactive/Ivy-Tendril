@@ -3,7 +3,8 @@
    dark values map onto the Ivy theme tokens so the shell follows the host theme. */
 
 .tsh-root,
-.tsh-section {
+.tsh-section,
+.tsh-rail-tooltip {
   --tsh-bg: #fafafa;
   --tsh-surface: #ffffff;
   --tsh-border: #e0e0e0;
@@ -34,7 +35,8 @@
 }
 
 .dark .tsh-root,
-.dark .tsh-section {
+.dark .tsh-section,
+.dark .tsh-rail-tooltip {
   --tsh-bg: var(--background, #000000);
   --tsh-surface: var(--card, #0a0a0a);
   --tsh-border: var(--border, #27272a);
@@ -242,7 +244,6 @@
 .tsh-root[data-collapsed="true"] .tsh-header {
   flex-direction: column;
   align-items: center;
-  padding-top: 12px;
 }
 
 .tsh-root[data-collapsed="true"] .tsh-header-text {
@@ -589,7 +590,14 @@
 .tsh-root[data-collapsed="true"] .tsh-nav-item[data-active="true"] .tsh-nav-badge {
   position: absolute;
   top: 3px;
-  right: 4px;
+  /* Anchored just past the 16px icon's right edge so the number never covers
+     it, and left-aligned so longer counts stretch rightward. Padding is a
+     touch tighter than the expanded badge: the rail leaves only ~20px beside
+     the icon, and this keeps a two-digit count inside it (ShellNav caps the
+     rail text at two digits for the same reason). */
+  left: calc(50% + 8px);
+  right: auto;
+  padding: 2px 4px;
   background: var(--tsh-rail-badge-bg);
   color: var(--tsh-rail-badge-fg);
 }
@@ -681,6 +689,36 @@
 .tsh-rail-item[data-selected="true"] {
   opacity: 1;
   background: var(--tsh-row-active);
+}
+
+/* Hover flyout for a rail plan chip: title plus the row badges. Fixed-position
+   (portaled to <body>) so the sidebar's overflow:hidden cannot clip it. */
+.tsh-rail-tooltip {
+  position: fixed;
+  transform: translateY(-50%);
+  z-index: 60;
+  max-width: 260px;
+  padding: 8px 10px;
+  border: 1px solid var(--tsh-border);
+  border-radius: 8px;
+  background: var(--tsh-surface);
+  color: var(--tsh-fg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  font-family: var(--font-sans, "Geist", sans-serif);
+}
+
+.tsh-rail-tooltip-title {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 17px;
+}
+
+.tsh-rail-tooltip-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
 }
 
 .tsh-section-header {

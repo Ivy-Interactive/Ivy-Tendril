@@ -1,6 +1,5 @@
 import React from "react";
 import { Settings } from "lucide-react";
-import { useShell } from "./ShellContext";
 import { ShellWidgetProps } from "./types";
 import "./shell.css";
 
@@ -16,12 +15,10 @@ export const ShellSettingsButton: React.FC<ShellSettingsButtonProps> = ({
   eventHandler,
   label = "Settings",
 }) => {
-  const { collapsed } = useShell();
-
   return (
     <button
       className="tsh-settings"
-      title={collapsed ? label : undefined}
+      title={label}
       onClick={() => {
         if (events.includes("OnClick")) eventHandler("OnClick", id, []);
       }}

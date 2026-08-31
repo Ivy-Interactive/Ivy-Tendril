@@ -62,7 +62,7 @@ export const ShellNav: React.FC<ShellNavProps> = ({
           data-active={item.isActive === true}
           data-menu-item={item.id}
           onClick={() => select(item.id)}
-          title={collapsed ? item.label : undefined}
+          title={item.label}
         >
           <span className="tsh-nav-item-main">
             <span className="tsh-nav-icon">
@@ -70,7 +70,12 @@ export const ShellNav: React.FC<ShellNavProps> = ({
             </span>
             <span className="tsh-nav-label">{item.label}</span>
           </span>
-          {item.badge && <span className="tsh-nav-badge">{item.badge}</span>}
+          {item.badge && (
+            <span className="tsh-nav-badge">
+              {/* The rail fits two digits beside the icon; larger counts cap at 99. */}
+              {collapsed && item.badge.length > 2 ? "99" : item.badge}
+            </span>
+          )}
         </button>
       ))}
       {showDivider && <div className="tsh-nav-divider" />}

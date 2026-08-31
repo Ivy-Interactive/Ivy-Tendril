@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect } from "react";
-import { useShell } from "./ShellContext";
 import { BrandIcon } from "./brandIcons";
 import { ShellWidgetProps, isEditableTarget, isModKey, modKeyLabel } from "./types";
 import "./shell.css";
@@ -25,8 +24,6 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
   newChatLabel = "New chat",
   shortcutKey = "A",
 }) => {
-  const { collapsed } = useShell();
-
   const fireOpen = useCallback(() => {
     if (events.includes("OnOpen")) eventHandler("OnOpen", id, []);
   }, [events, eventHandler, id]);
@@ -54,7 +51,7 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
 
   return (
     <div className="tsh-agent-wrap">
-      <button className="tsh-agent" onClick={fireOpen} title={collapsed ? label : undefined}>
+      <button className="tsh-agent" onClick={fireOpen} title={label}>
         <span className="tsh-agent-brand">
           <span className="tsh-agent-icon">
             <BrandIcon name={icon} size={16} />
