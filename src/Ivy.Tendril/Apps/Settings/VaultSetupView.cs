@@ -274,8 +274,7 @@ public class VaultSetupView : ViewBase
             Vault: repoDisplay,
             Branch: !string.IsNullOrEmpty(status.CurrentBranch) ? status.CurrentBranch : "main",
             GitStatus: status.CommitsBehind > 0 ? $"{status.CommitsBehind} behind" : (status.CommitsAhead > 0 ? $"{status.CommitsAhead} ahead" : "In sync"),
-            LastSynced: status.LastSyncedAt.HasValue && status.LastSyncedAt.Value.Year > 1 ? $"{status.LastSyncedAt.Value:MMM d, yyyy HH:mm} UTC" : "Never",
-            Settings: ""
+            LastSynced: status.LastSyncedAt.HasValue && status.LastSyncedAt.Value.Year > 1 ? $"{status.LastSyncedAt.Value:MMM d, yyyy HH:mm} UTC" : "Never"
         );
 
         var vaultDetails = detailsData.ToDetails()
@@ -283,7 +282,6 @@ public class VaultSetupView : ViewBase
             .Label(x => x.Branch, "Branch")
             .Label(x => x.GitStatus, "Status")
             .Label(x => x.LastSynced, "Last Synced")
-            .Label(x => x.Settings, "Options")
             .Builder(x => x.Vault, f => f.Func((string repo) =>
                 Layout.Horizontal().AlignContent(Align.Left)
                     | Icons.FolderGit2.ToIcon()
@@ -301,18 +299,22 @@ public class VaultSetupView : ViewBase
             ))
             .Builder(x => x.LastSynced, f => f.Func((string ls) =>
                 Text.Block(ls).Muted().Small()
-            ))
-            .Builder(x => x.Settings, f => f.Func((string _) =>
-                Layout.Horizontal().AlignContent(Align.Left)
-                    | autoSyncState.ToBoolInput("Always in sync")
-                    | new Button("Disconnect").Destructive().Ghost().Small().OnClick(async () =>
-                    {
-                        await vaultService.DisconnectVaultAsync(selectedVaultId.Value);
-                        vaultsQuery.Mutator.Revalidate();
-                        statusQuery.Mutator.Revalidate();
-                        catalogQuery.Mutator.Revalidate();
-                    })
             ));
+
+        var vaultActionsRow = Layout.Horizontal().AlignContent(Align.SpaceBetween)
+            | autoSyncState.ToBoolInput("Always in sync")
+            | new Button("Disconnect Vault")
+                .Icon(Icons.Unlink)
+                .Destructive()
+                .Ghost()
+                .Small()
+                .OnClick(async () =>
+                {
+                    await vaultService.DisconnectVaultAsync(selectedVaultId.Value);
+                    vaultsQuery.Mutator.Revalidate();
+                    statusQuery.Mutator.Revalidate();
+                    catalogQuery.Mutator.Revalidate();
+                });
 
         var tableRows = catalog.Projects.Select((p, i) =>
         {
@@ -496,6 +498,7 @@ public class VaultSetupView : ViewBase
         var mainLayout = Layout.Vertical().Width(Size.Full().Max(Size.Units(240)))
             | topHeader
             | vaultDetails
+            | vaultActionsRow
             | Text.H4("Shared Projects").Bold()
             | projectsSection;
 
@@ -513,8 +516,7 @@ public class VaultSetupView : ViewBase
         string Vault,
         string Branch,
         string GitStatus,
-        string LastSynced,
-        string Settings
+        string LastSynced
     );
 
     private record VaultProjectTableRow(
