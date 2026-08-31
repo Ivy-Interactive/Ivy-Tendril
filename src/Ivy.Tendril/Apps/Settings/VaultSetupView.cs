@@ -218,7 +218,7 @@ public class VaultSetupView : ViewBase
                 .OnClick(() => openCreateDialog.Set(true));
 
         var vaultOptions = vaultsList
-            .Select(v => new Option<string>(!string.IsNullOrWhiteSpace(v.Name) ? v.Name : (!string.IsNullOrWhiteSpace(v.RepoUrl) ? v.RepoUrl.Split('/').Last().Replace(".git", "") : "Vault"), v.Id))
+            .Select(v => new Option<string>(VaultService.ExtractRepoName(!string.IsNullOrWhiteSpace(v.Name) && v.Name.Contains('/') ? v.Name : v.RepoUrl), v.Id))
             .ToArray();
 
         var topHeader = Layout.Horizontal().AlignContent(Align.SpaceBetween)

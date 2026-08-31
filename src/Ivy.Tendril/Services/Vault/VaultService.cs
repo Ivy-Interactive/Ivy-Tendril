@@ -68,7 +68,14 @@ public class VaultService : IVaultService
             foreach (var v in settings.Vaults)
             {
                 if (string.IsNullOrEmpty(v.Id)) v.Id = Guid.NewGuid().ToString("N")[..8];
-                if (string.IsNullOrEmpty(v.Name)) v.Name = ExtractRepoName(v.RepoUrl);
+                if (string.IsNullOrEmpty(v.Name) || v.Name.Equals("Tendril-Vault", StringComparison.OrdinalIgnoreCase))
+                {
+                    var extracted = ExtractRepoName(v.RepoUrl);
+                    if (!string.IsNullOrEmpty(extracted))
+                    {
+                        v.Name = extracted;
+                    }
+                }
             }
 
             if (settings.Vault == null || !settings.Vault.Enabled)
@@ -130,16 +137,37 @@ public class VaultService : IVaultService
         return trimmed.ToLowerInvariant();
     }
 
-    private static string ExtractRepoName(string? url)
+    public static string ExtractRepoName(string? url)
     {
         if (string.IsNullOrWhiteSpace(url)) return "Tendril-Vault";
-        var norm = NormalizeRepoUrl(url);
-        var lastSlash = norm.LastIndexOf('/');
-        if (lastSlash >= 0 && lastSlash < norm.Length - 1)
+        var trimmed = url.Trim().TrimEnd('/');
+        if (trimmed.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
         {
-            var name = norm[(lastSlash + 1)..];
-            return !string.IsNullOrEmpty(name) ? name : "Tendril-Vault";
+            trimmed = trimmed[..^4];
         }
+
+        var scpMatch = Regex.Match(trimmed, @"^[\w\-]+@[\w\-.]+:([\w\-]+/[\w\-.]+)$");
+        if (scpMatch.Success)
+        {
+            return scpMatch.Groups[1].Value;
+        }
+
+        var httpMatch = Regex.Match(trimmed, @"https?://[^/]+/([\w\-]+/[\w\-.]+)$");
+        if (httpMatch.Success)
+        {
+            return httpMatch.Groups[1].Value;
+        }
+
+        var parts = trimmed.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2 && !parts[^2].Contains(':'))
+        {
+            return $"{parts[^2]}/{parts[^1]}";
+        }
+        if (parts.Length >= 1)
+        {
+            return parts[^1];
+        }
+
         return "Tendril-Vault";
     }
 
