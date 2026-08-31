@@ -28,29 +28,29 @@ public class VaultSetupView : ViewBase
         var selectedPushProject = UseState<string?>(null);
         var isSyncing = UseState(false);
 
-        var selectedVaultId = UseState<string>(() =>
+        var selectedVaultId = UseState(() =>
         {
-            var active = config.Settings.Vaults.FirstOrDefault(v => v.Enabled);
-            return active?.Id ?? config.Settings.Vault?.Id ?? "";
+            var cur = config.Settings.Vaults.FirstOrDefault(v => v.Enabled) ?? config.Settings.Vault;
+            return cur?.Id ?? "";
         });
 
         var autoSyncState = UseState(() =>
         {
-            var cur = config.Settings.Vaults.FirstOrDefault(v => v.Id == selectedVaultId.Value) ?? config.Settings.Vault;
+            var cur = config.Settings.Vaults.FirstOrDefault(v => v.Enabled) ?? config.Settings.Vault;
             return cur?.AlwaysUpToDate ?? false;
         });
 
         var vaultsQuery = UseQuery<List<VaultStatus>, string>(
-            "all",
+            "vaults_list",
             async (_, _) => await vaultService.GetVaultsAsync());
 
         var statusQuery = UseQuery<VaultStatus, string>(
-            selectedVaultId.Value,
-            async (vaultId, _) => await vaultService.GetStatusAsync(vaultId));
+            $"vault_status_{selectedVaultId.Value}",
+            async (_, _) => await vaultService.GetStatusAsync(selectedVaultId.Value));
 
         var catalogQuery = UseQuery<VaultCatalog, string>(
-            selectedVaultId.Value,
-            async (vaultId, _) => await vaultService.GetCatalogAsync(vaultId));
+            $"vault_catalog_{selectedVaultId.Value}",
+            async (_, _) => await vaultService.GetCatalogAsync(selectedVaultId.Value));
 
         var vaultsList = vaultsQuery.Value ?? new List<VaultStatus>();
 
