@@ -18,6 +18,7 @@ public class ConnectVaultDialog(
     {
         var repoUrl = UseState("");
         var customName = UseState("");
+        var selectedDetectedVault = UseState("");
         var isLoading = UseState(false);
         var errorMessage = UseState<string?>(null);
 
@@ -25,9 +26,22 @@ public class ConnectVaultDialog(
             "discovered_vaults",
             async (_, _) => await vaultService.DiscoverExistingVaultsAsync());
 
-        if (!dialogOpen.Value) return null;
-
         var discoveredList = discoveredQuery.Value ?? new List<DiscoveredVaultRepo>();
+
+        UseEffect(() =>
+        {
+            if (!string.IsNullOrEmpty(selectedDetectedVault.Value))
+            {
+                var matched = discoveredList.FirstOrDefault(d => d.RepoUrl == selectedDetectedVault.Value);
+                if (matched != null)
+                {
+                    repoUrl.Set(matched.RepoUrl);
+                    customName.Set(matched.FullName);
+                }
+            }
+        }, selectedDetectedVault);
+
+        if (!dialogOpen.Value) return null;
 
         async Task HandleConnect()
         {
@@ -51,43 +65,30 @@ public class ConnectVaultDialog(
             }
         }
 
-        var detectedSection = Layout.Vertical();
+        object? detectedSelector = null;
         if (discoveredQuery.Loading)
         {
-            detectedSection |= Text.Block("🔍 Searching your GitHub account and organizations for existing vaults...").Small().Muted();
+            detectedSelector = Text.Block("🔍 Searching your GitHub account and organizations for existing vaults...").Small().Muted();
         }
         else if (discoveredList.Count > 0)
         {
-            detectedSection |= Text.Block("Detected GitHub Vaults").Small().Bold();
-            foreach (var disc in discoveredList)
+            var selectOptions = new List<Option<string>>
             {
-                var isSelected = repoUrl.Value.Equals(disc.RepoUrl, StringComparison.OrdinalIgnoreCase) ||
-                                 repoUrl.Value.Equals(disc.FullName, StringComparison.OrdinalIgnoreCase);
-
-                detectedSection |= Layout.Horizontal().AlignContent(Align.SpaceBetween)
-                    | (Layout.Horizontal().AlignContent(Align.Left)
-                        | Icons.FolderGit2.ToIcon()
-                        | Text.Block(disc.FullName).Bold()
-                        | new Badge(disc.AccountType).Variant(BadgeVariant.Secondary).Small()
-                        | (disc.IsPrivate ? new Badge("Private").Variant(BadgeVariant.Outline).Small() : null))
-                    | new Button(isSelected ? "Selected ✓" : "Select")
-                        .Small()
-                        .Variant(isSelected ? ButtonVariant.Secondary : ButtonVariant.Outline)
-                        .OnClick(() =>
-                        {
-                            repoUrl.Set(disc.RepoUrl);
-                            if (string.IsNullOrWhiteSpace(customName.Value))
-                            {
-                                customName.Set(disc.Name);
-                            }
-                        });
+                new Option<string>("-- Choose a detected GitHub vault (optional) --", "")
+            };
+            foreach (var d in discoveredList)
+            {
+                var label = $"{d.FullName} ({d.AccountType}{(d.IsPrivate ? ", private" : "")})";
+                selectOptions.Add(new Option<string>(label, d.RepoUrl));
             }
+
+            detectedSelector = selectedDetectedVault.ToSelectInput(selectOptions.ToArray())
+                .WithField().Label("Detected GitHub Vaults");
         }
 
         var form = Layout.Vertical()
             | Text.P("Connect an existing Tendril Vault repository to synchronize projects, skills, and configuration with your team.").Small().Muted()
-            | detectedSection
-            | (discoveredList.Count > 0 ? Text.Block("Or Enter Repository URL Manually").Small().Bold() : null)
+            | detectedSelector
             | repoUrl.ToTextInput("https://github.com/my-org/Tendril-Vault.git")
                 .WithField().Label("Git Repository URL")
             | customName.ToTextInput("e.g. Core Team Vault (optional)")

@@ -545,7 +545,7 @@ public class VaultService : IVaultService
                             var url = elem.GetProperty("url").GetString() ?? "";
                             var isPriv = elem.TryGetProperty("isPrivate", out var p) && p.GetBoolean();
 
-                            if ((name.Contains("vault", StringComparison.OrdinalIgnoreCase) || name.Contains("tendril", StringComparison.OrdinalIgnoreCase)) &&
+                            if (name.Contains("vault", StringComparison.OrdinalIgnoreCase) &&
                                 !seenUrls.Contains(NormalizeRepoUrl(url)))
                             {
                                 seenUrls.Add(NormalizeRepoUrl(url));
