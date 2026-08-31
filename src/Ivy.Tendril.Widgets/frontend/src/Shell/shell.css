@@ -2,7 +2,8 @@
    Light values are the exact colors from the Figma prototype (claude-code-prototype);
    dark values map onto the Ivy theme tokens so the shell follows the host theme. */
 
-.tsh-root {
+.tsh-root,
+.tsh-section {
   --tsh-bg: #fafafa;
   --tsh-surface: #ffffff;
   --tsh-border: #e0e0e0;
@@ -12,6 +13,8 @@
   --tsh-row-active: #f0f0f0;
   --tsh-badge-bg: #f0f0f0;
   --tsh-badge-bg-active: #e6e6e6;
+  --tsh-rail-badge-bg: #000000;
+  --tsh-rail-badge-fg: #ffffff;
   --tsh-cta-bg: #000000;
   --tsh-cta-fg: #f8f8f8;
   --tsh-badge-project-bg: #bcd6ff;
@@ -30,7 +33,8 @@
   color: var(--tsh-fg);
 }
 
-.dark .tsh-root {
+.dark .tsh-root,
+.dark .tsh-section {
   --tsh-bg: var(--background, #000000);
   --tsh-surface: var(--card, #0a0a0a);
   --tsh-border: var(--border, #27272a);
@@ -40,6 +44,8 @@
   --tsh-row-active: var(--accent, #27272a);
   --tsh-badge-bg: var(--accent, #27272a);
   --tsh-badge-bg-active: var(--muted, #18181b);
+  --tsh-rail-badge-bg: #ffffff;
+  --tsh-rail-badge-fg: #000000;
   --tsh-cta-bg: var(--primary, #f8f8f8);
   --tsh-cta-fg: var(--primary-foreground, #000000);
   --tsh-badge-project-bg: #1e3a6d;
@@ -49,6 +55,11 @@
   --tsh-badge-warning-bg: #6b4e14;
   --tsh-badge-warning-fg: #fce4b5;
   --tsh-badge-border: rgba(255, 255, 255, 0.25);
+}
+
+.tsh-root *,
+.tsh-section * {
+  box-sizing: border-box;
 }
 
 /* ---------- Shell layout ---------- */
@@ -70,14 +81,14 @@
   width: var(--tsh-sidebar-width);
   height: 100%;
   min-height: 0;
-  padding: 16px 12px;
+  padding: 16px 12px 14px;
   overflow: hidden;
   transition: width var(--tsh-anim), padding var(--tsh-anim);
 }
 
 .tsh-root[data-collapsed="true"] .tsh-sidebar {
   width: var(--tsh-rail-width);
-  padding: 16px 8px;
+  padding: 16px 8px 14px;
 }
 
 .tsh-sidebar-header {
@@ -91,12 +102,15 @@
   min-height: 0;
 }
 
+/* Hugs the 38px settings row (see .tsh-settings) rather than a fixed height, so
+   the settings icon lines up with the session-tab icons across the content edge.
+   The top margin keeps the plan list from crowding it. */
 .tsh-sidebar-footer {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  height: 45px;
+  margin-top: 8px;
 }
 
 /* ---------- Content area ---------- */
@@ -571,11 +585,24 @@
   opacity: 0;
 }
 
-.tsh-root[data-collapsed="true"] .tsh-nav-badge {
-  max-width: 0;
-  opacity: 0;
-  padding: 2px 0;
+/* Collapsed rail: the label is gone, so the count rides the icon's top-right
+   corner instead of sitting at the end of the row. */
+.tsh-root[data-collapsed="true"] .tsh-nav-item {
+  position: relative;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-nav-badge,
+.tsh-root[data-collapsed="true"] .tsh-nav-item[data-active="true"] .tsh-nav-badge {
+  position: absolute;
+  top: 3px;
+  right: 4px;
   min-width: 0;
+  max-width: none;
+  padding: 0 3px;
+  font-size: 9px;
+  line-height: 12px;
+  background: var(--tsh-rail-badge-bg);
+  color: var(--tsh-rail-badge-fg);
 }
 
 /* ---------- Sidebar section (plan list) ---------- */
@@ -753,6 +780,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  min-height: 38px;
   padding: 6px 8px;
   border: none;
   border-radius: 8px;
