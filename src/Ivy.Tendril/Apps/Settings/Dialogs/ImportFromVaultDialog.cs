@@ -10,60 +10,6 @@ using Ivy.Tendril.Services.Vault;
 
 namespace Ivy.Tendril.Apps.Settings.Dialogs;
 
-public class ImportRepoPathRow(
-    VaultRepoRef repoRef,
-    IState<Dictionary<string, string>> repoMappings,
-    List<ProjectConfig> existingProjects) : ViewBase
-{
-    public override object Build()
-    {
-        var inputState = UseState(() =>
-        {
-            var key = !string.IsNullOrEmpty(repoRef.Owner) && repoRef.Owner != "local" && repoRef.Owner != "default"
-                ? $"{repoRef.Owner}/{repoRef.Name}"
-                : repoRef.Name;
-            return repoMappings.Value.TryGetValue(key, out var p) ? p : "";
-        });
-
-        var repoKey = !string.IsNullOrEmpty(repoRef.Owner) && repoRef.Owner != "local" && repoRef.Owner != "default"
-            ? $"{repoRef.Owner}/{repoRef.Name}"
-            : repoRef.Name;
-
-        UseEffect(() =>
-        {
-            if (repoMappings.Value.TryGetValue(repoKey, out var val) && val != inputState.Value)
-            {
-                inputState.Set(val);
-            }
-        }, repoMappings);
-
-        UseEffect(() =>
-        {
-            var updated = new Dictionary<string, string>(repoMappings.Value) { [repoKey] = inputState.Value };
-            repoMappings.Set(updated);
-        }, inputState);
-
-        var exists = !string.IsNullOrWhiteSpace(inputState.Value) && Directory.Exists(inputState.Value);
-        var label = repoRef.RemoteUrl != null
-            ? $"{repoKey} ({repoRef.RemoteUrl})"
-            : repoKey;
-
-        // Check if any other existing project is already using this path
-        var sharingProject = existingProjects.FirstOrDefault(p =>
-            !string.IsNullOrWhiteSpace(inputState.Value) &&
-            p.Repos.Any(r => r.Path.TrimEnd('/', '\\').Equals(inputState.Value.TrimEnd('/', '\\'), StringComparison.OrdinalIgnoreCase)));
-
-        return Layout.Vertical()
-            | inputState.ToTextInput().WithField().Label(label)
-            | (!exists && !string.IsNullOrWhiteSpace(repoRef.RemoteUrl)
-                ? Text.Block("⚡ Folder not found locally — will auto-clone from remote repository upon import.").Small().Muted()
-                : null)
-            | (sharingProject != null
-                ? Text.Block($"ℹ Folder is also used by existing project '{sharingProject.Name}'. Both projects will point to the same directory.").Small().Muted()
-                : null);
-    }
-}
-
 public class ImportCategoryActionsHeader(
     string title,
     int count,
@@ -122,6 +68,21 @@ public class ImportFromVaultDialog(
     IClientProvider client,
     Action onImported) : ViewBase
 {
+    private static string ComputeSuggestedName(string baseName, List<ProjectConfig> existing)
+    {
+        if (!existing.Any(p => p.Name.Equals(baseName, StringComparison.OrdinalIgnoreCase)))
+        {
+            return baseName;
+        }
+
+        int index = 2;
+        while (existing.Any(p => p.Name.Equals($"{baseName}-{index}", StringComparison.OrdinalIgnoreCase)))
+        {
+            index++;
+        }
+        return $"{baseName}-{index}";
+    }
+
     public override object? Build()
     {
         var config = UseService<IConfigService>();
@@ -129,18 +90,7 @@ public class ImportFromVaultDialog(
         var targetProjectName = UseState(() =>
         {
             if (projectItem == null) return "";
-            var existingProjects = config.Settings.Projects;
-            var hasExisting = existingProjects.Any(p => p.Name.Equals(projectItem.Name, StringComparison.OrdinalIgnoreCase));
-            if (hasExisting && projectItem.SyncStatus == VaultItemSyncStatus.Conflict)
-            {
-                int index = 2;
-                while (existingProjects.Any(p => p.Name.Equals($"{projectItem.Name}-{index}", StringComparison.OrdinalIgnoreCase)))
-                {
-                    index++;
-                }
-                return $"{projectItem.Name}-{index}";
-            }
-            return projectItem.Name;
+            return ComputeSuggestedName(projectItem.Name, config.Settings.Projects);
         });
 
         var repoMappings = UseState(() =>
@@ -189,20 +139,48 @@ public class ImportFromVaultDialog(
         var isLoading = UseState(false);
         var errorMessage = UseState<string?>(null);
 
+        UseEffect(() =>
+        {
+            if (dialogOpen.Value && projectItem != null)
+            {
+                var existing = config.Settings.Projects;
+                var suggested = ComputeSuggestedName(projectItem.Name, existing);
+                targetProjectName.Set(suggested);
+
+                var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                var initialMappings = new Dictionary<string, string>();
+                foreach (var repo in projectItem.Repos)
+                {
+                    var repoKey = !string.IsNullOrEmpty(repo.Owner) && repo.Owner != "local" && repo.Owner != "default"
+                        ? $"{repo.Owner}/{repo.Name}"
+                        : repo.Name;
+                    initialMappings[repoKey] = Path.Combine(homeDir, "git", repo.Name);
+                }
+                repoMappings.Set(initialMappings);
+
+                selectedSkills.Set(new HashSet<string>(projectItem.SkillNames, StringComparer.OrdinalIgnoreCase));
+                selectedMcps.Set(new HashSet<string>(projectItem.McpServerNames, StringComparer.OrdinalIgnoreCase));
+                selectedMemories.Set(new HashSet<string>(projectItem.MemoryFileNames, StringComparer.OrdinalIgnoreCase));
+                selectedReviewActions.Set(new HashSet<string>(projectItem.ReviewActionNames, StringComparer.OrdinalIgnoreCase));
+                selectedVerifications.Set(new HashSet<string>(projectItem.VerificationNames, StringComparer.OrdinalIgnoreCase));
+                errorMessage.Set(null);
+            }
+        }, dialogOpen);
+
         if (!dialogOpen.Value || projectItem == null) return null;
 
         var existingProjects = config.Settings.Projects;
-        var hasExistingName = existingProjects.Any(p => p.Name.Equals(projectItem.Name, StringComparison.OrdinalIgnoreCase));
+        var isNameInUse = existingProjects.Any(p => p.Name.Equals(targetProjectName.Value.Trim(), StringComparison.OrdinalIgnoreCase));
+        var hasOriginalCollision = existingProjects.Any(p => p.Name.Equals(projectItem.Name, StringComparison.OrdinalIgnoreCase));
 
         async Task HandleImport()
         {
             var finalName = targetProjectName.Value.Trim();
             if (isLoading.Value || string.IsNullOrWhiteSpace(finalName)) return;
 
-            // Prevent importing with a conflicting name without user awareness
-            if (hasExistingName && finalName.Equals(projectItem.Name, StringComparison.OrdinalIgnoreCase) && projectItem.SyncStatus == VaultItemSyncStatus.Conflict)
+            if (isNameInUse && projectItem.SyncStatus != VaultItemSyncStatus.UpdateAvailable)
             {
-                errorMessage.Set($"A local project named '{projectItem.Name}' already exists. Please choose a different local project name above.");
+                errorMessage.Set($"A local project named '{finalName}' already exists. Please pick a different name (e.g. {ComputeSuggestedName(finalName, existingProjects)}).");
                 return;
             }
 
@@ -238,13 +216,27 @@ public class ImportFromVaultDialog(
             }
         }
 
-        var repoInputs = Layout.Vertical();
+        var repoSection = Layout.Vertical();
         if (projectItem.Repos.Count > 0)
         {
-            repoInputs |= Text.Block("Local Folder Mappings").Small().Bold();
+            repoSection |= Text.Block("Repositories").Small().Bold();
+            var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             foreach (var repo in projectItem.Repos)
             {
-                repoInputs |= new ImportRepoPathRow(repo, repoMappings, existingProjects);
+                var localPath = Path.Combine(homeDir, "git", repo.Name);
+                var exists = Directory.Exists(localPath);
+                var repoTitle = !string.IsNullOrEmpty(repo.Owner) && repo.Owner != "local" && repo.Owner != "default"
+                    ? $"{repo.Owner}/{repo.Name}"
+                    : repo.Name;
+
+                repoSection |= Layout.Horizontal().AlignContent(Align.SpaceBetween)
+                    | (Layout.Horizontal().AlignContent(Align.Left)
+                        | Icons.FolderGit2.ToIcon()
+                        | Text.Block(repoTitle).Bold()
+                        | Text.Monospaced(localPath).Small().Muted())
+                    | (exists
+                        ? new Badge("Found Locally").Variant(BadgeVariant.Secondary).Small()
+                        : new Badge("Will Auto-Clone").Variant(BadgeVariant.Outline).Small());
             }
         }
 
@@ -323,19 +315,19 @@ public class ImportFromVaultDialog(
         // Permissions
         assetChecklist |= importPermissions.ToBoolInput("Import Security & Permissions Policies");
 
-        var conflictCallout = (hasExistingName && projectItem.SyncStatus == VaultItemSyncStatus.Conflict)
-            ? Callout.Warning($"A local project named '{projectItem.Name}' already exists. We've suggested '{targetProjectName.Value}' as the local project name to avoid overwriting your existing project.")
+        var collisionNotice = (hasOriginalCollision && targetProjectName.Value != projectItem.Name)
+            ? Callout.Info($"A local project named '{projectItem.Name}' already exists. We've suggested '{targetProjectName.Value}' for this import to avoid conflicts.")
             : null;
 
         var form = Layout.Vertical()
-            | conflictCallout
+            | collisionNotice
             | targetProjectName.ToTextInput().WithField().Label("Local Project Name")
             | (Layout.Horizontal().AlignContent(Align.Left)
                 | Text.Block($"Vault Source: {projectItem.Name}").Bold().Small()
                 | new Badge($"v{projectItem.RemoteVersion}").Variant(BadgeVariant.Secondary).Small())
             | (!string.IsNullOrEmpty(projectItem.Description) ? Text.P(projectItem.Description).Small().Muted() : null)
             | (!string.IsNullOrEmpty(projectItem.LatestChangelog) ? Text.P($"Changelog: {projectItem.LatestChangelog}").Small().Muted() : null)
-            | repoInputs
+            | repoSection
             | Text.Block("Assets to Import").Small().Bold()
             | assetChecklist
             | (errorMessage.Value != null ? Callout.Error(errorMessage.Value) : null);
