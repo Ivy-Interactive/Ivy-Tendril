@@ -46,7 +46,7 @@ public class ContentView(
         var syncingWorktrees = UseState(new HashSet<string>());
         var selectedRecTitles = UseState(() => new HashSet<string>());
         var selectedTab = UseState(0);
-        var draftDiffCommentService = UseService<Ivy.Tendril.Services.Plans.IDraftDiffCommentService>();
+        var draftDiffCommentService = UseService<Ivy.Tendril.Services.Plans.IPlanDiffCommentService>();
         var draftComments = UseState(() => selectedPlanState.Value != null
             ? draftDiffCommentService.GetDraftCommentsForPlan(selectedPlanState.Value.FolderPath)
             : new List<DraftComment>());

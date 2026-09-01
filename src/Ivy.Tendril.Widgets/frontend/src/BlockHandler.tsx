@@ -1,13 +1,13 @@
 import React, { lazy, Suspense, useContext } from "react";
 import { CodeBlock } from "./CodeBlock";
-import { QuestionsCallout } from "./DraftMarkdown/QuestionsCallout";
-import { QuestionsAnswerContext } from "./DraftMarkdown/questionsContext";
+import { QuestionsCallout } from "./PlanMarkdown/QuestionsCallout";
+import { QuestionsAnswerContext } from "./PlanMarkdown/questionsContext";
 
 /** `questions`, or `questions_<n>` once `tagQuestionBlocks` has stamped the block's index on it. */
 const QUESTIONS_LANG = /^questions(?:_(\d+))?$/;
 
-const MermaidRenderer = lazy(() => import("./DraftMarkdown/MermaidRenderer").then((m) => ({ default: m.MermaidRenderer })));
-const GraphvizRenderer = lazy(() => import("./DraftMarkdown/GraphvizRenderer").then((m) => ({ default: m.GraphvizRenderer })));
+const MermaidRenderer = lazy(() => import("./PlanMarkdown/MermaidRenderer").then((m) => ({ default: m.MermaidRenderer })));
+const GraphvizRenderer = lazy(() => import("./PlanMarkdown/GraphvizRenderer").then((m) => ({ default: m.GraphvizRenderer })));
 
 export const BlockHandler: React.FC<React.HTMLAttributes<HTMLElement>> = ({ className, children, style: _style, ...rest }) => {
   const match = /language-(\w+)/.exec(String(className || ""));

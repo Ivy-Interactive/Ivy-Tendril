@@ -159,7 +159,7 @@ public class AppShellRouterTests
     }
 
     [Theory]
-    [InlineData("drafts", false, false)]
+    [InlineData("plans", false, false)]
     [InlineData("review", false, false)]
     [InlineData("jobs", false, false)]
     [InlineData("recommendations", false, false)]
@@ -177,7 +177,7 @@ public class AppShellRouterTests
         var result = router.Route(
             new NavigateArgs(appId),
             AppShellNavigation.Tabs,
-            "drafts",
+            "plans",
             ImmutableArray<TabState>.Empty,
             descriptor);
 
@@ -190,7 +190,7 @@ public class AppShellRouterTests
     }
 
     [Fact]
-    public void TendrilServer_AppShellSettings_SetsDefaultAppToDraftsApp()
+    public void TendrilServer_AppShellSettings_SetsDefaultAppToPlansApp()
     {
         var server = TendrilServer.Create([], new TendrilArgs());
         server.AppRepository.Reload(server.ReservedPaths);
@@ -201,6 +201,6 @@ public class AppShellRouterTests
         Assert.IsType<TendrilAppShell>(appInstance);
 
         var tendrilShell = (TendrilAppShell)appInstance;
-        Assert.Equal("drafts", tendrilShell.Settings.DefaultAppId);
+        Assert.Equal("plans", tendrilShell.Settings.DefaultAppId);
     }
 }

@@ -1,4 +1,4 @@
-using Ivy.Tendril.Apps.Drafts;
+using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Plans;
@@ -28,7 +28,7 @@ public static class UsePlanNavigationExtensions
             }
 
             if (plan.Status is PlanStatus.Draft or PlanStatus.Blocked)
-                nav.Navigate<DraftsApp>(new DraftsAppArgs(plan.FolderName));
+                nav.Navigate<PlansApp>(new PlansAppArgs(plan.FolderName));
             else if (plan.Status is PlanStatus.Review or PlanStatus.Failed)
                 nav.Navigate<ReviewApp>(new ReviewAppArgs(plan.FolderName));
             else

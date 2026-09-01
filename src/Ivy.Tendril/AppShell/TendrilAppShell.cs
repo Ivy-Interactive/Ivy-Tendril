@@ -122,7 +122,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
     private static readonly HashSet<string> ShareAllowedAppIds = new(StringComparer.OrdinalIgnoreCase)
     {
-        "review", "drafts"
+        "review", "plans"
     };
 
     private static MenuItem? FilterMenuItemForShare(MenuItem item, HashSet<string> allowedTags)
@@ -163,7 +163,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var nonChatAgentCount = Math.Max(0, runner.ActiveSessions.Count - status.GeneratingChatSessionsCount);
         var badges = new Dictionary<string, int>
         {
-            ["drafts"] = status.DraftCount,
+            ["plans"] = status.DraftCount,
             ["review"] = status.ReviewCount,
             ["jobs"] = status.JobCount,
             ["icebox"] = status.IceboxCount,
@@ -832,7 +832,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         try
         {
-            var draftsArgs = appContext.GetArgs<Ivy.Tendril.Apps.Drafts.DraftsAppArgs>();
+            var draftsArgs = appContext.GetArgs<Ivy.Tendril.Apps.Plans.PlansAppArgs>();
             if (!string.IsNullOrEmpty(draftsArgs?.PlanId)) return true;
         }
         catch { }

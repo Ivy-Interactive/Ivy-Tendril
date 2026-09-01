@@ -9,7 +9,7 @@ namespace Ivy.Tendril;
 public static class Constants
 {
     public const int Dashboard = 10;
-    public const int Drafts = 20;
+    public const int Plans = 20;
     public const int Review = 30;
     public const int Recommendations = 40;
     public const int Jobs = 50;

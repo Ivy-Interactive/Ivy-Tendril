@@ -1,5 +1,5 @@
-using Ivy.Tendril.Apps.Drafts;
-using Ivy.Tendril.Apps.Drafts.Dialogs;
+using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Apps.Plans.Dialogs;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Widgets;
 using ReviewContentView = Ivy.Tendril.Apps.Review.ContentView;

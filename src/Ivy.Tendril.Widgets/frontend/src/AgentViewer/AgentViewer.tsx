@@ -13,7 +13,7 @@ import { ResultSummary } from "./result-summary";
 import { groupToolUseEvents } from "./group-events";
 import { ToolUseGroup } from "./tool-use-group";
 import { getMarkdownPlugins } from "../math";
-import { AlertBlockquote } from "../DraftMarkdown/AlertBlockquote";
+import { AlertBlockquote } from "../PlanMarkdown/AlertBlockquote";
 
 function buildSuppressIndices(events: PresentationEvent[]): Set<number> {
   const indices = new Set<number>();

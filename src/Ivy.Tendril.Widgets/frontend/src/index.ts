@@ -1,7 +1,7 @@
 import { TendrilProcessViewer } from "./TendrilProcessViewer";
 import { TendrilDashboard } from "./TendrilDashboard/TendrilDashboard";
 import { AgentViewer } from "./AgentViewer";
-import { DraftMarkdown } from "./DraftMarkdown";
+import { PlanMarkdown, DraftMarkdown } from "./PlanMarkdown";
 import { SortableVerificationList } from "./SortableVerificationList";
 import { ContentInput } from "./ContentInput/ContentInput";
 import { BadgeSelect } from "./BadgeSelect";
@@ -22,6 +22,7 @@ if (typeof window !== "undefined") {
     TendrilProcessViewer,
     TendrilDashboard,
     AgentViewer,
+    PlanMarkdown,
     DraftMarkdown,
     SortableVerificationList,
     ContentInput,
@@ -44,6 +45,7 @@ export {
   TendrilProcessViewer,
   TendrilDashboard,
   AgentViewer,
+  PlanMarkdown,
   DraftMarkdown,
   SortableVerificationList,
   ContentInput,

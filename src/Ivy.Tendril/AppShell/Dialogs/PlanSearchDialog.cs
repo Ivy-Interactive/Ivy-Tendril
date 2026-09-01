@@ -1,4 +1,4 @@
-using Ivy.Tendril.Apps.Drafts;
+using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Apps.Icebox;
 using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Models;
@@ -20,7 +20,7 @@ public class PlanSearchDialog(IState<bool> dialogOpen) : ViewBase
 
     internal static (Type App, object? Args) ResolveTarget(PlanFile plan) => plan.Status switch
     {
-        PlanStatus.Draft or PlanStatus.Blocked => (typeof(DraftsApp), new DraftsAppArgs(plan.FolderName)),
+        PlanStatus.Draft or PlanStatus.Blocked => (typeof(PlansApp), new PlansAppArgs(plan.FolderName)),
         PlanStatus.Icebox => (typeof(IceboxApp), null),
         _ => (typeof(ReviewApp), new ReviewAppArgs(plan.FolderName))
     };
@@ -29,7 +29,7 @@ public class PlanSearchDialog(IState<bool> dialogOpen) : ViewBase
     internal static List<ShellBadgeDto> BuildRowBadges(PlanFile plan) => plan.Status switch
     {
         PlanStatus.Review or PlanStatus.Failed => ReviewApp.BuildRowBadges(plan),
-        PlanStatus.Draft or PlanStatus.Blocked => DraftsApp.BuildRowBadges(plan),
+        PlanStatus.Draft or PlanStatus.Blocked => PlansApp.BuildRowBadges(plan),
         PlanStatus.Completed =>
             [ShellBadgeDto.Project(plan.Project), ShellBadgeDto.Success(plan.Status.ToString())],
         _ => [ShellBadgeDto.Project(plan.Project), new ShellBadgeDto(plan.Status.ToString())]

@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
-using Ivy.Tendril.Apps.Drafts;
+using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Apps.Jobs.Sheets;
 using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Apps.Views;
@@ -123,7 +123,7 @@ public class DashboardApp : ViewBase
                 .ToList())
             .Activity(BuildActivityMonths(prDays, firstActivityMonth))
             .Jobs(BuildActiveJobs(jobs, planService))
-            .OnDrafts(() => navigator.Navigate<DraftsApp>())
+            .OnDrafts(() => navigator.Navigate<PlansApp>())
             .OnReview(() => navigator.Navigate<ReviewApp>())
             .OnJobs(() => navigator.Navigate<JobsApp>())
             .OnJob(showOutput);

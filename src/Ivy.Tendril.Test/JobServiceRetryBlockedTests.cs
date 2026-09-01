@@ -767,6 +767,7 @@ public class JobServiceRetryBlockedTests : IDisposable
 
     private class FakeDatabaseService : IPlanDatabaseService
     {
+        public DashboardActivityStats GetActivityStats(int monthsBack = 24) => new([], 0m);
         public List<JobItem> Jobs { get; } = new();
         public List<string> DeletedJobIds { get; } = new();
         public List<string> UpsertedJobIds { get; } = new();

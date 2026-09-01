@@ -1,6 +1,6 @@
 using System.Reactive.Disposables;
 using Ivy.Tendril.Apps;
-using Ivy.Tendril.Apps.Drafts;
+using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Services;
@@ -34,7 +34,7 @@ public static class UseTendrilProcessExtensions
                 .RetryingPlansCount(status.RetryingPlansCount)
                 .CreatingPrCount(status.CreatingPrCount)
                 .OnCreate(open)
-                .OnDrafts(() => navigator.Navigate<DraftsApp>())
+                .OnDrafts(() => navigator.Navigate<PlansApp>())
                 .OnReview(() => navigator.Navigate<ReviewApp>())
                 .OnJobs(() => navigator.Navigate<JobsApp>())
         );

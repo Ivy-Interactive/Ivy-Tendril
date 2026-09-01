@@ -7,7 +7,7 @@ import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { AgentViewer } from "../AgentViewer";
 import { getMarkdownPlugins } from "../math";
 import { BlockHandler } from "../BlockHandler";
-import { AlertBlockquote } from "../DraftMarkdown/AlertBlockquote";
+import { AlertBlockquote } from "../PlanMarkdown/AlertBlockquote";
 import "./chat-widget.css";
 
 if (typeof window !== "undefined") {

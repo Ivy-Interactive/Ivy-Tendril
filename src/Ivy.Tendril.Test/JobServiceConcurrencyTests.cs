@@ -290,6 +290,7 @@ public class JobServiceConcurrencyTests
 
     private class FakeDatabaseService : IPlanDatabaseService
     {
+        public DashboardActivityStats GetActivityStats(int monthsBack = 24) => new([], 0m);
         public List<JobItem> Jobs { get; } = new();
 
         public List<JobItem> GetRecentJobs(int limit = 100)
