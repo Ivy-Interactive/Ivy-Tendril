@@ -1,10 +1,16 @@
 using System.Globalization;
+using System.Reactive.Disposables;
+using Ivy.Tendril.Apps.Drafts;
+using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Plans;
+using Ivy.Tendril.Services.Tunnel;
 using Ivy.Tendril.Widgets;
+using Ivy.Widgets.QRCode;
+using JobsApp = Ivy.Tendril.Apps.Jobs.JobsApp;
 
 namespace Ivy.Tendril.Apps;
 
@@ -13,14 +19,36 @@ public class DashboardApp : ViewBase
 {
     private const int ActivityMonths = 16;
     private const int TrendMonthsBack = 24;
+    private const int TrendMonthsShown = 12;
 
     public override object Build()
     {
         var planService = UseService<IPlanReaderService>();
+        var client = UseService<IClientProvider>();
+        var tunnelService = UseService<ICloudflaredService>();
+        var copyToClipboard = UseClipboard();
+        var navigator = UseNavigation();
         var refreshToken = UseRefreshToken();
         var processView = Context.UseTendrilProcess();
+        var tunnelStatus = UseState(tunnelService.Status);
+        var tunnelUrl = UseState<string?>(tunnelService.TunnelUrl);
         UseInterval(() => { refreshToken.Refresh(); },
             planService.IsDatabaseReady ? TimeSpan.FromSeconds(60) : TimeSpan.FromSeconds(2));
+        UseEffect(() =>
+        {
+            void OnStatusChanged(TunnelStatus newStatus)
+            {
+                tunnelStatus.Set(newStatus);
+                tunnelUrl.Set(tunnelService.TunnelUrl);
+            }
+
+            tunnelService.StatusChanged += OnStatusChanged;
+
+            tunnelStatus.Set(tunnelService.Status);
+            tunnelUrl.Set(tunnelService.TunnelUrl);
+
+            return Disposable.Create(() => tunnelService.StatusChanged -= OnStatusChanged);
+        });
 
         if (!planService.IsDatabaseReady)
         {
@@ -42,7 +70,20 @@ public class DashboardApp : ViewBase
 
         var now = DateTime.Now;
 
-        return new TendrilDashboard(processView)
+        object? tunnelQr = null;
+        object? tunnelMenu = null;
+        if (tunnelStatus.Value == TunnelStatus.Connected && tunnelUrl.Value is { } tunnelAddress)
+        {
+            tunnelQr = new QRCode { Value = tunnelAddress, PixelSize = 160, ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium };
+            tunnelMenu = TunnelUiHelper.BuildTunnelMenu(client, copyToClipboard, tunnelAddress, () =>
+            {
+                tunnelStatus.Set(TunnelStatus.Disabled);
+                client.Toast("Tunnel stopped", "Deactivated");
+                _ = tunnelService.DeactivateAsync();
+            });
+        }
+
+        return new TendrilDashboard(processView, new UpdateNoticeView(), tunnelQr, tunnelMenu)
             .DateText($"{now.ToString("dddd", CultureInfo.InvariantCulture)}, {Ordinal(now.Day)} {now.ToString("MMMM", CultureInfo.InvariantCulture)}")
             .Greeting(BuildGreeting(now))
             .Headline("What Are We Producing Today?")
@@ -52,12 +93,15 @@ public class DashboardApp : ViewBase
             .CompletedCount(stats.CompletedCount)
             .FailedCount(stats.FailedCount)
             .Kpis(BuildKpis(stats, activity, prDays, today))
-            .Trend(BuildTrend(activity, today.Year))
+            .Trend(BuildTrend(activity))
             .PullRequests(activity.Months
                 .TakeLast(6)
                 .Select(m => new DashboardMonthValueDto(MonthLabel(m.Month), m.PrsMerged))
                 .ToList())
-            .Activity(BuildActivityMonths(prDays, firstActivityMonth));
+            .Activity(BuildActivityMonths(prDays, firstActivityMonth))
+            .OnDrafts(() => navigator.Navigate<DraftsApp>())
+            .OnReview(() => navigator.Navigate<ReviewApp>())
+            .OnJobs(() => navigator.Navigate<JobsApp>());
     }
 
     private static string BuildGreeting(DateTime now)
@@ -155,17 +199,14 @@ public class DashboardApp : ViewBase
             ? FormatHelper.FormatTokens((int)Math.Min(tokens, int.MaxValue))
             : FormatHelper.FormatCount(tokens);
 
-    internal static DashboardTrendDto BuildTrend(DashboardActivityStats activity, int year)
+    internal static DashboardTrendDto BuildTrend(DashboardActivityStats activity)
     {
-        var thisYear = activity.Months.Where(m => m.Year == year).OrderBy(m => m.Month).ToList();
-        var lastYear = activity.Months.Where(m => m.Year == year - 1).OrderBy(m => m.Month).ToList();
+        var months = activity.Months.TakeLast(TrendMonthsShown).ToList();
 
         return new DashboardTrendDto(
-            Enumerable.Range(1, 12).Select(MonthLabel).ToList(),
-            thisYear.Select(m => (double)m.Cost).ToList(),
-            lastYear.Select(m => (double)m.Cost).ToList(),
-            thisYear.Select(m => (double)m.PlansCreated).ToList(),
-            lastYear.Select(m => (double)m.PlansCreated).ToList());
+            months.Select(m => MonthLabel(m.Month)).ToList(),
+            months.Select(m => (double)m.Cost).ToList(),
+            months.Select(m => (double)m.PlansCreated).ToList());
     }
 
     internal static List<DashboardActivityMonthDto> BuildActivityMonths(

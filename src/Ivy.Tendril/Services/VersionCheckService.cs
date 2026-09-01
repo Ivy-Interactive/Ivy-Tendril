@@ -12,6 +12,8 @@ public class VersionCheckService(IHttpClientFactory httpClientFactory) : IVersio
     private VersionInfo? _cachedResult;
     private DateTime _lastCheckTime = DateTime.MinValue;
 
+    public VersionInfo? CachedVersionInfo => _cachedResult;
+
     /// <summary>
     /// True only for Velopack-installed builds. <see cref="VelopackLocator.Current"/> throws — it does not
     /// return null — when <c>VelopackApp.Build()</c> has not run (any host that isn't the Tendril app:

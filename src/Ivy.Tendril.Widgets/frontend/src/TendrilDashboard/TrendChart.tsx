@@ -3,12 +3,9 @@ import { niceTicks } from "./types";
 
 interface TrendChartProps {
   labels: string[];
-  current: number[];
-  previous: number[];
+  values: number[];
   formatTick: (value: number) => string;
   formatValue: (value: number) => string;
-  currentName: string;
-  previousName: string;
 }
 
 interface Point {
@@ -40,15 +37,14 @@ const PAD_TOP = 10;
 const PAD_BOTTOM = 26;
 const PAD_RIGHT = 8;
 const Y_LABEL_WIDTH = 44;
+/* Keeps zero-valued points slightly above the x-axis labels. */
+const ZERO_LIFT = 6;
 
 export const TrendChart: React.FC<TrendChartProps> = ({
   labels,
-  current,
-  previous,
+  values,
   formatTick,
   formatValue,
-  currentName,
-  previousName,
 }) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -58,6 +54,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
   useLayoutEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
+    setWidth(el.getBoundingClientRect().width);
     const observer = new ResizeObserver((entries) => {
       setWidth(entries[0].contentRect.width);
     });
@@ -69,32 +66,32 @@ export const TrendChart: React.FC<TrendChartProps> = ({
   const plotLeft = Y_LABEL_WIDTH;
   const plotWidth = Math.max(0, width - Y_LABEL_WIDTH - PAD_RIGHT);
   const plotBottom = HEIGHT - PAD_BOTTOM;
-  const plotHeight = plotBottom - PAD_TOP;
+  const zeroY = plotBottom - ZERO_LIFT;
+  const plotHeight = zeroY - PAD_TOP;
 
-  const { ticks, currentPoints, previousPoints } = useMemo(() => {
-    const maxValue = Math.max(1, ...current, ...previous);
+  const { ticks, points } = useMemo(() => {
+    const maxValue = Math.max(1, ...values);
     const tickValues = niceTicks(maxValue, 4);
     const scaleMax = tickValues[tickValues.length - 1];
     const toPoint = (value: number, index: number): Point => ({
       x: plotLeft + (n <= 1 ? plotWidth / 2 : (index / (n - 1)) * plotWidth),
-      y: plotBottom - (value / scaleMax) * plotHeight,
+      y: zeroY - (value / scaleMax) * plotHeight,
     });
     return {
       ticks: tickValues,
-      currentPoints: current.map(toPoint),
-      previousPoints: previous.map(toPoint),
+      points: values.map(toPoint),
     };
-  }, [current, previous, n, plotLeft, plotWidth, plotBottom, plotHeight]);
+  }, [values, n, plotLeft, plotWidth, zeroY, plotHeight]);
 
   const scaleTop = ticks[ticks.length - 1];
 
   const areaPath = useMemo(() => {
-    if (currentPoints.length < 2) return "";
-    const line = smoothPath(currentPoints);
-    const last = currentPoints[currentPoints.length - 1];
-    const first = currentPoints[0];
-    return `${line} L ${last.x} ${plotBottom} L ${first.x} ${plotBottom} Z`;
-  }, [currentPoints, plotBottom]);
+    if (points.length < 2) return "";
+    const line = smoothPath(points);
+    const last = points[points.length - 1];
+    const first = points[0];
+    return `${line} L ${last.x} ${zeroY} L ${first.x} ${zeroY} Z`;
+  }, [points, zeroY]);
 
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (n === 0 || plotWidth <= 0) return;
@@ -105,12 +102,11 @@ export const TrendChart: React.FC<TrendChartProps> = ({
   };
 
   const hover =
-    hoverIndex != null
+    hoverIndex != null && values[hoverIndex] != null
       ? {
           index: hoverIndex,
           x: plotLeft + (n <= 1 ? plotWidth / 2 : (hoverIndex / (n - 1)) * plotWidth),
-          currentValue: current[hoverIndex],
-          previousValue: previous[hoverIndex],
+          value: values[hoverIndex],
         }
       : null;
 
@@ -130,7 +126,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
             </linearGradient>
           </defs>
           {ticks.map((tick) => {
-            const y = plotBottom - (tick / scaleTop) * plotHeight;
+            const y = zeroY - (tick / scaleTop) * plotHeight;
             return (
               <text key={tick} className="tdb-axis-text" x={0} y={y + 4}>
                 {tick === 0 ? "0" : formatTick(tick)}
@@ -149,43 +145,26 @@ export const TrendChart: React.FC<TrendChartProps> = ({
             </text>
           ))}
           {areaPath && <path d={areaPath} fill={`url(#${gradientId})`} style={{ color: "var(--tdb-fg)" }} />}
-          {previousPoints.length > 1 && <path className="tdb-trend-compare" d={smoothPath(previousPoints)} />}
-          {currentPoints.length > 1 && <path className="tdb-trend-line" d={smoothPath(currentPoints)} />}
+          {points.length > 1 && <path className="tdb-trend-line" d={smoothPath(points)} />}
           {hover && (
             <g>
               <line
                 x1={hover.x}
                 x2={hover.x}
                 y1={PAD_TOP}
-                y2={plotBottom}
+                y2={zeroY}
                 stroke="var(--tdb-divider)"
                 strokeDasharray="3 3"
               />
-              {hover.currentValue != null && (
-                <circle cx={hover.x} cy={currentPoints[hover.index].y} r={3.5} fill="var(--tdb-fg)" />
-              )}
-              {hover.previousValue != null && (
-                <circle cx={hover.x} cy={previousPoints[hover.index].y} r={3.5} fill="var(--tdb-compare)" />
-              )}
+              <circle cx={hover.x} cy={points[hover.index].y} r={3.5} fill="var(--tdb-fg)" />
             </g>
           )}
         </svg>
       )}
-      {hover && (hover.currentValue != null || hover.previousValue != null) && (
+      {hover && (
         <div className="tdb-chart-tooltip" style={{ left: hover.x, top: PAD_TOP + 12 }}>
           <div className="tdb-chart-tooltip-title">{labels[hover.index]}</div>
-          {hover.currentValue != null && (
-            <div className="tdb-chart-tooltip-row">
-              <span className="tdb-legend-dot" />
-              {currentName}: {formatValue(hover.currentValue)}
-            </div>
-          )}
-          {hover.previousValue != null && (
-            <div className="tdb-chart-tooltip-row">
-              <span className="tdb-legend-dash" />
-              {previousName}: {formatValue(hover.previousValue)}
-            </div>
-          )}
+          <div className="tdb-chart-tooltip-row">{formatValue(hover.value)}</div>
         </div>
       )}
     </div>

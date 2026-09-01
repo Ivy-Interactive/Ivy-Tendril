@@ -12,6 +12,7 @@ import {
   TendrilDashboardProps,
   formatCountTick,
   formatCurrencyTick,
+  hasSlotContent,
 } from "./types";
 import { TrendChart } from "./TrendChart";
 import { ActivityGrid } from "./ActivityGrid";
@@ -22,14 +23,15 @@ interface StatusItemProps {
   icon: React.ReactNode;
   count: number;
   label: string;
+  onClick: () => void;
 }
 
-const StatusItem: React.FC<StatusItemProps> = ({ icon, count, label }) => (
-  <div className="tdb-status-item">
+const StatusItem: React.FC<StatusItemProps> = ({ icon, count, label, onClick }) => (
+  <button type="button" className="tdb-status-item" onClick={onClick}>
     {icon}
     <span className="tdb-status-count">{count}</span>
     <span className="tdb-status-label">{label}</span>
-  </div>
+  </button>
 );
 
 const formatCurrencyValue = (value: number): string =>
@@ -37,9 +39,13 @@ const formatCurrencyValue = (value: number): string =>
     ? `$${Math.round(value).toLocaleString("en-US")}`
     : `$${value.toFixed(2)}`;
 
-const formatPlansValue = (value: number): string => `${Math.round(value)}`;
+const formatPlansValue = (value: number): string =>
+  `${Math.round(value)} plan${Math.round(value) === 1 ? "" : "s"}`;
 
 export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
+  id,
+  events = [],
+  eventHandler,
   dateText = "",
   greeting = "",
   headline = "",
@@ -56,12 +62,18 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
 }) => {
   const [tab, setTab] = useState<"cost" | "plans">("cost");
 
+  const fireEvent = (eventName: string) => {
+    if (events.includes(eventName)) {
+      eventHandler(eventName, id, []);
+    }
+  };
+
   const statusItems = [
-    { icon: <Feather size={16} />, count: draftCount, label: "Drafts" },
-    { icon: <Sprout size={16} />, count: inProgressCount, label: "In Progress" },
-    { icon: <Eye size={16} />, count: reviewCount, label: "Ready For Review" },
-    { icon: <Check size={16} />, count: completedCount, label: "Completed" },
-    { icon: <MessageSquareWarning size={16} />, count: failedCount, label: "Failed" },
+    { icon: <Feather size={16} />, count: draftCount, label: "Drafts", event: "OnDrafts" },
+    { icon: <Sprout size={16} />, count: inProgressCount, label: "In Progress", event: "OnJobs" },
+    { icon: <Eye size={16} />, count: reviewCount, label: "Ready For Review", event: "OnReview" },
+    { icon: <Check size={16} />, count: completedCount, label: "Completed", event: "OnJobs" },
+    { icon: <MessageSquareWarning size={16} />, count: failedCount, label: "Failed", event: "OnJobs" },
   ];
 
   const trendData =
@@ -69,14 +81,12 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
       ? null
       : tab === "cost"
         ? {
-            current: trend.costThisYear,
-            previous: trend.costLastYear,
+            values: trend.cost,
             formatTick: formatCurrencyTick,
             formatValue: formatCurrencyValue,
           }
         : {
-            current: trend.plansThisYear,
-            previous: trend.plansLastYear,
+            values: trend.plans,
             formatTick: formatCountTick,
             formatValue: formatPlansValue,
           };
@@ -85,9 +95,14 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
     <div className="tdb-root remove-parent-padding">
       <div className="tdb-inner">
         <header className="tdb-header">
-          <div className="tdb-date">{dateText}</div>
-          <h1 className="tdb-greeting">{greeting}</h1>
-          <h1 className="tdb-headline">{headline}</h1>
+          <div className="tdb-header-main">
+            <div className="tdb-date">{dateText}</div>
+            <h1 className="tdb-greeting">{greeting}</h1>
+            <h1 className="tdb-headline">{headline}</h1>
+          </div>
+          {hasSlotContent(slots?.UpdateNotice) && (
+            <div className="tdb-header-aside">{slots?.UpdateNotice}</div>
+          )}
         </header>
 
         <div className="tdb-grid">
@@ -96,7 +111,12 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
               {statusItems.map((item, index) => (
                 <React.Fragment key={item.label}>
                   {index > 0 && <div className="tdb-status-sep" />}
-                  <StatusItem {...item} />
+                  <StatusItem
+                    icon={item.icon}
+                    count={item.count}
+                    label={item.label}
+                    onClick={() => fireEvent(item.event)}
+                  />
                 </React.Fragment>
               ))}
             </div>
@@ -143,27 +163,13 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                       Total Plans
                     </button>
                   </div>
-                  <div className="tdb-trend-sep" />
-                  <div className="tdb-legend">
-                    <span className="tdb-legend-item">
-                      <span className="tdb-legend-dot" />
-                      This year
-                    </span>
-                    <span className="tdb-legend-item">
-                      <span className="tdb-legend-dash" />
-                      Last year
-                    </span>
-                  </div>
                 </div>
                 <div className="tdb-trend-chart">
                   <TrendChart
                     labels={trend!.months}
-                    current={trendData.current}
-                    previous={trendData.previous}
+                    values={trendData.values}
                     formatTick={trendData.formatTick}
                     formatValue={trendData.formatValue}
-                    currentName="This year"
-                    previousName="Last year"
                   />
                 </div>
               </div>
@@ -176,6 +182,15 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
           </div>
 
           <div className="tdb-col tdb-col-side">
+            {hasSlotContent(slots?.TunnelQr) && (
+              <div className="tdb-block tdb-side-block tdb-tunnel">
+                <div className="tdb-side-head">
+                  <div className="tdb-block-title">Tunnel</div>
+                  {slots?.TunnelMenu}
+                </div>
+                <div className="tdb-tunnel-body">{slots?.TunnelQr}</div>
+              </div>
+            )}
             <div className="tdb-block tdb-side-block">
               <div className="tdb-block-title">Git Activity</div>
               <div className="tdb-side-body">

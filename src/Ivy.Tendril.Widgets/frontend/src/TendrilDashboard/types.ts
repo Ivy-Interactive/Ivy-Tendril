@@ -19,10 +19,8 @@ export interface DashboardActivityMonthDto {
 
 export interface DashboardTrendDto {
   months: string[];
-  costThisYear: number[];
-  costLastYear: number[];
-  plansThisYear: number[];
-  plansLastYear: number[];
+  cost: number[];
+  plans: number[];
 }
 
 export interface TendrilDashboardProps {
@@ -45,8 +43,15 @@ export interface TendrilDashboardProps {
   activity?: DashboardActivityMonthDto[];
   slots?: {
     ProcessViewer?: React.ReactNode;
+    UpdateNotice?: React.ReactNode;
+    TunnelQr?: React.ReactNode;
+    TunnelMenu?: React.ReactNode;
   };
 }
+
+/** Slots arrive as arrays of rendered nodes; an omitted slot is undefined. */
+export const hasSlotContent = (slot?: React.ReactNode): boolean =>
+  slot != null && (!Array.isArray(slot) || slot.length > 0);
 
 /** Grey ramp step (1-4) for an intensity relative to the range maximum. */
 export const rampLevel = (value: number, max: number): number => {

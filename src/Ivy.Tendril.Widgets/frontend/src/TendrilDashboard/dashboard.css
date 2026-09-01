@@ -21,9 +21,6 @@
   --tdb-ramp-3: color-mix(in srgb, var(--foreground, #000000) 60%, transparent);
   --tdb-ramp-4: var(--foreground, #000000);
 
-  /* Comparison (last year) line. */
-  --tdb-compare: #a0bce8;
-
   /* KPI card pastels from the Figma design. */
   --tdb-kpi-mint: #ccf5e9;
   --tdb-kpi-sage: #cddbd6;
@@ -63,7 +60,20 @@
 /* ---------- Header ---------- */
 
 .tdb-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
   padding: 8px 16px 0;
+}
+
+.tdb-header-main {
+  min-width: 0;
+}
+
+.tdb-header-aside {
+  flex-shrink: 0;
+  max-width: 420px;
 }
 
 .tdb-date {
@@ -75,7 +85,7 @@
 .tdb-greeting {
   font-size: 32px;
   line-height: 1.19;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--tdb-faint);
 }
 
@@ -91,7 +101,7 @@
 .tdb-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 421px);
-  gap: 28px 32px;
+  gap: 28px;
   align-items: start;
   margin-top: 32px;
   padding: 0 16px;
@@ -105,12 +115,12 @@
 }
 
 .tdb-col-side {
-  gap: 12px;
+  gap: 28px;
 }
 
+/* The status strip is the only bordered card on the dashboard. */
 .tdb-block {
   background: var(--tdb-block-bg);
-  border: 1px solid var(--tdb-block-border);
   border-radius: 16px;
 }
 
@@ -127,9 +137,10 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px 24px;
+  gap: 8px 10px;
   min-height: 74px;
-  padding: 14px 32px;
+  padding: 14px 22px;
+  border: 1px solid var(--tdb-block-border);
 }
 
 .tdb-status-item {
@@ -137,6 +148,21 @@
   align-items: center;
   gap: 8px;
   white-space: nowrap;
+  border: none;
+  background: none;
+  font: inherit;
+  padding: 8px 6px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.tdb-status-item:hover {
+  background: var(--tdb-pill-bg);
+}
+
+.tdb-status-item:focus-visible {
+  outline: 2px solid var(--tdb-muted);
+  outline-offset: 2px;
 }
 
 .tdb-status-item svg {
@@ -251,39 +277,6 @@
   color: var(--tdb-fg);
 }
 
-.tdb-trend-sep {
-  width: 1px;
-  height: 24px;
-  background: var(--tdb-divider);
-}
-
-.tdb-legend {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-
-.tdb-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 12px;
-  color: var(--tdb-muted);
-}
-
-.tdb-legend-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--tdb-fg);
-}
-
-.tdb-legend-dash {
-  width: 10px;
-  height: 0;
-  border-top: 2px dashed var(--tdb-compare);
-}
-
 .tdb-trend-chart {
   margin-top: 16px;
 }
@@ -310,16 +303,7 @@
 .tdb-trend-line {
   fill: none;
   stroke: var(--tdb-fg);
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.tdb-trend-compare {
-  fill: none;
-  stroke: var(--tdb-compare);
-  stroke-width: 1.5;
-  stroke-dasharray: 5 4;
+  stroke-width: 1.25;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -357,6 +341,33 @@
   min-height: 280px;
   display: flex;
   flex-direction: column;
+}
+
+.tdb-side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.tdb-tunnel {
+  min-height: 0;
+}
+
+.tdb-tunnel-body {
+  display: flex;
+  justify-content: center;
+  padding: 20px 0 8px;
+}
+
+.tdb-tip-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 0;
 }
 
 .tdb-side-body {

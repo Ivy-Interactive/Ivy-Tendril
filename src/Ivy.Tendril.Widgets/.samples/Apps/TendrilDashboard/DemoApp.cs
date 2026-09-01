@@ -27,8 +27,22 @@ class DemoApp : ViewBase
 
         var months = new List<string>
         {
-            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+            "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"
         };
+
+        var updateNotice = new Card(
+                Layout.Vertical()
+                | Text.Block("v1.4.2 is available (you have v1.4.0)").Small()
+                | (Layout.Horizontal().Gap(2)
+                   | new Button("Update Now", () => client.Toast("Update clicked", "OnUpdate").Info()).Small()
+                   | new Button("Dismiss", () => client.Toast("Dismiss clicked", "OnDismiss").Info())
+                       .Variant(ButtonVariant.Secondary).Small()))
+            .Header("Update Available", null, Icons.CircleArrowUp);
+
+        var tunnelQr = new Box("QR").Width(Size.Units(40)).Height(Size.Units(40));
+        var tunnelMenu = new Button().Icon(Icons.Ellipsis).Ghost().Small().WithDropDown(
+            new MenuItem("Copy to Clipboard", Icon: Icons.ClipboardCopy, Tag: "copy")
+                .OnSelect(() => client.Toast("Copy clicked", "Tunnel").Info()));
 
         var random = new Random(7);
         var activity = new List<DashboardActivityMonthDto>();
@@ -44,7 +58,7 @@ class DemoApp : ViewBase
             activity.Add(new DashboardActivityMonthDto(label, weeks));
         }
 
-        return new TendrilDashboardWidget(processView)
+        return new TendrilDashboardWidget(processView, updateNotice, tunnelQr, tunnelMenu)
             .DateText("Thursday, 20th August")
             .Greeting("Good Evening, Joel!")
             .Headline("What Are We Producing Today?")
@@ -62,10 +76,11 @@ class DemoApp : ViewBase
             ])
             .Trend(new DashboardTrendDto(
                 months,
-                [12400, 5100, 12800, 24500, 28900, 19600, 23800],
-                [3400, 14200, 20600, 6100, 10800, 22100, 24800, 26300, 27100, 28600, 29800, 31400],
-                [42, 18, 45, 88, 102, 71, 85],
-                [12, 51, 74, 22, 39, 79, 89, 94, 97, 102, 107, 112]))
+                [12400, 5100, 0, 12800, 24500, 28900, 19600, 23800, 21200, 26500, 24100, 29400],
+                [42, 18, 0, 45, 88, 102, 71, 85, 64, 91, 78, 96]))
+            .OnDrafts(() => client.Toast("Drafts clicked", "OnDrafts").Info())
+            .OnReview(() => client.Toast("Review clicked", "OnReview").Info())
+            .OnJobs(() => client.Toast("Jobs clicked", "OnJobs").Info())
             .PullRequests(
             [
                 new DashboardMonthValueDto("Jul", 24),

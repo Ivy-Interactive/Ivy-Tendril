@@ -8,10 +8,8 @@ public record DashboardActivityMonthDto(string Label, List<int> Weeks);
 
 public record DashboardTrendDto(
     List<string> Months,
-    List<double> CostThisYear,
-    List<double> CostLastYear,
-    List<double> PlansThisYear,
-    List<double> PlansLastYear);
+    List<double> Cost,
+    List<double> Plans);
 
 [ExternalWidget(
     "frontend/dist/ivy-tendril-widgets.js",
@@ -20,11 +18,37 @@ public record DashboardTrendDto(
     GlobalName = "IvyTendrilWidgets"
 )]
 [Slot("ProcessViewer")]
+[Slot("UpdateNotice")]
+[Slot("TunnelQr")]
+[Slot("TunnelMenu")]
 public record TendrilDashboard : WidgetBase<TendrilDashboard>
 {
-    public TendrilDashboard(object? processViewer = null)
-        : base(processViewer != null ? [new Slot("ProcessViewer", processViewer)] : [new Slot("ProcessViewer")])
+    public TendrilDashboard(
+        object? processViewer = null,
+        object? updateNotice = null,
+        object? tunnelQr = null,
+        object? tunnelMenu = null)
+        : base(BuildSlots(processViewer, updateNotice, tunnelQr, tunnelMenu))
     {
+    }
+
+    private static object[] BuildSlots(
+        object? processViewer,
+        object? updateNotice,
+        object? tunnelQr,
+        object? tunnelMenu)
+    {
+        var slots = new List<object>
+        {
+            processViewer != null ? new Slot("ProcessViewer", processViewer) : new Slot("ProcessViewer")
+        };
+        if (updateNotice != null)
+            slots.Add(new Slot("UpdateNotice", updateNotice));
+        if (tunnelQr != null)
+            slots.Add(new Slot("TunnelQr", tunnelQr));
+        if (tunnelMenu != null)
+            slots.Add(new Slot("TunnelMenu", tunnelMenu));
+        return slots.ToArray();
     }
 
     [Prop] public string DateText { get; init; } = "";
@@ -39,6 +63,10 @@ public record TendrilDashboard : WidgetBase<TendrilDashboard>
     [Prop] public DashboardTrendDto? Trend { get; init; }
     [Prop] public List<DashboardMonthValueDto> PullRequests { get; init; } = new();
     [Prop] public List<DashboardActivityMonthDto> Activity { get; init; } = new();
+
+    [Event] public EventHandler<Event<TendrilDashboard>>? OnDrafts { get; init; }
+    [Event] public EventHandler<Event<TendrilDashboard>>? OnReview { get; init; }
+    [Event] public EventHandler<Event<TendrilDashboard>>? OnJobs { get; init; }
 }
 
 public static class TendrilDashboardExtensions
@@ -78,4 +106,13 @@ public static class TendrilDashboardExtensions
 
     public static TendrilDashboard Activity(this TendrilDashboard w, List<DashboardActivityMonthDto> value) =>
         w with { Activity = value };
+
+    public static TendrilDashboard OnDrafts(this TendrilDashboard w, Action handler) =>
+        w with { OnDrafts = new(_ => { handler(); return ValueTask.CompletedTask; }) };
+
+    public static TendrilDashboard OnReview(this TendrilDashboard w, Action handler) =>
+        w with { OnReview = new(_ => { handler(); return ValueTask.CompletedTask; }) };
+
+    public static TendrilDashboard OnJobs(this TendrilDashboard w, Action handler) =>
+        w with { OnJobs = new(_ => { handler(); return ValueTask.CompletedTask; }) };
 }

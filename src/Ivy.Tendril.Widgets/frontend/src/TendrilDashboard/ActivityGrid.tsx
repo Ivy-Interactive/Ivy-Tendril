@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { DashboardActivityMonthDto, rampLevel } from "./types";
+import { HoverTip, useHoverTip } from "./HoverTip";
 
 interface ActivityGridProps {
   months: DashboardActivityMonthDto[];
@@ -8,6 +9,7 @@ interface ActivityGridProps {
 /** One column per month; each week with activity renders as a cell stacked
     from the bottom, shaded by that week's intensity relative to the range. */
 export const ActivityGrid: React.FC<ActivityGridProps> = ({ months }) => {
+  const { wrapRef, tip, showTip, hideTip } = useHoverTip();
   const maxWeek = useMemo(
     () => Math.max(0, ...months.flatMap((m) => m.weeks)),
     [months],
@@ -21,21 +23,25 @@ export const ActivityGrid: React.FC<ActivityGridProps> = ({ months }) => {
   const step = months.length > 8 ? 2 : 1;
 
   return (
-    <>
+    <div className="tdb-tip-wrap" ref={wrapRef}>
       <div className="tdb-activity-scroll">
         <div className="tdb-activity">
           {months.map((month, monthIndex) => (
             <div className="tdb-activity-col" key={monthIndex}>
-              {month.weeks
-                .filter((count) => count > 0)
-                .map((count, weekIndex) => (
+              {month.weeks.map((count, weekIndex) =>
+                count > 0 ? (
                   <div
                     key={weekIndex}
                     className="tdb-activity-cell"
                     data-level={rampLevel(count, maxWeek)}
-                    title={`${month.label}: ${count} PR${count === 1 ? "" : "s"}`}
+                    onMouseEnter={showTip(
+                      `${month.label}, week ${weekIndex + 1}`,
+                      `${count} PR${count === 1 ? "" : "s"} merged`,
+                    )}
+                    onMouseLeave={hideTip}
                   />
-                ))}
+                ) : null,
+              )}
             </div>
           ))}
         </div>
@@ -47,6 +53,7 @@ export const ActivityGrid: React.FC<ActivityGridProps> = ({ months }) => {
           ))}
         </div>
       </div>
-    </>
+      <HoverTip tip={tip} />
+    </div>
   );
 };

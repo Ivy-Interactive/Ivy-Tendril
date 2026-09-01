@@ -50,7 +50,7 @@ public class DashboardAppViewModelTests
     }
 
     [Fact]
-    public void BuildTrend_SplitsMonthsByYear()
+    public void BuildTrend_TakesTrailingTwelveMonths()
     {
         var months = new List<DashboardMonthStats>();
         for (var month = 1; month <= 12; month++)
@@ -58,16 +58,31 @@ public class DashboardAppViewModelTests
         for (var month = 1; month <= 8; month++)
             months.Add(new DashboardMonthStats(2026, month, month * 2, 0, month * 200m, 0));
 
-        var trend = DashboardApp.BuildTrend(new DashboardActivityStats(months, 0), 2026);
+        var trend = DashboardApp.BuildTrend(new DashboardActivityStats(months, 0));
 
         Assert.Equal(12, trend.Months.Count);
-        Assert.Equal("Jan", trend.Months[0]);
-        Assert.Equal(8, trend.CostThisYear.Count);
-        Assert.Equal(12, trend.CostLastYear.Count);
-        Assert.Equal(1600, trend.CostThisYear[^1]);
-        Assert.Equal(1200, trend.CostLastYear[^1]);
-        Assert.Equal(16, trend.PlansThisYear[^1]);
-        Assert.Equal(12, trend.PlansLastYear[^1]);
+        Assert.Equal("Sep", trend.Months[0]);
+        Assert.Equal("Aug", trend.Months[^1]);
+        Assert.Equal(900, trend.Cost[0]);
+        Assert.Equal(1600, trend.Cost[^1]);
+        Assert.Equal(9, trend.Plans[0]);
+        Assert.Equal(16, trend.Plans[^1]);
+    }
+
+    [Fact]
+    public void BuildTrend_KeepsShortHistoryAsIs()
+    {
+        var months = new List<DashboardMonthStats>
+        {
+            new(2026, 7, 3, 0, 120m, 0),
+            new(2026, 8, 5, 0, 250m, 0)
+        };
+
+        var trend = DashboardApp.BuildTrend(new DashboardActivityStats(months, 0));
+
+        Assert.Equal(["Jul", "Aug"], trend.Months);
+        Assert.Equal([120d, 250d], trend.Cost);
+        Assert.Equal([3d, 5d], trend.Plans);
     }
 
     [Fact]
