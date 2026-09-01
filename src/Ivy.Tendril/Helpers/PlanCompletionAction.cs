@@ -35,8 +35,20 @@ public static class PlanCompletionAction
     /// </summary>
     public static void ToastBlocked(IClientProvider client, PlanFile plan, IReadOnlyList<string> failed) =>
         client.Toast(
-            $"{string.Join(", ", failed)} failed for plan #{plan.Id}. Re-run the verification, or set it " +
-            "to Skipped with a reason, before completing the plan.",
-            "Verification Failed",
+            failed.Count > 0
+                ? $"{string.Join(", ", failed)} failed for plan #{plan.Id}. Re-run the verification, or set it " +
+                  "to Skipped with a reason, before completing the plan."
+                : $"Pre-execution validation failed for plan #{plan.Id} and no changes were implemented. " +
+                  "Retire it by setting the state to Skipped instead.",
+            failed.Count > 0 ? "Verification Failed" : "Cannot Complete Plan",
             variant: ToastVariant.Destructive);
+
+    /// <summary>
+    ///     Transitions a plan to Skipped and initiates background worktree cleanup.
+    /// </summary>
+    public static void Skip(IPlanReaderService planService, PlanFile plan)
+    {
+        planService.TransitionState(plan.FolderName, PlanStatus.Skipped);
+        WorktreeCleanupService.RemoveWorktreesInBackground(plan.FolderPath);
+    }
 }
