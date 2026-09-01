@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Reactive.Disposables;
+using System.Reactive.Linq;
 using Ivy.Tendril.Apps.Drafts;
 using Ivy.Tendril.Apps.Jobs.Sheets;
 using Ivy.Tendril.Apps.Review;
@@ -27,6 +28,7 @@ public class DashboardApp : ViewBase
     {
         var planService = UseService<IPlanReaderService>();
         var jobService = UseService<IJobService>();
+        var statusService = UseService<ITendrilProcessStatusService>();
         var client = UseService<IClientProvider>();
         var tunnelService = UseService<ICloudflaredService>();
         var copyToClipboard = UseClipboard();
@@ -50,6 +52,9 @@ public class DashboardApp : ViewBase
         });
 
         UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken));
+        // Skip(1): the status stream is a BehaviorSubject and replays its
+        // current value on subscribe, which would refresh in a loop.
+        UseEffect(() => statusService.Status.Skip(1).Subscribe(_ => refreshToken.Refresh()));
         UseInterval(() => { refreshToken.Refresh(); },
             planService.IsDatabaseReady ? TimeSpan.FromSeconds(60) : TimeSpan.FromSeconds(2));
         UseEffect(() =>
@@ -76,6 +81,11 @@ public class DashboardApp : ViewBase
 
         var stats = planService.GetDashboardData(null);
         var activity = planService.GetDashboardActivity(TrendMonthsBack);
+        // Status strip counts come from the same sources as the apps they
+        // navigate to: plan counts as shown by the Drafts/Review apps and
+        // the shell badges, job counts as shown by the Jobs app.
+        var processStatus = statusService.Current;
+        var jobs = jobService.GetJobs();
 
         if (stats.TotalCount == 0 && activity.Months.All(m => m.PlansCreated == 0))
         {
@@ -105,11 +115,11 @@ public class DashboardApp : ViewBase
             .DateText($"{now.ToString("dddd", CultureInfo.InvariantCulture)}, {Ordinal(now.Day)} {now.ToString("MMMM", CultureInfo.InvariantCulture)}")
             .Greeting(BuildGreeting(now))
             .Headline("What Are We Producing Today?")
-            .DraftCount(stats.DraftCount)
-            .InProgressCount(stats.InProgressCount)
-            .ReviewCount(stats.ReviewCount)
-            .CompletedCount(stats.CompletedCount)
-            .FailedCount(stats.FailedCount)
+            .DraftCount(processStatus.DraftCount)
+            .InProgressCount(processStatus.JobCount)
+            .ReviewCount(processStatus.ReviewCount)
+            .CompletedCount(jobs.Count(j => j.Status == JobStatus.Completed))
+            .FailedCount(jobs.Count(j => j.Status == JobStatus.Failed))
             .Kpis(BuildKpis(stats, activity, prDays, today))
             .Trend(BuildTrend(activity))
             .PullRequests(activity.Months
@@ -117,7 +127,7 @@ public class DashboardApp : ViewBase
                 .Select(m => new DashboardMonthValueDto(MonthLabel(m.Month), m.PrsMerged))
                 .ToList())
             .Activity(BuildActivityMonths(prDays, firstActivityMonth))
-            .Jobs(BuildActiveJobs(jobService.GetJobs(), planService))
+            .Jobs(BuildActiveJobs(jobs, planService))
             .OnDrafts(() => navigator.Navigate<DraftsApp>())
             .OnReview(() => navigator.Navigate<ReviewApp>())
             .OnJobs(() => navigator.Navigate<JobsApp>())

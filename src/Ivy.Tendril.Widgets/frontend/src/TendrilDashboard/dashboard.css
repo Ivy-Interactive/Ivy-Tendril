@@ -105,9 +105,11 @@
   min-width: 0;
 }
 
-/* Both row-1 stacks stretch to the same height; the last card in the shorter
-   stack grows to absorb the difference, keeping the grid seams parallel. */
-.tdb-col > :last-child {
+/* Both row-1 stacks stretch to the same height. In the main stack the trend
+   card absorbs the difference; the side stack instead splits its height
+   equally between its cards (see the wide-layout rule below), so Git
+   Activity and Pull Requests always come out the same size. */
+.tdb-col:not(.tdb-col-side) > :last-child {
   flex: 1 0 auto;
 }
 
@@ -649,6 +651,17 @@
 }
 
 /* ---------- Responsive ---------- */
+
+/* Two-column layout: the side cards share the column height equally so they
+   are always the exact same size, however tall the main stack gets (e.g.
+   when the KPI cards fold to 2x2). The 300px floor exceeds every card's
+   natural content height, so equal never means clipped. */
+@container tdb (min-width: 1080px) {
+  .tdb-col-side > .tdb-side-block {
+    flex: 1 1 0;
+    min-height: 300px;
+  }
+}
 
 /* Narrow two-column band: the main column is squeezed, so compact the
    status strip and fold the KPI cards. Below 1080px the grid goes

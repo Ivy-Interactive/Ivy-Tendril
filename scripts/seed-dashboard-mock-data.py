@@ -20,6 +20,7 @@ import csv
 import math
 import random
 import shutil
+import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -187,7 +188,33 @@ dependsOn: []
                     created = self.recent_time(day, days_ago, 20)
                     self.write_plan("Draft", created, created, [], 0)
 
+    def ensure_repo(self) -> None:
+        """Create the repo the plans point at, as a real git repo with one
+        commit, so launching a job against a seeded plan passes Tendril's
+        repo validation instead of failing with "Repository path does not
+        exist"."""
+        repo = Path(self.repo).expanduser()
+        if (repo / ".git").exists():
+            return
+        repo.mkdir(parents=True, exist_ok=True)
+
+        def git(*git_args: str) -> None:
+            subprocess.run(["git", "-C", str(repo), *git_args],
+                           check=True, capture_output=True)
+
+        git("init", "-b", "main")
+        readme = repo / "README.md"
+        if not readme.exists():
+            readme.write_text("# Mock repo\n\nSeeded by seed-dashboard-mock-data.py "
+                              "as the repository behind the mock plans.\n")
+        git("add", "-A")
+        git("-c", "user.name=Tendril Seeder", "-c", "user.email=seeder@tendril.local",
+            "commit", "--allow-empty", "-m", "Seed mock repository")
+        print(f"Initialized mock git repo at {repo}")
+
     def run(self) -> None:
+        self.ensure_repo()
+
         plans_dir = self.home / "Plans"
         if plans_dir.exists():
             shutil.rmtree(plans_dir)
@@ -215,7 +242,14 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=7, help="random seed")
     parser.add_argument("--force", action="store_true",
                         help="allow seeding into ~/.tendril (destructive)")
+    parser.add_argument("--ensure-repo-only", action="store_true",
+                        help="only create the mock repo if missing; leave plans and db alone "
+                             "(for homes seeded before the repo was part of seeding)")
     args = parser.parse_args()
+
+    if args.ensure_repo_only:
+        Seeder(args).ensure_repo()
+        return
 
     home = Path(args.home).expanduser().resolve()
     real_home = (Path.home() / ".tendril").resolve()
