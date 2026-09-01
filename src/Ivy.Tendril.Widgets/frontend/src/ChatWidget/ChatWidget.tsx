@@ -306,7 +306,9 @@ function InlineSelect({ icon, value, options, onChange, title }: InlineSelectPro
 
 const noopEventHandler: IvyEventHandler = () => {};
 
-function formatFileSize(bytes: number): string {
+export const MAX_PAYLOAD_BYTES = 50 * 1024 * 1024;
+
+export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -356,6 +358,9 @@ export function ChatWidget({
   const initialPromptRef = useRef<string>("");
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
+
+  const totalAttachmentSize = attachments.reduce((sum, att) => sum + (att.size || 0), 0);
+  const isPayloadOversized = totalAttachmentSize > MAX_PAYLOAD_BYTES;
 
   useEffect(() => {
     setShowDeleteConfirm(false);
@@ -458,6 +463,7 @@ export function ChatWidget({
   const handleSendMessage = () => {
     const trimmed = promptText.trim();
     if (!trimmed && attachments.length === 0) return;
+    if (isPayloadOversized) return;
 
     const payload = { prompt: trimmed, attachments, sessionId: activeSessionId };
     if (isStreaming) {
@@ -970,7 +976,7 @@ export function ChatWidget({
                       ) : (
                         <>
                           <div className="chat-queued-item-text">
-                            {q.prompt}
+                            {q.prompt || (q.attachments && q.attachments.length > 0 ? `${q.attachments.length} attachment${q.attachments.length > 1 ? "s" : ""}` : "")}
                             {q.attachments && q.attachments.length > 0 && (
                               <span className="chat-queued-item-att-count">
                                 <Paperclip size={11} />
@@ -1016,12 +1022,18 @@ export function ChatWidget({
             </div>
           )}
           <div
-            className={`chat-input-box ${isDragging ? "dragging" : ""}`}
+            className={`chat-input-box ${isDragging ? "dragging" : ""} ${isPayloadOversized ? "oversized" : ""}`}
             onDragEnter={handleDragEnter}
             onDragLeave={handleDragLeave}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
           >
+            {isPayloadOversized && (
+              <div className="chat-payload-warning" role="alert">
+                <span>Attachments exceed the 50 MB limit ({formatFileSize(totalAttachmentSize)} / 50 MB). Please remove or downsize files before sending.</span>
+              </div>
+            )}
+
             {/* Attachment preview cards */}
             {attachments.length > 0 && (
               <div className="chat-attachments-row">
@@ -1147,9 +1159,9 @@ export function ChatWidget({
                     <button
                       type="button"
                       className="chat-send-btn"
-                      disabled={!promptText.trim() && attachments.length === 0}
+                      disabled={isPayloadOversized || (!promptText.trim() && attachments.length === 0)}
                       onClick={handleSendMessage}
-                      title="Queue message"
+                      title={isPayloadOversized ? "Attachments exceed the 50 MB limit" : "Queue message"}
                     >
                       <span>Queue</span>
                       <kbd className="chat-shortcut-hint">↵</kbd>
@@ -1159,8 +1171,9 @@ export function ChatWidget({
                   <button
                     type="button"
                     className="chat-send-btn"
-                    disabled={!promptText.trim() && attachments.length === 0}
+                    disabled={isPayloadOversized || (!promptText.trim() && attachments.length === 0)}
                     onClick={handleSendMessage}
+                    title={isPayloadOversized ? "Attachments exceed the 50 MB limit" : "Send message"}
                   >
                     <span>Send</span>
                     <kbd className="chat-shortcut-hint">↵</kbd>

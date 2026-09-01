@@ -470,4 +470,81 @@ describe("ChatWidget File Uploads and Attachments", () => {
     expect(screen.getByText("CSV")).toBeInTheDocument();
     expect(screen.queryByText("[Attached Files]:")).not.toBeInTheDocument();
   });
+
+  it("submitting a message with an attached file and empty text prompt emits OnSendMessage with empty prompt", async () => {
+    const handleEvent = vi.fn();
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-1"
+        events={["OnSendMessage"]}
+        eventHandler={handleEvent}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(/Ask/i);
+    const sendBtn = screen.getByRole("button", { name: /Send/i });
+
+    // Initially disabled when empty and no attachments
+    expect(sendBtn).toBeDisabled();
+
+    const imageFile = new File(["dummy-image-bytes"], "screenshot.png", { type: "image/png" });
+    fireEvent.paste(textarea, {
+      clipboardData: { files: [imageFile], items: [] },
+      preventDefault: vi.fn(),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTitle("screenshot.png")).toBeInTheDocument();
+    });
+
+    // Send button should be enabled even without prompt text
+    expect(sendBtn).not.toBeDisabled();
+    fireEvent.click(sendBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnSendMessage",
+      "test-chat",
+      expect.arrayContaining([
+        expect.objectContaining({
+          prompt: "",
+          sessionId: "sess-1",
+          attachments: expect.arrayContaining([
+            expect.objectContaining({
+              name: "screenshot.png",
+              contentType: "image/png",
+            }),
+          ]),
+        }),
+      ])
+    );
+  });
+
+  it("displays payload size warning banner and disables Send button when attachments exceed 50 MB", async () => {
+    render(<ChatWidget id="test-chat" />);
+    const textarea = screen.getByPlaceholderText(/Ask/i);
+    const sendBtn = screen.getByRole("button", { name: /Send/i });
+
+    // Create a 51 MB dummy file
+    const largeFile = new File(["x"], "large-dataset.bin", { type: "application/octet-stream" });
+    Object.defineProperty(largeFile, "size", { value: 51 * 1024 * 1024 });
+
+    fireEvent.paste(textarea, {
+      clipboardData: { files: [largeFile], items: [] },
+      preventDefault: vi.fn(),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("large-dataset.bin")).toBeInTheDocument();
+    });
+
+    // Warning banner is displayed
+    const warning = screen.getByRole("alert");
+    expect(warning).toBeInTheDocument();
+    expect(warning).toHaveTextContent(/Attachments exceed the 50 MB limit/i);
+
+    // Send button is disabled due to oversized payload
+    expect(sendBtn).toBeDisabled();
+    expect(sendBtn).toHaveAttribute("title", "Attachments exceed the 50 MB limit");
+  });
 });
