@@ -21,6 +21,8 @@ export interface DashboardTrendDto {
   months: string[];
   cost: number[];
   plans: number[];
+  prevCost: (number | null)[];
+  prevPlans: (number | null)[];
 }
 
 export interface TendrilDashboardProps {

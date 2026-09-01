@@ -9,7 +9,9 @@ public record DashboardActivityMonthDto(string Label, List<int> Weeks);
 public record DashboardTrendDto(
     List<string> Months,
     List<double> Cost,
-    List<double> Plans);
+    List<double> Plans,
+    List<double?> PrevCost,
+    List<double?> PrevPlans);
 
 [ExternalWidget(
     "frontend/dist/ivy-tendril-widgets.js",

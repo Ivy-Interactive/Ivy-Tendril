@@ -4,6 +4,9 @@ import { niceTicks } from "./types";
 interface TrendChartProps {
   labels: string[];
   values: number[];
+  previous?: (number | null)[];
+  currentName: string;
+  previousName: string;
   formatTick: (value: number) => string;
   formatValue: (value: number) => string;
 }
@@ -43,6 +46,9 @@ const ZERO_LIFT = 6;
 export const TrendChart: React.FC<TrendChartProps> = ({
   labels,
   values,
+  previous = [],
+  currentName,
+  previousName,
   formatTick,
   formatValue,
 }) => {
@@ -69,8 +75,9 @@ export const TrendChart: React.FC<TrendChartProps> = ({
   const zeroY = plotBottom - ZERO_LIFT;
   const plotHeight = zeroY - PAD_TOP;
 
-  const { ticks, points } = useMemo(() => {
-    const maxValue = Math.max(1, ...values);
+  const { ticks, points, previousPoints } = useMemo(() => {
+    const previousValues = previous.filter((v): v is number => v != null);
+    const maxValue = Math.max(1, ...values, ...previousValues);
     const tickValues = niceTicks(maxValue, 4);
     const scaleMax = tickValues[tickValues.length - 1];
     const toPoint = (value: number, index: number): Point => ({
@@ -80,8 +87,11 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     return {
       ticks: tickValues,
       points: values.map(toPoint),
+      previousPoints: previous
+        .map((value, index) => (value != null ? toPoint(value, index) : null))
+        .filter((p): p is Point => p != null),
     };
-  }, [values, n, plotLeft, plotWidth, zeroY, plotHeight]);
+  }, [values, previous, n, plotLeft, plotWidth, zeroY, plotHeight]);
 
   const scaleTop = ticks[ticks.length - 1];
 
@@ -107,6 +117,11 @@ export const TrendChart: React.FC<TrendChartProps> = ({
           index: hoverIndex,
           x: plotLeft + (n <= 1 ? plotWidth / 2 : (hoverIndex / (n - 1)) * plotWidth),
           value: values[hoverIndex],
+          previousValue: previous[hoverIndex] ?? null,
+          previousY:
+            previous[hoverIndex] != null
+              ? zeroY - (previous[hoverIndex]! / scaleTop) * plotHeight
+              : null,
         }
       : null;
 
@@ -145,6 +160,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
             </text>
           ))}
           {areaPath && <path d={areaPath} fill={`url(#${gradientId})`} style={{ color: "var(--tdb-fg)" }} />}
+          {previousPoints.length > 1 && <path className="tdb-trend-compare" d={smoothPath(previousPoints)} />}
           {points.length > 1 && <path className="tdb-trend-line" d={smoothPath(points)} />}
           {hover && (
             <g>
@@ -157,6 +173,9 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                 strokeDasharray="3 3"
               />
               <circle cx={hover.x} cy={points[hover.index].y} r={3.5} fill="var(--tdb-fg)" />
+              {hover.previousY != null && (
+                <circle cx={hover.x} cy={hover.previousY} r={3.5} fill="var(--tdb-compare)" />
+              )}
             </g>
           )}
         </svg>
@@ -164,7 +183,16 @@ export const TrendChart: React.FC<TrendChartProps> = ({
       {hover && (
         <div className="tdb-chart-tooltip" style={{ left: hover.x, top: PAD_TOP + 12 }}>
           <div className="tdb-chart-tooltip-title">{labels[hover.index]}</div>
-          <div className="tdb-chart-tooltip-row">{formatValue(hover.value)}</div>
+          <div className="tdb-chart-tooltip-row">
+            <span className="tdb-legend-dot" />
+            {currentName}: {formatValue(hover.value)}
+          </div>
+          {hover.previousValue != null && (
+            <div className="tdb-chart-tooltip-row">
+              <span className="tdb-legend-dash" />
+              {previousName}: {formatValue(hover.previousValue)}
+            </div>
+          )}
         </div>
       )}
     </div>

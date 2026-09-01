@@ -201,12 +201,25 @@ public class DashboardApp : ViewBase
 
     internal static DashboardTrendDto BuildTrend(DashboardActivityStats activity)
     {
-        var months = activity.Months.TakeLast(TrendMonthsShown).ToList();
+        var all = activity.Months;
+        var start = Math.Max(0, all.Count - TrendMonthsShown);
+        var window = all.Skip(start).ToList();
+
+        var prevCost = new List<double?>(window.Count);
+        var prevPlans = new List<double?>(window.Count);
+        for (var i = 0; i < window.Count; i++)
+        {
+            var prevIndex = start + i - 12;
+            prevCost.Add(prevIndex >= 0 ? (double)all[prevIndex].Cost : null);
+            prevPlans.Add(prevIndex >= 0 ? all[prevIndex].PlansCreated : null);
+        }
 
         return new DashboardTrendDto(
-            months.Select(m => MonthLabel(m.Month)).ToList(),
-            months.Select(m => (double)m.Cost).ToList(),
-            months.Select(m => (double)m.PlansCreated).ToList());
+            window.Select(m => MonthLabel(m.Month)).ToList(),
+            window.Select(m => (double)m.Cost).ToList(),
+            window.Select(m => (double)m.PlansCreated).ToList(),
+            prevCost,
+            prevPlans);
     }
 
     internal static List<DashboardActivityMonthDto> BuildActivityMonths(

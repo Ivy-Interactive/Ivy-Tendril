@@ -77,7 +77,9 @@ class DemoApp : ViewBase
             .Trend(new DashboardTrendDto(
                 months,
                 [12400, 5100, 0, 12800, 24500, 28900, 19600, 23800, 21200, 26500, 24100, 29400],
-                [42, 18, 0, 45, 88, 102, 71, 85, 64, 91, 78, 96]))
+                [42, 18, 0, 45, 88, 102, 71, 85, 64, 91, 78, 96],
+                [null, null, 6200, 7900, 11400, 13600, 10800, 14700, 15900, 17200, 18800, 20100],
+                [null, null, 21, 27, 39, 47, 36, 51, 55, 60, 66, 71]))
             .OnDrafts(() => client.Toast("Drafts clicked", "OnDrafts").Info())
             .OnReview(() => client.Toast("Review clicked", "OnReview").Info())
             .OnJobs(() => client.Toast("Jobs clicked", "OnJobs").Info())

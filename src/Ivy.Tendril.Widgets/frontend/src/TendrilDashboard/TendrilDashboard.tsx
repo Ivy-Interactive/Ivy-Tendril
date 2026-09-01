@@ -82,11 +82,13 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
       : tab === "cost"
         ? {
             values: trend.cost,
+            previous: trend.prevCost,
             formatTick: formatCurrencyTick,
             formatValue: formatCurrencyValue,
           }
         : {
             values: trend.plans,
+            previous: trend.prevPlans,
             formatTick: formatCountTick,
             formatValue: formatPlansValue,
           };
@@ -94,19 +96,14 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
   return (
     <div className="tdb-root remove-parent-padding">
       <div className="tdb-inner">
-        <header className="tdb-header">
-          <div className="tdb-header-main">
-            <div className="tdb-date">{dateText}</div>
-            <h1 className="tdb-greeting">{greeting}</h1>
-            <h1 className="tdb-headline">{headline}</h1>
-          </div>
-          {hasSlotContent(slots?.UpdateNotice) && (
-            <div className="tdb-header-aside">{slots?.UpdateNotice}</div>
-          )}
-        </header>
-
         <div className="tdb-grid">
           <div className="tdb-col">
+            <header className="tdb-header">
+              <div className="tdb-date">{dateText}</div>
+              <h1 className="tdb-greeting">{greeting}</h1>
+              <h1 className="tdb-headline">{headline}</h1>
+            </header>
+
             <div className="tdb-block tdb-status">
               {statusItems.map((item, index) => (
                 <React.Fragment key={item.label}>
@@ -163,11 +160,25 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                       Total Plans
                     </button>
                   </div>
+                  <div className="tdb-trend-sep" />
+                  <div className="tdb-legend">
+                    <span className="tdb-legend-item">
+                      <span className="tdb-legend-dot" />
+                      Last 12 months
+                    </span>
+                    <span className="tdb-legend-item">
+                      <span className="tdb-legend-dash" />
+                      Previous year
+                    </span>
+                  </div>
                 </div>
                 <div className="tdb-trend-chart">
                   <TrendChart
                     labels={trend!.months}
                     values={trendData.values}
+                    previous={trendData.previous}
+                    currentName="Last 12 months"
+                    previousName="Previous year"
                     formatTick={trendData.formatTick}
                     formatValue={trendData.formatValue}
                   />
@@ -182,6 +193,7 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
           </div>
 
           <div className="tdb-col tdb-col-side">
+            {slots?.UpdateNotice}
             {hasSlotContent(slots?.TunnelQr) && (
               <div className="tdb-block tdb-side-block tdb-tunnel">
                 <div className="tdb-side-head">

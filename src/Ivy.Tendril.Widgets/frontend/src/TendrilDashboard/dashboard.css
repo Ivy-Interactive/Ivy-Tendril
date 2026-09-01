@@ -21,6 +21,9 @@
   --tdb-ramp-3: color-mix(in srgb, var(--foreground, #000000) 60%, transparent);
   --tdb-ramp-4: var(--foreground, #000000);
 
+  /* Comparison (previous year) line. */
+  --tdb-compare: #a0bce8;
+
   /* KPI card pastels from the Figma design. */
   --tdb-kpi-mint: #ccf5e9;
   --tdb-kpi-sage: #cddbd6;
@@ -60,20 +63,7 @@
 /* ---------- Header ---------- */
 
 .tdb-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 8px 16px 0;
-}
-
-.tdb-header-main {
-  min-width: 0;
-}
-
-.tdb-header-aside {
-  flex-shrink: 0;
-  max-width: 420px;
+  padding: 8px 0 4px;
 }
 
 .tdb-date {
@@ -103,7 +93,6 @@
   grid-template-columns: minmax(0, 1fr) minmax(320px, 421px);
   gap: 28px;
   align-items: start;
-  margin-top: 32px;
   padding: 0 16px;
 }
 
@@ -137,9 +126,9 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px 10px;
+  gap: 8px 4px;
   min-height: 74px;
-  padding: 14px 22px;
+  padding: 14px 18px;
   border: 1px solid var(--tdb-block-border);
 }
 
@@ -151,7 +140,7 @@
   border: none;
   background: none;
   font: inherit;
-  padding: 8px 6px;
+  padding: 8px 12px;
   border-radius: 10px;
   cursor: pointer;
 }
@@ -171,13 +160,13 @@
 }
 
 .tdb-status-count {
-  font-size: 19px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--tdb-fg);
 }
 
 .tdb-status-label {
-  font-size: 15px;
+  font-size: 14px;
   color: var(--tdb-muted);
 }
 
@@ -277,6 +266,41 @@
   color: var(--tdb-fg);
 }
 
+.tdb-trend-sep {
+  width: 1px;
+  height: 24px;
+  background: var(--tdb-divider);
+}
+
+.tdb-legend {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.tdb-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--tdb-muted);
+}
+
+.tdb-legend-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--tdb-fg);
+  flex-shrink: 0;
+}
+
+.tdb-legend-dash {
+  width: 10px;
+  height: 0;
+  border-top: 2px dashed var(--tdb-compare);
+  flex-shrink: 0;
+}
+
 .tdb-trend-chart {
   margin-top: 16px;
 }
@@ -304,6 +328,15 @@
   fill: none;
   stroke: var(--tdb-fg);
   stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tdb-trend-compare {
+  fill: none;
+  stroke: var(--tdb-compare);
+  stroke-width: 1.25;
+  stroke-dasharray: 5 4;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -390,7 +423,7 @@
 .tdb-activity {
   display: flex;
   align-items: flex-end;
-  gap: 7px;
+  gap: 6px;
   min-height: 166px;
 }
 
@@ -406,7 +439,7 @@
   width: 100%;
   max-width: 22px;
   aspect-ratio: 1;
-  border-radius: 4px;
+  border-radius: 2px;
 }
 
 .tdb-activity-cell[data-level="0"] { background: color-mix(in srgb, var(--tdb-fg) 5%, transparent); }
@@ -417,7 +450,7 @@
 
 .tdb-activity-labels {
   display: flex;
-  gap: 7px;
+  gap: 6px;
   margin-top: 16px;
 }
 
@@ -483,7 +516,7 @@
 
 .tdb-bar {
   width: 100%;
-  border-radius: 999px;
+  border-radius: 12px;
   min-height: 6px;
 }
 
@@ -522,6 +555,30 @@
 }
 
 /* ---------- Responsive ---------- */
+
+/* Narrow two-column band: the main column is squeezed, so compact the
+   status strip and fold the KPI cards. Below 1080px the grid goes
+   single-column and the full-width layouts fit again. */
+@container tdb (min-width: 1080px) and (max-width: 1270px) {
+  .tdb-status {
+    justify-content: flex-start;
+    gap: 8px 4px;
+  }
+
+  .tdb-status-item {
+    padding: 8px;
+  }
+
+  .tdb-status-sep {
+    display: none;
+  }
+}
+
+@container tdb (min-width: 1080px) and (max-width: 1240px) {
+  .tdb-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 
 @container tdb (max-width: 1080px) {
   .tdb-grid {

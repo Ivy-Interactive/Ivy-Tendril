@@ -67,6 +67,12 @@ public class DashboardAppViewModelTests
         Assert.Equal(1600, trend.Cost[^1]);
         Assert.Equal(9, trend.Plans[0]);
         Assert.Equal(16, trend.Plans[^1]);
+        Assert.Null(trend.PrevCost[0]);
+        Assert.Null(trend.PrevCost[3]);
+        Assert.Equal(100, trend.PrevCost[4]);
+        Assert.Equal(800, trend.PrevCost[^1]);
+        Assert.Equal(1, trend.PrevPlans[4]);
+        Assert.Equal(8, trend.PrevPlans[^1]);
     }
 
     [Fact]
@@ -83,6 +89,8 @@ public class DashboardAppViewModelTests
         Assert.Equal(["Jul", "Aug"], trend.Months);
         Assert.Equal([120d, 250d], trend.Cost);
         Assert.Equal([3d, 5d], trend.Plans);
+        Assert.Equal([null, null], trend.PrevCost);
+        Assert.Equal([null, null], trend.PrevPlans);
     }
 
     [Fact]
