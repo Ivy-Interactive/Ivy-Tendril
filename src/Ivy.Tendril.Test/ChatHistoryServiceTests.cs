@@ -325,4 +325,23 @@ public class ChatHistoryServiceTests
                 Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void ChatAttachmentDto_SupportsFileIdAndLocalPath()
+    {
+        var att = new Ivy.Tendril.Widgets.ChatAttachmentDto(
+            Name: "report.pdf",
+            ContentType: "application/pdf",
+            Size: 1024,
+            LocalPath: "/tmp/attachments/report.pdf",
+            FileId: "att-12345"
+        );
+
+        Assert.Equal("report.pdf", att.Name);
+        Assert.Equal("application/pdf", att.ContentType);
+        Assert.Equal(1024, att.Size);
+        Assert.Null(att.Base64Data);
+        Assert.Equal("/tmp/attachments/report.pdf", att.LocalPath);
+        Assert.Equal("att-12345", att.FileId);
+    }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Ivy;
@@ -36,7 +37,19 @@ public class ContentView(
 {
     public override object Build()
     {
+        var configService = UseService<IConfigService>();
         var deletingSessionId = UseState<string?>(null);
+
+        var upload = UseUpload(async (fileUpload, stream, ct) =>
+        {
+            var attachDir = Path.Combine(configService.TendrilHome, "Attachments", activeSessionId.Value ?? "temp");
+            Directory.CreateDirectory(attachDir);
+            var rawName = Path.GetFileName(fileUpload.FileName);
+            var safeFileName = string.IsNullOrWhiteSpace(rawName) ? $"file_{Guid.NewGuid():N}.bin" : rawName;
+            var filePath = Path.Combine(attachDir, safeFileName);
+            await using var fileStream = File.Create(filePath);
+            await stream.CopyToAsync(fileStream, ct);
+        });
 
         if (activeSession == null)
         {
@@ -81,6 +94,7 @@ public class ContentView(
         {
             ActiveSessionId = activeSessionId.Value,
             StreamingSessionId = streamingSessionId.Value,
+            UploadUrl = upload.Value.UploadUrl,
             Sessions = sessionDtos,
             Agents = agentDtos,
             Models = modelDtos,

@@ -192,7 +192,10 @@ public class ChatApp : ViewBase
                     {
                         var rawName = Path.GetFileName(att.Name);
                         var fileName = !string.IsNullOrWhiteSpace(rawName) ? rawName : $"file_{Guid.NewGuid():N}.bin";
-                        var filePath = Path.Combine(attachDir, fileName);
+                        var filePath = !string.IsNullOrWhiteSpace(att.LocalPath) && File.Exists(att.LocalPath)
+                            ? att.LocalPath
+                            : Path.Combine(attachDir, fileName);
+
                         if (!string.IsNullOrEmpty(att.Base64Data))
                         {
                             var base64 = att.Base64Data.Contains(",")
@@ -201,7 +204,15 @@ public class ChatApp : ViewBase
                             var bytes = Convert.FromBase64String(base64);
                             File.WriteAllBytes(filePath, bytes);
                         }
-                        attachedFilePaths.Add(filePath);
+
+                        if (File.Exists(filePath))
+                        {
+                            attachedFilePaths.Add(filePath);
+                        }
+                        else
+                        {
+                            attachmentErrors.Add($"Attachment '{att.Name}' was not found at {filePath}");
+                        }
                     }
                     catch (Exception ex)
                     {
