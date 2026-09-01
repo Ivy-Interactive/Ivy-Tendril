@@ -1,6 +1,7 @@
 using Ivy.Core.Apps;
 using Ivy.Helpers;
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.Drafts;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
@@ -172,15 +173,7 @@ public static class TendrilServer
         var version = typeof(TendrilAppShell).Assembly.GetName().Version!;
         var versionString = version.ToString(3);
         var appShellSettings = new AppShellSettings()
-            .Header(
-                Layout.Horizontal(
-                    new Image("/tendril/assets/Tendril.svg").Width(Size.Px(32)).Height(Size.Px(32)),
-                    Layout.Vertical(
-                        Text.Block("Ivy Tendril").NoWrap(),
-                        Text.Muted($"v{versionString}").NoWrap()
-                    ).Gap(0)
-                ).Gap(2).Padding(2).AlignContent(Align.Left)
-            )
+            .DefaultApp<DraftsApp>()
             .WallpaperApp<WallpaperApp>()
             .HideArgsInUrl()
             .UseTabs(true);
