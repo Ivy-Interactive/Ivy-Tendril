@@ -418,7 +418,7 @@ public class ReviewActionsTableView(
 
 public class ProjectVerificationsTableView(
     IState<List<ProjectVerificationRef>> verifications,
-    Action<int?> onEdit) : ViewBase
+    Action<string?> onEdit) : ViewBase
 {
     public override object? Build()
     {
@@ -435,7 +435,7 @@ public class ProjectVerificationsTableView(
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<VerificationRow, int>(idx =>
                 Layout.Horizontal().Gap(1)
-                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
+                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(rows[idx].Name))
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
                 {
                     var current = new List<ProjectVerificationRef>(verifications.Value);
