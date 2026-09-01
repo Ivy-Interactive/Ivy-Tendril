@@ -355,6 +355,46 @@ public class JobServiceStartupTests
         Assert.NotNull(db.GetJobById(id));
     }
 
+    [Fact]
+    public void LoadHistoricalJobs_QueuedJob_ReEnqueuedAndLaunched()
+    {
+        var db = new FakeDatabaseService
+        {
+            Jobs =
+            {
+                new JobItem
+                {
+                    Id = "job-queued",
+                    Type = "ExecutePlan",
+                    Status = JobStatus.Queued,
+                    Priority = 5
+                }
+            }
+        };
+
+        // When maxConcurrentJobs is 0, the job should be re-enqueued but remain Queued because no slots are free.
+        var serviceZero = new JobService(
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromMinutes(10),
+            database: db,
+            maxConcurrentJobs: 0);
+
+        var queuedJob = serviceZero.GetJob("job-queued");
+        Assert.NotNull(queuedJob);
+        Assert.Equal(JobStatus.Queued, queuedJob!.Status);
+
+        // When slots are available (default maxConcurrentJobs = 20), ProcessJobQueue dequeues and launches the job.
+        var serviceWithSlots = new JobService(
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromMinutes(10),
+            database: db,
+            maxConcurrentJobs: 20);
+
+        var launchedJob = serviceWithSlots.GetJob("job-queued");
+        Assert.NotNull(launchedJob);
+        Assert.NotEqual(JobStatus.Queued, launchedJob!.Status);
+    }
+
     private class FakeConfigService : IConfigService
     {
         public FakeConfigService(string tendrilHome)
