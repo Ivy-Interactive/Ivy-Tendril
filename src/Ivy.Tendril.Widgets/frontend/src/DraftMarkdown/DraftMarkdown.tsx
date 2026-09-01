@@ -452,28 +452,24 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
 
   return (
     <div className="pmv-root" style={shellStyle}>
+      {isSearchOpen && (
+        <SearchOverlay
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          matchCount={matches.length}
+          currentIndex={activeMatchIndex}
+          onNext={handleNextMatch}
+          onPrevious={handlePreviousMatch}
+          onClose={handleCloseSearch}
+        />
+      )}
       <div ref={shellRef} className="pmv-shell">
         <div className="pmv-body">
           <div ref={contentRef} className={article ? "pmv-markdown pmv-article" : "pmv-markdown"}>
             <QuestionsAnswerContext.Provider value={answerCallback}>{markdownTree}</QuestionsAnswerContext.Provider>
           </div>
         </div>
-        {(hasFixed || isSearchOpen) && (
-          <div className="pmv-sticky">
-            {isSearchOpen && (
-              <SearchOverlay
-                query={searchQuery}
-                onQueryChange={setSearchQuery}
-                matchCount={matches.length}
-                currentIndex={activeMatchIndex}
-                onNext={handleNextMatch}
-                onPrevious={handlePreviousMatch}
-                onClose={handleCloseSearch}
-              />
-            )}
-            {fixed}
-          </div>
-        )}
+        {hasFixed && <div className="pmv-sticky">{fixed}</div>}
 
         {annotationsEnabled && selectionToolbar && selectionAnchor && (
           <SelectionToolbar

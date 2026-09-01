@@ -225,7 +225,7 @@ Another paragraph mentioning keyword multiple times: keyword and KEYWORD.
     expect(container.querySelectorAll(".pmv-search-highlight").length).toBe(0);
   });
 
-  it("renders search overlay inside sticky container above TOC content", () => {
+  it("renders search overlay floating on top by z-axis inside root container without displacing content", () => {
     const { container } = render(
       <DraftMarkdown
         id="w1"
@@ -238,16 +238,19 @@ Another paragraph mentioning keyword multiple times: keyword and KEYWORD.
       fireEvent.keyDown(document, { key: "f", ctrlKey: true });
     });
 
-    const sticky = container.querySelector(".pmv-sticky");
+    const root = container.querySelector(".pmv-root");
+    const shell = container.querySelector(".pmv-shell");
     const searchOverlay = container.querySelector(".pmv-search-overlay");
     const toc = container.querySelector(".sample-toc");
 
-    expect(sticky).not.toBeNull();
+    expect(root).not.toBeNull();
+    expect(shell).not.toBeNull();
     expect(searchOverlay).not.toBeNull();
     expect(toc).not.toBeNull();
-    expect(sticky?.contains(searchOverlay)).toBe(true);
-    expect(sticky?.contains(toc)).toBe(true);
-    // Search overlay precedes TOC in DOM order inside sticky container
-    expect(searchOverlay?.compareDocumentPosition(toc!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(root?.contains(searchOverlay)).toBe(true);
+    expect(root?.contains(shell)).toBe(true);
+    // Search overlay is rendered floating in root on top by z-axis, not inside pmv-sticky displacing TOC
+    const sticky = container.querySelector(".pmv-sticky");
+    expect(sticky?.contains(searchOverlay)).toBe(false);
   });
 });
