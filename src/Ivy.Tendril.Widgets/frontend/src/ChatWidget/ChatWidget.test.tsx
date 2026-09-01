@@ -130,6 +130,94 @@ describe("ChatWidget Queued Messages UI", () => {
     expect(screen.queryByText("Queued Messages")).not.toBeInTheDocument();
   });
 
+  it("renders queued messages passed via props upon mount and handles session switches", () => {
+    const queuedItems = [
+      { id: "q-1", prompt: "persisted queued prompt 1" },
+      { id: "q-2", prompt: "persisted queued prompt 2" },
+    ];
+
+    const { rerender } = render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-1"
+        isStreaming={true}
+        queuedMessages={queuedItems}
+      />
+    );
+
+    expect(screen.getByText("Queued Messages")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("persisted queued prompt 1")).toBeInTheDocument();
+    expect(screen.getByText("persisted queued prompt 2")).toBeInTheDocument();
+
+    // Rerender with empty queue (e.g. switched to another session)
+    rerender(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-2"
+        isStreaming={false}
+        queuedMessages={[]}
+      />
+    );
+
+    expect(screen.queryByText("Queued Messages")).not.toBeInTheDocument();
+    expect(screen.queryByText("persisted queued prompt 1")).not.toBeInTheDocument();
+  });
+
+  it("emits backend sync events OnDeleteQueuedMessage, OnUpdateQueuedMessage, and OnSendQueuedNow", () => {
+    const handleEvent = vi.fn();
+    const queuedItems = [
+      { id: "q-edit", prompt: "to be edited" },
+      { id: "q-del", prompt: "to be deleted" },
+      { id: "q-send", prompt: "to be sent now" },
+    ];
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-1"
+        isStreaming={true}
+        queuedMessages={queuedItems}
+        events={["OnDeleteQueuedMessage", "OnUpdateQueuedMessage", "OnSendQueuedNow"]}
+        eventHandler={handleEvent}
+      />
+    );
+
+    // Edit item
+    const editBtns = screen.getAllByRole("button", { name: /Edit message/i });
+    fireEvent.click(editBtns[0]);
+    const editInput = screen.getByDisplayValue("to be edited");
+    fireEvent.change(editInput, { target: { value: "edited content" } });
+    const saveBtn = screen.getByRole("button", { name: /Save/i });
+    fireEvent.click(saveBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnUpdateQueuedMessage",
+      "test-chat",
+      ["q-edit", "edited content"]
+    );
+
+    // Delete item
+    const deleteBtns = screen.getAllByRole("button", { name: /Delete message/i });
+    fireEvent.click(deleteBtns[1]);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnDeleteQueuedMessage",
+      "test-chat",
+      ["q-del"]
+    );
+
+    // Send item now
+    const sendNowBtns = screen.getAllByRole("button", { name: /Send now/i });
+    fireEvent.click(sendNowBtns[1]);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnSendQueuedNow",
+      "test-chat",
+      ["q-send"]
+    );
+  });
+
   it("renders delete button next to chat title and directly emits OnDeleteSession upon click", () => {
     const handleEvent = vi.fn();
     const session = {
@@ -443,5 +531,148 @@ describe("ChatWidget File Uploads and Attachments", () => {
     // Send button is disabled due to oversized payload
     expect(sendBtn).toBeDisabled();
     expect(sendBtn).toHaveAttribute("title", "Attachments exceed the 50 MB limit");
+  });
+
+  it("uploads files via HTTP multipart POST when uploadUrl is provided and sends metadata without base64", async () => {
+    const handleEvent = vi.fn();
+    let capturedXhr: any = null;
+
+    class MockXMLHttpRequest {
+      open = vi.fn();
+      send = vi.fn();
+      upload = { onprogress: null as any };
+      onload: any = null;
+      onerror: any = null;
+      status = 200;
+      constructor() {
+        capturedXhr = this;
+      }
+    }
+
+    const origXHR = window.XMLHttpRequest;
+    (window as any).XMLHttpRequest = MockXMLHttpRequest;
+
+    try {
+      render(
+        <ChatWidget
+          id="test-chat"
+          activeSessionId="sess-1"
+          uploadUrl="/ivy/upload/conn-1/up-1"
+          events={["OnSendMessage"]}
+          eventHandler={handleEvent}
+        />
+      );
+
+      const textarea = screen.getByPlaceholderText(/Ask/i);
+      const sendBtn = screen.getByRole("button", { name: /Send/i });
+
+      const file = new File(["test-image-content"], "photo.png", { type: "image/png" });
+      fireEvent.paste(textarea, {
+        clipboardData: { files: [file], items: [] },
+        preventDefault: vi.fn(),
+      });
+
+      await waitFor(() => {
+        expect(capturedXhr).not.toBeNull();
+        expect(capturedXhr.open).toHaveBeenCalledWith("POST", "/ivy/upload/conn-1/up-1", true);
+        expect(capturedXhr.send).toHaveBeenCalledWith(expect.any(FormData));
+      });
+
+      // While uploading, send button should be disabled
+      expect(sendBtn).toBeDisabled();
+
+      // Complete the upload
+      capturedXhr.status = 200;
+      capturedXhr.onload();
+
+      await waitFor(() => {
+        expect(sendBtn).not.toBeDisabled();
+      });
+
+      fireEvent.change(textarea, { target: { value: "Look at this photo" } });
+      fireEvent.click(sendBtn);
+
+      expect(handleEvent).toHaveBeenCalledWith(
+        "OnSendMessage",
+        "test-chat",
+        expect.arrayContaining([
+          expect.objectContaining({
+            prompt: "Look at this photo",
+            sessionId: "sess-1",
+            attachments: expect.arrayContaining([
+              expect.objectContaining({
+                name: "photo.png",
+                contentType: "image/png",
+                base64Data: undefined,
+              }),
+            ]),
+          }),
+        ])
+      );
+    } finally {
+      window.XMLHttpRequest = origXHR;
+    }
+  });
+
+  it("displays upload progress and failure state on HTTP upload error", async () => {
+    let capturedXhr: any = null;
+
+    class MockXMLHttpRequest {
+      open = vi.fn();
+      send = vi.fn();
+      upload = { onprogress: null as any };
+      onload: any = null;
+      onerror: any = null;
+      status = 500;
+      constructor() {
+        capturedXhr = this;
+      }
+    }
+
+    const origXHR = window.XMLHttpRequest;
+    (window as any).XMLHttpRequest = MockXMLHttpRequest;
+
+    try {
+      render(
+        <ChatWidget
+          id="test-chat"
+          activeSessionId="sess-1"
+          uploadUrl="/ivy/upload/conn-1/up-1"
+        />
+      );
+
+      const textarea = screen.getByPlaceholderText(/Ask/i);
+      const sendBtn = screen.getByRole("button", { name: /Send/i });
+
+      const file = new File(["sample data"], "data.csv", { type: "text/csv" });
+      fireEvent.paste(textarea, {
+        clipboardData: { files: [file], items: [] },
+        preventDefault: vi.fn(),
+      });
+
+      await waitFor(() => {
+        expect(capturedXhr).not.toBeNull();
+      });
+
+      // Trigger progress
+      capturedXhr.upload.onprogress?.({ lengthComputable: true, loaded: 50, total: 100 });
+
+      await waitFor(() => {
+        expect(screen.getByText("50%")).toBeInTheDocument();
+      });
+
+      // Trigger failure
+      capturedXhr.status = 500;
+      capturedXhr.onload();
+
+      await waitFor(() => {
+        expect(screen.getByText("Failed")).toBeInTheDocument();
+      });
+
+      // Send button remains disabled when there is no text or valid finished attachments
+      expect(sendBtn).toBeDisabled();
+    } finally {
+      window.XMLHttpRequest = origXHR;
+    }
   });
 });

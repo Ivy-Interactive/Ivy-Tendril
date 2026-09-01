@@ -14,6 +14,8 @@ import { tagQuestionBlocks } from "./questionsSource";
 import { QuestionsAnswerContext } from "./questionsContext";
 import type { AnswerCallback } from "./questionsContext";
 import { useAnchoredPosition } from "./useAnchoredPosition";
+import { SearchOverlay } from "./SearchOverlay";
+import { applySearchHighlights, clearSearchHighlights } from "./searchUtils";
 
 type IvyEventHandler = (eventName: string, widgetId: string, args: unknown[]) => void;
 
@@ -63,6 +65,12 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
   const [addPopover, setAddPopover] = useState<SelectionState | null>(null);
   const [editPopover, setEditPopover] = useState<MarkdownAnnotation | null>(null);
 
+  // In-page search state
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [matches, setMatches] = useState<HTMLElement[]>([]);
+  const [activeMatchIndex, setActiveMatchIndex] = useState(-1);
+
   // Re-measured on scroll/resize so the fixed-position toolbar/popovers stay
   // lined up with the text they anchor to, instead of the one-shot rect
   // captured at mouseup/click time.
@@ -72,6 +80,73 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
 
   const annotationsEnabled = events.includes("OnAnnotationsChange");
   const questionsEnabled = events.includes("OnAnswersChange");
+
+  // Keyboard shortcut Ctrl+F / Cmd+F to open in-page search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.key === "f" || e.key === "F" || e.code === "KeyF") && (e.metaKey || e.ctrlKey) && !e.altKey) {
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Update search highlights when search query, open state, or markdown content changes
+  useEffect(() => {
+    if (!contentRef.current) return;
+    if (isSearchOpen && searchQuery.trim()) {
+      const foundMarks = applySearchHighlights(contentRef.current, searchQuery);
+      setMatches(foundMarks);
+      if (foundMarks.length > 0) {
+        setActiveMatchIndex(0);
+      } else {
+        setActiveMatchIndex(-1);
+      }
+    } else {
+      clearSearchHighlights(contentRef.current);
+      setMatches([]);
+      setActiveMatchIndex(-1);
+    }
+  }, [isSearchOpen, searchQuery, content]);
+
+  // Update active highlight class and scroll into view when activeMatchIndex changes
+  useEffect(() => {
+    if (!isSearchOpen || matches.length === 0 || activeMatchIndex < 0) return;
+    matches.forEach((mark, index) => {
+      if (index === activeMatchIndex) {
+        mark.classList.add("pmv-search-highlight--active");
+        mark.scrollIntoView?.({ behavior: "smooth", block: "center" });
+      } else {
+        mark.classList.remove("pmv-search-highlight--active");
+      }
+    });
+  }, [activeMatchIndex, matches, isSearchOpen]);
+
+  const handleNextMatch = useCallback(() => {
+    if (matches.length === 0) return;
+    setActiveMatchIndex((prev) => (prev + 1) % matches.length);
+  }, [matches.length]);
+
+  const handlePreviousMatch = useCallback(() => {
+    if (matches.length === 0) return;
+    setActiveMatchIndex((prev) => (prev - 1 + matches.length) % matches.length);
+  }, [matches.length]);
+
+  const handleCloseSearch = useCallback(() => {
+    setIsSearchOpen(false);
+    setSearchQuery("");
+  }, []);
+
+  // Clean up search highlights on unmount
+  useEffect(() => {
+    return () => {
+      if (contentRef.current) {
+        clearSearchHighlights(contentRef.current);
+      }
+    };
+  }, []);
 
   // Reports one changed question. `Answer` carries all three states without a sentinel: null
   // clears the question back to unanswered, an empty list is an explicit skip, and a non-empty
@@ -376,42 +451,55 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
   };
 
   return (
-    <div ref={shellRef} className="pmv-shell" style={shellStyle}>
-      <div className="pmv-body">
-        <div ref={contentRef} className={article ? "pmv-markdown pmv-article" : "pmv-markdown"}>
-          <QuestionsAnswerContext.Provider value={answerCallback}>{markdownTree}</QuestionsAnswerContext.Provider>
+    <div className="pmv-root" style={shellStyle}>
+      {isSearchOpen && (
+        <SearchOverlay
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          matchCount={matches.length}
+          currentIndex={activeMatchIndex}
+          onNext={handleNextMatch}
+          onPrevious={handlePreviousMatch}
+          onClose={handleCloseSearch}
+        />
+      )}
+      <div ref={shellRef} className="pmv-shell">
+        <div className="pmv-body">
+          <div ref={contentRef} className={article ? "pmv-markdown pmv-article" : "pmv-markdown"}>
+            <QuestionsAnswerContext.Provider value={answerCallback}>{markdownTree}</QuestionsAnswerContext.Provider>
+          </div>
         </div>
-      </div>
-      {hasFixed && <div className="pmv-sticky">{fixed}</div>}
+        {hasFixed && <div className="pmv-sticky">{fixed}</div>}
 
-      {annotationsEnabled && selectionToolbar && selectionAnchor && (
-        <SelectionToolbar
-          position={selectionAnchor.position}
-          visible={selectionAnchor.visible}
-          onAddComment={handleAddComment}
-        />
-      )}
-      {annotationsEnabled && addPopover && addAnchor && (
-        <AddAnnotationPopover
-          position={addAnchor.position}
-          visible={addAnchor.visible}
-          selectedText={addPopover.selectedText}
-          onAdd={handleAddAnnotation}
-          onCancel={() => setAddPopover(null)}
-        />
-      )}
-      {annotationsEnabled && editPopover && editAnchor && (
-        <EditAnnotationPopover
-          position={editAnchor.position}
-          visible={editAnchor.visible}
-          annotation={editPopover}
-          currentAuthor={currentAuthor}
-          onSave={handleEditAnnotation}
-          onToggleResolve={handleToggleResolveAnnotation}
-          onRemove={handleRemoveAnnotation}
-          onCancel={() => setEditPopover(null)}
-        />
-      )}
+        {annotationsEnabled && selectionToolbar && selectionAnchor && (
+          <SelectionToolbar
+            position={selectionAnchor.position}
+            visible={selectionAnchor.visible}
+            onAddComment={handleAddComment}
+          />
+        )}
+        {annotationsEnabled && addPopover && addAnchor && (
+          <AddAnnotationPopover
+            position={addAnchor.position}
+            visible={addAnchor.visible}
+            selectedText={addPopover.selectedText}
+            onAdd={handleAddAnnotation}
+            onCancel={() => setAddPopover(null)}
+          />
+        )}
+        {annotationsEnabled && editPopover && editAnchor && (
+          <EditAnnotationPopover
+            position={editAnchor.position}
+            visible={editAnchor.visible}
+            annotation={editPopover}
+            currentAuthor={currentAuthor}
+            onSave={handleEditAnnotation}
+            onToggleResolve={handleToggleResolveAnnotation}
+            onRemove={handleRemoveAnnotation}
+            onCancel={() => setEditPopover(null)}
+          />
+        )}
+      </div>
     </div>
   );
 };

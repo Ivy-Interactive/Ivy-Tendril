@@ -90,7 +90,8 @@ internal class DependencyChecker
     internal void RetryBlockedJobs(
         ConcurrentDictionary<string, JobItem> jobs,
         Action<JobNotification> raiseNotification,
-        Func<JobArgsBase, string> startJobSkipDepCheck)
+        Func<JobArgsBase, string> startJobSkipDepCheck,
+        Action<string>? deleteJob = null)
     {
         var blockedJobs = jobs.Values
             .Where(j => j is { Status: JobStatus.Blocked, TypedArgs: ExecutePlanArgs or RetryPlanArgs })
@@ -102,7 +103,7 @@ internal class DependencyChecker
             if (string.IsNullOrEmpty(planFolder)) continue;
 
             // A job blocked on sibling jobs (WaitForJobs) is retried by
-            // JobCompletionHandler.HandleWaitForJobsDependents when those jobs finish — not here.
+            // JobCompletionHandler.HandleWaitForJobsDependents when those jobs finish, not here.
             // Restarting it while its WaitForJobs are still pending would immediately re-block it,
             // producing a spurious "Job Unblocked" + "Job Blocked" notification pair (issue #1538).
             if (HasPendingWaitForJobs(blockedJob, jobs)) continue;
@@ -112,6 +113,7 @@ internal class DependencyChecker
 
             if (HasActiveJobForPlan(planFolder, jobs)) continue;
             if (!jobs.TryRemove(blockedJob.Id, out _)) continue;
+            deleteJob?.Invoke(blockedJob.Id);
 
             PlanYamlHelper.SetPlanStateByFolder(planFolder, nameof(PlanStatus.Creating));
             startJobSkipDepCheck(blockedJob.TypedArgs!);

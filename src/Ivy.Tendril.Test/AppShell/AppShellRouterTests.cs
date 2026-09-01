@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Ivy.Core.Apps;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Apps.Review;
+using Ivy.Tendril.Services;
 using static Ivy.Tendril.AppShell.TendrilAppShell;
 
 namespace Ivy.Tendril.Test.AppShell;
@@ -155,5 +156,51 @@ public class AppShellRouterTests
             null);
 
         Assert.Equal(AppShellRouter.RouteAction.Noop, result.Action);
+    }
+
+    [Theory]
+    [InlineData("drafts", false, false)]
+    [InlineData("review", false, false)]
+    [InlineData("jobs", false, false)]
+    [InlineData("recommendations", false, false)]
+    [InlineData("settings", false, false)]
+    [InlineData("chat", false, false)]
+    [InlineData("icebox", false, false)]
+    [InlineData("agent", true, true)]
+    [InlineData("review-action", true, true)]
+    public void RouteHybrid_ResolvesRegisteredAppDescriptors_ExclusivelyToTendrilAppShellActions(
+        string appId, bool allowDuplicateTabs, bool expectNewTab)
+    {
+        var router = new AppShellRouter();
+        var descriptor = Descriptor(appId, allowDuplicateTabs: allowDuplicateTabs);
+
+        var result = router.Route(
+            new NavigateArgs(appId),
+            AppShellNavigation.Tabs,
+            "drafts",
+            ImmutableArray<TabState>.Empty,
+            descriptor);
+
+        var expectedAction = expectNewTab
+            ? AppShellRouter.RouteAction.CreateNewTab
+            : AppShellRouter.RouteAction.OpenPage;
+        Assert.Equal(expectedAction, result.Action);
+        Assert.Equal(appId, result.EffectiveAppId);
+        Assert.Null(result.ErrorMessage);
+    }
+
+    [Fact]
+    public void TendrilServer_AppShellSettings_SetsDefaultAppToDraftsApp()
+    {
+        var server = TendrilServer.Create([], new TendrilArgs());
+        server.AppRepository.Reload(server.ReservedPaths);
+        var appShellDescriptor = server.GetApp(AppIds.AppShell);
+
+        Assert.NotNull(appShellDescriptor);
+        var appInstance = appShellDescriptor.CreateApp();
+        Assert.IsType<TendrilAppShell>(appInstance);
+
+        var tendrilShell = (TendrilAppShell)appInstance;
+        Assert.Equal("drafts", tendrilShell.Settings.DefaultAppId);
     }
 }

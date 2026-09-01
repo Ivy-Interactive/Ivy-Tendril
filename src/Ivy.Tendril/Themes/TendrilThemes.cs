@@ -336,7 +336,7 @@ public static class TendrilThemes
         Name = "Dracula",
         Description = "Classic dark violet background with purple, pink, and cyan accents",
         IsDark = true,
-        PreviewColors = ["#bd93f9", "#ff79c6", "#8be9fd", "#282a36"],
+        PreviewColors = ["#bd93f9", "#ff79c6", "#44475a", "#282a36"],
         IvyTheme = new Theme
         {
             Name = "Dracula",
@@ -1023,6 +1023,83 @@ public static class TendrilThemes
         }
     };
 
+    public static readonly TendrilThemeDescriptor Lovably = new()
+    {
+        Id = "lovably",
+        Name = "Lovably",
+        Description = "Vibrant magenta and violet gradient aesthetic inspired by lovable.dev with crisp obsidian dark and warm parchment light modes",
+        IsDark = true,
+        PreviewColors = ["#ff2e7e", "#8b5cf6", "#ff7a45", "#09090b"],
+        IvyTheme = new Theme
+        {
+            Name = "Lovably",
+            FontFamily = "Geist",
+            FontSize = "16px",
+            BorderRadiusBoxes = Theme.Default.BorderRadiusBoxes,
+            BorderRadiusFields = Theme.Default.BorderRadiusFields,
+            BorderRadiusSelectors = Theme.Default.BorderRadiusSelectors,
+            Colors = new ThemeColorScheme
+            {
+                Light = new ThemeColors
+                {
+                    Primary = "#ff2e7e",
+                    PrimaryForeground = "#ffffff",
+                    Secondary = "#7c3aed",
+                    SecondaryForeground = "#ffffff",
+                    Accent = "#ff7a45",
+                    AccentForeground = "#ffffff",
+                    Background = "#faf8f5",
+                    Foreground = "#18181b",
+                    Destructive = "#ef4444",
+                    DestructiveForeground = "#ffffff",
+                    Success = "#10b981",
+                    SuccessForeground = "#ffffff",
+                    Warning = "#f59e0b",
+                    WarningForeground = "#ffffff",
+                    Info = "#06b6d4",
+                    InfoForeground = "#ffffff",
+                    Border = "#e4e4e7",
+                    Input = "#f4f4f5",
+                    Ring = "#ff2e7e",
+                    Muted = "#f4f4f5",
+                    MutedForeground = "#71717a",
+                    Card = "#ffffff",
+                    CardForeground = "#18181b",
+                    Popover = "#faf8f5",
+                    PopoverForeground = "#18181b"
+                },
+                Dark = new ThemeColors
+                {
+                    Primary = "#ff2e7e",
+                    PrimaryForeground = "#ffffff",
+                    Secondary = "#8b5cf6",
+                    SecondaryForeground = "#ffffff",
+                    Accent = "#ff7a45",
+                    AccentForeground = "#ffffff",
+                    Background = "#09090b",
+                    Foreground = "#f4f4f5",
+                    Destructive = "#f43f5e",
+                    DestructiveForeground = "#ffffff",
+                    Success = "#10b981",
+                    SuccessForeground = "#ffffff",
+                    Warning = "#f59e0b",
+                    WarningForeground = "#09090b",
+                    Info = "#38bdf8",
+                    InfoForeground = "#09090b",
+                    Border = "#27272a",
+                    Input = "#18181b",
+                    Ring = "#ff2e7e",
+                    Muted = "#1f1f23",
+                    MutedForeground = "#a1a1aa",
+                    Card = "#121215",
+                    CardForeground = "#f4f4f5",
+                    Popover = "#09090b",
+                    PopoverForeground = "#f4f4f5"
+                }
+            }
+        }
+    };
+
     public static readonly IReadOnlyList<TendrilThemeDescriptor> All =
     [
         Default,
@@ -1038,7 +1115,8 @@ public static class TendrilThemes
         Sunset,
         Coffee,
         Dim,
-        Luxury
+        Luxury,
+        Lovably
     ];
 
     private static readonly Dictionary<string, TendrilThemeDescriptor> ThemesById =

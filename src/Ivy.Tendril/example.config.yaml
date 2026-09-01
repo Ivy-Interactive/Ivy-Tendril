@@ -6,7 +6,7 @@ jobTimeout: 30
 staleOutputTimeout: 10
 gitTimeout: 10  # Timeout in seconds for git operations (default: 10)
 maxConcurrentJobs: 20  # Maximum number of jobs to run concurrently (default: 20)
-theme: default  # UI theme preset (default, cupcake, cyberpunk, synthwave, retro, dracula, nord, forest, aqua, valentine, sunset, coffee, dim, luxury)
+theme: default  # UI theme preset (default, cupcake, cyberpunk, synthwave, retro, dracula, nord, forest, aqua, valentine, sunset, coffee, dim, luxury, lovably)
 
 # Variable Expansion Support:
 # - %TENDRIL_HOME% - Expands to TENDRIL_HOME env var (useful in hooks, verification prompts, and allowedTools paths)

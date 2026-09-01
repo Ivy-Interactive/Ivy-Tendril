@@ -33,7 +33,7 @@ public class EditMcpServerBladeView(
             | editName.ToTextInput("Server name (e.g. sqlite)...").WithField().Label("Name").Required()
             | editCommand.ToTextInput("Command executable (e.g. npx)...").WithField().Label("Command").Required()
             | editArguments.ToTextInput("Arguments (e.g. -y @modelcontextprotocol/server-sqlite)...").WithField().Label("Arguments")
-            | editEnv.ToTextareaInput("Environment variables (KEY=VALUE per line)...").Rows(3).WithField().Label("Environment Variables")
+            | editEnv.ToCodeInput("Environment variables (KEY=VALUE per line)...").WithField().Label("Environment Variables")
             | Layout.Horizontal()
                 | new Button("Cancel").Outline().OnClick(() => bladeContext.Pop(this))
                 | new Button(isNew ? "Add" : "Save").Primary().OnClick(() =>

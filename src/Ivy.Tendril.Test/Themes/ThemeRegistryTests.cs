@@ -25,6 +25,7 @@ public class ThemeRegistryTests
     [InlineData("coffee")]
     [InlineData("dim")]
     [InlineData("luxury")]
+    [InlineData("lovably")]
     public void CoreThemes_AreRegistered(string themeId)
     {
         var theme = TendrilThemes.GetTheme(themeId);
@@ -113,6 +114,36 @@ public class ThemeRegistryTests
         Assert.Equal("#ebfaef", dark.AccentForeground, ignoreCase: true);
         Assert.NotEqual(dark.Background, dark.AccentForeground, StringComparer.OrdinalIgnoreCase);
         Assert.NotEqual(dark.Accent, dark.AccentForeground, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void LovablyTheme_HasValidContrastAndTokens()
+    {
+        var lovably = TendrilThemes.GetTheme("lovably");
+        Assert.NotNull(lovably);
+        Assert.Equal("Lovably", lovably.Name);
+        Assert.True(lovably.IsDark);
+        Assert.Equal(["#ff2e7e", "#8b5cf6", "#ff7a45", "#09090b"], lovably.PreviewColors);
+
+        var light = lovably.IvyTheme?.Colors?.Light;
+        Assert.NotNull(light);
+        Assert.Equal("#ff2e7e", light.Primary, ignoreCase: true);
+        Assert.Equal("#ffffff", light.PrimaryForeground, ignoreCase: true);
+        Assert.Equal("#7c3aed", light.Secondary, ignoreCase: true);
+        Assert.Equal("#ff7a45", light.Accent, ignoreCase: true);
+        Assert.Equal("#faf8f5", light.Background, ignoreCase: true);
+        Assert.Equal("#18181b", light.Foreground, ignoreCase: true);
+        Assert.NotEqual(light.Background, light.Foreground, StringComparer.OrdinalIgnoreCase);
+
+        var dark = lovably.IvyTheme?.Colors?.Dark;
+        Assert.NotNull(dark);
+        Assert.Equal("#ff2e7e", dark.Primary, ignoreCase: true);
+        Assert.Equal("#ffffff", dark.PrimaryForeground, ignoreCase: true);
+        Assert.Equal("#8b5cf6", dark.Secondary, ignoreCase: true);
+        Assert.Equal("#ff7a45", dark.Accent, ignoreCase: true);
+        Assert.Equal("#09090b", dark.Background, ignoreCase: true);
+        Assert.Equal("#f4f4f5", dark.Foreground, ignoreCase: true);
+        Assert.NotEqual(dark.Background, dark.Foreground, StringComparer.OrdinalIgnoreCase);
     }
 }
 

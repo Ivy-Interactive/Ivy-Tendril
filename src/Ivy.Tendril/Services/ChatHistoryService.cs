@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Services;
 
@@ -13,6 +14,7 @@ public class ChatHistoryService : IChatHistoryService
     private readonly ConcurrentDictionary<string, ChatSessionModel> _sessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _generatingSessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _completedSessions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, List<ChatQueuedItem>> _queuedMessages = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _lock = new();
 
     public event EventHandler? SessionsChanged;
@@ -54,6 +56,128 @@ public class ChatHistoryService : IChatHistoryService
     {
         if (string.IsNullOrEmpty(sessionId)) return;
         if (_completedSessions.TryRemove(sessionId, out _))
+        {
+            GeneratingSessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public IReadOnlyList<ChatQueuedItem> GetQueuedMessages(string sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return Array.Empty<ChatQueuedItem>();
+        lock (_lock)
+        {
+            if (_queuedMessages.TryGetValue(sessionId, out var list))
+            {
+                return list.ToList();
+            }
+            return Array.Empty<ChatQueuedItem>();
+        }
+    }
+
+    public ChatQueuedItem EnqueueMessage(string sessionId, ChatSendMessageDto dto)
+    {
+        var item = new ChatQueuedItem(
+            Id: Guid.NewGuid().ToString("N"),
+            Prompt: dto.Prompt,
+            Attachments: dto.Attachments != null ? new List<ChatAttachmentDto>(dto.Attachments) : null,
+            CreatedAt: DateTimeOffset.UtcNow
+        );
+        lock (_lock)
+        {
+            if (!_queuedMessages.TryGetValue(sessionId, out var list))
+            {
+                list = new List<ChatQueuedItem>();
+                _queuedMessages[sessionId] = list;
+            }
+            list.Add(item);
+        }
+        GeneratingSessionsChanged?.Invoke(this, EventArgs.Empty);
+        return item;
+    }
+
+    public bool TryDequeueMessage(string sessionId, out ChatQueuedItem? item)
+    {
+        item = null;
+        if (string.IsNullOrEmpty(sessionId)) return false;
+        bool dequeued = false;
+        lock (_lock)
+        {
+            if (_queuedMessages.TryGetValue(sessionId, out var list) && list.Count > 0)
+            {
+                item = list[0];
+                list.RemoveAt(0);
+                if (list.Count == 0)
+                {
+                    _queuedMessages.TryRemove(sessionId, out _);
+                }
+                dequeued = true;
+            }
+        }
+        if (dequeued)
+        {
+            GeneratingSessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+        return dequeued;
+    }
+
+    public bool RemoveQueuedMessage(string sessionId, string queueId)
+    {
+        if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(queueId)) return false;
+        bool removed = false;
+        lock (_lock)
+        {
+            if (_queuedMessages.TryGetValue(sessionId, out var list))
+            {
+                var count = list.RemoveAll(q => q.Id == queueId);
+                if (count > 0)
+                {
+                    removed = true;
+                    if (list.Count == 0)
+                    {
+                        _queuedMessages.TryRemove(sessionId, out _);
+                    }
+                }
+            }
+        }
+        if (removed)
+        {
+            GeneratingSessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+        return removed;
+    }
+
+    public bool UpdateQueuedMessage(string sessionId, string queueId, string prompt)
+    {
+        if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(queueId)) return false;
+        bool updated = false;
+        lock (_lock)
+        {
+            if (_queuedMessages.TryGetValue(sessionId, out var list))
+            {
+                var idx = list.FindIndex(q => q.Id == queueId);
+                if (idx >= 0)
+                {
+                    list[idx] = list[idx] with { Prompt = prompt };
+                    updated = true;
+                }
+            }
+        }
+        if (updated)
+        {
+            GeneratingSessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+        return updated;
+    }
+
+    public void ClearQueuedMessages(string sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return;
+        bool cleared = false;
+        lock (_lock)
+        {
+            cleared = _queuedMessages.TryRemove(sessionId, out _);
+        }
+        if (cleared)
         {
             GeneratingSessionsChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -178,6 +302,7 @@ public class ChatHistoryService : IChatHistoryService
     {
         if (string.IsNullOrEmpty(id)) return;
         _sessions.TryRemove(id, out _);
+        _queuedMessages.TryRemove(id, out _);
 
         try
         {

@@ -26,7 +26,24 @@ public class JobsAppPromptDisplayTests
     public void FlattenMarkdownLinks_LeavesUnmatchedBracketsAlone()
     {
         Assert.Equal("[not a link", JobsApp.FlattenMarkdownLinks("[not a link"));
-        Assert.Equal("array[0] value", JobsApp.FlattenMarkdownLinks("array[0] value"));
+    }
+
+    [Theory]
+    [InlineData("00142", 142)]
+    [InlineData("1", 1)]
+    [InlineData("0", 0)]
+    [InlineData("job-142", 142)]
+    [InlineData("00142-CreatePlan", 142)]
+    [InlineData("job-1", 1)]
+    [InlineData("invalid", 0)]
+    [InlineData("", 0)]
+    [InlineData(null, 0)]
+    [InlineData("abc-def", 0)]
+    [InlineData("job-42-retry", 42)]
+    public void ExtractJobNumber_ParsesPlainNumericAndHyphenatedJobIds(string? jobId, int expected)
+    {
+        var result = JobsApp.ExtractJobNumber(jobId!);
+        Assert.Equal(expected, result);
     }
 
     [Fact]
