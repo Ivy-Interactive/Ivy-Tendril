@@ -75,6 +75,21 @@ public class ThemeRegistryTests
     }
 
     [Fact]
+    public void DraculaDark_AccentForeground_IsReadableAndDistinctFromBackground()
+    {
+        var dracula = TendrilThemes.GetTheme("dracula");
+        Assert.NotNull(dracula);
+
+        var darkColors = dracula.IvyTheme.Colors.Dark;
+        Assert.NotNull(darkColors);
+
+        Assert.Equal("#44475a", darkColors.Accent);
+        Assert.Equal("#f8f8f2", darkColors.AccentForeground);
+        Assert.NotEqual(darkColors.Background, darkColors.AccentForeground);
+        Assert.Equal("#282a36", darkColors.Background);
+    }
+
+    [Fact]
     public void DraculaTheme_DarkColors_HaveProperAccentContrast()
     {
         var dracula = TendrilThemes.GetTheme("dracula");
@@ -87,3 +102,4 @@ public class ThemeRegistryTests
         Assert.NotEqual(dark.Accent, dark.AccentForeground, StringComparer.OrdinalIgnoreCase);
     }
 }
+
