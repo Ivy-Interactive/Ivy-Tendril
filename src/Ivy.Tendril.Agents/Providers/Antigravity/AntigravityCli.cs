@@ -47,7 +47,8 @@ public sealed class AntigravityCli : IAgentCli
             "--output-format", "stream-json",
         };
 
-        if (config.Timeout is { } timeout && timeout > TimeSpan.Zero)
+        var effectiveTimeout = config.Timeout ?? TimeoutPolicy.Default.TotalTimeout;
+        if (effectiveTimeout is { } timeout && timeout > TimeSpan.Zero)
         {
             args.Add("--print-timeout");
             args.Add($"{(int)timeout.TotalSeconds}s");

@@ -141,6 +141,7 @@ public sealed class AgentRunner(ILogger<AgentRunner> logger, ConcurrencyOptions?
             EnvironmentVariables = context.ExtraEnvironment,
             MaxTurns = context.MaxTurns,
             MaxBudgetUsd = context.MaxBudgetUsd,
+            Timeout = context.TimeoutPolicy?.TotalTimeout,
             McpServers = context.McpServers,
             PromptFilePath = context.PromptFilePath,
             SystemPrompt = context.SystemPrompt,
