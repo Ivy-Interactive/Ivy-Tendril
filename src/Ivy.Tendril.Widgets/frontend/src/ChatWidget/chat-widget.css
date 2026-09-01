@@ -687,6 +687,56 @@
   width: fit-content;
 }
 
+.chat-thumbnail-card.upload-failed {
+  border-color: var(--destructive, #ef4444);
+}
+
+.chat-thumbnail-uploading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 15;
+  border-radius: var(--radius, 8px);
+  gap: 4px;
+}
+
+.chat-thumbnail-progress-bar-container {
+  width: 80%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.chat-thumbnail-progress-bar {
+  height: 100%;
+  background: var(--primary, #3b82f6);
+  transition: width 0.15s ease;
+}
+
+.chat-thumbnail-progress-text {
+  font-size: 0.65rem;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.chat-thumbnail-failed-badge {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  background: var(--destructive, #ef4444);
+  color: #ffffff;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  z-index: 15;
+}
+
 /* User Message Attachments */
 .chat-user-message-body {
   display: flex;

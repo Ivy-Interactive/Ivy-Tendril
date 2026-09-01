@@ -37,7 +37,8 @@ public record ChatAttachmentDto(
     string ContentType,
     long Size,
     string? Base64Data = null,
-    string? LocalPath = null
+    string? LocalPath = null,
+    string? FileId = null
 );
 
 public record ChatQueuedMessageDto(
@@ -62,6 +63,7 @@ public record ChatWidget : WidgetBase<ChatWidget>
 {
     [Prop] public string? ActiveSessionId { get; init; }
     [Prop] public string? StreamingSessionId { get; init; }
+    [Prop] public string? UploadUrl { get; init; }
     [Prop] public List<ChatSessionDto> Sessions { get; init; } = new();
     [Prop] public List<AgentOptionDto> Agents { get; init; } = new();
     [Prop] public List<ModelOptionDto> Models { get; init; } = new();
