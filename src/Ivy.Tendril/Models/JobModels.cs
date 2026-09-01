@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reactive.Subjects;
 using System.Text.Json.Serialization;
@@ -352,8 +352,6 @@ public record JobItemRow
     public string PlanId { get; init; } = "";
     public string Plan { get; init; } = "";
     public string Type { get; init; } = "";
-    /// <summary>Execution profile the job ran under, capitalised. Empty when none was recorded.</summary>
-    public string Profile { get; init; } = "";
     public string Project { get; init; } = "";
     public string Timer { get; init; } = "";
     public string AgentOutput { get; init; } = "";

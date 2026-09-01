@@ -62,7 +62,8 @@ public class ImportFromVaultDialog(
     IState<VaultCatalogItem?> selectedProjectItem,
     IVaultService vaultService,
     IClientProvider client,
-    Action onImported) : ViewBase
+    Action onImported,
+    IState<bool>? isMergeMode = null) : ViewBase
 {
     private static string ComputeSuggestedName(string baseName, List<ProjectConfig> existing)
     {
@@ -94,9 +95,10 @@ public class ImportFromVaultDialog(
 
         var config = UseService<IConfigService>();
         var projectItem = selectedProjectItem.Value;
+        var mergeMode = isMergeMode?.Value == true;
 
         var defaultSuggested = projectItem != null
-            ? ComputeSuggestedName(projectItem.Name, config.Settings.Projects)
+            ? (mergeMode ? projectItem.Name : ComputeSuggestedName(projectItem.Name, config.Settings.Projects))
             : "";
 
         UseEffect(() =>
@@ -105,20 +107,60 @@ public class ImportFromVaultDialog(
             {
                 var item = selectedProjectItem.Value;
                 var existing = config.Settings.Projects;
-                var suggested = ComputeSuggestedName(item.Name, existing);
-                targetProjectName.Set(suggested);
-                targetProjectName.Set(suggested);
+                var isMerge = isMergeMode?.Value == true;
 
-                var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                var initialMappings = new Dictionary<string, string>();
-                foreach (var repo in item.Repos)
+                if (isMerge)
                 {
-                    var repoKey = !string.IsNullOrEmpty(repo.Owner) && repo.Owner != "local" && repo.Owner != "default"
-                        ? $"{repo.Owner}/{repo.Name}"
-                        : repo.Name;
-                    initialMappings[repoKey] = Path.Combine(homeDir, "git", repo.Name);
+                    targetProjectName.Set(item.Name);
+
+                    var existingProj = existing.FirstOrDefault(p => p.Name.Equals(item.Name, StringComparison.OrdinalIgnoreCase));
+                    var initialMappings = new Dictionary<string, string>();
+                    var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+                    foreach (var repo in item.Repos)
+                    {
+                        var repoKey = !string.IsNullOrEmpty(repo.Owner) && repo.Owner != "local" && repo.Owner != "default"
+                            ? $"{repo.Owner}/{repo.Name}"
+                            : repo.Name;
+
+                        var match = existingProj?.Repos.FirstOrDefault(r =>
+                            Path.GetFileName(r.Path).Equals(repo.Name, StringComparison.OrdinalIgnoreCase) ||
+                            r.Path.EndsWith($"/{repo.Name}", StringComparison.OrdinalIgnoreCase) ||
+                            r.Path.EndsWith($"\\{repo.Name}", StringComparison.OrdinalIgnoreCase));
+
+                        initialMappings[repoKey] = match?.Path ?? Path.Combine(homeDir, "git", repo.Name);
+                    }
+
+                    if (existingProj != null)
+                    {
+                        foreach (var r in existingProj.Repos)
+                        {
+                            var rName = Path.GetFileName(r.Path);
+                            if (!initialMappings.ContainsKey(rName))
+                            {
+                                initialMappings[rName] = r.Path;
+                            }
+                        }
+                    }
+
+                    repoMappings.Set(initialMappings);
                 }
-                repoMappings.Set(initialMappings);
+                else
+                {
+                    var suggested = ComputeSuggestedName(item.Name, existing);
+                    targetProjectName.Set(suggested);
+
+                    var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                    var initialMappings = new Dictionary<string, string>();
+                    foreach (var repo in item.Repos)
+                    {
+                        var repoKey = !string.IsNullOrEmpty(repo.Owner) && repo.Owner != "local" && repo.Owner != "default"
+                            ? $"{repo.Owner}/{repo.Name}"
+                            : repo.Name;
+                        initialMappings[repoKey] = Path.Combine(homeDir, "git", repo.Name);
+                    }
+                    repoMappings.Set(initialMappings);
+                }
 
                 selectedSkills.Set(new HashSet<string>(item.SkillNames, StringComparer.OrdinalIgnoreCase));
                 selectedMcps.Set(new HashSet<string>(item.McpServerNames, StringComparer.OrdinalIgnoreCase));
@@ -127,7 +169,7 @@ public class ImportFromVaultDialog(
                 selectedVerifications.Set(new HashSet<string>(item.VerificationNames, StringComparer.OrdinalIgnoreCase));
                 errorMessage.Set(null);
             }
-        }, dialogOpen, selectedProjectItem);
+        }, dialogOpen, selectedProjectItem, isMergeMode);
 
         if (!dialogOpen.Value || projectItem == null) return null;
 
@@ -144,7 +186,7 @@ public class ImportFromVaultDialog(
             var finalName = !string.IsNullOrWhiteSpace(targetProjectName.Value) ? targetProjectName.Value.Trim() : defaultSuggested;
             if (isLoading.Value || string.IsNullOrWhiteSpace(finalName)) return;
 
-            if (isNameInUse && projectItem.SyncStatus != VaultItemSyncStatus.UpdateAvailable)
+            if (!mergeMode && isNameInUse && projectItem.SyncStatus != VaultItemSyncStatus.UpdateAvailable)
             {
                 errorMessage.Set($"A local project named '{finalName}' already exists. Please pick a different name (e.g. {ComputeSuggestedName(finalName, existingProjects)}).");
                 return;
@@ -167,14 +209,17 @@ public class ImportFromVaultDialog(
                 ImportPermissions = importPermissions.Value
             };
 
-            var result = await vaultService.ImportProjectAsync(request, projectItem.SourceVaultId);
+            var result = mergeMode
+                ? await vaultService.MergeProjectAsync(request, projectItem.SourceVaultId)
+                : await vaultService.ImportProjectAsync(request, projectItem.SourceVaultId);
+
             isLoading.Set(false);
 
             if (result.Success)
             {
                 dialogOpen.Set(false);
                 targetProjectName.Set("");
-                client.Toast(result.Message, "Project Imported");
+                client.Toast(result.Message, mergeMode ? "Project Merged" : "Project Imported");
                 onImported();
             }
             else
@@ -301,9 +346,19 @@ public class ImportFromVaultDialog(
         // Permissions
         assetChecklist |= importPermissions.ToBoolInput("Import Security & Permissions Policies");
 
-        var collisionNotice = (hasOriginalCollision && effectiveProjectName != projectItem.Name)
-            ? Callout.Info($"A local project named '{projectItem.Name}' already exists. We've suggested '{effectiveProjectName}' for this import to avoid conflicts.")
-            : null;
+        object? collisionNotice;
+        if (mergeMode)
+        {
+            collisionNotice = Callout.Info($"Merging will link this vault project with your existing local project '{projectItem.Name}'. Local repository paths and unconflicted settings will be preserved while selected vault assets (verifications, actions, skills, MCPs, memories) will be integrated.");
+        }
+        else if (hasOriginalCollision && effectiveProjectName != projectItem.Name)
+        {
+            collisionNotice = Callout.Info($"A local project named '{projectItem.Name}' already exists. We've suggested '{effectiveProjectName}' for this import to avoid conflicts.");
+        }
+        else
+        {
+            collisionNotice = null;
+        }
 
         var nameInput = targetProjectName.ToTextInput(defaultSuggested)
             .WithField().Label("Local Project Name");
@@ -323,12 +378,12 @@ public class ImportFromVaultDialog(
 
         return new Dialog(
             _ => dialogOpen.Set(false),
-            new DialogHeader($"Import '{projectItem.Name}' from Vault"),
+            new DialogHeader(mergeMode ? $"Merge '{projectItem.Name}' with Local Project" : $"Import '{projectItem.Name}' from Vault"),
             new DialogBody(form),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false)),
-                new Button("Import Project")
-                    .Icon(Icons.Download)
+                new Button(mergeMode ? "Link & Merge" : "Import Project")
+                    .Icon(mergeMode ? Icons.GitMerge : Icons.Download)
                     .Primary()
                     .Loading(isLoading.Value)
                     .Disabled(isLoading.Value || string.IsNullOrWhiteSpace(effectiveProjectName))

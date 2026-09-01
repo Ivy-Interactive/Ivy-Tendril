@@ -262,7 +262,7 @@ public class ContentView(
             selectedPlanState.Value!, selectedRecTitles, client,
             planContentQuery.Mutator.Revalidate);
 
-        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, context, showCreatePrDialog, isShareMode, draftComments, shareContext);
+        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, context, showCreatePrDialog, showDiscardDialog, isShareMode, draftComments, shareContext);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
             context, agentRunner, draftComments, isShareMode, isBeta, shareTunnelService, showShareModal);
@@ -290,6 +290,7 @@ public class ContentView(
         int currentIndex,
         ReviewViewContext context,
         Action showCreatePrDialog,
+        Action showDiscardDialog,
         bool isShareMode,
         IState<List<DraftComment>> draftComments,
         IShareContext shareContext)
@@ -385,27 +386,36 @@ public class ContentView(
             }
             else
             {
-                var completePlanBtn = new Button("Complete Plan").Icon(Icons.CircleCheck).OnClick(() =>
+                var completionBlockReason = planService.GetCompletionBlockReason(selectedPlan.FolderName);
+                if (completionBlockReason != null)
                 {
-                    try
+                    var skipPlanBtn = new Button("Skip Plan").Icon(Icons.Ban).OnClick(showDiscardDialog).ShortcutKey("m");
+                    rightSide |= skipPlanBtn.Primary();
+                }
+                else
+                {
+                    var completePlanBtn = new Button("Complete Plan").Icon(Icons.CircleCheck).OnClick(() =>
                     {
-                        // Optimistic UI - update state and refresh immediately
-                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                    }
-                    catch (PlanTransitionBlockedException ex)
-                    {
-                        // This handler is fire-and-forget, so an uncaught throw would look like a
-                        // silent no-op. Surface the reason and leave the plan where it is.
-                        context.Client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
-                        return;
-                    }
+                        try
+                        {
+                            // Optimistic UI - update state and refresh immediately
+                            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                        }
+                        catch (PlanTransitionBlockedException ex)
+                        {
+                            // This handler is fire-and-forget, so an uncaught throw would look like a
+                            // silent no-op. Surface the reason and leave the plan where it is.
+                            context.Client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
+                            return;
+                        }
 
-                    refreshPlans();
+                        refreshPlans();
 
-                    // Fire and forget - clean up worktrees in the background
-                    WorktreeCleanupService.RemoveWorktreesInBackground(selectedPlan.FolderPath);
-                }).ShortcutKey("m");
-                rightSide |= completePlanBtn.Primary();
+                        // Fire and forget - clean up worktrees in the background
+                        WorktreeCleanupService.RemoveWorktreesInBackground(selectedPlan.FolderPath);
+                    }).ShortcutKey("m");
+                    rightSide |= completePlanBtn.Primary();
+                }
             }
 
             return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
@@ -648,6 +658,15 @@ public class ContentView(
 
             var totalArtifacts = (planData.Artifacts.GetValueOrDefault("screenshots")?.Count ?? 0)
                                  + (planData.Artifacts.ContainsKey("sample") ? 1 : 0);
+
+            var completionBlockReason = planService.GetCompletionBlockReason(selectedPlan.FolderName);
+            if (completionBlockReason != null)
+            {
+                content |= Layout.Vertical().Padding(2, 2, 1, 2)
+                    | Callout.Info(
+                        "Pre-execution validation found no changes needed because the issue or task is already resolved. You can discard or skip this plan.",
+                        "No Changes Needed");
+            }
 
             content |= new ReviewActionsBarView(selectedPlan, planData.ReviewActionStates, config);
 

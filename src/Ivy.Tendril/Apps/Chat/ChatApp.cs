@@ -73,7 +73,13 @@ public class ChatApp : ViewBase
 
         var currentVersion = sessionVersion.Value;
         var sessions = chatService.GetSessions();
-        if (activeSessionId.Value == null && sessions.Count > 0 && !initialHandled.Value && string.IsNullOrEmpty(args?.Prompt))
+        if (sessions.Count == 0 && activeSessionId.Value == null && string.IsNullOrEmpty(args?.Prompt))
+        {
+            var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
+            activeSessionId.Set(newSess.Id);
+            sessions = chatService.GetSessions();
+        }
+        else if (activeSessionId.Value == null && sessions.Count > 0 && !initialHandled.Value && string.IsNullOrEmpty(args?.Prompt))
         {
             activeSessionId.Set(sessions[0].Id);
         }
@@ -159,7 +165,7 @@ public class ChatApp : ViewBase
 
         async Task ExecuteSendMessage(ChatSendMessageDto dto)
         {
-            var userPrompt = dto.Prompt.Trim();
+            var userPrompt = dto.Prompt?.Trim() ?? "";
             var attachments = dto.Attachments ?? [];
             if (string.IsNullOrWhiteSpace(userPrompt) && attachments.Count == 0) return;
 
@@ -172,6 +178,7 @@ public class ChatApp : ViewBase
             chatService.SetSessionGenerating(targetSessionId, true);
 
             var attachedFilePaths = new List<string>();
+            var attachmentErrors = new List<string>();
             if (attachments.Count > 0)
             {
                 var attachDir = Path.Combine(configService.TendrilHome, "Attachments", targetSessionId);
@@ -197,9 +204,9 @@ public class ChatApp : ViewBase
                         }
                         attachedFilePaths.Add(filePath);
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // Ignore attachment write exceptions
+                        attachmentErrors.Add($"Failed to process attachment '{att.Name}': {ex.Message}");
                     }
                 }
             }
@@ -207,13 +214,24 @@ public class ChatApp : ViewBase
             var promptWithAttachments = userPrompt;
             if (attachedFilePaths.Count > 0)
             {
-                var sb = new StringBuilder(userPrompt);
-                sb.AppendLine("\n\n[Attached Files]:");
+                var sb = new StringBuilder();
+                if (!string.IsNullOrWhiteSpace(userPrompt))
+                {
+                    sb.AppendLine(userPrompt);
+                    sb.AppendLine();
+                }
+                sb.AppendLine("[Attached Files]:");
                 foreach (var path in attachedFilePaths)
                 {
                     sb.AppendLine($"- {path}");
                 }
-                promptWithAttachments = sb.ToString();
+                promptWithAttachments = sb.ToString().TrimEnd();
+            }
+
+            if (attachmentErrors.Count > 0)
+            {
+                var warning = "Warning: Some attachments could not be processed:\n" + string.Join("\n", attachmentErrors.Select(e => $"- {e}"));
+                chatService.AddMessage(targetSessionId, "assistant", warning, selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
             }
 
             var sess = chatService.GetSession(targetSessionId);
@@ -369,7 +387,7 @@ public class ChatApp : ViewBase
 
         void SendMessage(ChatSendMessageDto dto)
         {
-            var userPrompt = dto.Prompt.Trim();
+            var userPrompt = dto.Prompt?.Trim() ?? "";
             var attachments = dto.Attachments ?? [];
             if (string.IsNullOrWhiteSpace(userPrompt) && attachments.Count == 0) return;
 

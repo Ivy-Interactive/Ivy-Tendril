@@ -198,7 +198,7 @@ public class EditProjectBladeView(
             | new ReviewActionsTableView(editReviewActions, idx =>
             {
                 bladeContext.Push(this, new EditReviewActionBladeView(idx, editReviewActions), title: idx == null ? "Add Review Action" : "Edit Review Action");
-            })
+            }, projectName: editName.Value)
             | new Button("Add Review Action").Icon(Icons.Plus).Outline().OnClick(() =>
             {
                 bladeContext.Push(this, new EditReviewActionBladeView(null, editReviewActions), title: "Add Review Action");

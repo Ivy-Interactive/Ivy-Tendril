@@ -104,7 +104,7 @@ public class ProjectCrudStepView(
                | (Layout.Vertical()
                   | Text.Block("Review Actions").Bold()
                   | Text.Muted("Commands that makes it easy to start you project for manual testing.")
-                  | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx))
+                  | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx), projectName: projectName.Value)
                   | new Button("Add Review Action").Icon(Icons.Plus).Outline()
                       .OnClick(() => showReviewActionTrigger(null)))
                | new Separator()

@@ -326,20 +326,12 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
     [dangerouslyAllowLocalFiles],
   );
 
-  // react-markdown wraps an overridden `code` element in a `pre`. A question form is flow content
-  // and does not belong inside one — inputs there inherit the monospace stack — so the wrapper is
-  // dropped for questions blocks only.
+  // react-markdown wraps an overridden `code` element in a `pre`. BlockHandler already encapsulates
+  // code blocks, diagram renderers, and questions callouts with their own appropriate containers.
+  // Unwrapping the outer `pre` produces clean, valid block-level DOM elements directly under .pmv-markdown.
   const pre = useCallback((props: React.HTMLAttributes<HTMLPreElement>) => {
-    const { children, ...rest } = props;
-    const only = React.Children.count(children) === 1 ? React.Children.toArray(children)[0] : null;
-
-    if (React.isValidElement<{ className?: string }>(only)) {
-      if (/(^|\s)language-questions(_\d+)?(\s|$)/.test(String(only.props.className ?? ""))) {
-        return <>{children}</>;
-      }
-    }
-
-    return <pre {...rest}>{children}</pre>;
+    const { children } = props;
+    return <>{children}</>;
   }, []);
 
   // Math plugins are added only when the content actually contains math

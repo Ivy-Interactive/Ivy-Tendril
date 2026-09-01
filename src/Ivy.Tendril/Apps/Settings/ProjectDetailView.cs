@@ -300,7 +300,7 @@ public class ProjectDetailView(
 
             // Section 3: Review Actions
             | Text.H4("Review Actions").Bold()
-            | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx))
+            | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx), projectName: editName.Value)
             | new Button("Add Review Action").Icon(Icons.Plus).Outline().OnClick(() => showReviewActionTrigger(null))
 
             // Section 4: Verifications

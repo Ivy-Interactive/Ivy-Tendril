@@ -12,9 +12,9 @@ namespace Ivy.Tendril.Commands;
 public class ConfigGetSettings : CommandSettings
 {
     internal static readonly string[] ValidFields =
-        ["codingAgent", "jobTimeout", "staleOutputTimeout", "gitTimeout", "maxConcurrentJobs", "planTemplate", "theme"];
+        ["codingAgent", "jobTimeout", "staleOutputTimeout", "gitTimeout", "maxConcurrentJobs", "planTemplate", "theme", "themeMode"];
 
-    [Description("Config key (codingAgent, jobTimeout, staleOutputTimeout, gitTimeout, maxConcurrentJobs, planTemplate, theme)")]
+    [Description("Config key (codingAgent, jobTimeout, staleOutputTimeout, gitTimeout, maxConcurrentJobs, planTemplate, theme, themeMode)")]
     [CommandArgument(0, "<key>")]
     public string Key { get; set; } = "";
 
@@ -26,7 +26,7 @@ public class ConfigGetSettings : CommandSettings
 
 public class ConfigSetSettings : CommandSettings
 {
-    [Description("Config key (codingAgent, jobTimeout, staleOutputTimeout, gitTimeout, maxConcurrentJobs, planTemplate, theme)")]
+    [Description("Config key (codingAgent, jobTimeout, staleOutputTimeout, gitTimeout, maxConcurrentJobs, planTemplate, theme, themeMode)")]
     [CommandArgument(0, "<key>")]
     public string Key { get; set; } = "";
 
@@ -76,6 +76,7 @@ public class ConfigGetCommand : Command<ConfigGetSettings>
         "maxconcurrentjobs" => s.MaxConcurrentJobs.ToString(),
         "plantemplate" => s.PlanTemplate,
         "theme" => s.Theme,
+        "thememode" => s.ThemeMode,
         _ => throw new ArgumentException(UnknownFieldMessage(field))
     };
 
@@ -116,8 +117,26 @@ public class ConfigSetCommand(IAgentRunner runner) : Command<ConfigSetSettings>
             case "maxconcurrentjobs": s.MaxConcurrentJobs = ParseBoundedInt(value, "maxConcurrentJobs", 1, 512); break;
             case "plantemplate": s.PlanTemplate = value; break;
             case "theme": s.Theme = ValidateTheme(value); break;
+            case "thememode": s.ThemeMode = ValidateThemeMode(value); break;
             default: throw new ArgumentException(ConfigGetCommand.UnknownFieldMessage(field));
         }
+    }
+
+    internal static string ValidateThemeMode(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException("themeMode cannot be empty.");
+
+        var trimmed = value.Trim();
+        if (trimmed.Equals("light", StringComparison.OrdinalIgnoreCase))
+            return "light";
+        if (trimmed.Equals("dark", StringComparison.OrdinalIgnoreCase))
+            return "dark";
+        if (trimmed.Equals("system", StringComparison.OrdinalIgnoreCase))
+            return "system";
+
+        throw new ArgumentException(
+            $"Unknown themeMode '{value}'. Valid modes: light, dark, system");
     }
 
     internal static string ValidateTheme(string value)

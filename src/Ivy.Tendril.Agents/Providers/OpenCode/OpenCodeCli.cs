@@ -87,9 +87,12 @@ public sealed class OpenCodeCli : IAgentCli
         // OpenCode's --session resumes an existing session; it does not accept
         // caller-assigned IDs for new sessions (unlike Claude's --session-id).
 
+        var tempFiles = new List<string>();
+
         var mcpConfigFile = global::Ivy.Tendril.Agents.Helpers.McpConfigWriter.WriteConfigFile(config.McpServers);
         if (!string.IsNullOrEmpty(mcpConfigFile))
         {
+            tempFiles.Add(mcpConfigFile);
             args.Add("--mcp-config");
             args.Add(mcpConfigFile);
         }
@@ -116,6 +119,7 @@ public sealed class OpenCodeCli : IAgentCli
             Environment = env,
             StdinContent = stdinContent,
             RedirectStdin = true,
+            TempFiles = tempFiles,
         };
     }
 

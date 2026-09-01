@@ -1,4 +1,4 @@
-﻿using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -24,7 +24,6 @@ public partial class JobsApp
                 PlanId = planId,
                 Plan = JobsApp.GetPromptDisplay(j, planService),
                 Type = j.Type,
-                Profile = JobCostModelBuilder.FormatProfile(j) ?? "",
                 Project = string.Join(", ", ProjectHelper.ParseProjects(j.Project)),
                 Timer = JobsApp.FormatTimer(j),
                 Cost = j.Cost.HasValue ? FormatHelper.FormatCost(j.Cost.Value) : "",

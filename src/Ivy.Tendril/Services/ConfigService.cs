@@ -226,6 +226,7 @@ public class TendrilSettings
     public bool DesktopNotifications { get; set; } = true;
     public bool SidebarOpen { get; set; } = true;
     public string Theme { get; set; } = "default";
+    public string ThemeMode { get; set; } = "system";
     public bool Beta { get; set; } = false;
     public string? DismissedUpdateVersion { get; set; }
 
@@ -554,6 +555,19 @@ public class ConfigService : IConfigService, IDisposable
         else
         {
             Settings.Theme = TendrilThemes.GetTheme(Settings.Theme).Id;
+        }
+
+        // ThemeMode: fallback to system if null, empty, or unrecognised
+        if (string.IsNullOrWhiteSpace(Settings.ThemeMode) ||
+            (!Settings.ThemeMode.Equals("light", StringComparison.OrdinalIgnoreCase) &&
+             !Settings.ThemeMode.Equals("dark", StringComparison.OrdinalIgnoreCase) &&
+             !Settings.ThemeMode.Equals("system", StringComparison.OrdinalIgnoreCase)))
+        {
+            Settings.ThemeMode = "system";
+        }
+        else
+        {
+            Settings.ThemeMode = Settings.ThemeMode.ToLowerInvariant();
         }
     }
 

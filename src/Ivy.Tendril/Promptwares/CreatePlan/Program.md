@@ -52,7 +52,7 @@ If it references related plans with `[number]` syntax (e.g. `[01205]`), find and
 
 **Extract Source URL**: Check if the task description contains a GitHub PR URL (`https://github.com/{owner}/{repo}/pull/{number}`) or issue URL (`https://github.com/{owner}/{repo}/issues/{number}`). If found, store it as `sourceUrl` in plan.yaml.
 
-- **Issue URL**: `gh issue view <url> --json title,body,comments` — fetch the title, body, and comments for context when writing the plan.
+- **Issue URL**: `gh issue view <url> --json title,body,comments,state` - fetch the title, body, state, and comments for context when writing the plan. If the issue is already marked closed or solved on GitHub and verified to already be resolved in the codebase, decline creating the plan as duplicate / already resolved (report status and exit without creating a redundant plan).
 - **PR URL**: the plan must be based on the **review feedback on the PR**, not just its description. Fetch the full conversation:
   ```bash
   # Title, body, top-level conversation comments, and review summaries (with their state: APPROVED / CHANGES_REQUESTED / COMMENTED)

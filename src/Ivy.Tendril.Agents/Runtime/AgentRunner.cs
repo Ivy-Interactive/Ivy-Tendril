@@ -141,6 +141,7 @@ public sealed class AgentRunner(ILogger<AgentRunner> logger, ConcurrencyOptions?
             EnvironmentVariables = context.ExtraEnvironment,
             MaxTurns = context.MaxTurns,
             MaxBudgetUsd = context.MaxBudgetUsd,
+            Timeout = context.TimeoutPolicy?.TotalTimeout,
             McpServers = context.McpServers,
             PromptFilePath = context.PromptFilePath,
             SystemPrompt = context.SystemPrompt,
@@ -165,6 +166,16 @@ public sealed class AgentRunner(ILogger<AgentRunner> logger, ConcurrencyOptions?
         }
         catch (Exception ex)
         {
+            foreach (var file in spec.TempFiles)
+            {
+                try
+                {
+                    if (File.Exists(file))
+                        File.Delete(file);
+                }
+                catch { }
+            }
+
             concurrencyLease?.Dispose();
             AgentLogMessages.LaunchFailed(logger, agentId, ex.Message);
             throw new AgentLaunchException(agentId, spec, ex);
@@ -177,6 +188,7 @@ public sealed class AgentRunner(ILogger<AgentRunner> logger, ConcurrencyOptions?
         {
             Metadata = context.Metadata,
         };
+        session.AddTempFiles(spec.TempFiles);
 
         IDisposable? recording = null;
         if (context.RecordingBasePath is not null)
