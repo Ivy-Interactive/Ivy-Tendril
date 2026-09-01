@@ -12,10 +12,11 @@ public class DashboardPage
     {
         // Wait for the Ivy SPA to render — initial page load is just an HTML shell,
         // content renders after the SignalR/WebSocket connection establishes.
-        // Dashboard may show: stats ("Total Plans"), empty state ("No plans yet"),
-        // or loading state ("Loading Dashboard Data...").
+        // Dashboard may show: chart legend ("Total Plans") or the loading state
+        // ("Loading Dashboard Data..."). The dashboard always renders its cards
+        // now — there is no empty state, even on a fresh database.
         // Also match "Drafts" which appears in sidebar when dashboard is rendered.
-        await _page.Locator("text=/Total Plans|No plans yet|Create your first plan|Loading Dashboard Data|Drafts/")
+        await _page.Locator("text=/Total Plans|Loading Dashboard Data|Drafts/")
             .First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = timeoutMs });
     }
 

@@ -24,6 +24,12 @@ public class PlanReaderService(
     private readonly TimeCache<Dictionary<string, List<HourlyTokenBurn>>> _hourlyBurnCache =
         new(TimeSpan.FromSeconds(10));
 
+    private readonly TimeCache<Dictionary<int, DashboardActivityStats>> _activityStatsCache =
+        new(TimeSpan.FromSeconds(30));
+
+    private readonly TimeCache<Dictionary<int, List<(DateOnly Date, int Count)>>> _prsByDayCache =
+        new(TimeSpan.FromSeconds(30));
+
     private readonly TimeCache<Dictionary<string, (decimal Cost, int Tokens)>> _planCostCache =
         new(TimeSpan.FromSeconds(90));
 
@@ -586,6 +592,48 @@ public class PlanReaderService(
     }
 
     /// <summary>
+    ///     Returns monthly plan/PR/cost aggregates for the dashboard charts. Delegates to
+    ///     database when available, otherwise returns empty stats.
+    /// </summary>
+    public DashboardActivityStats GetDashboardActivity(int monthsBack = 24)
+    {
+        if (_useDatabaseForReads && _database != null)
+        {
+            var cache = _activityStatsCache.GetOrCompute(() => new Dictionary<int, DashboardActivityStats>());
+            if (!cache.TryGetValue(monthsBack, out var stats))
+            {
+                stats = _database.GetActivityStats(monthsBack);
+                cache[monthsBack] = stats;
+            }
+
+            return stats;
+        }
+
+        return new DashboardActivityStats([], 0);
+    }
+
+    /// <summary>
+    ///     Returns per-day merged PR counts. Delegates to database when available,
+    ///     otherwise returns an empty list.
+    /// </summary>
+    public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days)
+    {
+        if (_useDatabaseForReads && _database != null)
+        {
+            var cache = _prsByDayCache.GetOrCompute(() => new Dictionary<int, List<(DateOnly Date, int Count)>>());
+            if (!cache.TryGetValue(days, out var result))
+            {
+                result = _database.GetCompletedPrsByDay(days);
+                cache[days] = result;
+            }
+
+            return result;
+        }
+
+        return [];
+    }
+
+    /// <summary>
     ///     Calculates the total cost for a plan. Delegates to database when available,
     ///     otherwise parses costs.csv with a short cache to reduce file I/O.
     /// </summary>
@@ -902,6 +950,8 @@ public class PlanReaderService(
         _planCostCache.Invalidate();
         _dashboardCache.Invalidate();
         _hourlyBurnCache.Invalidate();
+        _activityStatsCache.Invalidate();
+        _prsByDayCache.Invalidate();
     }
 
     /// <summary>

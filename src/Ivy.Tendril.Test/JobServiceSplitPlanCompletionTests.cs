@@ -87,6 +87,10 @@ public class JobServiceSplitPlanCompletionTests
         public void SavePlan(string folderName, string fullContent) { }
         public void UpdateLatestRevision(string folderName, string content) { }
         public DashboardModels GetDashboardData(string? projectFilter) => new(0, 0, 0, 0, 0, 0, 0, [], []);
+
+        public DashboardActivityStats GetDashboardActivity(int monthsBack = 24) => new([], 0);
+
+        public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days) => [];
         public decimal GetPlanTotalCost(string folderPath) => 0;
         public int GetPlanTotalTokens(string folderPath) => 0;
         public List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null) => [];

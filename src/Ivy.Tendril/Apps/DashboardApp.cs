@@ -1,35 +1,77 @@
+using System.Globalization;
+using System.Reactive.Disposables;
+using System.Reactive.Linq;
+using Ivy.Tendril.Apps.Drafts;
+using Ivy.Tendril.Apps.Jobs.Sheets;
+using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Apps.Views;
-using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Hooks;
+using Ivy.Tendril.Models;
+using Ivy.Tendril.Services.Plans;
+using Ivy.Tendril.Services.Tunnel;
+using Ivy.Tendril.Widgets;
+using Ivy.Widgets.QRCode;
+using JobsApp = Ivy.Tendril.Apps.Jobs.JobsApp;
 
 namespace Ivy.Tendril.Apps;
-
-public class DashboardDayRow
-{
-    public string Date { get; set; } = "";
-    public DateTime SortDate { get; set; }
-    public int Created { get; set; }
-    public int Completed { get; set; }
-    public int PrsMerged { get; set; }
-    public int Failed { get; set; }
-    public string Cost { get; set; } = "";
-    public string CostPerPlan { get; set; } = "";
-    public string Tokens { get; set; } = "";
-}
-
 
 [App(title: "Dashboard", icon: Icons.ChartBar, group: ["Apps"], order: Constants.Dashboard)]
 public class DashboardApp : ViewBase
 {
+    private const int ActivityMonths = 16;
+    private const int TrendMonthsBack = 24;
+    private const int TrendMonthsShown = 12;
+    private const int ActiveJobsShown = 8;
+
     public override object Build()
     {
         var planService = UseService<IPlanReaderService>();
-        var configService = UseService<IConfigService>();
+        var jobService = UseService<IJobService>();
+        var statusService = UseService<ITendrilProcessStatusService>();
+        var client = UseService<IClientProvider>();
+        var tunnelService = UseService<ICloudflaredService>();
+        var copyToClipboard = UseClipboard();
+        var navigator = UseNavigation();
         var refreshToken = UseRefreshToken();
+        var processView = Context.UseTendrilProcess();
+        var tunnelStatus = UseState(tunnelService.Status);
+        var tunnelUrl = UseState<string?>(tunnelService.TunnelUrl);
+
+        // Same agent-output sheet as the Jobs app, opened from the Active Jobs card.
+        var (outputSheet, showOutput) = UseTrigger<string>((isOpen, jobId) =>
+        {
+            if (!isOpen.Value) return null;
+            var job = jobService.GetJob(jobId);
+            var title = job is not null ? $"{job.Type} {JobsApp.ExtractPlanId(job.PlanFile)}" : "Job Output";
+            return new Sheet(
+                () => isOpen.Set(false),
+                new OutputSheet(jobId, jobService),
+                title
+            ).Width(UxHelper.SheetWidth).Resizable();
+        });
+
+        UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken));
+        // Skip(1): the status stream is a BehaviorSubject and replays its
+        // current value on subscribe, which would refresh in a loop.
+        UseEffect(() => statusService.Status.Skip(1).Subscribe(_ => refreshToken.Refresh()));
         UseInterval(() => { refreshToken.Refresh(); },
             planService.IsDatabaseReady ? TimeSpan.FromSeconds(60) : TimeSpan.FromSeconds(2));
+        UseEffect(() =>
+        {
+            void OnStatusChanged(TunnelStatus newStatus)
+            {
+                tunnelStatus.Set(newStatus);
+                tunnelUrl.Set(tunnelService.TunnelUrl);
+            }
 
-        var selectedProject = UseState<string?>(null);
+            tunnelService.StatusChanged += OnStatusChanged;
+
+            tunnelStatus.Set(tunnelService.Status);
+            tunnelUrl.Set(tunnelService.TunnelUrl);
+
+            return Disposable.Create(() => tunnelService.StatusChanged -= OnStatusChanged);
+        });
 
         if (!planService.IsDatabaseReady)
         {
@@ -37,176 +79,218 @@ public class DashboardApp : ViewBase
                    | Text.Muted("Loading Dashboard Data...");
         }
 
-        var stats = planService.GetDashboardData(selectedProject.Value);
-
-        if (stats.TotalCount == 0)
-        {
-            return new NoContentView("No plans yet", "Create your first plan to get started", new NewPlanButton().Width(Size.Fit()));
-        }
-
-        // Statistics cards
-        var statsRow = Layout.Grid()
-                           .Columns(2.At(Breakpoint.Mobile)
-                               .And(Breakpoint.Tablet, 4)
-                               .And(Breakpoint.Desktop, 7))
-                           .Gap(2)
-                           .Padding(2)
-                       | BuildStatCard(stats.TotalCount.ToString(), "Total Plans")
-                       | BuildStatCard(stats.DraftCount.ToString(), "Drafts")
-                       | BuildStatCard(stats.InProgressCount.ToString(), "In Progress")
-                       | BuildStatCard(stats.ReviewCount.ToString(), "Ready for Review")
-                       | BuildStatCard(stats.CompletedCount.ToString(), "Completed")
-                       | BuildStatCard(stats.FailedCount.ToString(), "Failed")
-                       | BuildStatCard(FormatHelper.FormatCost(stats.AvgCostPerPlan), "Avg Cost/Plan");
+        var stats = planService.GetDashboardData(null);
+        var activity = planService.GetDashboardActivity(TrendMonthsBack);
+        // Status strip counts come from the same sources as the apps they
+        // navigate to: plan counts as shown by the Drafts/Review apps and
+        // the shell badges, job counts as shown by the Jobs app.
+        var processStatus = statusService.Current;
+        var jobs = jobService.GetJobs();
 
         var today = DateTime.UtcNow.Date;
+        var firstActivityMonth = new DateTime(today.Year, today.Month, 1).AddMonths(-(ActivityMonths - 1));
+        var prDays = planService.GetCompletedPrsByDay((today - firstActivityMonth).Days + 1);
 
-        var rows = stats.DailyStats.Select(d =>
+        var now = DateTime.Now;
+
+        object? tunnelQr = null;
+        object? tunnelMenu = null;
+        if (tunnelStatus.Value == TunnelStatus.Connected && tunnelUrl.Value is { } tunnelAddress)
         {
-            var dayLabel = d.Date == today ? "Today"
-                : d.Date == today.AddDays(-1) ? "Yesterday"
-                : d.Date.ToString("MMM dd");
-
-            var costPerPlan = d is { Completed: > 0, Cost: > 0 }
-                ? FormatHelper.FormatCost(d.Cost / d.Completed)
-                : "";
-
-            return new DashboardDayRow
+            tunnelQr = new QRCode { Value = tunnelAddress, PixelSize = 160, ErrorCorrectionLevel = QrErrorCorrectionLevel.Medium };
+            tunnelMenu = TunnelUiHelper.BuildTunnelMenu(client, copyToClipboard, tunnelAddress, () =>
             {
-                Date = dayLabel,
-                SortDate = d.Date,
-                Created = d.Created,
-                Completed = d.Completed,
-                PrsMerged = d.PrsMerged,
-                Failed = d.Failed,
-                Cost = d.Cost > 0 ? FormatHelper.FormatCost(d.Cost) : "",
-                CostPerPlan = costPerPlan,
-                Tokens = d.Tokens > 0 ? FormatHelper.FormatTokens(d.Tokens) : ""
-            };
-        }).ToList();
-
-        var colWidth = Size.Fraction(1 / 8f);
-
-        var dataTable = rows.AsQueryable()
-            .ToDataTable(t => t.SortDate)
-            .RefreshToken(refreshToken)
-            .Width(Size.Full())
-            .Height(Size.Px(316))
-            .Header(t => t.Date, "Date")
-            .Header(t => t.Created, "Created")
-            .Header(t => t.Completed, "Completed")
-            .Header(t => t.PrsMerged, "PRs")
-            .Header(t => t.Failed, "Failed")
-            .Header(t => t.Cost, "Cost")
-            .Header(t => t.CostPerPlan, "Cost/Plan")
-            .Header(t => t.Tokens, "Tokens")
-            .Hidden(t => t.SortDate)
-            .Width(e => e.Date, colWidth)
-            .Width(e => e.Created, colWidth)
-            .Width(e => e.Completed, colWidth)
-            .Width(e => e.PrsMerged, colWidth)
-            .Width(e => e.Failed, colWidth)
-            .Width(e => e.Cost, colWidth)
-            .Width(e => e.CostPerPlan, colWidth)
-            .Width(e => e.Tokens, colWidth)
-            .Config(c =>
-            {
-                c.AllowSorting = false;
-                c.AllowFiltering = false;
-                c.AllowColumnReordering = false;
-                c.ShowSearch = false;
-                c.SelectionMode = SelectionModes.None;
-                c.ShowIndexColumn = false;
-                c.BatchSize = 7;
+                tunnelStatus.Set(TunnelStatus.Disabled);
+                client.Toast("Tunnel stopped", "Deactivated");
+                _ = tunnelService.DeactivateAsync();
             });
-
-        // Per-project breakdown (always shows all projects)
-        var projectData = stats.ProjectCounts;
-
-        var projectProgress = Layout.Vertical().Padding(2, 0) | new StackedProgress(
-                    projectData.Select(p => new ProgressSegment(
-                        p.Count,
-                        configService.GetProjectColor(p.Project),
-                        p.Project
-                    )).ToArray()
-                )
-            // .Selected(selectedProject.Value != null
-            //     ? projectData.FindIndex(p => p.Project == selectedProject.Value)
-            //     : null)
-            // .OnSelect(e =>
-            // {
-            //     var clickedProject = projectData[e.Value].Project;
-            //     selectedProject.Set(selectedProject.Value == clickedProject ? null : clickedProject);
-            //     return ValueTask.CompletedTask;
-            // })
-            ;
-
-        // Hourly cost & tokens combined bar chart
-        var hourlyBurn = planService.GetHourlyTokenBurn(projectFilter: selectedProject.Value);
-        if (selectedProject.Value == null)
-        {
-            hourlyBurn = hourlyBurn
-                .GroupBy(h => h.Hour)
-                .Select(g => new HourlyTokenBurn
-                {
-                    Hour = g.Key,
-                    Cost = g.Sum(h => h.Cost),
-                    Tokens = g.Sum(h => h.Tokens),
-                    Project = ""
-                })
-                .OrderBy(h => h.Hour)
-                .ToList();
         }
 
-        const string costMeasureName = "Cost";
-        const string costSeriesLabel = "Cost ($)";
-        const string tokensMeasureName = "Tokens";
+        var dashboard = new TendrilDashboard(processView, new UpdateNoticeView(compact: true), tunnelQr, tunnelMenu)
+            .DateText($"{now.ToString("dddd", CultureInfo.InvariantCulture)}, {Ordinal(now.Day)} {now.ToString("MMMM", CultureInfo.InvariantCulture)}")
+            .Greeting(BuildGreeting(now))
+            .Headline("What Are We Producing Today?")
+            .DraftCount(processStatus.DraftCount)
+            .InProgressCount(processStatus.JobCount)
+            .ReviewCount(processStatus.ReviewCount)
+            .CompletedCount(jobs.Count(j => j.Status == JobStatus.Completed))
+            .FailedCount(jobs.Count(j => j.Status == JobStatus.Failed))
+            .Kpis(BuildKpis(stats, activity, prDays, today))
+            .Trend(BuildTrend(activity))
+            .PullRequests(activity.Months
+                .TakeLast(6)
+                .Select(m => new DashboardMonthValueDto(MonthLabel(m.Month), m.PrsMerged))
+                .ToList())
+            .Activity(BuildActivityMonths(prDays, firstActivityMonth))
+            .Jobs(BuildActiveJobs(jobs, planService))
+            .OnDrafts(() => navigator.Navigate<DraftsApp>())
+            .OnReview(() => navigator.Navigate<ReviewApp>())
+            .OnJobs(() => navigator.Navigate<JobsApp>())
+            .OnJob(showOutput);
 
-        var combinedChart = hourlyBurn.ToBarChart(
-                style: BarChartStyles.Default,
-                polish: chart => chart with
-                {
-                    Tooltip = new ChartTooltip().Animated(true),
-                    Bars =
-                    [
-                        new Bar(costMeasureName).Name(costSeriesLabel).Radius(0).YAxisIndex(0),
-                        new Bar(tokensMeasureName).Radius(0).YAxisIndex(1)
-                    ],
-                    XAxis =
-                    [
-                        new XAxis().TickFormatter("MM/dd HH:mm", TickFormatterType.Date).MinTickGap(15)
-                    ],
-                    YAxis =
-                    [
-                        new YAxis(costMeasureName).TickFormatter("C2", TickFormatterType.Number).Hide(),
-                        new YAxis(tokensMeasureName).Orientation(YAxis.Orientations.Right).Hide()
-                    ]
-                })
-            .FillGaps(TimeSpan.FromHours(1))
-            .Dimension("Hour", e => e.Hour)
-            .Measure(costMeasureName, e => e.Sum(f => (double)f.Cost))
-            .Measure(tokensMeasureName, e => e.Sum(f => (double)f.Tokens))
-            .Height(Size.Px(350))
-            .Width(Size.Full());
-
-        var content = Layout.Vertical().Gap(2)
-                      | dataTable
-                      | combinedChart;
-
-        var header = Layout.Vertical()
-                     | statsRow
-                     | projectProgress;
-
-        return new HeaderLayout(
-            header,
-            content
-        );
+        return new Fragment(dashboard, outputSheet);
     }
 
-    private static object BuildStatCard(string value, string label)
+    internal static List<DashboardJobDto> BuildActiveJobs(List<JobItem> jobs, IPlanReaderService planService)
     {
-        return Layout.Vertical().Padding(1)
-               | Text.Block(value).Bold()
-               | Text.Muted(label);
+        return jobs
+            .Where(j => j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
+            .Take(ActiveJobsShown)
+            .Select(j =>
+            {
+                var planId = JobsApp.ExtractPlanId(j.PlanFile);
+                if (string.IsNullOrEmpty(planId) && !string.IsNullOrEmpty(j.ReportedPlanId))
+                    planId = j.ReportedPlanId;
+                return new DashboardJobDto(
+                    j.Id,
+                    planId,
+                    JobsApp.GetPromptDisplay(j, planService),
+                    j.Status.ToString().ToLowerInvariant());
+            })
+            .ToList();
+    }
+
+    private static string BuildGreeting(DateTime now)
+    {
+        var word = now.Hour switch
+        {
+            >= 5 and < 12 => "Morning",
+            >= 12 and < 17 => "Afternoon",
+            _ => "Evening"
+        };
+        var user = Environment.UserName;
+        var name = string.IsNullOrWhiteSpace(user) ? null : char.ToUpperInvariant(user[0]) + user[1..];
+        return name == null ? $"Good {word}!" : $"Good {word}, {name}!";
+    }
+
+    internal static string Ordinal(int day)
+    {
+        var suffix = day is 11 or 12 or 13
+            ? "th"
+            : (day % 10) switch { 1 => "st", 2 => "nd", 3 => "rd", _ => "th" };
+        return day.ToString(CultureInfo.InvariantCulture) + suffix;
+    }
+
+    private static string MonthLabel(int month) =>
+        CultureInfo.InvariantCulture.DateTimeFormat.GetAbbreviatedMonthName(month);
+
+    internal static List<DashboardKpiDto> BuildKpis(
+        DashboardModels stats,
+        DashboardActivityStats activity,
+        List<(DateOnly Date, int Count)> prDays,
+        DateTime today)
+    {
+        var kpis = new List<DashboardKpiDto>();
+
+        // Daily PR average over the last 30 days, compared to the 30 days before that.
+        var last30Start = DateOnly.FromDateTime(today.AddDays(-29));
+        var prev30Start = DateOnly.FromDateTime(today.AddDays(-59));
+        var dailyPrs = prDays.Where(p => p.Date >= last30Start).Sum(p => p.Count) / 30m;
+        var prevDailyPrs = prDays.Where(p => p.Date >= prev30Start && p.Date < last30Start).Sum(p => p.Count) / 30m;
+        kpis.Add(Kpi("Avg Daily PR count", dailyPrs.ToString("0.#", CultureInfo.InvariantCulture), dailyPrs, prevDailyPrs));
+
+        // Monthly cost/token averages over recent complete months with data; the delta
+        // compares the two most recent complete months.
+        var completeMonths = activity.Months.Count > 0
+            ? activity.Months.Take(activity.Months.Count - 1).ToList()
+            : [];
+
+        var costMonths = completeMonths.TakeLast(6).Where(m => m.Cost > 0).ToList();
+        var avgMonthCost = costMonths.Count > 0
+            ? costMonths.Average(m => m.Cost)
+            : activity.Months.Count > 0 ? activity.Months[^1].Cost : 0;
+        var (lastCost, prevCost) = LastTwo(completeMonths, m => m.Cost);
+        kpis.Add(Kpi("Avg Cost/Month", FormatCost(avgMonthCost), lastCost, prevCost));
+
+        var tokenMonths = completeMonths.TakeLast(6).Where(m => m.Tokens > 0).ToList();
+        var avgMonthTokens = tokenMonths.Count > 0
+            ? (long)tokenMonths.Average(m => m.Tokens)
+            : activity.Months.Count > 0 ? activity.Months[^1].Tokens : 0;
+        var (lastTokens, prevTokens) = LastTwo(completeMonths, m => m.Tokens);
+        kpis.Add(Kpi("Avg Tokens/Month", FormatTokenAverage(avgMonthTokens), lastTokens, prevTokens));
+
+        kpis.Add(Kpi("Avg Cost/Plan", FormatHelper.FormatCost(stats.AvgCostPerPlan),
+            stats.AvgCostPerPlan, activity.PrevWeekAvgCostPerPlan));
+
+        return kpis;
+    }
+
+    private static (decimal Last, decimal Previous) LastTwo(
+        List<DashboardMonthStats> completeMonths, Func<DashboardMonthStats, decimal> value)
+    {
+        var lastIndex = completeMonths.FindLastIndex(m => value(m) > 0);
+        return lastIndex > 0
+            ? (value(completeMonths[lastIndex]), value(completeMonths[lastIndex - 1]))
+            : (0, 0);
+    }
+
+    internal static DashboardKpiDto Kpi(string label, string value, decimal current, decimal previous)
+    {
+        if (previous <= 0 || current <= 0)
+            return new DashboardKpiDto(label, value);
+
+        var pct = (current - previous) / previous * 100m;
+        var magnitude = Math.Abs(pct) >= 10
+            ? Math.Round(Math.Abs(pct)).ToString("0", CultureInfo.InvariantCulture)
+            : Math.Abs(pct).ToString("0.##", CultureInfo.InvariantCulture);
+        var delta = (pct >= 0 ? "+" : "-") + magnitude + "%";
+        return new DashboardKpiDto(label, value, delta, pct >= 0 ? "up" : "down");
+    }
+
+    private static string FormatCost(decimal cost) =>
+        cost >= 100 ? FormatHelper.FormatCost(Math.Round(cost), 0) : FormatHelper.FormatCost(cost);
+
+    private static string FormatTokenAverage(long tokens) =>
+        tokens >= 1_000_000
+            ? FormatHelper.FormatTokens((int)Math.Min(tokens, int.MaxValue))
+            : FormatHelper.FormatCount(tokens);
+
+    internal static DashboardTrendDto BuildTrend(DashboardActivityStats activity)
+    {
+        var all = activity.Months;
+        var start = Math.Max(0, all.Count - TrendMonthsShown);
+        var window = all.Skip(start).ToList();
+
+        var prevCost = new List<double?>(window.Count);
+        var prevPlans = new List<double?>(window.Count);
+        for (var i = 0; i < window.Count; i++)
+        {
+            var prevIndex = start + i - 12;
+            prevCost.Add(prevIndex >= 0 ? (double)all[prevIndex].Cost : null);
+            prevPlans.Add(prevIndex >= 0 ? all[prevIndex].PlansCreated : null);
+        }
+
+        return new DashboardTrendDto(
+            window.Select(m => MonthLabel(m.Month)).ToList(),
+            window.Select(m => (double)m.Cost).ToList(),
+            window.Select(m => (double)m.PlansCreated).ToList(),
+            prevCost,
+            prevPlans);
+    }
+
+    internal static List<DashboardActivityMonthDto> BuildActivityMonths(
+        List<(DateOnly Date, int Count)> prDays, DateTime firstMonth)
+    {
+        var byDay = prDays.ToDictionary(p => p.Date, p => p.Count);
+        var months = new List<DashboardActivityMonthDto>(ActivityMonths);
+
+        for (var i = 0; i < ActivityMonths; i++)
+        {
+            var monthStart = firstMonth.AddMonths(i);
+            var daysInMonth = DateTime.DaysInMonth(monthStart.Year, monthStart.Month);
+            var offset = ((int)monthStart.DayOfWeek + 6) % 7;
+            var weeks = new int[(offset + daysInMonth + 6) / 7];
+
+            for (var day = 1; day <= daysInMonth; day++)
+            {
+                var date = new DateOnly(monthStart.Year, monthStart.Month, day);
+                if (byDay.TryGetValue(date, out var count))
+                    weeks[(offset + day - 1) / 7] += count;
+            }
+
+            months.Add(new DashboardActivityMonthDto(MonthLabel(monthStart.Month), weeks.ToList()));
+        }
+
+        return months;
     }
 }

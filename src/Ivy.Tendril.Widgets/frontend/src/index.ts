@@ -1,4 +1,5 @@
 import { TendrilProcessViewer } from "./TendrilProcessViewer";
+import { TendrilDashboard } from "./TendrilDashboard/TendrilDashboard";
 import { AgentViewer } from "./AgentViewer";
 import { DraftMarkdown } from "./DraftMarkdown";
 import { SortableVerificationList } from "./SortableVerificationList";
@@ -19,6 +20,7 @@ import { ShellTabs } from "./Shell/ShellTabs";
 if (typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).IvyTendrilWidgets = {
     TendrilProcessViewer,
+    TendrilDashboard,
     AgentViewer,
     DraftMarkdown,
     SortableVerificationList,
@@ -40,6 +42,7 @@ if (typeof window !== "undefined") {
 
 export {
   TendrilProcessViewer,
+  TendrilDashboard,
   AgentViewer,
   DraftMarkdown,
   SortableVerificationList,
