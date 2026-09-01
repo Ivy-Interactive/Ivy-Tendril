@@ -34,7 +34,7 @@ public class EditMcpServerSheet(
             | editName.ToTextInput("Server name (e.g. sqlite)...").WithField().Label("Name").Required()
             | editCommand.ToTextInput("Command executable (e.g. npx)...").WithField().Label("Command").Required()
             | editArguments.ToTextInput("Arguments (e.g. -y @modelcontextprotocol/server-sqlite)...").WithField().Label("Arguments")
-            | editEnv.ToTextareaInput("Environment variables (KEY=VALUE per line)...").Rows(3).WithField().Label("Environment Variables")
+            | editEnv.ToCodeInput("Environment variables (KEY=VALUE per line)...").WithField().Label("Environment Variables")
             | (Layout.Horizontal().AlignContent(Align.Right)
                | new Button("Cancel").Outline().OnClick(() => isOpen.Set(false))
                | new Button(isNew ? "Add" : "Save").Primary().OnClick(() =>
