@@ -292,6 +292,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         UseEffect(() =>
         {
             TendrilThemes.ApplyTheme(client, config.Settings.Theme);
+            TendrilThemes.ApplyThemeMode(client, config.Settings.ThemeMode);
         });
 
         // Rebuild the menu and reapply theme when settings are saved (e.g. the coding agent or theme changes),
@@ -303,6 +304,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 menuItems.Set(BuildMenuItems(appRepository, status.Value, config, agentRunner, shareContext.IsShareMode));
                 sidebarOpen.Set(config.Settings.SidebarOpen);
                 TendrilThemes.ApplyTheme(client, config.Settings.Theme);
+                TendrilThemes.ApplyThemeMode(client, config.Settings.ThemeMode);
             }
             config.SettingsReloaded += OnSettingsReloaded;
             return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);

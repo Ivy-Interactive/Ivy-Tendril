@@ -1059,4 +1059,18 @@ public static class TendrilThemes
         var css = themeService.GenerateThemeCss();
         client.ApplyTheme(css);
     }
+
+    public static ThemeMode ParseThemeMode(string? mode)
+    {
+        if (string.Equals(mode, "light", StringComparison.OrdinalIgnoreCase))
+            return ThemeMode.Light;
+        if (string.Equals(mode, "dark", StringComparison.OrdinalIgnoreCase))
+            return ThemeMode.Dark;
+        return ThemeMode.System;
+    }
+
+    public static void ApplyThemeMode(IClientProvider client, string? mode)
+    {
+        client.SetThemeMode(ParseThemeMode(mode));
+    }
 }

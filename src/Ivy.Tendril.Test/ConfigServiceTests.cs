@@ -2031,6 +2031,55 @@ theme: {theme}
         }
     }
 
+    [Fact]
+    public void ThemeMode_Setting_DefaultsAndPersists()
+    {
+        var yaml = @"
+themeMode: dark
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        PathHelper.DefaultTendrilHomeOverride = tempDir;
+        try
+        {
+            using var service = new ConfigService();
+            Assert.Equal("dark", service.Settings.ThemeMode);
+
+            service.Settings.ThemeMode = "light";
+            service.SaveSettings();
+
+            var yamlOnDisk = File.ReadAllText(Path.Combine(tempDir, "config.yaml"));
+            Assert.Contains("themeMode: light", yamlOnDisk);
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("invalid_mode")]
+    public void ThemeMode_Setting_InvalidOrEmpty_FallsBackToSystem(string mode)
+    {
+        var yaml = $@"
+themeMode: {mode}
+";
+        var tempDir = CreateTempConfigFile(yaml);
+        PathHelper.DefaultTendrilHomeOverride = tempDir;
+        try
+        {
+            using var service = new ConfigService();
+            Assert.Equal("system", service.Settings.ThemeMode);
+        }
+        finally
+        {
+            PathHelper.DefaultTendrilHomeOverride = null;
+            Directory.Delete(tempDir, true);
+        }
+    }
+
     [Theory]
     [InlineData("Always Proceed", "AlwaysProceed")]
     [InlineData("Inherit General", "InheritGeneral")]

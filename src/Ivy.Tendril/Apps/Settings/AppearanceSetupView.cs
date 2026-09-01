@@ -9,6 +9,7 @@ public class AppearanceSetupView : ViewBase
     {
         var config = UseService<IConfigService>();
         var client = UseService<IClientProvider>();
+        var themeMode = UseState(() => config.Settings.ThemeMode ?? "system");
         var selectedTheme = UseState(() => config.Settings.Theme ?? "default");
         var lastAppliedTheme = UseState(() => config.Settings.Theme ?? "default");
 
@@ -49,12 +50,39 @@ public class AppearanceSetupView : ViewBase
                | Text.Block("Appearance").Bold()
                | Text.Muted("Choose how Tendril appears. System matches your OS setting.").Small()
                | (Layout.Horizontal()
-                  | new Button("Light").Variant(ButtonVariant.Outline).Icon(Icons.Sun)
-                      .OnClick(() => client.SetThemeMode(ThemeMode.Light))
-                  | new Button("Dark").Variant(ButtonVariant.Outline).Icon(Icons.Moon)
-                      .OnClick(() => client.SetThemeMode(ThemeMode.Dark))
-                  | new Button("System").Variant(ButtonVariant.Outline).Icon(Icons.SunMoon)
-                      .OnClick(() => client.SetThemeMode(ThemeMode.System)))
+                  | new Button("Light")
+                      .Variant(themeMode.Value.Equals("light", StringComparison.OrdinalIgnoreCase) ? ButtonVariant.Primary : ButtonVariant.Outline)
+                      .Icon(Icons.Sun)
+                      .OnClick(() =>
+                      {
+                          themeMode.Set("light");
+                          client.SetThemeMode(ThemeMode.Light);
+                          config.Settings.ThemeMode = "light";
+                          config.SaveSettings();
+                          client.Toast("Appearance set to Light", "Saved");
+                      })
+                  | new Button("Dark")
+                      .Variant(themeMode.Value.Equals("dark", StringComparison.OrdinalIgnoreCase) ? ButtonVariant.Primary : ButtonVariant.Outline)
+                      .Icon(Icons.Moon)
+                      .OnClick(() =>
+                      {
+                          themeMode.Set("dark");
+                          client.SetThemeMode(ThemeMode.Dark);
+                          config.Settings.ThemeMode = "dark";
+                          config.SaveSettings();
+                          client.Toast("Appearance set to Dark", "Saved");
+                      })
+                  | new Button("System")
+                      .Variant(themeMode.Value.Equals("system", StringComparison.OrdinalIgnoreCase) ? ButtonVariant.Primary : ButtonVariant.Outline)
+                      .Icon(Icons.SunMoon)
+                      .OnClick(() =>
+                      {
+                          themeMode.Set("system");
+                          client.SetThemeMode(ThemeMode.System);
+                          config.Settings.ThemeMode = "system";
+                          config.SaveSettings();
+                          client.Toast("Appearance set to System", "Saved");
+                      }))
                | Text.Block("Theme").Bold()
                | Text.Muted("Choose a color scheme preset for Tendril.").Small()
                | themeSelector
