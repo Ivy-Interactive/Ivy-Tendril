@@ -82,6 +82,26 @@
     } catch(e){}
     return REAL_URL;
   }
+  // ---- give the app back its own address ----
+  //
+  // The document is served out of view-space, so location.pathname reads
+  // "/__view/@v1/http://localhost:5173/" — and a client-side router matches its routes
+  // against exactly that. React Router says "No routes matched", renders nothing, and the
+  // viewer shows an empty page; an Ivy app derives its app id from the path and finds no such
+  // app. Neither is an error we can see: the page loads, and stays blank.
+  //
+  // So rewrite the address to the path the app believes it is serving, before any of its own
+  // scripts run. Nothing that resolves URLs is harmed: the <base href> injected above governs
+  // relative URLs, and root-relative ones are placed by the service worker through the client
+  // that asked, which it remembers by id for exactly this reason. The document keeps its
+  // controller — that is fixed at navigation time, not by the address it carries afterwards.
+  try {
+    if (location.pathname.indexOf(VIEW) === 0){
+      var real = new URL(currentReal());
+      history.replaceState(history.state, '', real.pathname + real.search + real.hash);
+    }
+  } catch(e){}
+
   function send(msg){
     try { parent.postMessage(Object.assign({ __proxy: true, url: currentReal() }, msg), '*'); } catch(e){}
   }
@@ -138,6 +158,62 @@
         } catch(e){}
         return el;
       };
+    }
+  } catch(e){}
+
+  // ---- WebSockets ----
+  //
+  // A service worker cannot see a WebSocket — it is not a fetch — so a proxied page opening
+  // one against "its own" origin, which is OURS, connects to the app HOSTING the viewer
+  // instead of to the site being viewed. The host then has to answer a socket meant for
+  // someone else: an Ivy host gets a client attaching with an app id it has never heard of
+  // and logs an exception for every widget event that follows, and over HTTP/2 the upgrade
+  // arrives as an extended CONNECT that its router has no route for at all.
+  //
+  // So point them at the upstream. A WebSocket needs no preflight to cross origins, which is
+  // what makes this possible at all: a dev server's HMR channel keeps working, and one that
+  // refuses our Origin fails inside the page — where a failure of the page's own belongs.
+  try {
+    var NativeWebSocket = window.WebSocket;
+    if (typeof NativeWebSocket === 'function'){
+      var toUpstreamSocket = function(url){
+        try {
+          // A relative socket URL resolves with the DOCUMENT's scheme — "/ivy/messages"
+          // becomes https://…, not wss://, and the browser only swaps the scheme afterwards.
+          // Matching on ws: alone would let every relative socket through unrewritten.
+          var abs = new URL(String(url), location.href);
+          var scheme = abs.protocol;
+          if (scheme !== 'ws:' && scheme !== 'wss:' && scheme !== 'http:' && scheme !== 'https:') return url;
+          if (abs.host !== location.host) return url;   // already elsewhere; leave it alone
+
+          // A relative socket URL resolves against the document, so it can arrive carrying
+          // the whole view-space path. The upstream it names beats anything else we know.
+          var host = null, secure = false, path = abs.pathname;
+          if (path.indexOf(VIEW) === 0){
+            var inner = new URL(fixProto(stripViewToken(path.slice(VIEW.length))));
+            host = inner.host;
+            secure = inner.protocol === 'https:';
+            path = inner.pathname;
+          } else {
+            var real = new URL(currentReal());
+            host = real.host;
+            secure = real.protocol === 'https:';
+          }
+          return (secure ? 'wss://' : 'ws://') + host + path + abs.search;
+        } catch(e){ return url; }
+      };
+
+      var ProxiedWebSocket = function(url, protocols){
+        return protocols === undefined
+          ? new NativeWebSocket(toUpstreamSocket(url))
+          : new NativeWebSocket(toUpstreamSocket(url), protocols);
+      };
+      // Shared prototype so `instanceof WebSocket` still holds for what the page created.
+      ProxiedWebSocket.prototype = NativeWebSocket.prototype;
+      ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'].forEach(function(name){
+        try { ProxiedWebSocket[name] = NativeWebSocket[name]; } catch(e){}
+      });
+      window.WebSocket = ProxiedWebSocket;
     }
   } catch(e){}
 

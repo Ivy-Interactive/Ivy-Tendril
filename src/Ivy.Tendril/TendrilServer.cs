@@ -1,6 +1,7 @@
 using Ivy.Core.Apps;
 using Ivy.Helpers;
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.ReviewAction;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
@@ -27,6 +28,11 @@ public static class TendrilServer
         server.UseHotReload();
 #endif
         server.SetMetaTitle("Ivy Tendril");
+
+        // A review action turns into a WebViewer once the app it started prints its URL
+        // (Apps/ReviewAction), and that widget proxies the app through this origin. Its
+        // endpoints have to be served here and kept out of the app router.
+        server.ReservePaths(WebViewerProxy.ReservedPaths);
 
         var configService = new ConfigService(Microsoft.Extensions.Logging.Abstractions.NullLogger<ConfigService>.Instance);
         server.Services.AddSingleton(tendrilArgs);
@@ -117,6 +123,11 @@ public static class TendrilServer
                 }
             });
             app.UseAssets(server.Args, app.Services.GetRequiredService<ILogger<Server>>(), "Assets", "tendril/assets");
+
+            // Fetches whatever URL its caller names, so it is held to the app being reviewed:
+            // this machine, or the network it is on. Without a predicate it is an open relay,
+            // and Tendril's origin is reachable by anyone the user shares a tunnel with.
+            app.MapWebViewerProxy(new WebViewerProxyOptions { IsUrlAllowed = AppPreview.IsLocalTarget });
         });
 
         var assembly = typeof(TendrilServer).Assembly;

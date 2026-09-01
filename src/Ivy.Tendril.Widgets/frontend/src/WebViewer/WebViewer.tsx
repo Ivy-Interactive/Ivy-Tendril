@@ -381,10 +381,16 @@ export const WebViewer: React.FC<WebViewerProps> = ({
   // back. Costs one extra load on the rare escape, and self-heals whatever caused it.
   const healEscapedFrame = useCallback(() => {
     try {
-      const location = frameRef.current?.contentWindow?.location;
+      const frameWindow = frameRef.current?.contentWindow;
+      const location = frameWindow?.location;
       if (!location) return;
       if (location.protocol === "about:") return; // the blank frame before the first load
       if (location.pathname.startsWith(VIEW_PREFIX)) return;
+      // Out of view-space, but ours: the agent rewrites the address to the path the app
+      // thinks it is serving, so a client-side router can match its own routes. Its presence
+      // is what separates that from a page that really did navigate away — the path alone no
+      // longer can, and healing this one would bounce the app back and forth forever.
+      if ((frameWindow as unknown as { __PROXY_TARGET__?: string }).__PROXY_TARGET__) return;
 
       const { history: h, index: i } = navRef.current;
       const current = i >= 0 ? h[i] : null;
@@ -628,8 +634,13 @@ export const WebViewer: React.FC<WebViewerProps> = ({
   }, [emit, viewerId]);
 
   // ---- imperative command stream (Ivy -> widget) --------------------------
-  const actionsRef = useRef({ reload, goBack, goForward, postToFrame });
-  actionsRef.current = { reload, goBack, goForward, postToFrame };
+  const clearComments = useCallback(() => {
+    setPending((prev) => (prev?.mode === "edit" ? null : prev));
+    setComments([]);
+  }, []);
+
+  const actionsRef = useRef({ reload, goBack, goForward, postToFrame, clearComments });
+  actionsRef.current = { reload, goBack, goForward, postToFrame, clearComments };
 
   useEffect(() => {
     if (!commands?.id || !subscribeToStream) return;
@@ -654,6 +665,10 @@ export const WebViewer: React.FC<WebViewerProps> = ({
           break;
         case "draw":
           a.postToFrame({ __proxyCmd: cmd.enabled ? "draw-start" : "draw-stop" });
+          break;
+        case "clear-comments":
+          // Host-initiated, so no delete events go back out: it already knows.
+          a.clearComments();
           break;
       }
     });

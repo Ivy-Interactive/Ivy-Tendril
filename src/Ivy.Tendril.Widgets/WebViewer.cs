@@ -65,6 +65,7 @@ public record WebViewer : WidgetBase<WebViewer>
 [JsonDerivedType(typeof(CaptureCommand), "capture")]
 [JsonDerivedType(typeof(SelectModeCommand), "select")]
 [JsonDerivedType(typeof(DrawModeCommand), "draw")]
+[JsonDerivedType(typeof(ClearCommentsCommand), "clear-comments")]
 public abstract record WebViewerCommand;
 
 public record ReloadCommand : WebViewerCommand;
@@ -81,6 +82,13 @@ public record SelectModeCommand(bool Enabled) : WebViewerCommand;
 
 /// <summary>Start/stop red-pen drawing mode.</summary>
 public record DrawModeCommand(bool Enabled) : WebViewerCommand;
+
+/// <summary>
+/// Drop every comment and its pin. For the host that has just acted on them — sent them to an
+/// agent, say — and would otherwise leave the page marked up with feedback already delivered.
+/// Silent by design: no <see cref="CommentDeletedEvent"/> follows, since the host asked.
+/// </summary>
+public record ClearCommentsCommand : WebViewerCommand;
 
 // ===========================================================================
 // Events (widget -> Ivy).
