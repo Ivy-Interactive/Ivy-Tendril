@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import "@testing-library/jest-dom";
 
@@ -130,7 +130,7 @@ describe("ChatWidget Queued Messages UI", () => {
     expect(screen.queryByText("Queued Messages")).not.toBeInTheDocument();
   });
 
-  it("renders delete button next to chat title, opens confirmation dialog, and emits OnDeleteSession upon confirmation", () => {
+  it("renders delete button next to chat title and directly emits OnDeleteSession upon click", () => {
     const handleEvent = vi.fn();
     const session = {
       id: "sess-123",
@@ -157,115 +157,12 @@ describe("ChatWidget Queued Messages UI", () => {
 
     fireEvent.click(deleteBtn);
 
-    // Dialog is open
-    const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByText("Delete Chat")).toBeInTheDocument();
-    expect(within(dialog).getByText(/Are you sure you want to delete/i)).toBeInTheDocument();
-    expect(within(dialog).getByText(/My Great Chat/i)).toBeInTheDocument();
-    expect(handleEvent).not.toHaveBeenCalled();
-
-    // Confirm deletion
-    const confirmDeleteBtn = within(dialog).getByRole("button", { name: /Delete/i });
-    fireEvent.click(confirmDeleteBtn);
-
+    expect(handleEvent).toHaveBeenCalledTimes(1);
     expect(handleEvent).toHaveBeenCalledWith(
       "OnDeleteSession",
       "test-chat",
       ["sess-123"]
     );
-    expect(screen.queryByText("Delete Chat")).not.toBeInTheDocument();
-  });
-
-  it("dismisses delete confirmation dialog when Cancel is clicked, Escape is pressed, or backdrop is clicked without emitting OnDeleteSession", () => {
-    const handleEvent = vi.fn();
-    const session = {
-      id: "sess-123",
-      title: "My Great Chat",
-      agentId: "antigravity",
-      modelId: "gemini-3.7-flash",
-      createdAt: "2026-08-15T12:00:00Z",
-      updatedAt: "2026-08-15T12:30:00Z",
-      messages: [],
-    };
-
-    render(
-      <ChatWidget
-        id="test-chat"
-        activeSessionId="sess-123"
-        sessions={[session]}
-        events={["OnDeleteSession"]}
-        eventHandler={handleEvent}
-      />
-    );
-
-    const deleteBtn = screen.getByRole("button", { name: /Delete chat session/i });
-
-    // 1. Cancel button
-    fireEvent.click(deleteBtn);
-    expect(screen.getByText("Delete Chat")).toBeInTheDocument();
-
-    const cancelBtn = screen.getByRole("button", { name: /Cancel/i });
-    fireEvent.click(cancelBtn);
-    expect(screen.queryByText("Delete Chat")).not.toBeInTheDocument();
-    expect(handleEvent).not.toHaveBeenCalled();
-
-    // 2. Escape key
-    fireEvent.click(deleteBtn);
-    expect(screen.getByText("Delete Chat")).toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.queryByText("Delete Chat")).not.toBeInTheDocument();
-    expect(handleEvent).not.toHaveBeenCalled();
-
-    // 3. Backdrop click
-    fireEvent.click(deleteBtn);
-    const dialogOverlay = screen.getByRole("dialog");
-    fireEvent.click(dialogOverlay);
-    expect(screen.queryByText("Delete Chat")).not.toBeInTheDocument();
-    expect(handleEvent).not.toHaveBeenCalled();
-  });
-
-  it("confirms deletion via Ctrl+Enter and Cmd+Enter keyboard shortcuts", () => {
-    const handleEvent = vi.fn();
-    const session = {
-      id: "sess-123",
-      title: "My Great Chat",
-      agentId: "antigravity",
-      modelId: "gemini-3.7-flash",
-      createdAt: "2026-08-15T12:00:00Z",
-      updatedAt: "2026-08-15T12:30:00Z",
-      messages: [],
-    };
-
-    render(
-      <ChatWidget
-        id="test-chat"
-        activeSessionId="sess-123"
-        sessions={[session]}
-        events={["OnDeleteSession"]}
-        eventHandler={handleEvent}
-      />
-    );
-
-    const deleteBtn = screen.getByRole("button", { name: /Delete chat session/i });
-
-    // Ctrl+Enter
-    fireEvent.click(deleteBtn);
-    expect(screen.getByText("Delete Chat")).toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: "Enter", ctrlKey: true });
-    expect(handleEvent).toHaveBeenCalledTimes(1);
-    expect(handleEvent).toHaveBeenCalledWith("OnDeleteSession", "test-chat", ["sess-123"]);
-    expect(screen.queryByText("Delete Chat")).not.toBeInTheDocument();
-
-    // Cmd+Enter
-    fireEvent.click(deleteBtn);
-    expect(screen.getByText("Delete Chat")).toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: "Enter", metaKey: true });
-    expect(handleEvent).toHaveBeenCalledTimes(2);
-    expect(handleEvent).toHaveBeenLastCalledWith("OnDeleteSession", "test-chat", ["sess-123"]);
-    expect(screen.queryByText("Delete Chat")).not.toBeInTheDocument();
   });
 
   it("renders effort picker and emits OnEffortChanged when changed", () => {
