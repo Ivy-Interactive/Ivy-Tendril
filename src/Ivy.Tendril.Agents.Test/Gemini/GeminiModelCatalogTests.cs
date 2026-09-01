@@ -40,15 +40,6 @@ public class GeminiModelCatalogTests
     }
 
     [Fact]
-    public void GetStaticModels_ContainsGemini35Flash()
-    {
-        var models = _catalog.GetStaticModels();
-        var flash = models.FirstOrDefault(m => m.Id == "gemini-3.5-flash");
-        Assert.NotNull(flash);
-        Assert.Equal("Gemini 3.5 Flash", flash!.DisplayName);
-    }
-
-    [Fact]
     public void GetStaticModels_ContainsGemini31Pro()
     {
         var models = _catalog.GetStaticModels();

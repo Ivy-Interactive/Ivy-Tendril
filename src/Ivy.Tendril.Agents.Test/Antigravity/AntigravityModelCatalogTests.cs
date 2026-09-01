@@ -44,7 +44,6 @@ public class AntigravityModelCatalogTests
     [Theory]
     [InlineData("gemini-3.7-flash")]
     [InlineData("gemini-3.6-flash")]
-    [InlineData("gemini-3.5-flash")]
     [InlineData("gemini-3.1-pro")]
     [InlineData("claude-opus-5")]
     [InlineData("claude-sonnet-5")]
@@ -56,10 +55,10 @@ public class AntigravityModelCatalogTests
     }
 
     [Fact]
-    public void GetStaticModels_DefaultIsGemini36Flash()
+    public void GetStaticModels_DefaultIsGemini37Flash()
     {
         var defaultModel = _catalog.GetStaticModels().Single(m => m.IsDefault);
-        Assert.Equal("gemini-3.6-flash", defaultModel.Id);
+        Assert.Equal("gemini-3.7-flash", defaultModel.Id);
     }
 
     [Fact]
