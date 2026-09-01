@@ -138,7 +138,7 @@ public class JobService : IJobService
         // so its appender stays open until DisposeResources below.
         job.CloseRawLog();
         _completionHandler.HandleCompletion(
-            job, _jobs, PersistJob, RaiseNotification, RaiseJobsPropertyChanged, StartJobSkipDepCheck);
+            job, _jobs, PersistJob, RaiseNotification, RaiseJobsPropertyChanged, StartJobSkipDepCheck, DeleteJobFromDatabase);
 
         if (job.Status == JobStatus.Completed)
             job.StatusMessage = null;
@@ -290,9 +290,9 @@ public class JobService : IJobService
         PersistJob(job);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
-            _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
+            _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase);
 
-        _completionHandler.HandleWaitForJobsDependents(job, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob);
+        _completionHandler.HandleWaitForJobsDependents(job, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob, DeleteJobFromDatabase);
 
         RaiseJobsStructureChanged();
 
@@ -336,16 +336,16 @@ public class JobService : IJobService
         if (_jobs.TryRemove(id, out var removed))
         {
             removed.DisposeResources(_logger);
-            try { _database?.DeleteJob(id); } catch { /* Best-effort */ }
+            DeleteJobFromDatabase(id);
             // The job's four artifacts in <TendrilHome>/Jobs/ are deliberately kept: deleting a job removes
             // it from the UI and the database, not the forensic record of what it did.
 
             ApplyDeletePlanState(removed);
 
             if (removed.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
-                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
+                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase);
 
-            _completionHandler.HandleWaitForJobsDependents(removed, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob);
+            _completionHandler.HandleWaitForJobsDependents(removed, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob, DeleteJobFromDatabase);
         }
         RaiseJobsStructureChanged();
     }
@@ -421,7 +421,7 @@ public class JobService : IJobService
         {
             var hasBlocked = _jobs.Values.Any(j => j.Status == JobStatus.Blocked);
             if (hasBlocked)
-                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
+                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase);
         }
         catch
         {
@@ -683,7 +683,7 @@ public class JobService : IJobService
     ///     Decides what to do with a non-terminal job restored from the database after a master
     ///     restart. If its agent process is still alive the job keeps running detached (this process
     ///     holds no Process handle for it); otherwise it is marked Failed so it doesn't linger as a
-    ///     ghost. Blocked jobs are left alone — the 60s blocked-job timer and ForceStartJob own them.
+    ///     ghost.
     /// </summary>
     private void ReconcileRestoredJob(JobItem job)
     {
@@ -713,6 +713,76 @@ public class JobService : IJobService
                     }
                 }
             }
+        }
+
+        if (job.Status == JobStatus.Blocked)
+        {
+            var plansDir = _planReaderService?.PlansDirectory
+                ?? (_configService != null ? Path.Combine(_configService.TendrilHome, "Plans") : null);
+
+            var planFolder = job.TypedArgs?.PlanFolder ?? job.PlanFile;
+            string? resolvedFolder = null;
+            if (!string.IsNullOrEmpty(planFolder))
+            {
+                if (Directory.Exists(planFolder))
+                {
+                    resolvedFolder = planFolder;
+                }
+                else if (!string.IsNullOrEmpty(plansDir) && Directory.Exists(plansDir))
+                {
+                    var combined = Path.Combine(plansDir, planFolder);
+                    if (Directory.Exists(combined))
+                    {
+                        resolvedFolder = combined;
+                    }
+                    else
+                    {
+                        var planId = PlanYamlHelper.ExtractPlanIdFromFolder(planFolder);
+                        if (!string.IsNullOrEmpty(planId))
+                            resolvedFolder = PlanYamlHelper.FindPlanFolderById(plansDir, planId);
+                    }
+                }
+            }
+
+            var hasOtherActiveJob = !string.IsNullOrEmpty(resolvedFolder) && _jobs.Values.Any(j =>
+                j.Id != job.Id &&
+                j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
+                (string.Equals(j.PlanFile, resolvedFolder, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(j.TypedArgs?.PlanFolder, resolvedFolder, StringComparison.OrdinalIgnoreCase)));
+
+            var isPlanCompletedOrExecuting = false;
+            if (resolvedFolder != null && File.Exists(Path.Combine(resolvedFolder, "plan.yaml")))
+            {
+                var planYaml = PlanYamlHelper.ReadPlanYaml(resolvedFolder);
+                if (planYaml != null)
+                {
+                    var state = planYaml.State;
+                    if (state.Equals(nameof(PlanStatus.Completed), StringComparison.OrdinalIgnoreCase) ||
+                        state.Equals(nameof(PlanStatus.Review), StringComparison.OrdinalIgnoreCase) ||
+                        state.Equals(nameof(PlanStatus.Executing), StringComparison.OrdinalIgnoreCase) ||
+                        state.Equals(nameof(PlanStatus.Skipped), StringComparison.OrdinalIgnoreCase))
+                    {
+                        isPlanCompletedOrExecuting = true;
+                    }
+                }
+            }
+            else if (resolvedFolder == null && !string.IsNullOrEmpty(planFolder))
+            {
+                isPlanCompletedOrExecuting = true;
+            }
+
+            if (hasOtherActiveJob || isPlanCompletedOrExecuting)
+            {
+                job.Status = JobStatus.Failed;
+                job.StatusMessage = "Superseded by subsequent execution or plan completed";
+                job.CompletedAt = DateTime.UtcNow;
+                PersistJob(job);
+                _logger.LogInformation(
+                    "Job {JobId}: Reconciled restored Blocked job to Failed (superseded or plan completed)", job.Id);
+                return;
+            }
+
+            return;
         }
 
         if (job.Status is not (JobStatus.Pending or JobStatus.Queued or JobStatus.Running))
@@ -745,7 +815,7 @@ public class JobService : IJobService
             job.StatusMessage = "Interrupted by Tendril master restart";
             job.CompletedAt = DateTime.UtcNow;
             PersistJob(job);
-            _logger.LogWarning("Job {JobId}: Marked Failed — interrupted by a Tendril master restart", job.Id);
+            _logger.LogWarning("Job {JobId}: Marked Failed (interrupted by a Tendril master restart)", job.Id);
         }
     }
 
@@ -855,6 +925,18 @@ public class JobService : IJobService
         }
     }
 
+    private void DeleteJobFromDatabase(string id)
+    {
+        try
+        {
+            _database?.DeleteJob(id);
+        }
+        catch
+        {
+            /* Best-effort */
+        }
+    }
+
     private void RaiseJobsChanged()
     {
         if (_syncContext != null)
@@ -924,6 +1006,8 @@ public class JobService : IJobService
         var typedArgs = job.TypedArgs;
 
         if (!_jobs.TryRemove(id, out _)) return;
+
+        DeleteJobFromDatabase(id);
 
         // Plan transition is handled centrally by StartJobInternal.
         StartJobInternal(typedArgs, inboxFilePath: null, skipDependencyCheck: true, skipWaitForCheck: true);
