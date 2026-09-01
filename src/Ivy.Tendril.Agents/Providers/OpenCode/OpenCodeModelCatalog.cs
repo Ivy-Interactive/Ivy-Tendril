@@ -185,7 +185,6 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
         // Google
         ("gemini-3.7-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576)),
         ("gemini-3.6-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576)),
-        ("gemini-3.5-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576)),
         ("gemini-3.1-pro",   new(1.25m, 10.00m, 0.3125m, 1.5625m, 1_048_576)),
         ("gemini-2.5-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576)),
         ("gemini-2.5",       new(1.25m, 10.00m, 0.3125m, 1.5625m, 1_048_576)),

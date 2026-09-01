@@ -90,7 +90,6 @@ public sealed class ModelProfileSelectorTests
         {
             new() { Id = "gemini-3.7-flash", DisplayName = "Gemini 3.7 Flash" },
             new() { Id = "gemini-3.6-flash", DisplayName = "Gemini 3.6 Flash" },
-            new() { Id = "gemini-3.5-flash", DisplayName = "Gemini 3.5 Flash" },
             new() { Id = "gemini-3.1-pro", DisplayName = "Gemini 3.1 Pro" },
             new() { Id = "gemini-3-pro-preview", DisplayName = "Gemini 3 Pro" },
             new() { Id = "gemini-3-flash-preview", DisplayName = "Gemini 3 Flash" },
@@ -110,7 +109,6 @@ public sealed class ModelProfileSelectorTests
         {
             new() { Id = "gemini-3.7-flash", DisplayName = "Gemini 3.7 Flash" },
             new() { Id = "gemini-3.6-flash", DisplayName = "Gemini 3.6 Flash" },
-            new() { Id = "gemini-3.5-flash", DisplayName = "Gemini 3.5 Flash" },
             new() { Id = "gemini-3.1-pro", DisplayName = "Gemini 3.1 Pro" },
             new() { Id = "claude-opus-5", DisplayName = "Claude Opus 5" },
             new() { Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5" },
