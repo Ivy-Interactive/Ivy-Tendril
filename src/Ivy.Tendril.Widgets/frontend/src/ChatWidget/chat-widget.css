@@ -805,8 +805,27 @@
   border-style: dashed;
 }
 
+.chat-input-box.oversized {
+  border-color: var(--destructive);
+}
+
 .chat-input-box:focus-within {
   border-color: var(--ring);
+}
+
+.chat-payload-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.625rem;
+  background-color: color-mix(in srgb, var(--destructive) 15%, transparent);
+  border: 1px solid var(--destructive);
+  border-radius: var(--radius, 6px);
+  color: var(--destructive);
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+  line-height: 1.4;
 }
 
 .chat-textarea {

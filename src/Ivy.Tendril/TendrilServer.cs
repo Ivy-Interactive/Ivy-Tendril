@@ -51,6 +51,16 @@ public static class TendrilServer
                 ["Logging:LogLevel:Ivy"] = appLogLevel,
                 ["Logging:LogLevel:Ivy.Core"] = "Warning",
             });
+
+            builder.Services.Configure<Microsoft.AspNetCore.SignalR.HubOptions>(options =>
+            {
+                options.MaximumReceiveMessageSize = 100 * 1024 * 1024;
+            });
+
+            builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+            {
+                options.MultipartBodyLengthLimit = 100 * 1024 * 1024;
+            });
         });
 
         server.UseWebApplication(app =>

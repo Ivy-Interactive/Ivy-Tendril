@@ -149,4 +149,65 @@ public class ChatHistoryServiceTests
                 Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void AddMessage_WithAttachmentsAndEmptyPrompt_PersistsMessageCleanly()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus");
+
+            // Format message when prompt is empty but attachments exist
+            var attachedFiles = new[] { "/path/to/image1.png", "/path/to/doc.pdf" };
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("[Attached Files]:");
+            foreach (var file in attachedFiles)
+            {
+                sb.AppendLine($"- {file}");
+            }
+            var promptWithAttachments = sb.ToString().TrimEnd();
+
+            var userMsg = service.AddMessage(session.Id, "user", promptWithAttachments, "claude", "opus");
+            Assert.NotNull(userMsg);
+            Assert.StartsWith("[Attached Files]:", userMsg.Content);
+            Assert.Contains("image1.png", userMsg.Content);
+            Assert.Contains("doc.pdf", userMsg.Content);
+
+            var updatedSession = service.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            Assert.Single(updatedSession.Messages);
+            Assert.Equal(promptWithAttachments, updatedSession.Messages[0].Content);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void AddMessage_WithAttachmentErrors_RecordsAssistantWarningMessage()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus");
+            var warningMessage = "Warning: Some attachments could not be processed:\n- Failed to process attachment 'corrupt.bin': Invalid data";
+
+            var assistantMsg = service.AddMessage(session.Id, "assistant", warningMessage, "claude", "opus");
+            Assert.NotNull(assistantMsg);
+            Assert.Equal("assistant", assistantMsg.Role);
+            Assert.Contains("Warning: Some attachments could not be processed", assistantMsg.Content);
+
+            var updatedSession = service.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            Assert.Single(updatedSession.Messages);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
 }
