@@ -148,8 +148,8 @@ internal class OnboardingEditReviewActionDialog(
             new DialogBody(
                 Layout.Vertical()
                 | editName.ToTextInput("Action name...").WithField().Label("Name").Required()
-                | editCommand.ToTextareaInput("e.g. dotnet test").Rows(2).WithField().Label("Command").Required()
-                | editCondition.ToTextareaInput("e.g. ${hasChanges}").Rows(2).WithField().Label("Condition")
+                | editCommand.ToCodeInput("e.g. dotnet test").WithField().Label("Command").Required()
+                | editCondition.ToCodeInput("e.g. ${hasChanges}").WithField().Label("Condition")
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => isOpen.Set(false)),
