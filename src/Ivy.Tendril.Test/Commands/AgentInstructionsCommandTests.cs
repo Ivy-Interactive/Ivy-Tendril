@@ -82,4 +82,22 @@ public class AgentInstructionsCommandTests
 
         Assert.NotNull(prompt);
     }
+
+    [Fact]
+    public void AgentInstructions_ContainsDirectCodeEditProhibition_AndPlanEnforcement()
+    {
+        var (app, tendrilHome) = BuildApp();
+        var config = new TestPlanConfigService(
+            repoDir: Path.GetTempPath(),
+            tendrilHome: tendrilHome);
+
+        var compiled = AgentPromptCompiler.Compile(config);
+        Assert.NotNull(compiled);
+        Assert.Contains("Direct Code Modification Prohibited", compiled);
+        Assert.Contains("tendril job start CreatePlan", compiled);
+
+        var output = CaptureConsoleOut(() => app.Run(["agent-instructions"]));
+        Assert.Contains("Direct Code Modification Prohibited", output);
+        Assert.Contains("tendril job start CreatePlan", output);
+    }
 }
