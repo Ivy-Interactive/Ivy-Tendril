@@ -72,88 +72,14 @@ public class CreatePlanDialog(
 
     // Builds the seed prompt for the "Continue with <agent>" flow. The description is
     // trimmed; a blank or "Auto" project lets the agent pick the project itself.
-    internal static string BuildAgentPrompt(
-        string project,
-        string description,
-        ProjectConfig? projectConfig = null,
-        IReadOnlyList<string>? attachedFiles = null,
-        IReadOnlyList<ProjectConfig>? availableProjects = null)
+    internal static string BuildAgentPrompt(string project, string description)
     {
         var trimmed = description.Trim();
-        var isAuto = string.IsNullOrEmpty(project) || project == "Auto";
 
-        var sb = new System.Text.StringBuilder();
+        if (string.IsNullOrEmpty(project) || project == "Auto")
+            return $"I want to discuss creating a Tendril plan from this description: \"{trimmed}\". Determine the most appropriate project for it yourself.";
 
-        if (isAuto)
-            sb.AppendLine($"I want to discuss creating a Tendril plan from this description: \"{trimmed}\". Determine the most appropriate project for it yourself.");
-        else
-            sb.AppendLine($"I want to discuss creating a Tendril plan for the project {project} from this description: \"{trimmed}\"");
-
-        var hasProjectConfig = projectConfig != null;
-        var hasAttachedFiles = attachedFiles != null && attachedFiles.Count > 0;
-        var hasAvailableProjects = isAuto && availableProjects != null && availableProjects.Count > 0;
-
-        if (hasProjectConfig || hasAttachedFiles || hasAvailableProjects)
-        {
-            if (hasProjectConfig && projectConfig != null)
-            {
-                sb.AppendLine();
-                sb.AppendLine("### Project Context");
-                sb.AppendLine($"- **Project:** {projectConfig.Name}");
-                if (projectConfig.Repos.Count > 0)
-                {
-                    sb.AppendLine("- **Repositories:**");
-                    foreach (var repo in projectConfig.Repos)
-                    {
-                        var branchInfo = !string.IsNullOrEmpty(repo.BaseBranch) ? $" (branch: {repo.BaseBranch})" : "";
-                        sb.AppendLine($"  - {repo.Path}{branchInfo}");
-                    }
-                }
-                if (projectConfig.Verifications.Count > 0)
-                {
-                    var verifs = string.Join(", ", projectConfig.Verifications.Select(v => v.Name));
-                    sb.AppendLine($"- **Configured Verifications:** {verifs}");
-                }
-                if (!string.IsNullOrWhiteSpace(projectConfig.Context))
-                {
-                    sb.AppendLine($"- **Notes:** {projectConfig.Context.Trim()}");
-                }
-            }
-            else if (hasAvailableProjects && availableProjects != null)
-            {
-                sb.AppendLine();
-                sb.AppendLine("### Available Projects");
-                foreach (var p in availableProjects)
-                {
-                    if (p.Repos.Count > 0)
-                    {
-                        var repoList = string.Join(", ", p.Repos.Select(r => !string.IsNullOrEmpty(r.BaseBranch) ? $"{r.Path} (branch: {r.BaseBranch})" : r.Path));
-                        sb.AppendLine($"- **{p.Name}**: {repoList}");
-                    }
-                    else
-                    {
-                        sb.AppendLine($"- **{p.Name}**");
-                    }
-                }
-            }
-
-            if (hasAttachedFiles && attachedFiles != null)
-            {
-                sb.AppendLine();
-                sb.AppendLine("### Attached Files");
-                foreach (var file in attachedFiles)
-                {
-                    sb.AppendLine($"- {file}");
-                }
-            }
-
-            sb.AppendLine();
-            var targetProject = !isAuto ? project : "<project-name>";
-            sb.AppendLine("### Guidance");
-            sb.AppendLine($"Please research the repository paths and inspect any attached files. Discuss the implementation approach, and when ready, initiate plan creation using: `tendril job start CreatePlan --description=\"...\" --project=\"{targetProject}\"`.");
-        }
-
-        return sb.ToString().TrimEnd();
+        return $"I want to discuss creating a Tendril plan for the project {project} from this description: \"{trimmed}\"";
     }
 
     public override object Build()
@@ -269,15 +195,7 @@ public class CreatePlanDialog(
                 {
                     if (string.IsNullOrWhiteSpace(createPlanText.Value)) return ValueTask.CompletedTask;
                     planWasCreated = true;
-                    var proj = selectedProject.Value == "Auto" || string.IsNullOrEmpty(selectedProject.Value)
-                        ? null
-                        : configService.GetProject(selectedProject.Value);
-                    var prompt = BuildAgentPrompt(
-                        selectedProject.Value,
-                        createPlanText.Value,
-                        proj,
-                        uploadedFiles.Value,
-                        configService.Projects);
+                    var prompt = BuildAgentPrompt(selectedProject.Value, createPlanText.Value);
                     nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
                     onClose();
                 }
