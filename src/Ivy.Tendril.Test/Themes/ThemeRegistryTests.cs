@@ -84,5 +84,6 @@ public class ThemeRegistryTests
         Assert.Equal("#44475a", dark.Accent, ignoreCase: true);
         Assert.Equal("#f8f8f2", dark.AccentForeground, ignoreCase: true);
         Assert.NotEqual(dark.Background, dark.AccentForeground, StringComparer.OrdinalIgnoreCase);
+        Assert.NotEqual(dark.Accent, dark.AccentForeground, StringComparer.OrdinalIgnoreCase);
     }
 }

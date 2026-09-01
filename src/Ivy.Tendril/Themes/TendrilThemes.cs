@@ -396,7 +396,7 @@ public static class TendrilThemes
                     Border = "#44475a",
                     Input = "#383a59",
                     Ring = "#bd93f9",
-                    Muted = "#34374a",
+                    Muted = "#44475a",
                     MutedForeground = "#b0b7da",
                     Card = "#343746",
                     CardForeground = "#f8f8f2",
