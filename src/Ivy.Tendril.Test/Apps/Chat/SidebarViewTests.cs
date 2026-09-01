@@ -44,6 +44,12 @@ public class SidebarViewTests
         public IReadOnlySet<string> GetGeneratingSessionIds() => GeneratingSessions;
         public IReadOnlySet<string> GetCompletedSessionIds() => CompletedSessions;
         public void ClearSessionCompleted(string sessionId) => CompletedSessions.Remove(sessionId);
+        public IReadOnlyList<ChatQueuedItem> GetQueuedMessages(string sessionId) => [];
+        public ChatQueuedItem EnqueueMessage(string sessionId, Ivy.Tendril.Widgets.ChatSendMessageDto dto) => new(Guid.NewGuid().ToString(), dto.Prompt, dto.Attachments, DateTimeOffset.UtcNow);
+        public bool TryDequeueMessage(string sessionId, out ChatQueuedItem? item) { item = null; return false; }
+        public bool RemoveQueuedMessage(string sessionId, string queueId) => false;
+        public bool UpdateQueuedMessage(string sessionId, string queueId, string prompt) => false;
+        public void ClearQueuedMessages(string sessionId) { }
     }
 
     private class TestState<T> : IState<T>

@@ -1,7 +1,15 @@
 using System;
 using System.Collections.Generic;
+using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Services;
+
+public record ChatQueuedItem(
+    string Id,
+    string Prompt,
+    List<ChatAttachmentDto>? Attachments,
+    DateTimeOffset CreatedAt
+);
 
 public record ChatMessageModel(
     string Id,
@@ -40,4 +48,10 @@ public interface IChatHistoryService
     IReadOnlySet<string> GetGeneratingSessionIds();
     IReadOnlySet<string> GetCompletedSessionIds();
     void ClearSessionCompleted(string sessionId);
+    IReadOnlyList<ChatQueuedItem> GetQueuedMessages(string sessionId);
+    ChatQueuedItem EnqueueMessage(string sessionId, ChatSendMessageDto dto);
+    bool TryDequeueMessage(string sessionId, out ChatQueuedItem? item);
+    bool RemoveQueuedMessage(string sessionId, string queueId);
+    bool UpdateQueuedMessage(string sessionId, string queueId, string prompt);
+    void ClearQueuedMessages(string sessionId);
 }
