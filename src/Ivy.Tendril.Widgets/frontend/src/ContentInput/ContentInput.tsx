@@ -69,7 +69,8 @@ const PdfThumbnail: React.FC<{ url: string }> = ({ url }) => {
           alignItems: "center",
           justifyContent: "center",
           fontSize: "1.5rem",
-          background: "var(--civ-pill-bg)",
+          background: "var(--muted)",
+          color: "var(--muted-foreground)",
         }}
       >
         📄
