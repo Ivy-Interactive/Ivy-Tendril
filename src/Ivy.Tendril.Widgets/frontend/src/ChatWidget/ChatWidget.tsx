@@ -863,7 +863,7 @@ export function ChatWidget({
                       <div className="chat-markdown-body">
                         <ReactMarkdown
                           {...getMarkdownPlugins(msg.content)}
-                          components={{ code: BlockHandler, blockquote: AlertBlockquote }}
+                          components={{ code: BlockHandler, blockquote: AlertBlockquote, pre: ({ children }) => <>{children}</> }}
                         >
                           {msg.content}
                         </ReactMarkdown>

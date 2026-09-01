@@ -58,7 +58,7 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({ wire }) => {
           <Markdown
             remarkPlugins={plugins.remarkPlugins}
             rehypePlugins={plugins.rehypePlugins}
-            components={{ code: BlockHandler, blockquote: AlertBlockquote }}
+            components={{ code: BlockHandler, blockquote: AlertBlockquote, pre: ({ children }) => <>{children}</> }}
           >
             {wire.response}
           </Markdown>
