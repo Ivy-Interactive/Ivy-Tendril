@@ -490,7 +490,7 @@ public static class TendrilThemes
         Name = "Forest",
         Description = "Deep earthy woodland dark background with fresh emerald and forest green",
         IsDark = true,
-        PreviewColors = ["#1eb854", "#1fd65f", "#1db954", "#171212"],
+        PreviewColors = ["#1eb854", "#1fd65f", "#243328", "#171212"],
         IvyTheme = new Theme
         {
             Name = "Forest",
@@ -535,8 +535,8 @@ public static class TendrilThemes
                     PrimaryForeground = "#000000",
                     Secondary = "#1fd65f",
                     SecondaryForeground = "#000000",
-                    Accent = "#1db954",
-                    AccentForeground = "#000000",
+                    Accent = "#243328",
+                    AccentForeground = "#ebfaef",
                     Background = "#171212",
                     Foreground = "#ebfaef",
                     Destructive = "#e11d48",
