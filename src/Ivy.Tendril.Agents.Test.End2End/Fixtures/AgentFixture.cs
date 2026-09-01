@@ -54,10 +54,32 @@ public sealed class AgentFixture : IAsyncLifetime
     {
         if (Directory.Exists(WorkingDirectory))
         {
-            try { Directory.Delete(WorkingDirectory, recursive: true); }
+            try
+            {
+                ClearReadOnlyAttributes(WorkingDirectory);
+                Directory.Delete(WorkingDirectory, recursive: true);
+            }
             catch { /* best effort */ }
         }
         return Task.CompletedTask;
+    }
+
+    private static void ClearReadOnlyAttributes(string path)
+    {
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+            {
+                try
+                {
+                    var attrs = File.GetAttributes(file);
+                    if ((attrs & FileAttributes.ReadOnly) != 0)
+                        File.SetAttributes(file, attrs & ~FileAttributes.ReadOnly);
+                }
+                catch { }
+            }
+        }
+        catch { }
     }
 
     public bool IsAvailable(string agentId)

@@ -44,4 +44,25 @@ public class TempDirectoryFixtureTests
         Assert.True(Directory.Exists(fixture1.Path));
         Assert.True(Directory.Exists(fixture2.Path));
     }
+
+    [Fact]
+    public void Should_Delete_Directory_On_Dispose_Even_With_ReadOnly_Files()
+    {
+        string path;
+
+        using (var fixture = new TempDirectoryFixture())
+        {
+            path = fixture.Path;
+            var subDir = System.IO.Path.Combine(path, "sub");
+            Directory.CreateDirectory(subDir);
+            var filePath = System.IO.Path.Combine(subDir, "readonly.txt");
+            File.WriteAllText(filePath, "test content");
+            File.SetAttributes(filePath, FileAttributes.ReadOnly);
+
+            Assert.True(Directory.Exists(path));
+            Assert.True(File.Exists(filePath));
+        }
+
+        Assert.False(Directory.Exists(path));
+    }
 }
