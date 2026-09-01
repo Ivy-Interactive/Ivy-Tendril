@@ -11,6 +11,8 @@ class DemoApp : ViewBase
     public override object Build()
     {
         var client = UseService<IClientProvider>();
+        var showTunnel = UseState(true);
+        var showUpdate = UseState(true);
 
         var processView = new TendrilProcessViewerWidget()
             .DraftCount(13)
@@ -30,14 +32,16 @@ class DemoApp : ViewBase
             "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"
         };
 
+        // Mirrors UpdateNoticeView's compact layout: alert + actions, filling
+        // the dashboard's fixed 120px update slot.
         var updateNotice = new Card(
-                Layout.Vertical()
-                | Text.Block("v1.4.2 is available (you have v1.4.0)").Small()
+                Layout.Vertical().Gap(2)
+                | Text.Rich().Bold("Update Available").Run(" — v1.4.2").Small()
                 | (Layout.Horizontal().Gap(2)
-                   | new Button("Update Now", () => client.Toast("Update clicked", "OnUpdate").Info()).Small()
-                   | new Button("Dismiss", () => client.Toast("Dismiss clicked", "OnDismiss").Info())
+                   | new Button("Copy Command", () => client.Toast("Copy clicked", "OnCopy").Info()).Small()
+                   | new Button("Show Details", () => client.Toast("Details clicked", "OnDetails").Info())
                        .Variant(ButtonVariant.Secondary).Small()))
-            .Header("Update Available", null, Icons.CircleArrowUp);
+            .Height(Size.Full());
 
         var tunnelQr = new Box("QR").Width(Size.Units(40)).Height(Size.Units(40));
         var tunnelMenu = new Button().Icon(Icons.Ellipsis).Ghost().Small().WithDropDown(
@@ -58,7 +62,20 @@ class DemoApp : ViewBase
             activity.Add(new DashboardActivityMonthDto(label, weeks));
         }
 
-        return new TendrilDashboardWidget(processView, updateNotice, tunnelQr, tunnelMenu)
+        var jobs = new List<DashboardJobDto>
+        {
+            new("job-14", "00051", "Make content input widget responsive to theming color variables", "running"),
+            new("job-13", "00050", "Remove action column from review actions in project settings", "running"),
+            new("job-12", "00049", "Add retry backoff to the plan verification loop", "queued"),
+            new("job-11", "00048", "Fix flaky navigation test in the shell tab router", "queued"),
+            new("job-10", "", "Sync repository ivy-interactive/tendril", "blocked"),
+        };
+
+        var dashboard = new TendrilDashboardWidget(
+                processView,
+                showUpdate.Value ? updateNotice : null,
+                showTunnel.Value ? tunnelQr : null,
+                showTunnel.Value ? tunnelMenu : null)
             .DateText("Thursday, 20th August")
             .Greeting("Good Evening, Joel!")
             .Headline("What Are We Producing Today?")
@@ -83,6 +100,7 @@ class DemoApp : ViewBase
             .OnDrafts(() => client.Toast("Drafts clicked", "OnDrafts").Info())
             .OnReview(() => client.Toast("Review clicked", "OnReview").Info())
             .OnJobs(() => client.Toast("Jobs clicked", "OnJobs").Info())
+            .OnJob(jobId => client.Toast($"Job {jobId} clicked", "OnJob").Info())
             .PullRequests(
             [
                 new DashboardMonthValueDto("Jul", 24),
@@ -92,6 +110,18 @@ class DemoApp : ViewBase
                 new DashboardMonthValueDto("Nov", 28),
                 new DashboardMonthValueDto("Dec", 84)
             ])
-            .Activity(activity);
+            .Activity(activity)
+            .Jobs(jobs);
+
+        // Demo-only toggles for the two optional pieces that change the grid.
+        var toggles = new FloatingPanel(
+                Layout.Horizontal().Gap(2)
+                | new Button($"Tunnel: {(showTunnel.Value ? "on" : "off")}",
+                    () => showTunnel.Set(!showTunnel.Value)).Small().Variant(ButtonVariant.Secondary)
+                | new Button($"Update: {(showUpdate.Value ? "on" : "off")}",
+                    () => showUpdate.Set(!showUpdate.Value)).Small().Variant(ButtonVariant.Secondary))
+            .Offset(new Thickness(0, 0, 8, 8));
+
+        return new Fragment(dashboard, toggles);
     }
 }

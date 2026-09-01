@@ -137,6 +137,53 @@ public class DashboardAppViewModelTests
     }
 
     [Fact]
+    public void BuildActiveJobs_KeepsOnlyActiveStatuses()
+    {
+        var jobs = new List<JobItem>
+        {
+            new() { Id = "job-1", Status = JobStatus.Running, PlanFile = "00001-a" },
+            new() { Id = "job-2", Status = JobStatus.Completed, PlanFile = "00002-b" },
+            new() { Id = "job-3", Status = JobStatus.Queued, PlanFile = "00003-c" },
+            new() { Id = "job-4", Status = JobStatus.Failed, PlanFile = "00004-d" },
+            new() { Id = "job-5", Status = JobStatus.Blocked, PlanFile = "00005-e" },
+            new() { Id = "job-6", Status = JobStatus.Pending, PlanFile = "00006-f" },
+            new() { Id = "job-7", Status = JobStatus.Stopped, PlanFile = "00007-g" }
+        };
+
+        var result = DashboardApp.BuildActiveJobs(jobs, new FakePlanReaderService());
+
+        Assert.Equal(["job-1", "job-3", "job-5", "job-6"], result.Select(j => j.Id));
+        Assert.Equal(["running", "queued", "blocked", "pending"], result.Select(j => j.Status));
+    }
+
+    [Fact]
+    public void BuildActiveJobs_MapsPlanIdWithReportedFallback()
+    {
+        var jobs = new List<JobItem>
+        {
+            new() { Id = "job-1", Status = JobStatus.Running, PlanFile = "00042-fix-tests" },
+            new() { Id = "job-2", Status = JobStatus.Running, PlanFile = "", ReportedPlanId = "00043" },
+            new() { Id = "job-3", Status = JobStatus.Running, PlanFile = "" }
+        };
+
+        var result = DashboardApp.BuildActiveJobs(jobs, new FakePlanReaderService());
+
+        Assert.Equal(["00042", "00043", ""], result.Select(j => j.PlanId));
+    }
+
+    [Fact]
+    public void BuildActiveJobs_CapsListLength()
+    {
+        var jobs = Enumerable.Range(1, 12)
+            .Select(i => new JobItem { Id = $"job-{i}", Status = JobStatus.Queued, PlanFile = "" })
+            .ToList();
+
+        var result = DashboardApp.BuildActiveJobs(jobs, new FakePlanReaderService());
+
+        Assert.Equal(8, result.Count);
+    }
+
+    [Fact]
     public void BuildKpis_UsesThirtyDayPrWindows()
     {
         var today = new DateTime(2026, 8, 31);

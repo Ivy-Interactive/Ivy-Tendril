@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Reactive.Disposables;
 using Ivy.Tendril.Apps.Drafts;
+using Ivy.Tendril.Apps.Jobs.Sheets;
 using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
@@ -20,10 +21,12 @@ public class DashboardApp : ViewBase
     private const int ActivityMonths = 16;
     private const int TrendMonthsBack = 24;
     private const int TrendMonthsShown = 12;
+    private const int ActiveJobsShown = 8;
 
     public override object Build()
     {
         var planService = UseService<IPlanReaderService>();
+        var jobService = UseService<IJobService>();
         var client = UseService<IClientProvider>();
         var tunnelService = UseService<ICloudflaredService>();
         var copyToClipboard = UseClipboard();
@@ -32,6 +35,21 @@ public class DashboardApp : ViewBase
         var processView = Context.UseTendrilProcess();
         var tunnelStatus = UseState(tunnelService.Status);
         var tunnelUrl = UseState<string?>(tunnelService.TunnelUrl);
+
+        // Same agent-output sheet as the Jobs app, opened from the Active Jobs card.
+        var (outputSheet, showOutput) = UseTrigger<string>((isOpen, jobId) =>
+        {
+            if (!isOpen.Value) return null;
+            var job = jobService.GetJob(jobId);
+            var title = job is not null ? $"{job.Type} {JobsApp.ExtractPlanId(job.PlanFile)}" : "Job Output";
+            return new Sheet(
+                () => isOpen.Set(false),
+                new OutputSheet(jobId, jobService),
+                title
+            ).Width(UxHelper.SheetWidth).Resizable();
+        });
+
+        UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken));
         UseInterval(() => { refreshToken.Refresh(); },
             planService.IsDatabaseReady ? TimeSpan.FromSeconds(60) : TimeSpan.FromSeconds(2));
         UseEffect(() =>
@@ -83,7 +101,7 @@ public class DashboardApp : ViewBase
             });
         }
 
-        return new TendrilDashboard(processView, new UpdateNoticeView(), tunnelQr, tunnelMenu)
+        var dashboard = new TendrilDashboard(processView, new UpdateNoticeView(compact: true), tunnelQr, tunnelMenu)
             .DateText($"{now.ToString("dddd", CultureInfo.InvariantCulture)}, {Ordinal(now.Day)} {now.ToString("MMMM", CultureInfo.InvariantCulture)}")
             .Greeting(BuildGreeting(now))
             .Headline("What Are We Producing Today?")
@@ -99,9 +117,32 @@ public class DashboardApp : ViewBase
                 .Select(m => new DashboardMonthValueDto(MonthLabel(m.Month), m.PrsMerged))
                 .ToList())
             .Activity(BuildActivityMonths(prDays, firstActivityMonth))
+            .Jobs(BuildActiveJobs(jobService.GetJobs(), planService))
             .OnDrafts(() => navigator.Navigate<DraftsApp>())
             .OnReview(() => navigator.Navigate<ReviewApp>())
-            .OnJobs(() => navigator.Navigate<JobsApp>());
+            .OnJobs(() => navigator.Navigate<JobsApp>())
+            .OnJob(showOutput);
+
+        return new Fragment(dashboard, outputSheet);
+    }
+
+    internal static List<DashboardJobDto> BuildActiveJobs(List<JobItem> jobs, IPlanReaderService planService)
+    {
+        return jobs
+            .Where(j => j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
+            .Take(ActiveJobsShown)
+            .Select(j =>
+            {
+                var planId = JobsApp.ExtractPlanId(j.PlanFile);
+                if (string.IsNullOrEmpty(planId) && !string.IsNullOrEmpty(j.ReportedPlanId))
+                    planId = j.ReportedPlanId;
+                return new DashboardJobDto(
+                    j.Id,
+                    planId,
+                    JobsApp.GetPromptDisplay(j, planService),
+                    j.Status.ToString().ToLowerInvariant());
+            })
+            .ToList();
     }
 
     private static string BuildGreeting(DateTime now)

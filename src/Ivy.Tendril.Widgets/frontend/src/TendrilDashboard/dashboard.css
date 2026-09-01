@@ -88,11 +88,13 @@
 
 /* ---------- Layout ---------- */
 
+/* Two columns x two rows: row 1 holds the two stacks (header/status/KPIs/trend
+   and the side cards), row 2 holds Software Factory and Active Jobs. Sharing
+   row 2 keeps those two cards top- and bottom-aligned at all times. */
 .tdb-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
   gap: 24px;
-  align-items: start;
   padding: 0 8px;
 }
 
@@ -103,10 +105,24 @@
   min-width: 0;
 }
 
+/* Both row-1 stacks stretch to the same height; the last card in the shorter
+   stack grows to absorb the difference, keeping the grid seams parallel. */
+.tdb-col > :last-child {
+  flex: 1 0 auto;
+}
+
 /* Reserved spot for the update notice so the side cards line up with the
-   status strip; roughly the header's height, growing when a card shows. */
+   status strip; exactly the header's height, so the update card can appear
+   and disappear without shifting the cards below it. */
 .tdb-update-slot {
-  min-height: 120px;
+  height: 120px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tdb-update-slot > * {
+  flex: 1;
+  min-height: 0;
 }
 
 /* The status strip is the only bordered card on the dashboard. */
@@ -533,6 +549,82 @@
   color: var(--tdb-muted);
 }
 
+/* ---------- Active jobs ---------- */
+
+.tdb-jobs {
+  min-height: 276px;
+}
+
+.tdb-jobs-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tdb-job-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: var(--tdb-fg);
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tdb-job-row:hover {
+  background: var(--tdb-pill-bg);
+}
+
+.tdb-job-row:focus-visible {
+  outline: 2px solid var(--tdb-muted);
+  outline-offset: 2px;
+}
+
+.tdb-job-spinner {
+  color: var(--tdb-faint);
+  flex-shrink: 0;
+}
+
+.tdb-job-spinner[data-spinning="true"] {
+  color: var(--tdb-fg);
+  animation: tdb-spin 1s linear infinite;
+}
+
+@keyframes tdb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tdb-job-tag {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tdb-muted);
+  background: var(--tdb-pill-bg);
+  border-radius: 6px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.tdb-job-title {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 /* ---------- Software factory ---------- */
 
 .tdb-factory {
@@ -563,7 +655,6 @@
    single-column and the full-width layouts fit again. */
 @container tdb (min-width: 1080px) and (max-width: 1200px) {
   .tdb-status {
-    justify-content: flex-start;
     gap: 8px 4px;
   }
 
@@ -585,6 +676,20 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* Single column: keep the factory right after the main stack, then the
+     side cards, then Active Jobs last. */
+  .tdb-factory {
+    order: 2;
+  }
+
+  .tdb-col-side {
+    order: 3;
+  }
+
+  .tdb-jobs {
+    order: 4;
+  }
+
   .tdb-update-slot:empty {
     display: none;
   }
@@ -593,10 +698,6 @@
 @container tdb (max-width: 860px) {
   .tdb-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .tdb-status {
-    justify-content: flex-start;
   }
 
   .tdb-status-sep {

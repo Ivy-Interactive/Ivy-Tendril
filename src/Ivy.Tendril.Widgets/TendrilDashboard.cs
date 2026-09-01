@@ -6,6 +6,9 @@ public record DashboardMonthValueDto(string Label, double Value);
 
 public record DashboardActivityMonthDto(string Label, List<int> Weeks);
 
+/// <summary>Row in the Active Jobs card. Status is lowercased; "running" spins the row's loader.</summary>
+public record DashboardJobDto(string Id, string PlanId, string Title, string Status);
+
 public record DashboardTrendDto(
     List<string> Months,
     List<double> Cost,
@@ -65,10 +68,12 @@ public record TendrilDashboard : WidgetBase<TendrilDashboard>
     [Prop] public DashboardTrendDto? Trend { get; init; }
     [Prop] public List<DashboardMonthValueDto> PullRequests { get; init; } = new();
     [Prop] public List<DashboardActivityMonthDto> Activity { get; init; } = new();
+    [Prop] public List<DashboardJobDto> Jobs { get; init; } = new();
 
     [Event] public EventHandler<Event<TendrilDashboard>>? OnDrafts { get; init; }
     [Event] public EventHandler<Event<TendrilDashboard>>? OnReview { get; init; }
     [Event] public EventHandler<Event<TendrilDashboard>>? OnJobs { get; init; }
+    [Event] public EventHandler<Event<TendrilDashboard, string>>? OnJob { get; init; }
 }
 
 public static class TendrilDashboardExtensions
@@ -109,6 +114,9 @@ public static class TendrilDashboardExtensions
     public static TendrilDashboard Activity(this TendrilDashboard w, List<DashboardActivityMonthDto> value) =>
         w with { Activity = value };
 
+    public static TendrilDashboard Jobs(this TendrilDashboard w, List<DashboardJobDto> value) =>
+        w with { Jobs = value };
+
     public static TendrilDashboard OnDrafts(this TendrilDashboard w, Action handler) =>
         w with { OnDrafts = new(_ => { handler(); return ValueTask.CompletedTask; }) };
 
@@ -117,4 +125,7 @@ public static class TendrilDashboardExtensions
 
     public static TendrilDashboard OnJobs(this TendrilDashboard w, Action handler) =>
         w with { OnJobs = new(_ => { handler(); return ValueTask.CompletedTask; }) };
+
+    public static TendrilDashboard OnJob(this TendrilDashboard w, Action<string> handler) =>
+        w with { OnJob = new(e => { handler(e.Value); return ValueTask.CompletedTask; }) };
 }

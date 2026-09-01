@@ -1,10 +1,17 @@
 using System;
 using System.Threading.Tasks;
+using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Views;
 
-public class UpdateNoticeView(bool floating = false) : ViewBase
+/// <summary>
+/// The "new version available" card. The default layout spells everything out;
+/// <paramref name="compact"/> (used by the dashboard's fixed-height update slot)
+/// shows only the alert with a primary action and a "Show Details" button that
+/// opens <see cref="UpdateTendrilDialog"/> with the full description and command.
+/// </summary>
+public class UpdateNoticeView(bool floating = false, bool compact = false) : ViewBase
 {
     public override object? Build()
     {
@@ -17,6 +24,7 @@ public class UpdateNoticeView(bool floating = false) : ViewBase
         var updateProgress = UseState<int?>(null);
         var updateStatus = UseState<string?>(null);
         var updateError = UseState<string?>(null);
+        var detailsOpen = UseState(false);
 
         UseEffect(() =>
         {
@@ -67,6 +75,36 @@ public class UpdateNoticeView(bool floating = false) : ViewBase
                 | Text.Block(updateStatus.Value ?? "Updating...").Small()
                 | new Progress(progressVal)
                 | Text.Muted($"{progressVal}%").Small();
+        }
+        else if (compact)
+        {
+            var updateCommand = OperatingSystem.IsWindows()
+                ? Constants.WindowsInstallCommand
+                : Constants.UnixInstallCommand;
+
+            var primaryAction = versionService.CanSelfUpdate
+                ? new Button("Update Now", () =>
+                    {
+                        TriggerUpdate(versionService, updateProgress, updateStatus, updateError);
+                    })
+                    .Small()
+                : new Button("Copy Command", () =>
+                    {
+                        copyToClipboard(updateCommand);
+                        client.Toast("Update command copied to clipboard", "Copied");
+                    })
+                    .Small();
+
+            content = Layout.Vertical().Gap(2)
+                | Text.Rich()
+                    .Bold("Update Available")
+                    .Run($" — v{versionInfo.Value!.LatestVersion}")
+                    .Small()
+                | (Layout.Horizontal().Gap(2)
+                   | primaryAction
+                   | new Button("Show Details", () => detailsOpen.Set(true))
+                       .Variant(ButtonVariant.Secondary)
+                       .Small());
         }
         else
         {
@@ -122,6 +160,16 @@ public class UpdateNoticeView(bool floating = false) : ViewBase
 
             verticalContent |= actions;
             content = verticalContent;
+        }
+
+        if (compact)
+        {
+            // The dashboard's update slot is a fixed 120px (header height); the
+            // headerless card fills it exactly so appearing never shifts layout.
+            var compactCard = new Card(content).Height(Size.Full());
+            return versionInfo.Value is { } info
+                ? new Fragment(compactCard, new UpdateTendrilDialog(detailsOpen, info))
+                : compactCard;
         }
 
         var card = new Card(content).Header("Update Available", null, Icons.CircleArrowUp);

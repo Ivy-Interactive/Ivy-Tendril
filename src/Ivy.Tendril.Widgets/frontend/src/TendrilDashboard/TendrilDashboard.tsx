@@ -3,6 +3,7 @@ import {
   Check,
   Eye,
   Feather,
+  LoaderCircle,
   MessageSquareWarning,
   Sprout,
   TrendingDown,
@@ -58,13 +59,21 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
   trend = null,
   pullRequests = [],
   activity = [],
+  jobs = [],
   slots,
 }) => {
   const [tab, setTab] = useState<"cost" | "plans">("cost");
+  const [sideTab, setSideTab] = useState<"git" | "prs">("git");
 
   const fireEvent = (eventName: string) => {
     if (events.includes(eventName)) {
       eventHandler(eventName, id, []);
+    }
+  };
+
+  const fireJobEvent = (jobId: string) => {
+    if (events.includes("OnJob")) {
+      eventHandler("OnJob", id, [jobId]);
     }
   };
 
@@ -186,34 +195,97 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
               </div>
             )}
 
-            <div className="tdb-block tdb-factory">
-              <div className="tdb-block-title">Software Factory</div>
-              <div className="tdb-factory-body">{slots?.ProcessViewer}</div>
-            </div>
           </div>
 
           <div className="tdb-col tdb-col-side">
             <div className="tdb-update-slot">{slots?.UpdateNotice}</div>
-            {hasSlotContent(slots?.TunnelQr) && (
-              <div className="tdb-block tdb-side-block tdb-tunnel">
-                <div className="tdb-side-head">
-                  <div className="tdb-block-title">Tunnel</div>
-                  {slots?.TunnelMenu}
+            {hasSlotContent(slots?.TunnelQr) ? (
+              <>
+                {/* With the tunnel card present, Git Activity and Pull Requests
+                    merge into one tabbed card so the column keeps the same
+                    number of rows as without a tunnel. */}
+                <div className="tdb-block tdb-side-block">
+                  <div className="tdb-side-head">
+                    <div className="tdb-tabs">
+                      <button
+                        className="tdb-tab"
+                        data-active={sideTab === "git"}
+                        onClick={() => setSideTab("git")}
+                      >
+                        Git Activity
+                      </button>
+                      <button
+                        className="tdb-tab"
+                        data-active={sideTab === "prs"}
+                        onClick={() => setSideTab("prs")}
+                      >
+                        Pull Requests
+                      </button>
+                    </div>
+                  </div>
+                  <div className="tdb-side-body">
+                    {sideTab === "git" ? (
+                      <ActivityGrid months={activity} />
+                    ) : (
+                      <PillBars items={pullRequests} />
+                    )}
+                  </div>
                 </div>
-                <div className="tdb-tunnel-body">{slots?.TunnelQr}</div>
-              </div>
+                <div className="tdb-block tdb-side-block tdb-tunnel">
+                  <div className="tdb-side-head">
+                    <div className="tdb-block-title">Tunnel</div>
+                    {slots?.TunnelMenu}
+                  </div>
+                  <div className="tdb-tunnel-body">{slots?.TunnelQr}</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="tdb-block tdb-side-block">
+                  <div className="tdb-block-title">Git Activity</div>
+                  <div className="tdb-side-body">
+                    <ActivityGrid months={activity} />
+                  </div>
+                </div>
+                <div className="tdb-block tdb-side-block">
+                  <div className="tdb-block-title">Pull Requests</div>
+                  <div className="tdb-side-body">
+                    <PillBars items={pullRequests} />
+                  </div>
+                </div>
+              </>
             )}
-            <div className="tdb-block tdb-side-block">
-              <div className="tdb-block-title">Git Activity</div>
-              <div className="tdb-side-body">
-                <ActivityGrid months={activity} />
-              </div>
-            </div>
-            <div className="tdb-block tdb-side-block">
-              <div className="tdb-block-title">Pull Requests</div>
-              <div className="tdb-side-body">
-                <PillBars items={pullRequests} />
-              </div>
+          </div>
+
+          {/* The factory and jobs cards share the grid's second row so their
+              tops and bottoms always align across the two columns. */}
+          <div className="tdb-block tdb-factory">
+            <div className="tdb-block-title">Software Factory</div>
+            <div className="tdb-factory-body">{slots?.ProcessViewer}</div>
+          </div>
+
+          <div className="tdb-block tdb-side-block tdb-jobs">
+            <div className="tdb-block-title">Active Jobs</div>
+            <div className="tdb-jobs-list">
+              {jobs.length === 0 && (
+                <div className="tdb-empty-note">No jobs running</div>
+              )}
+              {jobs.map((job) => (
+                <button
+                  key={job.id}
+                  type="button"
+                  className="tdb-job-row"
+                  onClick={() => fireJobEvent(job.id)}
+                >
+                  <LoaderCircle
+                    size={14}
+                    className="tdb-job-spinner"
+                    data-spinning={job.status === "running"}
+                  />
+                  {job.planId && <span className="tdb-job-tag">{job.planId}</span>}
+                  <span className="tdb-job-title">{job.title}</span>
+                </button>
+              ))}
             </div>
           </div>
         </div>

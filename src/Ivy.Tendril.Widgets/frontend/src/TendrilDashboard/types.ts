@@ -17,6 +17,14 @@ export interface DashboardActivityMonthDto {
   weeks: number[];
 }
 
+export interface DashboardJobDto {
+  id: string;
+  planId: string;
+  title: string;
+  /** Lowercased job status; "running" animates the row's spinner. */
+  status: string;
+}
+
 export interface DashboardTrendDto {
   months: string[];
   cost: number[];
@@ -43,6 +51,7 @@ export interface TendrilDashboardProps {
   trend?: DashboardTrendDto | null;
   pullRequests?: DashboardMonthValueDto[];
   activity?: DashboardActivityMonthDto[];
+  jobs?: DashboardJobDto[];
   slots?: {
     ProcessViewer?: React.ReactNode;
     UpdateNotice?: React.ReactNode;
