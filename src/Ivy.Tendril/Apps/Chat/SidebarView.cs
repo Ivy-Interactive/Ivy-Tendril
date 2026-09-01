@@ -71,7 +71,7 @@ public class SidebarView(
                 }
                 else if (isCompleted)
                 {
-                    metaLine = Layout.Horizontal().AlignContent(Align.Left)
+                    metaLine = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
                         | new Icon(Icons.Check, Colors.Green).Small()
                         | Text.Success("Completed").Small()
                         | Text.Muted($"• {sess.AgentId}").Small();
