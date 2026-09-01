@@ -26,6 +26,8 @@ const CheckIcon = () => (
 
 export const codeBlockPreStyle: React.CSSProperties = {
   margin: 0,
+  minWidth: 0,
+  maxWidth: "100%",
   borderRadius: 0,
   background: "transparent",
   padding: "1rem",

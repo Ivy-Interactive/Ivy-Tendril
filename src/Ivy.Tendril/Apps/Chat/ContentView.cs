@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Ivy;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Apps.Chat.Dialogs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
@@ -36,6 +37,8 @@ public class ContentView(
 {
     public override object Build()
     {
+        var deletingSessionId = UseState<string?>(null);
+
         if (activeSession == null)
         {
             var newChatBtn = new Button("Start New Chat")
@@ -59,7 +62,13 @@ public class ContentView(
             ? streamText
             : "";
 
-        return new ChatWidget
+        var sessionToDelete = deletingSessionId.Value != null
+            ? chatService.GetSession(deletingSessionId.Value) ?? activeSession
+            : activeSession;
+
+        var deleteDialog = new DeleteSessionDialog(deletingSessionId, sessionToDelete, chatService, activeSessionId, sessionVersion);
+
+        var chatWidget = new ChatWidget
         {
             ActiveSessionId = activeSessionId.Value,
             StreamingSessionId = streamingSessionId.Value,
@@ -81,13 +90,7 @@ public class ContentView(
             },
             OnDeleteSession = e =>
             {
-                chatService.DeleteSession(e.Value);
-                sessionVersion.Set(v => v + 1);
-                if (activeSessionId.Value == e.Value)
-                {
-                    var remaining = chatService.GetSessions();
-                    activeSessionId.Set(remaining.FirstOrDefault()?.Id);
-                }
+                deletingSessionId.Set(e.Value);
                 return ValueTask.CompletedTask;
             },
             OnRenameSession = e =>
@@ -155,5 +158,7 @@ public class ContentView(
         .WithLayout()
         .Full()
         .RemoveParentPadding();
+
+        return new Fragment(chatWidget, deleteDialog);
     }
 }

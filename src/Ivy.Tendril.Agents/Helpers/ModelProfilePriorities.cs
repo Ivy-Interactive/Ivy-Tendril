@@ -33,7 +33,7 @@ public static class ModelProfilePriorities
             ],
             [(ModelProviderKind.Ivy, ModelProfileKind.Balanced)] =
             [
-                "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "claude-sonnet-5",
+                "gemini-3.7-flash", "gemini-3.6-flash", "claude-sonnet-5",
                 "claude-sonnet-4-6", "gpt-5.6-terra", "terra", "gemini-2.5-flash"
             ],
             [(ModelProviderKind.Ivy, ModelProfileKind.Quick)] =
@@ -65,7 +65,7 @@ public static class ModelProfilePriorities
             ],
             [(ModelProviderKind.Google, ModelProfileKind.Balanced)] =
             [
-                "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.0-flash"
+                "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.0-flash"
             ],
             [(ModelProviderKind.Google, ModelProfileKind.Quick)] =
             [

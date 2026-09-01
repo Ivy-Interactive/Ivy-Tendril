@@ -30,6 +30,7 @@ public class VaultSetupView : ViewBase
         var projectToDelete = UseState<string?>(null);
         var openDeleteConfirm = UseState(false);
         var isDeleting = UseState(false);
+        var isMergeMode = UseState(false);
 
         var selectedVaultId = UseState(() =>
         {
@@ -154,7 +155,8 @@ public class VaultSetupView : ViewBase
                 vaultsQuery.Mutator.Revalidate();
                 statusQuery.Mutator.Revalidate();
                 catalogQuery.Mutator.Revalidate();
-            });
+            },
+            isMergeMode: isMergeMode);
 
         var confirmDeleteDialog = (openDeleteConfirm.Value && !string.IsNullOrEmpty(projectToDelete.Value))
             ? new Dialog(
@@ -366,18 +368,30 @@ public class VaultSetupView : ViewBase
                             .Small()
                             .OnClick(() =>
                             {
+                                isMergeMode.Set(false);
                                 selectedImportItem.Set(item);
                                 openImportDialog.Set(true);
                             });
                         break;
 
                     case VaultItemSyncStatus.Conflict:
+                        actionButtons |= new Button("Link & Merge")
+                            .Icon(Icons.GitMerge)
+                            .Primary()
+                            .Small()
+                            .OnClick(() =>
+                            {
+                                isMergeMode.Set(true);
+                                selectedImportItem.Set(item);
+                                openImportDialog.Set(true);
+                            });
                         actionButtons |= new Button("Import As...")
                             .Icon(Icons.Download)
                             .Outline()
                             .Small()
                             .OnClick(() =>
                             {
+                                isMergeMode.Set(false);
                                 selectedImportItem.Set(item);
                                 openImportDialog.Set(true);
                             });

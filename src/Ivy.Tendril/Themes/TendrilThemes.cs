@@ -381,8 +381,8 @@ public static class TendrilThemes
                     PrimaryForeground = "#282a36",
                     Secondary = "#ff79c6",
                     SecondaryForeground = "#282a36",
-                    Accent = "#8be9fd",
-                    AccentForeground = "#282a36",
+                    Accent = "#44475a",
+                    AccentForeground = "#f8f8f2",
                     Background = "#282a36",
                     Foreground = "#f8f8f2",
                     Destructive = "#ff5555",
@@ -396,7 +396,7 @@ public static class TendrilThemes
                     Border = "#44475a",
                     Input = "#383a59",
                     Ring = "#bd93f9",
-                    Muted = "#34374a",
+                    Muted = "#44475a",
                     MutedForeground = "#b0b7da",
                     Card = "#343746",
                     CardForeground = "#f8f8f2",
@@ -490,7 +490,7 @@ public static class TendrilThemes
         Name = "Forest",
         Description = "Deep earthy woodland dark background with fresh emerald and forest green",
         IsDark = true,
-        PreviewColors = ["#1eb854", "#1fd65f", "#1db954", "#171212"],
+        PreviewColors = ["#1eb854", "#1fd65f", "#243328", "#171212"],
         IvyTheme = new Theme
         {
             Name = "Forest",
@@ -535,8 +535,8 @@ public static class TendrilThemes
                     PrimaryForeground = "#000000",
                     Secondary = "#1fd65f",
                     SecondaryForeground = "#000000",
-                    Accent = "#1db954",
-                    AccentForeground = "#000000",
+                    Accent = "#243328",
+                    AccentForeground = "#ebfaef",
                     Background = "#171212",
                     Foreground = "#ebfaef",
                     Destructive = "#e11d48",
@@ -1058,5 +1058,19 @@ public static class TendrilThemes
         themeService.SetTheme(descriptor.IvyTheme);
         var css = themeService.GenerateThemeCss();
         client.ApplyTheme(css);
+    }
+
+    public static ThemeMode ParseThemeMode(string? mode)
+    {
+        if (string.Equals(mode, "light", StringComparison.OrdinalIgnoreCase))
+            return ThemeMode.Light;
+        if (string.Equals(mode, "dark", StringComparison.OrdinalIgnoreCase))
+            return ThemeMode.Dark;
+        return ThemeMode.System;
+    }
+
+    public static void ApplyThemeMode(IClientProvider client, string? mode)
+    {
+        client.SetThemeMode(ParseThemeMode(mode));
     }
 }

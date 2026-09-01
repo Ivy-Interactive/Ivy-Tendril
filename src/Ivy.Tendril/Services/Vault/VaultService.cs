@@ -1294,6 +1294,246 @@ public class VaultService : IVaultService
         return new VaultResult(true, $"Successfully imported project '{finalLocalProjectName}' (v{manifest.Version})");
     }
 
+    public async Task<VaultResult> MergeProjectAsync(VaultImportRequest request, string? vaultId = null)
+    {
+        EnsureVaultsInitialized();
+        var vault = GetVaultSettings(request.SourceVaultId ?? vaultId);
+
+        if (vault == null)
+        {
+            return new VaultResult(false, "No vault configured for import.", "Vault not found");
+        }
+
+        var projectName = request.ProjectName;
+        var vaultDir = GetVaultDirectory(vault);
+        var projDir = Path.Combine(vaultDir, "projects", projectName);
+
+        if (!Directory.Exists(projDir))
+        {
+            return new VaultResult(false, $"Project '{projectName}' was not found in vault '{vault.Name}'.", "Directory not found");
+        }
+
+        var projManifestPath = Path.Combine(projDir, "project.yaml");
+        if (!File.Exists(projManifestPath))
+        {
+            return new VaultResult(false, $"Project manifest for '{projectName}' missing.", "project.yaml missing");
+        }
+
+        var yaml = await File.ReadAllTextAsync(projManifestPath);
+        var manifest = YamlHelper.Deserializer.Deserialize<VaultProjectManifest>(yaml);
+
+        var targetLocalName = !string.IsNullOrWhiteSpace(request.TargetLocalProjectName)
+            ? request.TargetLocalProjectName.Trim()
+            : projectName;
+
+        var existingProject = _config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(targetLocalName, StringComparison.OrdinalIgnoreCase));
+        if (existingProject == null)
+        {
+            return new VaultResult(false, $"Local project '{targetLocalName}' was not found to merge with.", "Project not found");
+        }
+
+        var finalLocalProjectName = existingProject.Name;
+
+        // 1. Merge verification definitions if present
+        if (manifest.VerificationDefinitions != null)
+        {
+            foreach (var def in manifest.VerificationDefinitions)
+            {
+                if (!_config.Settings.Verifications.Any(v => v.Name.Equals(def.Name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    _config.Settings.Verifications.Add(def);
+                }
+            }
+        }
+
+        // 2. Merge project verifications: keep existing local verifications, append selected vault verifications not present by name
+        var filteredVerifications = request.SelectedVerifications != null
+            ? manifest.Verifications.Where(v => request.SelectedVerifications.Contains(v.Name)).ToList()
+            : manifest.Verifications;
+
+        foreach (var v in filteredVerifications)
+        {
+            if (!existingProject.Verifications.Any(ev => ev.Name.Equals(v.Name, StringComparison.OrdinalIgnoreCase)))
+            {
+                existingProject.Verifications.Add(v);
+            }
+        }
+
+        // 3. Merge review actions: keep existing local review actions, append/update selected vault review actions by name
+        var filteredActions = request.SelectedReviewActions != null
+            ? manifest.ReviewActions.Where(a => request.SelectedReviewActions.Contains(a.Name)).ToList()
+            : manifest.ReviewActions;
+
+        foreach (var a in filteredActions)
+        {
+            var idx = existingProject.ReviewActions.FindIndex(ea => ea.Name.Equals(a.Name, StringComparison.OrdinalIgnoreCase));
+            if (idx >= 0)
+            {
+                existingProject.ReviewActions[idx] = a;
+            }
+            else
+            {
+                existingProject.ReviewActions.Add(a);
+            }
+        }
+
+        // 4. Merge MCP servers: keep existing local MCP servers, append/update selected vault MCP servers by name
+        var filteredMcps = request.SelectedMcps != null
+            ? manifest.McpServers.Where(m => request.SelectedMcps.Contains(m.Name)).ToList()
+            : manifest.McpServers;
+
+        foreach (var m in filteredMcps)
+        {
+            var idx = existingProject.McpServers.FindIndex(em => em.Name.Equals(m.Name, StringComparison.OrdinalIgnoreCase));
+            if (idx >= 0)
+            {
+                existingProject.McpServers[idx] = m;
+            }
+            else
+            {
+                existingProject.McpServers.Add(m);
+            }
+        }
+
+        // 5. Merge skills: keep existing local skill configs, append/update selected vault skills by name
+        var filteredSkills = request.SelectedSkills != null
+            ? manifest.Skills.Where(s => request.SelectedSkills.Contains(s.Name)).ToList()
+            : manifest.Skills;
+
+        foreach (var s in filteredSkills)
+        {
+            var idx = existingProject.Skills.FindIndex(es => es.Name.Equals(s.Name, StringComparison.OrdinalIgnoreCase));
+            if (idx >= 0)
+            {
+                existingProject.Skills[idx] = s;
+            }
+            else
+            {
+                existingProject.Skills.Add(s);
+            }
+        }
+
+        // 6. Copy selected skills (.md files)
+        var vaultSkillsDir = Path.Combine(projDir, "skills");
+        var localSkillsDir = ProjectPathHelper.GetSkillsDir(_config.TendrilHome, finalLocalProjectName);
+
+        if (Directory.Exists(vaultSkillsDir))
+        {
+            Directory.CreateDirectory(localSkillsDir);
+            foreach (var file in Directory.GetFiles(vaultSkillsDir, "*.md"))
+            {
+                var skillName = Path.GetFileNameWithoutExtension(file);
+                if (request.SelectedSkills == null || request.SelectedSkills.Contains(skillName))
+                {
+                    File.Copy(file, Path.Combine(localSkillsDir, Path.GetFileName(file)), true);
+                }
+            }
+        }
+
+        // 7. Copy selected memories (.md files)
+        var vaultMemoryDir = Path.Combine(projDir, "memory");
+        var localMemoryDir = ProjectPathHelper.GetMemoryDir(_config.TendrilHome, finalLocalProjectName);
+
+        if (Directory.Exists(vaultMemoryDir))
+        {
+            Directory.CreateDirectory(localMemoryDir);
+            foreach (var file in Directory.GetFiles(vaultMemoryDir, "*.md"))
+            {
+                var memName = Path.GetFileName(file);
+                if (request.SelectedMemories == null || request.SelectedMemories.Contains(memName))
+                {
+                    File.Copy(file, Path.Combine(localMemoryDir, memName), true);
+                }
+            }
+        }
+
+        // 8. Permissions / Security
+        if (request.ImportPermissions)
+        {
+            var permManifestPath = Path.Combine(projDir, "permissions.yaml");
+            VaultPermissionsManifest? permManifest = null;
+            if (File.Exists(permManifestPath))
+            {
+                try
+                {
+                    var permYaml = await File.ReadAllTextAsync(permManifestPath);
+                    permManifest = YamlHelper.Deserializer.Deserialize<VaultPermissionsManifest>(permYaml);
+                }
+                catch { }
+            }
+
+            if (permManifest != null)
+            {
+                if (!string.IsNullOrEmpty(permManifest.OutsideFileAccessPolicy))
+                    existingProject.OutsideFileAccessPolicy = permManifest.OutsideFileAccessPolicy;
+                if (!string.IsNullOrEmpty(permManifest.TerminalAutoExecution))
+                    existingProject.TerminalAutoExecution = permManifest.TerminalAutoExecution;
+                if (!string.IsNullOrEmpty(permManifest.SandboxMode))
+                    existingProject.SandboxMode = permManifest.SandboxMode;
+
+                if (permManifest.FilePermissions != null)
+                {
+                    foreach (var fp in permManifest.FilePermissions)
+                    {
+                        if (!existingProject.FilePermissions.Any(efp => efp.Path.Equals(fp.Path, StringComparison.OrdinalIgnoreCase) && efp.Mode.Equals(fp.Mode, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            existingProject.FilePermissions.Add(fp);
+                        }
+                    }
+                }
+
+                if (permManifest.NetworkAccessRules != null)
+                {
+                    foreach (var nr in permManifest.NetworkAccessRules)
+                    {
+                        if (!existingProject.NetworkAccessRules.Any(enr => enr.UrlPattern.Equals(nr.UrlPattern, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            existingProject.NetworkAccessRules.Add(nr);
+                        }
+                    }
+                }
+
+                if (permManifest.AllowedTerminalCommands != null)
+                {
+                    foreach (var cmd in permManifest.AllowedTerminalCommands)
+                    {
+                        if (!existingProject.AllowedTerminalCommands.Contains(cmd, StringComparer.OrdinalIgnoreCase))
+                        {
+                            existingProject.AllowedTerminalCommands.Add(cmd);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 9. Preserve existing Repos and construct tracking repo paths
+        var localRepoPaths = new Dictionary<string, string>(request.LocalRepoMappings ?? new());
+        foreach (var r in existingProject.Repos)
+        {
+            var repoName = Path.GetFileName(r.Path);
+            if (!localRepoPaths.ContainsKey(repoName))
+            {
+                localRepoPaths[repoName] = r.Path;
+            }
+        }
+
+        // 10. Update tracking
+        vault.TrackedProjects[finalLocalProjectName] = new ProjectVaultTracking
+        {
+            VaultProjectName = projectName,
+            InstalledVersion = manifest.Version,
+            InstalledAt = DateTimeOffset.UtcNow,
+            VaultId = vault.Id,
+            VaultRepoUrl = vault.RepoUrl,
+            LocalRepoPaths = localRepoPaths
+        };
+
+        _config.SaveSettings();
+        VaultChanged?.Invoke();
+
+        return new VaultResult(true, $"Successfully merged project '{finalLocalProjectName}' (v{manifest.Version})");
+    }
+
     public async Task<VaultPrResult> DeleteProjectFromVaultAsync(string projectName, string? vaultId = null)
     {
         EnsureVaultsInitialized();

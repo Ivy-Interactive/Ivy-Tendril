@@ -29,6 +29,7 @@
    provide: max-width 200 units and a 1.5rem left inset, so the markdown lines up
    exactly with the Details tab content. */
 .pmv-markdown {
+  min-width: 0;
   width: 100%;
   max-width: 50rem; /* 200 units * 0.25rem */
   padding: 0 0 1rem 1.5rem; /* left 1.5rem matches Details' Padding(6,…) */
@@ -71,6 +72,8 @@
 .pmv-markdown {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  width: 100%;
   color: var(--foreground);
   font-size: 1rem;
   line-height: 1.5;
@@ -119,6 +122,8 @@
 
 /* ─── Contextual spacing (matches framework markdown-spacing.css) ─────── */
 .pmv-markdown > * {
+  min-width: 0;
+  max-width: 100%;
   margin-top: 0;
   margin-bottom: 0;
 }
@@ -264,7 +269,10 @@
 /* Code blocks */
 .pmv-code-block {
   position: relative;
+  min-width: 0;
+  max-width: 100%;
   width: 100%;
+  box-sizing: border-box;
   overflow: hidden;
   border-radius: 0.375rem;
   border: 1px solid var(--border);
@@ -279,6 +287,8 @@
 }
 .pmv-code-block pre {
   margin: 0;
+  min-width: 0;
+  max-width: 100%;
   border-radius: 0;
   background: transparent;
   padding: 1rem;
@@ -286,6 +296,11 @@
   overflow-x: auto;
   font-size: 0.875rem;
   line-height: 1.5;
+}
+.pmv-markdown pre {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
 }
 .pmv-code-block code,
 .pmv-markdown pre code {

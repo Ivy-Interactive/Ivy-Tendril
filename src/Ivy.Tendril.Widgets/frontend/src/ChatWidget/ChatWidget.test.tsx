@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import "@testing-library/jest-dom";
 
@@ -130,7 +130,7 @@ describe("ChatWidget Queued Messages UI", () => {
     expect(screen.queryByText("Queued Messages")).not.toBeInTheDocument();
   });
 
-  it("renders delete button next to chat title, opens confirmation dialog, and emits OnDeleteSession upon confirmation", () => {
+  it("renders delete button next to chat title and directly emits OnDeleteSession upon click", () => {
     const handleEvent = vi.fn();
     const session = {
       id: "sess-123",
@@ -157,115 +157,12 @@ describe("ChatWidget Queued Messages UI", () => {
 
     fireEvent.click(deleteBtn);
 
-    // Dialog is open
-    const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByText("Delete Chat")).toBeInTheDocument();
-    expect(within(dialog).getByText(/Are you sure you want to delete/i)).toBeInTheDocument();
-    expect(within(dialog).getByText(/My Great Chat/i)).toBeInTheDocument();
-    expect(handleEvent).not.toHaveBeenCalled();
-
-    // Confirm deletion
-    const confirmDeleteBtn = within(dialog).getByRole("button", { name: /Delete/i });
-    fireEvent.click(confirmDeleteBtn);
-
+    expect(handleEvent).toHaveBeenCalledTimes(1);
     expect(handleEvent).toHaveBeenCalledWith(
       "OnDeleteSession",
       "test-chat",
       ["sess-123"]
     );
-    expect(screen.queryByText("Delete Chat")).not.toBeInTheDocument();
-  });
-
-  it("dismisses delete confirmation dialog when Cancel is clicked, Escape is pressed, or backdrop is clicked without emitting OnDeleteSession", () => {
-    const handleEvent = vi.fn();
-    const session = {
-      id: "sess-123",
-      title: "My Great Chat",
-      agentId: "antigravity",
-      modelId: "gemini-3.7-flash",
-      createdAt: "2026-08-15T12:00:00Z",
-      updatedAt: "2026-08-15T12:30:00Z",
-      messages: [],
-    };
-
-    render(
-      <ChatWidget
-        id="test-chat"
-        activeSessionId="sess-123"
-        sessions={[session]}
-        events={["OnDeleteSession"]}
-        eventHandler={handleEvent}
-      />
-    );
-
-    const deleteBtn = screen.getByRole("button", { name: /Delete chat session/i });
-
-    // 1. Cancel button
-    fireEvent.click(deleteBtn);
-    expect(screen.getByText("Delete Chat")).toBeInTheDocument();
-
-    const cancelBtn = screen.getByRole("button", { name: /Cancel/i });
-    fireEvent.click(cancelBtn);
-    expect(screen.queryByText("Delete Chat")).not.toBeInTheDocument();
-    expect(handleEvent).not.toHaveBeenCalled();
-
-    // 2. Escape key
-    fireEvent.click(deleteBtn);
-    expect(screen.getByText("Delete Chat")).toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.queryByText("Delete Chat")).not.toBeInTheDocument();
-    expect(handleEvent).not.toHaveBeenCalled();
-
-    // 3. Backdrop click
-    fireEvent.click(deleteBtn);
-    const dialogOverlay = screen.getByRole("dialog");
-    fireEvent.click(dialogOverlay);
-    expect(screen.queryByText("Delete Chat")).not.toBeInTheDocument();
-    expect(handleEvent).not.toHaveBeenCalled();
-  });
-
-  it("confirms deletion via Ctrl+Enter and Cmd+Enter keyboard shortcuts", () => {
-    const handleEvent = vi.fn();
-    const session = {
-      id: "sess-123",
-      title: "My Great Chat",
-      agentId: "antigravity",
-      modelId: "gemini-3.7-flash",
-      createdAt: "2026-08-15T12:00:00Z",
-      updatedAt: "2026-08-15T12:30:00Z",
-      messages: [],
-    };
-
-    render(
-      <ChatWidget
-        id="test-chat"
-        activeSessionId="sess-123"
-        sessions={[session]}
-        events={["OnDeleteSession"]}
-        eventHandler={handleEvent}
-      />
-    );
-
-    const deleteBtn = screen.getByRole("button", { name: /Delete chat session/i });
-
-    // Ctrl+Enter
-    fireEvent.click(deleteBtn);
-    expect(screen.getByText("Delete Chat")).toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: "Enter", ctrlKey: true });
-    expect(handleEvent).toHaveBeenCalledTimes(1);
-    expect(handleEvent).toHaveBeenCalledWith("OnDeleteSession", "test-chat", ["sess-123"]);
-    expect(screen.queryByText("Delete Chat")).not.toBeInTheDocument();
-
-    // Cmd+Enter
-    fireEvent.click(deleteBtn);
-    expect(screen.getByText("Delete Chat")).toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: "Enter", metaKey: true });
-    expect(handleEvent).toHaveBeenCalledTimes(2);
-    expect(handleEvent).toHaveBeenLastCalledWith("OnDeleteSession", "test-chat", ["sess-123"]);
-    expect(screen.queryByText("Delete Chat")).not.toBeInTheDocument();
   });
 
   it("renders effort picker and emits OnEffortChanged when changed", () => {
@@ -469,5 +366,82 @@ describe("ChatWidget File Uploads and Attachments", () => {
     expect(screen.getByText("data-export.csv")).toBeInTheDocument();
     expect(screen.getByText("CSV")).toBeInTheDocument();
     expect(screen.queryByText("[Attached Files]:")).not.toBeInTheDocument();
+  });
+
+  it("submitting a message with an attached file and empty text prompt emits OnSendMessage with empty prompt", async () => {
+    const handleEvent = vi.fn();
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-1"
+        events={["OnSendMessage"]}
+        eventHandler={handleEvent}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(/Ask/i);
+    const sendBtn = screen.getByRole("button", { name: /Send/i });
+
+    // Initially disabled when empty and no attachments
+    expect(sendBtn).toBeDisabled();
+
+    const imageFile = new File(["dummy-image-bytes"], "screenshot.png", { type: "image/png" });
+    fireEvent.paste(textarea, {
+      clipboardData: { files: [imageFile], items: [] },
+      preventDefault: vi.fn(),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTitle("screenshot.png")).toBeInTheDocument();
+    });
+
+    // Send button should be enabled even without prompt text
+    expect(sendBtn).not.toBeDisabled();
+    fireEvent.click(sendBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnSendMessage",
+      "test-chat",
+      expect.arrayContaining([
+        expect.objectContaining({
+          prompt: "",
+          sessionId: "sess-1",
+          attachments: expect.arrayContaining([
+            expect.objectContaining({
+              name: "screenshot.png",
+              contentType: "image/png",
+            }),
+          ]),
+        }),
+      ])
+    );
+  });
+
+  it("displays payload size warning banner and disables Send button when attachments exceed 50 MB", async () => {
+    render(<ChatWidget id="test-chat" />);
+    const textarea = screen.getByPlaceholderText(/Ask/i);
+    const sendBtn = screen.getByRole("button", { name: /Send/i });
+
+    // Create a 51 MB dummy file
+    const largeFile = new File(["x"], "large-dataset.bin", { type: "application/octet-stream" });
+    Object.defineProperty(largeFile, "size", { value: 51 * 1024 * 1024 });
+
+    fireEvent.paste(textarea, {
+      clipboardData: { files: [largeFile], items: [] },
+      preventDefault: vi.fn(),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("large-dataset.bin")).toBeInTheDocument();
+    });
+
+    // Warning banner is displayed
+    const warning = screen.getByRole("alert");
+    expect(warning).toBeInTheDocument();
+    expect(warning).toHaveTextContent(/Attachments exceed the 50 MB limit/i);
+
+    // Send button is disabled due to oversized payload
+    expect(sendBtn).toBeDisabled();
+    expect(sendBtn).toHaveAttribute("title", "Attachments exceed the 50 MB limit");
   });
 });

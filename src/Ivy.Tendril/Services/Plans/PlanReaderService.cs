@@ -180,7 +180,7 @@ public class PlanReaderService(
                 throw new PlanTransitionBlockedException(folderName, failed);
 
             // Plan 00103: block on failed pre-execution with no deliverables
-            if (GetCompletionBlockReason(Path.Combine(PlansDirectory, folderName)) is { } blockReason)
+            if (GetCompletionBlockReason(folderName) is { } blockReason)
                 throw new PlanTransitionBlockedException(folderName, newState, blockReason);
         }
 
@@ -246,13 +246,22 @@ public class PlanReaderService(
 
     /// <summary>
     ///     Returns the reason a plan must not be marked Completed, or null when the transition is fine.
+    /// </summary>
+    public string? GetCompletionBlockReason(string folderName)
+    {
+        var planFolder = Path.IsPathRooted(folderName) ? folderName : Path.Combine(PlansDirectory, folderName);
+        return GetCompletionBlockReasonForFolder(planFolder);
+    }
+
+    /// <summary>
+    ///     Returns the reason a plan must not be marked Completed, or null when the transition is fine.
     ///     Blocks a plan whose <c>Verification/PreExecution.md</c> reads <c>result: Fail</c> and which has
     ///     no commits and no PRs: pre-execution rejected the plan's premise and nothing was delivered, so
     ///     Completed would record a phantom owner for work that never happened. The no-commits-and-no-PRs
     ///     conjunct keeps config-only plans (which legitimately have neither, and pass pre-execution) and
     ///     any plan that did real work out of the block. See plan 00103.
     /// </summary>
-    internal static string? GetCompletionBlockReason(string planFolder)
+    internal static string? GetCompletionBlockReasonForFolder(string planFolder)
     {
         if (PlanYamlHelper.ReadPreExecutionResult(planFolder) != VerificationStatus.Fail) return null;
 

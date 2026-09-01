@@ -105,9 +105,12 @@ public sealed class CodexCli : IAgentCli
             args.Add(dir);
         }
 
+        var tempFiles = new List<string>();
+
         var mcpConfigFile = global::Ivy.Tendril.Agents.Helpers.McpConfigWriter.WriteConfigFile(config.McpServers);
         if (!string.IsNullOrEmpty(mcpConfigFile))
         {
+            tempFiles.Add(mcpConfigFile);
             args.Add("--mcp-config");
             args.Add(mcpConfigFile);
         }
@@ -132,6 +135,7 @@ public sealed class CodexCli : IAgentCli
             Environment = env,
             StdinContent = config.Prompt,
             RedirectStdin = true,
+            TempFiles = tempFiles,
         };
     }
 

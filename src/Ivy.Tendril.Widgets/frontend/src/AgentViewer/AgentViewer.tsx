@@ -191,7 +191,7 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
                 <div key={idx} className="aov-markdown aov-assistant">
                   <Markdown
                     {...getMarkdownPlugins(event.text)}
-                    components={{ code: BlockHandler, blockquote: AlertBlockquote }}
+                    components={{ code: BlockHandler, blockquote: AlertBlockquote, pre: ({ children }) => <>{children}</> }}
                   >
                     {event.text}
                   </Markdown>
