@@ -75,16 +75,15 @@ public class ThemeRegistryTests
     }
 
     [Fact]
-    public void DraculaTheme_DarkColors_AccentForegroundHasContrastWithAccentAndBackground()
+    public void DraculaTheme_DarkColors_HaveProperAccentContrast()
     {
-        var theme = TendrilThemes.GetTheme("dracula");
-        Assert.NotNull(theme);
-        var dark = theme.IvyTheme.Colors.Dark;
-        Assert.NotNull(dark);
-
-        Assert.Equal("#44475a", dark.Accent);
-        Assert.Equal("#f8f8f2", dark.AccentForeground);
-        Assert.NotEqual(dark.Background, dark.AccentForeground);
-        Assert.NotEqual(dark.Accent, dark.AccentForeground);
+        var dracula = TendrilThemes.GetTheme("dracula");
+        Assert.NotNull(dracula);
+        Assert.NotNull(dracula.IvyTheme?.Colors?.Dark);
+        var dark = dracula.IvyTheme.Colors.Dark;
+        Assert.Equal("#44475a", dark.Accent, ignoreCase: true);
+        Assert.Equal("#f8f8f2", dark.AccentForeground, ignoreCase: true);
+        Assert.NotEqual(dark.Background, dark.AccentForeground, StringComparer.OrdinalIgnoreCase);
+        Assert.NotEqual(dark.Accent, dark.AccentForeground, StringComparer.OrdinalIgnoreCase);
     }
 }
