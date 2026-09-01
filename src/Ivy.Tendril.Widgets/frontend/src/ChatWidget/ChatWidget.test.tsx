@@ -532,4 +532,147 @@ describe("ChatWidget File Uploads and Attachments", () => {
     expect(sendBtn).toBeDisabled();
     expect(sendBtn).toHaveAttribute("title", "Attachments exceed the 50 MB limit");
   });
+
+  it("uploads files via HTTP multipart POST when uploadUrl is provided and sends metadata without base64", async () => {
+    const handleEvent = vi.fn();
+    let capturedXhr: any = null;
+
+    class MockXMLHttpRequest {
+      open = vi.fn();
+      send = vi.fn();
+      upload = { onprogress: null as any };
+      onload: any = null;
+      onerror: any = null;
+      status = 200;
+      constructor() {
+        capturedXhr = this;
+      }
+    }
+
+    const origXHR = window.XMLHttpRequest;
+    (window as any).XMLHttpRequest = MockXMLHttpRequest;
+
+    try {
+      render(
+        <ChatWidget
+          id="test-chat"
+          activeSessionId="sess-1"
+          uploadUrl="/ivy/upload/conn-1/up-1"
+          events={["OnSendMessage"]}
+          eventHandler={handleEvent}
+        />
+      );
+
+      const textarea = screen.getByPlaceholderText(/Ask/i);
+      const sendBtn = screen.getByRole("button", { name: /Send/i });
+
+      const file = new File(["test-image-content"], "photo.png", { type: "image/png" });
+      fireEvent.paste(textarea, {
+        clipboardData: { files: [file], items: [] },
+        preventDefault: vi.fn(),
+      });
+
+      await waitFor(() => {
+        expect(capturedXhr).not.toBeNull();
+        expect(capturedXhr.open).toHaveBeenCalledWith("POST", "/ivy/upload/conn-1/up-1", true);
+        expect(capturedXhr.send).toHaveBeenCalledWith(expect.any(FormData));
+      });
+
+      // While uploading, send button should be disabled
+      expect(sendBtn).toBeDisabled();
+
+      // Complete the upload
+      capturedXhr.status = 200;
+      capturedXhr.onload();
+
+      await waitFor(() => {
+        expect(sendBtn).not.toBeDisabled();
+      });
+
+      fireEvent.change(textarea, { target: { value: "Look at this photo" } });
+      fireEvent.click(sendBtn);
+
+      expect(handleEvent).toHaveBeenCalledWith(
+        "OnSendMessage",
+        "test-chat",
+        expect.arrayContaining([
+          expect.objectContaining({
+            prompt: "Look at this photo",
+            sessionId: "sess-1",
+            attachments: expect.arrayContaining([
+              expect.objectContaining({
+                name: "photo.png",
+                contentType: "image/png",
+                base64Data: undefined,
+              }),
+            ]),
+          }),
+        ])
+      );
+    } finally {
+      window.XMLHttpRequest = origXHR;
+    }
+  });
+
+  it("displays upload progress and failure state on HTTP upload error", async () => {
+    let capturedXhr: any = null;
+
+    class MockXMLHttpRequest {
+      open = vi.fn();
+      send = vi.fn();
+      upload = { onprogress: null as any };
+      onload: any = null;
+      onerror: any = null;
+      status = 500;
+      constructor() {
+        capturedXhr = this;
+      }
+    }
+
+    const origXHR = window.XMLHttpRequest;
+    (window as any).XMLHttpRequest = MockXMLHttpRequest;
+
+    try {
+      render(
+        <ChatWidget
+          id="test-chat"
+          activeSessionId="sess-1"
+          uploadUrl="/ivy/upload/conn-1/up-1"
+        />
+      );
+
+      const textarea = screen.getByPlaceholderText(/Ask/i);
+      const sendBtn = screen.getByRole("button", { name: /Send/i });
+
+      const file = new File(["sample data"], "data.csv", { type: "text/csv" });
+      fireEvent.paste(textarea, {
+        clipboardData: { files: [file], items: [] },
+        preventDefault: vi.fn(),
+      });
+
+      await waitFor(() => {
+        expect(capturedXhr).not.toBeNull();
+      });
+
+      // Trigger progress
+      capturedXhr.upload.onprogress?.({ lengthComputable: true, loaded: 50, total: 100 });
+
+      await waitFor(() => {
+        expect(screen.getByText("50%")).toBeInTheDocument();
+      });
+
+      // Trigger failure
+      capturedXhr.status = 500;
+      capturedXhr.onload();
+
+      await waitFor(() => {
+        expect(screen.getByText("Failed")).toBeInTheDocument();
+      });
+
+      // Send button remains disabled when there is no text or valid finished attachments
+      expect(sendBtn).toBeDisabled();
+    } finally {
+      window.XMLHttpRequest = origXHR;
+    }
+  });
 });
