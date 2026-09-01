@@ -56,7 +56,7 @@
 
 .tdb-inner {
   max-width: 1420px;
-  margin: 0 auto;
+  margin: 0;
   padding: 16px 16px 24px;
 }
 
@@ -90,21 +90,23 @@
 
 .tdb-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 421px);
-  gap: 28px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 24px;
   align-items: start;
-  padding: 0 16px;
+  padding: 0 8px;
 }
 
 .tdb-col {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 24px;
   min-width: 0;
 }
 
-.tdb-col-side {
-  gap: 28px;
+/* Reserved spot for the update notice so the side cards line up with the
+   status strip; roughly the header's height, growing when a card shows. */
+.tdb-update-slot {
+  min-height: 120px;
 }
 
 /* The status strip is the only bordered card on the dashboard. */
@@ -182,7 +184,7 @@
 .tdb-kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 28px;
+  gap: 24px;
 }
 
 .tdb-kpi {
@@ -431,13 +433,13 @@
   display: flex;
   flex-direction: column-reverse;
   gap: 8px;
-  flex: 1 0 13px;
-  min-width: 13px;
+  flex: 1 0 12px;
+  min-width: 12px;
 }
 
 .tdb-activity-cell {
   width: 100%;
-  max-width: 22px;
+  max-width: 18px;
   aspect-ratio: 1;
   border-radius: 2px;
 }
@@ -455,8 +457,8 @@
 }
 
 .tdb-activity-label {
-  flex: 1 0 13px;
-  min-width: 13px;
+  flex: 1 0 12px;
+  min-width: 12px;
   font-size: 12px;
   color: var(--tdb-muted);
   text-align: left;
@@ -493,7 +495,7 @@
   flex: 1;
   display: flex;
   align-items: flex-end;
-  gap: 10px;
+  gap: 16px;
 }
 
 .tdb-bar-item {
@@ -508,7 +510,7 @@
 
 .tdb-bar-track {
   width: 100%;
-  max-width: 49px;
+  max-width: 29px;
   flex: 1;
   display: flex;
   align-items: flex-end;
@@ -559,7 +561,7 @@
 /* Narrow two-column band: the main column is squeezed, so compact the
    status strip and fold the KPI cards. Below 1080px the grid goes
    single-column and the full-width layouts fit again. */
-@container tdb (min-width: 1080px) and (max-width: 1270px) {
+@container tdb (min-width: 1080px) and (max-width: 1200px) {
   .tdb-status {
     justify-content: flex-start;
     gap: 8px 4px;
@@ -572,9 +574,7 @@
   .tdb-status-sep {
     display: none;
   }
-}
 
-@container tdb (min-width: 1080px) and (max-width: 1240px) {
   .tdb-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -583,6 +583,10 @@
 @container tdb (max-width: 1080px) {
   .tdb-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tdb-update-slot:empty {
+    display: none;
   }
 }
 

@@ -193,7 +193,7 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
           </div>
 
           <div className="tdb-col tdb-col-side">
-            {slots?.UpdateNotice}
+            <div className="tdb-update-slot">{slots?.UpdateNotice}</div>
             {hasSlotContent(slots?.TunnelQr) && (
               <div className="tdb-block tdb-side-block tdb-tunnel">
                 <div className="tdb-side-head">
