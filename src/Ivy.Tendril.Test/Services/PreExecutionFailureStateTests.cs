@@ -276,6 +276,72 @@ public class PreExecutionFailureStateTests : IDisposable
         Assert.Equal(nameof(PlanStatus.Skipped), PlanCommandHelpers.ReadPlan(planFolder).State);
     }
 
+    // ---- GetCompletionBlockReason & PlanCompletionAction ---------------------------------
+
+    [Fact]
+    public void GetCompletionBlockReason_PreExecutionFail_NoCommitsNoPrs_ReturnsBlockReason()
+    {
+        var planFolder = CreatePlanFolder("00074-Blocked", nameof(PlanStatus.Review),
+        [
+            ("DotnetBuild", VerificationStatus.Skipped),
+        ]);
+        WritePreExecutionReport(planFolder, "Fail");
+        var service = CreateReaderService();
+
+        var reason = service.GetCompletionBlockReason("00074-Blocked");
+
+        Assert.NotNull(reason);
+        Assert.Contains("Pre-execution validation failed", reason);
+        Assert.Contains(nameof(PlanStatus.Skipped), reason);
+    }
+
+    [Fact]
+    public void GetCompletionBlockReason_PreExecutionPass_ReturnsNull()
+    {
+        var planFolder = CreatePlanFolder("00075-Pass", nameof(PlanStatus.Review),
+        [
+            ("DotnetBuild", VerificationStatus.Pass),
+        ]);
+        WritePreExecutionReport(planFolder, "Pass");
+        var service = CreateReaderService();
+
+        Assert.Null(service.GetCompletionBlockReason("00075-Pass"));
+    }
+
+    [Fact]
+    public void GetCompletionBlockReason_PreExecutionFail_WithCommits_ReturnsNull()
+    {
+        var planFolder = CreatePlanFolder("00076-WithCommits", nameof(PlanStatus.Review),
+        [
+            ("DotnetBuild", VerificationStatus.Pass),
+        ], commits: ["abc1234"]);
+        WritePreExecutionReport(planFolder, "Fail");
+        var service = CreateReaderService();
+
+        Assert.Null(service.GetCompletionBlockReason("00076-WithCommits"));
+    }
+
+    [Fact]
+    public async Task PlanCompletionAction_TryComplete_And_Skip_HandlesPreExecutionFailure()
+    {
+        var planFolder = CreatePlanFolder("00077-ActionTest", nameof(PlanStatus.Review),
+        [
+            ("DotnetBuild", VerificationStatus.Skipped),
+        ]);
+        WritePreExecutionReport(planFolder, "Fail");
+        var service = CreateReaderService();
+        var plan = service.GetPlanByFolder(planFolder)!;
+
+        var failedVerifications = PlanCompletionAction.TryComplete(service, plan);
+        Assert.NotNull(failedVerifications);
+        Assert.Empty(failedVerifications);
+
+        PlanCompletionAction.Skip(service, plan);
+        await service.FlushPendingWritesAsync();
+
+        Assert.Equal(nameof(PlanStatus.Skipped), PlanCommandHelpers.ReadPlan(planFolder).State);
+    }
+
     private class TempDirConfigService(string planFolder) : StubConfigService, IConfigService
     {
         string IConfigService.PlanFolder => planFolder;

@@ -149,15 +149,15 @@ date: <CurrentTime>
 
 **Note:** This step runs against the original repo (before worktrees are created), since it validates whether the plan's assumptions about the codebase are still accurate.
 
-5. **Self-flagged redundancy check** — In addition to code block validation, scan the plan revision for markers where the plan itself admits it is already done:
+5. **Self-flagged redundancy check** - In addition to code block validation, scan the plan revision for markers where the plan itself admits it is already done:
    - A `<details><summary>Still relevant?</summary>` block whose body starts with `No.`
-   - Phrases like *"Already applied"*, *"This plan is redundant"*, *"This plan is superseded"*, or *"previously attempted … was merged to main via PR #NNNN"* in the `## Problem` or `## Solution` sections.
+   - Phrases like *"Already applied"*, *"This plan is redundant"*, *"This plan is superseded"*, or *"previously attempted ... was merged to main via PR #NNNN"* in the `## Problem` or `## Solution` sections.
 
    If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, fail **without creating a worktree** (running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process):
 
    1. Write `Verification/PreExecution.md` with `result: Fail` and the evidence for each of the three checks.
-   2. Write `Artifacts/summary.md` documenting the no-op.
-   3. Call `tendril job fail TendrilJobId --message="PreExecution failed: <reason>"` and `exit 1`.
+   2. Write `Artifacts/summary.md` documenting the no-op (explicitly explaining that the task was skipped or retired because the changes are already resolved, rather than presenting a completed implementation draft).
+   3. Call `tendril job fail TendrilJobId --message="PreExecution failed: Task already resolved/redundant (<reason>)"` and `exit 1`.
 
    **Do not set the verifications to `Skipped`.** An earlier revision of this document told you to, and
    that is exactly how a never-executed plan reached `Review`: the server's state decision keys on

@@ -26,6 +26,11 @@ public interface IPlanReaderService
     /// </summary>
     void CompleteWithPartialDelivery(string folderName);
 
+    /// <summary>
+    ///     Returns the reason a plan must not be marked Completed, or null when the transition is fine.
+    /// </summary>
+    string? GetCompletionBlockReason(string folderName) => null;
+
     void ResetToDraft(string folderName);
     void ResetVerificationsForRetry(string folderName);
     void SetVerificationStatus(string folderName, string name, VerificationStatus status);
