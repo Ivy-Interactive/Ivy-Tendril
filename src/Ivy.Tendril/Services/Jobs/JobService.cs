@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -554,7 +554,10 @@ public class JobService : IJobService
 
     public List<JobItem> GetJobs()
     {
-        return _jobs.Values.ToArray().OrderByDescending(j => j.StartedAt ?? DateTime.MinValue).ToList();
+        return _jobs.Values.ToArray()
+            .OrderByDescending(j => j.StartedAt ?? DateTime.MaxValue)
+            .ThenByDescending(j => j.Id)
+            .ToList();
     }
 
     public JobItem? GetJob(string id)
@@ -639,7 +642,8 @@ public class JobService : IJobService
             activeJobs.TryAdd(dbJob.Id, dbJob);
 
         return activeJobs.Values
-            .OrderByDescending(j => j.StartedAt ?? DateTime.MinValue)
+            .OrderByDescending(j => j.StartedAt ?? DateTime.MaxValue)
+            .ThenByDescending(j => j.Id)
             .ToList();
     }
 
@@ -666,10 +670,12 @@ public class JobService : IJobService
             foreach (var job in historicalJobs)
                 if (_jobs.TryAdd(job.Id, job))
                     ReconcileRestoredJob(job);
+
+            ProcessJobQueue();
         }
         catch
         {
-            /* Best-effort — don't block startup */
+            /* Best-effort: don't block startup */
         }
     }
 
@@ -711,6 +717,13 @@ public class JobService : IJobService
 
         if (job.Status is not (JobStatus.Pending or JobStatus.Queued or JobStatus.Running))
             return;
+
+        if (job.Status == JobStatus.Queued)
+        {
+            lock (_queueLock) { _jobQueue.Enqueue(job.Id, -job.Priority); }
+            _logger.LogInformation("Job {JobId}: Re-enqueued restored Queued job", job.Id);
+            return;
+        }
 
         if (IsAgentProcessAlive(job))
         {
