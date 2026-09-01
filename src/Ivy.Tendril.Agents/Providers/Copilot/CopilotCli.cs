@@ -135,9 +135,12 @@ public sealed class CopilotCli : IAgentCli
         foreach (var arg in config.ExtraArguments)
             args.Add(arg);
 
+        var tempFiles = new List<string>();
+
         var mcpConfigFile = global::Ivy.Tendril.Agents.Helpers.McpConfigWriter.WriteConfigFile(config.McpServers);
         if (!string.IsNullOrEmpty(mcpConfigFile))
         {
+            tempFiles.Add(mcpConfigFile);
             args.Add("--mcp-config");
             args.Add(mcpConfigFile);
         }
@@ -159,6 +162,7 @@ public sealed class CopilotCli : IAgentCli
             Environment = env,
             StdinContent = config.Prompt,
             RedirectStdin = true,
+            TempFiles = tempFiles,
         };
     }
 

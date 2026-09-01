@@ -30,6 +30,8 @@ public class PromptwareTestFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        TestDirectoryHelper.PurgeStaleTestDirectories();
+
         TendrilHome = Path.Combine(Path.GetTempPath(), $"tendril-pw-{_runId}");
         PlansDir = Path.Combine(TendrilHome, "Plans");
         ConfigPath = Path.Combine(TendrilHome, "config.yaml");
@@ -102,25 +104,7 @@ public class PromptwareTestFixture : IAsyncLifetime
     {
         await TestRepo.DisposeAsync();
 
-        foreach (var dir in new[] { TendrilHome, TestArtifactsDir })
-        {
-            if (!Directory.Exists(dir)) continue;
-            try
-            {
-                ClearReadOnlyAttributes(dir);
-                Directory.Delete(dir, recursive: true);
-            }
-            catch { }
-        }
-    }
-
-    private static void ClearReadOnlyAttributes(string path)
-    {
-        foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
-        {
-            var attrs = File.GetAttributes(file);
-            if ((attrs & FileAttributes.ReadOnly) != 0)
-                File.SetAttributes(file, attrs & ~FileAttributes.ReadOnly);
-        }
+        await TestDirectoryHelper.DeleteDirectorySafelyAsync(TendrilHome);
+        await TestDirectoryHelper.DeleteDirectorySafelyAsync(TestArtifactsDir);
     }
 }
