@@ -73,4 +73,18 @@ public class ThemeRegistryTests
         Assert.NotNull(theme);
         Assert.Equal(TendrilThemes.Default.Id, theme.Id);
     }
+
+    [Fact]
+    public void DraculaTheme_DarkColors_AccentForegroundHasContrastWithAccentAndBackground()
+    {
+        var theme = TendrilThemes.GetTheme("dracula");
+        Assert.NotNull(theme);
+        var dark = theme.IvyTheme.Colors.Dark;
+        Assert.NotNull(dark);
+
+        Assert.Equal("#44475a", dark.Accent);
+        Assert.Equal("#f8f8f2", dark.AccentForeground);
+        Assert.NotEqual(dark.Background, dark.AccentForeground);
+        Assert.NotEqual(dark.Accent, dark.AccentForeground);
+    }
 }
