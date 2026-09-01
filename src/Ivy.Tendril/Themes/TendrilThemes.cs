@@ -336,7 +336,7 @@ public static class TendrilThemes
         Name = "Dracula",
         Description = "Classic dark violet background with purple, pink, and cyan accents",
         IsDark = true,
-        PreviewColors = ["#bd93f9", "#ff79c6", "#8be9fd", "#282a36"],
+        PreviewColors = ["#bd93f9", "#ff79c6", "#44475a", "#282a36"],
         IvyTheme = new Theme
         {
             Name = "Dracula",
