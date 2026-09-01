@@ -4,6 +4,8 @@ public interface IVersionCheckService
 {
     Task<VersionInfo> CheckForUpdatesAsync(bool forceRefresh = false);
 
+    VersionInfo? CachedVersionInfo { get; }
+
     bool CanSelfUpdate { get; }
 
     Task StartUpdateAsync(UpdateProgress progress, CancellationToken cancellationToken = default);

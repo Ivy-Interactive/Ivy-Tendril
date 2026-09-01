@@ -552,6 +552,11 @@ public class JobServiceStartupTests
             return new List<(DateOnly Date, int Count)>();
         }
 
+        public DashboardActivityStats GetActivityStats(int monthsBack = 24)
+        {
+            return new DashboardActivityStats([], 0);
+        }
+
         public decimal GetPlanTotalCost(int planId)
         {
             return 0;
