@@ -379,7 +379,7 @@ public class ReviewActionsTableView(
         var actions = reviewActions.Value;
         if (actions.Count == 0) return null;
 
-        var rows = actions.Select((a, i) => new ReviewActionRow(a.Name, i, a)).ToList();
+        var rows = actions.Select((a, i) => new ReviewActionRow(a.Name, i)).ToList();
 
         return new TableBuilder<ReviewActionRow>(rows)
             .Header(t => t.Name, "Action Name")
@@ -389,7 +389,7 @@ public class ReviewActionsTableView(
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<ReviewActionRow, int>(idx =>
             {
-                var action = rows[idx].Action;
+                var action = actions[idx];
                 return Layout.Horizontal().Gap(1)
                     | new Button().Icon(Icons.Play).Outline().Small().Tooltip("Run / Preview Action").OnClick(() =>
                     {
@@ -413,7 +413,7 @@ public class ReviewActionsTableView(
             .Width(Size.Fit());
     }
 
-    private record ReviewActionRow(string Name, int Index, ReviewActionConfig Action);
+    private record ReviewActionRow(string Name, int Index);
 }
 
 public class ProjectVerificationsTableView(
