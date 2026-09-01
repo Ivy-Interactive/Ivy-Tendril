@@ -1,3 +1,4 @@
+using Ivy.Tendril.Apps.ReviewAction;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
@@ -368,14 +369,17 @@ public class SkillsTableView : ViewBase
 
 public class ReviewActionsTableView(
     IState<List<ReviewActionConfig>> reviewActions,
-    Action<int?> onEdit) : ViewBase
+    Action<int?> onEdit,
+    string? projectName = null,
+    Action<ReviewActionConfig>? onRun = null) : ViewBase
 {
     public override object? Build()
     {
+        var nav = UseNavigation();
         var actions = reviewActions.Value;
         if (actions.Count == 0) return null;
 
-        var rows = actions.Select((a, i) => new ReviewActionRow(a.Name, i)).ToList();
+        var rows = actions.Select((a, i) => new ReviewActionRow(a.Name, i, a)).ToList();
 
         return new TableBuilder<ReviewActionRow>(rows)
             .Header(t => t.Name, "Action Name")
@@ -384,19 +388,32 @@ public class ReviewActionsTableView(
             ))
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<ReviewActionRow, int>(idx =>
-                Layout.Horizontal().Gap(1)
-                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
-                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
-                {
-                    var list = new List<ReviewActionConfig>(actions);
-                    list.RemoveAt(idx);
-                    reviewActions.Set(list);
-                })
-            ))
+            {
+                var action = rows[idx].Action;
+                return Layout.Horizontal().Gap(1)
+                    | new Button().Icon(Icons.Play).Outline().Small().Tooltip("Run / Preview Action").OnClick(() =>
+                    {
+                        if (onRun != null)
+                        {
+                            onRun(action);
+                        }
+                        else
+                        {
+                            nav.Navigate<ReviewActionApp>(new ReviewActionAppArgs(ActionName: action.Name, ProjectName: projectName));
+                        }
+                    })
+                    | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
+                    | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
+                    {
+                        var list = new List<ReviewActionConfig>(reviewActions.Value);
+                        list.RemoveAt(idx);
+                        reviewActions.Set(list);
+                    });
+            }))
             .Width(Size.Fit());
     }
 
-    private record ReviewActionRow(string Name, int Index);
+    private record ReviewActionRow(string Name, int Index, ReviewActionConfig Action);
 }
 
 public class ProjectVerificationsTableView(
