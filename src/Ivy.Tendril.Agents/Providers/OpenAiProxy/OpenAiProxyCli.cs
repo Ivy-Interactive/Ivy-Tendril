@@ -116,6 +116,7 @@ public sealed class OpenAiProxyCli : IAgentCli
             RedirectStderr = spec.RedirectStderr,
             CreateNoWindow = spec.CreateNoWindow,
             UseShellExecute = spec.UseShellExecute,
+            TempFiles = spec.TempFiles,
         };
     }
 
