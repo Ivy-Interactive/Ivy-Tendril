@@ -180,6 +180,12 @@ export interface ChatAttachmentDto {
   previewUrl?: string;
 }
 
+export interface ChatQueuedMessageDto {
+  id: string;
+  prompt: string;
+  attachments?: ChatAttachmentDto[];
+}
+
 type IvyEventHandler = (eventName: string, widgetId: string, args: unknown[]) => void;
 
 export interface ChatWidgetProps {
@@ -198,6 +204,7 @@ export interface ChatWidgetProps {
   streamingText?: string;
   streamingStream?: { id: string };
   subscribeToStream?: (streamId: string, onData: (data: unknown) => void) => () => void;
+  queuedMessages?: ChatQueuedMessageDto[];
   events?: string[];
   eventHandler?: IvyEventHandler;
 }
@@ -314,12 +321,6 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-interface QueuedItem {
-  id: string;
-  prompt: string;
-  attachments: ChatAttachmentDto[];
-}
-
 export function ChatWidget({
   id,
   activeSessionId,
@@ -336,6 +337,7 @@ export function ChatWidget({
   streamingText = "",
   streamingStream: _streamingStream,
   subscribeToStream: _subscribeToStream,
+  queuedMessages: queuedMessagesProp,
   events = [],
   eventHandler,
 }: ChatWidgetProps) {
@@ -344,7 +346,7 @@ export function ChatWidget({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitleText, setEditingTitleText] = useState("");
   const [attachments, setAttachments] = useState<ChatAttachmentDto[]>([]);
-  const [queuedMessages, setQueuedMessages] = useState<QueuedItem[]>([]);
+  const [queuedMessages, setQueuedMessages] = useState<ChatQueuedMessageDto[]>(queuedMessagesProp || []);
   const [collapsedQueue, setCollapsedQueue] = useState(false);
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null);
   const [editingQueuedText, setEditingQueuedText] = useState("");
@@ -359,6 +361,12 @@ export function ChatWidget({
   const activeSession = sessions.find((s) => s.id === activeSessionId);
   const totalAttachmentSize = attachments.reduce((sum, att) => sum + (att.size || 0), 0);
   const isPayloadOversized = totalAttachmentSize > MAX_PAYLOAD_BYTES;
+
+  useEffect(() => {
+    if (queuedMessagesProp !== undefined) {
+      setQueuedMessages(queuedMessagesProp);
+    }
+  }, [queuedMessagesProp]);
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -454,12 +462,16 @@ export function ChatWidget({
     const item = queuedMessages.find((q) => q.id === queueId);
     if (!item) return;
 
-    const payload = { prompt: item.prompt, attachments: item.attachments, sessionId: activeSessionId };
-    emit("OnSendMessage", payload);
+    if (events.includes("OnSendQueuedNow")) {
+      emit("OnSendQueuedNow", queueId);
+    } else {
+      const payload = { prompt: item.prompt, attachments: item.attachments, sessionId: activeSessionId };
+      emit("OnSendMessage", payload);
+    }
     setQueuedMessages((prev) => prev.filter((q) => q.id !== queueId));
   };
 
-  const handleStartEditQueued = (item: QueuedItem) => {
+  const handleStartEditQueued = (item: ChatQueuedMessageDto) => {
     setEditingQueuedId(item.id);
     setEditingQueuedText(item.prompt);
   };
@@ -469,6 +481,7 @@ export function ChatWidget({
     if (!trimmed) {
       handleDeleteQueued(queueId);
     } else {
+      emit("OnUpdateQueuedMessage", queueId, trimmed);
       setQueuedMessages((prev) =>
         prev.map((q) => (q.id === queueId ? { ...q, prompt: trimmed } : q))
       );
@@ -483,6 +496,7 @@ export function ChatWidget({
   };
 
   const handleDeleteQueued = (queueId: string) => {
+    emit("OnDeleteQueuedMessage", queueId);
     setQueuedMessages((prev) => prev.filter((q) => q.id !== queueId));
     if (editingQueuedId === queueId) {
       setEditingQueuedId(null);

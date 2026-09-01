@@ -24,7 +24,6 @@ public class ContentView(
     IState<string?> streamingSessionId,
     IState<HashSet<string>> runningSessionIds,
     IState<Dictionary<string, string>> liveSessionStreams,
-    IRef<ConcurrentQueue<ChatSendMessageDto>> messageQueue,
     IRef<IAgentSession?> activeSessionRef,
     List<ChatSessionDto> sessionDtos,
     List<AgentOptionDto> agentDtos,
@@ -68,6 +67,16 @@ public class ContentView(
 
         var deleteDialog = new DeleteSessionDialog(deletingSessionId, sessionToDelete, chatService, activeSessionId, sessionVersion);
 
+        var activeQueuedItems = activeSessionId.Value != null
+            ? chatService.GetQueuedMessages(activeSessionId.Value)
+            : Array.Empty<ChatQueuedItem>();
+
+        var queuedMessageDtos = activeQueuedItems.Select(q => new ChatQueuedMessageDto(
+            q.Id,
+            q.Prompt,
+            q.Attachments
+        )).ToList();
+
         var chatWidget = new ChatWidget
         {
             ActiveSessionId = activeSessionId.Value,
@@ -82,6 +91,7 @@ public class ContentView(
             SupportsEffort = supportsEffort,
             IsStreaming = activeSessionId.Value != null && runningSessionIds.Value.Contains(activeSessionId.Value),
             StreamingText = activeSessionLiveStream,
+            QueuedMessages = queuedMessageDtos,
 
             OnSelectSession = e =>
             {
@@ -115,7 +125,10 @@ public class ContentView(
             },
             OnCancelStream = async _ =>
             {
-                while (messageQueue.Value.TryDequeue(out var _)) { }
+                if (activeSessionId.Value != null)
+                {
+                    chatService.ClearQueuedMessages(activeSessionId.Value);
+                }
                 try
                 {
                     if (activeSessionRef.Value != null)
@@ -152,6 +165,36 @@ public class ContentView(
             OnEffortChanged = e =>
             {
                 selectedEffort.Set(e.Value);
+                return ValueTask.CompletedTask;
+            },
+            OnDeleteQueuedMessage = e =>
+            {
+                if (activeSessionId.Value != null && !string.IsNullOrEmpty(e.Value))
+                {
+                    chatService.RemoveQueuedMessage(activeSessionId.Value, e.Value);
+                }
+                return ValueTask.CompletedTask;
+            },
+            OnUpdateQueuedMessage = e =>
+            {
+                if (activeSessionId.Value != null && e.Value != null && e.Value.Length >= 2)
+                {
+                    chatService.UpdateQueuedMessage(activeSessionId.Value, e.Value[0], e.Value[1]);
+                }
+                return ValueTask.CompletedTask;
+            },
+            OnSendQueuedNow = e =>
+            {
+                if (activeSessionId.Value != null && !string.IsNullOrEmpty(e.Value))
+                {
+                    var items = chatService.GetQueuedMessages(activeSessionId.Value);
+                    var item = items.FirstOrDefault(q => q.Id == e.Value);
+                    if (item != null)
+                    {
+                        chatService.RemoveQueuedMessage(activeSessionId.Value, e.Value);
+                        sendMessage(new ChatSendMessageDto(item.Prompt, item.Attachments, activeSessionId.Value));
+                    }
+                }
                 return ValueTask.CompletedTask;
             }
         }

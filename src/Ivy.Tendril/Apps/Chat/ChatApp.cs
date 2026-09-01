@@ -48,7 +48,6 @@ public class ChatApp : ViewBase
         var liveSessionStreams = UseState(new Dictionary<string, string>());
         var activeSessionRef = UseRef<IAgentSession?>(null);
         var runningSessionIds = UseState(() => new HashSet<string>(chatService.GetGeneratingSessionIds()));
-        var messageQueue = UseRef(new ConcurrentQueue<ChatSendMessageDto>());
         var initialHandled = UseRef(false);
 
         var searchState = UseState("");
@@ -360,27 +359,10 @@ public class ChatApp : ViewBase
                 map.Remove(targetSessionId);
                 liveSessionStreams.Set(map);
 
-                var remainingItems = new List<ChatSendMessageDto>();
-                ChatSendMessageDto? nextForSession = null;
-                while (messageQueue.Value.TryDequeue(out var item))
+                if (chatService.TryDequeueMessage(targetSessionId, out var nextQueuedItem) && nextQueuedItem != null)
                 {
-                    if (nextForSession == null && (item.SessionId == targetSessionId || string.IsNullOrEmpty(item.SessionId)))
-                    {
-                        nextForSession = item;
-                    }
-                    else
-                    {
-                        remainingItems.Add(item);
-                    }
-                }
-                foreach (var rem in remainingItems)
-                {
-                    messageQueue.Value.Enqueue(rem);
-                }
-
-                if (nextForSession != null)
-                {
-                    _ = ExecuteSendMessage(nextForSession);
+                    var nextDto = new ChatSendMessageDto(nextQueuedItem.Prompt, nextQueuedItem.Attachments, targetSessionId);
+                    _ = ExecuteSendMessage(nextDto);
                 }
             }
         }
@@ -403,7 +385,7 @@ public class ChatApp : ViewBase
 
             if (runningSessionIds.Value.Contains(targetSessionId))
             {
-                messageQueue.Value.Enqueue(pinnedDto);
+                chatService.EnqueueMessage(targetSessionId, pinnedDto);
             }
             else
             {
@@ -445,7 +427,6 @@ public class ChatApp : ViewBase
             streamingSessionId,
             runningSessionIds,
             liveSessionStreams,
-            messageQueue,
             activeSessionRef,
             sessionDtos,
             agentDtos,
