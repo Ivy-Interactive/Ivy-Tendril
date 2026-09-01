@@ -87,11 +87,6 @@ public class DashboardApp : ViewBase
         var processStatus = statusService.Current;
         var jobs = jobService.GetJobs();
 
-        if (stats.TotalCount == 0 && activity.Months.All(m => m.PlansCreated == 0))
-        {
-            return new NoContentView("No plans yet", "Create your first plan to get started", new NewPlanButton().Width(Size.Fit()));
-        }
-
         var today = DateTime.UtcNow.Date;
         var firstActivityMonth = new DateTime(today.Year, today.Month, 1).AddMonths(-(ActivityMonths - 1));
         var prDays = planService.GetCompletedPrsByDay((today - firstActivityMonth).Days + 1);

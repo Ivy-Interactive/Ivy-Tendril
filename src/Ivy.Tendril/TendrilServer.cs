@@ -172,6 +172,7 @@ public static class TendrilServer
         var version = typeof(TendrilAppShell).Assembly.GetName().Version!;
         var versionString = version.ToString(3);
         var appShellSettings = new AppShellSettings()
+            .DefaultApp<DashboardApp>()
             .Header(
                 Layout.Horizontal(
                     new Image("/tendril/assets/Tendril.svg").Width(Size.Px(32)).Height(Size.Px(32)),
@@ -181,7 +182,6 @@ public static class TendrilServer
                     ).Gap(0)
                 ).Gap(2).Padding(2).AlignContent(Align.Left)
             )
-            .WallpaperApp<WallpaperApp>()
             .HideArgsInUrl()
             .UseTabs(true);
 

@@ -24,11 +24,16 @@
   /* Comparison (previous year) line. */
   --tdb-compare: #a0bce8;
 
-  /* KPI card pastels from the Figma design. */
-  --tdb-kpi-mint: #ccf5e9;
-  --tdb-kpi-sage: #cddbd6;
-  --tdb-kpi-teal: #66e0be;
-  --tdb-kpi-grey: #e6edeb;
+  /* KPI card tints. All four derive from the host theme's --primary so
+     alternate themes (neon, retro, cupcake...) recolor the cards
+     automatically; the cards are told apart by opacity, stepping down from
+     the strongest to the faintest. The mix percentages double as the
+     opacity modifier that keeps vivid theme colors (neon pink/cyan)
+     readable behind the card text. */
+  --tdb-kpi-1: color-mix(in srgb, var(--primary, #66e0be) 28%, var(--tdb-block-bg));
+  --tdb-kpi-2: color-mix(in srgb, var(--primary, #66e0be) 20%, var(--tdb-block-bg));
+  --tdb-kpi-3: color-mix(in srgb, var(--primary, #66e0be) 13%, var(--tdb-block-bg));
+  --tdb-kpi-4: color-mix(in srgb, var(--primary, #66e0be) 7%, var(--tdb-block-bg));
 
   font-family: var(--font-sans, "Geist", sans-serif);
   color: var(--tdb-fg);
@@ -44,10 +49,11 @@
 .dark .tdb-root {
   --tdb-block-bg: color-mix(in srgb, var(--foreground, #f8f8f8) 4%, var(--background, #000000));
   --tdb-block-border: color-mix(in srgb, var(--foreground, #f8f8f8) 10%, var(--background, #000000));
-  --tdb-kpi-mint: color-mix(in srgb, #ccf5e9 16%, var(--tdb-block-bg));
-  --tdb-kpi-sage: color-mix(in srgb, #cddbd6 16%, var(--tdb-block-bg));
-  --tdb-kpi-teal: color-mix(in srgb, #66e0be 26%, var(--tdb-block-bg));
-  --tdb-kpi-grey: color-mix(in srgb, #e6edeb 12%, var(--tdb-block-bg));
+  /* Dark mode needs lower mixes so saturated theme colors stay muted. */
+  --tdb-kpi-1: color-mix(in srgb, var(--primary, #66e0be) 22%, var(--tdb-block-bg));
+  --tdb-kpi-2: color-mix(in srgb, var(--primary, #66e0be) 16%, var(--tdb-block-bg));
+  --tdb-kpi-3: color-mix(in srgb, var(--primary, #66e0be) 10%, var(--tdb-block-bg));
+  --tdb-kpi-4: color-mix(in srgb, var(--primary, #66e0be) 6%, var(--tdb-block-bg));
 }
 
 .tdb-root * {
@@ -212,10 +218,10 @@
   color: var(--tdb-fg);
 }
 
-.tdb-kpi[data-tone="0"] { background: var(--tdb-kpi-mint); }
-.tdb-kpi[data-tone="1"] { background: var(--tdb-kpi-sage); }
-.tdb-kpi[data-tone="2"] { background: var(--tdb-kpi-teal); }
-.tdb-kpi[data-tone="3"] { background: var(--tdb-kpi-grey); }
+.tdb-kpi[data-tone="0"] { background: var(--tdb-kpi-1); }
+.tdb-kpi[data-tone="1"] { background: var(--tdb-kpi-2); }
+.tdb-kpi[data-tone="2"] { background: var(--tdb-kpi-3); }
+.tdb-kpi[data-tone="3"] { background: var(--tdb-kpi-4); }
 
 .tdb-kpi-label {
   font-size: 14px;
