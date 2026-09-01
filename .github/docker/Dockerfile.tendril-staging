@@ -17,6 +17,14 @@ ENV PATH="$PATH:/root/.dotnet/tools"
 # PowerShell: needed at runtime by Tendril AND needed now for pack-promptwares.ps1
 RUN dotnet tool install --global PowerShell
 
+# Node is required *at build time*: Ivy.Tendril.Widgets.csproj shells out to npx/pnpm
+# to build the widgets frontend, which is then embedded into the assembly.
+# The sdk image has no Node, so without this the publish fails on `npx: not found`.
+COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+
 WORKDIR /src
 COPY . .
 
