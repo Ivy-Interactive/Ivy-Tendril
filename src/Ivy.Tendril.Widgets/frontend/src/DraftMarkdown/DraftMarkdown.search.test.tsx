@@ -224,4 +224,24 @@ Another paragraph mentioning keyword multiple times: keyword and KEYWORD.
     expect(container.querySelector(".pmv-search-overlay")).toBeNull();
     expect(container.querySelectorAll(".pmv-search-highlight").length).toBe(0);
   });
+
+  it("renders search overlay floating inside root container alongside the scrollable shell", () => {
+    const { container } = render(<DraftMarkdown id="w1" content={sampleMarkdown} />);
+
+    act(() => {
+      fireEvent.keyDown(document, { key: "f", ctrlKey: true });
+    });
+
+    const root = container.querySelector(".pmv-root");
+    const shell = container.querySelector(".pmv-shell");
+    const searchOverlay = container.querySelector(".pmv-search-overlay");
+
+    expect(root).not.toBeNull();
+    expect(shell).not.toBeNull();
+    expect(searchOverlay).not.toBeNull();
+    expect(root?.contains(searchOverlay)).toBe(true);
+    expect(root?.contains(shell)).toBe(true);
+    // Overlay is a sibling of the scrollable shell in pmv-root, not inside pmv-shell flex row
+    expect(shell?.contains(searchOverlay)).toBe(false);
+  });
 });

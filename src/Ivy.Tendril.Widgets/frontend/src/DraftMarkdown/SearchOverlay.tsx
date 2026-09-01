@@ -48,53 +48,70 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
 
   return (
     <div className="pmv-search-overlay" role="search">
-      <input
-        ref={inputRef}
-        type="text"
-        className="pmv-search-input"
-        placeholder="Find in document..."
-        aria-label="Find in document"
-        value={query}
-        onChange={(e) => onQueryChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-      />
+      <div className="pmv-search-input-wrapper">
+        <svg
+          className="pmv-search-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <input
+          ref={inputRef}
+          type="text"
+          className="pmv-search-input"
+          placeholder="Find in document..."
+          aria-label="Find in document"
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
+      </div>
       {counterText && <span className="pmv-search-count">{counterText}</span>}
-      <button
-        type="button"
-        className="pmv-search-btn"
-        onClick={onPrevious}
-        disabled={matchCount === 0}
-        aria-label="Previous match"
-        title="Previous match (Shift+Enter)"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="18 15 12 9 6 15" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        className="pmv-search-btn"
-        onClick={onNext}
-        disabled={matchCount === 0}
-        aria-label="Next match"
-        title="Next match (Enter)"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        className="pmv-search-btn pmv-search-btn--close"
-        onClick={onClose}
-        aria-label="Close search"
-        title="Close (Escape)"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
+      <div className="pmv-search-actions">
+        <button
+          type="button"
+          className="pmv-search-btn"
+          onClick={onPrevious}
+          disabled={matchCount === 0}
+          aria-label="Previous match"
+          title="Previous match (Shift+Enter)"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="18 15 12 9 6 15" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="pmv-search-btn"
+          onClick={onNext}
+          disabled={matchCount === 0}
+          aria-label="Next match"
+          title="Next match (Enter)"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+        <div className="pmv-search-divider" />
+        <button
+          type="button"
+          className="pmv-search-btn pmv-search-btn--close"
+          onClick={onClose}
+          aria-label="Close search"
+          title="Close (Escape)"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 };

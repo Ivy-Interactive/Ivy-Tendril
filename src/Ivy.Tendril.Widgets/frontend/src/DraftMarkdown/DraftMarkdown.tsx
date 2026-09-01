@@ -451,7 +451,7 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
   };
 
   return (
-    <div ref={shellRef} className="pmv-shell" style={shellStyle}>
+    <div className="pmv-root" style={shellStyle}>
       {isSearchOpen && (
         <SearchOverlay
           query={searchQuery}
@@ -463,41 +463,43 @@ export const DraftMarkdown: React.FC<DraftMarkdownProps> = ({
           onClose={handleCloseSearch}
         />
       )}
-      <div className="pmv-body">
-        <div ref={contentRef} className={article ? "pmv-markdown pmv-article" : "pmv-markdown"}>
-          <QuestionsAnswerContext.Provider value={answerCallback}>{markdownTree}</QuestionsAnswerContext.Provider>
+      <div ref={shellRef} className="pmv-shell">
+        <div className="pmv-body">
+          <div ref={contentRef} className={article ? "pmv-markdown pmv-article" : "pmv-markdown"}>
+            <QuestionsAnswerContext.Provider value={answerCallback}>{markdownTree}</QuestionsAnswerContext.Provider>
+          </div>
         </div>
-      </div>
-      {hasFixed && <div className="pmv-sticky">{fixed}</div>}
+        {hasFixed && <div className="pmv-sticky">{fixed}</div>}
 
-      {annotationsEnabled && selectionToolbar && selectionAnchor && (
-        <SelectionToolbar
-          position={selectionAnchor.position}
-          visible={selectionAnchor.visible}
-          onAddComment={handleAddComment}
-        />
-      )}
-      {annotationsEnabled && addPopover && addAnchor && (
-        <AddAnnotationPopover
-          position={addAnchor.position}
-          visible={addAnchor.visible}
-          selectedText={addPopover.selectedText}
-          onAdd={handleAddAnnotation}
-          onCancel={() => setAddPopover(null)}
-        />
-      )}
-      {annotationsEnabled && editPopover && editAnchor && (
-        <EditAnnotationPopover
-          position={editAnchor.position}
-          visible={editAnchor.visible}
-          annotation={editPopover}
-          currentAuthor={currentAuthor}
-          onSave={handleEditAnnotation}
-          onToggleResolve={handleToggleResolveAnnotation}
-          onRemove={handleRemoveAnnotation}
-          onCancel={() => setEditPopover(null)}
-        />
-      )}
+        {annotationsEnabled && selectionToolbar && selectionAnchor && (
+          <SelectionToolbar
+            position={selectionAnchor.position}
+            visible={selectionAnchor.visible}
+            onAddComment={handleAddComment}
+          />
+        )}
+        {annotationsEnabled && addPopover && addAnchor && (
+          <AddAnnotationPopover
+            position={addAnchor.position}
+            visible={addAnchor.visible}
+            selectedText={addPopover.selectedText}
+            onAdd={handleAddAnnotation}
+            onCancel={() => setAddPopover(null)}
+          />
+        )}
+        {annotationsEnabled && editPopover && editAnchor && (
+          <EditAnnotationPopover
+            position={editAnchor.position}
+            visible={editAnchor.visible}
+            annotation={editPopover}
+            currentAuthor={currentAuthor}
+            onSave={handleEditAnnotation}
+            onToggleResolve={handleToggleResolveAnnotation}
+            onRemove={handleRemoveAnnotation}
+            onCancel={() => setEditPopover(null)}
+          />
+        )}
+      </div>
     </div>
   );
 };
