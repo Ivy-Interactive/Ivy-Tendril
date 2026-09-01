@@ -20,8 +20,34 @@ public class OutputSheet(string jobId, IJobService jobService) : ViewBase
             ? job.OutputObservable.Subscribe(line => outputStream.Write(line))
             : null);
 
-        if (job is null || (job.OutputLines.IsEmpty && job.Status != JobStatus.Running))
+        if (job is null)
             return Text.P("No output available.");
+
+        if (job.OutputLines.IsEmpty && job.Status != JobStatus.Running)
+        {
+            if (!string.IsNullOrEmpty(job.StatusMessage))
+            {
+                return Layout.Vertical()
+                    .Gap(2)
+                    | Callout.Info(job.StatusMessage, $"Job {job.Status}");
+            }
+
+            if (job.Status == JobStatus.Blocked)
+            {
+                return Layout.Vertical()
+                    .Gap(2)
+                    | Callout.Info("Waiting for dependencies or preceding jobs to complete.", "Job Blocked");
+            }
+
+            if (job.Status == JobStatus.Pending)
+            {
+                return Layout.Vertical()
+                    .Gap(2)
+                    | Callout.Info("Job is queued and waiting to start.", "Job Pending");
+            }
+
+            return Text.P("No output available.");
+        }
 
         if (job.Status != JobStatus.Running)
         {
