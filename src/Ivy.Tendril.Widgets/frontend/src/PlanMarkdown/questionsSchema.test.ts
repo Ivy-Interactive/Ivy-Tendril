@@ -228,3 +228,54 @@ describe("parseQuestions tolerance", () => {
     expect(parseQuestions(duplicate)).toEqual({ kind: "invalid" });
   });
 });
+
+describe("parseQuestions wrapper-less shapes", () => {
+  // A fence that already says `questions` makes the word inside look redundant, so agents keep
+  // leaving it out. Turned away here, the block renders as a code listing the user cannot answer.
+
+  it("reads a bare sequence written without the questions key", () => {
+    const parsed = parseQuestions(
+      body(
+        "- id: caching-strategy",
+        "  title: Which caching strategy should we use?",
+        "  options:",
+        "    - title: In-Memory",
+        "      value: in-memory",
+        "    - title: Distributed Redis",
+        "      value: redis",
+        "- id: eviction",
+        "  title: How should entries expire?",
+      ),
+    );
+
+    expect(parsed.kind).toBe("questions");
+    if (parsed.kind !== "questions") return;
+    expect(parsed.questions.map((q) => q.id)).toEqual(["caching-strategy", "eviction"]);
+    expect(parsed.questions[0].options).toHaveLength(2);
+  });
+
+  it("reads a single question written without any wrapper", () => {
+    const parsed = parseQuestions(
+      body("id: confirmation-prompt", "title: Should we prompt before deleting?", "answer: prompt"),
+    );
+
+    expect(parsed.kind).toBe("questions");
+    if (parsed.kind !== "questions") return;
+    expect(parsed.questions).toHaveLength(1);
+    expect(parsed.questions[0].id).toBe("confirmation-prompt");
+    expect(parsed.questions[0].answerPresent).toBe(true);
+  });
+
+  it("reports a bullet list of prose as invalid", () => {
+    // The pre-schema form is often a list. Without ids it is prose, and stays a static callout.
+    expect(parseQuestions(body("- Should this use JWTs?", "- How long should a session live?"))).toEqual({
+      kind: "invalid",
+    });
+  });
+
+  it("reports a sequence whose items are not all questions as invalid", () => {
+    expect(
+      parseQuestions(body("- id: q1", "  title: A question", "- just some prose")),
+    ).toEqual({ kind: "invalid" });
+  });
+});

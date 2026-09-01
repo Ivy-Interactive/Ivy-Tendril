@@ -209,6 +209,37 @@ export function tagQuestionBlocks(markdown: string): string {
   return out + markdown.slice(cursor);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The path to `questionId`'s `answer` key inside a parsed block body, or null when the block holds
+ * no such question.
+ *
+ * The three shapes are the ones `questionsSchema.parseQuestions` reads, and the path differs for
+ * each: a `questions:` mapping nests the list under that key, a bare sequence is the list, and a
+ * single question written without either wrapper is the question itself. Anything the reader renders
+ * as a picker has to be writable here, or answering it would throw.
+ */
+function answerPath(js: unknown, questionId: string): (string | number)[] | null {
+  const isTarget = (q: unknown) => isRecord(q) && q.id === questionId;
+
+  if (Array.isArray(js)) {
+    const index = js.findIndex(isTarget);
+    return index < 0 ? null : [index, "answer"];
+  }
+
+  if (!isRecord(js)) return null;
+
+  if (Array.isArray(js.questions)) {
+    const index = js.questions.findIndex(isTarget);
+    return index < 0 ? null : ["questions", index, "answer"];
+  }
+
+  return isTarget(js) ? ["answer"] : null;
+}
+
 function dedent(body: string, indent: number): string {
   if (indent === 0) return body;
   return body
@@ -255,23 +286,15 @@ export function setAnswer(
   }
 
   const doc = parseDocument(dedent(block.body, block.indent));
-  const js = doc.toJS() as { questions?: unknown } | null;
-  const questions = js && typeof js === "object" ? js.questions : undefined;
-  if (!Array.isArray(questions)) {
-    throw new Error(`setAnswer: block ${blockIndex} has no questions list`);
-  }
-
-  const index = questions.findIndex(
-    (q) => q !== null && typeof q === "object" && (q as { id?: unknown }).id === questionId,
-  );
-  if (index < 0) {
+  const path = answerPath(doc.toJS(), questionId);
+  if (!path) {
     throw new Error(`setAnswer: block ${blockIndex} has no question with id "${questionId}"`);
   }
 
   if (answer === undefined) {
-    doc.deleteIn(["questions", index, "answer"]);
+    doc.deleteIn(path);
   } else {
-    doc.setIn(["questions", index, "answer"], answer);
+    doc.setIn(path, answer);
   }
 
   // lineWidth: 0 disables folding, so a long answer is never re-wrapped into a shape the author

@@ -274,3 +274,56 @@ describe("setAnswer", () => {
     expect(out).toContain("- item:");
   });
 });
+
+describe("setAnswer on wrapper-less shapes", () => {
+  // Every shape the reader renders as a picker has to be writable here, or answering it throws.
+
+  const BARE_SEQUENCE = doc(
+    "```questions",
+    "- id: caching-strategy",
+    "  title: Which caching strategy?",
+    "- id: eviction",
+    "  title: How should entries expire?",
+    "```",
+  );
+
+  const SINGLE_QUESTION = doc(
+    "```questions",
+    "id: confirmation-prompt",
+    "title: Should we prompt before deleting?",
+    "```",
+  );
+
+  it("writes an answer into a bare sequence", () => {
+    const updated = setAnswer(BARE_SEQUENCE, 0, "caching-strategy", "redis");
+
+    const parsed = parseQuestions(scanQuestionBlocks(updated)[0].body);
+    expect(parsed.kind).toBe("questions");
+    if (parsed.kind !== "questions") return;
+    expect(parsed.questions[0].answer).toBe("redis");
+    // The question it was not about keeps its shape.
+    expect(parsed.questions[1].answerPresent).toBe(false);
+  });
+
+  it("writes an answer into a single question written without any wrapper", () => {
+    const updated = setAnswer(SINGLE_QUESTION, 0, "confirmation-prompt", ["prompt"]);
+
+    const parsed = parseQuestions(scanQuestionBlocks(updated)[0].body);
+    expect(parsed.kind).toBe("questions");
+    if (parsed.kind !== "questions") return;
+    expect(parsed.questions[0].answer).toEqual(["prompt"]);
+  });
+
+  it("deletes an answer in a wrapper-less block", () => {
+    const answered = setAnswer(BARE_SEQUENCE, 0, "eviction", "after-a-day");
+    const cleared = setAnswer(answered, 0, "eviction", undefined);
+
+    expect(cleared).not.toContain("answer:");
+    expect(cleared).toContain("id: eviction");
+  });
+
+  it("throws for an id no shape in the block carries", () => {
+    expect(() => setAnswer(BARE_SEQUENCE, 0, "nope", "x")).toThrow(/no question with id "nope"/);
+    expect(() => setAnswer(SINGLE_QUESTION, 0, "nope", "x")).toThrow(/no question with id "nope"/);
+  });
+});

@@ -44,9 +44,9 @@ export interface PlanQuestion {
 export type ParsedQuestions =
   | { kind: "questions"; questions: PlanQuestion[] }
   /**
-   * The body is not a mapping with a `questions` key — the plain-text form that predates the
-   * schema, which existing revisions contain — or its `id`s are missing or collide within this
-   * block. Renders as the static callout.
+   * The body is none of the shapes below — the plain-text form that predates the schema, which
+   * existing revisions contain — or its `id`s are missing or collide within this block. Renders as
+   * the static callout.
    */
   | { kind: "invalid" };
 
@@ -77,6 +77,34 @@ function optionalString(value: unknown): string | undefined {
   return text !== undefined && text.length > 0 ? text : undefined;
 }
 
+/**
+ * A mapping carrying an `id`. That is the one field a question cannot do without — an answer travels
+ * as an id and a value and nothing else — and it is what tells a wrapper-less block apart from a
+ * legacy bullet list of prose.
+ */
+function looksLikeQuestion(value: unknown): boolean {
+  return isRecord(value) && "id" in value;
+}
+
+/**
+ * The question list of one fence body, or undefined when the body is not a questions block at all.
+ *
+ * Three shapes say the same thing, and agents write all three: the canonical `questions:` mapping,
+ * the list written bare without that wrapper, and a single question written without either. The
+ * fence already says `questions`, so repeating the word inside reads as redundant — and a block
+ * turned away here renders as a code listing the user cannot answer.
+ *
+ * The C# `QuestionBlockParser` and `QuestionAnswers` accept exactly these three, and must keep
+ * agreeing with this: a shape one side reads and another does not is a picker whose answer goes
+ * nowhere.
+ */
+function questionList(raw: unknown): unknown[] | undefined {
+  if (Array.isArray(raw)) return raw.length > 0 && raw.every(looksLikeQuestion) ? raw : undefined;
+  if (!isRecord(raw)) return undefined;
+  if (Array.isArray(raw.questions)) return raw.questions;
+  return looksLikeQuestion(raw) ? [raw] : undefined;
+}
+
 function readOptions(raw: unknown): QuestionOption[] | undefined {
   if (!Array.isArray(raw)) return undefined;
 
@@ -89,8 +117,8 @@ function readOptions(raw: unknown): QuestionOption[] | undefined {
 }
 
 /**
- * Reads one fence body. Never throws: malformed YAML, prose, and a mapping without a `questions`
- * key all come back as `kind: "invalid"`.
+ * Reads one fence body. Never throws: malformed YAML, prose, and a mapping that is none of the
+ * shapes `questionList` knows all come back as `kind: "invalid"`.
  *
  * `id` is required and must be unique **within this block**. A cross-block collision is out of
  * reach here — this parser only ever sees one fence — and belongs in the C# validator, the one
@@ -104,12 +132,13 @@ export function parseQuestions(body: string): ParsedQuestions {
     return { kind: "invalid" };
   }
 
-  if (!isRecord(raw) || !Array.isArray(raw.questions)) return { kind: "invalid" };
+  const list = questionList(raw);
+  if (list === undefined) return { kind: "invalid" };
 
   const seen = new Set<string>();
   const questions: PlanQuestion[] = [];
 
-  for (const entry of raw.questions) {
+  for (const entry of list) {
     if (!isRecord(entry)) return { kind: "invalid" };
 
     const id = scalarString(entry.id);

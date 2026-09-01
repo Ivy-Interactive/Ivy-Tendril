@@ -14,7 +14,7 @@ namespace Ivy.Tendril.Helpers;
 /// <param name="Block">The deserialized block, or null when legacy or unparseable.</param>
 /// <param name="YamlError">Parse or shape error, or null. Only set for a block that was meant to be structured.</param>
 /// <param name="IsLegacy">
-///     True when the body is not a YAML mapping with a <c>questions</c> key — the plain-text form
+///     True when the body is none of the shapes a questions block may take — the plain-text form
 ///     that shipped before the schema existed. Legacy blocks warn, never error, and are never rewritten.
 /// </param>
 public record ParsedQuestionsBlock(
@@ -36,6 +36,11 @@ public record ParsedQuestionsBlock(
 public static class QuestionBlockParser
 {
     private const string InfoWord = "questions";
+
+    /// <summary>
+    ///     First lines that announce a structured block, one per shape <see cref="Classify" /> reads.
+    /// </summary>
+    private static readonly string[] StructuredOpeners = [InfoWord + ":", "- id:", "id:"];
 
     /// <summary>
     ///     Strict deserializer: the schema is <c>additionalProperties: false</c>, so unlike
@@ -119,26 +124,21 @@ public static class QuestionBlockParser
     private static ParsedQuestionsBlock Analyze(int line, string body)
     {
         // Pass 1: the raw node, which is the only place that knows whether an `answer` key exists.
-        YamlMappingNode? mapping = null;
+        YamlNode? root = null;
         string? loadError = null;
         try
         {
             var stream = new YamlStream();
             stream.Load(new StringReader(body));
             if (stream.Documents.Count > 0)
-                mapping = stream.Documents[0].RootNode as YamlMappingNode;
+                root = stream.Documents[0].RootNode;
         }
         catch (YamlException ex)
         {
             loadError = Flatten(ex.Message);
         }
 
-        var questionsNode = mapping is not null &&
-                            mapping.Children.TryGetValue(new YamlScalarNode(InfoWord), out var node)
-            ? node
-            : null;
-
-        if (questionsNode is null)
+        if (Classify(root) is not { } classified)
         {
             // Broken YAML that clearly meant to be structured is an error; anything else is the
             // pre-schema plain-text form, which must never be rejected.
@@ -152,7 +152,7 @@ public static class QuestionBlockParser
         QuestionsBlock? typed;
         try
         {
-            typed = StrictDeserializer.Deserialize<QuestionsBlock>(body);
+            typed = Deserialize(body, classified.Shape);
         }
         catch (YamlException ex)
         {
@@ -163,23 +163,102 @@ public static class QuestionBlockParser
             return new ParsedQuestionsBlock(line, body, null, "block is empty", IsLegacy: false);
 
         return new ParsedQuestionsBlock(
-            line, body, typed with { Questions = StampAnswers(typed.Questions, questionsNode) }, null, IsLegacy: false);
+            line, body, typed with { Questions = StampAnswers(typed.Questions, classified.Entries) }, null, IsLegacy: false);
+    }
+
+    /// <summary>How a block spells its questions. All three mean the same thing.</summary>
+    private enum RootShape
+    {
+        /// <summary>The canonical form: a mapping whose <c>questions</c> key holds the list.</summary>
+        Mapping,
+
+        /// <summary>A bare sequence — the list written without its <c>questions:</c> wrapper.</summary>
+        Sequence,
+
+        /// <summary>One question mapping, written without either wrapper.</summary>
+        SingleQuestion
+    }
+
+    /// <summary>
+    ///     Which shape <paramref name="root" /> is, and the question nodes inside it, or null when it
+    ///     is no shape at all — a legacy block.
+    ///     <para>
+    ///         The two wrapper-less shapes exist because agents keep emitting them: a fence already
+    ///         says <c>questions</c>, so repeating the word inside reads as redundant, and the block
+    ///         that comes back is a picker the user cannot use. Accepting them costs nothing and is
+    ///         the difference between a question being answerable and being a code listing.
+    ///     </para>
+    ///     <para>
+    ///         What keeps a legacy bullet list of prose from being read as a wrapper-less sequence is
+    ///         that every item must look like a question. Nothing weaker would do: legacy blocks warn,
+    ///         structured ones block the write, so mistaking one for the other fails a plan over
+    ///         formatting.
+    ///     </para>
+    /// </summary>
+    private static (RootShape Shape, IReadOnlyList<YamlNode> Entries)? Classify(YamlNode? root) => root switch
+    {
+        // A `questions` key whose value is not a sequence stays here rather than falling through to
+        // the shapes below: it is a structured block with the wrong value, and deserializing it says
+        // so far better than a legacy warning would.
+        YamlMappingNode mapping when mapping.Children.TryGetValue(new YamlScalarNode(InfoWord), out var node) =>
+            (RootShape.Mapping, node is YamlSequenceNode questions ? [.. questions.Children] : Array.Empty<YamlNode>()),
+
+        YamlSequenceNode sequence when sequence.Children.Count > 0 && sequence.Children.All(LooksLikeQuestion) =>
+            (RootShape.Sequence, [.. sequence.Children]),
+
+        YamlMappingNode single when LooksLikeQuestion(single) =>
+            (RootShape.SingleQuestion, new YamlNode[] { single }),
+
+        _ => null
+    };
+
+    /// <summary>
+    ///     A mapping that carries an <c>id</c>, which is the one field a question cannot do without —
+    ///     an answer travels as an id and a value, so a mapping lacking one could never be answered
+    ///     whatever else it holds. It is also the conservative test: everything it turns away stays a
+    ///     legacy block, which warns, rather than becoming a structured block that blocks the write.
+    /// </summary>
+    private static bool LooksLikeQuestion(YamlNode node) =>
+        node is YamlMappingNode mapping && mapping.Children.ContainsKey(new YamlScalarNode("id"));
+
+    private static QuestionsBlock? Deserialize(string body, RootShape shape)
+    {
+        switch (shape)
+        {
+            case RootShape.Mapping:
+                if (StrictDeserializer.Deserialize<QuestionsBlock>(body) is not { } block)
+                    return null;
+
+                // A bare `questions:` with nothing under it deserializes the property to null,
+                // overwriting its initializer. Normalized here so an empty block reaches the
+                // validator and is told what it is missing, rather than throwing on the way.
+                List<PlanQuestion>? questions = block.Questions;
+                return block with { Questions = questions ?? [] };
+
+            case RootShape.Sequence:
+                return new QuestionsBlock
+                {
+                    Questions = StrictDeserializer.Deserialize<List<PlanQuestion>>(body) ?? []
+                };
+
+            default:
+                return StrictDeserializer.Deserialize<PlanQuestion>(body) is { } single
+                    ? new QuestionsBlock { Questions = [single] }
+                    : null;
+        }
     }
 
     /// <summary>
     ///     Copies <c>answer</c>-key presence from the raw YAML onto the deserialized questions.
     /// </summary>
-    private static List<PlanQuestion> StampAnswers(List<PlanQuestion> questions, YamlNode questionsNode)
+    private static List<PlanQuestion> StampAnswers(List<PlanQuestion> questions, IReadOnlyList<YamlNode> entries)
     {
-        if (questionsNode is not YamlSequenceNode sequence)
-            return questions;
-
         var answerKey = new YamlScalarNode("answer");
         var stamped = new List<PlanQuestion>(questions.Count);
         for (var i = 0; i < questions.Count; i++)
         {
-            var present = i < sequence.Children.Count &&
-                          sequence.Children[i] is YamlMappingNode item &&
+            var present = i < entries.Count &&
+                          entries[i] is YamlMappingNode item &&
                           item.Children.ContainsKey(answerKey);
             stamped.Add(questions[i] with { AnswerPresent = present });
         }
@@ -187,7 +266,10 @@ public static class QuestionBlockParser
         return stamped;
     }
 
-    /// <summary>The first meaningful line is a <c>questions:</c> key, so the body meant to be structured.</summary>
+    /// <summary>
+    ///     The first meaningful line opens one of the shapes above, so the body meant to be
+    ///     structured — and broken YAML in it is an error rather than a legacy block.
+    /// </summary>
     private static bool LooksStructured(string body)
     {
         foreach (var raw in body.Split('\n'))
@@ -196,7 +278,7 @@ public static class QuestionBlockParser
             if (line.Length == 0 || line.StartsWith('#'))
                 continue;
 
-            return line.StartsWith(InfoWord + ":", StringComparison.Ordinal);
+            return StructuredOpeners.Any(opener => line.StartsWith(opener, StringComparison.Ordinal));
         }
 
         return false;
