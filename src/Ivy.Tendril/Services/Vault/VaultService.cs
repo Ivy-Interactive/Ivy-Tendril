@@ -385,6 +385,8 @@ public class VaultService : IVaultService
 
                 if (matchedTracking != null && matchedLocalProjectName != null)
                 {
+                    var localProj = _config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(matchedLocalProjectName, StringComparison.OrdinalIgnoreCase));
+
                     var localMemoryDir = ProjectPathHelper.GetMemoryDir(_config.TendrilHome, matchedLocalProjectName);
                     var localMemoryFiles = Directory.Exists(localMemoryDir)
                         ? Directory.GetFiles(localMemoryDir, "*.md").Select(Path.GetFileName).OfType<string>().ToHashSet(StringComparer.OrdinalIgnoreCase)
@@ -398,15 +400,39 @@ public class VaultService : IVaultService
                     bool isMissingMemories = memoryNames.Any(m => !localMemoryFiles.Contains(m));
                     bool isMissingSkills = skillNames.Any(s => !localSkillFiles.Contains(s));
 
-                    // This vault project is imported and tracked locally!
-                    if (!isMissingMemories && !isMissingSkills &&
-                        (string.IsNullOrEmpty(localVersion) || string.IsNullOrEmpty(remoteVersion) || string.Equals(localVersion, remoteVersion, StringComparison.OrdinalIgnoreCase)))
+                    bool hasLocalNewSkills = localSkillFiles.Any(s => !skillNames.Contains(s));
+                    bool hasLocalNewMemories = localMemoryFiles.Any(m => !memoryNames.Contains(m));
+
+                    bool hasLocalConfigChanges = false;
+                    if (localProj != null)
                     {
-                        syncStatus = VaultItemSyncStatus.UpToDate;
+                        var localSkillNamesFromConfig = localProj.Skills.Select(s => s.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                        var localMcpNames = localProj.McpServers.Select(m => m.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                        var localActionNames = localProj.ReviewActions.Select(a => a.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                        var localVerifNames = localProj.Verifications.Select(v => v.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                        if (localSkillNamesFromConfig.Any(s => !skillNames.Contains(s)) ||
+                            localMcpNames.Any(m => !mcpNames.Contains(m)) ||
+                            localActionNames.Any(a => !reviewActionNames.Contains(a)) ||
+                            localVerifNames.Any(v => !verificationNames.Contains(v)))
+                        {
+                            hasLocalConfigChanges = true;
+                        }
+                    }
+
+                    // This vault project is imported and tracked locally!
+                    if (isMissingMemories || isMissingSkills ||
+                        (!string.IsNullOrEmpty(localVersion) && !string.IsNullOrEmpty(remoteVersion) && !string.Equals(localVersion, remoteVersion, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        syncStatus = VaultItemSyncStatus.UpdateAvailable;
+                    }
+                    else if (hasLocalNewSkills || hasLocalNewMemories || hasLocalConfigChanges)
+                    {
+                        syncStatus = VaultItemSyncStatus.Modified;
                     }
                     else
                     {
-                        syncStatus = VaultItemSyncStatus.UpdateAvailable;
+                        syncStatus = VaultItemSyncStatus.UpToDate;
                     }
                 }
                 else

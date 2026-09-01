@@ -711,13 +711,14 @@ verifications: []
         Directory.CreateDirectory(memoryDir);
 
         File.WriteAllText(Path.Combine(skillsDir, "skillA.md"), "# Skill A");
+        File.WriteAllText(Path.Combine(skillsDir, "local-skill.md"), "# Local Skill");
         File.WriteAllText(Path.Combine(memoryDir, "notes.md"), "# Notes");
 
         var manifest = new VaultProjectManifest
         {
             Name = "LocalApp",
             Version = "2026.09.01.150000",
-            Skills = new List<ProjectSkillRef> { new() { Name = "skillA" } },
+            Skills = new List<ProjectSkillRef> { new() { Name = "skillA" }, new() { Name = "local-skill" } },
             Repos = new List<VaultRepoRef> { new() { Name = "local-app" } }
         };
         File.WriteAllText(Path.Combine(projectDir, "project.yaml"), YamlHelper.SerializerCompact.Serialize(manifest));
@@ -809,5 +810,50 @@ verifications: []
 
         Assert.Contains(merged.ReviewActions, a => a.Name == "CustomLocalReview");
         Assert.Contains(merged.ReviewActions, a => a.Name == "VaultTeamReview");
+    }
+
+    [Fact]
+    public async Task GetCatalogAsync_WhenLocalProjectHasLocalChanges_DetectsModifiedSyncStatus()
+    {
+        var config = CreateConfig();
+        var vaultDir = Path.Combine(_tempDir.Path, "Vault");
+        var projectDir = Path.Combine(vaultDir, "projects", "LocalApp");
+        Directory.CreateDirectory(projectDir);
+
+        var manifest = new VaultProjectManifest
+        {
+            Name = "LocalApp",
+            Version = "2026.09.01.200000",
+            Skills = new List<ProjectSkillRef> { new() { Name = "skillA" } }
+        };
+        File.WriteAllText(Path.Combine(projectDir, "project.yaml"), YamlHelper.SerializerCompact.Serialize(manifest));
+
+        config.Settings.Vault = new VaultSettings
+        {
+            Enabled = true,
+            RepoUrl = "https://github.com/team/Tendril-Vault.git",
+            LocalPath = vaultDir,
+            TrackedProjects = new()
+            {
+                ["LocalApp"] = new ProjectVaultTracking
+                {
+                    VaultProjectName = "LocalApp",
+                    InstalledVersion = "2026.09.01.200000"
+                }
+            }
+        };
+
+        // Add remote skillA locally plus a new local skill that is not present in the remote vault manifest
+        var localSkillsDir = ProjectPathHelper.GetSkillsDir(_tempDir.Path, "LocalApp");
+        Directory.CreateDirectory(localSkillsDir);
+        File.WriteAllText(Path.Combine(localSkillsDir, "skillA.md"), "# Skill A");
+        File.WriteAllText(Path.Combine(localSkillsDir, "new-local-skill.md"), "# New Skill");
+
+        var vaultService = new VaultService(config, NullLogger<VaultService>.Instance);
+        var catalog = await vaultService.GetCatalogAsync();
+
+        var item = catalog.Projects.Find(p => p.Name == "LocalApp");
+        Assert.NotNull(item);
+        Assert.Equal(VaultItemSyncStatus.Modified, item.SyncStatus);
     }
 }
