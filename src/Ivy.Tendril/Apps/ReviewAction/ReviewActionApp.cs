@@ -58,33 +58,65 @@ public class ReviewActionApp : ViewBase
         //     }
         // }), EffectTrigger.OnMount());
 
-        // The plan/action lookup happens once via UseMemo (itself a hook, so this still satisfies
+        // The plan/project/action lookup happens once via UseMemo (itself a hook, so this still satisfies
         // IVYHOOK005's "hooks must come first" rule - it can't be a plain statement preceding
-        // UsePty). GetCommandLine then derives its argv from the already-resolved tuple instead
-        // of re-running ResolvePlan/ResolveAction. When nothing resolves, GetCommandLine returns
-        // an empty array, which makes UsePty's StartPtyAsync a no-op, so nothing is spawned.
-        var (plan, action) = UseMemo(() =>
+        // UsePty). GetCommandLine then derives its argv from the already-resolved action. When
+        // nothing resolves, GetCommandLine returns an empty array, which makes UsePty's StartPtyAsync
+        // a no-op, so nothing is spawned.
+        var (plan, project, action, workingDirectory) = UseMemo(() =>
         {
-            var resolvedPlan = ResolvePlan(planService, args?.PlanId);
-            var resolvedAction = resolvedPlan is not null
-                ? ResolveAction(configService, resolvedPlan.Project, args?.ActionName)
-                : null;
-            return (resolvedPlan, resolvedAction);
+            if (!string.IsNullOrEmpty(args?.PlanId))
+            {
+                var resolvedPlan = ResolvePlan(planService, args.PlanId);
+                var resolvedAction = resolvedPlan is not null
+                    ? ResolveAction(configService, resolvedPlan.Project, args?.ActionName)
+                    : null;
+                return (resolvedPlan, (ProjectConfig?)null, resolvedAction, resolvedPlan?.FolderPath);
+            }
+
+            if (!string.IsNullOrEmpty(args?.ProjectName))
+            {
+                var resolvedProject = configService.GetProject(args.ProjectName);
+                var resolvedAction = ResolveAction(configService, args.ProjectName, args?.ActionName);
+                var workDir = ResolveWorkingDirectory(configService, null, resolvedProject);
+                return ((PlanFile?)null, resolvedProject, resolvedAction, workDir);
+            }
+
+            return ((PlanFile?)null, (ProjectConfig?)null, (ReviewActionConfig?)null, (string?)null);
         });
 
         var ptyHandle = Context.UsePty(
-            GetCommandLine(plan, action),
-            plan?.FolderPath);
+            GetCommandLine(action),
+            workingDirectory);
         // ptyHandleRef.Value = ptyHandle; // Commented out - ptyHandleRef not used
 
-        if (plan is null)
+        if (!string.IsNullOrEmpty(args?.PlanId))
         {
-            return Text.Muted("Plan not found.");
-        }
+            if (plan is null)
+            {
+                return Text.Muted("Plan not found.");
+            }
 
-        if (action is null)
+            if (action is null)
+            {
+                return Text.Muted($"Review action \"{args?.ActionName}\" is not configured for project \"{plan.Project}\".");
+            }
+        }
+        else if (!string.IsNullOrEmpty(args?.ProjectName))
         {
-            return Text.Muted($"Review action \"{args?.ActionName}\" is not configured for project \"{plan.Project}\".");
+            if (project is null)
+            {
+                return Text.Muted($"Project \"{args.ProjectName}\" not found.");
+            }
+
+            if (action is null)
+            {
+                return Text.Muted($"Review action \"{args?.ActionName}\" is not configured for project \"{project.Name}\".");
+            }
+        }
+        else
+        {
+            return Text.Muted("Plan or project not specified.");
         }
 
         return new Xterm.Terminal()
@@ -99,8 +131,8 @@ public class ReviewActionApp : ViewBase
             .RemoveParentPadding();
     }
 
-    private static string[] GetCommandLine(PlanFile? plan, ReviewActionConfig? action) =>
-        plan is not null && action is not null
+    private static string[] GetCommandLine(ReviewActionConfig? action) =>
+        action is not null
             ? [PathHelper.GetPwshPath(), "-NoExit", "-NoProfile", "-Command", action.Command]
             : [];
 
@@ -109,6 +141,22 @@ public class ReviewActionApp : ViewBase
         if (string.IsNullOrEmpty(planId)) return null;
         var folder = Path.Combine(planService.PlansDirectory, planId);
         return planService.GetPlanByFolder(folder);
+    }
+
+    internal static string? ResolveWorkingDirectory(IConfigService configService, PlanFile? plan, ProjectConfig? project)
+    {
+        if (plan is not null) return plan.FolderPath;
+        if (project is not null)
+        {
+            var firstRepo = project.Repos.FirstOrDefault()?.Path;
+            if (!string.IsNullOrWhiteSpace(firstRepo))
+            {
+                var expanded = VariableExpansion.ExpandVariables(firstRepo, configService.TendrilHome);
+                return Directory.Exists(expanded) ? expanded : (Directory.Exists(firstRepo) ? firstRepo : configService.TendrilHome);
+            }
+            return configService.TendrilHome;
+        }
+        return null;
     }
 
     /// <summary>

@@ -62,6 +62,27 @@ public class TabTitleResolverTests
     }
 
     [Fact]
+    public void ResolveArgsTabTitle_ReviewActionArgsWithProjectName_FormatsProjectNameAndActionName()
+    {
+        var title = ResolveArgsTabTitle(
+            new ReviewActionAppArgs(ActionName: "Tendril", ProjectName: "ivy-tendril"));
+
+        Assert.Equal("[ivy-tendril] Tendril", title);
+    }
+
+    [Theory]
+    [InlineData(null, "Tendril")]
+    [InlineData("ivy-tendril", null)]
+    [InlineData("", "Tendril")]
+    [InlineData("ivy-tendril", "")]
+    public void ResolveArgsTabTitle_MissingProjectNameOrActionNameWithoutPlanId_ReturnsNull(string? projectName, string? actionName)
+    {
+        var title = ResolveArgsTabTitle(new ReviewActionAppArgs(null, actionName, projectName));
+
+        Assert.Null(title);
+    }
+
+    [Fact]
     public void ResolveArgsTabTitle_NullArgs_ReturnsNull()
     {
         Assert.Null(ResolveArgsTabTitle(null));

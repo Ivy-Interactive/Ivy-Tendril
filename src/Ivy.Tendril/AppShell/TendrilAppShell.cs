@@ -44,6 +44,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     {
         ReviewActionAppArgs { PlanId: { Length: > 0 } planId, ActionName: { Length: > 0 } name }
             => $"#{FormatPlanId(planId)} {name}",
+        ReviewActionAppArgs { ProjectName: { Length: > 0 } projectName, ActionName: { Length: > 0 } name }
+            => $"[{projectName}] {name}",
         AgentAppArgs { Title: { Length: > 0 } title } => title,
         _ => null
     };
