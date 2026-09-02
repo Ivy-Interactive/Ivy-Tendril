@@ -1100,6 +1100,83 @@ public static class TendrilThemes
         }
     };
 
+    public static readonly TendrilThemeDescriptor HelloKitty = new()
+    {
+        Id = "hellokitty",
+        Name = "Hello Kitty",
+        Description = "Playful pastel pink and milk-white theme with ruby red bow and pastel yellow accents",
+        IsDark = false,
+        PreviewColors = ["#ff7da7", "#ff3366", "#ffd166", "#fff5f8"],
+        IvyTheme = new Theme
+        {
+            Name = "Hello Kitty",
+            FontFamily = "Geist",
+            FontSize = "16px",
+            BorderRadiusBoxes = Theme.Default.BorderRadiusBoxes,
+            BorderRadiusFields = Theme.Default.BorderRadiusFields,
+            BorderRadiusSelectors = Theme.Default.BorderRadiusSelectors,
+            Colors = new ThemeColorScheme
+            {
+                Light = new ThemeColors
+                {
+                    Primary = "#ff7da7",
+                    PrimaryForeground = "#ffffff",
+                    Secondary = "#ffb3c6",
+                    SecondaryForeground = "#2d1520",
+                    Accent = "#ff3366",
+                    AccentForeground = "#ffffff",
+                    Background = "#fff5f8",
+                    Foreground = "#2d1520",
+                    Destructive = "#e11d48",
+                    DestructiveForeground = "#ffffff",
+                    Success = "#10b981",
+                    SuccessForeground = "#ffffff",
+                    Warning = "#ffd166",
+                    WarningForeground = "#2d1520",
+                    Info = "#38bdf8",
+                    InfoForeground = "#ffffff",
+                    Border = "#ffd6e0",
+                    Input = "#fae8ee",
+                    Ring = "#ff7da7",
+                    Muted = "#fae8ee",
+                    MutedForeground = "#804a60",
+                    Card = "#ffffff",
+                    CardForeground = "#2d1520",
+                    Popover = "#fff5f8",
+                    PopoverForeground = "#2d1520"
+                },
+                Dark = new ThemeColors
+                {
+                    Primary = "#ff6599",
+                    PrimaryForeground = "#1f0e16",
+                    Secondary = "#ff9ebb",
+                    SecondaryForeground = "#1f0e16",
+                    Accent = "#ff3366",
+                    AccentForeground = "#ffffff",
+                    Background = "#1f141a",
+                    Foreground = "#fff0f5",
+                    Destructive = "#fb7185",
+                    DestructiveForeground = "#1f0e16",
+                    Success = "#34d399",
+                    SuccessForeground = "#1f0e16",
+                    Warning = "#ffd166",
+                    WarningForeground = "#1f0e16",
+                    Info = "#38bdf8",
+                    InfoForeground = "#1f0e16",
+                    Border = "#3d2130",
+                    Input = "#2a1923",
+                    Ring = "#ff6599",
+                    Muted = "#331c2a",
+                    MutedForeground = "#c798ad",
+                    Card = "#2a1923",
+                    CardForeground = "#fff0f5",
+                    Popover = "#1f141a",
+                    PopoverForeground = "#fff0f5"
+                }
+            }
+        }
+    };
+
     public static readonly IReadOnlyList<TendrilThemeDescriptor> All =
     [
         Default,
@@ -1116,7 +1193,8 @@ public static class TendrilThemes
         Coffee,
         Dim,
         Luxury,
-        Lovably
+        Lovably,
+        HelloKitty
     ];
 
     private static readonly Dictionary<string, TendrilThemeDescriptor> ThemesById =
