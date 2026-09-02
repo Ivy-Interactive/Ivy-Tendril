@@ -19,7 +19,10 @@ public record AppComment(
     string Selector,
     string Comment,
     string? DebugJson,
-    string? Url = null);
+    string? Url = null,
+    string? Text = null,
+    string? AttrsJson = null,
+    string? Device = null);
 
 /// <summary>
 ///     The pieces of the review-action app preview that are worth testing on their own: finding
@@ -179,6 +182,19 @@ internal static partial class AppPreview
         var sb = new StringBuilder();
         sb.AppendLine($"Feedback from reviewing the running app at {url}");
         sb.AppendLine();
+        // Two things an agent gets wrong without being told. A source location is where the
+        // element was RENDERED from, which for anything built on a design system is the shared
+        // primitive — edit that and every screen changes, when one screen was meant. And a
+        // location is sometimes a guess; saying so is what lets the agent check first instead of
+        // editing confidently in the wrong file.
+        sb.AppendLine(
+            "Each item is a comment left on one element of the running app. Where a source "
+            + "location is given it is where that element was rendered from, which for a shared "
+            + "component is the primitive rather than the thing being complained about - when a "
+            + "component path is also given, the change usually belongs at the call site it names, "
+            + "not in the primitive. Treat any location not marked high confidence as a lead to "
+            + "verify rather than a fact.");
+        sb.AppendLine();
 
         // Under the page each comment was left on. A reviewer walks several screens in one
         // pass, and a flat list of notes about three different pages is one the agent has to
@@ -192,14 +208,42 @@ internal static partial class AppPreview
 
             foreach (var comment in page)
             {
-                var where = SourceLabel(comment.DebugJson);
                 var tag = string.IsNullOrEmpty(comment.Tag) ? "element" : $"<{comment.Tag}>";
+                // The element's own words, which usually identify it outright and, unlike a
+                // selector, can be searched for in the source.
+                var quoted = string.IsNullOrWhiteSpace(comment.Text)
+                    ? string.Empty
+                    : $" \u201c{comment.Text.Trim()}\u201d";
 
-                sb.Append($"- **{comment.Number}. {tag}**");
-                if (where is not null) sb.Append($" in `{where}`");
-                sb.AppendLine(":");
+                sb.AppendLine($"- **{comment.Number}. {tag}**{quoted}");
                 sb.AppendLine($"  {comment.Comment.Trim()}");
-                if (!string.IsNullOrEmpty(comment.Selector)) sb.AppendLine($"  (selector: `{comment.Selector}`)");
+
+                var source = ReadSource(comment.DebugJson);
+                if (source.Label is not null)
+                {
+                    var how = string.Join(", ", new[] { source.Confidence, source.Provenance }
+                        .Where(part => !string.IsNullOrEmpty(part)));
+                    sb.AppendLine(how.Length > 0
+                        ? $"  source: `{source.Label}` ({how})"
+                        : $"  source: `{source.Label}`");
+                }
+
+                if (source.ComponentPath is not null)
+                    sb.AppendLine($"  component: {source.ComponentPath}");
+
+                if (AttributeLabel(comment.AttrsJson) is { } attributes)
+                    sb.AppendLine($"  attributes: {attributes}");
+
+                // The selector earns its line when nothing resolved, where it is the only handle
+                // on the element left. Printed beside a file, a line and a component path it is
+                // the least useful thing there, and printing it every time is how a reader learns
+                // to skip the one case that needed it.
+                if (source.Label is null && !string.IsNullOrEmpty(comment.Selector))
+                    sb.AppendLine($"  selector: `{comment.Selector}`");
+
+                if (!string.IsNullOrEmpty(comment.Device))
+                    sb.AppendLine($"  viewport: {comment.Device}");
+
                 sb.AppendLine();
             }
         }
@@ -208,23 +252,95 @@ internal static partial class AppPreview
     }
 
     /// <summary>
-    ///     <c>src/components/SaveButton.tsx:42</c> out of the widget's attribution payload, or
-    ///     null when nothing resolved — a production bundle with no source map, most often.
+    ///     What the widget worked out about where an element came from. <paramref name="Label"/> is
+    ///     <c>src/components/SaveButton.tsx:42</c>, null when nothing resolved — a production
+    ///     bundle with no source map, most often. The rest is what makes that label safe to act on:
+    ///     how it was derived, how sure the widget is, and which components the element sits inside.
     /// </summary>
-    public static string? SourceLabel(string? debugJson)
+    public record SourceInfo(string? Label, string? Provenance, string? Confidence, string? ComponentPath);
+
+    /// <summary>
+    ///     Reads the widget's attribution payload. Everything here was already being collected and
+    ///     thrown away: only file and line were ever read, so an agent saw a guess and a
+    ///     high-confidence owner-stack hit as the same flat assertion.
+    /// </summary>
+    public static SourceInfo ReadSource(string? debugJson)
     {
-        if (string.IsNullOrEmpty(debugJson)) return null;
+        if (string.IsNullOrEmpty(debugJson)) return new SourceInfo(null, null, null, null);
         try
         {
             using var document = JsonDocument.Parse(debugJson);
-            if (!document.RootElement.TryGetProperty("source", out var source)) return null;
-            if (source.ValueKind != JsonValueKind.Object) return null;
-            if (source.TryGetProperty("file", out var file) is false) return null;
-            if (file.GetString() is not { Length: > 0 } path) return null;
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return new SourceInfo(null, null, null, null);
 
-            return source.TryGetProperty("line", out var line) && line.ValueKind == JsonValueKind.Number
-                ? $"{path}:{line.GetInt32()}"
-                : path;
+            string? label = null;
+            if (root.TryGetProperty("source", out var source) && source.ValueKind == JsonValueKind.Object
+                && source.TryGetProperty("file", out var file)
+                && file.GetString() is { Length: > 0 } path)
+            {
+                label = source.TryGetProperty("line", out var line) && line.ValueKind == JsonValueKind.Number
+                    ? $"{path}:{line.GetInt32()}"
+                    : path;
+            }
+
+            // "none" is the collector's own placeholder for "did not manage it", not a provenance.
+            string? Word(string name) =>
+                root.TryGetProperty(name, out var value)
+                && value.ValueKind == JsonValueKind.String
+                && value.GetString() is { Length: > 0 } word
+                && word != "none"
+                    ? word
+                    : null;
+
+            string? component = null;
+            if (root.TryGetProperty("ownerChain", out var chain) && chain.ValueKind == JsonValueKind.Array)
+            {
+                var names = chain.EnumerateArray()
+                    .Select(entry => entry.ValueKind == JsonValueKind.Object
+                                     && entry.TryGetProperty("name", out var n) ? n.GetString() : null)
+                    .Where(name => !string.IsNullOrEmpty(name))
+                    .ToList();
+                if (names.Count > 0) component = string.Join(" > ", names);
+            }
+
+            return new SourceInfo(label, Word("provenance"), Word("confidence"), component);
+        }
+        catch (JsonException)
+        {
+            return new SourceInfo(null, null, null, null);
+        }
+    }
+
+    /// <summary>The file and line alone, for callers that only want somewhere to point.</summary>
+    public static string? SourceLabel(string? debugJson) => ReadSource(debugJson).Label;
+
+    /// <summary>
+    ///     Attributes that identify the element in the SOURCE, most stable first. A data-testid or
+    ///     an aria-label is something an agent can grep for; <c>div > button:nth-child(1)</c> is
+    ///     something it has to solve. Capped, because an element can carry a lot of them.
+    /// </summary>
+    private static readonly string[] IdentifyingAttributes =
+        ["data-testid", "data-test-id", "id", "aria-label", "name", "placeholder", "href"];
+
+    public static string? AttributeLabel(string? attrsJson)
+    {
+        if (string.IsNullOrEmpty(attrsJson)) return null;
+        try
+        {
+            using var document = JsonDocument.Parse(attrsJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Object) return null;
+
+            var parts = new List<string>();
+            foreach (var name in IdentifyingAttributes)
+            {
+                if (parts.Count == 3) break;
+                if (document.RootElement.TryGetProperty(name, out var value)
+                    && value.ValueKind == JsonValueKind.String
+                    && value.GetString() is { Length: > 0 } text)
+                    parts.Add($"{name}=\"{text}\"");
+            }
+
+            return parts.Count > 0 ? string.Join(" ", parts) : null;
         }
         catch (JsonException)
         {

@@ -67,7 +67,8 @@ public class AppPreviewView(PlanFile plan, string appUrl) : ViewBase
 
                     case CommentEvent c:
                         comments.Set(prev => prev.Add(
-                            new AppComment(c.Id, c.Number, c.Tag, c.Selector, c.Comment, c.DebugJson, c.Url)));
+                            new AppComment(c.Id, c.Number, c.Tag, c.Selector, c.Comment, c.DebugJson, c.Url,
+                                c.Text, c.AttrsJson, c.Device)));
                         break;
 
                     case CommentUpdatedEvent u:
@@ -93,7 +94,6 @@ public class AppPreviewView(PlanFile plan, string appUrl) : ViewBase
 
         var selectButton = new Button(selecting.Value ? "Selecting…" : "Select")
             .Icon(Icons.SquareDashedMousePointer)
-            .Small()
             .Tooltip("Pick an element to comment on")
             .OnClick(() =>
             {
@@ -103,17 +103,38 @@ public class AppPreviewView(PlanFile plan, string appUrl) : ViewBase
             });
         selectButton = selecting.Value ? selectButton.Primary() : selectButton.Outline();
 
+        // Icon-only, which is what keeps the toggle on one line: given labels it is three words
+        // wide, and beside a full-width location bar it had nowhere to go but to wrap into a
+        // block twice the height of the toolbar. An option with no label renders as its icon
+        // alone, and the enum's own name still reaches the accessible name.
+        var deviceOptions = new[]
+        {
+            new Option<WebViewerDevice>("", WebViewerDevice.Desktop) { Icon = Icons.Monitor, Tooltip = "Desktop" },
+            // TabletSmartphone rather than Tablet: lucide's Tablet and Smartphone are both plain
+            // rounded rectangles differing only in aspect ratio, which is a distinction that does
+            // not survive being drawn at icon size. This one has its own silhouette.
+            new Option<WebViewerDevice>("", WebViewerDevice.Tablet) { Icon = Icons.TabletSmartphone, Tooltip = "Tablet" },
+            new Option<WebViewerDevice>("", WebViewerDevice.Mobile) { Icon = Icons.Smartphone, Tooltip = "Mobile" },
+        };
+
+        // No .Small() on any of these: small buttons sit shorter than a default-size text input,
+        // so the row read as a line of little buttons floating against a taller location bar.
         var toolbar = Layout.Horizontal().Gap(1).Width(Size.Full())
-            | new Button("").Icon(Icons.ArrowLeft).Small().Outline().Tooltip("Back")
+            | new Button("").Icon(Icons.ArrowLeft).Outline().Tooltip("Back")
                 .Disabled(!canGoBack.Value).OnClick(() => commands.Write(new BackCommand()))
-            | new Button("").Icon(Icons.ArrowRight).Small().Outline().Tooltip("Forward")
+            | new Button("").Icon(Icons.ArrowRight).Outline().Tooltip("Forward")
                 .Disabled(!canGoForward.Value).OnClick(() => commands.Write(new ForwardCommand()))
-            | new Button("").Icon(Icons.RefreshCw).Small().Outline().Tooltip("Reload")
+            | new Button("").Icon(Icons.RefreshCw).Outline().Tooltip("Reload")
                 .OnClick(() => commands.Write(new ReloadCommand()))
-            | address.ToTextInput().Placeholder("Enter a URL").Width(Size.Full()).OnSubmit(_ => Navigate())
-            | new Button("Go").Small().Outline().OnClick(Navigate)
-            // WebViewerDevice is an enum, so the three options come from the type itself.
-            | device.ToSelectInput().Variant(SelectInputVariant.Toggle)
+            // Grows, but only so far. On Full alone it swallowed every spare pixel in the row,
+            // which is both more address bar than any URL needs and what squeezed the toggle
+            // beside it into two rows.
+            | address.ToTextInput().Placeholder("Enter a URL")
+                .Width(Size.Full().Max(Size.Rem(40))).OnSubmit(_ => Navigate())
+            | new Button("Go").Outline().OnClick(Navigate)
+            // Fit, so the group is as wide as its three icons and has no reason to wrap however
+            // the rest of the row is squeezed.
+            | device.ToSelectInput(deviceOptions).Variant(SelectInputVariant.Toggle).Width(Size.Fit())
             | selectButton;
 
         // Only once there is something to send: an Update button with nothing behind it invites
@@ -122,12 +143,15 @@ public class AppPreviewView(PlanFile plan, string appUrl) : ViewBase
         {
             toolbar |= new Button("Update")
                 .Icon(Icons.MessageSquare)
-                .Small()
                 .Primary()
                 .Badge(comments.Value.Count.ToString())
                 .Tooltip("Send these comments to the agent as a change request")
                 .OnClick(showUpdateDialog);
         }
+
+        // Trailing room after Select and Update, which otherwise sit flush against the edge of
+        // the panel with nothing between them and the frame below.
+        toolbar |= new Spacer().Width(Size.Units(1));
 
         return new Fragment(
             new HeaderLayout(toolbar.Padding(2, 2, 1, 2), viewer)

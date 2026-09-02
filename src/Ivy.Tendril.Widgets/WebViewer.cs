@@ -153,7 +153,10 @@ public record CommentEvent(
     string Selector,
     string Comment,
     string? DebugJson,
-    string? Url = null) : WebViewerEvent;
+    string? Url = null,
+    string? Text = null,
+    string? AttrsJson = null,
+    string? Device = null) : WebViewerEvent;
 
 /// <summary>The text of an existing comment was edited in place (the user clicked its pin).</summary>
 public record CommentUpdatedEvent(string Id, int Number, string Comment) : WebViewerEvent;

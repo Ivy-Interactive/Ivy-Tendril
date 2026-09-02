@@ -32,7 +32,7 @@ interface PendingComment {
   markerId?: string;
   xpath: string;
   selector: string;
-  meta: { tag?: string; text?: string } | null;
+  meta: { tag?: string; text?: string; attrs?: Record<string, string> } | null;
   debug: DebugPayload | null;
   resolving: boolean;
 }
@@ -48,6 +48,12 @@ interface CommentMarker {
   selector: string;
   tag: string;
   text: string | null;
+  // Attributes that identify the element in the SOURCE rather than in the rendered tree —
+  // data-testid, id, aria-label. A positional selector is a puzzle for whoever has to find this
+  // again; a testid is a grep.
+  attrs: Record<string, string> | null;
+  // Which viewport it was left at. "This is cut off" means nothing without it.
+  device: string;
   comment: string;
   debug: DebugPayload | null;
   // The page it was left on, canonical (see pageUrl.ts). Pins are pushed to the frame filtered
@@ -753,6 +759,8 @@ export const WebViewer: React.FC<WebViewerProps> = ({
       selector,
       tag: meta.tag || "",
       text: meta.text ?? null,
+      attrs: meta.attrs && Object.keys(meta.attrs).length > 0 ? meta.attrs : null,
+      device: device || "Desktop",
       comment: text,
       debug,
       page,
@@ -773,6 +781,10 @@ export const WebViewer: React.FC<WebViewerProps> = ({
         // Where it was left. Numbers stay global across the session, so a change request can
         // group by this and still read 1, 2, 3 down the page.
         url: page,
+        // The page already collects these; they were being dropped at this boundary.
+        text: marker.text,
+        attrsJson: marker.attrs ? JSON.stringify(marker.attrs) : null,
+        device: marker.device,
         debugJson: enriched ? JSON.stringify(enriched) : null,
       });
     });

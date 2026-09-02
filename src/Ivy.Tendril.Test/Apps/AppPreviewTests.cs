@@ -129,12 +129,15 @@ public class AppPreviewTests
         var request = AppPreview.FormatChangeRequest("http://localhost:5173/", comments);
 
         Assert.Contains("http://localhost:5173/", request);
-        Assert.Contains("**1. <button>** in `src/App.tsx:59`", request);
+        Assert.Contains("**1. <button>**", request);
+        Assert.Contains("source: `src/App.tsx:59`", request);
         Assert.Contains("Make this green", request);
-        // Nothing resolved for the second one, so the selector is all the agent gets.
+
+        // Nothing resolved for the second one, so the selector is all the agent gets — and it is
+        // printed only there, for the same reason.
         Assert.Contains("**2. <div>**", request);
-        Assert.DoesNotContain("**2. <div>** in", request);
-        Assert.Contains("main > div.hero", request);
+        Assert.Contains("selector: `main > div.hero`", request);
+        Assert.DoesNotContain("selector: `main > button`", request);
     }
 
     [Fact]
@@ -160,6 +163,65 @@ public class AppPreviewTests
         Assert.True(encoder < home, "pages should keep the order their first comment arrived in");
         Assert.True(request.IndexOf("Encode should be primary", StringComparison.Ordinal) < home);
         Assert.True(request.IndexOf("Wrong hover colour", StringComparison.Ordinal) > home);
+    }
+
+    [Fact]
+    public void FormatChangeRequest_CarriesWhatMakesTheLocationSafeToActOn()
+    {
+        // The resolved file is a shared design-system primitive: editing it changes every input in
+        // the app, where the reviewer meant this one. The component path is what says so.
+        const string debug = """
+            {"source":{"file":"src/components/ui/input.tsx","line":8},
+             "provenance":"react-owner-stack","confidence":"high",
+             "ownerChain":[{"name":"Input"},{"name":"HtmlEncoder"},{"name":"ToolPage"}]}
+            """;
+
+        var comments = ImmutableList.Create(
+            new AppComment("c1", 1, "textarea", "main textarea", "Placeholder is too vague", debug,
+                "http://localhost:5174/tool/html-encoder",
+                Text: "Enter text to encode or decode...",
+                AttrsJson: """{"data-testid":"encoder-input","placeholder":"Enter text to encode or decode..."}""",
+                Device: "Mobile"));
+
+        var request = AppPreview.FormatChangeRequest("http://localhost:5174/", comments);
+
+        Assert.Contains("“Enter text to encode or decode...”", request);
+        Assert.Contains("source: `src/components/ui/input.tsx:8` (high, react-owner-stack)", request);
+        Assert.Contains("component: Input > HtmlEncoder > ToolPage", request);
+        Assert.Contains("attributes: data-testid=\"encoder-input\"", request);
+        Assert.Contains("viewport: Mobile", request);
+        // Resolved, so the selector is not repeated.
+        Assert.DoesNotContain("selector:", request);
+    }
+
+    [Fact]
+    public void ReadSource_TreatsTheCollectorsOwnPlaceholderAsNothing()
+    {
+        var info = AppPreview.ReadSource("""{"provenance":"none","confidence":"low"}""");
+
+        Assert.Null(info.Label);
+        Assert.Null(info.Provenance);
+        Assert.Equal("low", info.Confidence);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not json")]
+    [InlineData("[]")]
+    [InlineData("{}")]
+    public void AttributeLabel_IsNullWhenThereIsNothingIdentifying(string? attrsJson)
+    {
+        Assert.Null(AppPreview.AttributeLabel(attrsJson));
+    }
+
+    [Fact]
+    public void AttributeLabel_PrefersTheMostStableAndStopsAtThree()
+    {
+        var label = AppPreview.AttributeLabel(
+            """{"href":"/x","name":"q","id":"search","aria-label":"Search","data-testid":"search-box"}""");
+
+        Assert.Equal("data-testid=\"search-box\" id=\"search\" aria-label=\"Search\"", label);
     }
 
     private static JobItem Job(string id, string type, JobStatus status) =>
