@@ -634,6 +634,176 @@ public class QuestionAnswersTests
         Assert.Empty(QuestionAnswers.Read(""));
     }
 
+    // -------------------------------------------------------------------------------------------
+    // Wrapper-less shapes
+    //
+    // Anything the parser reads as a question has to be answerable here too. A shape one side
+    // accepts and the other does not is a picker whose answer goes nowhere.
+    // -------------------------------------------------------------------------------------------
+
+    private const string BareSequence = """
+        # A plan
+
+        ```questions
+        - id: caching-strategy
+          title: Which caching strategy should we use?
+          options:
+            - title: In-Memory
+              value: in-memory
+            - title: Distributed Redis
+              value: redis
+        - id: eviction
+          title: How should entries expire?
+        ```
+        """;
+
+    private const string SingleQuestion = """
+        ```questions
+        id: confirmation-prompt
+        title: Should we prompt before deleting?
+        options:
+          - title: Yes
+            value: prompt
+          - title: No
+            value: silent
+        ```
+        """;
+
+    [Fact]
+    public void Read_ReadsABareSequenceWrittenWithoutTheQuestionsKey()
+    {
+        var summaries = QuestionAnswers.Read(BareSequence);
+
+        Assert.Equal(["caching-strategy", "eviction"], summaries.Select(s => s.Id));
+        Assert.Equal("Which caching strategy should we use?", summaries[0].Title);
+        Assert.All(summaries, summary => Assert.False(summary.HasAnswer));
+    }
+
+    [Fact]
+    public void Read_ReadsASingleQuestionWrittenWithoutAnyWrapper()
+    {
+        var summary = Assert.Single(QuestionAnswers.Read(SingleQuestion));
+
+        Assert.Equal("confirmation-prompt", summary.Id);
+        Assert.Equal("Should we prompt before deleting?", summary.Title);
+    }
+
+    [Fact]
+    public void Read_SkipsABulletListOfProse()
+    {
+        // Legacy blocks are often lists. Without ids they are prose, and the index shows nothing.
+        Assert.Empty(QuestionAnswers.Read("""
+            ```questions
+            - Should this use JWTs or server sessions?
+            - How long should a session live?
+            ```
+            """));
+    }
+
+    [Fact]
+    public void Apply_AnswersAQuestionInABareSequence()
+    {
+        var updated = QuestionAnswers.Apply(BareSequence, new QuestionAnswer("caching-strategy", ["redis"]));
+
+        Assert.Equal(["redis"], Question(updated, "caching-strategy").AnswerValues);
+        // The second question, and everything around it, is left exactly as it was.
+        Assert.Equal(AnswerState.Unanswered, Question(updated, "eviction").AnswerState);
+        Assert.Empty(QuestionValidationService.Validate(updated));
+    }
+
+    [Fact]
+    public void Apply_AnswersASingleQuestionWrittenWithoutAnyWrapper()
+    {
+        var updated = QuestionAnswers.Apply(SingleQuestion, new QuestionAnswer("confirmation-prompt", ["prompt"]));
+
+        Assert.Equal(["prompt"], Question(updated, "confirmation-prompt").AnswerValues);
+        Assert.Empty(QuestionValidationService.Validate(updated));
+    }
+
+    [Fact]
+    public void Apply_ClearsAnAnswerInAWrapperLessBlock()
+    {
+        var answered = QuestionAnswers.Apply(BareSequence, new QuestionAnswer("eviction", ["after-a-day"]));
+        var cleared = QuestionAnswers.Apply(answered, new QuestionAnswer("eviction", null));
+
+        Assert.Equal(AnswerState.Unanswered, Question(cleared, "eviction").AnswerState);
+        Assert.DoesNotContain("answer:", cleared);
+    }
+
+    [Fact]
+    public void Apply_ClearsAnAnswerOnASingleQuestionRootWhoseKeysStartAtColumnZero()
+    {
+        // Removing a key from a root mapping is the one edit with no enclosing indentation to
+        // anchor on, and the keys after it have to survive.
+        const string markdown = """
+            ```questions
+            id: q1
+            title: Which way?
+            answer: left
+            options:
+              - title: Left
+                value: left
+              - title: Right
+                value: right
+            ```
+            """;
+
+        var cleared = QuestionAnswers.Apply(markdown, new QuestionAnswer("q1", null));
+
+        Assert.DoesNotContain("answer:", cleared);
+        Assert.Contains("value: right", cleared);
+        Assert.Equal(AnswerState.Unanswered, Question(cleared, "q1").AnswerState);
+        Assert.Empty(QuestionValidationService.Validate(cleared));
+    }
+
+    [Fact]
+    public void Apply_AnswersTheSecondQuestionOfABareSequence()
+    {
+        var updated = QuestionAnswers.Apply(BareSequence, new QuestionAnswer("eviction", ["after-a-day"]));
+
+        Assert.Equal(["after-a-day"], Question(updated, "eviction").AnswerValues);
+        Assert.Equal(AnswerState.Unanswered, Question(updated, "caching-strategy").AnswerState);
+    }
+
+    [Fact]
+    public void Apply_KeepsTheIndentationOfAWrapperLessBlockInsideAListItem()
+    {
+        const string markdown = """
+            - a list item:
+
+              ```questions
+              id: q1
+              title: Which way?
+              ```
+            """;
+
+        var updated = QuestionAnswers.Apply(markdown, new QuestionAnswer("q1", ["left"]));
+
+        Assert.Contains("  answer: left", updated);
+        Assert.Equal(["left"], Question(updated, "q1").AnswerValues);
+    }
+
+    [Fact]
+    public void Apply_KeepsCrlfLineEndingsInAWrapperLessBlock()
+    {
+        var updated = QuestionAnswers.Apply(
+            "```questions\r\n- id: q1\r\n  title: Which way?\r\n```",
+            new QuestionAnswer("q1", ["left"]));
+
+        Assert.Contains("\r\n", updated);
+        Assert.Equal(["left"], Question(updated, "q1").AnswerValues);
+    }
+
+    [Fact]
+    public void Apply_AnswersAFlowMappingWrittenWithoutAWrapper()
+    {
+        var updated = QuestionAnswers.Apply(
+            "```questions\n{ id: q1, title: Which way? }\n```",
+            new QuestionAnswer("q1", ["left"]));
+
+        Assert.Equal(["left"], Question(updated, "q1").AnswerValues);
+    }
+
     [Fact]
     public void Scan_ReportsBodyOffsetsThatSliceBackToTheBody()
     {

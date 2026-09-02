@@ -9,6 +9,7 @@ using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Vault;
 
 namespace Ivy.Tendril.Apps.Settings;
 
@@ -54,8 +55,8 @@ public class ProjectDetailView(
         var (reviewActionTrigger, showReviewActionTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
             new OnboardingEditReviewActionDialog(isOpen, existingIndex, reviewActions));
 
-        var (verificationTrigger, showVerificationTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
-            new OnboardingEditVerificationDialog(isOpen, existingIndex, config, client, refreshToken, projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : ""));
+        var (verificationTrigger, showVerificationTrigger) = UseTrigger((IState<bool> isOpen, string? existingVerificationName) =>
+            new OnboardingEditVerificationDialog(isOpen, existingVerificationName, config, client, refreshToken, projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : "", projectVerifications: verifications));
 
         var (mcpSheet, openMcpSheet) = UseTrigger((IState<bool> isOpen, int? editingIndex) =>
             new EditMcpServerSheet(isOpen, editingIndex, mcpServers));
@@ -195,6 +196,39 @@ public class ProjectDetailView(
         // Color Picker Control at the top
         var colorInput = projectColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker);
 
+        // Vault Tracking Info
+        VaultSettings? linkedVault = null;
+        ProjectVaultTracking? trackedProject = null;
+
+        foreach (var v in config.Settings.Vaults)
+        {
+            if (v.TrackedProjects.TryGetValue(project.Name, out var tp))
+            {
+                linkedVault = v;
+                trackedProject = tp;
+                break;
+            }
+        }
+
+        if (linkedVault == null && config.Settings.Vault != null && config.Settings.Vault.TrackedProjects.TryGetValue(project.Name, out var vtp))
+        {
+            linkedVault = config.Settings.Vault;
+            trackedProject = vtp;
+        }
+
+        object? vaultBadge = null;
+        if (linkedVault != null)
+        {
+            var vaultLabel = VaultService.ExtractRepoName(!string.IsNullOrEmpty(linkedVault.Name) && linkedVault.Name.Contains('/') ? linkedVault.Name : linkedVault.RepoUrl);
+            var versionText = trackedProject != null && !string.IsNullOrEmpty(trackedProject.InstalledVersion)
+                ? $" • v{trackedProject.InstalledVersion}"
+                : "";
+
+            vaultBadge = Layout.Horizontal().AlignContent(Align.Left)
+                | Icons.FolderGit2.ToIcon()
+                | new Badge($"Vault: {vaultLabel}{versionText}").Variant(BadgeVariant.Secondary).Small();
+        }
+
         // Title Header with Inline Editing & Color Picker
         var nameHeader = isEditingName.Value
             ? (Layout.Horizontal().AlignContent(Align.Left)
@@ -258,6 +292,7 @@ public class ProjectDetailView(
         var innerContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(160)))
             // Section 1: Header (Color Picker + Name)
             | nameHeader
+            | vaultBadge
 
             // Section 2: Repositories
             | Text.H4("Repositories").Bold()
@@ -265,12 +300,12 @@ public class ProjectDetailView(
 
             // Section 3: Review Actions
             | Text.H4("Review Actions").Bold()
-            | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx))
+            | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx), projectName: editName.Value)
             | new Button("Add Review Action").Icon(Icons.Plus).Outline().OnClick(() => showReviewActionTrigger(null))
 
             // Section 4: Verifications
             | Text.H4("Verifications").Bold()
-            | new ProjectVerificationsTableView(verifications, idx => showVerificationTrigger(idx))
+            | new ProjectVerificationsTableView(verifications, name => showVerificationTrigger(name))
             | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() => showVerificationTrigger(null))
 
             // Section 5: Agent Behavior

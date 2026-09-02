@@ -31,7 +31,7 @@ public class SuggestChangesDialog(
     public override object? Build()
     {
         var configService = UseService<IConfigService>();
-        var draftDiffCommentService = UseService<Ivy.Tendril.Services.Plans.IDraftDiffCommentService>();
+        var draftDiffCommentService = UseService<Ivy.Tendril.Services.Plans.IPlanDiffCommentService>();
         var isCreating = UseState(false);
         var suggestText = UseState("");
         var uploadSessionId = UseState(() => Guid.NewGuid().ToString("N"));

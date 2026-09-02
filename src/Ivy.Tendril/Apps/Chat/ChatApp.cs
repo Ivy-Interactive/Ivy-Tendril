@@ -48,7 +48,6 @@ public class ChatApp : ViewBase
         var liveSessionStreams = UseState(new Dictionary<string, string>());
         var activeSessionRef = UseRef<IAgentSession?>(null);
         var runningSessionIds = UseState(() => new HashSet<string>(chatService.GetGeneratingSessionIds()));
-        var messageQueue = UseRef(new ConcurrentQueue<ChatSendMessageDto>());
         var initialHandled = UseRef(false);
 
         var searchState = UseState("");
@@ -73,7 +72,13 @@ public class ChatApp : ViewBase
 
         var currentVersion = sessionVersion.Value;
         var sessions = chatService.GetSessions();
-        if (activeSessionId.Value == null && sessions.Count > 0 && !initialHandled.Value && string.IsNullOrEmpty(args?.Prompt))
+        if (sessions.Count == 0 && activeSessionId.Value == null && string.IsNullOrEmpty(args?.Prompt))
+        {
+            var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
+            activeSessionId.Set(newSess.Id);
+            sessions = chatService.GetSessions();
+        }
+        else if (activeSessionId.Value == null && sessions.Count > 0 && !initialHandled.Value && string.IsNullOrEmpty(args?.Prompt))
         {
             activeSessionId.Set(sessions[0].Id);
         }
@@ -159,7 +164,7 @@ public class ChatApp : ViewBase
 
         async Task ExecuteSendMessage(ChatSendMessageDto dto)
         {
-            var userPrompt = dto.Prompt.Trim();
+            var userPrompt = dto.Prompt?.Trim() ?? "";
             var attachments = dto.Attachments ?? [];
             if (string.IsNullOrWhiteSpace(userPrompt) && attachments.Count == 0) return;
 
@@ -172,6 +177,7 @@ public class ChatApp : ViewBase
             chatService.SetSessionGenerating(targetSessionId, true);
 
             var attachedFilePaths = new List<string>();
+            var attachmentErrors = new List<string>();
             if (attachments.Count > 0)
             {
                 var attachDir = Path.Combine(configService.TendrilHome, "Attachments", targetSessionId);
@@ -186,7 +192,10 @@ public class ChatApp : ViewBase
                     {
                         var rawName = Path.GetFileName(att.Name);
                         var fileName = !string.IsNullOrWhiteSpace(rawName) ? rawName : $"file_{Guid.NewGuid():N}.bin";
-                        var filePath = Path.Combine(attachDir, fileName);
+                        var filePath = !string.IsNullOrWhiteSpace(att.LocalPath) && File.Exists(att.LocalPath)
+                            ? att.LocalPath
+                            : Path.Combine(attachDir, fileName);
+
                         if (!string.IsNullOrEmpty(att.Base64Data))
                         {
                             var base64 = att.Base64Data.Contains(",")
@@ -195,11 +204,19 @@ public class ChatApp : ViewBase
                             var bytes = Convert.FromBase64String(base64);
                             File.WriteAllBytes(filePath, bytes);
                         }
-                        attachedFilePaths.Add(filePath);
+
+                        if (File.Exists(filePath))
+                        {
+                            attachedFilePaths.Add(filePath);
+                        }
+                        else
+                        {
+                            attachmentErrors.Add($"Attachment '{att.Name}' was not found at {filePath}");
+                        }
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        // Ignore attachment write exceptions
+                        attachmentErrors.Add($"Failed to process attachment '{att.Name}': {ex.Message}");
                     }
                 }
             }
@@ -207,13 +224,24 @@ public class ChatApp : ViewBase
             var promptWithAttachments = userPrompt;
             if (attachedFilePaths.Count > 0)
             {
-                var sb = new StringBuilder(userPrompt);
-                sb.AppendLine("\n\n[Attached Files]:");
+                var sb = new StringBuilder();
+                if (!string.IsNullOrWhiteSpace(userPrompt))
+                {
+                    sb.AppendLine(userPrompt);
+                    sb.AppendLine();
+                }
+                sb.AppendLine("[Attached Files]:");
                 foreach (var path in attachedFilePaths)
                 {
                     sb.AppendLine($"- {path}");
                 }
-                promptWithAttachments = sb.ToString();
+                promptWithAttachments = sb.ToString().TrimEnd();
+            }
+
+            if (attachmentErrors.Count > 0)
+            {
+                var warning = "Warning: Some attachments could not be processed:\n" + string.Join("\n", attachmentErrors.Select(e => $"- {e}"));
+                chatService.AddMessage(targetSessionId, "assistant", warning, selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
             }
 
             var sess = chatService.GetSession(targetSessionId);
@@ -342,34 +370,17 @@ public class ChatApp : ViewBase
                 map.Remove(targetSessionId);
                 liveSessionStreams.Set(map);
 
-                var remainingItems = new List<ChatSendMessageDto>();
-                ChatSendMessageDto? nextForSession = null;
-                while (messageQueue.Value.TryDequeue(out var item))
+                if (chatService.TryDequeueMessage(targetSessionId, out var nextQueuedItem) && nextQueuedItem != null)
                 {
-                    if (nextForSession == null && (item.SessionId == targetSessionId || string.IsNullOrEmpty(item.SessionId)))
-                    {
-                        nextForSession = item;
-                    }
-                    else
-                    {
-                        remainingItems.Add(item);
-                    }
-                }
-                foreach (var rem in remainingItems)
-                {
-                    messageQueue.Value.Enqueue(rem);
-                }
-
-                if (nextForSession != null)
-                {
-                    _ = ExecuteSendMessage(nextForSession);
+                    var nextDto = new ChatSendMessageDto(nextQueuedItem.Prompt, nextQueuedItem.Attachments, targetSessionId);
+                    _ = ExecuteSendMessage(nextDto);
                 }
             }
         }
 
         void SendMessage(ChatSendMessageDto dto)
         {
-            var userPrompt = dto.Prompt.Trim();
+            var userPrompt = dto.Prompt?.Trim() ?? "";
             var attachments = dto.Attachments ?? [];
             if (string.IsNullOrWhiteSpace(userPrompt) && attachments.Count == 0) return;
 
@@ -385,7 +396,7 @@ public class ChatApp : ViewBase
 
             if (runningSessionIds.Value.Contains(targetSessionId))
             {
-                messageQueue.Value.Enqueue(pinnedDto);
+                chatService.EnqueueMessage(targetSessionId, pinnedDto);
             }
             else
             {
@@ -427,7 +438,6 @@ public class ChatApp : ViewBase
             streamingSessionId,
             runningSessionIds,
             liveSessionStreams,
-            messageQueue,
             activeSessionRef,
             sessionDtos,
             agentDtos,

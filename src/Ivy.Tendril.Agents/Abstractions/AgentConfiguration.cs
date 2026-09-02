@@ -40,4 +40,5 @@ public sealed record AgentProcessSpec
     public bool RedirectStderr { get; init; } = true;
     public bool CreateNoWindow { get; init; } = true;
     public bool UseShellExecute { get; init; }
+    public IReadOnlyList<string> TempFiles { get; init; } = [];
 }

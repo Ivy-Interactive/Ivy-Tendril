@@ -11,6 +11,8 @@ public class TestRepositoryFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        TestDirectoryHelper.PurgeStaleTestDirectories();
+
         var settings = TestSettingsProvider.Get();
 
         var whoami = await ProcessHelper.RunAsync("gh", "api user -q .login", timeoutMs: 15_000);
@@ -61,7 +63,7 @@ public class TestRepositoryFixture : IAsyncLifetime
     {
         var settings = TestSettingsProvider.Get();
 
-        await TryDeleteDirectoryAsync(LocalClonePath);
+        await TestDirectoryHelper.DeleteDirectorySafelyAsync(LocalClonePath);
 
         if (settings.CleanupFork && !string.IsNullOrEmpty(ForkedRepoFullName))
         {
@@ -73,39 +75,6 @@ public class TestRepositoryFixture : IAsyncLifetime
                     timeoutMs: 30_000);
             }
             catch { /* Best-effort — requires delete_repo scope */ }
-        }
-    }
-
-    private static async Task TryDeleteDirectoryAsync(string path, int maxAttempts = 3)
-    {
-        if (!Directory.Exists(path)) return;
-
-        for (int i = 0; i < maxAttempts; i++)
-        {
-            try
-            {
-                ClearReadOnlyAttributes(path);
-                Directory.Delete(path, recursive: true);
-                return;
-            }
-            catch (IOException) when (i < maxAttempts - 1)
-            {
-                await Task.Delay(500 * (i + 1));
-            }
-            catch (UnauthorizedAccessException) when (i < maxAttempts - 1)
-            {
-                await Task.Delay(500 * (i + 1));
-            }
-        }
-    }
-
-    private static void ClearReadOnlyAttributes(string path)
-    {
-        foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
-        {
-            var attrs = File.GetAttributes(file);
-            if ((attrs & FileAttributes.ReadOnly) != 0)
-                File.SetAttributes(file, attrs & ~FileAttributes.ReadOnly);
         }
     }
 }

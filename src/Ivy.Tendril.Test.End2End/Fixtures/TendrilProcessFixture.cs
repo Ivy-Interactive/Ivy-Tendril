@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Test.End2End.Configuration;
+using Ivy.Tendril.Test.End2End.Helpers;
 using Xunit.Abstractions;
 
 namespace Ivy.Tendril.Test.End2End.Fixtures;
@@ -22,6 +23,8 @@ public partial class TendrilProcessFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
+        TestDirectoryHelper.PurgeStaleTestDirectories();
+
         var settings = TestSettingsProvider.Get();
 
         TendrilHome = Path.Combine(Path.GetTempPath(), $"tendril-e2e-{_runId}");
@@ -69,7 +72,7 @@ public partial class TendrilProcessFixture : IAsyncLifetime
 
         _tendrilProcess?.Dispose();
 
-        await TryDeleteDirectoryAsync(TendrilHome);
+        await TestDirectoryHelper.DeleteDirectorySafelyAsync(TendrilHome);
     }
 
     private async Task<string> WaitForServerUrlAsync(TimeSpan timeout)
@@ -129,28 +132,6 @@ public partial class TendrilProcessFixture : IAsyncLifetime
         }
 
         return url;
-    }
-
-    private static async Task TryDeleteDirectoryAsync(string path, int maxAttempts = 3)
-    {
-        if (!Directory.Exists(path)) return;
-
-        for (int i = 0; i < maxAttempts; i++)
-        {
-            try
-            {
-                Directory.Delete(path, recursive: true);
-                return;
-            }
-            catch (IOException) when (i < maxAttempts - 1)
-            {
-                await Task.Delay(500 * (i + 1));
-            }
-            catch (UnauthorizedAccessException) when (i < maxAttempts - 1)
-            {
-                await Task.Delay(500 * (i + 1));
-            }
-        }
     }
 
     [GeneratedRegex(@"(?:running on|listening on:?)\s*(https?://[^\s\[\]]+)", RegexOptions.IgnoreCase, "en-US")]

@@ -1,5 +1,7 @@
 using Ivy.Tendril.Apps.Onboarding.Models;
 using Ivy.Tendril.Apps.Settings.Blades;
+using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Apps.Onboarding;
@@ -28,8 +30,8 @@ public class ProjectCrudStepView(
         var (reviewActionTriggerView, showReviewActionTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
             new OnboardingEditReviewActionDialog(isOpen, existingIndex, reviewActions));
         var (reviewActionAlertView, showReviewActionAlert) = UseAlert();
-        var (verificationTriggerView, showVerificationTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
-            new OnboardingEditVerificationDialog(isOpen, existingIndex, config, client, refreshToken, projectName.Value));
+        var (verificationTriggerView, showVerificationTrigger) = UseTrigger((IState<bool> isOpen, string? existingVerificationName) =>
+            new OnboardingEditVerificationDialog(isOpen, existingVerificationName, config, client, refreshToken, projectName.Value));
         var (verificationAlertView, showVerificationAlert) = UseAlert();
 
         _ = session.RefreshToken.Value;
@@ -47,27 +49,28 @@ public class ProjectCrudStepView(
 
         var allVerifications = config.Settings.Verifications;
         var verificationRows = (project?.Verifications ?? [])
-            .Select(pv => (pv, idx: allVerifications.FindIndex(v => v.Name.Equals(pv.Name, StringComparison.OrdinalIgnoreCase))))
-            .Where(x => x.idx >= 0)
-            .Select(x => new VerificationRow(x.pv.Name, x.idx))
+            .Select(pv => new VerificationRow(pv.Name))
             .ToList();
 
         var verificationTable = new TableBuilder<VerificationRow>(verificationRows)
-            .Header(t => t.Index, "")
-            .Builder(t => t.Index, f => f.Func<VerificationRow, int>(idx =>
+            .Header(t => t.Name, "Verification Name")
+            .Builder(t => t.Name, f => f.Func<VerificationRow, string>(name =>
+                Text.Block(name).Bold()
+            ))
+            .Header(t => t.Name, "")
+            .Builder(t => t.Name, f => f.Func<VerificationRow, string>(vName =>
                 Layout.Horizontal().Gap(1)
                 | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() =>
-                    showVerificationTrigger(idx))
+                    showVerificationTrigger(vName))
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
                 {
-                    var vName = allVerifications[idx].Name;
                     showVerificationAlert($"Are you sure you want to delete '{vName}'?", result =>
                     {
                         if (result == AlertResult.Ok)
                         {
-                            allVerifications.RemoveAt(idx);
+                            allVerifications.RemoveAll(v => v.Name.Equals(vName, StringComparison.OrdinalIgnoreCase));
                             if (project != null)
-                                project.Verifications.RemoveAll(v => v.Name == vName);
+                                project.Verifications.RemoveAll(v => v.Name.Equals(vName, StringComparison.OrdinalIgnoreCase));
                             try
                             {
                                 config.SaveSettings();
@@ -104,7 +107,7 @@ public class ProjectCrudStepView(
                | (Layout.Vertical()
                   | Text.Block("Review Actions").Bold()
                   | Text.Muted("Commands that makes it easy to start you project for manual testing.")
-                  | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx))
+                  | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx), projectName: projectName.Value)
                   | new Button("Add Review Action").Icon(Icons.Plus).Outline()
                       .OnClick(() => showReviewActionTrigger(null)))
                | new Separator()
@@ -115,7 +118,7 @@ public class ProjectCrudStepView(
                | buttonArea;
     }
 
-    private record VerificationRow(string Name, int Index);
+    private record VerificationRow(string Name);
 }
 
 internal class OnboardingEditReviewActionDialog(
@@ -148,8 +151,8 @@ internal class OnboardingEditReviewActionDialog(
             new DialogBody(
                 Layout.Vertical()
                 | editName.ToTextInput("Action name...").WithField().Label("Name").Required()
-                | editCommand.ToTextareaInput("e.g. dotnet test").Rows(2).WithField().Label("Command").Required()
-                | editCondition.ToTextareaInput("e.g. ${hasChanges}").Rows(2).WithField().Label("Condition")
+                | editCommand.ToCodeInput("e.g. dotnet test").WithField().Label("Command").Required()
+                | editCondition.ToCodeInput("e.g. ${hasChanges}").WithField().Label("Condition")
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => isOpen.Set(false)),
@@ -174,11 +177,12 @@ internal class OnboardingEditReviewActionDialog(
 
 internal class OnboardingEditVerificationDialog(
     IState<bool> isOpen,
-    int? existingIndex,
+    string? existingVerificationName,
     IConfigService config,
     IClientProvider client,
     RefreshToken refreshToken,
-    string projectName = "") : ViewBase
+    string projectName = "",
+    IState<List<ProjectVerificationRef>>? projectVerifications = null) : ViewBase
 {
     public override object? Build()
     {
@@ -187,15 +191,18 @@ internal class OnboardingEditVerificationDialog(
         UseEffect(() =>
         {
             var verifications = config.Settings.Verifications;
-            if (existingIndex is >= 0 && existingIndex < verifications.Count)
+            var target = !string.IsNullOrEmpty(existingVerificationName)
+                ? verifications.FirstOrDefault(v => v.Name.Equals(existingVerificationName, StringComparison.OrdinalIgnoreCase))
+                : null;
+            if (target != null)
             {
-                editName.Set(verifications[existingIndex.Value].Name);
-                editPrompt.Set(verifications[existingIndex.Value].Prompt);
+                editName.Set(target.Name);
+                editPrompt.Set(target.Prompt);
             }
         }, EffectTrigger.OnMount());
 
         var verifications = config.Settings.Verifications;
-        var isNew = existingIndex == null;
+        var isNew = string.IsNullOrEmpty(existingVerificationName);
 
         return new Dialog(
             _ => isOpen.Set(false),
@@ -203,35 +210,84 @@ internal class OnboardingEditVerificationDialog(
             new DialogBody(
                 Layout.Vertical()
                 | editName.ToTextInput("Verification name...").WithField().Label("Name")
-                | editPrompt.ToTextareaInput("Verification prompt...").Rows(8).WithField().Label("Prompt")
+                | editPrompt.ToCodeInput("Verification prompt...").Language(Languages.Markdown).Height(Size.Units(60)).WithField().Label("Prompt")
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => isOpen.Set(false)),
                 new Button(isNew ? "Add" : "Save").Primary().OnClick(() =>
                 {
                     if (string.IsNullOrWhiteSpace(editName.Value)) return;
-                    var oldName = isNew ? null : verifications[existingIndex!.Value].Name;
-                    var oldPrompt = isNew ? null : verifications[existingIndex!.Value].Prompt;
+                    var newName = editName.Value.Trim();
+                    var newPrompt = editPrompt.Value;
+
+                    VerificationConfig? target = null;
+                    string? oldName = null;
+                    string? oldPrompt = null;
+                    bool renamed = false;
+
                     if (isNew)
                     {
                         verifications.Add(new VerificationConfig
                         {
-                            Name = editName.Value,
-                            Prompt = editPrompt.Value
+                            Name = newName,
+                            Prompt = newPrompt
                         });
 
                         if (!string.IsNullOrEmpty(projectName))
                         {
                             var proj = config.Settings.Projects
                                 .FirstOrDefault(p => p.Name.Equals(projectName, StringComparison.OrdinalIgnoreCase));
-                            if (proj != null && !proj.Verifications.Any(v => v.Name == editName.Value))
-                                proj.Verifications.Add(new ProjectVerificationRef { Name = editName.Value, Required = true });
+                            if (proj != null && !proj.Verifications.Any(v => v.Name.Equals(newName, StringComparison.OrdinalIgnoreCase)))
+                                proj.Verifications.Add(new ProjectVerificationRef { Name = newName, Required = true });
+                        }
+
+                        if (projectVerifications != null)
+                        {
+                            var list = new List<ProjectVerificationRef>(projectVerifications.Value);
+                            if (!list.Any(v => v.Name.Equals(newName, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                list.Add(new ProjectVerificationRef { Name = newName, Required = true });
+                                projectVerifications.Set(list);
+                            }
                         }
                     }
                     else
                     {
-                        verifications[existingIndex!.Value].Name = editName.Value;
-                        verifications[existingIndex!.Value].Prompt = editPrompt.Value;
+                        target = verifications.FirstOrDefault(v => v.Name.Equals(existingVerificationName, StringComparison.OrdinalIgnoreCase));
+                        if (target == null) return;
+
+                        oldName = target.Name;
+                        oldPrompt = target.Prompt;
+                        target.Name = newName;
+                        target.Prompt = newPrompt;
+
+                        renamed = !oldName.Equals(newName, StringComparison.OrdinalIgnoreCase);
+                        if (renamed)
+                        {
+                            foreach (var proj in config.Settings.Projects)
+                            {
+                                foreach (var pv in proj.Verifications)
+                                {
+                                    if (pv.Name.Equals(oldName, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        pv.Name = newName;
+                                    }
+                                }
+                            }
+
+                            if (projectVerifications != null)
+                            {
+                                var list = new List<ProjectVerificationRef>(projectVerifications.Value);
+                                foreach (var pv in list)
+                                {
+                                    if (pv.Name.Equals(oldName, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        pv.Name = newName;
+                                    }
+                                }
+                                projectVerifications.Set(list);
+                            }
+                        }
                     }
 
                     try
@@ -244,11 +300,51 @@ internal class OnboardingEditVerificationDialog(
                     catch (Exception ex)
                     {
                         if (isNew)
-                            verifications.RemoveAt(verifications.Count - 1);
-                        else
                         {
-                            verifications[existingIndex!.Value].Name = oldName!;
-                            verifications[existingIndex!.Value].Prompt = oldPrompt!;
+                            verifications.RemoveAll(v => v.Name.Equals(newName, StringComparison.OrdinalIgnoreCase));
+                            if (!string.IsNullOrEmpty(projectName))
+                            {
+                                var proj = config.Settings.Projects
+                                    .FirstOrDefault(p => p.Name.Equals(projectName, StringComparison.OrdinalIgnoreCase));
+                                proj?.Verifications.RemoveAll(v => v.Name.Equals(newName, StringComparison.OrdinalIgnoreCase));
+                            }
+                            if (projectVerifications != null)
+                            {
+                                var list = new List<ProjectVerificationRef>(projectVerifications.Value);
+                                list.RemoveAll(v => v.Name.Equals(newName, StringComparison.OrdinalIgnoreCase));
+                                projectVerifications.Set(list);
+                            }
+                        }
+                        else if (target != null && oldName != null)
+                        {
+                            target.Name = oldName;
+                            target.Prompt = oldPrompt!;
+                            if (renamed)
+                            {
+                                foreach (var proj in config.Settings.Projects)
+                                {
+                                    foreach (var pv in proj.Verifications)
+                                    {
+                                        if (pv.Name.Equals(newName, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            pv.Name = oldName;
+                                        }
+                                    }
+                                }
+
+                                if (projectVerifications != null)
+                                {
+                                    var list = new List<ProjectVerificationRef>(projectVerifications.Value);
+                                    foreach (var pv in list)
+                                    {
+                                        if (pv.Name.Equals(newName, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            pv.Name = oldName;
+                                        }
+                                    }
+                                    projectVerifications.Set(list);
+                                }
+                            }
                         }
                         refreshToken.Refresh();
                         client.Toast($"Failed to save verification: {ex.Message}", "Error");

@@ -79,7 +79,6 @@ public class ModelCatalogSorterTests
         var models = new List<ModelInfo>
         {
             new() { Id = "gemini-2.0-flash", DisplayName = "Gemini 2.0 Flash", Provider = "google" },
-            new() { Id = "gemini-3.5-flash", DisplayName = "Gemini 3.5 Flash", Provider = "google" },
             new() { Id = "gemini-3.7-flash", DisplayName = "Gemini 3.7 Flash", Provider = "google" },
             new() { Id = "gemini-2.5-flash", DisplayName = "Gemini 2.5 Flash", Provider = "google" },
             new() { Id = "gemini-3.1-pro", DisplayName = "Gemini 3.1 Pro", Provider = "google" },
@@ -90,7 +89,6 @@ public class ModelCatalogSorterTests
         var expectedIds = new[]
         {
             "gemini-3.7-flash",
-            "gemini-3.5-flash",
             "gemini-3.1-pro",
             "gemini-2.5-flash",
             "gemini-2.0-flash",
@@ -133,14 +131,12 @@ public class ModelCatalogSorterTests
             new() { Id = "gemini-2.5-flash", DisplayName = "Gemini 2.5 Flash", Provider = "google" },
             new() { Id = "gemini-3.6-flash", DisplayName = "Gemini 3.6 Flash", Provider = "google", IsDefault = true },
             new() { Id = "gemini-3.7-flash", DisplayName = "Gemini 3.7 Flash", Provider = "google" },
-            new() { Id = "gemini-3.5-flash", DisplayName = "Gemini 3.5 Flash", Provider = "google" },
         };
 
         var sorted = ModelCatalogSorter.Sort(models, preserveDefault: true);
 
         Assert.Equal("gemini-3.6-flash", sorted[0].Id);
         Assert.Equal("gemini-3.7-flash", sorted[1].Id);
-        Assert.Equal("gemini-3.5-flash", sorted[2].Id);
-        Assert.Equal("gemini-2.5-flash", sorted[3].Id);
+        Assert.Equal("gemini-2.5-flash", sorted[2].Id);
     }
 }

@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Reactive.Disposables;
-using System.Text.Json;
 using Ivy.Core;
 using Ivy.Core.Apps;
 using Ivy.Desktop;
@@ -8,7 +7,9 @@ using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.Agent;
+using Ivy.Tendril.Apps.Icebox;
 using Ivy.Tendril.Apps.Onboarding;
+using Ivy.Tendril.Apps.PullRequest;
 using Ivy.Tendril.Apps.ReviewAction;
 using Ivy.Tendril.Apps.Settings;
 using Ivy.Tendril.Apps.Views;
@@ -16,6 +17,7 @@ using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Themes;
+using Ivy.Tendril.Widgets;
 using Ivy.Widgets.Internal;
 using Microsoft.Extensions.Logging;
 
@@ -27,7 +29,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 {
     internal AppShellSettings Settings => settings;
 
-    private static readonly HttpClient NewsHttp = new();
     private static readonly HashSet<string> OnboardingAppIds =
         new(StringComparer.OrdinalIgnoreCase) { "onboarding", "OnboardingApp", "onboarding-app" };
 
@@ -44,6 +45,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     {
         ReviewActionAppArgs { PlanId: { Length: > 0 } planId, ActionName: { Length: > 0 } name }
             => $"#{FormatPlanId(planId)} {name}",
+        ReviewActionAppArgs { ProjectName: { Length: > 0 } projectName, ActionName: { Length: > 0 } name }
+            => $"[{projectName}] {name}",
         AgentAppArgs { Title: { Length: > 0 } title } => title,
         _ => null
     };
@@ -65,9 +68,9 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         => !isDesktop || !desktopNotificationsEnabled;
 
     /// <summary>
-    ///     Whether Cmd+W / Ctrl+W should be wired up to close the active tab. Desktop shell only: in a
-    ///     browser the chord belongs to the browser (it closes the browser tab and cannot be cancelled),
-    ///     and <see cref="AppShellNavigation.Pages"/> has no tab strip at all.
+    ///     Whether Cmd+W / Ctrl+W should be wired up to close the active session tab. Desktop shell
+    ///     only: in a browser the chord belongs to the browser (it closes the browser tab and cannot
+    ///     be cancelled), and <see cref="AppShellNavigation.Pages"/> has no tab strip at all.
     /// </summary>
     internal static bool ShouldEnableCloseTabShortcut(
         bool isDesktop, AppShellNavigation navigation, int tabCount, int? selectedIndex)
@@ -76,33 +79,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
            && selectedIndex is { } index
            && index >= 0
            && index < tabCount;
-
-    private static async Task<SidebarNewsArticle[]> FetchNewsAsync()
-    {
-        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TENDRIL_E2E")))
-            return [];
-
-        try
-        {
-            var json = await NewsHttp.GetStringAsync(Constants.NewsBaseUrl + "news.json");
-            var items = JsonSerializer.Deserialize<JsonElement[]>(json) ?? [];
-            return items.Select(e =>
-            {
-                var id = e.GetProperty("id").GetString() ?? "";
-                var href = e.GetProperty("href").GetString() ?? "";
-                var title = e.GetProperty("title").GetString() ?? "";
-                var summary = e.GetProperty("summary").GetString() ?? "";
-                var image = e.GetProperty("image").GetString() ?? "";
-                if (!image.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                    image = Constants.NewsBaseUrl + image;
-                return new SidebarNewsArticle(id, href, title, summary, image);
-            }).ToArray();
-        }
-        catch
-        {
-            return [];
-        }
-    }
 
     internal static MenuItem[] BuildHelpMenuItems(bool isBeta, IClientProvider? client, INavigator? navigator)
     {
@@ -144,23 +120,9 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     // The Agent app id (and its menu-item Tag) collapses to "agent" via AppHelpers.GetApp.
     private const string AgentAppId = "agent";
 
-    // Re-brand the generic "Agent" menu item to the configured coding agent (e.g. "Claude Code"
-    // with the Claude icon), so the sidebar matches what actually launches.
-    private static MenuItem BrandAgentItem(MenuItem item, string agentId, IAgentRunner runner, IConfigService config)
-    {
-        if (item.Tag is string tag && tag == AgentAppId)
-        {
-            var (label, icon) = AgentBranding.For(agentId, runner, config);
-            item = item.Label(label).Icon(icon);
-        }
-        if (item.Children is { Length: > 0 })
-            item = item with { Children = item.Children.Select(c => BrandAgentItem(c, agentId, runner, config)).ToArray() };
-        return item;
-    }
-
     private static readonly HashSet<string> ShareAllowedAppIds = new(StringComparer.OrdinalIgnoreCase)
     {
-        "review", "drafts"
+        "review", "plans"
     };
 
     private static MenuItem? FilterMenuItemForShare(MenuItem item, HashSet<string> allowedTags)
@@ -196,12 +158,12 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     }
 
     private static MenuItem[] BuildMenuItems(IAppRepository repo, TendrilProcessStatus status,
-        IConfigService config, IAgentRunner runner, bool isShareMode = false)
+        IAgentRunner runner, bool isShareMode = false)
     {
         var nonChatAgentCount = Math.Max(0, runner.ActiveSessions.Count - status.GeneratingChatSessionsCount);
         var badges = new Dictionary<string, int>
         {
-            ["drafts"] = status.DraftCount,
+            ["plans"] = status.DraftCount,
             ["review"] = status.ReviewCount,
             ["jobs"] = status.JobCount,
             ["icebox"] = status.IceboxCount,
@@ -209,10 +171,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             ["chat"] = status.GeneratingChatSessionsCount,
             ["agent"] = nonChatAgentCount
         };
-        var agentId = config.Settings.CodingAgent;
         var items = repo.GetMenuItems()
-            .Select(m => AddBadge(m, badges))
-            .Select(m => BrandAgentItem(m, agentId, runner, config));
+            .Select(m => AddBadge(m, badges));
 
         if (isShareMode)
         {
@@ -223,6 +183,40 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         }
 
         return items.ToArray();
+    }
+
+    /// <summary>
+    ///     Flattens the app menu into the sidebar nav rows. The agent entry is excluded — it is
+    ///     rendered as the dedicated agent button above the nav instead.
+    /// </summary>
+    internal static List<ShellNavItemDto> BuildNavItems(MenuItem[] menuItems, string? activeAppId)
+    {
+        var result = new List<ShellNavItemDto>();
+
+        void AddLeaf(MenuItem item)
+        {
+            if (item.Tag is not string tag || tag == AgentAppId) return;
+            result.Add(new ShellNavItemDto(
+                tag,
+                item.Label ?? tag,
+                item.Icon is { } icon && icon != Icons.None ? icon.ToString() : null,
+                item.Badge,
+                string.Equals(tag, activeAppId, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        foreach (var item in menuItems)
+        {
+            if (item.Children is { Length: > 0 })
+            {
+                foreach (var child in item.Children) AddLeaf(child);
+            }
+            else
+            {
+                AddLeaf(item);
+            }
+        }
+
+        return result;
     }
 
     public override object Build()
@@ -239,14 +233,16 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var currentApp = UseState<AppHost?>();
         var statusService = UseService<ITendrilProcessStatusService>();
         var agentRunner = UseService<IAgentRunner>();
-        var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current, config, agentRunner, shareContext.IsShareMode));
+        var menuItems = UseState(() => BuildMenuItems(appRepository, statusService.Current, agentRunner, shareContext.IsShareMode));
         var status = UseState(() => statusService.Current);
         var sidebarOpen = UseState(() => config.Settings.SidebarOpen);
+        var sidebarList = UseState<ShellSidebarListState?>(() => null);
+        var lastSessionIndex = UseRef<int?>(null);
         var args = UseService<AppContext>();
         var serverArgs = UseService<ServerArgs>();
         var navigate = Context.UseSignal<NavigateSignal, NavigateArgs, Unit>();
+        var sidebarListSignal = Context.UseSignal<ShellSidebarListSignal, ShellSidebarListState, Unit>();
         var navigator = UseNavigation();
-        var newsArticles = UseState(Array.Empty<SidebarNewsArticle>());
         var jobService = UseService<IJobService>();
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
         Context.TryUseService<TendrilArgs>(out var tendrilArgs);
@@ -263,12 +259,13 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             return new UpdateTendrilDialog(isOpen, info);
         });
 
-        var isShareMode = shareContext.IsShareMode;
-
-        UseEffect(async () =>
+        var (planSearchDialog, showPlanSearchDialog) = UseTrigger((isOpen) =>
         {
-            newsArticles.Set(await FetchNewsAsync());
+            if (!isOpen.Value) return null;
+            return new PlanSearchDialog(isOpen);
         });
+
+        var isShareMode = shareContext.IsShareMode;
 
         UseEffect(() =>
         {
@@ -285,13 +282,19 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             });
         });
 
-        UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, status.Value, config, agentRunner, shareContext.IsShareMode)); },
+        UseEffect(() =>
+        {
+            return sidebarListSignal.Receive(state => sidebarList.Set(state));
+        });
+
+        UseEffect(() => { menuItems.Set(BuildMenuItems(appRepository, status.Value, agentRunner, shareContext.IsShareMode)); },
             appRepository.Reloaded.ToTrigger(), status);
 
         // Apply configured theme on mount
         UseEffect(() =>
         {
             TendrilThemes.ApplyTheme(client, config.Settings.Theme);
+            TendrilThemes.ApplyThemeMode(client, config.Settings.ThemeMode);
         });
 
         // Rebuild the menu and reapply theme when settings are saved (e.g. the coding agent or theme changes),
@@ -300,9 +303,10 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         {
             void OnSettingsReloaded(object? sender, EventArgs e)
             {
-                menuItems.Set(BuildMenuItems(appRepository, status.Value, config, agentRunner, shareContext.IsShareMode));
+                menuItems.Set(BuildMenuItems(appRepository, status.Value, agentRunner, shareContext.IsShareMode));
                 sidebarOpen.Set(config.Settings.SidebarOpen);
                 TendrilThemes.ApplyTheme(client, config.Settings.Theme);
+                TendrilThemes.ApplyThemeMode(client, config.Settings.ThemeMode);
             }
             config.SettingsReloaded += OnSettingsReloaded;
             return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);
@@ -411,8 +415,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                     settings.Navigation,
                     settings.DefaultAppId,
                     tabs.Value,
-                    appDescriptor,
-                    settings.PreventTabDuplicates);
+                    appDescriptor);
 
                 switch (routeResult.Action)
                 {
@@ -422,11 +425,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
                     case AppShellRouter.RouteAction.SwitchToExistingTab:
                         HandleSwitchToExistingTab(navigateArgs, routeResult.TabIndex!.Value,
-                            routeResult.TabId!, replaceHistory);
-                        break;
-
-                    case AppShellRouter.RouteAction.RefreshExistingTab:
-                        HandleRefreshExistingTab(navigateArgs, routeResult.TabIndex!.Value,
                             routeResult.TabId!, replaceHistory);
                         break;
 
@@ -451,6 +449,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         void HandleOpenPage(NavigateArgs navigateArgs, string? effectiveAppId, bool replaceHistory)
         {
             var previousApp = currentApp.Value?.AppId;
+            var wasOnSession = selectedIndex.Value != null;
             var effectiveNavigateArgs = navigateArgs with { AppId = effectiveAppId };
 
             var appHost = effectiveAppId != null
@@ -458,10 +457,17 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 : null;
 
             currentApp.Set(appHost);
+            selectedIndex.Set((int?)null);
+
+            // The sidebar section belongs to the page app; drop it when the page changes so a
+            // stale list never shows while the next app publishes its own.
+            if (sidebarList.Value is { } list &&
+                !string.Equals(list.AppId, effectiveAppId, StringComparison.OrdinalIgnoreCase))
+                sidebarList.Set((ShellSidebarListState?)null);
 
             if (effectiveAppId != null) SetAppTitle(effectiveAppId);
 
-            if (navigateArgs.HistoryOp is HistoryOp.Push && previousApp != effectiveAppId)
+            if (navigateArgs.HistoryOp is HistoryOp.Push && (previousApp != effectiveAppId || wasOnSession))
                 RedirectToAppIfNotError(effectiveNavigateArgs, replaceHistory);
         }
 
@@ -470,32 +476,12 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         {
             var previousSelectedIndex = selectedIndex.Value;
             selectedIndex.Set(tabIndex);
+            lastSessionIndex.Value = tabIndex;
             var tab = tabs.Value[tabIndex];
             SetAppTitle(tab.AppId);
 
             if (navigateArgs.HistoryOp is HistoryOp.Push && previousSelectedIndex != tabIndex)
                 RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
-        }
-
-        void SetAppTitleAndRedirect(NavigateArgs navigateArgs, string appId, string tabId,
-            bool replaceHistory)
-        {
-            SetAppTitle(appId);
-            if (navigateArgs.HistoryOp is HistoryOp.Push)
-                RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
-        }
-
-        void HandleRefreshExistingTab(NavigateArgs navigateArgs, int tabIndex,
-            string tabId, bool replaceHistory)
-        {
-            var tab = tabs.Value[tabIndex];
-            tabs.Set(tabs.Value.SetItem(tabIndex, tab with
-            {
-                AppHost = navigateArgs.ToAppHost(args.ConnectionId),
-                RefreshToken = Guid.NewGuid().ToString()
-            }));
-            selectedIndex.Set(tabIndex);
-            SetAppTitleAndRedirect(navigateArgs, tab.AppId, tabId, replaceHistory);
         }
 
         void HandleCreateNewTab(NavigateArgs navigateArgs, string effectiveAppId,
@@ -513,36 +499,33 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 tabIcon, Guid.NewGuid().ToString()));
             tabs.Set(newTabs);
             selectedIndex.Set(newTabs.Length - 1);
-            SetAppTitleAndRedirect(navigateArgs, app.Id, tabId, replaceHistory);
+            lastSessionIndex.Value = newTabs.Length - 1;
+            SetAppTitle(app.Id);
+            RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
         }
 
-        bool CheckTabExists(int tabId)
+        bool CheckTabExists(int tabIndex)
         {
-            return tabId >= 0 && tabId < tabs.Value.Length;
+            return tabIndex >= 0 && tabIndex < tabs.Value.Length;
         }
 
-        void OnMenuSelect(Event<SidebarMenu, object> @event)
+        int FindTabIndexById(string tabId)
         {
-            if (@event.Value is string appId) OpenApp(new NavigateArgs(appId));
+            for (var i = 0; i < tabs.Value.Length; i++)
+                if (tabs.Value[i].Id == tabId) return i;
+            return -1;
         }
 
-        ValueTask OnCtrlRightClickSelect(Event<SidebarMenu, object> @event)
-        {
-            if (@event.Value is string appId) client.OpenUrl(new NavigateArgs(appId, AppShell: false).GetUrl());
-            return ValueTask.CompletedTask;
-        }
-
-        void OnTabSelect(int tabIndex)
+        void SelectSession(int tabIndex)
         {
             if (!CheckTabExists(tabIndex)) return;
+            if (selectedIndex.Value == tabIndex) return;
 
-            if (selectedIndex.Value != tabIndex)
-            {
-                selectedIndex.Set(tabIndex);
-                var tab = tabs.Value[tabIndex];
-                SetAppTitle(tab.AppId);
-                RedirectToAppIfNotError(new NavigateArgs(tab.AppId), tabId: tab.Id);
-            }
+            selectedIndex.Set(tabIndex);
+            lastSessionIndex.Value = tabIndex;
+            var tab = tabs.Value[tabIndex];
+            SetAppTitle(tab.AppId);
+            RedirectToAppIfNotError(new NavigateArgs(tab.AppId), tabId: tab.Id);
         }
 
         void OnTabClose(int closedIndex)
@@ -552,110 +535,48 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             var wasSelected = selectedIndex.Value == closedIndex;
             var newTabs = tabs.Value.RemoveAt(closedIndex);
             int? newIndex = null;
-            if (newTabs.Length > 0)
+            if (wasSelected)
             {
-                if (wasSelected)
-                    newIndex = Math.Min(closedIndex, newTabs.Length - 1);
-                else if (selectedIndex.Value > closedIndex)
-                    newIndex = selectedIndex.Value - 1;
-                else
-                    newIndex = selectedIndex.Value;
+                newIndex = newTabs.Length > 0 ? Math.Min(closedIndex, newTabs.Length - 1) : null;
+            }
+            else if (selectedIndex.Value is { } current)
+            {
+                newIndex = current > closedIndex ? current - 1 : current;
             }
 
             selectedIndex.Set(newIndex);
 
-            if (wasSelected)
+            // The last-visited pointer tracks its own tab, not the selection: renumber it for
+            // the removal and only drop it when the tab it pointed at is the one closing.
+            if (lastSessionIndex.Value is { } lastTracked)
             {
-                if (newIndex != null)
-                {
-                    var tab = newTabs[newIndex.Value];
-                    SetAppTitle(tab.AppId);
-                    RedirectToAppIfNotError(new NavigateArgs(tab.AppId), tabId: tab.Id);
-                }
-                else
-                {
-                    client.SetTitle(serverArgs.Metadata.Title);
-                    client.Redirect("/");
-                    sidebarOpen.Set(true);
-                }
+                if (lastTracked == closedIndex) lastSessionIndex.Value = wasSelected ? newIndex : null;
+                else if (lastTracked > closedIndex) lastSessionIndex.Value = lastTracked - 1;
             }
 
             tabs.Set(newTabs);
-        }
 
-        void OnTabRefresh(int tabIndex)
-        {
-            if (!CheckTabExists(tabIndex)) return;
+            if (!wasSelected) return;
 
-            var tab = tabs.Value[tabIndex];
-            tabs.Set(tabs.Value.SetItem(tabIndex, tab with { RefreshToken = Guid.NewGuid().ToString() }));
-            selectedIndex.Set(tabIndex);
-        }
-
-        void OnTabReorder(int[] newOrder)
-        {
-            var reorderedTabs = newOrder.Select(index => tabs.Value[index]).ToArray();
-            tabs.Set([.. reorderedTabs]);
-
-            if (selectedIndex.Value.HasValue)
+            if (newIndex is { } idx)
             {
-                var oldSelectedIndex = selectedIndex.Value.Value;
-                var newSelectedIndex = Array.IndexOf(newOrder, oldSelectedIndex);
-                if (newSelectedIndex >= 0) selectedIndex.Set(newSelectedIndex);
+                var tab = newTabs[idx];
+                SetAppTitle(tab.AppId);
+                RedirectToAppIfNotError(new NavigateArgs(tab.AppId), tabId: tab.Id);
             }
-        }
-
-        object? body;
-
-        if (settings.Navigation == AppShellNavigation.Pages)
-        {
-            body = currentApp.Value;
-        }
-        else
-        {
-            if (tabs.Value.Length == 0)
+            else if (currentApp.Value is { } page)
             {
-                body = null;
-                if (settings.WallpaperAppId != null)
-                    body = new AppHost(settings.WallpaperAppId, null, args.ConnectionId);
+                // The page is still open behind the sessions; reveal it again.
+                SetAppTitle(page.AppId);
+                RedirectToAppIfNotError(new NavigateArgs(page.AppId));
             }
             else
             {
-                body = Layout.Tabs(tabs.Value.ToArray().Select(e => e.ToTab()).ToArray())
-                    .OnSelect(OnTabSelect)
-                    .OnClose(OnTabClose)
-                    .OnRefresh(OnTabRefresh)
-                    .OnReorder(OnTabReorder)
-                    .SelectedIndex(selectedIndex.Value)
-                    .RemoveParentPadding()
-                    .Variant(TabsVariant.Tabs)
-                    .Padding(0);
+                client.SetTitle(serverArgs.Metadata.Title);
+                client.Redirect("/");
+                sidebarOpen.Set(true);
             }
         }
-
-        // Cmd+W (Ctrl+W on Windows) closes the active tab, matching desktop-app convention. ShortcutKey is
-        // the only shortcut API Ivy exposes, so the binding lives on a zero-width Ghost button that paints
-        // nothing, wrapped in a zero-height stack so it stays out of the layout (same trick as the
-        // SelectInput warm-up below).
-        object? closeTabShortcut = null;
-        if (ShouldEnableCloseTabShortcut(isDesktop, settings.Navigation, tabs.Value.Length, selectedIndex.Value)
-            && selectedIndex.Value is { } activeTabIndex)
-        {
-            closeTabShortcut = Layout.Vertical().Height(Size.Px(0)).Width(Size.Px(0))
-                | new Button()
-                    .Ghost()
-                    .Width(Size.Px(0))
-                    .ShortcutKey("Ctrl+W")
-                    .OnClick(() => OnTabClose(activeTabIndex));
-        }
-
-        var sidebarMenu = new SidebarMenu(
-            OnMenuSelect,
-            menuItems.Value
-        )
-        {
-            OnCtrlRightClickSelect = new EventHandler<Event<SidebarMenu, object>>(OnCtrlRightClickSelect)
-        };
 
         var settingsMenuItems = new[]
         {
@@ -663,6 +584,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Tag("$setup")
                 .Icon(Icons.Construction)
                 .OnSelect(() => navigator.Navigate<SettingsApp>()),
+            MenuItem.Default("Pull Requests")
+                .Tag("$pull-requests")
+                .Icon(Icons.GitPullRequest)
+                .OnSelect(() => navigator.Navigate<PullRequestApp>()),
+            MenuItem.Default("Icebox")
+                .Tag("$icebox")
+                .Icon(Icons.Snowflake)
+                .OnSelect(() => navigator.Navigate<IceboxApp>()),
             MenuItem.Default("Import Issues from GitHub")
                 .Tag("$import-issues")
                 .Icon(Icons.Download)
@@ -716,38 +645,113 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Children(BuildHelpMenuItems(isBeta, client, navigator)),
         };
 
-        var settingsTrigger = new Button("Settings")
-            .Content(
-                Layout.Horizontal().AlignContent(Align.Left)
-                | Icons.Settings.ToIcon()
-                | Text.Literal("Settings")
-            )
-            .Variant(ButtonVariant.Ghost).Width(Size.Full());
-
-        var settingsTriggerCollapsed = new Button()
-            .Icon(Icons.Settings)
-            .Tooltip("Settings")
-            .Variant(ButtonVariant.Ghost).Width(Size.Full());
-
-        var settingsMenu = new DropDownMenu(
-                DropDownMenu.DefaultSelectHandler(),
-                settingsTrigger)
-            .Top()
-            .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
-
-        var settingsMenuCollapsed = new DropDownMenu(
-                DropDownMenu.DefaultSelectHandler(),
-                settingsTriggerCollapsed)
-            .Width(Size.Full())
-            .Top()
-            .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
-
-        object? footer = isShareMode ? null : settingsMenu;
-
         if (config.ParseError != null)
             return new ConfigErrorApp(config);
 
         if (config.NeedsOnboarding && !isShareMode) return new OnboardingApp();
+
+        // ----- Sidebar -----
+
+        var versionString = typeof(TendrilAppShell).Assembly.GetName().Version!.ToString(3);
+        var sidebarHeader = new ShellSidebarHeader()
+            .Title("Ivy Tendril")
+            .Version($"v {versionString}")
+            .LogoUrl("/tendril/assets/Tendril.svg");
+
+        // The widget handles Cmd/Ctrl+K client-side; the zero-size ghost button keeps the
+        // legacy Ctrl+Alt+N chord working (ShortcutKey is the only shortcut API Ivy exposes).
+        var newPlanButton = new CreatePlanDialogLauncher(open => new Fragment(
+            new ShellNewPlanButton().OnClick(open),
+            Layout.Vertical().Height(Size.Px(0)).Width(Size.Px(0))
+            | new Button()
+                .Ghost()
+                .Width(Size.Px(0))
+                .ShortcutKey("CTRL+ALT+N")
+                .OnClick(() => open())
+        ));
+
+        // While a session pane is visible the agent row is the selected item, so the
+        // nav must not keep highlighting the page app behind it.
+        var sessionIsActive = selectedIndex.Value is { } activeSession && CheckTabExists(activeSession);
+        var activeNavAppId = sessionIsActive ? null : currentApp.Value?.AppId;
+
+        var (agentLabel, _) = AgentBranding.For(config.Settings.CodingAgent, agentRunner, config);
+        var agentButton = new ShellAgentButton()
+            .IsActive(sessionIsActive)
+            .Label(agentLabel)
+            .Icon(AgentBranding.IconFor(config.Settings.CodingAgent, config).ToString())
+            .OnOpen(() =>
+            {
+                if (tabs.Value.Length == 0)
+                {
+                    OpenApp(new NavigateArgs(AgentAppId));
+                    return;
+                }
+                var latest = lastSessionIndex.Value is { } last && CheckTabExists(last)
+                    ? last
+                    : tabs.Value.Length - 1;
+                SelectSession(latest);
+            })
+            .OnNewChat(() => OpenApp(new NavigateArgs(AgentAppId)));
+
+        object? section = null;
+        if (sidebarList.Value is { } list &&
+            string.Equals(list.AppId, currentApp.Value?.AppId, StringComparison.OrdinalIgnoreCase))
+        {
+            var capturedList = list;
+            section = new ShellSidebarSection()
+                .Title(list.Title)
+                .Items(list.Items)
+                .SelectedId(list.SelectedId)
+                .Searchable(list.Searchable)
+                .OnSelectItem(itemId =>
+                    OpenApp(new NavigateArgs(capturedList.AppId, capturedList.BuildSelectArgs(itemId))))
+                .OnSearch(showPlanSearchDialog);
+        }
+
+        var nav = new ShellNav()
+            .Items(BuildNavItems(menuItems.Value, activeNavAppId))
+            .ShowDivider(section != null)
+            .OnSelect(appId => OpenApp(new NavigateArgs(appId)));
+
+        var settingsMenu = new DropDownMenu(
+                DropDownMenu.DefaultSelectHandler(),
+                new ShellSettingsButton())
+            .Top()
+            .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
+
+        // ----- Content + session tabs -----
+
+        object? pageContent = currentApp.Value;
+        if (pageContent == null && settings.WallpaperAppId != null)
+            pageContent = new AppHost(settings.WallpaperAppId, null, args.ConnectionId);
+
+        var sessionContents = tabs.Value
+            .Select(t => (object?)t.AppHost.Key(StringHelper.GetShortHash(t.Id + t.RefreshToken)))
+            .ToArray();
+
+        var tabsWidget = new ShellTabs()
+            .Tabs(tabs.Value.Select(t => new ShellTabDto(t.Id, t.Title)).ToList())
+            .SelectedId(selectedIndex.Value is { } si && CheckTabExists(si) ? tabs.Value[si].Id : null)
+            .OnSelect(tabId => SelectSession(FindTabIndexById(tabId)))
+            .OnClose(tabId => OnTabClose(FindTabIndexById(tabId)))
+            .OnNew(() => OpenApp(new NavigateArgs(AgentAppId)));
+
+        // Cmd+W (Ctrl+W on Windows) closes the active session tab, matching desktop-app convention.
+        // ShortcutKey is the only shortcut API Ivy exposes, so the binding lives on a zero-width
+        // Ghost button that paints nothing, wrapped in a zero-height stack so it stays out of the
+        // layout (same trick as the SelectInput warm-up below).
+        object? closeTabShortcut = null;
+        if (ShouldEnableCloseTabShortcut(isDesktop, settings.Navigation, tabs.Value.Length, selectedIndex.Value)
+            && selectedIndex.Value is { } activeTabIndex)
+        {
+            closeTabShortcut = Layout.Vertical().Height(Size.Px(0)).Width(Size.Px(0))
+                | new Button()
+                    .Ghost()
+                    .Width(Size.Px(0))
+                    .ShortcutKey("Ctrl+W")
+                    .OnClick(() => OnTabClose(activeTabIndex));
+        }
 
         // Warm up SelectInput so its frontend chunk is loaded before dialogs open.
         var selectInputWarmup = new FuncView(context =>
@@ -757,66 +761,62 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 | noop.ToSelectInput(new[] { "_" }.ToOptions()).Disabled();
         });
 
+        // Share mode: reviewers get a read-only shell — no plan creation, and the footer
+        // identifies the reviewer instead of exposing the settings menu.
         var reviewerPersona = shareContext.Persona;
         var reviewerInitials = GetInitials(reviewerPersona);
 
-        var reviewerFooter = Layout.Horizontal().AlignContent(Align.Left).Height(Size.Auto()).Width(Size.Full())
-            | new Avatar(reviewerInitials).Small()
-            | Text.Block(reviewerPersona).Small().Bold().Overflow(Overflow.Ellipsis);
+        object sidebarFooter = isShareMode
+            ? Layout.Horizontal().AlignContent(Align.Left).Height(Size.Auto()).Width(Size.Full())
+                | new Avatar(reviewerInitials).Small()
+                | Text.Block(reviewerPersona).Small().Bold().Overflow(Overflow.Ellipsis)
+            : settingsMenu;
 
-        var sidebarHeader = Layout.Vertical()
-            | settings.Header
-            | (isShareMode
-                ? (object)null!
-                : (object)new NewPlanButton(collapsed: false));
-
-        var sidebarFooter = isShareMode
-            ? (Layout.Vertical() | settings.Footer | reviewerFooter)
-            : Layout.Vertical(
-                new SidebarNews(newsArticles.Value),
-                settings.Footer,
-                footer
-            );
-
-        var sidebarHeaderCollapsed = isShareMode
-            ? null
-            : (Layout.Vertical() | new NewPlanButton(collapsed: true));
-
-        var sidebarFooterCollapsed = isShareMode
-            ? (Layout.Vertical().Width(Size.Full()).Height(Size.Auto()).AlignContent(Align.Center) | new Tooltip(new Avatar(reviewerInitials).Small(), $"Reviewing as {reviewerPersona}"))
-            : (Layout.Vertical().Width(Size.Full()) | settingsMenuCollapsed);
-
-        var isShareDirectPlan = isShareMode && HasDirectPlanId(args);
-
-        if (isShareDirectPlan)
+        // A shared link that points straight at one plan renders that plan alone, with no shell
+        // chrome around it.
+        if (isShareMode && HasDirectPlanId(args))
         {
-            var selectedApp = tabs.Value.Length > 0 && selectedIndex.Value.HasValue
-                ? tabs.Value[selectedIndex.Value.Value].AppHost
-                : (tabs.Value.Length > 0 ? tabs.Value[0].AppHost : body);
+            var selectedApp = tabs.Value.Length > 0
+                ? (selectedIndex.Value is { } shareIndex && CheckTabExists(shareIndex)
+                    ? tabs.Value[shareIndex].AppHost
+                    : tabs.Value[0].AppHost)
+                : pageContent;
 
             return new Fragment(
                 selectInputWarmup,
                 selectedApp ?? null!,
                 importIssuesDialog,
                 updateDialog,
+                planSearchDialog,
                 closeTabShortcut
             );
         }
 
-        return new Fragment(
-            selectInputWarmup,
-            new SidebarLayout(
-                body ?? null!,
-                sidebarMenu,
+        var shell = new TendrilShell(
                 sidebarHeader: sidebarHeader,
+                sidebarBody: isShareMode
+                    ? [nav, section]
+                    : [newPlanButton, agentButton, nav, section],
                 sidebarFooter: sidebarFooter,
-                width: settings.Width,
-                sidebarHeaderCollapsed: sidebarHeaderCollapsed,
-                sidebarFooterCollapsed: sidebarFooterCollapsed
-            ).Open(sidebarOpen.Value).MainAppSidebar(),
+                content: pageContent,
+                sessionContents: sessionContents,
+                tabs: tabsWidget,
+                hidden: [selectInputWarmup, closeTabShortcut])
+            .Collapsed(!sidebarOpen.Value)
+            .HasTabs(tabs.Value.Length > 0)
+            .ActiveSessionIndex(selectedIndex.Value)
+            .OnCollapsedChanged(collapsed =>
+            {
+                sidebarOpen.Set(!collapsed);
+                config.Settings.SidebarOpen = !collapsed;
+                config.SaveSettings();
+            });
+
+        return new Fragment(
+            shell,
             importIssuesDialog,
             updateDialog,
-            closeTabShortcut
+            planSearchDialog
         );
     }
 
@@ -832,7 +832,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         try
         {
-            var draftsArgs = appContext.GetArgs<Ivy.Tendril.Apps.Drafts.DraftsAppArgs>();
+            var draftsArgs = appContext.GetArgs<Ivy.Tendril.Apps.Plans.PlansAppArgs>();
             if (!string.IsNullOrEmpty(draftsArgs?.PlanId)) return true;
         }
         catch { }
@@ -840,11 +840,5 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         return false;
     }
 
-    internal record TabState(string Id, string AppId, string Title, AppHost AppHost, Icons? Icon, string RefreshToken)
-    {
-        public Tab ToTab()
-        {
-            return new Tab(Title, AppHost).Icon(Icon).Key(StringHelper.GetShortHash(Id + RefreshToken));
-        }
-    }
+    internal record TabState(string Id, string AppId, string Title, AppHost AppHost, Icons? Icon, string RefreshToken);
 }

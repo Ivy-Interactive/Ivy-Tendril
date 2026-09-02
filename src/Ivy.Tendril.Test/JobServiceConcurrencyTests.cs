@@ -198,6 +198,154 @@ public class JobServiceConcurrencyTests
         Assert.Equal(JobStatus.Running, jobService.GetJob(job2Id)!.Status);
     }
 
+    [Fact]
+    public void GetJobs_UnstartedAndQueuedJobs_SortedBeforeCompletedJobs()
+    {
+        var db = new FakeDatabaseService
+        {
+            Jobs =
+            {
+                new JobItem
+                {
+                    Id = "00001",
+                    Status = JobStatus.Completed,
+                    StartedAt = DateTime.UtcNow.AddMinutes(-30),
+                    CompletedAt = DateTime.UtcNow.AddMinutes(-20)
+                },
+                new JobItem
+                {
+                    Id = "00002",
+                    Status = JobStatus.Running,
+                    StartedAt = DateTime.UtcNow.AddMinutes(-5)
+                },
+                new JobItem
+                {
+                    Id = "00003",
+                    Status = JobStatus.Queued,
+                    StartedAt = null
+                },
+                new JobItem
+                {
+                    Id = "00004",
+                    Status = JobStatus.Pending,
+                    StartedAt = null
+                }
+            }
+        };
+
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), database: db, maxConcurrentJobs: 0);
+        var jobs = service.GetJobs();
+
+        Assert.Equal(4, jobs.Count);
+        // Unstarted jobs (StartedAt == null) sort at the top, ordered by Id descending (00004, 00003),
+        // followed by running/completed jobs ordered by StartedAt descending (00002, 00001).
+        Assert.Equal("00004", jobs[0].Id);
+        Assert.Equal("00003", jobs[1].Id);
+        Assert.Equal("00002", jobs[2].Id);
+        Assert.Equal("00001", jobs[3].Id);
+    }
+
+    [Fact]
+    public void GetJobsForPlan_UnstartedJobs_SortedBeforeCompletedJobs()
+    {
+        var planFile = "00042-TestPlan";
+        var db = new FakeDatabaseService
+        {
+            Jobs =
+            {
+                new JobItem
+                {
+                    Id = "00001",
+                    PlanFile = planFile,
+                    Status = JobStatus.Completed,
+                    StartedAt = DateTime.UtcNow.AddMinutes(-30),
+                    CompletedAt = DateTime.UtcNow.AddMinutes(-20)
+                },
+                new JobItem
+                {
+                    Id = "00002",
+                    PlanFile = planFile,
+                    Status = JobStatus.Running,
+                    StartedAt = DateTime.UtcNow.AddMinutes(-5)
+                },
+                new JobItem
+                {
+                    Id = "00003",
+                    PlanFile = planFile,
+                    Status = JobStatus.Queued,
+                    StartedAt = null
+                }
+            }
+        };
+
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), database: db, maxConcurrentJobs: 0);
+        var jobs = service.GetJobsForPlan(planFile);
+
+        Assert.Equal(3, jobs.Count);
+        // Unstarted queued job sorts first, followed by running and completed jobs
+        Assert.Equal("00003", jobs[0].Id);
+        Assert.Equal("00002", jobs[1].Id);
+        Assert.Equal("00001", jobs[2].Id);
+    }
+
+    private class FakeDatabaseService : IPlanDatabaseService
+    {
+        public DashboardActivityStats GetActivityStats(int monthsBack = 24) => new([], 0m);
+        public List<JobItem> Jobs { get; } = new();
+
+        public List<JobItem> GetRecentJobs(int limit = 100)
+        {
+            return Jobs.ToList();
+        }
+
+        public JobItem? GetJobById(string id)
+        {
+            return Jobs.FirstOrDefault(j => j.Id == id);
+        }
+
+        public List<JobItem> GetJobsForPlan(string planFile)
+        {
+            return Jobs.Where(j => j.PlanFile == planFile).ToList();
+        }
+
+        public void DeleteJob(string id) { }
+        public void Dispose() { }
+        public List<PlanFile> GetPlans(PlanStatus? statusFilter = null) => [];
+        public PlanFile? GetPlanByFolder(string folderPath) => null;
+        public PlanFile? GetPlanById(int planId) => null;
+        public PlanReaderService.PlanCountSnapshot ComputePlanCounts() => new(0, 0, 0, 0, 0, 0);
+        public DashboardModels GetDashboardData(string? projectFilter) => new(0, 0, 0, 0, 0, 0, 0, [], []);
+        public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30) => [];
+        public decimal GetPlanTotalCost(int planId) => 0;
+        public int GetPlanTotalTokens(int planId) => 0;
+        public List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null) => [];
+        public List<Recommendation> GetRecommendations() => [];
+        public int GetPendingRecommendationsCount() => 0;
+        public List<PlanFile> SearchPlans(string query) => [];
+        public void RebuildFtsIndex() { }
+        public void UpdatePlanState(int planId, PlanStatus state) { }
+        public void UpdatePlanContent(int planId, string latestRevisionContent, int revisionCount) { }
+        public void UpdateRecommendationState(int planId, string recommendationTitle, string newState, string? declineReason) { }
+        public void UpsertPlan(PlanFile plan) { }
+        public void DeletePlan(int planId) { }
+        public void UpsertCosts(int planId, List<CostEntry> costs) { }
+        public void UpsertRecommendations(int planId, string folderName, List<RecommendationYaml> recommendations, string project, string planTitle, DateTime updated, PlanStatus status) { }
+        public void BulkUpsertPlans(List<PlanFile> plans, bool forceOverwrite = false) { }
+        public HashSet<int> GetTerminalPlanIds() => [];
+        public void UpsertJob(JobItem job)
+        {
+            Jobs.RemoveAll(j => j.Id == job.Id);
+            Jobs.Add(job);
+        }
+        public List<string> PurgeOldJobs(int keepCount = 500) => [];
+        public Dictionary<string, PrInfo> GetAllPrStatuses() => [];
+        public void UpsertPrStatus(string prUrl, string owner, string repo, string status, string branch, DateTime lastChecked) { }
+        public List<string> GetNonMergedPrUrls() => [];
+        public long GetDatabaseSize() => 0;
+        public DateTime GetLastSyncTime() => DateTime.UtcNow;
+        public void SetLastSyncTime(DateTime time) { }
+    }
+
     private class TestConfigService : IConfigService
     {
         public int MaxConcurrentJobs { get; set; } = 20;

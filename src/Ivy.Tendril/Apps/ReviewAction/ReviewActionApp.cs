@@ -58,32 +58,47 @@ public class ReviewActionApp : ViewBase
         //     }
         // }), EffectTrigger.OnMount());
 
-        // The plan/action lookup happens once via UseMemo (itself a hook, so this still satisfies
+        // The plan/project/action lookup happens once via UseMemo (itself a hook, so this still satisfies
         // IVYHOOK005's "hooks must come first" rule - it can't be a plain statement preceding
-        // UsePty). GetCommandLine then derives its argv from the already-resolved tuple instead
-        // of re-running ResolvePlan/ResolveAction. When nothing resolves, GetCommandLine returns
-        // an empty array, which makes UsePty's StartPtyAsync a no-op, so nothing is spawned.
-        var (plan, action) = UseMemo(() =>
+        // UsePty). GetCommandLine then derives its argv from the already-resolved action. When
+        // nothing resolves, GetCommandLine returns an empty array, which makes UsePty's StartPtyAsync
+        // a no-op, so nothing is spawned.
+        var (plan, project, action, workingDirectory) = UseMemo(() =>
         {
-            var resolvedPlan = ResolvePlan(planService, args?.PlanId);
-            var resolvedAction = resolvedPlan is not null
-                ? ResolveAction(configService, resolvedPlan.Project, args?.ActionName)
-                : null;
-            return (resolvedPlan, resolvedAction);
+            if (!string.IsNullOrEmpty(args?.PlanId))
+            {
+                var resolvedPlan = ResolvePlan(planService, args.PlanId);
+                var resolvedAction = resolvedPlan is not null
+                    ? ResolveAction(configService, resolvedPlan.Project, args?.ActionName)
+                    : null;
+                return (resolvedPlan, (ProjectConfig?)null, resolvedAction, resolvedPlan?.FolderPath);
+            }
+
+            if (!string.IsNullOrEmpty(args?.ProjectName))
+            {
+                var resolvedProject = configService.GetProject(args.ProjectName);
+                var resolvedAction = ResolveAction(configService, args.ProjectName, args?.ActionName);
+                var workDir = ResolveWorkingDirectory(configService, null, resolvedProject);
+                return ((PlanFile?)null, resolvedProject, resolvedAction, workDir);
+            }
+
+            return ((PlanFile?)null, (ProjectConfig?)null, (ReviewActionConfig?)null, (string?)null);
         });
 
         // CaptureOutput is what lets the URL below be found at all: the transcript is read
         // server-side, so the app under review is picked up from its own startup banner rather
         // than waiting for the reviewer to spot a link and click it inside the terminal.
         var ptyHandle = Context.UsePty(
-            GetCommandLine(plan, action),
-            plan?.FolderPath,
+            GetCommandLine(action),
+            workingDirectory,
             new PtyOptions { CaptureOutput = true });
         // ptyHandleRef.Value = ptyHandle; // Commented out - ptyHandleRef not used
 
         // Set once and then left alone. A dev server prints its banner again on every hot
         // restart, and prints a second URL for its network address; re-pointing the viewer on
-        // either would throw away wherever the reviewer had navigated to, mid-review.
+        // either would throw away wherever the reviewer had navigated to, mid-review. Runs for a
+        // project-scoped action too, where nothing reads it — cheaper than making a hook
+        // conditional on which kind of action this is.
         var appUrl = UseState<string?>(() => null);
         Context.UseInterval(
             () =>
@@ -93,21 +108,45 @@ public class ReviewActionApp : ViewBase
             },
             TimeSpan.FromMilliseconds(500));
 
-        if (plan is null)
+        if (!string.IsNullOrEmpty(args?.PlanId))
         {
-            return Text.Muted("Plan not found.");
-        }
+            if (plan is null)
+            {
+                return Text.Muted("Plan not found.");
+            }
 
-        if (action is null)
+            if (action is null)
+            {
+                return Text.Muted($"Review action \"{args?.ActionName}\" is not configured for project \"{plan.Project}\".");
+            }
+        }
+        else if (!string.IsNullOrEmpty(args?.ProjectName))
         {
-            return Text.Muted($"Review action \"{args?.ActionName}\" is not configured for project \"{plan.Project}\".");
+            if (project is null)
+            {
+                return Text.Muted($"Project \"{args.ProjectName}\" not found.");
+            }
+
+            if (action is null)
+            {
+                return Text.Muted($"Review action \"{args?.ActionName}\" is not configured for project \"{project.Name}\".");
+            }
+        }
+        else
+        {
+            return Text.Muted("Plan or project not specified.");
         }
 
         // The terminal is the start of a review action, not the point of one: as soon as the
         // process says where it is serving, the tab becomes that app — framed, proxied and
         // markable — and the terminal's job is done. The PTY keeps running underneath (this
         // app's own hook owns it), so the app stays up until the tab closes.
-        if (appUrl.Value is { } url)
+        //
+        // Only for a plan-scoped action. A project-scoped one (added alongside this on
+        // development) has no plan, and the preview's whole output is a change request against
+        // one — so it keeps the terminal rather than offering an Update button with nothing
+        // behind it.
+        if (plan is not null && appUrl.Value is { } url)
         {
             return new AppPreviewView(plan, url);
         }
@@ -124,8 +163,8 @@ public class ReviewActionApp : ViewBase
             .RemoveParentPadding();
     }
 
-    private static string[] GetCommandLine(PlanFile? plan, ReviewActionConfig? action) =>
-        plan is not null && action is not null
+    private static string[] GetCommandLine(ReviewActionConfig? action) =>
+        action is not null
             ? [PathHelper.GetPwshPath(), "-NoExit", "-NoProfile", "-Command", action.Command]
             : [];
 
@@ -134,6 +173,22 @@ public class ReviewActionApp : ViewBase
         if (string.IsNullOrEmpty(planId)) return null;
         var folder = Path.Combine(planService.PlansDirectory, planId);
         return planService.GetPlanByFolder(folder);
+    }
+
+    internal static string? ResolveWorkingDirectory(IConfigService configService, PlanFile? plan, ProjectConfig? project)
+    {
+        if (plan is not null) return plan.FolderPath;
+        if (project is not null)
+        {
+            var firstRepo = project.Repos.FirstOrDefault()?.Path;
+            if (!string.IsNullOrWhiteSpace(firstRepo))
+            {
+                var expanded = VariableExpansion.ExpandVariables(firstRepo, configService.TendrilHome);
+                return Directory.Exists(expanded) ? expanded : (Directory.Exists(firstRepo) ? firstRepo : configService.TendrilHome);
+            }
+            return configService.TendrilHome;
+        }
+        return null;
     }
 
     /// <summary>

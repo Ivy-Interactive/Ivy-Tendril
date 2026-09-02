@@ -221,10 +221,12 @@ public class TendrilSettings
     public Tunnel.TunnelConfig? Tunnel { get; set; }
     public Tunnel.TunnelConfig? ShareTunnel { get; set; }
     public VaultSettings? Vault { get; set; }
+    public List<VaultSettings> Vaults { get; set; } = new();
     public bool Telemetry { get; set; } = true;
     public bool DesktopNotifications { get; set; } = true;
     public bool SidebarOpen { get; set; } = true;
     public string Theme { get; set; } = "default";
+    public string ThemeMode { get; set; } = "system";
     public bool Beta { get; set; } = false;
     public string? DismissedUpdateVersion { get; set; }
 
@@ -240,14 +242,19 @@ public class TendrilSettings
 
 public record ProjectVaultTracking
 {
+    public string? VaultProjectName { get; set; }
     public string InstalledVersion { get; set; } = "";
     public DateTimeOffset InstalledAt { get; set; } = DateTimeOffset.UtcNow;
+    public string? VaultId { get; set; }
+    public string? VaultRepoUrl { get; set; }
     public Dictionary<string, string> LocalRepoPaths { get; set; } = new();
 }
 
 public class VaultSettings
 {
-    public bool Enabled { get; set; } = false;
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Name { get; set; } = "";
+    public bool Enabled { get; set; } = true;
     public string RepoUrl { get; set; } = "";
     public string LocalPath { get; set; } = "";
     public bool AlwaysUpToDate { get; set; } = false;
@@ -548,6 +555,19 @@ public class ConfigService : IConfigService, IDisposable
         else
         {
             Settings.Theme = TendrilThemes.GetTheme(Settings.Theme).Id;
+        }
+
+        // ThemeMode: fallback to system if null, empty, or unrecognised
+        if (string.IsNullOrWhiteSpace(Settings.ThemeMode) ||
+            (!Settings.ThemeMode.Equals("light", StringComparison.OrdinalIgnoreCase) &&
+             !Settings.ThemeMode.Equals("dark", StringComparison.OrdinalIgnoreCase) &&
+             !Settings.ThemeMode.Equals("system", StringComparison.OrdinalIgnoreCase)))
+        {
+            Settings.ThemeMode = "system";
+        }
+        else
+        {
+            Settings.ThemeMode = Settings.ThemeMode.ToLowerInvariant();
         }
     }
 

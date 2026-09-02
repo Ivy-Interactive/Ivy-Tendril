@@ -1,4 +1,4 @@
-﻿using Ivy.Tendril.Apps.Drafts;
+using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Apps.Jobs.Dialogs;
 using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Models;
@@ -63,7 +63,6 @@ public partial class JobsApp
             .Height(Size.Full())
             .Header(t => t.Status, "Status")
             .Header(t => t.Type, "Type")
-            .Header(t => t.Profile, "Profile")
             .Header(t => t.PlanId, "Plan")
             .Header(t => t.Plan, "Prompt/Title")
             .Header(t => t.Project, "Project")
@@ -79,7 +78,6 @@ public partial class JobsApp
             .Width(t => t.Status, Size.Px(100))
             .Width(t => t.PlanId, Size.Px(80))
             .Width(t => t.Type, Size.Px(100))
-            .Width(t => t.Profile, Size.Px(90))
             .Width(t => t.Plan, Size.Px(250))
             .Width(t => t.Project, Size.Px(150))
             .Width(t => t.Timer, Size.Px(80))
@@ -147,7 +145,7 @@ public partial class JobsApp
                                 {
                                     if (plan.Status is PlanStatus.Draft or PlanStatus.Blocked)
                                     {
-                                        nav.Navigate<DraftsApp>(new DraftsAppArgs(plan.FolderName));
+                                        nav.Navigate<PlansApp>(new PlansAppArgs(plan.FolderName));
                                     }
                                     else if (plan.Status is PlanStatus.Review or PlanStatus.Failed)
                                     {

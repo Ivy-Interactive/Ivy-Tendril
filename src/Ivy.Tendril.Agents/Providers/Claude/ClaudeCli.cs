@@ -202,10 +202,13 @@ public sealed class ClaudeCli : IAgentCli
             args.Add(config.MaxTurns.Value.ToString());
         }
 
+        var tempFiles = new List<string>();
+
         if (!string.IsNullOrEmpty(config.SystemPrompt))
         {
             var tempFile = Path.Combine(Path.GetTempPath(), $"tendril-sysprompt-{Guid.NewGuid():N}.md");
             File.WriteAllText(tempFile, config.SystemPrompt);
+            tempFiles.Add(tempFile);
             args.Add("--system-prompt-file");
             args.Add(tempFile);
         }
@@ -213,6 +216,7 @@ public sealed class ClaudeCli : IAgentCli
         var mcpConfigFile = global::Ivy.Tendril.Agents.Helpers.McpConfigWriter.WriteConfigFile(config.McpServers);
         if (!string.IsNullOrEmpty(mcpConfigFile))
         {
+            tempFiles.Add(mcpConfigFile);
             args.Add("--mcp-config");
             args.Add(mcpConfigFile);
         }
@@ -243,6 +247,7 @@ public sealed class ClaudeCli : IAgentCli
             Environment = env,
             StdinContent = config.Prompt,
             RedirectStdin = true,
+            TempFiles = tempFiles,
         };
     }
 

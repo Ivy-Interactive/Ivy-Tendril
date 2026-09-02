@@ -43,16 +43,6 @@ public sealed class GeminiModelCatalog : CachedModelCatalogProvider
         },
         new()
         {
-            Id = "gemini-3.5-flash", DisplayName = "Gemini 3.5 Flash",
-            Capabilities = MidCaps,
-            SupportedEfforts = EffortLevels.Gemini,
-            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
-            Provider = "google",
-            InputPerMillion = 0.15m, OutputPerMillion = 0.60m,
-            CacheWritePerMillion = 0m, CacheReadPerMillion = 0.0375m,
-        },
-        new()
-        {
             Id = "gemini-3.1-pro", DisplayName = "Gemini 3.1 Pro",
             Capabilities = FullCaps,
             SupportedEfforts = EffortLevels.Gemini,

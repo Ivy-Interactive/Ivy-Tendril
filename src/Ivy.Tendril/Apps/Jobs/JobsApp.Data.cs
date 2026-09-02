@@ -1,4 +1,4 @@
-﻿using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
@@ -24,7 +24,6 @@ public partial class JobsApp
                 PlanId = planId,
                 Plan = JobsApp.GetPromptDisplay(j, planService),
                 Type = j.Type,
-                Profile = JobCostModelBuilder.FormatProfile(j) ?? "",
                 Project = string.Join(", ", ProjectHelper.ParseProjects(j.Project)),
                 Timer = JobsApp.FormatTimer(j),
                 Cost = j.Cost.HasValue ? FormatHelper.FormatCost(j.Cost.Value) : "",
@@ -41,11 +40,16 @@ public partial class JobsApp
             .ToList();
     }
 
-    private static int ExtractJobNumber(string jobId)
+    internal static int ExtractJobNumber(string jobId)
     {
         if (string.IsNullOrEmpty(jobId)) return 0;
+        if (int.TryParse(jobId, out var num)) return num;
         var parts = jobId.Split('-');
-        return parts.Length > 1 && int.TryParse(parts[^1], out var num) ? num : 0;
+        foreach (var part in parts)
+        {
+            if (int.TryParse(part, out var n)) return n;
+        }
+        return 0;
     }
 
     private StackedProgress BuildStatusProgress(List<JobItem> jobs, IConfigService config)

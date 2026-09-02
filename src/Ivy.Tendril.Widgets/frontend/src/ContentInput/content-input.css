@@ -5,14 +5,19 @@
   --civ-text: var(--foreground);
   --civ-placeholder: var(--muted-foreground);
   --civ-primary: var(--primary);
+  --civ-primary-fg: var(--primary-foreground);
   --civ-primary-hover: var(--primary);
   --civ-accent: var(--accent);
+  --civ-accent-fg: var(--accent-foreground);
   --civ-accent-glow: var(--accent);
+  --civ-popover: var(--popover, var(--card));
+  --civ-popover-fg: var(--popover-foreground, var(--foreground));
   --civ-error: var(--destructive);
   --civ-error-bg: var(--muted);
   --civ-card-shadow: var(--shadow);
   --civ-pill-bg: var(--muted);
   --civ-pill-hover: var(--accent);
+  --civ-pill-hover-fg: var(--accent-foreground);
 }
 
 /* Shell Wrapper */
@@ -20,16 +25,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    "Helvetica Neue",
-    Arial,
-    sans-serif;
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
   box-sizing: border-box;
 }
 
@@ -42,6 +38,7 @@
 .civ-shell input,
 .civ-shell textarea {
   margin: 0;
+  font-family: inherit;
 }
 
 /* Error Banner */
@@ -50,10 +47,10 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background-color: var(--civ-error-bg);
-  border: 1px solid color-mix(in srgb, var(--civ-error) 20%, transparent);
-  border-radius: 8px;
-  color: var(--civ-error);
+  background-color: color-mix(in srgb, var(--destructive) 12%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--destructive) 30%, transparent);
+  border-radius: var(--radius, 8px);
+  color: var(--destructive);
   font-size: 0.85rem;
   font-weight: 500;
   animation: slideDown 0.2s ease-out;
@@ -69,7 +66,7 @@
   margin-left: auto;
   background: none;
   border: none;
-  color: var(--civ-error);
+  color: var(--destructive);
   font-size: 1.2rem;
   line-height: 1;
   cursor: pointer;
@@ -80,7 +77,7 @@
 .civ-input-card {
   background: var(--civ-bg);
   border: none;
-  border-radius: var(--radius-fields);
+  border-radius: var(--radius-fields, var(--radius, 8px));
   padding: 8px 12px;
   box-shadow: var(--civ-card-shadow);
   backdrop-filter: blur(12px);
@@ -108,6 +105,7 @@
   border: none;
   outline: none;
   resize: none;
+  font-family: inherit;
   font-size: 0.95rem;
   line-height: 1.5;
   color: var(--civ-text);
@@ -157,19 +155,21 @@
   transition:
     transform 0.2s,
     background-color 0.2s,
+    color 0.2s,
     border-color 0.2s;
 }
 
 .civ-plus-btn:hover {
-  background: var(--civ-pill-hover);
+  background: var(--accent);
+  color: var(--accent-foreground);
   transform: scale(1.05);
 }
 
 .civ-plus-btn.active {
   transform: rotate(45deg);
-  background: var(--civ-pill-hover);
-  border-color: var(--civ-accent);
-  color: var(--civ-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-foreground);
 }
 
 .civ-plus-btn svg {
@@ -189,7 +189,7 @@
   gap: 5px;
   padding: 4px 10px;
   height: 28px;
-  border-radius: var(--radius-buttons, 6px);
+  border-radius: var(--radius-buttons, var(--radius, 6px));
   border: none;
   background: transparent;
   color: var(--civ-placeholder);
@@ -200,8 +200,8 @@
 }
 
 .civ-project-ghost-btn:hover {
-  background: var(--civ-pill-bg);
-  color: var(--civ-text);
+  background: var(--accent);
+  color: var(--accent-foreground);
 }
 
 .civ-project-icon {
@@ -228,10 +228,11 @@
   min-width: 150px;
   max-height: 200px;
   overflow-y: auto;
-  background: var(--civ-bg);
-  border: 1px solid var(--civ-border);
-  border-radius: var(--radius-buttons, 6px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  background: var(--popover, var(--card));
+  color: var(--popover-foreground, var(--foreground));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-buttons, var(--radius, 6px));
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--foreground) 15%, transparent);
   padding: 4px;
   z-index: 99999;
   animation: slideDown 0.15s ease-out;
@@ -244,7 +245,7 @@
   width: 100%;
   padding: 6px 8px;
   font-size: 0.78rem;
-  color: var(--civ-text);
+  color: var(--popover-foreground, var(--foreground));
   background: transparent;
   border: none;
   border-radius: 4px;
@@ -253,18 +254,19 @@
 }
 
 .civ-project-menu-item:hover {
-  background: var(--civ-pill-bg);
+  background: var(--accent);
+  color: var(--accent-foreground);
 }
 
 .civ-project-menu-item.active {
   font-weight: 600;
-  color: var(--civ-primary);
+  color: var(--primary);
 }
 
 .civ-project-check {
   width: 12px;
   height: 12px;
-  color: var(--civ-primary);
+  color: var(--primary);
 }
 
 /* Right Actions */
@@ -280,7 +282,7 @@
   align-items: center;
   background: transparent;
   border: 0px solid transparent;
-  border-radius: var(--radius-buttons, 6px);
+  border-radius: var(--radius-buttons, var(--radius, 6px));
   padding: 0;
   transition:
     background-color 0.2s,
@@ -353,12 +355,14 @@
   transition:
     transform 0.2s,
     background-color 0.2s,
+    color 0.2s,
     border-color 0.2s;
   position: relative;
 }
 
 .civ-mic-btn:hover {
-  background: var(--civ-pill-hover);
+  background: var(--accent);
+  color: var(--accent-foreground);
   transform: scale(1.05);
 }
 
@@ -381,12 +385,12 @@
 }
 
 .civ-mic-btn.civ-status-recording {
-  color: var(--civ-error);
+  color: var(--destructive);
   background: transparent;
 }
 
 .civ-mic-btn.civ-status-recording:hover {
-  background: color-mix(in srgb, var(--civ-error) 10%, transparent);
+  background: color-mix(in srgb, var(--destructive) 15%, transparent);
 }
 
 /* Spinner */
@@ -409,8 +413,8 @@
   height: 32px;
   border-radius: 50%;
   border: none;
-  background: var(--civ-text);
-  color: var(--civ-bg);
+  background: var(--primary);
+  color: var(--primary-foreground);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -418,13 +422,15 @@
   transition:
     transform 0.2s,
     background-color 0.2s,
+    color 0.2s,
     opacity 0.2s;
   line-height: 1;
 }
 
 .civ-submit-btn:hover:not(:disabled) {
   transform: scale(1.05);
-  background: var(--civ-accent);
+  background: var(--accent);
+  color: var(--accent-foreground);
 }
 
 .civ-submit-btn:disabled {
@@ -442,13 +448,13 @@
 .civ-submit-btn.civ-submit-btn-labeled {
   width: auto;
   height: 32px;
-  border-radius: var(--radius-buttons, 6px);
+  border-radius: var(--radius-buttons, var(--radius, 6px));
   padding: 0 16px;
   font-size: 0.85rem;
   font-weight: 600;
-  background: var(--civ-primary);
-  color: var(--primary-foreground, #ffffff);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--foreground) 10%, transparent);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -456,7 +462,7 @@
 }
 
 .civ-submit-btn.civ-submit-btn-labeled:hover:not(:disabled) {
-  background: var(--civ-primary);
+  background: var(--primary);
   opacity: 0.9;
   transform: none;
 }
@@ -550,9 +556,9 @@
   display: inline-flex;
   align-items: center;
   position: relative;
-  background: var(--civ-primary);
-  border-radius: var(--radius-buttons, 6px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: var(--primary);
+  border-radius: var(--radius-buttons, var(--radius, 6px));
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--foreground) 10%, transparent);
   height: 32px;
 }
 
@@ -585,11 +591,11 @@
 .civ-split-btn-arrow {
   width: 32px;
   height: 100%;
-  border-top-right-radius: var(--radius-buttons, 6px);
-  border-bottom-right-radius: var(--radius-buttons, 6px);
+  border-top-right-radius: var(--radius-buttons, var(--radius, 6px));
+  border-bottom-right-radius: var(--radius-buttons, var(--radius, 6px));
   border: none;
   background: transparent;
-  color: var(--primary-foreground, #ffffff);
+  color: var(--primary-foreground);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -608,7 +614,7 @@
 }
 
 .civ-split-btn-arrow:hover:not(:disabled) {
-  background: color-mix(in srgb, currentColor 10%, transparent);
+  background: color-mix(in srgb, currentColor 15%, transparent);
 }
 
 /* Dropdown Menu */
@@ -616,12 +622,13 @@
   position: absolute;
   bottom: calc(100% + 6px);
   right: 0;
-  background: var(--civ-bg);
-  border: 1px solid var(--civ-border);
-  border-radius: 6px;
+  background: var(--popover, var(--card));
+  color: var(--popover-foreground, var(--foreground));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-buttons, var(--radius, 6px));
   box-shadow:
     var(--civ-card-shadow),
-    0 4px 12px rgba(0, 0, 0, 0.15);
+    0 4px 12px color-mix(in srgb, var(--foreground) 15%, transparent);
   padding: 4px 0;
   min-width: 160px;
   z-index: 50;
@@ -639,14 +646,14 @@
   text-align: left;
   background: transparent;
   border: none;
-  color: var(--civ-text);
+  color: var(--popover-foreground, var(--foreground));
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: background-color 0.15s, color 0.15s;
 }
 
 .civ-dropdown-item:hover {
-  background: var(--civ-accent);
-  color: var(--accent-foreground, inherit);
+  background: var(--accent);
+  color: var(--accent-foreground);
 }
 
 /* Attachment row at the bottom left */
@@ -692,23 +699,24 @@
   position: relative;
   width: 140px;
   height: 105px;
-  background: var(--civ-pill-bg);
-  border: 1px solid var(--civ-border);
-  border-radius: 8px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
   padding: 10px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   transition: border-color 0.15s, transform 0.15s;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 5%, transparent);
   flex-shrink: 0;
   overflow: hidden;
+  color: var(--foreground);
   pointer-events: none;
   /* Make card click-through to block PDF HUD controls */
 }
 
 .civ-thumbnail-card:hover {
-  border-color: var(--civ-accent);
+  border-color: var(--ring);
 }
 
 .civ-thumbnail-card-remove {
@@ -718,9 +726,9 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--civ-bg);
-  border: 1px solid var(--civ-border);
-  color: var(--civ-placeholder);
+  background: var(--background);
+  border: 1px solid var(--border);
+  color: var(--muted-foreground);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -735,9 +743,9 @@
 }
 
 .civ-thumbnail-card-remove:hover {
-  background: var(--civ-error-bg);
-  color: var(--civ-error);
-  border-color: var(--civ-error);
+  background: color-mix(in srgb, var(--destructive) 15%, transparent);
+  color: var(--destructive);
+  border-color: var(--destructive);
 }
 
 /* Background Preview Container */
@@ -745,7 +753,7 @@
   position: absolute;
   inset: 0;
   z-index: 1;
-  border-radius: 8px;
+  border-radius: var(--radius, 8px);
   overflow: hidden;
 }
 
@@ -790,7 +798,7 @@
 .civ-thumbnail-doc-name {
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--civ-text);
+  color: var(--foreground);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -799,20 +807,20 @@
 
 .civ-thumbnail-doc-meta {
   font-size: 0.7rem;
-  color: var(--civ-placeholder);
+  color: var(--muted-foreground);
   margin-top: 2px;
 }
 
 .civ-thumbnail-doc-badge {
   display: inline-flex;
   align-items: center;
-  background: var(--civ-bg);
-  border: 1px solid var(--civ-border);
-  border-radius: 4px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-buttons, var(--radius, 4px));
   padding: 1px 6px;
   font-size: 0.65rem;
   font-weight: 700;
-  color: var(--civ-text);
+  color: var(--foreground);
   text-transform: uppercase;
   width: fit-content;
 }
