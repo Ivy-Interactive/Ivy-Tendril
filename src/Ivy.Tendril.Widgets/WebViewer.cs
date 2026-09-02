@@ -137,6 +137,13 @@ public record ClickEvent(
 /// just its 1-based position: delete pin 2 of 3 and the last one renumbers to 2, with no
 /// event of its own. Keep the comments in arrival order and the numbers fall out of the
 /// order; do not treat a number as an identity.</para>
+///
+/// <para><paramref name="Url"/> is the page it was left on, canonicalized by the widget: the
+/// hash removed, a trailing slash removed, the query kept. Every comment on one page carries
+/// the identical string, so grouping by it is plain equality and nothing else has to re-derive
+/// what counts as the same page. The widget shows a pin only while its own page is on screen —
+/// an xpath resolves on other pages too, and an unscoped pin does not visibly go away, it
+/// re-attaches to whatever occupies the position.</para>
 /// </summary>
 public record CommentEvent(
     string Id,
@@ -145,7 +152,8 @@ public record CommentEvent(
     string Xpath,
     string Selector,
     string Comment,
-    string? DebugJson) : WebViewerEvent;
+    string? DebugJson,
+    string? Url = null) : WebViewerEvent;
 
 /// <summary>The text of an existing comment was edited in place (the user clicked its pin).</summary>
 public record CommentUpdatedEvent(string Id, int Number, string Comment) : WebViewerEvent;

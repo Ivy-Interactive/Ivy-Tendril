@@ -674,9 +674,13 @@
       meta: describe(el),
       debug: collectDebug(el)
     });
-    stopSelect();
+    // Select mode stays on until the parent stops it. The comment box covers the page while
+    // it is open, so nothing can be picked underneath, and picking resumes the moment it
+    // closes — marking up five things in a row is one button press, not five. Escape cancels
+    // the pick rather than the mode, which also keeps this flag and the host's toolbar state
+    // from drifting apart: 'select-stop' is the only thing that clears either.
   }
-  function onKey(e){ if (e.key === 'Escape'){ stopSelect(); send({ type: 'select-cancelled' }); } }
+  function onKey(e){ if (e.key === 'Escape') send({ type: 'select-cancelled' }); }
   function startSelect(){
     if (selActive) return; selActive = true; ensureOverlay();
     document.addEventListener('mousemove', onMove, true);
@@ -745,19 +749,33 @@
 
   // Held onto until the node leaves the document, so the repositioning that runs on every
   // scroll frame is a rect read rather than an xpath evaluation per pin.
+  // Whatever an xpath or a selector resolves to still has to LOOK like the element that was
+  // picked. Both are positional — a path of sibling indices, a chain of classes — so both
+  // resolve on plenty of markup that has nothing to do with this comment, and a pin that
+  // silently re-attaches to whatever sits at that position reads as legitimate. The parent
+  // scopes pins to the page they were left on; this catches the rest, cheaply.
+  function fits(el, m){
+    if (!el || el.nodeType !== 1) return false;
+    if (!m.tag) return true;
+    return String(el.tagName || '').toLowerCase() === String(m.tag).toLowerCase();
+  }
+
   function resolveMarkerNode(m){
     if (m.el && m.el.isConnected) return m.el;
     m.el = null;
     try {
       if (m.xpath){
         var r = document.evaluate(m.xpath, document, null, 9 /* FIRST_ORDERED_NODE_TYPE */, null);
-        if (r && r.singleNodeValue && r.singleNodeValue.nodeType === 1) m.el = r.singleNodeValue;
+        if (r && fits(r.singleNodeValue, m)) m.el = r.singleNodeValue;
       }
     } catch(e){}
     // The xpath is exact but brittle across a re-render that reorders siblings; the CSS
     // path is looser and often still finds it.
     if (!m.el){
-      try { if (m.selector) m.el = document.querySelector(m.selector); } catch(e){}
+      try {
+        var hit = m.selector ? document.querySelector(m.selector) : null;
+        if (fits(hit, m)) m.el = hit;
+      } catch(e){}
     }
     return m.el;
   }
@@ -829,7 +847,7 @@
       node.style.display = 'none';   // shown by positionMarkers once it has a box
       node.addEventListener('click', onMarkerClick);
       layer.appendChild(node);
-      markers.push({ id: m.id, number: m.number, xpath: m.xpath, selector: m.selector, node: node, el: null });
+      markers.push({ id: m.id, number: m.number, xpath: m.xpath, selector: m.selector, tag: m.tag || '', node: node, el: null });
     }
     positionMarkers();
     trackLayout();

@@ -1,13 +1,16 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Apps.ReviewAction;
 
 /// <summary>
 ///     One comment a reviewer left on an element of the running app, as the WebViewer widget
 ///     reported it. <paramref name="Number"/> is the number on its pin — a position, so it
-///     shifts when an earlier comment is deleted.
+///     shifts when an earlier comment is deleted. <paramref name="Url"/> is the page it was
+///     left on, already canonical: the widget guarantees one string per page, so grouping by it
+///     is plain equality.
 /// </summary>
 public record AppComment(
     string Id,
@@ -15,7 +18,8 @@ public record AppComment(
     string Tag,
     string Selector,
     string Comment,
-    string? DebugJson);
+    string? DebugJson,
+    string? Url = null);
 
 /// <summary>
 ///     The pieces of the review-action app preview that are worth testing on their own: finding
@@ -86,6 +90,83 @@ internal static partial class AppPreview
     }
 
     /// <summary>
+    ///     The public hosts an app under review may pull static assets from.
+    ///
+    ///     A local app is not a self-contained one: it links its fonts, its icon set and often a
+    ///     library or two from a CDN. With only <see cref="IsLocalTarget"/> in force those are
+    ///     refused, and the page renders in fallback fonts with its icons missing — which is not
+    ///     the app the reviewer was asked to review.
+    ///
+    ///     A fixed list rather than "anything, so long as it is a subresource": the proxy fetches
+    ///     as this machine, so every host added here is one that anybody holding the tunnel link
+    ///     can make it read. These serve versioned static files to whoever asks, so relaying them
+    ///     gives up nothing that was not already public. HTTPS is required — there is no reason
+    ///     for one of these to be addressed over http, and insisting costs nothing.
+    /// </summary>
+    private static readonly HashSet<string> AssetHosts = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Fonts
+        "fonts.googleapis.com",
+        "fonts.gstatic.com",
+        "use.typekit.net",
+        "p.typekit.net",
+        // Script and stylesheet CDNs
+        "cdn.jsdelivr.net",
+        "fastly.jsdelivr.net",
+        "unpkg.com",
+        "cdnjs.cloudflare.com",
+        "ajax.googleapis.com",
+        "code.jquery.com",
+        "esm.sh",
+        "cdn.skypack.dev",
+        "cdn.tailwindcss.com",
+        // Icons
+        "kit.fontawesome.com",
+        "ka-f.fontawesome.com",
+    };
+
+    /// <summary>Whether the proxy may fetch <paramref name="uri"/> at all: the app under review
+    /// (<see cref="IsLocalTarget"/>), or one of the asset hosts it links.</summary>
+    public static bool IsAllowedTarget(Uri uri) =>
+        IsLocalTarget(uri) || (uri.Scheme == Uri.UriSchemeHttps && AssetHosts.Contains(uri.Host));
+
+    /// <summary>
+    ///     A job that has not finished, so anything started now has to queue behind it.
+    ///     <see cref="JobStatus.Blocked"/> counts: it is a job already waiting its turn, and the
+    ///     next request belongs after it rather than beside it — which is what makes repeated
+    ///     Update presses form a chain instead of a pile-up.
+    /// </summary>
+    private static bool IsUnfinished(JobStatus status) =>
+        status is JobStatus.Pending or JobStatus.Queued or JobStatus.Running or JobStatus.Blocked;
+
+    /// <summary>
+    ///     The jobs a new change request has to wait for: everything unfinished on this plan.
+    ///     Handed to <see cref="JobArgsBase.WaitForJobs"/>, which parks the new job as
+    ///     <see cref="JobStatus.Blocked"/> until they are all done and then starts it.
+    ///
+    ///     Everything unfinished, not only the retries: two agents rewriting one worktree at the
+    ///     same time is how a branch ends up with half of each. Ids that have finished by the
+    ///     time the job is built are harmless — JobService counts only the ones it still holds,
+    ///     so a stale id makes the new job start rather than wedge.
+    /// </summary>
+    public static List<string> JobsToWaitFor(IEnumerable<JobItem> planJobs) =>
+        planJobs.Where(job => IsUnfinished(job.Status)).Select(job => job.Id).ToList();
+
+    /// <summary>
+    ///     Whether a change request means anything for this plan right now.
+    ///
+    ///     Review is where a plan sits while it is being looked at, and where a finished
+    ///     RetryPlan puts it back. The second case is the one worth allowing on purpose: the
+    ///     moment a retry starts the plan moves to Executing, and a reviewer who keeps walking
+    ///     the app and finds three more things should be able to queue them rather than be locked
+    ///     out until the agent happens to finish. Any other state — Draft, Creating, Completed,
+    ///     Failed — is not one where feedback on a running app has anywhere to go.
+    /// </summary>
+    public static bool CanRequestChanges(PlanStatus state, IEnumerable<JobItem> planJobs) =>
+        state == PlanStatus.Review ||
+        planJobs.Any(job => job.Type == Constants.JobTypes.RetryPlan && IsUnfinished(job.Status));
+
+    /// <summary>
     ///     Turn the reviewer's comments into the change request an agent is handed.
     ///
     ///     Each one leads with where it points in the SOURCE when the widget managed to resolve
@@ -99,17 +180,28 @@ internal static partial class AppPreview
         sb.AppendLine($"Feedback from reviewing the running app at {url}");
         sb.AppendLine();
 
-        foreach (var comment in comments)
+        // Under the page each comment was left on. A reviewer walks several screens in one
+        // pass, and a flat list of notes about three different pages is one the agent has to
+        // guess its way through — "make this green" says nothing without knowing where "this"
+        // was. Keys arrive from the widget already canonical, so this is plain equality, and
+        // GroupBy keeps both the pages and the comments within them in the order they came.
+        foreach (var page in comments.GroupBy(c => c.Url ?? url))
         {
-            var where = SourceLabel(comment.DebugJson);
-            var tag = string.IsNullOrEmpty(comment.Tag) ? "element" : $"<{comment.Tag}>";
-
-            sb.Append($"- **{comment.Number}. {tag}**");
-            if (where is not null) sb.Append($" in `{where}`");
-            sb.AppendLine(":");
-            sb.AppendLine($"  {comment.Comment.Trim()}");
-            if (!string.IsNullOrEmpty(comment.Selector)) sb.AppendLine($"  (selector: `{comment.Selector}`)");
+            sb.AppendLine($"## {page.Key}");
             sb.AppendLine();
+
+            foreach (var comment in page)
+            {
+                var where = SourceLabel(comment.DebugJson);
+                var tag = string.IsNullOrEmpty(comment.Tag) ? "element" : $"<{comment.Tag}>";
+
+                sb.Append($"- **{comment.Number}. {tag}**");
+                if (where is not null) sb.Append($" in `{where}`");
+                sb.AppendLine(":");
+                sb.AppendLine($"  {comment.Comment.Trim()}");
+                if (!string.IsNullOrEmpty(comment.Selector)) sb.AppendLine($"  (selector: `{comment.Selector}`)");
+                sb.AppendLine();
+            }
         }
 
         return sb.ToString().Trim();

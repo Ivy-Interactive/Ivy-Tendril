@@ -127,7 +127,7 @@ public static class TendrilServer
             // Fetches whatever URL its caller names, so it is held to the app being reviewed:
             // this machine, or the network it is on. Without a predicate it is an open relay,
             // and Tendril's origin is reachable by anyone the user shares a tunnel with.
-            app.MapWebViewerProxy(new WebViewerProxyOptions { IsUrlAllowed = AppPreview.IsLocalTarget });
+            app.MapWebViewerProxy(new WebViewerProxyOptions { IsUrlAllowed = AppPreview.IsAllowedTarget });
         });
 
         var assembly = typeof(TendrilServer).Assembly;

@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
+using Ivy.Tendril;
 using Ivy.Tendril.Apps.ReviewAction;
+using Ivy.Tendril.Models;
 
 namespace Ivy.Tendril.Test.Apps;
 
@@ -75,6 +77,28 @@ public class AppPreviewTests
         Assert.Equal(expected, AppPreview.IsLocalTarget(new Uri(url)));
     }
 
+    [Theory]
+    // The app under review, exactly as before.
+    [InlineData("http://localhost:5173/", true)]
+    [InlineData("http://192.168.1.9:5173/", true)]
+    // The static assets that app links, or it renders in fallback fonts with no icons.
+    [InlineData("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono", true)]
+    [InlineData("https://fonts.gstatic.com/s/ibmplexmono/v19/x.woff2", true)]
+    [InlineData("https://cdn.jsdelivr.net/npm/chart.js", true)]
+    [InlineData("https://unpkg.com/react@18/umd/react.production.min.js", true)]
+    // Host match is exact: a lookalike registered by someone else is not on the list.
+    [InlineData("https://fonts.googleapis.com.evil.test/x.css", false)]
+    [InlineData("https://evil.test/fonts.googleapis.com", false)]
+    // HTTPS only. None of these need plaintext, and insisting costs nothing.
+    [InlineData("http://fonts.googleapis.com/css2", false)]
+    // Everything else is still refused: this is not a general-purpose browser.
+    [InlineData("https://example.com/", false)]
+    [InlineData("http://8.8.8.8:3000/", false)]
+    public void IsAllowedTarget_AdmitsTheAppAndTheAssetsItLinksAndNothingElse(string url, bool expected)
+    {
+        Assert.Equal(expected, AppPreview.IsAllowedTarget(new Uri(url)));
+    }
+
     [Fact]
     public void SourceLabel_ReadsTheResolvedFileAndLine()
     {
@@ -111,5 +135,121 @@ public class AppPreviewTests
         Assert.Contains("**2. <div>**", request);
         Assert.DoesNotContain("**2. <div>** in", request);
         Assert.Contains("main > div.hero", request);
+    }
+
+    [Fact]
+    public void FormatChangeRequest_GroupsCommentsUnderThePageTheyWereLeftOn()
+    {
+        var comments = ImmutableList.Create(
+            new AppComment("c1", 1, "input", "main input", "Placeholder is too vague", null,
+                "http://localhost:5174/tool/html-encoder"),
+            new AppComment("c2", 2, "a", "nav a.home", "Wrong hover colour", null,
+                "http://localhost:5174/"),
+            new AppComment("c3", 3, "button", "main button", "Encode should be primary", null,
+                "http://localhost:5174/tool/html-encoder"));
+
+        var request = AppPreview.FormatChangeRequest("http://localhost:5174/", comments);
+
+        Assert.Contains("## http://localhost:5174/tool/html-encoder", request);
+        Assert.Contains("## http://localhost:5174/", request);
+
+        // Two pages, and the one that was commented on first leads. Both of that page's
+        // comments sit under its heading rather than being split across the list.
+        var encoder = request.IndexOf("## http://localhost:5174/tool/html-encoder", StringComparison.Ordinal);
+        var home = request.IndexOf("## http://localhost:5174/" + Environment.NewLine, StringComparison.Ordinal);
+        Assert.True(encoder < home, "pages should keep the order their first comment arrived in");
+        Assert.True(request.IndexOf("Encode should be primary", StringComparison.Ordinal) < home);
+        Assert.True(request.IndexOf("Wrong hover colour", StringComparison.Ordinal) > home);
+    }
+
+    private static JobItem Job(string id, string type, JobStatus status) =>
+        new() { Id = id, Type = type, Status = status };
+
+    [Fact]
+    public void JobsToWaitFor_ChainsBehindEverythingStillInFlight()
+    {
+        var jobs = new[]
+        {
+            Job("1", Constants.JobTypes.RetryPlan, JobStatus.Running),
+            // Already queued behind #1. The next request goes after it, not beside it — that is
+            // what makes a third Update a chain rather than three agents on one worktree.
+            Job("2", Constants.JobTypes.RetryPlan, JobStatus.Blocked),
+            Job("3", Constants.JobTypes.CreatePr, JobStatus.Queued),
+            Job("4", Constants.JobTypes.ExecutePlan, JobStatus.Pending),
+        };
+
+        Assert.Equal(new[] { "1", "2", "3", "4" }, AppPreview.JobsToWaitFor(jobs));
+    }
+
+    [Theory]
+    [InlineData(JobStatus.Completed)]
+    [InlineData(JobStatus.Failed)]
+    [InlineData(JobStatus.Timeout)]
+    [InlineData(JobStatus.Stopped)]
+    public void JobsToWaitFor_IgnoresJobsThatAreOver(JobStatus status)
+    {
+        var jobs = new[] { Job("1", Constants.JobTypes.RetryPlan, status) };
+
+        Assert.Empty(AppPreview.JobsToWaitFor(jobs));
+    }
+
+    [Fact]
+    public void CanRequestChanges_WhileThePlanIsInReview()
+    {
+        Assert.True(AppPreview.CanRequestChanges(PlanStatus.Review, []));
+    }
+
+    [Fact]
+    public void CanRequestChanges_WhileARetryIsAlreadyRunning()
+    {
+        // A retry moves the plan to Executing. A reviewer who keeps walking the app and finds
+        // three more things should be able to queue them instead of being locked out until the
+        // agent happens to finish.
+        var jobs = new[] { Job("1", Constants.JobTypes.RetryPlan, JobStatus.Running) };
+
+        Assert.True(AppPreview.CanRequestChanges(PlanStatus.Executing, jobs));
+    }
+
+    [Fact]
+    public void CanRequestChanges_WhileARetryIsQueuedBehindAnother()
+    {
+        var jobs = new[] { Job("1", Constants.JobTypes.RetryPlan, JobStatus.Blocked) };
+
+        Assert.True(AppPreview.CanRequestChanges(PlanStatus.Executing, jobs));
+    }
+
+    [Theory]
+    [InlineData(PlanStatus.Draft)]
+    [InlineData(PlanStatus.Creating)]
+    [InlineData(PlanStatus.Executing)]
+    [InlineData(PlanStatus.Completed)]
+    [InlineData(PlanStatus.Failed)]
+    [InlineData(PlanStatus.Skipped)]
+    public void CanRequestChanges_NotWhenThePlanIsElsewhereWithNoRetryRunning(PlanStatus state)
+    {
+        // An ExecutePlan running is not a retry: the plan is being built for the first time, and
+        // feedback on a running app has nowhere to go yet.
+        var jobs = new[] { Job("1", Constants.JobTypes.ExecutePlan, JobStatus.Running) };
+
+        Assert.False(AppPreview.CanRequestChanges(state, jobs));
+    }
+
+    [Fact]
+    public void CanRequestChanges_NotOnARetryThatHasAlreadyFinished()
+    {
+        var jobs = new[] { Job("1", Constants.JobTypes.RetryPlan, JobStatus.Completed) };
+
+        Assert.False(AppPreview.CanRequestChanges(PlanStatus.Executing, jobs));
+    }
+
+    [Fact]
+    public void FormatChangeRequest_FallsBackToTheAppUrlForACommentWithNoPage()
+    {
+        var comments = ImmutableList.Create(
+            new AppComment("c1", 1, "button", "main button", "Make this green", null));
+
+        var request = AppPreview.FormatChangeRequest("http://localhost:5173/", comments);
+
+        Assert.Contains("## http://localhost:5173/", request);
     }
 }

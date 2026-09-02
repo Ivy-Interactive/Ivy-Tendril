@@ -23,6 +23,7 @@ public class AppPreviewView(PlanFile plan, string appUrl) : ViewBase
     public override object Build()
     {
         var jobService = UseService<IJobService>();
+        var planService = UseService<IPlanReaderService>();
         var commands = UseStream<WebViewerCommand>();
         var address = UseState(appUrl);      // the editable location bar
         var url = UseState(appUrl);          // what the viewer is pointed at
@@ -38,6 +39,7 @@ public class AppPreviewView(PlanFile plan, string appUrl) : ViewBase
             appUrl,
             comments,
             jobService,
+            planService,
             // The widget owns the pins, so clearing our list is only half of it: without this
             // the page stays marked up with feedback that has already been sent.
             onSubmitted: () =>
@@ -65,8 +67,7 @@ public class AppPreviewView(PlanFile plan, string appUrl) : ViewBase
 
                     case CommentEvent c:
                         comments.Set(prev => prev.Add(
-                            new AppComment(c.Id, c.Number, c.Tag, c.Selector, c.Comment, c.DebugJson)));
-                        selecting.Set(false); // the page leaves select mode after a pick
+                            new AppComment(c.Id, c.Number, c.Tag, c.Selector, c.Comment, c.DebugJson, c.Url)));
                         break;
 
                     case CommentUpdatedEvent u:
@@ -87,13 +88,6 @@ public class AppPreviewView(PlanFile plan, string appUrl) : ViewBase
             })
             .Width(Size.Full())
             .Height(Size.Full());
-
-        Button DeviceButton(string label, Icons icon, WebViewerDevice value)
-        {
-            var button = new Button(label).Icon(icon).Small().Tooltip(label)
-                .OnClick(() => device.Set(value));
-            return device.Value == value ? button.Primary() : button.Outline();
-        }
 
         void Navigate() => url.Set(address.Value);
 
@@ -118,9 +112,8 @@ public class AppPreviewView(PlanFile plan, string appUrl) : ViewBase
                 .OnClick(() => commands.Write(new ReloadCommand()))
             | address.ToTextInput().Placeholder("Enter a URL").Width(Size.Full()).OnSubmit(_ => Navigate())
             | new Button("Go").Small().Outline().OnClick(Navigate)
-            | DeviceButton("Desktop", Icons.Monitor, WebViewerDevice.Desktop)
-            | DeviceButton("Tablet", Icons.Tablet, WebViewerDevice.Tablet)
-            | DeviceButton("Mobile", Icons.Smartphone, WebViewerDevice.Mobile)
+            // WebViewerDevice is an enum, so the three options come from the type itself.
+            | device.ToSelectInput().Variant(SelectInputVariant.Toggle)
             | selectButton;
 
         // Only once there is something to send: an Update button with nothing behind it invites
