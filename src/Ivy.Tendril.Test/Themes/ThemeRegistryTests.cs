@@ -26,6 +26,7 @@ public class ThemeRegistryTests
     [InlineData("dim")]
     [InlineData("luxury")]
     [InlineData("lovably")]
+    [InlineData("hellokitty")]
     public void CoreThemes_AreRegistered(string themeId)
     {
         var theme = TendrilThemes.GetTheme(themeId);
@@ -143,6 +144,36 @@ public class ThemeRegistryTests
         Assert.Equal("#ff7a45", dark.Accent, ignoreCase: true);
         Assert.Equal("#09090b", dark.Background, ignoreCase: true);
         Assert.Equal("#f4f4f5", dark.Foreground, ignoreCase: true);
+        Assert.NotEqual(dark.Background, dark.Foreground, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void HelloKittyTheme_HasValidContrastAndTokens()
+    {
+        var helloKitty = TendrilThemes.GetTheme("hellokitty");
+        Assert.NotNull(helloKitty);
+        Assert.Equal("Hello Kitty", helloKitty.Name);
+        Assert.False(helloKitty.IsDark);
+        Assert.Equal(["#ff7da7", "#ff3366", "#ffd166", "#fff5f8"], helloKitty.PreviewColors);
+
+        var light = helloKitty.IvyTheme?.Colors?.Light;
+        Assert.NotNull(light);
+        Assert.Equal("#ff7da7", light.Primary, ignoreCase: true);
+        Assert.Equal("#ffffff", light.PrimaryForeground, ignoreCase: true);
+        Assert.Equal("#ffb3c6", light.Secondary, ignoreCase: true);
+        Assert.Equal("#ff3366", light.Accent, ignoreCase: true);
+        Assert.Equal("#fff5f8", light.Background, ignoreCase: true);
+        Assert.Equal("#2d1520", light.Foreground, ignoreCase: true);
+        Assert.NotEqual(light.Background, light.Foreground, StringComparer.OrdinalIgnoreCase);
+
+        var dark = helloKitty.IvyTheme?.Colors?.Dark;
+        Assert.NotNull(dark);
+        Assert.Equal("#ff6599", dark.Primary, ignoreCase: true);
+        Assert.Equal("#1f0e16", dark.PrimaryForeground, ignoreCase: true);
+        Assert.Equal("#ff9ebb", dark.Secondary, ignoreCase: true);
+        Assert.Equal("#ff3366", dark.Accent, ignoreCase: true);
+        Assert.Equal("#1f141a", dark.Background, ignoreCase: true);
+        Assert.Equal("#fff0f5", dark.Foreground, ignoreCase: true);
         Assert.NotEqual(dark.Background, dark.Foreground, StringComparer.OrdinalIgnoreCase);
     }
 }
