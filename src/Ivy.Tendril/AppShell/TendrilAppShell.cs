@@ -120,6 +120,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     // The Agent app id (and its menu-item Tag) collapses to "agent" via AppHelpers.GetApp.
     private const string AgentAppId = "agent";
 
+    private static readonly HashSet<string> SidebarSectionAppIds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "review", "plans", "drafts", "recommendations"
+    };
+
+    internal static bool HasSidebarSection(string? appId) =>
+        appId != null && SidebarSectionAppIds.Contains(appId);
+
     private static readonly HashSet<string> ShareAllowedAppIds = new(StringComparer.OrdinalIgnoreCase)
     {
         "review", "plans"
@@ -459,10 +467,12 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             currentApp.Set(appHost);
             selectedIndex.Set((int?)null);
 
-            // The sidebar section belongs to the page app; drop it when the page changes so a
-            // stale list never shows while the next app publishes its own.
+            // The sidebar section belongs to the page app; drop it when the page changes to an
+            // app without a sidebar list. Retain it when transitioning between apps that both
+            // display sidebar sections so the header and search button do not flicker.
             if (sidebarList.Value is { } list &&
-                !string.Equals(list.AppId, effectiveAppId, StringComparison.OrdinalIgnoreCase))
+                !string.Equals(list.AppId, effectiveAppId, StringComparison.OrdinalIgnoreCase) &&
+                !HasSidebarSection(effectiveAppId))
                 sidebarList.Set((ShellSidebarListState?)null);
 
             if (effectiveAppId != null) SetAppTitle(effectiveAppId);
@@ -696,7 +706,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         object? section = null;
         if (sidebarList.Value is { } list &&
-            string.Equals(list.AppId, currentApp.Value?.AppId, StringComparison.OrdinalIgnoreCase))
+            (string.Equals(list.AppId, currentApp.Value?.AppId, StringComparison.OrdinalIgnoreCase) ||
+             HasSidebarSection(currentApp.Value?.AppId)))
         {
             var capturedList = list;
             section = new ShellSidebarSection()
