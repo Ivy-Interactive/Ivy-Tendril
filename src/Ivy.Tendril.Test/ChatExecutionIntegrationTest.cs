@@ -142,6 +142,116 @@ public class ChatExecutionIntegrationTest
     }
 
     [Fact]
+    public async Task WidgetTree_BuildAsync_WithRealUserTendrilDir_Succeeds()
+    {
+        var tendrilDir = "/Users/rorychatt/.tendril";
+        if (!Directory.Exists(tendrilDir)) return;
+
+        var configService = new ConfigService(new TendrilSettings { CodingAgent = "codex" }, tendrilDir);
+        var chatService = new ChatHistoryService(configService);
+        var agentRunner = TestAgentRunner.Create();
+        var serializer = new JsonEventSerializer();
+
+        var sessions = chatService.GetSessions();
+        _output.WriteLine($"Found {sessions.Count} sessions in real .tendril dir");
+        foreach (var s in sessions)
+        {
+            _output.WriteLine($"Session: {s.Id}, Title: {s.Title}, Messages: {s.Messages.Count}");
+        }
+
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        services.AddSingleton<IConfigService>(configService);
+        services.AddSingleton<IChatHistoryService>(chatService);
+        services.AddSingleton<IAgentRunner>(agentRunner);
+        services.AddSingleton<IEventSerializer>(serializer);
+        var appContext = (Ivy.AppContext)Activator.CreateInstance(
+            typeof(Ivy.AppContext),
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            null,
+            new object?[] { "conn1", "mach1", "chat", "chat", null, "http", "localhost", null },
+            null)!;
+        services.AddSingleton(appContext);
+        var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+        services.AddSingleton<IChatSessionNamingService>(namingService);
+        services.AddSingleton<IUploadService>(new Ivy.UploadService("conn1", null!));
+
+        var sp = services.BuildServiceProvider();
+
+        var app = new Ivy.Tendril.Apps.Chat.ChatApp();
+        var contentBuilder = new Ivy.ContentBuilder();
+        var tree = new Ivy.Core.WidgetTree(app, contentBuilder, sp);
+
+        var buildTask = tree.BuildAsync();
+        var completedTask = await Task.WhenAny(buildTask, Task.Delay(5000));
+        Assert.True(completedTask == buildTask, "tree.BuildAsync with real .tendril timed out!");
+
+        var widgets = tree.GetWidgets();
+        Assert.NotNull(widgets);
+        _output.WriteLine($"Real tree built successfully! Root: {widgets.GetType().Name}");
+    }
+
+    [Fact]
+    public void AppDescriptor_ForChatApp_HasIdChat()
+    {
+        var descriptor = Ivy.Core.Apps.AppHelpers.GetApp(typeof(Ivy.Tendril.Apps.Chat.ChatApp));
+        _output.WriteLine($"ChatApp descriptor ID: '{descriptor.Id}', Title: '{descriptor.Title}'");
+        Assert.Equal("chat", descriptor.Id);
+    }
+
+    [Fact]
+    public async Task WidgetTree_BuildAsync_ForChatApp_CompletesSuccessfully()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatTreeTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+
+            var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+            services.AddSingleton<IConfigService>(configService);
+            services.AddSingleton<IChatHistoryService>(chatService);
+            services.AddSingleton<IAgentRunner>(agentRunner);
+            services.AddSingleton<IEventSerializer>(serializer);
+            var appContext = (Ivy.AppContext)Activator.CreateInstance(
+                typeof(Ivy.AppContext),
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+                null,
+                new object?[] { "conn1", "mach1", "chat", "chat", null, "http", "localhost", null },
+                null)!;
+            services.AddSingleton(appContext);
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            services.AddSingleton<IChatSessionNamingService>(namingService);
+            services.AddSingleton<IUploadService>(new Ivy.UploadService("conn1", null!));
+
+            var sp = services.BuildServiceProvider();
+
+            var app = new Ivy.Tendril.Apps.Chat.ChatApp();
+            var contentBuilder = new Ivy.ContentBuilder();
+            var tree = new Ivy.Core.WidgetTree(app, contentBuilder, sp);
+
+            var buildTask = tree.BuildAsync();
+            var completedTask = await Task.WhenAny(buildTask, Task.Delay(5000));
+            Assert.True(completedTask == buildTask, "tree.BuildAsync timed out!");
+
+            var widgets = tree.GetWidgets();
+            Assert.NotNull(widgets);
+            _output.WriteLine($"Tree root widget: {widgets.GetType().Name}");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
     public void ChatApp_Build_WithExistingSession_RendersSuccessfully()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatBuildTest_" + Guid.NewGuid().ToString("N"));

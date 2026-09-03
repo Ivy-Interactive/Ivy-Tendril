@@ -82,6 +82,14 @@ public class ChatApp : ViewBase
             });
         });
 
+        UseEffect(() =>
+        {
+            if (!string.IsNullOrEmpty(activeSessionId.Value))
+            {
+                chatService.ClearSessionCompleted(activeSessionId.Value);
+            }
+        }, [activeSessionId]);
+
         void SelectSession(string sessionId)
         {
             activeSessionId.Set(sessionId);
@@ -159,118 +167,118 @@ public class ChatApp : ViewBase
             string targetSessionId = dto.SessionId ?? "";
             if (string.IsNullOrEmpty(targetSessionId)) return;
 
+            var targetAgent = selectedAgent.Value;
+            var targetModel = effectiveModel;
+            var targetEffort = effectiveEffort;
+
             var runningSet = new HashSet<string>(runningSessionIds.Value) { targetSessionId };
             runningSessionIds.Set(runningSet);
             streamingSessionId.Set(targetSessionId);
             chatService.SetSessionGenerating(targetSessionId, true);
 
-            var attachedFilePaths = new List<string>();
-            var attachmentErrors = new List<string>();
-            if (attachments.Count > 0)
+            try
             {
-                var attachDir = Path.Combine(configService.TendrilHome, "Attachments", targetSessionId);
-                if (!Directory.Exists(attachDir))
+                var attachedFilePaths = new List<string>();
+                var attachmentErrors = new List<string>();
+                if (attachments.Count > 0)
                 {
-                    Directory.CreateDirectory(attachDir);
-                }
-
-                foreach (var att in attachments)
-                {
-                    try
+                    var attachDir = Path.Combine(configService.TendrilHome, "Attachments", targetSessionId);
+                    if (!Directory.Exists(attachDir))
                     {
-                        var rawName = Path.GetFileName(att.Name);
-                        var fileName = !string.IsNullOrWhiteSpace(rawName)
-                            ? string.Concat(rawName.Split(Path.GetInvalidFileNameChars()))
-                            : $"file_{Guid.NewGuid():N}.bin";
-                        if (string.IsNullOrWhiteSpace(fileName)) fileName = $"file_{Guid.NewGuid():N}.bin";
-                        var filePath = !string.IsNullOrWhiteSpace(att.LocalPath) && File.Exists(att.LocalPath)
-                            ? att.LocalPath
-                            : Path.Combine(attachDir, fileName);
+                        Directory.CreateDirectory(attachDir);
+                    }
 
-                        if (!string.IsNullOrEmpty(att.Base64Data))
+                    foreach (var att in attachments)
+                    {
+                        try
                         {
-                            var base64 = att.Base64Data.Contains(",")
-                                ? att.Base64Data[(att.Base64Data.IndexOf(",") + 1)..]
-                                : att.Base64Data;
-                            var bytes = Convert.FromBase64String(base64);
-                            File.WriteAllBytes(filePath, bytes);
-                        }
+                            var rawName = Path.GetFileName(att.Name);
+                            var fileName = !string.IsNullOrWhiteSpace(rawName)
+                                ? string.Concat(rawName.Split(Path.GetInvalidFileNameChars()))
+                                : $"file_{Guid.NewGuid():N}.bin";
+                            if (string.IsNullOrWhiteSpace(fileName)) fileName = $"file_{Guid.NewGuid():N}.bin";
+                            var filePath = !string.IsNullOrWhiteSpace(att.LocalPath) && File.Exists(att.LocalPath)
+                                ? att.LocalPath
+                                : Path.Combine(attachDir, fileName);
 
-                        if (File.Exists(filePath))
-                        {
-                            attachedFilePaths.Add(filePath);
+                            if (!string.IsNullOrEmpty(att.Base64Data))
+                            {
+                                var base64 = att.Base64Data.Contains(",")
+                                    ? att.Base64Data[(att.Base64Data.IndexOf(",") + 1)..]
+                                    : att.Base64Data;
+                                var bytes = Convert.FromBase64String(base64);
+                                File.WriteAllBytes(filePath, bytes);
+                            }
+
+                            if (File.Exists(filePath))
+                            {
+                                attachedFilePaths.Add(filePath);
+                            }
+                            else
+                            {
+                                attachmentErrors.Add($"Attachment '{att.Name}' was not found at {filePath}");
+                            }
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            attachmentErrors.Add($"Attachment '{att.Name}' was not found at {filePath}");
+                            attachmentErrors.Add($"Failed to process attachment '{att.Name}': {ex.Message}");
                         }
                     }
-                    catch (Exception ex)
+                }
+
+                var promptWithAttachments = userPrompt;
+                if (attachedFilePaths.Count > 0)
+                {
+                    var sb = new StringBuilder();
+                    if (!string.IsNullOrWhiteSpace(userPrompt))
                     {
-                        attachmentErrors.Add($"Failed to process attachment '{att.Name}': {ex.Message}");
+                        sb.AppendLine(userPrompt);
+                        sb.AppendLine();
                     }
+                    sb.AppendLine("[Attached Files]:");
+                    foreach (var path in attachedFilePaths)
+                    {
+                        sb.AppendLine($"- {path}");
+                    }
+                    promptWithAttachments = sb.ToString().TrimEnd();
                 }
-            }
 
-            var promptWithAttachments = userPrompt;
-            if (attachedFilePaths.Count > 0)
-            {
-                var sb = new StringBuilder();
-                if (!string.IsNullOrWhiteSpace(userPrompt))
+                if (attachmentErrors.Count > 0)
                 {
-                    sb.AppendLine(userPrompt);
-                    sb.AppendLine();
+                    var warning = "Warning: Some attachments could not be processed:\n" + string.Join("\n", attachmentErrors.Select(e => $"- {e}"));
+                    chatService.AddMessage(targetSessionId, "assistant", warning, selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
                 }
-                sb.AppendLine("[Attached Files]:");
-                foreach (var path in attachedFilePaths)
+
+                var sess = chatService.GetSession(targetSessionId);
+                var history = sess?.Messages ?? [];
+
+                var agentPromptBuilder = new StringBuilder();
+                if (history.Count > 0)
                 {
-                    sb.AppendLine($"- {path}");
-                }
-                promptWithAttachments = sb.ToString().TrimEnd();
-            }
+                    agentPromptBuilder.AppendLine("# Previous Conversation Discussion History");
+                    agentPromptBuilder.AppendLine("The following is the previous conversation history in this chat session:");
+                    agentPromptBuilder.AppendLine();
 
-            if (attachmentErrors.Count > 0)
-            {
-                var warning = "Warning: Some attachments could not be processed:\n" + string.Join("\n", attachmentErrors.Select(e => $"- {e}"));
-                chatService.AddMessage(targetSessionId, "assistant", warning, selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
-            }
+                    foreach (var prevMsg in history)
+                    {
+                        var roleLabel = prevMsg.Role.Equals("user", StringComparison.OrdinalIgnoreCase) ? "User" : "Assistant";
+                        agentPromptBuilder.AppendLine($"### {roleLabel}");
+                        agentPromptBuilder.AppendLine(prevMsg.Content);
+                        agentPromptBuilder.AppendLine();
+                    }
 
-            var sess = chatService.GetSession(targetSessionId);
-            var history = sess?.Messages ?? [];
-
-            var agentPromptBuilder = new StringBuilder();
-            if (history.Count > 0)
-            {
-                agentPromptBuilder.AppendLine("# Previous Conversation Discussion History");
-                agentPromptBuilder.AppendLine("The following is the previous conversation history in this chat session:");
-                agentPromptBuilder.AppendLine();
-
-                foreach (var prevMsg in history)
-                {
-                    var roleLabel = prevMsg.Role.Equals("user", StringComparison.OrdinalIgnoreCase) ? "User" : "Assistant";
-                    agentPromptBuilder.AppendLine($"### {roleLabel}");
-                    agentPromptBuilder.AppendLine(prevMsg.Content);
+                    agentPromptBuilder.AppendLine("---");
                     agentPromptBuilder.AppendLine();
                 }
 
-                agentPromptBuilder.AppendLine("---");
-                agentPromptBuilder.AppendLine();
-            }
+                agentPromptBuilder.AppendLine("# Current User Request");
+                agentPromptBuilder.AppendLine(promptWithAttachments);
 
-            agentPromptBuilder.AppendLine("# Current User Request");
-            agentPromptBuilder.AppendLine(promptWithAttachments);
+                var fullAgentPrompt = agentPromptBuilder.ToString();
 
-            var fullAgentPrompt = agentPromptBuilder.ToString();
+                chatService.AddMessage(targetSessionId, "user", promptWithAttachments, targetAgent, targetModel, effort: targetEffort);
+                isStreaming.Set(true);
 
-            var targetAgent = selectedAgent.Value;
-            var targetModel = effectiveModel;
-            var targetEffort = effectiveEffort;
-
-            chatService.AddMessage(targetSessionId, "user", promptWithAttachments, targetAgent, targetModel, effort: targetEffort);
-            isStreaming.Set(true);
-
-            try
-            {
                 var effortOverride = targetEffort != "default" ? AgentProviderFactory.ParseEffort(targetEffort) : null;
                 var context = AgentLaunchHelper.PrepareResolutionContext(
                     configService,
