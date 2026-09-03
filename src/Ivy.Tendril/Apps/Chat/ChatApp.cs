@@ -32,17 +32,30 @@ public class ChatApp : ViewBase
         var namingService = UseService<IChatSessionNamingService>();
         var serializer = UseService<IEventSerializer>();
 
-        var activeSessionId = UseState<string?>(args?.SessionId);
+        var activeSessionId = UseState<string?>(() =>
+        {
+            if (!string.IsNullOrEmpty(args?.SessionId)) return args.SessionId;
+            return chatService.GetSessions().FirstOrDefault()?.Id;
+        });
         var sessionVersion = UseState(0);
-        var selectedAgent = UseState(() => configService.Settings.CodingAgent ?? "claude");
+        var selectedAgent = UseState(() =>
+        {
+            var sess = !string.IsNullOrEmpty(args?.SessionId) ? chatService.GetSession(args.SessionId) : chatService.GetSessions().FirstOrDefault();
+            return sess?.AgentId ?? configService.Settings.CodingAgent ?? "claude";
+        });
         var selectedModel = UseState(() =>
         {
-            var agent = configService.Settings.CodingAgent ?? "claude";
+            var sess = !string.IsNullOrEmpty(args?.SessionId) ? chatService.GetSession(args.SessionId) : chatService.GetSessions().FirstOrDefault();
+            if (!string.IsNullOrEmpty(sess?.ModelId)) return sess.ModelId;
+            var agent = sess?.AgentId ?? configService.Settings.CodingAgent ?? "claude";
             var initialModels = GetModelsForAgent(agentRunner, agent);
             return initialModels.Count > 0 ? initialModels[0].Id : "default";
         });
-        var selectedEffort = UseState("default");
-        var lastSyncedSessionId = UseRef<string?>(null);
+        var selectedEffort = UseState(() =>
+        {
+            var sess = !string.IsNullOrEmpty(args?.SessionId) ? chatService.GetSession(args.SessionId) : chatService.GetSessions().FirstOrDefault();
+            return sess?.Effort ?? "default";
+        });
         var isStreaming = UseState(false);
         var streamingSessionId = UseState<string?>(null);
         var liveSessionStreams = UseState(new Dictionary<string, string>());
@@ -57,7 +70,6 @@ public class ChatApp : ViewBase
             void OnSessionsChanged(object? sender, EventArgs e) => sessionVersion.Set(v => v + 1);
             void OnGeneratingSessionsChanged(object? sender, EventArgs e)
             {
-                sessionVersion.Set(v => v + 1);
                 runningSessionIds.Set(new HashSet<string>(chatService.GetGeneratingSessionIds()));
             }
 
@@ -70,44 +82,23 @@ public class ChatApp : ViewBase
             });
         });
 
+        void SelectSession(string sessionId)
+        {
+            activeSessionId.Set(sessionId);
+            chatService.ClearSessionCompleted(sessionId);
+            var sess = chatService.GetSession(sessionId);
+            if (sess != null)
+            {
+                if (!string.IsNullOrEmpty(sess.AgentId)) selectedAgent.Set(sess.AgentId);
+                if (!string.IsNullOrEmpty(sess.ModelId)) selectedModel.Set(sess.ModelId);
+                if (!string.IsNullOrEmpty(sess.Effort)) selectedEffort.Set(sess.Effort);
+            }
+        }
+
         var currentVersion = sessionVersion.Value;
         var sessions = chatService.GetSessions();
         var currentSessionId = activeSessionId.Value;
-        if (sessions.Count == 0 && currentSessionId == null && string.IsNullOrEmpty(args?.Prompt))
-        {
-            var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
-            currentSessionId = newSess.Id;
-            activeSessionId.Set(currentSessionId);
-            sessions = chatService.GetSessions();
-        }
-        else if (currentSessionId == null && sessions.Count > 0 && string.IsNullOrEmpty(args?.Prompt))
-        {
-            currentSessionId = sessions[0].Id;
-            activeSessionId.Set(currentSessionId);
-        }
-
         var activeSession = currentSessionId != null ? chatService.GetSession(currentSessionId) : null;
-        if (activeSession != null)
-        {
-            chatService.ClearSessionCompleted(activeSession.Id);
-        }
-
-        if (activeSession != null && lastSyncedSessionId.Value != activeSession.Id)
-        {
-            lastSyncedSessionId.Value = activeSession.Id;
-            if (!string.IsNullOrEmpty(activeSession.AgentId))
-            {
-                selectedAgent.Set(activeSession.AgentId);
-            }
-            if (!string.IsNullOrEmpty(activeSession.ModelId))
-            {
-                selectedModel.Set(activeSession.ModelId);
-            }
-            if (!string.IsNullOrEmpty(activeSession.Effort))
-            {
-                selectedEffort.Set(activeSession.Effort);
-            }
-        }
 
         var registeredAgentIds = agentRunner.RegisteredAgents;
         if (registeredAgentIds.Count == 0)
@@ -122,22 +113,16 @@ public class ChatApp : ViewBase
         }).ToList();
 
         var currentModelOptions = GetModelsForAgent(agentRunner, selectedAgent.Value);
+        var effectiveModel = currentModelOptions.Any(m => m.Id.Equals(selectedModel.Value, StringComparison.OrdinalIgnoreCase))
+            ? selectedModel.Value
+            : (currentModelOptions.Count > 0 ? currentModelOptions[0].Id : selectedModel.Value);
         var modelDtos = currentModelOptions.Select(m => new ModelOptionDto(m.Id, m.DisplayName)).ToList();
 
-        if (!currentModelOptions.Any(m => m.Id.Equals(selectedModel.Value, StringComparison.OrdinalIgnoreCase)))
-        {
-            if (currentModelOptions.Count > 0)
-            {
-                selectedModel.Set(currentModelOptions[0].Id);
-            }
-        }
-
         var supportsEffort = DoesAgentSupportEffort(agentRunner, selectedAgent.Value);
-        var currentEffortOptions = GetEffortsForAgentAndModel(agentRunner, selectedAgent.Value, selectedModel.Value);
-        if (!currentEffortOptions.Any(e => e.Id.Equals(selectedEffort.Value, StringComparison.OrdinalIgnoreCase)))
-        {
-            selectedEffort.Set("default");
-        }
+        var currentEffortOptions = GetEffortsForAgentAndModel(agentRunner, selectedAgent.Value, effectiveModel);
+        var effectiveEffort = currentEffortOptions.Any(e => e.Id.Equals(selectedEffort.Value, StringComparison.OrdinalIgnoreCase))
+            ? selectedEffort.Value
+            : "default";
 
         var sessionDtos = sessions.Select(s =>
         {
@@ -277,18 +262,22 @@ public class ChatApp : ViewBase
 
             var fullAgentPrompt = agentPromptBuilder.ToString();
 
-            chatService.AddMessage(targetSessionId, "user", promptWithAttachments, selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
+            var targetAgent = selectedAgent.Value;
+            var targetModel = effectiveModel;
+            var targetEffort = effectiveEffort;
+
+            chatService.AddMessage(targetSessionId, "user", promptWithAttachments, targetAgent, targetModel, effort: targetEffort);
             isStreaming.Set(true);
 
             try
             {
-                var effortOverride = selectedEffort.Value != "default" ? AgentProviderFactory.ParseEffort(selectedEffort.Value) : null;
+                var effortOverride = targetEffort != "default" ? AgentProviderFactory.ParseEffort(targetEffort) : null;
                 var context = AgentLaunchHelper.PrepareResolutionContext(
                     configService,
                     agentRunner,
-                    selectedAgent.Value,
+                    targetAgent,
                     fullAgentPrompt,
-                    modelOverride: selectedModel.Value,
+                    modelOverride: targetModel,
                     effortOverride: effortOverride,
                     permissionMode: PermissionMode.FullAuto);
 
@@ -353,7 +342,7 @@ public class ChatApp : ViewBase
                         ? collectedText
                         : (result.IsSuccess ? "Task completed successfully." : "Agent execution completed with status code " + (result.ExitCode?.ToString() ?? "unknown")));
 
-                chatService.AddMessage(targetSessionId, "assistant", responseContent, selectedAgent.Value, selectedModel.Value, rawStream: fullRawStream, effort: selectedEffort.Value);
+                chatService.AddMessage(targetSessionId, "assistant", responseContent, targetAgent, targetModel, rawStream: fullRawStream, effort: targetEffort);
 
                 var currentSession = chatService.GetSession(targetSessionId);
                 if (currentSession != null &&
@@ -363,8 +352,8 @@ public class ChatApp : ViewBase
                     var firstUserMsg = currentSession.Messages.FirstOrDefault(m => m.Role == "user")?.Content;
                     if (!string.IsNullOrWhiteSpace(firstUserMsg))
                     {
-                        var agentId = selectedAgent.Value;
-                        var modelId = selectedModel.Value;
+                        var agentId = targetAgent;
+                        var modelId = targetModel;
                         _ = Task.Run(async () =>
                         {
                             await namingService.GenerateAndSetTitleAsync(
@@ -379,7 +368,7 @@ public class ChatApp : ViewBase
             }
             catch (Exception ex)
             {
-                chatService.AddMessage(targetSessionId, "assistant", $"Error executing request: {ex.Message}", selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
+                chatService.AddMessage(targetSessionId, "assistant", $"Error executing request: {ex.Message}", targetAgent, targetModel, effort: targetEffort);
             }
             finally
             {
@@ -413,9 +402,9 @@ public class ChatApp : ViewBase
             string targetSessionId = !string.IsNullOrEmpty(dto.SessionId) ? dto.SessionId : (activeSessionId.Value ?? "");
             if (string.IsNullOrEmpty(targetSessionId))
             {
-                var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
+                var newSess = chatService.CreateSession(selectedAgent.Value, effectiveModel, effort: effectiveEffort);
                 targetSessionId = newSess.Id;
-                activeSessionId.Set(targetSessionId);
+                SelectSession(targetSessionId);
             }
 
             var pinnedDto = new ChatSendMessageDto(userPrompt, dto.Attachments, targetSessionId);
@@ -436,9 +425,9 @@ public class ChatApp : ViewBase
             var targetId = activeSessionId.Value;
             if (string.IsNullOrEmpty(targetId))
             {
-                var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
+                var newSess = chatService.CreateSession(selectedAgent.Value, effectiveModel, effort: effectiveEffort);
                 targetId = newSess.Id;
-                activeSessionId.Set(targetId);
+                SelectSession(targetId);
             }
             SendMessage(new ChatSendMessageDto(args.Prompt, null, targetId));
         }
@@ -449,8 +438,10 @@ public class ChatApp : ViewBase
             sessionVersion,
             selectedAgent,
             selectedModel,
+            selectedEffort,
             searchState,
-            chatService
+            chatService,
+            SelectSession
         );
 
         var content = new ContentView(
@@ -472,7 +463,8 @@ public class ChatApp : ViewBase
             supportsEffort,
             chatService,
             agentRunner,
-            SendMessage
+            SendMessage,
+            SelectSession
         );
 
         return new SidebarLayout(content, sidebar).SidebarContentScroll(Scroll.None);

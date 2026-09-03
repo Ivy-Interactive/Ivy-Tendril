@@ -94,9 +94,10 @@ public class SidebarViewTests
         var sessionVersion = new TestState<int>(1);
         var selectedAgent = new TestState<string>("claude");
         var selectedModel = new TestState<string>("opus");
+        var selectedEffort = new TestState<string>("default");
         var searchState = new TestState<string>("");
 
-        var view = new SidebarView(sessions, activeSessionId, sessionVersion, selectedAgent, selectedModel, searchState, service);
+        var view = new SidebarView(sessions, activeSessionId, sessionVersion, selectedAgent, selectedModel, selectedEffort, searchState, service, _ => { });
         var result = view.Build();
 
         Assert.NotNull(result);
@@ -116,9 +117,10 @@ public class SidebarViewTests
         var sessionVersion = new TestState<int>(1);
         var selectedAgent = new TestState<string>("claude");
         var selectedModel = new TestState<string>("opus");
+        var selectedEffort = new TestState<string>("default");
         var searchState = new TestState<string>("xyz non existent");
 
-        var view = new SidebarView(sessions, activeSessionId, sessionVersion, selectedAgent, selectedModel, searchState, service);
+        var view = new SidebarView(sessions, activeSessionId, sessionVersion, selectedAgent, selectedModel, selectedEffort, searchState, service, _ => { });
         var result = view.Build();
 
         Assert.NotNull(result);
@@ -139,9 +141,10 @@ public class SidebarViewTests
         var sessionVersion = new TestState<int>(1);
         var selectedAgent = new TestState<string>("claude");
         var selectedModel = new TestState<string>("opus");
+        var selectedEffort = new TestState<string>("default");
         var searchState = new TestState<string>("");
 
-        var view = new SidebarView(sessions, activeSessionId, sessionVersion, selectedAgent, selectedModel, searchState, service);
+        var view = new SidebarView(sessions, activeSessionId, sessionVersion, selectedAgent, selectedModel, selectedEffort, searchState, service, _ => { });
         var result = view.Build();
 
         Assert.NotNull(result);

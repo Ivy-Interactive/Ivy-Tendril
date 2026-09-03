@@ -33,7 +33,8 @@ public class ContentView(
     bool supportsEffort,
     IChatHistoryService chatService,
     IAgentRunner agentRunner,
-    Action<ChatSendMessageDto> sendMessage) : ViewBase
+    Action<ChatSendMessageDto> sendMessage,
+    Action<string> selectSession) : ViewBase
 {
     public override object Build()
     {
@@ -63,8 +64,7 @@ public class ContentView(
                 .OnClick(() =>
                 {
                     var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
-                    activeSessionId.Set(newSess.Id);
-                    sessionVersion.Set(v => v + 1);
+                    selectSession(newSess.Id);
                 });
 
             return Layout.Vertical().AlignContent(Align.Center).Width(Size.Full()).Height(Size.Full())
@@ -113,7 +113,10 @@ public class ContentView(
 
             OnSelectSession = e =>
             {
-                activeSessionId.Set(e.Value);
+                if (!string.IsNullOrEmpty(e.Value))
+                {
+                    selectSession(e.Value);
+                }
                 return ValueTask.CompletedTask;
             },
             OnDeleteSession = e =>
@@ -133,7 +136,7 @@ public class ContentView(
             OnCreateSession = _ =>
             {
                 var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
-                activeSessionId.Set(newSess.Id);
+                selectSession(newSess.Id);
                 return ValueTask.CompletedTask;
             },
             OnSendMessage = e =>

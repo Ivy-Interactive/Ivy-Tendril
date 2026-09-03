@@ -15,8 +15,10 @@ public class SidebarView(
     IState<int> sessionVersion,
     IState<string> selectedAgent,
     IState<string> selectedModel,
+    IState<string> selectedEffort,
     IState<string> searchState,
-    IChatHistoryService chatService) : ViewBase
+    IChatHistoryService chatService,
+    Action<string> selectSession) : ViewBase
 {
     public override object Build()
     {
@@ -25,9 +27,8 @@ public class SidebarView(
             .Ghost()
             .OnClick(() =>
             {
-                var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value);
-                activeSessionId.Set(newSess.Id);
-                sessionVersion.Set(v => v + 1);
+                var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
+                selectSession(newSess.Id);
             });
 
         var searchInput = searchState.ToSearchInput()
@@ -65,13 +66,13 @@ public class SidebarView(
                 object metaLine;
                 if (isGenerating)
                 {
-                    metaLine = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
+                    metaLine = Layout.Horizontal().AlignContent(Align.Left)
                         | new Icon(Icons.LoaderCircle).Small().WithAnimation(AnimationType.Rotate).Duration(1)
                         | Text.Muted(sess.AgentId).Small();
                 }
                 else if (isCompleted)
                 {
-                    metaLine = Layout.Horizontal().AlignContent(Align.Left).Gap(1)
+                    metaLine = Layout.Horizontal().AlignContent(Align.Left)
                         | new Icon(Icons.Check, Colors.Green).Small()
                         | Text.Success("Completed").Small()
                         | Text.Muted($"• {sess.AgentId}").Small();
@@ -92,8 +93,7 @@ public class SidebarView(
                     .Content(textStack)
                     .OnClick(() =>
                     {
-                        chatService.ClearSessionCompleted(sess.Id);
-                        activeSessionId.Set(sess.Id);
+                        selectSession(sess.Id);
                     })
                     .BorderRadius(BorderRadius.None);
 
