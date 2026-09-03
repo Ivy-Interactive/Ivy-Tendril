@@ -71,8 +71,8 @@ public sealed class CodexCli : IAgentCli
             case PermissionMode.FullAuto:
                 args.Add("--sandbox");
                 args.Add("danger-full-access");
-                args.Add("--ask-for-approval");
-                args.Add("never");
+                args.Add("-c");
+                args.Add("approval_policy=\"never\"");
                 break;
 
             case PermissionMode.AcceptEdits:
@@ -82,8 +82,8 @@ public sealed class CodexCli : IAgentCli
                 args.Add("sandbox_workspace_write.network_access=true");
                 args.Add("-c");
                 args.Add("sandbox_permissions=[\"disk-full-read-access\"]");
-                args.Add("--ask-for-approval");
-                args.Add("never");
+                args.Add("-c");
+                args.Add("approval_policy=\"never\"");
                 break;
 
             case PermissionMode.Plan:

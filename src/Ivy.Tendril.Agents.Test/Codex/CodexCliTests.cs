@@ -195,8 +195,7 @@ public class CodexCliTests
         Assert.Contains("exec", spec.Arguments);
         Assert.Contains("--sandbox", spec.Arguments);
         Assert.Contains("danger-full-access", spec.Arguments);
-        Assert.Contains("--ask-for-approval", spec.Arguments);
-        Assert.Contains("never", spec.Arguments);
+        Assert.Contains("approval_policy=\"never\"", spec.Arguments);
         Assert.Contains("--json", spec.Arguments);
         Assert.Contains("--skip-git-repo-check", spec.Arguments);
         Assert.Contains("-", spec.Arguments);
@@ -222,9 +221,8 @@ public class CodexCliTests
         Assert.True(sandboxIdx >= 0);
         Assert.Equal("danger-full-access", argList[sandboxIdx + 1]);
 
-        var approvalIdx = argList.IndexOf("--ask-for-approval");
+        var approvalIdx = argList.IndexOf("approval_policy=\"never\"");
         Assert.True(approvalIdx >= 0);
-        Assert.Equal("never", argList[approvalIdx + 1]);
     }
 
     [Fact]
@@ -247,9 +245,8 @@ public class CodexCliTests
         Assert.Contains("sandbox_workspace_write.network_access=true", argList);
         Assert.Contains("sandbox_permissions=[\"disk-full-read-access\"]", argList);
 
-        var approvalIdx = argList.IndexOf("--ask-for-approval");
+        var approvalIdx = argList.IndexOf("approval_policy=\"never\"");
         Assert.True(approvalIdx >= 0);
-        Assert.Equal("never", argList[approvalIdx + 1]);
     }
 
     [Fact]
