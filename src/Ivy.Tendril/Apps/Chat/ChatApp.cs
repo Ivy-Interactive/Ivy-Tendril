@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -295,6 +296,7 @@ public class ChatApp : ViewBase
                 var rawLines = new List<string>();
                 string? lastTextEvent = null;
                 var rawLock = new object();
+                var lastStreamUpdateTicks = 0L;
 
                 using var sub = session.Events.Subscribe(evt =>
                 {
@@ -311,12 +313,20 @@ public class ChatApp : ViewBase
                         var wireJson = serializer.Serialize(evt);
                         if (!string.IsNullOrEmpty(wireJson))
                         {
+                            string fullStream;
                             lock (rawLock)
                             {
                                 rawLines.Add(wireJson);
+                                fullStream = string.Join("\n", rawLines);
+                            }
+
+                            var now = Stopwatch.GetTimestamp();
+                            if (lastStreamUpdateTicks == 0 || Stopwatch.GetElapsedTime(lastStreamUpdateTicks).TotalMilliseconds >= 60)
+                            {
+                                lastStreamUpdateTicks = now;
                                 var map = new Dictionary<string, string>(liveSessionStreams.Value)
                                 {
-                                    [targetSessionId] = string.Join("\n", rawLines)
+                                    [targetSessionId] = fullStream
                                 };
                                 liveSessionStreams.Set(map);
                             }
@@ -350,6 +360,11 @@ public class ChatApp : ViewBase
                         ? collectedText
                         : (result.IsSuccess ? "Task completed successfully." : "Agent execution completed with status code " + (result.ExitCode?.ToString() ?? "unknown")));
 
+                if (string.IsNullOrWhiteSpace(responseContent))
+                {
+                    responseContent = "Task completed with no output.";
+                }
+
                 chatService.AddMessage(targetSessionId, "assistant", responseContent, targetAgent, targetModel, rawStream: fullRawStream, effort: targetEffort);
 
                 var currentSession = chatService.GetSession(targetSessionId);
@@ -380,6 +395,7 @@ public class ChatApp : ViewBase
             }
             finally
             {
+                chatService.SetSessionGenerating(targetSessionId, false);
                 activeSessionRef.Value = null;
                 isStreaming.Set(false);
                 streamingSessionId.Set(null);
@@ -387,7 +403,6 @@ public class ChatApp : ViewBase
                 var finishedSet = new HashSet<string>(runningSessionIds.Value);
                 finishedSet.Remove(targetSessionId);
                 runningSessionIds.Set(finishedSet);
-                chatService.SetSessionGenerating(targetSessionId, false);
 
                 var map = new Dictionary<string, string>(liveSessionStreams.Value);
                 map.Remove(targetSessionId);
