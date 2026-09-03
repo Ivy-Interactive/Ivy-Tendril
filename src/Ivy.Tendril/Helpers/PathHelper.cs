@@ -230,9 +230,7 @@ public static class PathHelper
 
     public static void AugmentPath(bool forceShellPath = false)
     {
-        Ivy.Helpers.CrashLog.Write($"[PathHelper] AugmentPath starting. forceShellPath={forceShellPath}");
         var pathVar = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
-        Ivy.Helpers.CrashLog.Write($"[PathHelper] AugmentPath current PATH: '{pathVar}'");
         var separator = OperatingSystem.IsWindows() ? ';' : ':';
         var dirs = new HashSet<string>(pathVar.Split(separator, StringSplitOptions.RemoveEmptyEntries),
             OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
@@ -333,8 +331,6 @@ public static class PathHelper
                             if (string.IsNullOrEmpty(existingVal))
                             {
                                 Environment.SetEnvironmentVariable(key, val);
-                                var logValue = IsSecretKey(key) ? "[SECRET REDACTED]" : val;
-                                Ivy.Helpers.CrashLog.Write($"[PathHelper] Imported environment variable from shell: {key}={logValue}");
                             }
                         }
                     }
@@ -351,11 +347,9 @@ public static class PathHelper
         }
 
         var newPath = string.Join(separator, pathList);
-        Ivy.Helpers.CrashLog.Write($"[PathHelper] AugmentPath new PATH: '{newPath}'");
         if (newPath != pathVar)
         {
             Environment.SetEnvironmentVariable("PATH", newPath);
-            Ivy.Helpers.CrashLog.Write("[PathHelper] AugmentPath updated PATH environment variable successfully.");
         }
     }
 
@@ -417,19 +411,16 @@ public static class PathHelper
                     }
 
                     File.CreateSymbolicLink(symlinkPath, exePath);
-                    Ivy.Helpers.CrashLog.Write($"[PathHelper] Created CLI symlink at {symlinkPath} -> {exePath}");
                     break; // Successfully created symlink, no need to try other locations
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     // Fall back to next directory
-                    Ivy.Helpers.CrashLog.Write($"[PathHelper] Failed to create symlink in {binDir}: {ex.Message}");
                 }
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Ivy.Helpers.CrashLog.Write($"[PathHelper] EnsureCliSymlink failed: {ex}");
         }
     }
 
@@ -461,12 +452,10 @@ public static class PathHelper
                 if (!File.Exists(cmdInAppDir) || File.ReadAllText(cmdInAppDir) != cmdContent)
                 {
                     File.WriteAllText(cmdInAppDir, cmdContent, Encoding.ASCII);
-                    Ivy.Helpers.CrashLog.Write($"[PathHelper] Created tendril.cmd at {cmdInAppDir}");
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Ivy.Helpers.CrashLog.Write($"[PathHelper] Failed to create tendril.cmd in {appDir}: {ex.Message}");
             }
 
             // 2. Create tendril.cmd in %USERPROFILE%\.local\bin for global command access
@@ -484,12 +473,10 @@ public static class PathHelper
                 if (!File.Exists(localBinCmd) || File.ReadAllText(localBinCmd) != localBinCmdContent)
                 {
                     File.WriteAllText(localBinCmd, localBinCmdContent, Encoding.ASCII);
-                    Ivy.Helpers.CrashLog.Write($"[PathHelper] Created tendril.cmd at {localBinCmd}");
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Ivy.Helpers.CrashLog.Write($"[PathHelper] Failed to create tendril.cmd in .local/bin: {ex.Message}");
             }
 
             // 3. Ensure appDir is present in User PATH environment variable
@@ -501,34 +488,20 @@ public static class PathHelper
                 {
                     var newPath = string.IsNullOrEmpty(userPath) ? appDir : $"{userPath}{Path.PathSeparator}{appDir}";
                     Environment.SetEnvironmentVariable("PATH", newPath, EnvironmentVariableTarget.User);
-                    Ivy.Helpers.CrashLog.Write($"[PathHelper] Added {appDir} to Windows User PATH.");
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Ivy.Helpers.CrashLog.Write($"[PathHelper] Failed to update User PATH: {ex.Message}");
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Ivy.Helpers.CrashLog.Write($"[PathHelper] EnsureWindowsCliSetup failed: {ex}");
         }
     }
 
-    private static bool IsSecretKey(string key)
-    {
-        var normalized = key.ToUpperInvariant();
-        return normalized.Contains("KEY") ||
-               normalized.Contains("SECRET") ||
-               normalized.Contains("TOKEN") ||
-               normalized.Contains("PASSWORD") ||
-               normalized.Contains("AUTH") ||
-               normalized.Contains("CREDENTIAL");
-    }
 
     private static Dictionary<string, string>? GetLoginShellEnv()
     {
-        Ivy.Helpers.CrashLog.Write("[PathHelper] GetLoginShellEnv starting");
         var env = RunShellForEnv("-ilc");
         if (env == null || env.Count == 0)
         {
@@ -542,7 +515,6 @@ public static class PathHelper
         try
         {
             var shell = Environment.GetEnvironmentVariable("SHELL");
-            Ivy.Helpers.CrashLog.Write($"[PathHelper] RunShellForEnv: SHELL env var is '{shell ?? "null"}'");
             if (string.IsNullOrEmpty(shell))
             {
                 shell = OperatingSystem.IsMacOS() ? "/bin/zsh" : "/bin/bash";
@@ -556,7 +528,6 @@ public static class PathHelper
                     shell = "/bin/bash";
                 }
             }
-            Ivy.Helpers.CrashLog.Write($"[PathHelper] RunShellForEnv: using shell '{shell}'");
 
             var psi = new ProcessStartInfo
             {
@@ -577,7 +548,6 @@ public static class PathHelper
 
             process.ErrorDataReceived += (_, _) => { }; // Discard standard error asynchronously
 
-            Ivy.Helpers.CrashLog.Write($"[PathHelper] RunShellForEnv: starting process with args: {string.Join(" ", process.StartInfo.ArgumentList)}");
             process.Start();
             process.BeginErrorReadLine();
 
@@ -602,23 +572,16 @@ public static class PathHelper
                             }
                         }
                     }
-                    Ivy.Helpers.CrashLog.Write($"[PathHelper] RunShellForEnv: parsed {res.Count} variables successfully");
                     return res;
-                }
-                else
-                {
-                    Ivy.Helpers.CrashLog.Write("[PathHelper] RunShellForEnv: regex did not match markers");
                 }
             }
             else
             {
-                Ivy.Helpers.CrashLog.Write("[PathHelper] RunShellForEnv: process timed out waiting for exit");
                 try { process.Kill(); } catch { }
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Ivy.Helpers.CrashLog.Write($"[PathHelper] RunShellForEnv: exception occurred: {ex}");
         }
         return null;
     }
