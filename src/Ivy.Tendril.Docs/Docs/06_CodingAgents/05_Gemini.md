@@ -43,6 +43,7 @@ The profile is selected automatically based on the plan's complexity level, or c
 
 ## Available Models
 
+- `gemini-3.8-flash`: Next-gen fast and capable reasoning, 1M context
 - `gemini-3.7-flash` (default): Next-gen fast and capable reasoning, 1M context
 - `gemini-3.6-flash`: Fast and capable, 1M context
 - `gemini-3.1-pro`: Advanced reasoning, 1M context
