@@ -357,6 +357,11 @@ public sealed class AgentSession : IAgentSession
         }
 
         await _cts.CancelAsync();
+
+        if (!_completion.Task.IsCompleted)
+        {
+            Complete(_process.HasExited ? _process.ExitCode : -1, SessionState.Stopped);
+        }
     }
 
     public async Task KillAsync()
@@ -369,6 +374,11 @@ public sealed class AgentSession : IAgentSession
             await _completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
         }
         catch { }
+
+        if (!_completion.Task.IsCompleted)
+        {
+            Complete(_process.HasExited ? _process.ExitCode : -1, SessionState.Failed);
+        }
     }
 
     public Task RespondToPermissionAsync(string requestId, PermissionDecision decision, CancellationToken ct = default)

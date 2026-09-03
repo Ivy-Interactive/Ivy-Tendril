@@ -729,4 +729,43 @@ describe("ChatWidget File Uploads and Attachments", () => {
       window.XMLHttpRequest = origXHR;
     }
   });
+
+  it("optimistically displays user message immediately upon clicking Send", async () => {
+    const handleEvent = vi.fn();
+    const session = {
+      id: "sess-empty",
+      title: "New Chat",
+      agentId: "codex",
+      modelId: "gpt-5.6-sol",
+      createdAt: "2026-09-03T10:00:00Z",
+      updatedAt: "2026-09-03T10:00:00Z",
+      messages: [],
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-empty"
+        sessions={[session]}
+        eventHandler={handleEvent}
+        events={["OnSendMessage"]}
+      />
+    );
+
+    expect(screen.getByText("Start a conversation")).toBeInTheDocument();
+
+    const textarea = screen.getByPlaceholderText(/Ask/i);
+    fireEvent.change(textarea, { target: { value: "test. Alive?" } });
+
+    const sendBtn = screen.getByRole("button", { name: /Send/i });
+    fireEvent.click(sendBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith("OnSendMessage", "test-chat", [
+      { prompt: "test. Alive?", attachments: [], sessionId: "sess-empty" },
+    ]);
+
+    // Optimistic message should appear immediately without waiting for props update!
+    expect(screen.getByText("test. Alive?")).toBeInTheDocument();
+    expect(screen.queryByText("Start a conversation")).not.toBeInTheDocument();
+  });
 });

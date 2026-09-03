@@ -351,6 +351,7 @@ export function ChatWidget({
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null);
   const [editingQueuedText, setEditingQueuedText] = useState("");
   const [pendingRenames, setPendingRenames] = useState<Record<string, string>>({});
+  const [optimisticMessages, setOptimisticMessages] = useState<Record<string, ChatMessageDto[]>>({});
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -359,6 +360,8 @@ export function ChatWidget({
   const initialPromptRef = useRef<string>("");
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
+  const currentOptimistic = (activeSessionId && optimisticMessages[activeSessionId]) || [];
+  const displayMessages = [...(activeSession?.messages || []), ...currentOptimistic];
   const totalAttachmentSize = attachments.reduce((sum, att) => sum + (att.size || 0), 0);
   const isPayloadOversized = totalAttachmentSize > MAX_PAYLOAD_BYTES;
   const isUploading = attachments.some((att) => att.uploadStatus === "uploading");
@@ -406,7 +409,24 @@ export function ChatWidget({
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeSession?.messages, isStreaming, streamingText, queuedMessages]);
+  }, [activeSession?.messages, displayMessages.length, isStreaming, streamingText, queuedMessages]);
+
+  useEffect(() => {
+    if (activeSessionId && sessions.length > 0) {
+      const sess = sessions.find((s) => s.id === activeSessionId);
+      if (sess?.messages && sess.messages.length > 0) {
+        setOptimisticMessages((prev) => {
+          const current = prev[activeSessionId];
+          if (!current || current.length === 0) return prev;
+          const remaining = current.filter(
+            (opt) => !sess.messages.some((m) => m.role === "user" && m.content.startsWith(opt.content))
+          );
+          if (remaining.length === current.length) return prev;
+          return { ...prev, [activeSessionId]: remaining };
+        });
+      }
+    }
+  }, [sessions, activeSessionId]);
 
   useEffect(() => {
     if (activeSession?.messages) {
@@ -485,6 +505,19 @@ export function ChatWidget({
         ...prev,
         { id: `q-${Date.now()}-${Math.random()}`, prompt: trimmed, attachments: payloadAttachments },
       ]);
+    } else if (activeSessionId) {
+      const optMsg: ChatMessageDto = {
+        id: `opt-${Date.now()}-${Math.random()}`,
+        role: "user",
+        content: trimmed,
+        timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+        agentId: selectedAgent,
+        modelId: selectedModel,
+      };
+      setOptimisticMessages((prev) => ({
+        ...prev,
+        [activeSessionId]: [...(prev[activeSessionId] || []), optMsg],
+      }));
     }
 
     emit("OnSendMessage", payload);
@@ -949,8 +982,8 @@ export function ChatWidget({
 
         {/* Message List Container */}
         <div className="chat-messages-container">
-          {activeSession && activeSession.messages && activeSession.messages.length > 0 ? (
-            activeSession.messages.map((msg) => (
+          {activeSession && displayMessages.length > 0 ? (
+            displayMessages.map((msg) => (
               <div key={msg.id} className={`chat-message-row ${msg.role}`}>
                 <div className="chat-message-bubble" style={msg.role === "assistant" && msg.rawStream ? { width: "85%", maxWidth: "85%" } : undefined}>
                   {msg.role === "assistant" && (

@@ -332,4 +332,23 @@ public class CodexEventParserTests
         Assert.Equal(AgentEventKind.Error, err.Kind);
         Assert.Equal("Model metadata not found.", err.Message);
     }
+
+    [Fact]
+    public void BuildResult_WithTextEvents_PopulatesResponse()
+    {
+        var agentMsgJson = """{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"Yep, alive and ready."}}""";
+        var turnCompletedJson = """{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":5}}""";
+
+        var events = new List<AgentEvent>();
+        events.AddRange(_parser.ParseLine(agentMsgJson));
+        events.AddRange(_parser.ParseLine(turnCompletedJson));
+
+        var result = _parser.BuildResult(events, 0);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Yep, alive and ready.", result.Response);
+        Assert.NotNull(result.Usage);
+        Assert.Equal(10, result.Usage.InputTokens);
+    }
 }

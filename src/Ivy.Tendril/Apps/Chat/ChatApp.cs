@@ -72,18 +72,21 @@ public class ChatApp : ViewBase
 
         var currentVersion = sessionVersion.Value;
         var sessions = chatService.GetSessions();
-        if (sessions.Count == 0 && activeSessionId.Value == null && string.IsNullOrEmpty(args?.Prompt))
+        var currentSessionId = activeSessionId.Value;
+        if (sessions.Count == 0 && currentSessionId == null && string.IsNullOrEmpty(args?.Prompt))
         {
             var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
-            activeSessionId.Set(newSess.Id);
+            currentSessionId = newSess.Id;
+            activeSessionId.Set(currentSessionId);
             sessions = chatService.GetSessions();
         }
-        else if (activeSessionId.Value == null && sessions.Count > 0 && !initialHandled.Value && string.IsNullOrEmpty(args?.Prompt))
+        else if (currentSessionId == null && sessions.Count > 0 && string.IsNullOrEmpty(args?.Prompt))
         {
-            activeSessionId.Set(sessions[0].Id);
+            currentSessionId = sessions[0].Id;
+            activeSessionId.Set(currentSessionId);
         }
 
-        var activeSession = activeSessionId.Value != null ? chatService.GetSession(activeSessionId.Value) : null;
+        var activeSession = currentSessionId != null ? chatService.GetSession(currentSessionId) : null;
         if (activeSession != null)
         {
             chatService.ClearSessionCompleted(activeSession.Id);
@@ -293,12 +296,21 @@ public class ChatApp : ViewBase
                 activeSessionRef.Value = session;
 
                 var rawLines = new List<string>();
+                string? lastTextEvent = null;
                 var rawLock = new object();
 
                 using var sub = session.Events.Subscribe(evt =>
                 {
                     try
                     {
+                        if (evt is TextEvent textEvt && !string.IsNullOrWhiteSpace(textEvt.Text))
+                        {
+                            lock (rawLock)
+                            {
+                                lastTextEvent = textEvt.Text;
+                            }
+                        }
+
                         var wireJson = serializer.Serialize(evt);
                         if (!string.IsNullOrEmpty(wireJson))
                         {
@@ -319,17 +331,28 @@ public class ChatApp : ViewBase
                     }
                 });
 
-                var result = await session.WaitForCompletionAsync();
+                var jobTimeoutMinutes = configService.Settings.JobTimeout;
+                var totalTimeout = jobTimeoutMinutes > 0
+                    ? TimeSpan.FromMinutes(jobTimeoutMinutes)
+                    : TimeSpan.FromMinutes(15);
+                using var timeoutCts = new CancellationTokenSource(totalTimeout);
 
-                var responseContent = !string.IsNullOrWhiteSpace(result.Response)
-                    ? result.Response
-                    : (result.IsSuccess ? "Task completed successfully." : "Agent execution completed with status code " + (result.ExitCode?.ToString() ?? "unknown"));
+                var result = await session.WaitForCompletionAsync(timeoutCts.Token);
 
+                string? collectedText = null;
                 string? fullRawStream = null;
                 lock (rawLock)
                 {
+                    collectedText = lastTextEvent;
                     if (rawLines.Count > 0) fullRawStream = string.Join("\n", rawLines);
                 }
+
+                var responseContent = !string.IsNullOrWhiteSpace(result.Response)
+                    ? result.Response
+                    : (!string.IsNullOrWhiteSpace(collectedText)
+                        ? collectedText
+                        : (result.IsSuccess ? "Task completed successfully." : "Agent execution completed with status code " + (result.ExitCode?.ToString() ?? "unknown")));
+
                 chatService.AddMessage(targetSessionId, "assistant", responseContent, selectedAgent.Value, selectedModel.Value, rawStream: fullRawStream, effort: selectedEffort.Value);
 
                 var currentSession = chatService.GetSession(targetSessionId);
@@ -513,20 +536,6 @@ public class ChatApp : ViewBase
         var catalog = runner.GetModelCatalog(normalized);
         if (catalog != null)
         {
-            try
-            {
-                var asyncResult = catalog.GetModelsAsync().GetAwaiter().GetResult();
-                if (asyncResult != null && asyncResult.Models.Count > 0)
-                {
-                    var sorted = ModelCatalogSorter.Sort(asyncResult.Models);
-                    return sorted.Select(m => (m.Id, m.DisplayName ?? m.Id)).ToList();
-                }
-            }
-            catch
-            {
-                // Fallback to static model catalog if discovery times out or throws
-            }
-
             var staticModels = catalog.GetStaticModels();
             if (staticModels != null && staticModels.Count > 0)
             {

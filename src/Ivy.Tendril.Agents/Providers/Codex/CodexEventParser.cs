@@ -59,10 +59,20 @@ public sealed class CodexEventParser : IEventParser
 
     public ResultEvent? BuildResult(IReadOnlyList<AgentEvent> events, int exitCode)
     {
+        string? responseText = null;
+        var textEvents = events.OfType<TextEvent>().Where(t => !string.IsNullOrWhiteSpace(t.Text)).ToList();
+        if (textEvents.Count > 0)
+        {
+            responseText = string.Join("\n\n", textEvents.Select(t => t.Text));
+        }
+
         for (var i = events.Count - 1; i >= 0; i--)
         {
             if (events[i] is ResultEvent result)
-                return result with { ExitCode = exitCode };
+            {
+                var response = !string.IsNullOrWhiteSpace(result.Response) ? result.Response : responseText;
+                return result with { ExitCode = exitCode, Response = response };
+            }
         }
 
         return new ResultEvent
@@ -70,6 +80,7 @@ public sealed class CodexEventParser : IEventParser
             Kind = AgentEventKind.Result,
             IsSuccess = exitCode == 0,
             ExitCode = exitCode,
+            Response = responseText,
         };
     }
 
