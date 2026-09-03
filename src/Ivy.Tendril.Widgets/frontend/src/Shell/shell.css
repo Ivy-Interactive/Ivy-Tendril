@@ -760,6 +760,7 @@
   justify-content: space-between;
   padding: 0 12px;
   flex-shrink: 0;
+  min-height: 20px;
 }
 
 .tsh-section-title {
