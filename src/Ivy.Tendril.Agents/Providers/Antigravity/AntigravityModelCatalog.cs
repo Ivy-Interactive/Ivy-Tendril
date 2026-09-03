@@ -27,6 +27,16 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
     [
         new()
         {
+            Id = "gemini-3.8-flash", DisplayName = "Gemini 3.8 Flash",
+            Capabilities = MidCaps,
+            SupportedEfforts = EffortLevels.Antigravity,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "google",
+            InputPerMillion = 0.15m, OutputPerMillion = 0.60m,
+            CacheWritePerMillion = 0m, CacheReadPerMillion = 0.0375m,
+        },
+        new()
+        {
             Id = "gemini-3.7-flash", DisplayName = "Gemini 3.7 Flash",
             Capabilities = MidCaps, IsDefault = true,
             SupportedEfforts = EffortLevels.Antigravity,
