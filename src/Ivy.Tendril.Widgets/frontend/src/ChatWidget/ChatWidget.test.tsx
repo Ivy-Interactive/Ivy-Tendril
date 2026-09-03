@@ -675,4 +675,58 @@ describe("ChatWidget File Uploads and Attachments", () => {
       window.XMLHttpRequest = origXHR;
     }
   });
+
+  it("handles 20MB large image upload without crashing and downscales before uploading", async () => {
+    let capturedXhr: any = null;
+
+    class MockXMLHttpRequest {
+      open = vi.fn();
+      send = vi.fn();
+      upload = { onprogress: null as any };
+      onload: any = null;
+      onerror: any = null;
+      status = 200;
+      constructor() {
+        capturedXhr = this;
+      }
+    }
+
+    const origXHR = window.XMLHttpRequest;
+    (window as any).XMLHttpRequest = MockXMLHttpRequest;
+
+    try {
+      render(
+        <ChatWidget
+          id="test-chat"
+          activeSessionId="sess-1"
+          uploadUrl="/ivy/upload/test"
+        />
+      );
+
+      const textarea = screen.getByPlaceholderText(/Ask/i);
+      const sendBtn = screen.getByRole("button", { name: /Send/i });
+
+      const largeImage = new File(["dummy-data"], "large-photo.jpg", { type: "image/jpeg" });
+      Object.defineProperty(largeImage, "size", { value: 20 * 1024 * 1024 });
+
+      fireEvent.paste(textarea, {
+        clipboardData: { files: [largeImage], items: [] },
+        preventDefault: vi.fn(),
+      });
+
+      await waitFor(() => {
+        expect(capturedXhr).not.toBeNull();
+        expect(capturedXhr.open).toHaveBeenCalledWith("POST", "/ivy/upload/test", true);
+      });
+
+      capturedXhr.status = 200;
+      capturedXhr.onload();
+
+      await waitFor(() => {
+        expect(sendBtn).not.toBeDisabled();
+      });
+    } finally {
+      window.XMLHttpRequest = origXHR;
+    }
+  });
 });

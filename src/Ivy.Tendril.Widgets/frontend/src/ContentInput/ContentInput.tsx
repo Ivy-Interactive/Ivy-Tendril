@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { VoiceRecorder, type VoiceStatus } from "./voice-recorder";
+import { isImageFile, processImageFile } from "../imageUtils";
 import "./content-input.css";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
@@ -207,10 +208,22 @@ export const ContentInput: React.FC<ContentInputProps> = ({
     }
   }, [autoFocus]);
 
-  const isImageFile = (path: string) => {
-    const ext = path.split(".").pop()?.toLowerCase();
-    return ["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(ext || "");
-  };
+  const previewsRef = useRef(previews);
+  useEffect(() => {
+    previewsRef.current = previews;
+  }, [previews]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(previewsRef.current).forEach((url) => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          // ignore
+        }
+      });
+    };
+  }, []);
 
   const isPdfFile = (path: string) => {
     const ext = path.split(".").pop()?.toLowerCase();
@@ -480,7 +493,6 @@ export const ContentInput: React.FC<ContentInputProps> = ({
       } catch (err) {
         console.error("[ContentInput] File upload failed:", err);
         setRecordError(`Failed to upload file: ${err instanceof Error ? err.message : err}`);
-        throw err;
       }
     } else {
       // Fallback to base64 WebSocket transfer
@@ -518,8 +530,21 @@ export const ContentInput: React.FC<ContentInputProps> = ({
 
   const handleFiles = async (filesList: FileList | File[]) => {
     const list = Array.from(filesList);
+    const processedList: File[] = [];
 
     for (const file of list) {
+      let processed = file;
+      if (isImageFile(file.name) || file.type.startsWith("image/")) {
+        try {
+          processed = await processImageFile(file);
+        } catch {
+          processed = file;
+        }
+      }
+      processedList.push(processed);
+    }
+
+    for (const file of processedList) {
       const sizeStr = formatSize(file.size);
       let lineCount: number | undefined;
 
@@ -546,28 +571,48 @@ export const ContentInput: React.FC<ContentInputProps> = ({
       }
     }
 
-    for (const file of list) {
+    const addedFileNames = processedList.map((f) => f.name);
+    setFiles((prev) => {
+      const combined = [...prev];
+      for (const name of addedFileNames) {
+        if (!combined.includes(name)) {
+          combined.push(name);
+        }
+      }
+      return combined;
+    });
+
+    for (const file of processedList) {
       await handleUploadFile(file);
     }
   };
 
   const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    const items = e.clipboardData.items;
+    const items = e.clipboardData?.items;
+    const files = e.clipboardData?.files;
     const pastedFiles: File[] = [];
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].kind === "file") {
-        const itemFile = items[i].getAsFile();
-        if (itemFile) {
-          const mimeType = itemFile.type || "image/png";
-          const ext = mimeType.split("/")[1] || "png";
-          const fileName = itemFile.name && itemFile.name.trim() !== "" && itemFile.name !== "image.png" && itemFile.name !== "blob"
-            ? itemFile.name
-            : `screenshot_${Date.now()}_${i}.${ext}`;
-          const renamedFile = new File([itemFile], fileName, { type: mimeType });
-          pastedFiles.push(renamedFile);
+
+    if (files && files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        pastedFiles.push(files[i]);
+      }
+    } else if (items && items.length > 0) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].kind === "file") {
+          const itemFile = items[i].getAsFile();
+          if (itemFile) {
+            const mimeType = itemFile.type || "image/png";
+            const ext = mimeType.split("/")[1] || "png";
+            const fileName = itemFile.name && itemFile.name.trim() !== "" && itemFile.name !== "image.png" && itemFile.name !== "blob"
+              ? itemFile.name
+              : `screenshot_${Date.now()}_${i}.${ext}`;
+            const renamedFile = new File([itemFile], fileName, { type: mimeType });
+            pastedFiles.push(renamedFile);
+          }
         }
       }
     }
+
     if (pastedFiles.length > 0) {
       e.preventDefault();
       await handleFiles(pastedFiles);

@@ -191,7 +191,10 @@ public class ChatApp : ViewBase
                     try
                     {
                         var rawName = Path.GetFileName(att.Name);
-                        var fileName = !string.IsNullOrWhiteSpace(rawName) ? rawName : $"file_{Guid.NewGuid():N}.bin";
+                        var fileName = !string.IsNullOrWhiteSpace(rawName)
+                            ? string.Concat(rawName.Split(Path.GetInvalidFileNameChars()))
+                            : $"file_{Guid.NewGuid():N}.bin";
+                        if (string.IsNullOrWhiteSpace(fileName)) fileName = $"file_{Guid.NewGuid():N}.bin";
                         var filePath = !string.IsNullOrWhiteSpace(att.LocalPath) && File.Exists(att.LocalPath)
                             ? att.LocalPath
                             : Path.Combine(attachDir, fileName);

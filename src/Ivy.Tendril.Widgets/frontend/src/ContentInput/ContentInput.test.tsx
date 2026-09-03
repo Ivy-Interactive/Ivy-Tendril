@@ -173,4 +173,69 @@ describe("ContentInput", () => {
     expect(document.querySelector(".civ-mode-selector-container")).toBeNull();
     expect(screen.queryByTitle("Select job execution mode")).toBeNull();
   });
+
+  it("posts uploads via HTTP multipart FormData when uploadUrl is present", async () => {
+    const origFetch = global.fetch;
+    const mockFetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+    global.fetch = mockFetch;
+
+    try {
+      render(<ContentInput id="civ-1" value="" uploadUrl="/api/upload/test" />);
+      const textarea = screen.getByPlaceholderText("How can I help you today?");
+
+      const imageFile = new File(["test-image-bytes"], "photo.png", { type: "image/png" });
+      fireEvent.paste(textarea, {
+        clipboardData: {
+          items: [{ kind: "file", getAsFile: () => imageFile }],
+          files: [imageFile],
+        },
+      });
+
+      await vi.waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          "/api/upload/test",
+          expect.objectContaining({
+            method: "POST",
+            body: expect.any(FormData),
+          })
+        );
+      });
+    } finally {
+      global.fetch = origFetch;
+    }
+  });
+
+  it("revokes object URLs when a file preview is removed", async () => {
+    const origCreateObjectURL = URL.createObjectURL;
+    const origRevokeObjectURL = URL.revokeObjectURL;
+
+    URL.createObjectURL = vi.fn().mockReturnValue("blob:http://localhost/test-preview");
+    URL.revokeObjectURL = vi.fn();
+
+    try {
+      render(<ContentInput id="civ-1" value="" />);
+      const textarea = screen.getByPlaceholderText("How can I help you today?");
+
+      const imageFile = new File(["image-bytes"], "preview-photo.png", { type: "image/png" });
+      fireEvent.paste(textarea, {
+        clipboardData: {
+          items: [{ kind: "file", getAsFile: () => imageFile }],
+          files: [imageFile],
+        },
+      });
+
+      await vi.waitFor(() => {
+        expect(document.querySelector(".civ-thumbnail-card")).toBeTruthy();
+      });
+
+      const removeBtn = document.querySelector(".civ-thumbnail-card-remove") as HTMLButtonElement;
+      expect(removeBtn).toBeTruthy();
+      fireEvent.click(removeBtn);
+
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:http://localhost/test-preview");
+    } finally {
+      URL.createObjectURL = origCreateObjectURL;
+      URL.revokeObjectURL = origRevokeObjectURL;
+    }
+  });
 });

@@ -42,10 +42,14 @@ public class ContentView(
 
         var upload = UseUpload(async (fileUpload, stream, ct) =>
         {
-            var attachDir = Path.Combine(configService.TendrilHome, "Attachments", activeSessionId.Value ?? "temp");
+            var targetSession = activeSessionId.Value ?? "temp";
+            var attachDir = Path.Combine(configService.TendrilHome, "Attachments", targetSession);
             Directory.CreateDirectory(attachDir);
             var rawName = Path.GetFileName(fileUpload.FileName);
-            var safeFileName = string.IsNullOrWhiteSpace(rawName) ? $"file_{Guid.NewGuid():N}.bin" : rawName;
+            var safeFileName = !string.IsNullOrWhiteSpace(rawName)
+                ? string.Concat(rawName.Split(Path.GetInvalidFileNameChars()))
+                : $"file_{Guid.NewGuid():N}.bin";
+            if (string.IsNullOrWhiteSpace(safeFileName)) safeFileName = $"file_{Guid.NewGuid():N}.bin";
             var filePath = Path.Combine(attachDir, safeFileName);
             await using var fileStream = File.Create(filePath);
             await stream.CopyToAsync(fileStream, ct);

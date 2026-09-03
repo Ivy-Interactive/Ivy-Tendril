@@ -8,6 +8,7 @@ import { AgentViewer } from "../AgentViewer";
 import { getMarkdownPlugins } from "../math";
 import { BlockHandler } from "../BlockHandler";
 import { AlertBlockquote } from "../PlanMarkdown/AlertBlockquote";
+import { isImageFile, processImageFile } from "../imageUtils";
 import "./chat-widget.css";
 
 if (typeof window !== "undefined") {
@@ -82,13 +83,6 @@ const PdfThumbnail: React.FC<{ url: string }> = ({ url }) => {
   }
 
   return <canvas ref={canvasRef} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top", display: "block" }} />;
-};
-
-const isImageFile = (nameOrType: string) => {
-  const lower = nameOrType.toLowerCase();
-  if (lower.startsWith("image/")) return true;
-  const ext = lower.split(".").pop() || "";
-  return ["png", "jpg", "jpeg", "webp", "gif", "svg"].includes(ext);
 };
 
 const isPdfFile = (nameOrType: string) => {
@@ -451,6 +445,25 @@ export function ChatWidget({
     setIsEditingTitle(false);
   };
 
+  const attachmentsRef = useRef(attachments);
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
+
+  useEffect(() => {
+    return () => {
+      attachmentsRef.current.forEach((att) => {
+        if (att.previewUrl) {
+          try {
+            URL.revokeObjectURL(att.previewUrl);
+          } catch {
+            // ignore
+          }
+        }
+      });
+    };
+  }, []);
+
   const handleSendMessage = () => {
     const trimmed = promptText.trim();
     if (!trimmed && attachments.length === 0) return;
@@ -463,7 +476,7 @@ export function ChatWidget({
       size: att.size,
       localPath: att.localPath,
       fileId: att.fileId,
-      base64Data: att.base64Data || undefined,
+      base64Data: (uploadUrl && att.uploadStatus === "finished") ? undefined : (att.base64Data || undefined),
     }));
 
     const payload = { prompt: trimmed, attachments: payloadAttachments, sessionId: activeSessionId };
@@ -541,7 +554,14 @@ export function ChatWidget({
     const filesToUpload: { file: File; fileId: string; fileName: string }[] = [];
 
     for (let i = 0; i < list.length; i++) {
-      const file = list[i];
+      let file = list[i];
+      if (isImageFile(file.type || file.name)) {
+        try {
+          file = await processImageFile(file);
+        } catch {
+          // ignore, keep original file
+        }
+      }
       const mimeType = file.type || "application/octet-stream";
       const ext = mimeType.split("/")[1] || file.name?.split(".").pop() || "bin";
       const fileName =
