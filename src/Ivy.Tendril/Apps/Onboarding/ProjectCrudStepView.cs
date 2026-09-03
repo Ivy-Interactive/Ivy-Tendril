@@ -49,7 +49,7 @@ public class ProjectCrudStepView(
 
         var allVerifications = config.Settings.Verifications;
         var verificationRows = (project?.Verifications ?? [])
-            .Select(pv => new VerificationRow(pv.Name))
+            .Select((pv, i) => new VerificationRow(pv.Name, i))
             .ToList();
 
         var verificationTable = new TableBuilder<VerificationRow>(verificationRows)
@@ -57,34 +57,36 @@ public class ProjectCrudStepView(
             .Builder(t => t.Name, f => f.Func<VerificationRow, string>(name =>
                 Text.Block(name).Bold()
             ))
-            .Header(t => t.Name, "")
-            .Builder(t => t.Name, f => f.Func<VerificationRow, string>(vName =>
-                Layout.Horizontal().Gap(1)
-                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() =>
-                    showVerificationTrigger(vName))
-                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
-                {
-                    showVerificationAlert($"Are you sure you want to delete '{vName}'?", result =>
+            .Header(t => t.Index, "")
+            .Builder(t => t.Index, f => f.Func<VerificationRow, int>(idx =>
+            {
+                var vName = verificationRows[idx].Name;
+                return Layout.Horizontal()
+                    | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() =>
+                        showVerificationTrigger(vName))
+                    | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
                     {
-                        if (result == AlertResult.Ok)
+                        showVerificationAlert($"Are you sure you want to delete '{vName}'?", result =>
                         {
-                            allVerifications.RemoveAll(v => v.Name.Equals(vName, StringComparison.OrdinalIgnoreCase));
-                            if (project != null)
-                                project.Verifications.RemoveAll(v => v.Name.Equals(vName, StringComparison.OrdinalIgnoreCase));
-                            try
+                            if (result == AlertResult.Ok)
                             {
-                                config.SaveSettings();
-                                client.Toast($"Verification '{vName}' deleted", "Deleted");
-                                refreshToken.Refresh();
+                                allVerifications.RemoveAll(v => v.Name.Equals(vName, StringComparison.OrdinalIgnoreCase));
+                                if (project != null)
+                                    project.Verifications.RemoveAll(v => v.Name.Equals(vName, StringComparison.OrdinalIgnoreCase));
+                                try
+                                {
+                                    config.SaveSettings();
+                                    client.Toast($"Verification '{vName}' deleted", "Deleted");
+                                    refreshToken.Refresh();
+                                }
+                                catch (Exception ex)
+                                {
+                                    client.Toast($"Failed to delete: {ex.Message}", "Error");
+                                }
                             }
-                            catch (Exception ex)
-                            {
-                                client.Toast($"Failed to delete: {ex.Message}", "Error");
-                            }
-                        }
-                    }, "Delete Verification", AlertButtonSet.OkCancel);
-                })
-            ))
+                        }, "Delete Verification", AlertButtonSet.OkCancel);
+                    });
+            }))
             .Width(Size.Fit());
 
         var buttonArea = Layout.Horizontal().Width(Size.Full())
@@ -94,7 +96,7 @@ public class ProjectCrudStepView(
             | new Button(nextButtonText).Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
                 .OnClick(onNext);
 
-        return Layout.Vertical().Margin(0, 0, 0, 2)
+        return Layout.Vertical()
                | (showHeader ? Text.H3("Review Harness") : null!)
                | Text.Muted("Review and edit the configuration generated for your project.")
                | (Layout.Vertical()
@@ -107,7 +109,7 @@ public class ProjectCrudStepView(
                | (Layout.Vertical()
                   | Text.Block("Review Actions").Bold()
                   | Text.Muted("Commands that makes it easy to start you project for manual testing.")
-                  | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx), projectName: projectName.Value)
+                  | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx), projectName: projectName.Value, showRun: false)
                   | new Button("Add Review Action").Icon(Icons.Plus).Outline()
                       .OnClick(() => showReviewActionTrigger(null)))
                | new Separator()
@@ -118,7 +120,7 @@ public class ProjectCrudStepView(
                | buttonArea;
     }
 
-    private record VerificationRow(string Name);
+    private record VerificationRow(string Name, int Index);
 }
 
 internal class OnboardingEditReviewActionDialog(

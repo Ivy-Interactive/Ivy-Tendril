@@ -371,7 +371,8 @@ public class ReviewActionsTableView(
     IState<List<ReviewActionConfig>> reviewActions,
     Action<int?> onEdit,
     string? projectName = null,
-    Action<ReviewActionConfig>? onRun = null) : ViewBase
+    Action<ReviewActionConfig>? onRun = null,
+    bool showRun = true) : ViewBase
 {
     public override object? Build()
     {
@@ -390,8 +391,10 @@ public class ReviewActionsTableView(
             .Builder(t => t.Index, f => f.Func<ReviewActionRow, int>(idx =>
             {
                 var action = actions[idx];
-                return Layout.Horizontal().Gap(1)
-                    | new Button().Icon(Icons.Play).Outline().Small().Tooltip("Run / Preview Action").OnClick(() =>
+                var rowLayout = Layout.Horizontal();
+                if (showRun)
+                {
+                    rowLayout = rowLayout | new Button().Icon(Icons.Play).Outline().Small().Tooltip("Run / Preview Action").OnClick(() =>
                     {
                         if (onRun != null)
                         {
@@ -401,7 +404,9 @@ public class ReviewActionsTableView(
                         {
                             nav.Navigate<ReviewActionApp>(new ReviewActionAppArgs(ActionName: action.Name, ProjectName: projectName));
                         }
-                    })
+                    });
+                }
+                return rowLayout
                     | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
                     | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
                     {
@@ -434,7 +439,7 @@ public class ProjectVerificationsTableView(
             ))
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<VerificationRow, int>(idx =>
-                Layout.Horizontal().Gap(1)
+                Layout.Horizontal()
                 | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(rows[idx].Name))
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
                 {
