@@ -1,4 +1,4 @@
-﻿using System.Buffers;
+using System.Buffers;
 using System.Text;
 using System.Text.Json;
 using Ivy.Tendril.Agents.Abstractions;
@@ -40,6 +40,8 @@ public sealed class CodexEventParser : IEventParser
                 "thread.started" => ParseThreadStarted(root, rawLine),
                 "item.completed" => ParseItemCompleted(root, rawLine),
                 "turn.completed" => ParseTurnCompleted(root, rawLine),
+                "error" => ParseError(root, rawLine),
+                "turn.failed" => ParseTurnFailed(root, rawLine),
                 _ => [new UnknownEvent { Kind = AgentEventKind.Unknown, Content = rawLine, RawLine = rawLine }]
             };
         }
@@ -124,6 +126,7 @@ public sealed class CodexEventParser : IEventParser
         {
             "agent_message" => ParseAgentMessage(item, itemId, rawLine),
             "command_execution" => ParseCommandExecution(item, itemId, rawLine),
+            "error" => ParseItemError(item, itemId, rawLine),
             _ => [new UnknownEvent { Kind = AgentEventKind.Unknown, Content = rawLine, RawLine = rawLine }]
         };
     }
@@ -194,5 +197,97 @@ public sealed class CodexEventParser : IEventParser
             Usage = usage,
             RawLine = rawLine,
         }];
+    }
+
+    private static IReadOnlyList<AgentEvent> ParseItemError(JsonElement item, string itemId, string rawLine)
+    {
+        var rawMsg = item.TryGetProperty("message", out var msgProp) ? msgProp.GetString() ?? "" : "";
+        var cleanMsg = ExtractErrorMessage(rawMsg);
+        return [new ErrorEvent
+        {
+            Kind = AgentEventKind.Error,
+            Message = cleanMsg,
+            RawLine = rawLine,
+        }];
+    }
+
+    private static IReadOnlyList<AgentEvent> ParseError(JsonElement root, string rawLine)
+    {
+        var rawMsg = root.TryGetProperty("message", out var msgProp) ? msgProp.GetString() ?? "" : "";
+        var cleanMsg = ExtractErrorMessage(rawMsg);
+        var isAuth = cleanMsg.Contains("auth", StringComparison.OrdinalIgnoreCase) ||
+                     cleanMsg.Contains("login", StringComparison.OrdinalIgnoreCase) ||
+                     cleanMsg.Contains("unauthorized", StringComparison.OrdinalIgnoreCase);
+
+        return [new ErrorEvent
+        {
+            Kind = AgentEventKind.Error,
+            Message = cleanMsg,
+            IsAuthError = isAuth,
+            RawLine = rawLine,
+        }];
+    }
+
+    private static IReadOnlyList<AgentEvent> ParseTurnFailed(JsonElement root, string rawLine)
+    {
+        var rawMsg = "";
+        if (root.TryGetProperty("error", out var errEl))
+        {
+            if (errEl.ValueKind == JsonValueKind.Object && errEl.TryGetProperty("message", out var msgProp))
+                rawMsg = msgProp.GetString() ?? "";
+            else if (errEl.ValueKind == JsonValueKind.String)
+                rawMsg = errEl.GetString() ?? "";
+        }
+
+        var cleanMsg = ExtractErrorMessage(rawMsg);
+        if (string.IsNullOrWhiteSpace(cleanMsg))
+            cleanMsg = "Turn failed";
+
+        var isAuth = cleanMsg.Contains("auth", StringComparison.OrdinalIgnoreCase) ||
+                     cleanMsg.Contains("login", StringComparison.OrdinalIgnoreCase) ||
+                     cleanMsg.Contains("unauthorized", StringComparison.OrdinalIgnoreCase);
+
+        return [new ErrorEvent
+        {
+            Kind = AgentEventKind.Error,
+            Message = cleanMsg,
+            IsAuthError = isAuth,
+            RawLine = rawLine,
+        }];
+    }
+
+    internal static string ExtractErrorMessage(string rawMessage)
+    {
+        if (string.IsNullOrWhiteSpace(rawMessage)) return "";
+
+        var trimmed = rawMessage.Trim();
+        if (trimmed.StartsWith('{') && trimmed.EndsWith('}'))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(trimmed);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("error", out var errorEl))
+                {
+                    if (errorEl.ValueKind == JsonValueKind.Object &&
+                        errorEl.TryGetProperty("message", out var nestedMsg) &&
+                        nestedMsg.GetString() is { } msg)
+                    {
+                        return msg;
+                    }
+                    if (errorEl.ValueKind == JsonValueKind.String && errorEl.GetString() is { } str)
+                    {
+                        return str;
+                    }
+                }
+                if (root.TryGetProperty("message", out var msgEl) && msgEl.GetString() is { } m)
+                {
+                    return m;
+                }
+            }
+            catch (JsonException) { }
+        }
+
+        return rawMessage;
     }
 }

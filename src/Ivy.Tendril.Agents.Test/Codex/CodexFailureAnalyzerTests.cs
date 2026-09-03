@@ -225,4 +225,54 @@ public class CodexFailureAnalyzerTests
 
         Assert.NotEmpty(result.ContextLines);
     }
+
+    [Fact]
+    public void Analyze_ErrorEvent_UnsupportedModel_ReturnsInvalidModel()
+    {
+        var ctx = new FailureContext
+        {
+            Events =
+            [
+                new ErrorEvent
+                {
+                    Kind = AgentEventKind.Error,
+                    Message = "The 'gpt-5.6-sol' model is not supported when using Codex with a ChatGPT account.",
+                    RawLine = "",
+                }
+            ],
+            AgentId = AgentId.Codex,
+            ExitCode = 1,
+        };
+
+        var result = _analyzer.Analyze(ctx);
+
+        Assert.Equal(FailureKind.InvalidModel, result.Kind);
+        Assert.False(result.IsRetryable);
+        Assert.Contains("gpt-5.6-sol", result.Reason);
+    }
+
+    [Fact]
+    public void Analyze_ErrorEvent_UsageLimit_ReturnsRateLimit()
+    {
+        var ctx = new FailureContext
+        {
+            Events =
+            [
+                new ErrorEvent
+                {
+                    Kind = AgentEventKind.Error,
+                    Message = "You've hit your usage limit. To continue using Codex and get access to GPT-5.3-Codex, start a free trial of Plus today.",
+                    RawLine = "",
+                }
+            ],
+            AgentId = AgentId.Codex,
+            ExitCode = 1,
+        };
+
+        var result = _analyzer.Analyze(ctx);
+
+        Assert.Equal(FailureKind.RateLimit, result.Kind);
+        Assert.True(result.IsRetryable);
+        Assert.Contains("hit your usage limit", result.Reason);
+    }
 }
