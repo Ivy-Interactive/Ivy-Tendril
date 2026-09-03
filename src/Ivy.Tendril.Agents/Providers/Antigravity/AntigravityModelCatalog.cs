@@ -57,6 +57,26 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
         },
         new()
         {
+            Id = "claude-fable-5", DisplayName = "Claude Fable 5",
+            Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "anthropic",
+            InputPerMillion = 10.00m, OutputPerMillion = 50.00m,
+            CacheWritePerMillion = 12.50m, CacheReadPerMillion = 1.00m,
+        },
+        new()
+        {
+            Id = "claude-opus-5-1", DisplayName = "Claude Opus 5.1",
+            Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "anthropic",
+            InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
+            CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
+        },
+        new()
+        {
             Id = "claude-opus-5", DisplayName = "Claude Opus 5",
             Capabilities = FullCaps,
             SupportedEfforts = EffortLevels.Claude,
@@ -74,6 +94,26 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
             Provider = "anthropic",
             InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
             CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
+        },
+        new()
+        {
+            Id = "claude-sonnet-5-1", DisplayName = "Claude Sonnet 5.1",
+            Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "anthropic",
+            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
+            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
+        },
+        new()
+        {
+            Id = "claude-5.1", DisplayName = "Claude 5.1",
+            Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "anthropic",
+            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
+            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
         },
         new()
         {

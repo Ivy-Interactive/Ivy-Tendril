@@ -5,11 +5,11 @@ namespace Ivy.Tendril.Agents.Helpers;
 
 public static class ModelCatalogSorter
 {
-    private static readonly Regex ClaudeOpusSonnetHaikuMajorMinorRegex = new(@"(?:claude-)?(?:opus|sonnet|haiku)-(\d+)[.\-_](\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex ClaudeOpusSonnetHaikuMajorRegex = new(@"(?:claude-)?(?:opus|sonnet|haiku)-(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex ClaudeOpusSonnetHaikuMajorMinorRegex = new(@"(?:claude-)?(?:fable|opus|sonnet|haiku)-(\d+)[.\-_](\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex ClaudeOpusSonnetHaikuMajorRegex = new(@"(?:claude-)?(?:fable|opus|sonnet|haiku)-(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex ClaudeMajorMinorRegex = new(@"claude-(\d+)[.\-_](\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex ClaudeMajorRegex = new(@"claude-(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private static readonly Regex ClaudeDisplayRegex = new(@"(?:Opus|Sonnet|Haiku)\s+(\d+)(?:\.(\d+))?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex ClaudeDisplayRegex = new(@"(?:Fable|Opus|Sonnet|Haiku)\s+(\d+)(?:\.(\d+))?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex GptMajorMinorRegex = new(@"gpt-(\d+)[.\-_](\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex GptMajorRegex = new(@"gpt-(\d+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -125,7 +125,7 @@ public static class ModelCatalogSorter
         }
 
         var id = model.Id.ToLowerInvariant();
-        if (id.Contains("claude") || id.Contains("opus") || id.Contains("sonnet") || id.Contains("haiku")) return "anthropic";
+        if (id.Contains("claude") || id.Contains("fable") || id.Contains("opus") || id.Contains("sonnet") || id.Contains("haiku")) return "anthropic";
         if (id.Contains("gpt") || id.StartsWith("o1") || id.StartsWith("o3") || id.StartsWith("o4") || id.Contains("codex")) return "openai";
         if (id.Contains("gemini")) return "google";
         if (id.Contains("kimi") || id.Contains("moonshot")) return "moonshot";
@@ -159,15 +159,17 @@ public static class ModelCatalogSorter
     private static ModelRank GetAnthropicRank(string id, string name, string combined)
     {
         // Anthropic Tiers:
-        // Tier 0: Opus
-        // Tier 1: Sonnet
-        // Tier 2: Haiku
-        // Tier 3: Other Anthropic
+        // Tier 0: Fable
+        // Tier 1: Opus
+        // Tier 2: Sonnet
+        // Tier 3: Haiku
+        // Tier 4: Other Anthropic
         int tier;
-        if (combined.Contains("opus")) tier = 0;
-        else if (combined.Contains("sonnet")) tier = 1;
-        else if (combined.Contains("haiku")) tier = 2;
-        else tier = 3;
+        if (combined.Contains("fable")) tier = 0;
+        else if (combined.Contains("opus")) tier = 1;
+        else if (combined.Contains("sonnet")) tier = 2;
+        else if (combined.Contains("haiku")) tier = 3;
+        else tier = 4;
 
         var version = ParseAnthropicVersion(id, name);
         int variant = 0;

@@ -28,33 +28,33 @@ public static class ModelProfilePriorities
             // === Ivy Proxy ===
             [(ModelProviderKind.Ivy, ModelProfileKind.Deep)] =
             [
-                "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5",
+                "claude-fable-5", "claude-opus-5-1", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5",
                 "claude-opus-4", "opus", "gpt-5.6-sol", "sol", "claude-sonnet-5", "gemini-3.7-flash"
             ],
             [(ModelProviderKind.Ivy, ModelProfileKind.Balanced)] =
             [
-                "gemini-3.7-flash", "gemini-3.6-flash", "claude-sonnet-5",
+                "gemini-3.7-flash", "gemini-3.6-flash", "claude-sonnet-5-1", "claude-5.1", "claude-sonnet-5",
                 "claude-sonnet-4-6", "gpt-5.6-terra", "terra", "gemini-2.5-flash"
             ],
             [(ModelProviderKind.Ivy, ModelProfileKind.Quick)] =
             [
-                "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "claude-haiku-4-5",
+                "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "claude-haiku-5-1", "claude-haiku-4-5",
                 "claude-haiku-5", "gpt-5.6-luna", "luna", "gpt-4o-mini"
             ],
 
             // === Anthropic Direct ===
             [(ModelProviderKind.Anthropic, ModelProfileKind.Deep)] =
             [
-                "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5",
+                "claude-fable-5", "claude-opus-5-1", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5",
                 "claude-opus-4", "opus", "claude-sonnet-5"
             ],
             [(ModelProviderKind.Anthropic, ModelProfileKind.Balanced)] =
             [
-                "claude-sonnet-5", "claude-sonnet-4-6", "claude-sonnet-4-5", "claude-sonnet-4", "sonnet", "claude-haiku-4-5"
+                "claude-sonnet-5-1", "claude-5.1", "claude-sonnet-5", "claude-sonnet-4-6", "claude-sonnet-4-5", "claude-sonnet-4", "sonnet", "claude-haiku-4-5"
             ],
             [(ModelProviderKind.Anthropic, ModelProfileKind.Quick)] =
             [
-                "claude-haiku-4-5", "claude-haiku-5", "claude-3-5-haiku", "claude-haiku-4", "haiku"
+                "claude-haiku-5-1", "claude-haiku-4-5", "claude-haiku-5", "claude-3-5-haiku", "claude-haiku-4", "haiku"
             ],
 
             // === Google / Gemini ===
@@ -103,11 +103,11 @@ public static class ModelProfilePriorities
             // === OpenCode ===
             [(ModelProviderKind.OpenCode, ModelProfileKind.Deep)] =
             [
-                "claude-opus-5", "gpt-5.6-sol", "gemini-3.7-flash", "claude-sonnet-5"
+                "claude-fable-5", "claude-opus-5-1", "claude-opus-5", "gpt-5.6-sol", "gemini-3.7-flash", "claude-sonnet-5"
             ],
             [(ModelProviderKind.OpenCode, ModelProfileKind.Balanced)] =
             [
-                "gemini-3.7-flash", "claude-sonnet-5", "gpt-5.6-terra"
+                "gemini-3.7-flash", "claude-sonnet-5-1", "claude-5.1", "claude-sonnet-5", "gpt-5.6-terra"
             ],
             [(ModelProviderKind.OpenCode, ModelProfileKind.Quick)] =
             [
@@ -117,11 +117,11 @@ public static class ModelProfilePriorities
             // === Generic / Fallback ===
             [(ModelProviderKind.Generic, ModelProfileKind.Deep)] =
             [
-                "gpt-5.6-sol", "claude-opus-5", "gemini-3.7-flash", "claude-sonnet-5", "gpt-4o"
+                "gpt-5.6-sol", "claude-fable-5", "claude-opus-5-1", "claude-opus-5", "gemini-3.7-flash", "claude-sonnet-5", "gpt-4o"
             ],
             [(ModelProviderKind.Generic, ModelProfileKind.Balanced)] =
             [
-                "gpt-5.6-terra", "gemini-3.7-flash", "claude-sonnet-5", "gpt-4o"
+                "gpt-5.6-terra", "gemini-3.7-flash", "claude-sonnet-5-1", "claude-5.1", "claude-sonnet-5", "gpt-4o"
             ],
             [(ModelProviderKind.Generic, ModelProfileKind.Quick)] =
             [

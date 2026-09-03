@@ -126,14 +126,14 @@ public sealed class ModelProfileSelectorTests
     public void SelectDefaults_EmptyModels_ReturnsCardDefaults()
     {
         var (deepIvy, balancedIvy, quickIvy) = ModelProfileSelector.SelectDefaults(null, isIvy: true);
-        Assert.Equal("claude-opus-5", deepIvy);
+        Assert.Equal("claude-fable-5", deepIvy);
         Assert.Equal("gemini-3.7-flash", balancedIvy);
         Assert.Equal("gemini-3.7-flash", quickIvy);
 
         var (deepAnt, balancedAnt, quickAnt) = ModelProfileSelector.SelectDefaults(null, isAnthropic: true);
-        Assert.Equal("claude-opus-5", deepAnt);
-        Assert.Equal("claude-sonnet-5", balancedAnt);
-        Assert.Equal("claude-haiku-4-5", quickAnt);
+        Assert.Equal("claude-fable-5", deepAnt);
+        Assert.Equal("claude-sonnet-5-1", balancedAnt);
+        Assert.Equal("claude-haiku-5-1", quickAnt);
 
         var (deepGoogle, balancedGoogle, quickGoogle) = ModelProfileSelector.SelectDefaults(null, isGoogle: true);
         Assert.Equal("gemini-3.7-flash", deepGoogle);
@@ -155,7 +155,7 @@ public sealed class ModelProfileSelectorTests
         Assert.Equal("moonshotai/Kimi-K3", quickBerget);
 
         var (deepCode, balancedCode, quickCode) = ModelProfileSelector.SelectDefaults(null, ModelProviderKind.OpenCode);
-        Assert.Equal("claude-opus-5", deepCode);
+        Assert.Equal("claude-fable-5", deepCode);
         Assert.Equal("gemini-3.7-flash", balancedCode);
         Assert.Equal("gemini-3.7-flash", quickCode);
     }
