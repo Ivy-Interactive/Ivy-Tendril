@@ -35,12 +35,32 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
         },
         new()
         {
+            Id = "claude-fable-5", DisplayName = "Claude Fable 5",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
+        },
+        new()
+        {
+            Id = "claude-opus-5-1", DisplayName = "Claude Opus 5.1",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
+        },
+        new()
+        {
             Id = "claude-opus-5", DisplayName = "Claude Opus 5",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
         },
         new()
         {
             Id = "claude-opus-4-7", DisplayName = "Claude Opus 4.7",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
+        },
+        new()
+        {
+            Id = "claude-sonnet-5-1", DisplayName = "Claude Sonnet 5.1",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
+        },
+        new()
+        {
+            Id = "claude-5.1", DisplayName = "Claude 5.1",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
         },
         new()
@@ -151,8 +171,15 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
     private static readonly (string Pattern, KnownPricing Pricing)[] KnownPricingTable =
     [
         // Anthropic
+        ("claude-fable-5",    new(10.00m, 50.00m, 1.00m, 12.50m, 1_000_000)),
+        ("claude-opus-5-1",   new(5.00m, 25.00m, 0.50m, 6.25m, 1_000_000)),
+        ("claude-opus-5.1",   new(5.00m, 25.00m, 0.50m, 6.25m, 1_000_000)),
         ("claude-opus-5",     new(5.00m, 25.00m, 0.50m, 6.25m, 1_000_000)),
+        ("claude-sonnet-5-1", new(3.00m, 15.00m, 0.30m, 3.75m, 1_000_000)),
+        ("claude-sonnet-5.1", new(3.00m, 15.00m, 0.30m, 3.75m, 1_000_000)),
+        ("claude-5.1",        new(3.00m, 15.00m, 0.30m, 3.75m, 1_000_000)),
         ("claude-sonnet-5",   new(3.00m, 15.00m, 0.30m, 3.75m, 1_000_000)),
+        ("claude-haiku-5-1",  new(1.00m, 5.00m, 0.10m, 1.25m, 200_000)),
         ("claude-opus-4-7",   new(10.00m, 50.00m, 1.00m, 12.50m, 200_000)),
         ("claude-opus-4-6",   new(5.00m, 25.00m, 0.50m, 6.25m, 200_000)),
         ("claude-opus-4-5",   new(5.00m, 25.00m, 0.50m, 6.25m, 200_000)),

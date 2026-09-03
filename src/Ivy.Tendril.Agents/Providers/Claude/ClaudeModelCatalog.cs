@@ -31,6 +31,26 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
     [
         new()
         {
+            Id = "claude-fable-5", DisplayName = "Claude Fable 5",
+            Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
+            Provider = "anthropic",
+            InputPerMillion = 10.00m, OutputPerMillion = 50.00m,
+            CacheWritePerMillion = 12.50m, CacheReadPerMillion = 1.00m,
+        },
+        new()
+        {
+            Id = "claude-opus-5-1", DisplayName = "Claude Opus 5.1",
+            Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
+            Provider = "anthropic",
+            InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
+            CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
+        },
+        new()
+        {
             Id = "claude-opus-5", DisplayName = "Claude Opus 5",
             Capabilities = FullCaps, IsDefault = true,
             SupportedEfforts = EffortLevels.Claude,
@@ -78,6 +98,26 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
             Provider = "anthropic",
             InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
             CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
+        },
+        new()
+        {
+            Id = "claude-sonnet-5-1", DisplayName = "Claude Sonnet 5.1",
+            Capabilities = MidCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
+            Provider = "anthropic",
+            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
+            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
+        },
+        new()
+        {
+            Id = "claude-5.1", DisplayName = "Claude 5.1",
+            Capabilities = MidCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
+            Provider = "anthropic",
+            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
+            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
         },
         new()
         {
@@ -138,6 +178,16 @@ public sealed class ClaudeModelCatalog : CachedModelCatalogProvider
             Provider = "anthropic",
             InputPerMillion = 2.00m, OutputPerMillion = 10.00m,
             CacheWritePerMillion = 2.50m, CacheReadPerMillion = 0.20m,
+        },
+        new()
+        {
+            Id = "claude-haiku-5-1", DisplayName = "Claude Haiku 5.1",
+            Capabilities = LiteCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 200_000, MaxOutputTokens = 64_000,
+            Provider = "anthropic",
+            InputPerMillion = 1.00m, OutputPerMillion = 5.00m,
+            CacheWritePerMillion = 1.25m, CacheReadPerMillion = 0.10m,
         },
         new()
         {
