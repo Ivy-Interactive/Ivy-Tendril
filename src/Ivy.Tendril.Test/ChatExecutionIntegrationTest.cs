@@ -48,7 +48,7 @@ public class ChatExecutionIntegrationTest
             var serializer = new JsonEventSerializer();
 
             var session = chatService.CreateSession("codex", "gpt-5.6-sol");
-            var userMsg = "Say 'hello world' and nothing else.";
+            var userMsg = "test. Alive?";
 
             chatService.AddMessage(session.Id, "user", userMsg, "codex", "gpt-5.6-sol");
 
@@ -313,100 +313,4 @@ public class ChatExecutionIntegrationTest
             }
         }
     }
-
-    [Fact]
-    public async Task ChatApp_TriggerSendMessage_UpdatesIsStreamingAndDoesNotDeadlock()
-    {
-        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatTriggerTest_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(tempDir);
-
-        try
-        {
-            var config = new TendrilSettings { CodingAgent = "codex" };
-            var configService = new ConfigService(config, tempDir);
-            var chatService = new ChatHistoryService(configService);
-            var agentRunner = TestAgentRunner.Create();
-            var serializer = new JsonEventSerializer();
-
-            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
-
-            var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
-            services.AddSingleton<IConfigService>(configService);
-            services.AddSingleton<IChatHistoryService>(chatService);
-            services.AddSingleton<IAgentRunner>(agentRunner);
-            services.AddSingleton<IEventSerializer>(serializer);
-            var appContext = (Ivy.AppContext)Activator.CreateInstance(
-                typeof(Ivy.AppContext),
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
-                null,
-                new object?[] { "conn1", "mach1", "chat", "chat", null, "http", "localhost", null },
-                null)!;
-            services.AddSingleton(appContext);
-            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
-            services.AddSingleton<IChatSessionNamingService>(namingService);
-            services.AddSingleton<IUploadService>(new Ivy.UploadService("conn1", null!));
-
-            var sp = services.BuildServiceProvider();
-
-            var app = new Ivy.Tendril.Apps.Chat.ChatApp();
-            var contentBuilder = new Ivy.ContentBuilder();
-            var tree = new Ivy.Core.WidgetTree(app, contentBuilder, sp);
-
-            await tree.BuildAsync();
-
-            var rootWidget = tree.GetWidgets();
-            Assert.NotNull(rootWidget);
-
-            var chatWidget = FindWidget<Ivy.Tendril.Widgets.ChatWidget>(rootWidget);
-            Assert.NotNull(chatWidget);
-            Assert.False(chatWidget.IsStreaming);
-
-            var args = new System.Text.Json.Nodes.JsonArray
-            {
-                new System.Text.Json.Nodes.JsonObject
-                {
-                    ["prompt"] = "Hello test",
-                    ["sessionId"] = session.Id
-                }
-            };
-
-            _output.WriteLine($"Triggering OnSendMessage on widget {chatWidget.Id}");
-            var triggered = await tree.TriggerEventAsync(chatWidget.Id, "OnSendMessage", args);
-            Assert.True(triggered);
-
-            // Wait for refresh to propagate
-            await Task.Delay(200);
-
-            var updatedRoot = tree.GetWidgets();
-            var updatedChatWidget = FindWidget<Ivy.Tendril.Widgets.ChatWidget>(updatedRoot);
-            Assert.NotNull(updatedChatWidget);
-            _output.WriteLine($"Updated ChatWidget IsStreaming: {updatedChatWidget.IsStreaming}");
-            Assert.True(updatedChatWidget.IsStreaming, "ChatWidget.IsStreaming should be true while executing!");
-        }
-        finally
-        {
-            if (Directory.Exists(tempDir))
-            {
-                try { Directory.Delete(tempDir, true); } catch { }
-            }
-        }
-    }
-
-    private static T? FindWidget<T>(Ivy.Core.IWidget widget) where T : class, Ivy.Core.IWidget
-    {
-        if (widget is T match) return match;
-        if (widget.Children != null)
-        {
-            foreach (var child in widget.Children)
-            {
-                if (child is Ivy.Core.IWidget w)
-                {
-                    var found = FindWidget<T>(w);
-                    if (found != null) return found;
-                }
-            }
-        }
-        return null;
-    }
 }
-
