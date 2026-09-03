@@ -61,7 +61,7 @@ public class ProjectCrudStepView(
             .Builder(t => t.Index, f => f.Func<VerificationRow, int>(idx =>
             {
                 var vName = verificationRows[idx].Name;
-                return Layout.Horizontal()
+                return Layout.Horizontal().Gap(1)
                     | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() =>
                         showVerificationTrigger(vName))
                     | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>

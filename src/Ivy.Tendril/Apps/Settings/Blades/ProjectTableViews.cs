@@ -391,7 +391,7 @@ public class ReviewActionsTableView(
             .Builder(t => t.Index, f => f.Func<ReviewActionRow, int>(idx =>
             {
                 var action = actions[idx];
-                var rowLayout = Layout.Horizontal();
+                var rowLayout = Layout.Horizontal().Gap(1);
                 if (showRun)
                 {
                     rowLayout = rowLayout | new Button().Icon(Icons.Play).Outline().Small().Tooltip("Run / Preview Action").OnClick(() =>
@@ -439,7 +439,7 @@ public class ProjectVerificationsTableView(
             ))
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<VerificationRow, int>(idx =>
-                Layout.Horizontal()
+                Layout.Horizontal().Gap(1)
                 | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(rows[idx].Name))
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
                 {
