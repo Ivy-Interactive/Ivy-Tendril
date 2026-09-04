@@ -50,9 +50,45 @@ public class CodexCliTests
     }
 
     [Fact]
+    public void Capabilities_IncludesEffortControl()
+    {
+        Assert.True(_cli.Capabilities.HasFlag(AgentCapabilities.EffortControl));
+    }
+
+    [Fact]
     public void Capabilities_IncludesExtraArgPassthrough()
     {
         Assert.True(_cli.Capabilities.HasFlag(AgentCapabilities.ExtraArgPassthrough));
+    }
+
+    [Fact]
+    public void SupportedEfforts_ReturnsCodexEffortLevels()
+    {
+        Assert.Equal(EffortLevels.Codex, _cli.SupportedEfforts);
+    }
+
+    [Fact]
+    public void DefaultProfiles_MatchesConfiguredModels()
+    {
+        Assert.Collection(_cli.DefaultProfiles,
+            p =>
+            {
+                Assert.Equal(ProfileTier.Deep, p.Tier);
+                Assert.Equal("gpt-5.6-sol", p.Model);
+                Assert.Equal("high", p.Effort);
+            },
+            p =>
+            {
+                Assert.Equal(ProfileTier.Balanced, p.Tier);
+                Assert.Equal("gpt-5.6-terra", p.Model);
+                Assert.Equal("medium", p.Effort);
+            },
+            p =>
+            {
+                Assert.Equal(ProfileTier.Quick, p.Tier);
+                Assert.Equal("gpt-5.6-luna", p.Model);
+                Assert.Equal("low", p.Effort);
+            });
     }
 
     [Fact]
@@ -158,7 +194,8 @@ public class CodexCliTests
         Assert.Equal("codex", spec.FileName);
         Assert.Contains("exec", spec.Arguments);
         Assert.Contains("--sandbox", spec.Arguments);
-        Assert.Contains("workspace-write", spec.Arguments);
+        Assert.Contains("danger-full-access", spec.Arguments);
+        Assert.Contains("approval_policy=\"never\"", spec.Arguments);
         Assert.Contains("--json", spec.Arguments);
         Assert.Contains("--skip-git-repo-check", spec.Arguments);
         Assert.Contains("-", spec.Arguments);
@@ -168,12 +205,96 @@ public class CodexCliTests
     }
 
     [Fact]
+    public void BuildProcessSpec_PermissionMode_FullAuto_SetsCorrectSandboxAndPermissions()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            PermissionMode = PermissionMode.FullAuto,
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        var argList = spec.Arguments.ToList();
+        var sandboxIdx = argList.IndexOf("--sandbox");
+        Assert.True(sandboxIdx >= 0);
+        Assert.Equal("danger-full-access", argList[sandboxIdx + 1]);
+
+        var approvalIdx = argList.IndexOf("approval_policy=\"never\"");
+        Assert.True(approvalIdx >= 0);
+    }
+
+    [Fact]
+    public void BuildProcessSpec_PermissionMode_AcceptEdits_SetsWorkspaceWriteWithDiskPermissions()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            PermissionMode = PermissionMode.AcceptEdits,
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        var argList = spec.Arguments.ToList();
+        var sandboxIdx = argList.IndexOf("--sandbox");
+        Assert.True(sandboxIdx >= 0);
+        Assert.Equal("workspace-write", argList[sandboxIdx + 1]);
+
+        Assert.Contains("sandbox_workspace_write.network_access=true", argList);
+        Assert.Contains("sandbox_permissions=[\"disk-full-read-access\"]", argList);
+
+        var approvalIdx = argList.IndexOf("approval_policy=\"never\"");
+        Assert.True(approvalIdx >= 0);
+    }
+
+    [Fact]
+    public void BuildProcessSpec_PermissionMode_Plan_SetsReadOnlySandbox()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            PermissionMode = PermissionMode.Plan,
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        var argList = spec.Arguments.ToList();
+        var sandboxIdx = argList.IndexOf("--sandbox");
+        Assert.True(sandboxIdx >= 0);
+        Assert.Equal("read-only", argList[sandboxIdx + 1]);
+    }
+
+    [Fact]
+    public void BuildProcessSpec_PermissionMode_Default_SetsWorkspaceWrite()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            PermissionMode = PermissionMode.Default,
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        var argList = spec.Arguments.ToList();
+        var sandboxIdx = argList.IndexOf("--sandbox");
+        Assert.True(sandboxIdx >= 0);
+        Assert.Equal("workspace-write", argList[sandboxIdx + 1]);
+
+        Assert.Contains("sandbox_workspace_write.network_access=true", argList);
+    }
+
+    [Fact]
     public void BuildProcessSpec_EnablesNetworkAccessInWorkspaceWriteSandbox()
     {
         var config = new AgentLaunchConfig
         {
             Prompt = "Hello",
             WorkingDirectory = "/tmp",
+            PermissionMode = PermissionMode.Default,
         };
 
         var spec = _cli.BuildProcessSpec(config);
@@ -199,6 +320,63 @@ public class CodexCliTests
         var modelIdx = spec.Arguments.ToList().IndexOf("--model");
         Assert.True(modelIdx >= 0);
         Assert.Equal("o4-mini", spec.Arguments[modelIdx + 1]);
+    }
+
+    [Fact]
+    public void BuildProcessSpec_WithEffort_IncludesReasoningEffortConfig()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            Effort = EffortLevel.High,
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        var argList = spec.Arguments.ToList();
+        var idx = argList.IndexOf("-c");
+        Assert.True(idx >= 0);
+        Assert.Contains(argList, a => a == "model_reasoning_effort=\"high\"");
+    }
+
+    [Fact]
+    public void BuildProcessSpec_NoEffort_DoesNotIncludeReasoningEffortConfig()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        Assert.DoesNotContain(spec.Arguments, a => a.StartsWith("model_reasoning_effort"));
+    }
+
+    [Theory]
+    [InlineData(EffortLevel.Low, "low")]
+    [InlineData(EffortLevel.Medium, "medium")]
+    [InlineData(EffortLevel.High, "high")]
+    [InlineData(EffortLevel.XHigh, "xhigh")]
+    [InlineData(EffortLevel.Max, "xhigh")]
+    public void BuildProcessSpec_AllEffortLevels_MapCorrectly(EffortLevel level, string expected)
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            Effort = level,
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        var argList = spec.Arguments.ToList();
+        var expectedArg = $"model_reasoning_effort=\"{expected}\"";
+        Assert.Contains(expectedArg, argList);
+        var idx = argList.IndexOf(expectedArg);
+        Assert.True(idx > 0);
+        Assert.Equal("-c", argList[idx - 1]);
     }
 
     [Fact]

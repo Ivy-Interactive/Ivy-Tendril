@@ -24,6 +24,12 @@ public class PlanReaderService(
     private readonly TimeCache<Dictionary<string, List<HourlyTokenBurn>>> _hourlyBurnCache =
         new(TimeSpan.FromSeconds(10));
 
+    private readonly TimeCache<Dictionary<int, DashboardActivityStats>> _activityStatsCache =
+        new(TimeSpan.FromSeconds(30));
+
+    private readonly TimeCache<Dictionary<int, List<(DateOnly Date, int Count)>>> _prsByDayCache =
+        new(TimeSpan.FromSeconds(30));
+
     private readonly TimeCache<Dictionary<string, (decimal Cost, int Tokens)>> _planCostCache =
         new(TimeSpan.FromSeconds(90));
 
@@ -174,7 +180,7 @@ public class PlanReaderService(
                 throw new PlanTransitionBlockedException(folderName, failed);
 
             // Plan 00103: block on failed pre-execution with no deliverables
-            if (GetCompletionBlockReason(Path.Combine(PlansDirectory, folderName)) is { } blockReason)
+            if (GetCompletionBlockReason(folderName) is { } blockReason)
                 throw new PlanTransitionBlockedException(folderName, newState, blockReason);
         }
 
@@ -205,7 +211,7 @@ public class PlanReaderService(
         {
             var currentPlan = GetPlanByFolder(Path.Combine(PlansDirectory, folderName));
             var oldState = currentPlan?.Status.ToString() ?? "Unknown";
-            telemetryService?.TrackPlanStateTransition(oldState, newState.ToString());
+            telemetryService?.TrackPlanStateTransition(oldState, newState.ToString(), planId.Value.ToString());
 
             // Flush telemetry events to ensure they reach PostHog
             if (telemetryService != null)
@@ -240,13 +246,22 @@ public class PlanReaderService(
 
     /// <summary>
     ///     Returns the reason a plan must not be marked Completed, or null when the transition is fine.
+    /// </summary>
+    public string? GetCompletionBlockReason(string folderName)
+    {
+        var planFolder = Path.IsPathRooted(folderName) ? folderName : Path.Combine(PlansDirectory, folderName);
+        return GetCompletionBlockReasonForFolder(planFolder);
+    }
+
+    /// <summary>
+    ///     Returns the reason a plan must not be marked Completed, or null when the transition is fine.
     ///     Blocks a plan whose <c>Verification/PreExecution.md</c> reads <c>result: Fail</c> and which has
     ///     no commits and no PRs: pre-execution rejected the plan's premise and nothing was delivered, so
     ///     Completed would record a phantom owner for work that never happened. The no-commits-and-no-PRs
     ///     conjunct keeps config-only plans (which legitimately have neither, and pass pre-execution) and
     ///     any plan that did real work out of the block. See plan 00103.
     /// </summary>
-    internal static string? GetCompletionBlockReason(string planFolder)
+    internal static string? GetCompletionBlockReasonForFolder(string planFolder)
     {
         if (PlanYamlHelper.ReadPreExecutionResult(planFolder) != VerificationStatus.Fail) return null;
 
@@ -577,6 +592,48 @@ public class PlanReaderService(
     }
 
     /// <summary>
+    ///     Returns monthly plan/PR/cost aggregates for the dashboard charts. Delegates to
+    ///     database when available, otherwise returns empty stats.
+    /// </summary>
+    public DashboardActivityStats GetDashboardActivity(int monthsBack = 24)
+    {
+        if (_useDatabaseForReads && _database != null)
+        {
+            var cache = _activityStatsCache.GetOrCompute(() => new Dictionary<int, DashboardActivityStats>());
+            if (!cache.TryGetValue(monthsBack, out var stats))
+            {
+                stats = _database.GetActivityStats(monthsBack);
+                cache[monthsBack] = stats;
+            }
+
+            return stats;
+        }
+
+        return new DashboardActivityStats([], 0);
+    }
+
+    /// <summary>
+    ///     Returns per-day merged PR counts. Delegates to database when available,
+    ///     otherwise returns an empty list.
+    /// </summary>
+    public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days)
+    {
+        if (_useDatabaseForReads && _database != null)
+        {
+            var cache = _prsByDayCache.GetOrCompute(() => new Dictionary<int, List<(DateOnly Date, int Count)>>());
+            if (!cache.TryGetValue(days, out var result))
+            {
+                result = _database.GetCompletedPrsByDay(days);
+                cache[days] = result;
+            }
+
+            return result;
+        }
+
+        return [];
+    }
+
+    /// <summary>
     ///     Calculates the total cost for a plan. Delegates to database when available,
     ///     otherwise parses costs.csv with a short cache to reduce file I/O.
     /// </summary>
@@ -771,7 +828,8 @@ public class PlanReaderService(
         {
             var currentPlan = GetPlanByFolder(Path.Combine(PlansDirectory, folderName));
             var oldState = currentPlan?.Status.ToString() ?? "Unknown";
-            telemetryService?.TrackPlanStateTransition(oldState, PlanStatus.Executing.ToString());
+            telemetryService?.TrackPlanStateTransition(oldState, PlanStatus.Executing.ToString(),
+                planId.Value.ToString());
         }
 
         // Update database atomically for all three mutations.
@@ -827,7 +885,8 @@ public class PlanReaderService(
         {
             var currentPlan = GetPlanByFolder(Path.Combine(PlansDirectory, folderName));
             var oldState = currentPlan?.Status.ToString() ?? "Unknown";
-            telemetryService?.TrackPlanStateTransition(oldState, PlanStatus.Executing.ToString());
+            telemetryService?.TrackPlanStateTransition(oldState, PlanStatus.Executing.ToString(),
+                planId.Value.ToString());
         }
 
         // Update database atomically for all mutations.
@@ -891,6 +950,8 @@ public class PlanReaderService(
         _planCostCache.Invalidate();
         _dashboardCache.Invalidate();
         _hourlyBurnCache.Invalidate();
+        _activityStatsCache.Invalidate();
+        _prsByDayCache.Invalidate();
     }
 
     /// <summary>

@@ -795,12 +795,6 @@ public class Program
             config.AddCommand<AgentInstructionsCommand>("agent-instructions")
                 .WithDescription("Print the agent system prompt");
 
-            config.AddBranch("trash", trash =>
-            {
-                trash.AddCommand<TrashWriteCommand>("write")
-                    .WithDescription("Write a file to Trash from a file or STDIN");
-            });
-
             config.AddBranch("project", project =>
             {
                 project.AddCommand<ProjectListCommand>("list")

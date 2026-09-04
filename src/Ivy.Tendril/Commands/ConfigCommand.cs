@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Themes;
 using Spectre.Console.Cli;
 
 namespace Ivy.Tendril.Commands;
@@ -11,9 +12,9 @@ namespace Ivy.Tendril.Commands;
 public class ConfigGetSettings : CommandSettings
 {
     internal static readonly string[] ValidFields =
-        ["codingAgent", "jobTimeout", "staleOutputTimeout", "gitTimeout", "maxConcurrentJobs", "planTemplate"];
+        ["codingAgent", "jobTimeout", "staleOutputTimeout", "gitTimeout", "maxConcurrentJobs", "planTemplate", "theme", "themeMode"];
 
-    [Description("Config key (codingAgent, jobTimeout, staleOutputTimeout, gitTimeout, maxConcurrentJobs, planTemplate)")]
+    [Description("Config key (codingAgent, jobTimeout, staleOutputTimeout, gitTimeout, maxConcurrentJobs, planTemplate, theme, themeMode)")]
     [CommandArgument(0, "<key>")]
     public string Key { get; set; } = "";
 
@@ -25,7 +26,7 @@ public class ConfigGetSettings : CommandSettings
 
 public class ConfigSetSettings : CommandSettings
 {
-    [Description("Config key (codingAgent, jobTimeout, staleOutputTimeout, gitTimeout, maxConcurrentJobs, planTemplate)")]
+    [Description("Config key (codingAgent, jobTimeout, staleOutputTimeout, gitTimeout, maxConcurrentJobs, planTemplate, theme, themeMode)")]
     [CommandArgument(0, "<key>")]
     public string Key { get; set; } = "";
 
@@ -74,6 +75,8 @@ public class ConfigGetCommand : Command<ConfigGetSettings>
         "gittimeout" => s.GitTimeout.ToString(),
         "maxconcurrentjobs" => s.MaxConcurrentJobs.ToString(),
         "plantemplate" => s.PlanTemplate,
+        "theme" => s.Theme,
+        "thememode" => s.ThemeMode,
         _ => throw new ArgumentException(UnknownFieldMessage(field))
     };
 
@@ -113,8 +116,40 @@ public class ConfigSetCommand(IAgentRunner runner) : Command<ConfigSetSettings>
             case "gittimeout": s.GitTimeout = ParseBoundedInt(value, "gitTimeout", 1, 30); break;
             case "maxconcurrentjobs": s.MaxConcurrentJobs = ParseBoundedInt(value, "maxConcurrentJobs", 1, 512); break;
             case "plantemplate": s.PlanTemplate = value; break;
+            case "theme": s.Theme = ValidateTheme(value); break;
+            case "thememode": s.ThemeMode = ValidateThemeMode(value); break;
             default: throw new ArgumentException(ConfigGetCommand.UnknownFieldMessage(field));
         }
+    }
+
+    internal static string ValidateThemeMode(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException("themeMode cannot be empty.");
+
+        var trimmed = value.Trim();
+        if (trimmed.Equals("light", StringComparison.OrdinalIgnoreCase))
+            return "light";
+        if (trimmed.Equals("dark", StringComparison.OrdinalIgnoreCase))
+            return "dark";
+        if (trimmed.Equals("system", StringComparison.OrdinalIgnoreCase))
+            return "system";
+
+        throw new ArgumentException(
+            $"Unknown themeMode '{value}'. Valid modes: light, dark, system");
+    }
+
+    internal static string ValidateTheme(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException("theme cannot be empty.");
+
+        var match = TendrilThemes.All.FirstOrDefault(t => t.Id.Equals(value.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (match == null)
+            throw new ArgumentException(
+                $"Unknown theme '{value}'. Valid themes: {string.Join(", ", TendrilThemes.All.Select(t => t.Id))}");
+
+        return match.Id;
     }
 
     // Rejects empty and, when the known-agent set is supplied, unknown agents. Returns the

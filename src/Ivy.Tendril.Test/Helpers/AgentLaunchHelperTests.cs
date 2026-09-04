@@ -148,9 +148,49 @@ public class AgentLaunchHelperTests : IDisposable
         Assert.Equal(PermissionMode.FullAuto, context.PermissionMode);
         Assert.NotNull(context.ExtraEnvironment);
         Assert.True(context.ExtraEnvironment.ContainsKey("TENDRIL_HOME"));
+        Assert.NotNull(context.TimeoutPolicy);
+        Assert.Equal(TimeSpan.FromMinutes(config.Settings.JobTimeout), context.TimeoutPolicy.TotalTimeout);
+        Assert.Equal(TimeoutPolicy.Default.IdleTimeout, context.TimeoutPolicy.IdleTimeout);
+        Assert.Equal(TimeoutPolicy.Default.StartupTimeout, context.TimeoutPolicy.StartupTimeout);
 
         // AGENTS.md should be written to the working directory for Antigravity
         var agentsMd = Path.Combine(_tempDir.Path, "AGENTS.md");
         Assert.True(File.Exists(agentsMd));
+    }
+
+    [Fact]
+    public void PrepareResolutionContext_WithCustomJobTimeout_SetsTimeoutPolicy()
+    {
+        var config = new TestPlanConfigService(_tempDir.Path, tendrilHome: _tempDir.Path);
+        config.Settings.JobTimeout = 45;
+        var runner = TestAgentRunner.Create();
+
+        var context = AgentLaunchHelper.PrepareResolutionContext(
+            config,
+            runner,
+            "antigravity",
+            "Do a task"
+        );
+
+        Assert.NotNull(context.TimeoutPolicy);
+        Assert.Equal(TimeSpan.FromMinutes(45), context.TimeoutPolicy.TotalTimeout);
+    }
+
+    [Fact]
+    public void PrepareResolutionContext_WithZeroOrNegativeJobTimeout_DefaultsTo30Minutes()
+    {
+        var config = new TestPlanConfigService(_tempDir.Path, tendrilHome: _tempDir.Path);
+        config.Settings.JobTimeout = 0;
+        var runner = TestAgentRunner.Create();
+
+        var context = AgentLaunchHelper.PrepareResolutionContext(
+            config,
+            runner,
+            "antigravity",
+            "Do a task"
+        );
+
+        Assert.NotNull(context.TimeoutPolicy);
+        Assert.Equal(TimeSpan.FromMinutes(30), context.TimeoutPolicy.TotalTimeout);
     }
 }

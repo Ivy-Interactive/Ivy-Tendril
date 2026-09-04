@@ -118,6 +118,23 @@
   font-family: var(--font-sans, sans-serif) !important;
 }
 
+.pmv-comment-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 9px;
+  text-transform: uppercase;
+  user-select: none;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
 /* Hover plus button strictly on active, non-empty line gutters when the gutter itself is hovered */
 td.diff-gutter-normal,
 td.diff-gutter-insert,
@@ -400,5 +417,22 @@ td.diff-gutter-empty::after {
 .diff-code .token.unit,
 .diff-code .token.plain {
   color: var(--foreground) !important;
+}
+
+/* Virtualization / rendering performance for large diffs */
+.ivy-diff-file {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 400px;
+}
+
+.diff-hunk {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 150px;
+}
+
+.diff-unified-view,
+.diff-split-view {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 300px;
 }
 

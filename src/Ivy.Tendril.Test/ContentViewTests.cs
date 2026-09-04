@@ -1,4 +1,5 @@
-using Ivy.Tendril.Apps.Drafts;
+using Ivy.Tendril.Apps.Plans;
+using Ivy.Tendril.Apps.Plans.Dialogs;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Widgets;
 using ReviewContentView = Ivy.Tendril.Apps.Review.ContentView;
@@ -139,7 +140,7 @@ public class ContentViewTests
     }
 
     [Fact]
-    public void BuildAnnotationsPrompt_NumbersAnnotationsAndQuotesSelectedText()
+    public void BuildUpdatePrompt_NumbersAnnotationsAndQuotesSelectedText()
     {
         var annotations = new[]
         {
@@ -147,7 +148,7 @@ public class ContentViewTests
             new MarkdownAnnotation { SelectedText = "second passage", Comment = "remove this requirement" }
         };
 
-        var prompt = ContentView.BuildAnnotationsPrompt(annotations);
+        var prompt = ContentView.BuildUpdatePrompt(annotations);
 
         Assert.Contains("## Annotation 1", prompt);
         Assert.Contains("> first passage", prompt);
@@ -158,18 +159,73 @@ public class ContentViewTests
     }
 
     [Fact]
-    public void BuildAnnotationsPrompt_QuotesEveryLineOfMultilineSelection()
+    public void BuildUpdatePrompt_QuotesEveryLineOfMultilineSelection()
     {
         var annotations = new[]
         {
             new MarkdownAnnotation { SelectedText = "line one\r\nline two", Comment = "split this up" }
         };
 
-        var prompt = ContentView.BuildAnnotationsPrompt(annotations);
+        var prompt = ContentView.BuildUpdatePrompt(annotations);
 
         var lines = prompt.Split('\n').Select(l => l.TrimEnd('\r')).ToArray();
         Assert.Contains("> line one", lines);
         Assert.Contains("> line two", lines);
+    }
+
+    [Fact]
+    public void BuildUpdatePrompt_TellsTheAgentAnswersAreAlreadyInTheRevision()
+    {
+        // The answers are not quoted into the prompt — they are already in the file the agent reads.
+        var prompt = ContentView.BuildUpdatePrompt([], answeredQuestions: 2);
+
+        Assert.Contains("I answered 2 questions", prompt);
+        Assert.Contains("already in the revision", prompt);
+        Assert.Contains("delete that", prompt);
+        // A question left alone must survive the update untouched.
+        Assert.Contains("Carry any question I left unanswered forward unchanged", prompt);
+        Assert.DoesNotContain("## Annotation", prompt);
+    }
+
+    [Fact]
+    public void BuildUpdatePrompt_UsesSingularForOneAnsweredQuestion()
+    {
+        Assert.Contains("I answered 1 question in", ContentView.BuildUpdatePrompt([], answeredQuestions: 1));
+    }
+
+    [Fact]
+    public void BuildUpdatePrompt_CarriesAnnotationsAndAnswersTogether()
+    {
+        var annotations = new[]
+        {
+            new MarkdownAnnotation { SelectedText = "a passage", Comment = "tighten this" }
+        };
+
+        var prompt = ContentView.BuildUpdatePrompt(annotations, answeredQuestions: 1);
+
+        Assert.Contains("I answered 1 question", prompt);
+        Assert.Contains("## Annotation 1", prompt);
+        Assert.Contains("Comment: tighten this", prompt);
+    }
+
+    [Fact]
+    public void BuildUpdatePrompt_WithNothingPendingIsEmpty()
+    {
+        Assert.Equal(string.Empty, ContentView.BuildUpdatePrompt([]));
+    }
+
+    [Theory]
+    // Annotations are discarded by declining; answers are not, so the wording differs.
+    [InlineData(2, 0, "2 annotations", "would ignore them")]
+    [InlineData(0, 3, "3 answered questions", "as they stand")]
+    [InlineData(1, 1, "1 annotation and 1 answered question", "ignore the annotations")]
+    public void PendingAnnotationsDialog_MessageNamesWhatIsOutstanding(
+        int annotations, int answers, string expectedCount, string expectedConsequence)
+    {
+        var message = PendingAnnotationsDialog.Message(annotations, answers);
+
+        Assert.Contains(expectedCount, message);
+        Assert.Contains(expectedConsequence, message);
     }
 
     [Fact]

@@ -37,7 +37,14 @@ public record ChatAttachmentDto(
     string ContentType,
     long Size,
     string? Base64Data = null,
-    string? LocalPath = null
+    string? LocalPath = null,
+    string? FileId = null
+);
+
+public record ChatQueuedMessageDto(
+    string Id,
+    string Prompt,
+    List<ChatAttachmentDto>? Attachments = null
 );
 
 public record ChatSendMessageDto(
@@ -56,6 +63,7 @@ public record ChatWidget : WidgetBase<ChatWidget>
 {
     [Prop] public string? ActiveSessionId { get; init; }
     [Prop] public string? StreamingSessionId { get; init; }
+    [Prop] public string? UploadUrl { get; init; }
     [Prop] public List<ChatSessionDto> Sessions { get; init; } = new();
     [Prop] public List<AgentOptionDto> Agents { get; init; } = new();
     [Prop] public List<ModelOptionDto> Models { get; init; } = new();
@@ -66,7 +74,7 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Prop] public bool SupportsEffort { get; init; } = true;
     [Prop] public bool IsStreaming { get; init; } = false;
     [Prop] public string? StreamingText { get; init; }
-    [Prop] public IWriteStream<string>? StreamingStream { get; init; }
+    [Prop] public List<ChatQueuedMessageDto> QueuedMessages { get; init; } = new();
 
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnSelectSession { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnDeleteSession { get; init; }
@@ -77,4 +85,7 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnAgentChanged { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnModelChanged { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnEffortChanged { get; init; }
+    [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnDeleteQueuedMessage { get; init; }
+    [Event] public Func<Event<ChatWidget, string[]>, ValueTask>? OnUpdateQueuedMessage { get; init; }
+    [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnSendQueuedNow { get; init; }
 }

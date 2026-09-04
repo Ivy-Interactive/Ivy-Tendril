@@ -9,10 +9,10 @@
   --aov-border: var(--border);
   --aov-border-strong: var(--input);
   --aov-fg: var(--foreground);
-  --aov-fg-muted: var(--muted-foreground);
-  --aov-fg-faint: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+  --aov-fg-muted: color-mix(in srgb, var(--foreground) 70%, transparent);
+  --aov-fg-faint: color-mix(in srgb, var(--foreground) 45%, transparent);
   --aov-accent: var(--foreground);
-  --aov-accent-soft: color-mix(in srgb, var(--muted-foreground) 10%, transparent);
+  --aov-accent-soft: color-mix(in srgb, var(--foreground) 6%, transparent);
   --aov-danger: var(--destructive);
   --aov-warn: var(--warning);
   --aov-mono: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
@@ -83,6 +83,10 @@
   gap: 8px;
   color: var(--aov-fg-muted);
   min-width: 0;
+}
+
+.aov-status-done .aov-status-icon {
+  color: #10b981;
 }
 
 .aov-status-icon {

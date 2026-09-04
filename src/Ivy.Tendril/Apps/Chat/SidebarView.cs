@@ -15,8 +15,10 @@ public class SidebarView(
     IState<int> sessionVersion,
     IState<string> selectedAgent,
     IState<string> selectedModel,
+    IState<string> selectedEffort,
     IState<string> searchState,
-    IChatHistoryService chatService) : ViewBase
+    IChatHistoryService chatService,
+    Action<string> selectSession) : ViewBase
 {
     public override object Build()
     {
@@ -25,9 +27,8 @@ public class SidebarView(
             .Ghost()
             .OnClick(() =>
             {
-                var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value);
-                activeSessionId.Set(newSess.Id);
-                sessionVersion.Set(v => v + 1);
+                var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
+                selectSession(newSess.Id);
             });
 
         var searchInput = searchState.ToSearchInput()
@@ -66,9 +67,8 @@ public class SidebarView(
                 if (isGenerating)
                 {
                     metaLine = Layout.Horizontal().AlignContent(Align.Left)
-                        | new Icon(Icons.LoaderCircle, Colors.Green).Small().WithAnimation(AnimationType.Rotate).Duration(1)
-                        | Text.Success("Generating").Small()
-                        | Text.Muted($"• {sess.AgentId}").Small();
+                        | new Icon(Icons.LoaderCircle).Small().WithAnimation(AnimationType.Rotate).Duration(1)
+                        | Text.Muted(sess.AgentId).Small();
                 }
                 else if (isCompleted)
                 {
@@ -82,13 +82,9 @@ public class SidebarView(
                     metaLine = Text.Muted($"{formattedDate} • {sess.AgentId}").Small().NoWrap().Overflow(Overflow.Ellipsis);
                 }
 
-                object titleBlock = (isGenerating || isCompleted)
-                    ? (Layout.Horizontal().AlignContent(Align.Left)
-                        | new Icon(Icons.CircleDot, Colors.Green).Small()
-                        | Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis))
-                    : Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis);
+                object titleBlock = Text.Block(displayTitle).Small().NoWrap().Overflow(Overflow.Ellipsis);
 
-                var textStack = Layout.Vertical().AlignContent(Align.Left).Width(Size.Full())
+                var textStack = Layout.Vertical().Width(Size.Full())
                     | titleBlock
                     | metaLine;
 
@@ -97,8 +93,7 @@ public class SidebarView(
                     .Content(textStack)
                     .OnClick(() =>
                     {
-                        chatService.ClearSessionCompleted(sess.Id);
-                        activeSessionId.Set(sess.Id);
+                        selectSession(sess.Id);
                     })
                     .BorderRadius(BorderRadius.None);
 
@@ -106,6 +101,6 @@ public class SidebarView(
             }));
         }
 
-        return new HeaderLayout(sidebarHeader, sidebarContent).Scroll(Scroll.None);
+        return new HeaderLayout(sidebarHeader, sidebarContent);
     }
 }

@@ -1,0 +1,341 @@
+using System.Collections.Immutable;
+using Ivy;
+using Ivy.Tendril.Widgets;
+using DraftMarkdownWidget = Ivy.Tendril.Widgets.DraftMarkdown;
+
+namespace WidgetSamples.Apps.DraftMarkdown;
+
+/// <summary>
+///     Interactive `questions` blocks. Subscribing to <c>OnAnswersChange</c> is what turns the
+///     read-only blue callout into a picker.
+///     <para>
+///         The widget never rewrites its own document: the event reports <c>{ QuestionId, Answer }</c>
+///         and the host decides how and whether to persist it. This sample persists — it merges each
+///         event straight back into the markdown with <see cref="QuestionAnswers.Apply" />, which is
+///         why a selection sticks rather than snapping back on the next render.
+///     </para>
+///     <para>
+///         The pinned card is the other half of the pattern, and the reason a plan this long stays
+///         navigable: <see cref="QuestionAnswers.Read" /> turns the document into an index, and
+///         <see cref="DraftMarkdownWidget.ScrollTo" /> takes you to whichever entry you click.
+///         Answered entries strike through, so the card empties as the plan is settled.
+///     </para>
+///     <para>
+///         Between them the four blocks cover the whole schema: a four-question block under the H1
+///         (the cap, and the scope-level placement the spec asks for), every shape from the shape
+///         table including multi-select over a fixed set, questions that arrive already answered
+///         with a scalar and with a list, one with no <c>header</c>, an optional question, and a
+///         documentation fence that must never become a picker.
+///     </para>
+/// </summary>
+[App(title: "Questions", icon: Icons.CircleQuestionMark, group: ["DraftMarkdown"])]
+class QuestionsApp : ViewBase
+{
+    private const string InitialMarkdown = """
+        # Notification Delivery: Open Decisions
+
+        ```questions
+        questions:
+          - id: delivery-scope
+            title: How much of the pipeline is in scope for this plan?
+            header: Scope
+            description: |
+              A block placed directly under the H1, which is where a question about the
+              plan's overall scope belongs. Four questions is the cap, and they stack.
+            other: false
+            options:
+              - title: Dispatch only
+                description: The fan-out and the consumers. No settings UI.
+                value: dispatch
+                recommended: true
+              - title: Dispatch and preferences
+                description: Adds the per-channel settings page.
+                value: dispatch-prefs
+              - title: Everything
+                description: Dispatch, preferences and the operator dashboard.
+                value: everything
+          - id: target-release
+            title: Which release should this land in?
+            header: Release
+            description: Answered at the kickoff, so it arrives already filled in — this is
+              what a revision looks like after UpdatePlan has folded a decision back in.
+            other: false
+            options:
+              # Quoted, or YAML reads them as numbers. The renderer coerces either way, but a
+              # sample should model the authoring the schema actually asks for.
+              - title: "4.2"
+                value: four-two
+              - title: "4.3"
+                value: four-three
+                recommended: true
+            answer: four-three
+          - id: rollout-regions
+            title: Which regions ship first?
+            multiple: true
+            other: false
+            description: Multi-select over a fixed set — the third shape from the schema's
+              table, and the only one the other blocks below do not cover.
+            options:
+              - title: EU
+                value: eu
+                recommended: true
+              - title: US
+                value: us
+              - title: APAC
+                value: apac
+            answer:
+              - eu
+              - us
+          - id: kickoff-notes
+            title: Anything else the plan should account for?
+            description: No `header` on this one, so it leads with its title and no eyebrow.
+        ```
+
+        Three further decisions are open before the delivery pipeline can be built. Each block
+        below demonstrates a different shape from the schema.
+
+        ## Retry policy
+
+        A burst of provider failures has to be absorbed somewhere. Where the budget lives
+        decides whether one bad request can starve the rest of a session.
+
+        Option descriptions are full block markdown — the two below carry the call signature
+        each one implies, which settles the question faster than another paragraph would. The
+        fence is opened with four backticks so the snippets inside can use three.
+
+        ````questions
+        questions:
+          - id: retry-scope
+            title: Should the retry budget be per-request or per-session?
+            header: Retry scope
+            description: A **fixed** set — one of these three, no free text.
+            other: false
+            options:
+              - title: Per request
+                description: |
+                  Each call gets its own budget. Simple, but a retry storm multiplies
+                  across a session.
+
+                  ```csharp
+                  await client.SendAsync(request, new RetryBudget(maxAttempts: 3));
+                  ```
+                value: per-request
+              - title: Per session
+                description: |
+                  One budget shared by every call in the session, so a storm is capped
+                  no matter how many calls make it up.
+
+                  ```csharp
+                  using var session = client.OpenSession(new RetryBudget(maxAttempts: 3));
+                  await session.SendAsync(request);
+                  ```
+                value: per-session
+                recommended: true
+              - title: Per tenant
+                description: |
+                  One budget for the whole tenant. Fairest under load, hardest to reason
+                  about locally — the ceiling lives in config rather than at the call site:
+
+                  | Setting | Scope | Default |
+                  |---|---|---|
+                  | `retry.maxAttempts` | tenant | 3 |
+                  | `retry.window` | tenant | 30s |
+                value: per-tenant
+        ````
+
+        ## Launch channels
+
+        Delivery is fanned out per channel, and each channel is a separate consumer. We do
+        not have to ship them all at once.
+
+        ```questions
+        questions:
+          - id: launch-channels
+            title: Which channels should ship in the first release?
+            header: Channels
+            description: Multi-select, and you may add a channel that is not listed.
+            multiple: true
+            options:
+              - title: In-app
+                description: WebSocket with a polling fallback.
+                value: in-app
+              - title: Email
+                description: Queued via SES with rate limiting.
+                value: email
+                recommended: true
+              - title: Push
+                description: Firebase Cloud Messaging for mobile.
+                value: push
+              - title: Webhook
+                description: Outbound POST to a tenant-supplied URL.
+                value: webhook
+        ```
+
+        ## Naming and ownership
+
+        Two questions with no options at all — the pure free-text shape. A block may hold up
+        to four, and they stack, so both are answerable without hunting for the second one.
+        Each `header` becomes the eyebrow above its question. The second is `optional: true` —
+        worth asking, but the plan is complete without it. The index says so beside the entry
+        rather than striking it out: nobody has answered it yet, and somebody still might.
+
+        ```questions
+        questions:
+          - id: service-name
+            title: What should the service be called?
+            header: Name
+            description: Something short enough to fit in a log prefix.
+          - id: rollout-owner
+            title: Who owns the rollout?
+            header: Owner
+            description: The person paged when delivery latency regresses.
+            optional: true
+        ```
+
+        ## Not a question
+
+        The block below is documentation, not a question — it is written inside a longer
+        fence, so it renders as an ordinary code block and never becomes a picker.
+
+        ````
+        ```questions
+        questions:
+          - id: example
+            title: This one is an example, not a live question.
+        ```
+        ````
+        """;
+
+    /// <summary>
+    ///     Three annotations placed by hand so the interaction between annotations and question
+    ///     blocks is visible without having to drag anything.
+    ///     <para>
+    ///         Offsets are into the widget's <em>rendered prose</em> — question blocks are excluded
+    ///         from the offset space entirely, so a block's own rendering can change (a Clear button
+    ///         appearing, an option title starting to render) without moving anything anchored after
+    ///         it. Editing the document above still means re-measuring these numbers.
+    ///     </para>
+    /// </summary>
+    private static readonly ImmutableList<MarkdownAnnotation> DummyAnnotations =
+    [
+        new()
+        {
+            Id = "prose",
+            StartOffset = 252,
+            EndOffset = 274,
+            SelectedText = "Where the budget lives",
+            Comment = "Ordinary prose annotates as usual.",
+        },
+        new()
+        {
+            // Spans the retry block: prose before it, prose after it, nothing in between. The
+            // picker is a form, and a <mark> spliced into it would fight React for the DOM — so
+            // the block is stepped over rather than highlighted through.
+            Id = "across",
+            StartOffset = 555,
+            EndOffset = 625,
+            SelectedText = "snippets inside can use three … Delivery is fanned out",
+            Comment = "Spans a question block — the block itself takes no highlight.",
+        },
+        new()
+        {
+            // Guards the offset bookkeeping: a block's text counts for nothing, so an annotation
+            // after one stays put however that block ends up rendering.
+            Id = "after",
+            StartOffset = 661,
+            EndOffset = 678,
+            SelectedText = "separate consumer",
+            Comment = "After a block, so it proves a block's rendering cannot move it.",
+        },
+    ];
+
+    public override object Build()
+    {
+        var markdown = UseState(InitialMarkdown);
+        var annotations = UseState(DummyAnnotations);
+        var scrollTo = UseState<QuestionScrollTarget?>(() => null);
+
+        // Read straight off the document, so the index reflects every merge without a second copy
+        // of the answer state living beside it.
+        var questions = QuestionAnswers.Read(markdown.Value);
+
+        // One element per entry, stacked, rather than a single rich block separated by line breaks:
+        // spacing is the layout's job, and a title that wraps no longer needs a blank line after it
+        // to stay distinct from the next. Each link's url carries its question id, which is what
+        // comes back to OnLinkClick.
+        var index = Layout.Vertical().Gap(2);
+        foreach (var question in questions)
+        {
+            // Struck through and muted only once it carries an answer. Optional says the plan does
+            // not wait on this one, not that anyone has dealt with it — it is still a question
+            // somebody may want to answer, so it stays live and says it is optional.
+            // Keyed by question id. Eight sibling stateless views of the same type otherwise have
+            // nothing to tell them apart, and their link handlers do not survive the diff.
+            var entry = Text.Rich();
+            entry.Key = question.Id;
+
+            index |= entry
+                .Link(
+                    question.IsOptional ? $"{Label(question)} (Optional)" : Label(question),
+                    question.Id,
+                    strikeThrough: question.HasAnswer,
+                    color: question.HasAnswer ? Colors.Muted : null)
+                .OnLinkClick(id => scrollTo.Set(new QuestionScrollTarget(
+                    id,
+                    // Any different value re-triggers the scroll, which is what makes clicking the
+                    // same entry twice work.
+                    (scrollTo.Value?.Token ?? 0) + 1)));
+        }
+
+        var card = new Card(
+          index
+        ).Title("Questions").Width(Size.Units(80));
+
+        var rightPanel = Layout.Vertical()
+                         | Text.Muted(
+                           $"{questions.Count(q => q.HasAnswer)} of {questions.Count} answered. ")
+                         | card
+                         | (Layout.Horizontal().Gap(2)
+                            | new Button("Restore Plan").Outline().OnClick(() =>
+                            {
+                              markdown.Set(InitialMarkdown);
+                              annotations.Set(DummyAnnotations);
+                              scrollTo.Set((QuestionScrollTarget?)null);
+                            })
+                            | new Button("Clear Answers").OnClick(() =>
+                            {
+                              // Every answer in the document, including the two it shipped with. Cleared one
+                              // at a time through the same merge the widget's own events use.
+                              var cleared = markdown.Value;
+                              foreach (var answered in QuestionAnswers.Read(cleared).Where(q => q.HasAnswer))
+                                QuestionAnswers.TryApply(cleared, new QuestionAnswer(answered.Id, null), out cleared);
+
+                              markdown.Set(cleared);
+                            }));
+          
+
+        return Layout.Horizontal().Height(Size.Full()).RemoveParentPadding()
+               | new DraftMarkdownWidget(markdown.Value)
+                   .Article()
+                   .OnAnswersChange(answer =>
+                   {
+                       // The merge is the host's job, and this is all of it. TryApply rather than
+                       // Apply because an answer can outlive the document it was given against.
+                       if (QuestionAnswers.TryApply(markdown.Value, answer, out var merged))
+                           markdown.Set(merged);
+                   })
+                   .Annotations(annotations.Value)
+                   .OnAnnotationsChange(a => annotations.Set(a))
+                   .ScrollTo(scrollTo.Value)
+                   .Width(Size.Full())
+                   .Height(Size.Full())
+                   .StickyContent(rightPanel);
+    }
+
+    /// <summary>The eyebrow when the question has one, else its title. Falls back to the id.</summary>
+    private static string Label(QuestionSummary question) =>
+        !string.IsNullOrWhiteSpace(question.Title) ? question.Title
+        : !string.IsNullOrWhiteSpace(question.Header) ? question.Header
+        : question.Id;
+
+}

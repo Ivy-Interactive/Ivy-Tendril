@@ -149,15 +149,15 @@ date: <CurrentTime>
 
 **Note:** This step runs against the original repo (before worktrees are created), since it validates whether the plan's assumptions about the codebase are still accurate.
 
-5. **Self-flagged redundancy check** — In addition to code block validation, scan the plan revision for markers where the plan itself admits it is already done:
+5. **Self-flagged redundancy check** - In addition to code block validation, scan the plan revision for markers where the plan itself admits it is already done:
    - A `<details><summary>Still relevant?</summary>` block whose body starts with `No.`
-   - Phrases like *"Already applied"*, *"This plan is redundant"*, *"This plan is superseded"*, or *"previously attempted … was merged to main via PR #NNNN"* in the `## Problem` or `## Solution` sections.
+   - Phrases like *"Already applied"*, *"This plan is redundant"*, *"This plan is superseded"*, or *"previously attempted ... was merged to main via PR #NNNN"* in the `## Problem` or `## Solution` sections.
 
    If any marker is found, verify the claim: run `gh pr view <cited PR> --json state,mergeCommit` (must be `MERGED`), confirm the cited commit is in `git log origin/<default-branch>`, and byte-compare the plan's proposed code against the current file contents. If all three checks pass, fail **without creating a worktree** (running verifications on unchanged code wastes the time budget and produces a 0-commit PR that CreatePr cannot process):
 
    1. Write `Verification/PreExecution.md` with `result: Fail` and the evidence for each of the three checks.
-   2. Write `Artifacts/summary.md` documenting the no-op.
-   3. Call `tendril job fail TendrilJobId --message="PreExecution failed: <reason>"` and `exit 1`.
+   2. Write `Artifacts/summary.md` documenting the no-op (explicitly explaining that the task was skipped or retired because the changes are already resolved, rather than presenting a completed implementation draft).
+   3. Call `tendril job fail TendrilJobId --message="PreExecution failed: Task already resolved/redundant (<reason>)"` and `exit 1`.
 
    **Do not set the verifications to `Skipped`.** An earlier revision of this document told you to, and
    that is exactly how a never-executed plan reached `Review`: the server's state decision keys on
@@ -167,7 +167,7 @@ date: <CurrentTime>
 
 ### 2. Create Worktrees
 
-Report status: `tendril job status TendrilJobId --message="Creating worktrees..."`
+Report status: `tendril job status TendrilJobId --message="Creating worktrees..."` (or "worktree" if only one)
 
 For each repo in `RepoConfigs` (this includes both the plan's repos AND any read-only build dependencies from the project config):
 
@@ -541,6 +541,17 @@ A failed pre-execution (step 1.7) is signalled by `Verification/PreExecution.md`
 ### Ambiguity Handling
 
 You are running in non-interactive mode and CANNOT ask questions. If you are unsure about requirements, encounter conflicting instructions, or cannot find referenced files — STOP and fail with a clear message explaining what needs clarification. Do NOT guess when uncertain.
+
+**Unanswered question blocks.** Before doing any work, scan the plan revision you read  in step 1 for any fenced `questions` block (see the **Question Blocks** section of **Reference Documents**).
+
+An unanswered question is **not** a failure. The user saw the block and chose not to answer, which is a decision in itself: it means *you* decide. Resolve each one yourself, in this order:
+
+1. **Take the `recommended` option** if the question has one. It is the asking agent's own choice, made with the plan in front of it.
+2. **Otherwise pick the most reasonable answer** from the options, or — for a free-text question — from the plan and the code. Prefer the option that is smallest in scope and easiest to change later.
+
+Record every question you resolved this way in the execution log with the answer you picked and the one-line reason, so the decision is auditable and the next revision can fold it in. Then continue.
+
+A question that already carries an `answer` is a decision the user made: honor it exactly, and never re-decide it. A block that is fully answered but still present — the user executed without running UpdatePlan first — is likewise not a failure. ExecutePlan never writes revisions, so it never adds or edits question blocks.
 
 ### Rules
 

@@ -2,11 +2,129 @@ import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { Mic, Bot, Cpu, Zap, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square, ArrowRight, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { AgentViewer } from "../AgentViewer";
 import { getMarkdownPlugins } from "../math";
-import { CodeBlock } from "../CodeBlock";
-import { AlertBlockquote } from "../DraftMarkdown/AlertBlockquote";
+import { BlockHandler } from "../BlockHandler";
+import { AlertBlockquote } from "../PlanMarkdown/AlertBlockquote";
+import { isImageFile, processImageFile } from "../imageUtils";
 import "./chat-widget.css";
+
+if (typeof window !== "undefined") {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+}
+
+const PdfThumbnail: React.FC<{ url: string }> = ({ url }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const renderPdf = async () => {
+      try {
+        const loadingTask = pdfjsLib.getDocument({ url });
+        const pdf = await loadingTask.promise;
+        if (!active) return;
+        const page = await pdf.getPage(1);
+        if (!active) return;
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const context = canvas.getContext("2d");
+        if (!context) return;
+
+        const unscaledViewport = page.getViewport({ scale: 1.0 });
+        const scaleX = 140 / unscaledViewport.width;
+        const scaleY = 105 / unscaledViewport.height;
+        const baseScale = Math.max(scaleX, scaleY);
+        const scale = baseScale * 3;
+        const viewport = page.getViewport({ scale });
+
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport,
+          canvas: canvas,
+        };
+        await page.render(renderContext).promise;
+      } catch (err) {
+        console.error("PDF.js render failed:", err);
+        if (active) setError(true);
+      }
+    };
+
+    renderPdf();
+
+    return () => {
+      active = false;
+    };
+  }, [url]);
+
+  if (error) {
+    return (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "1.5rem",
+          background: "var(--muted)",
+        }}
+      >
+        📄
+      </div>
+    );
+  }
+
+  return <canvas ref={canvasRef} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top", display: "block" }} />;
+};
+
+const isPdfFile = (nameOrType: string) => {
+  const lower = nameOrType.toLowerCase();
+  return lower === "application/pdf" || lower.endsWith(".pdf");
+};
+
+const getFileExtBadge = (name: string): string => {
+  const ext = name.split(".").pop()?.toUpperCase() || "FILE";
+  return ext.length > 5 ? ext.slice(0, 5) : ext;
+};
+
+const parseUserMessageContent = (content: string) => {
+  if (!content) return { prompt: "", attachedPaths: [] };
+  const marker = "\n\n[Attached Files]:";
+  const markerIndex = content.indexOf(marker);
+  if (markerIndex !== -1) {
+    const prompt = content.substring(0, markerIndex).trim();
+    const filesSection = content.substring(markerIndex + marker.length);
+    const paths = filesSection
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith("- "))
+      .map((l) => l.substring(2).trim())
+      .filter(Boolean);
+    return { prompt, attachedPaths: paths };
+  }
+  const altMarker = "[Attached Files]:";
+  const altIndex = content.indexOf(altMarker);
+  if (altIndex !== -1) {
+    const prompt = content.substring(0, altIndex).trim();
+    const filesSection = content.substring(altIndex + altMarker.length);
+    const paths = filesSection
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith("- "))
+      .map((l) => l.substring(2).trim())
+      .filter(Boolean);
+    return { prompt, attachedPaths: paths };
+  }
+  return { prompt: content, attachedPaths: [] };
+};
 
 export interface ChatMessageDto {
   id: string;
@@ -52,6 +170,18 @@ export interface ChatAttachmentDto {
   size: number;
   base64Data?: string;
   localPath?: string;
+  lineCount?: number;
+  previewUrl?: string;
+  fileId?: string;
+  uploadProgress?: number;
+  uploadStatus?: "pending" | "uploading" | "finished" | "failed";
+  error?: string;
+}
+
+export interface ChatQueuedMessageDto {
+  id: string;
+  prompt: string;
+  attachments?: ChatAttachmentDto[];
 }
 
 type IvyEventHandler = (eventName: string, widgetId: string, args: unknown[]) => void;
@@ -60,6 +190,7 @@ export interface ChatWidgetProps {
   id: string;
   activeSessionId?: string | null;
   streamingSessionId?: string | null;
+  uploadUrl?: string;
   sessions?: ChatSessionDto[];
   agents?: AgentOptionDto[];
   models?: ModelOptionDto[];
@@ -70,8 +201,7 @@ export interface ChatWidgetProps {
   supportsEffort?: boolean;
   isStreaming?: boolean;
   streamingText?: string;
-  streamingStream?: { id: string };
-  subscribeToStream?: (streamId: string, onData: (data: unknown) => void) => () => void;
+  queuedMessages?: ChatQueuedMessageDto[];
   events?: string[];
   eventHandler?: IvyEventHandler;
 }
@@ -180,22 +310,19 @@ function InlineSelect({ icon, value, options, onChange, title }: InlineSelectPro
 
 const noopEventHandler: IvyEventHandler = () => {};
 
-function formatFileSize(bytes: number): string {
+export const MAX_PAYLOAD_BYTES = 50 * 1024 * 1024;
+
+export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-interface QueuedItem {
-  id: string;
-  prompt: string;
-  attachments: ChatAttachmentDto[];
 }
 
 export function ChatWidget({
   id,
   activeSessionId,
   streamingSessionId: _streamingSessionId,
+  uploadUrl,
   sessions = [],
   agents = [],
   models = [],
@@ -206,8 +333,7 @@ export function ChatWidget({
   supportsEffort = true,
   isStreaming = false,
   streamingText = "",
-  streamingStream: _streamingStream,
-  subscribeToStream: _subscribeToStream,
+  queuedMessages: queuedMessagesProp,
   events = [],
   eventHandler,
 }: ChatWidgetProps) {
@@ -216,11 +342,13 @@ export function ChatWidget({
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitleText, setEditingTitleText] = useState("");
   const [attachments, setAttachments] = useState<ChatAttachmentDto[]>([]);
-  const [queuedMessages, setQueuedMessages] = useState<QueuedItem[]>([]);
+  const [queuedMessages, setQueuedMessages] = useState<ChatQueuedMessageDto[]>(queuedMessagesProp || []);
   const [collapsedQueue, setCollapsedQueue] = useState(false);
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null);
   const [editingQueuedText, setEditingQueuedText] = useState("");
   const [pendingRenames, setPendingRenames] = useState<Record<string, string>>({});
+  const [optimisticMessages, setOptimisticMessages] = useState<Record<string, ChatMessageDto[]>>({});
+  const [optimisticStreaming, setOptimisticStreaming] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -229,6 +357,44 @@ export function ChatWidget({
   const initialPromptRef = useRef<string>("");
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
+  const currentOptimistic = (activeSessionId && optimisticMessages[activeSessionId]) || [];
+  const displayMessages = [...(activeSession?.messages || []), ...currentOptimistic];
+  const totalAttachmentSize = attachments.reduce((sum, att) => sum + (att.size || 0), 0);
+  const isPayloadOversized = totalAttachmentSize > MAX_PAYLOAD_BYTES;
+  const isUploading = attachments.some((att) => att.uploadStatus === "uploading");
+  const isAnyFailed = attachments.some((att) => att.uploadStatus === "failed");
+  const hasValidAttachments = attachments.some((att) => att.uploadStatus === "finished" || !att.uploadStatus);
+  const isSendDisabled = isPayloadOversized || isUploading || isAnyFailed || (!promptText.trim() && !hasValidAttachments);
+  const effectiveIsStreaming = isStreaming || (optimisticStreaming !== null && (optimisticStreaming === activeSessionId || optimisticStreaming === "__active__"));
+  const sendTitle = isPayloadOversized
+    ? "Attachments exceed the 50 MB limit"
+    : isUploading
+    ? "Files are uploading..."
+    : isAnyFailed
+    ? "Some attachments failed to upload"
+    : effectiveIsStreaming
+    ? "Queue message"
+    : "Send message";
+
+  useEffect(() => {
+    if (queuedMessagesProp !== undefined) {
+      setQueuedMessages((prev) => {
+        const optimistic = prev.filter(
+          (item) =>
+            item.id.startsWith("q-") &&
+            !queuedMessagesProp.some((p) => p.prompt === item.prompt)
+        );
+        return [...queuedMessagesProp, ...optimistic];
+      });
+    }
+  }, [queuedMessagesProp]);
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (activeSession) {
+      emit("OnDeleteSession", activeSession.id);
+    }
+  };
 
   // Clear pending renames once they appear in props
   useEffect(() => {
@@ -246,17 +412,58 @@ export function ChatWidget({
     }
   }, [sessions, pendingRenames]);
 
+  const prevIsStreamingRef = useRef(isStreaming);
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeSession?.messages, isStreaming, streamingText, queuedMessages]);
+    if (prevIsStreamingRef.current && !isStreaming) {
+      setOptimisticStreaming(null);
+    }
+    prevIsStreamingRef.current = isStreaming;
+  }, [isStreaming]);
 
   useEffect(() => {
-    if (activeSession?.messages) {
-      setQueuedMessages((prev) =>
-        prev.filter((q) => !activeSession.messages.some((m) => m.content === q.prompt))
-      );
+    setOptimisticStreaming(null);
+    setQueuedMessages(queuedMessagesProp || []);
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    if (!isStreaming && optimisticStreaming) {
+      const msgs = activeSession?.messages;
+      if (msgs && msgs.length > 0 && msgs[msgs.length - 1].role === "assistant") {
+        setOptimisticStreaming(null);
+      }
     }
-  }, [activeSession?.messages]);
+  }, [isStreaming, optimisticStreaming, activeSession?.messages]);
+
+  useEffect(() => {
+    if (optimisticStreaming) {
+      const timer = setTimeout(() => {
+        setOptimisticStreaming(null);
+      }, 60000);
+      return () => clearTimeout(timer);
+    }
+  }, [optimisticStreaming]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [activeSession?.messages, displayMessages.length, effectiveIsStreaming, streamingText, queuedMessages]);
+
+  useEffect(() => {
+    if (activeSessionId && sessions.length > 0) {
+      const sess = sessions.find((s) => s.id === activeSessionId);
+      if (sess?.messages && sess.messages.length > 0) {
+        setOptimisticMessages((prev) => {
+          const current = prev[activeSessionId];
+          if (!current || current.length === 0) return prev;
+          const remaining = current.filter(
+            (opt) => !sess.messages.some((m) => m.role === "user" && m.content.startsWith(opt.content))
+          );
+          if (remaining.length === current.length) return prev;
+          return { ...prev, [activeSessionId]: remaining };
+        });
+      }
+    }
+  }, [sessions, activeSessionId]);
+
 
   const adjustTextareaHeight = () => {
     const el = textareaRef.current;
@@ -287,16 +494,62 @@ export function ChatWidget({
     setIsEditingTitle(false);
   };
 
+  const attachmentsRef = useRef(attachments);
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
+
+  useEffect(() => {
+    return () => {
+      attachmentsRef.current.forEach((att) => {
+        if (att.previewUrl) {
+          try {
+            URL.revokeObjectURL(att.previewUrl);
+          } catch {
+            // ignore
+          }
+        }
+      });
+    };
+  }, []);
+
   const handleSendMessage = () => {
     const trimmed = promptText.trim();
     if (!trimmed && attachments.length === 0) return;
+    if (isPayloadOversized || isUploading) return;
 
-    const payload = { prompt: trimmed, attachments, sessionId: activeSessionId };
-    if (isStreaming) {
+    const validAttachments = attachments.filter((att) => att.uploadStatus !== "failed");
+    const payloadAttachments = validAttachments.map((att) => ({
+      name: att.name,
+      contentType: att.contentType,
+      size: att.size,
+      localPath: att.localPath,
+      fileId: att.fileId,
+      base64Data: (uploadUrl && att.uploadStatus === "finished") ? undefined : (att.base64Data || undefined),
+    }));
+
+    const payload = { prompt: trimmed, attachments: payloadAttachments, sessionId: activeSessionId };
+    if (effectiveIsStreaming) {
       setQueuedMessages((prev) => [
         ...prev,
-        { id: `q-${Date.now()}-${Math.random()}`, prompt: trimmed, attachments },
+        { id: `q-${Date.now()}-${Math.random()}`, prompt: trimmed, attachments: payloadAttachments },
       ]);
+    } else {
+      setOptimisticStreaming(activeSessionId || "__active__");
+      if (activeSessionId) {
+        const optMsg: ChatMessageDto = {
+          id: `opt-${Date.now()}-${Math.random()}`,
+          role: "user",
+          content: trimmed,
+          timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+          agentId: selectedAgent,
+          modelId: selectedModel,
+        };
+        setOptimisticMessages((prev) => ({
+          ...prev,
+          [activeSessionId]: [...(prev[activeSessionId] || []), optMsg],
+        }));
+      }
     }
 
     emit("OnSendMessage", payload);
@@ -308,6 +561,7 @@ export function ChatWidget({
   };
 
   const handleCancelStream = () => {
+    setOptimisticStreaming(null);
     setQueuedMessages([]);
     emit("OnCancelStream");
   };
@@ -316,12 +570,16 @@ export function ChatWidget({
     const item = queuedMessages.find((q) => q.id === queueId);
     if (!item) return;
 
-    const payload = { prompt: item.prompt, attachments: item.attachments, sessionId: activeSessionId };
-    emit("OnSendMessage", payload);
+    if (events.includes("OnSendQueuedNow")) {
+      emit("OnSendQueuedNow", queueId);
+    } else {
+      const payload = { prompt: item.prompt, attachments: item.attachments, sessionId: activeSessionId };
+      emit("OnSendMessage", payload);
+    }
     setQueuedMessages((prev) => prev.filter((q) => q.id !== queueId));
   };
 
-  const handleStartEditQueued = (item: QueuedItem) => {
+  const handleStartEditQueued = (item: ChatQueuedMessageDto) => {
     setEditingQueuedId(item.id);
     setEditingQueuedText(item.prompt);
   };
@@ -331,6 +589,7 @@ export function ChatWidget({
     if (!trimmed) {
       handleDeleteQueued(queueId);
     } else {
+      emit("OnUpdateQueuedMessage", queueId, trimmed);
       setQueuedMessages((prev) =>
         prev.map((q) => (q.id === queueId ? { ...q, prompt: trimmed } : q))
       );
@@ -345,6 +604,7 @@ export function ChatWidget({
   };
 
   const handleDeleteQueued = (queueId: string) => {
+    emit("OnDeleteQueuedMessage", queueId);
     setQueuedMessages((prev) => prev.filter((q) => q.id !== queueId));
     if (editingQueuedId === queueId) {
       setEditingQueuedId(null);
@@ -352,89 +612,283 @@ export function ChatWidget({
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleProcessFiles = async (filesList: FileList | File[]) => {
+    const list = Array.from(filesList);
+    if (list.length === 0) return;
+
+    const newAttachments: ChatAttachmentDto[] = [];
+    const filesToUpload: { file: File; fileId: string; fileName: string }[] = [];
+
+    for (let i = 0; i < list.length; i++) {
+      let file = list[i];
+      if (isImageFile(file.type || file.name)) {
+        try {
+          file = await processImageFile(file);
+        } catch {
+          // ignore, keep original file
+        }
+      }
+      const mimeType = file.type || "application/octet-stream";
+      const ext = mimeType.split("/")[1] || file.name?.split(".").pop() || "bin";
+      const fileName =
+        file.name && file.name.trim() !== "" && file.name !== "blob"
+          ? file.name
+          : `file_${Date.now()}_${i}.${ext}`;
+      const fileId = `att-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 9)}`;
+
+      let lineCount: number | undefined;
+      if (
+        (mimeType.startsWith("text/") ||
+          fileName.endsWith(".txt") ||
+          fileName.endsWith(".log") ||
+          fileName.endsWith(".json") ||
+          fileName.endsWith(".csv") ||
+          fileName.endsWith(".md") ||
+          fileName.endsWith(".cs") ||
+          fileName.endsWith(".ts") ||
+          fileName.endsWith(".tsx") ||
+          fileName.endsWith(".js") ||
+          fileName.endsWith(".py") ||
+          fileName.endsWith(".yaml") ||
+          fileName.endsWith(".yml") ||
+          fileName.endsWith(".xml") ||
+          fileName.endsWith(".html")) &&
+        typeof file.text === "function"
+      ) {
+        try {
+          const textContent = await file.text();
+          lineCount = textContent.split("\n").length;
+        } catch {
+          // ignore
+        }
+      }
+
+      let previewUrl: string | undefined;
+      if (isImageFile(mimeType || fileName) || isPdfFile(mimeType || fileName)) {
+        try {
+          if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function") {
+            previewUrl = URL.createObjectURL(file);
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (uploadUrl) {
+        newAttachments.push({
+          name: fileName,
+          contentType: mimeType,
+          size: file.size || 0,
+          lineCount,
+          previewUrl,
+          fileId,
+          uploadStatus: "uploading",
+          uploadProgress: 0,
+        });
+        filesToUpload.push({ file, fileId, fileName });
+      } else {
+        let base64Data = "";
+        try {
+          if (typeof FileReader !== "undefined") {
+            base64Data = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = (evt) => {
+                resolve((evt.target?.result as string) || "");
+              };
+              reader.onerror = () => resolve("");
+              reader.readAsDataURL(file);
+            });
+          }
+        } catch {
+          base64Data = "";
+        }
+
+        newAttachments.push({
+          name: fileName,
+          contentType: mimeType,
+          size: file.size || 0,
+          base64Data,
+          lineCount,
+          previewUrl,
+          fileId,
+          uploadStatus: "finished",
+          uploadProgress: 100,
+        });
+      }
+    }
+
+    setAttachments((prev) => [...prev, ...newAttachments]);
+
+    if (uploadUrl && filesToUpload.length > 0) {
+      for (const { file, fileId, fileName } of filesToUpload) {
+        const formData = new FormData();
+        formData.append("file", file, fileName);
+
+        if (typeof XMLHttpRequest !== "undefined") {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", uploadUrl, true);
+
+          if (xhr.upload) {
+            xhr.upload.onprogress = (evt) => {
+              if (evt.lengthComputable) {
+                const percent = Math.round((evt.loaded / evt.total) * 100);
+                setAttachments((prev) =>
+                  prev.map((att) =>
+                    att.fileId === fileId ? { ...att, uploadProgress: percent } : att
+                  )
+                );
+              }
+            };
+          }
+
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              setAttachments((prev) =>
+                prev.map((att) =>
+                  att.fileId === fileId
+                    ? { ...att, uploadStatus: "finished", uploadProgress: 100 }
+                    : att
+                )
+              );
+            } else {
+              setAttachments((prev) =>
+                prev.map((att) =>
+                  att.fileId === fileId
+                    ? { ...att, uploadStatus: "failed", error: `Upload failed (status ${xhr.status})` }
+                    : att
+                )
+              );
+            }
+          };
+
+          xhr.onerror = () => {
+            setAttachments((prev) =>
+              prev.map((att) =>
+                att.fileId === fileId
+                  ? { ...att, uploadStatus: "failed", error: "Upload failed: Network error" }
+                  : att
+              )
+            );
+          };
+
+          xhr.send(formData);
+        } else if (typeof fetch !== "undefined") {
+          try {
+            const resp = await fetch(uploadUrl, {
+              method: "POST",
+              body: formData,
+            });
+            if (resp.ok) {
+              setAttachments((prev) =>
+                prev.map((att) =>
+                  att.fileId === fileId
+                    ? { ...att, uploadStatus: "finished", uploadProgress: 100 }
+                    : att
+                )
+              );
+            } else {
+              setAttachments((prev) =>
+                prev.map((att) =>
+                  att.fileId === fileId
+                    ? { ...att, uploadStatus: "failed", error: `Upload failed (status ${resp.status})` }
+                    : att
+                )
+              );
+            }
+          } catch (err) {
+            setAttachments((prev) =>
+              prev.map((att) =>
+                att.fileId === fileId
+                  ? { ...att, uploadStatus: "failed", error: `Upload failed: ${err}` }
+                  : att
+              )
+            );
+          }
+        }
+      }
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        const base64Data = evt.target?.result as string;
-        setAttachments((prev) => [
-          ...prev,
-          {
-            name: file.name,
-            contentType: file.type || "application/octet-stream",
-            size: file.size,
-            base64Data,
-          },
-        ]);
-      };
-      reader.readAsDataURL(file);
-    });
-
+    await handleProcessFiles(files);
     e.target.value = "";
   };
 
   const removeAttachment = (index: number) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
+    setAttachments((prev) => {
+      const target = prev[index];
+      if (target?.previewUrl) {
+        try {
+          URL.revokeObjectURL(target.previewUrl);
+        } catch {
+          // ignore
+        }
+      }
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData?.items;
     const files = e.clipboardData?.files;
 
-    let hasImage = false;
+    const pastedFiles: File[] = [];
 
     if (files && files.length > 0) {
-      Array.from(files).forEach((file) => {
-        if (file.type.startsWith("image/")) {
-          hasImage = true;
-          const reader = new FileReader();
-          reader.onload = (evt) => {
-            const base64Data = evt.target?.result as string;
-            setAttachments((prev) => [
-              ...prev,
-              {
-                name: file.name || `screenshot-${Date.now()}.png`,
-                contentType: file.type || "image/png",
-                size: file.size,
-                base64Data,
-              },
-            ]);
-          };
-          reader.readAsDataURL(file);
-        }
-      });
-    }
-
-    if (!hasImage && items && items.length > 0) {
-      Array.from(items).forEach((item) => {
-        if (item.type.startsWith("image/")) {
-          hasImage = true;
-          const file = item.getAsFile();
+      for (let i = 0; i < files.length; i++) {
+        pastedFiles.push(files[i]);
+      }
+    } else if (items && items.length > 0) {
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].kind === "file") {
+          const file = items[i].getAsFile();
           if (file) {
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-              const base64Data = evt.target?.result as string;
-              setAttachments((prev) => [
-                ...prev,
-                {
-                  name: file.name || `screenshot-${Date.now()}.png`,
-                  contentType: file.type || "image/png",
-                  size: file.size,
-                  base64Data,
-                },
-              ]);
-            };
-            reader.readAsDataURL(file);
+            pastedFiles.push(file);
           }
         }
-      });
+      }
     }
 
-    if (hasImage) {
+    if (pastedFiles.length > 0) {
       e.preventDefault();
+      await handleProcessFiles(pastedFiles);
+    }
+  };
+
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = "copy";
+    }
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = "copy";
+    }
+    setIsDragging(true);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await handleProcessFiles(e.dataTransfer.files);
     }
   };
 
@@ -549,10 +1003,7 @@ export function ChatWidget({
               <button
                 type="button"
                 className="chat-header-delete-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  emit("OnDeleteSession", activeSession.id);
-                }}
+                onClick={handleDeleteClick}
                 title="Delete chat session"
                 aria-label="Delete chat session"
               >
@@ -564,8 +1015,8 @@ export function ChatWidget({
 
         {/* Message List Container */}
         <div className="chat-messages-container">
-          {activeSession && activeSession.messages && activeSession.messages.length > 0 ? (
-            activeSession.messages.map((msg) => (
+          {activeSession && displayMessages.length > 0 ? (
+            displayMessages.map((msg) => (
               <div key={msg.id} className={`chat-message-row ${msg.role}`}>
                 <div className="chat-message-bubble" style={msg.role === "assistant" && msg.rawStream ? { width: "85%", maxWidth: "85%" } : undefined}>
                   {msg.role === "assistant" && (
@@ -576,7 +1027,33 @@ export function ChatWidget({
                     </div>
                   )}
                   {msg.role === "user" ? (
-                    <div>{msg.content}</div>
+                    (() => {
+                      const { prompt, attachedPaths } = parseUserMessageContent(msg.content);
+                      return (
+                        <div className="chat-user-message-body">
+                          {prompt && (
+                            <div className="chat-user-prompt-text">
+                              {prompt}
+                            </div>
+                          )}
+                          {attachedPaths.length > 0 && (
+                            <div className="chat-user-message-attachments">
+                              {attachedPaths.map((filePath, idx) => {
+                                const fileName = filePath.split(/[/\\]/).pop() || filePath;
+                                const ext = fileName.split(".").pop()?.toUpperCase() || "FILE";
+                                return (
+                                  <div key={idx} className="chat-user-attachment-badge" title={filePath}>
+                                    <Paperclip size={12} className="chat-user-attachment-icon" />
+                                    <span className="chat-user-attachment-name">{fileName}</span>
+                                    <span className="chat-user-attachment-ext">{ext}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()
                   ) : msg.rawStream ? (
                     <AgentViewer
                       id={`msg-${msg.id}`}
@@ -593,7 +1070,7 @@ export function ChatWidget({
                       <div className="chat-markdown-body">
                         <ReactMarkdown
                           {...getMarkdownPlugins(msg.content)}
-                          components={{ code: CodeBlock, blockquote: AlertBlockquote }}
+                          components={{ code: BlockHandler, blockquote: AlertBlockquote, pre: ({ children }) => <>{children}</> }}
                         >
                           {msg.content}
                         </ReactMarkdown>
@@ -613,7 +1090,7 @@ export function ChatWidget({
             </div>
           )}
 
-          {isStreaming && (
+          {effectiveIsStreaming && (
             <div className="chat-message-row assistant">
               <div className="chat-message-bubble" style={{ width: "85%", maxWidth: "85%" }}>
                 <div className="chat-message-header">
@@ -700,7 +1177,7 @@ export function ChatWidget({
                       ) : (
                         <>
                           <div className="chat-queued-item-text">
-                            {q.prompt}
+                            {q.prompt || (q.attachments && q.attachments.length > 0 ? `${q.attachments.length} attachment${q.attachments.length > 1 ? "s" : ""}` : "")}
                             {q.attachments && q.attachments.length > 0 && (
                               <span className="chat-queued-item-att-count">
                                 <Paperclip size={11} />
@@ -745,24 +1222,86 @@ export function ChatWidget({
               )}
             </div>
           )}
-          <div className="chat-input-box">
-            {/* Attachment preview pills */}
+          <div
+            className={`chat-input-box ${isDragging ? "dragging" : ""} ${isPayloadOversized ? "oversized" : ""}`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            {isPayloadOversized && (
+              <div className="chat-payload-warning" role="alert">
+                <span>Attachments exceed the 50 MB limit ({formatFileSize(totalAttachmentSize)} / 50 MB). Please remove or downsize files before sending.</span>
+              </div>
+            )}
+
+            {/* Attachment preview cards */}
             {attachments.length > 0 && (
               <div className="chat-attachments-row">
-                {attachments.map((att, idx) => (
-                  <div key={idx} className="chat-attachment-chip">
-                    <Paperclip size={12} />
-                    <span className="chat-attachment-name">{att.name}</span>
-                    <span className="chat-attachment-size">({formatFileSize(att.size)})</span>
-                    <button
-                      type="button"
-                      className="chat-attachment-remove"
-                      onClick={() => removeAttachment(idx)}
-                    >
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
+                {attachments.map((att, idx) => {
+                  const isImage = isImageFile(att.contentType || att.name);
+                  const isPdf = isPdfFile(att.contentType || att.name);
+                  const previewSrc = att.previewUrl || (att.base64Data && att.base64Data.startsWith("data:") ? att.base64Data : undefined);
+                  const metaText = att.lineCount !== undefined ? `${att.lineCount} lines` : formatFileSize(att.size);
+                  const badge = getFileExtBadge(att.name);
+
+                  return (
+                    <div key={att.fileId || idx} className={`chat-thumbnail-card ${att.uploadStatus === "failed" ? "upload-failed" : ""}`} title={att.name}>
+                      {/* Background Preview for images/PDFs */}
+                      {(isImage || isPdf) && previewSrc && (
+                        <div className="chat-thumbnail-preview-container">
+                          {isImage ? (
+                            <img className="chat-thumbnail-image-preview" src={previewSrc} alt={att.name} />
+                          ) : (
+                            <PdfThumbnail url={previewSrc} />
+                          )}
+                          <div className="chat-thumbnail-preview-overlay" />
+                        </div>
+                      )}
+
+                      {/* Uploading progress overlay */}
+                      {att.uploadStatus === "uploading" && (
+                        <div className="chat-thumbnail-uploading-overlay">
+                          <div className="chat-thumbnail-progress-bar-container">
+                            <div className="chat-thumbnail-progress-bar" style={{ width: `${att.uploadProgress ?? 0}%` }} />
+                          </div>
+                          <span className="chat-thumbnail-progress-text">{att.uploadProgress ?? 0}%</span>
+                        </div>
+                      )}
+
+                      {/* Failed badge */}
+                      {att.uploadStatus === "failed" && (
+                        <div className="chat-thumbnail-failed-badge" title={att.error || "Upload failed"}>
+                          Failed
+                        </div>
+                      )}
+
+                      {/* Overlaid Close Button */}
+                      <button
+                        type="button"
+                        className="chat-thumbnail-card-remove"
+                        onClick={() => removeAttachment(idx)}
+                        title="Remove file"
+                        aria-label="Remove attachment"
+                      >
+                        <X size={12} />
+                      </button>
+
+                      {/* Overlaid File Metadata & Badge */}
+                      <div className="chat-thumbnail-content">
+                        {!(previewSrc && (isImage || isPdf)) ? (
+                          <div style={{ minWidth: 0 }}>
+                            <div className="chat-thumbnail-doc-name" title={att.name}>{att.name}</div>
+                            <div className="chat-thumbnail-doc-meta">{metaText}</div>
+                          </div>
+                        ) : (
+                          <div />
+                        )}
+                        <div className="chat-thumbnail-doc-badge">{badge}</div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -823,7 +1362,7 @@ export function ChatWidget({
               </div>
 
               <div className="chat-input-actions-right">
-                {isStreaming ? (
+                {effectiveIsStreaming ? (
                   <>
                     <button
                       type="button"
@@ -838,9 +1377,9 @@ export function ChatWidget({
                     <button
                       type="button"
                       className="chat-send-btn"
-                      disabled={!promptText.trim() && attachments.length === 0}
+                      disabled={isSendDisabled}
                       onClick={handleSendMessage}
-                      title="Queue message"
+                      title={sendTitle}
                     >
                       <span>Queue</span>
                       <kbd className="chat-shortcut-hint">↵</kbd>
@@ -850,8 +1389,9 @@ export function ChatWidget({
                   <button
                     type="button"
                     className="chat-send-btn"
-                    disabled={!promptText.trim() && attachments.length === 0}
+                    disabled={isSendDisabled}
                     onClick={handleSendMessage}
+                    title={sendTitle}
                   >
                     <span>Send</span>
                     <kbd className="chat-shortcut-hint">↵</kbd>

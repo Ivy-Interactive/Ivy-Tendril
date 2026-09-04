@@ -10,14 +10,19 @@
   <img src="https://img.shields.io/badge/macOS%20%7C%20Windows%20%7C%20Linux-4493F8?style=flat-square" alt="Supported platforms: macOS, Windows, and Linux" />
 </p>
 
+<h2>The Agentic Software Factory for 10x Builders</h2>
+
 <p>
-  <strong>The AI Orchestrator for 100x builders.</strong><br/>
-  Orchestrate coding agents side-by-side, manage coding plans end-to-end, and track execution and costs in one place.
+AI agents can now write 99% of the code. This changes what it means to be a developer. Our role shifts to knowing <strong>what good looks like</strong>. To do that, we need completely new developer tools. Tendril is that tool and replaces your IDE in an agentic era. 
 </p>
 
 <p>
-  <img src="src/main.gif" alt="Tendril desktop app running agents and tracking jobs" width="960" />
+<a href="https://youtu.be/_KVG1NnAj-8">
+  <img src="docs/yt-thumbnail-in-two-minutes-2.png" alt="Ivy Tendril in two minutes — watch on YouTube" width="720">
+</a>
 </p>
+
+<p>https://youtu.be/_KVG1NnAj-8</p>
 
 ## Features
 
@@ -107,16 +112,6 @@ Ingest GitHub Issues or jam.dev bug reports via webhooks to turn markdown plans 
 </td>
 </tr>
 </table>
-
-**Also in the box:**
-
-- **Modular Promptwares:** Custom agent workflows (CreatePlan, ExecutePlan, ExpandPlan, CreatePr) with dedicated prompts, tools, and hooks.
-- **Verification Gates:** Enforce build, test, lint, and format checks before advancing plans.
-- **Chat with Agent (PTY):** Direct terminal-style split interaction with running coding agents.
-- **Activity Heatmap:** View your 90-day PR contribution history.
-- **Rerun with Feedback:** Re-steer agents on failed plan steps with custom feedback.
-- **Diagnostics:** Built-in checks for agent installation, PATH, and model availability.
-- **Plan State Versioning:** Revert plan revisions and migrate plan schemas safely.
 
 ---
 

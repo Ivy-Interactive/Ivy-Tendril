@@ -1,3 +1,4 @@
+using Ivy.Tendril.Apps.ReviewAction;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 
@@ -65,14 +66,14 @@ public class ProjectMemoryTableView(
                 | Text.Inline(fileName).Bold().Small()
                 | new Badge("Memory").Color(Colors.Blue).Variant(BadgeVariant.Secondary).Small();
 
-            var rightGroup = Layout.Horizontal().AlignContent(Align.Right).Width(Size.Fit())
-                | new Button().Icon(Icons.Copy).Ghost().Small().Tooltip("Copy file path").OnClick(() =>
+            var rightGroup = Layout.Horizontal().AlignContent(Align.Right).Width(Size.Fit()).Gap(1)
+                | new Button().Icon(Icons.Copy).Outline().Small().Tooltip("Copy file path").OnClick(() =>
                 {
                     copyToClipboard(fullPath);
                     client.Toast("Copied memory path to clipboard", "Copied");
                 })
-                | new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => onEdit(fileName))
-                | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
+                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(fileName))
+                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
                 {
                     if (File.Exists(fullPath)) File.Delete(fullPath);
                     refreshCounter.Set(refreshCounter.Value + 1);
@@ -88,10 +89,6 @@ public class ProjectMemoryTableView(
                 | cardHeader
                 | cardBody;
 
-            if (i > 0)
-            {
-                cards |= new Separator();
-            }
             cards |= card;
         }
 
@@ -107,7 +104,7 @@ public class ProjectMemoryTableView(
         var content = Layout.Vertical()
             | containerBox
             | (Layout.Horizontal().AlignContent(Align.Left)
-                | new Button("Add Project Memory").Icon(Icons.Plus).Outline().Small().OnClick(() => onEdit(null)));
+                | new Button("Add Project Memory").Icon(Icons.Plus).Outline().OnClick(() => onEdit(null)));
 
         return new Expandable(header, content).Open(true);
     }
@@ -151,8 +148,8 @@ public class McpServersTableView : ViewBase
             var emptyContent = Layout.Vertical()
                 | Text.Block("No MCP servers configured for this project.").Muted().Small()
                 | (Layout.Horizontal().AlignContent(Align.Left)
-                    | (_onEdit != null ? new Button("Add MCP Server").Icon(Icons.Plus).Outline().Small().OnClick(() => _onEdit(null)) : null)
-                    | (_onImport != null ? new Button("Import from Repository").Icon(Icons.Download).Outline().Small().OnClick(_onImport) : null));
+                    | (_onEdit != null ? new Button("Add MCP Server").Icon(Icons.Plus).Outline().OnClick(() => _onEdit(null)) : null)
+                    | (_onImport != null ? new Button("Import from Repository").Icon(Icons.Download).Outline().OnClick(_onImport) : null));
 
             return new Expandable(header, emptyContent).Open(true);
         }
@@ -170,14 +167,14 @@ public class McpServersTableView : ViewBase
                 | Text.Inline(srv.Name).Bold().Small()
                 | new Badge("MCP").Color(Colors.Green).Variant(BadgeVariant.Secondary).Small();
 
-            var rightGroup = Layout.Horizontal().AlignContent(Align.Right).Width(Size.Fit())
-                | new Button().Icon(Icons.Copy).Ghost().Small().Tooltip("Copy command").OnClick(() =>
+            var rightGroup = Layout.Horizontal().AlignContent(Align.Right).Width(Size.Fit()).Gap(1)
+                | new Button().Icon(Icons.Copy).Outline().Small().Tooltip("Copy command").OnClick(() =>
                 {
                     copyToClipboard(fullCmd);
                     client.Toast("Copied command to clipboard", "Copied");
                 })
-                | (_onEdit != null ? new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => _onEdit(idx)) : null)
-                | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
+                | (_onEdit != null ? new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => _onEdit(idx)) : null)
+                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
                 {
                     if (_onDelete != null)
                     {
@@ -202,10 +199,6 @@ public class McpServersTableView : ViewBase
                 | cardHeader
                 | cardBody;
 
-            if (i > 0)
-            {
-                cards |= new Separator();
-            }
             cards |= card;
         }
 
@@ -221,8 +214,8 @@ public class McpServersTableView : ViewBase
         var content = Layout.Vertical()
             | containerBox
             | (Layout.Horizontal().AlignContent(Align.Left)
-                | (_onEdit != null ? new Button("Add MCP Server").Icon(Icons.Plus).Outline().Small().OnClick(() => _onEdit(null)) : null)
-                | (_onImport != null ? new Button("Import from Repository").Icon(Icons.Download).Outline().Small().OnClick(_onImport) : null));
+                | (_onEdit != null ? new Button("Add MCP Server").Icon(Icons.Plus).Outline().OnClick(() => _onEdit(null)) : null)
+                | (_onImport != null ? new Button("Import from Repository").Icon(Icons.Download).Outline().OnClick(_onImport) : null));
 
         return new Expandable(header, content).Open(true);
     }
@@ -266,8 +259,8 @@ public class SkillsTableView : ViewBase
             var emptyContent = Layout.Vertical()
                 | Text.Block("No custom skills configured for this project.").Muted().Small()
                 | (Layout.Horizontal().AlignContent(Align.Left)
-                    | (_onEdit != null ? new Button("Add Custom Skill").Icon(Icons.Plus).Outline().Small().OnClick(() => _onEdit(null)) : null)
-                    | (_onImport != null ? new Button("Import from Repository").Icon(Icons.Download).Outline().Small().OnClick(_onImport) : null));
+                    | (_onEdit != null ? new Button("Add Custom Skill").Icon(Icons.Plus).Outline().OnClick(() => _onEdit(null)) : null)
+                    | (_onImport != null ? new Button("Import from Repository").Icon(Icons.Download).Outline().OnClick(_onImport) : null));
 
             return new Expandable(header, emptyContent).Open(true);
         }
@@ -305,8 +298,8 @@ public class SkillsTableView : ViewBase
                 leftGroup |= new Badge("Project").Color(Colors.Blue).Variant(BadgeVariant.Secondary).Small();
             }
 
-            var rightGroup = Layout.Horizontal().AlignContent(Align.Right).Width(Size.Fit())
-                | new Button().Icon(Icons.Copy).Ghost().Small().Tooltip("Copy skill path").OnClick(() =>
+            var rightGroup = Layout.Horizontal().AlignContent(Align.Right).Width(Size.Fit()).Gap(1)
+                | new Button().Icon(Icons.Copy).Outline().Small().Tooltip("Copy skill path").OnClick(() =>
                 {
                     if (!string.IsNullOrWhiteSpace(skill.Path))
                     {
@@ -314,8 +307,8 @@ public class SkillsTableView : ViewBase
                         client.Toast("Copied skill path to clipboard", "Copied");
                     }
                 })
-                | (_onEdit != null ? new Button().Icon(Icons.Pencil).Ghost().Small().Tooltip("Edit").OnClick(() => _onEdit(idx)) : null)
-                | new Button().Icon(Icons.Trash).Ghost().Small().Tooltip("Delete").OnClick(() =>
+                | (_onEdit != null ? new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => _onEdit(idx)) : null)
+                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
                 {
                     if (_onDelete != null)
                     {
@@ -340,10 +333,6 @@ public class SkillsTableView : ViewBase
                 | cardHeader
                 | cardBody;
 
-            if (i > 0)
-            {
-                cards |= new Separator();
-            }
             cards |= card;
         }
 
@@ -359,8 +348,8 @@ public class SkillsTableView : ViewBase
         var content = Layout.Vertical()
             | containerBox
             | (Layout.Horizontal().AlignContent(Align.Left)
-                | (_onEdit != null ? new Button("Add Custom Skill").Icon(Icons.Plus).Outline().Small().OnClick(() => _onEdit(null)) : null)
-                | (_onImport != null ? new Button("Import from Repository").Icon(Icons.Download).Outline().Small().OnClick(_onImport) : null));
+                | (_onEdit != null ? new Button("Add Custom Skill").Icon(Icons.Plus).Outline().OnClick(() => _onEdit(null)) : null)
+                | (_onImport != null ? new Button("Import from Repository").Icon(Icons.Download).Outline().OnClick(_onImport) : null));
 
         return new Expandable(header, content).Open(true);
     }
@@ -380,10 +369,14 @@ public class SkillsTableView : ViewBase
 
 public class ReviewActionsTableView(
     IState<List<ReviewActionConfig>> reviewActions,
-    Action<int?> onEdit) : ViewBase
+    Action<int?> onEdit,
+    string? projectName = null,
+    Action<ReviewActionConfig>? onRun = null,
+    bool showRun = true) : ViewBase
 {
     public override object? Build()
     {
+        var nav = UseNavigation();
         var actions = reviewActions.Value;
         if (actions.Count == 0) return null;
 
@@ -392,19 +385,36 @@ public class ReviewActionsTableView(
         return new TableBuilder<ReviewActionRow>(rows)
             .Header(t => t.Name, "Action Name")
             .Builder(t => t.Name, f => f.Func<ReviewActionRow, string>(name =>
-                Text.Block(name).Bold().Small()
+                Text.Block(name).Bold()
             ))
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<ReviewActionRow, int>(idx =>
-                Layout.Horizontal()
-                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
-                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
+            {
+                var action = actions[idx];
+                var rowLayout = Layout.Horizontal().Gap(1);
+                if (showRun)
                 {
-                    var list = new List<ReviewActionConfig>(actions);
-                    list.RemoveAt(idx);
-                    reviewActions.Set(list);
-                })
-            ))
+                    rowLayout = rowLayout | new Button().Icon(Icons.Play).Outline().Small().Tooltip("Run / Preview Action").OnClick(() =>
+                    {
+                        if (onRun != null)
+                        {
+                            onRun(action);
+                        }
+                        else
+                        {
+                            nav.Navigate<ReviewActionApp>(new ReviewActionAppArgs(ActionName: action.Name, ProjectName: projectName));
+                        }
+                    });
+                }
+                return rowLayout
+                    | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
+                    | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
+                    {
+                        var list = new List<ReviewActionConfig>(reviewActions.Value);
+                        list.RemoveAt(idx);
+                        reviewActions.Set(list);
+                    });
+            }))
             .Width(Size.Fit());
     }
 
@@ -413,7 +423,7 @@ public class ReviewActionsTableView(
 
 public class ProjectVerificationsTableView(
     IState<List<ProjectVerificationRef>> verifications,
-    Action<int?> onEdit) : ViewBase
+    Action<string?> onEdit) : ViewBase
 {
     public override object? Build()
     {
@@ -425,12 +435,12 @@ public class ProjectVerificationsTableView(
         return new TableBuilder<VerificationRow>(rows)
             .Header(t => t.Name, "Verification Name")
             .Builder(t => t.Name, f => f.Func<VerificationRow, string>(name =>
-                Text.Block(name).Bold().Small()
+                Text.Block(name).Bold()
             ))
             .Header(t => t.Index, "")
             .Builder(t => t.Index, f => f.Func<VerificationRow, int>(idx =>
-                Layout.Horizontal()
-                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
+                Layout.Horizontal().Gap(1)
+                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(rows[idx].Name))
                 | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
                 {
                     var current = new List<ProjectVerificationRef>(verifications.Value);

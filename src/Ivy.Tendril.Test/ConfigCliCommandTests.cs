@@ -209,4 +209,75 @@ public class ConfigCliCommandTests : IDisposable
         Assert.True(new ConfigSetSettings { Key = "planTemplate", FilePath = "f.txt" }.Validate().Successful);
         Assert.True(new ConfigSetSettings { Key = "planTemplate", Stdin = true }.Validate().Successful);
     }
+
+    [Fact]
+    public void Set_Theme_Persists()
+    {
+        var config = CreateConfig();
+        ConfigSetCommand.ApplyField(config.Settings, "theme", "cupcake");
+        config.SaveSettings();
+
+        var reloaded = CreateConfig();
+        Assert.Equal("cupcake", reloaded.Settings.Theme);
+        Assert.Equal("cupcake", ConfigGetCommand.ReadField(reloaded.Settings, "theme"));
+    }
+
+    [Fact]
+    public void Set_Theme_MixedCase_ResolvesCanonicalId()
+    {
+        var config = CreateConfig();
+        ConfigSetCommand.ApplyField(config.Settings, "theme", "DrAcUlA");
+        config.SaveSettings();
+
+        Assert.Equal("dracula", CreateConfig().Settings.Theme);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Set_Theme_Empty_Throws(string value)
+    {
+        Assert.Throws<ArgumentException>(() => ConfigSetCommand.ApplyField(CreateConfig().Settings, "theme", value));
+    }
+
+    [Fact]
+    public void Set_Theme_Unknown_Throws()
+    {
+        var ex = Assert.Throws<ArgumentException>(
+            () => ConfigSetCommand.ApplyField(CreateConfig().Settings, "theme", "nonexistent_theme"));
+        Assert.Contains("Valid themes", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("light", "light")]
+    [InlineData("dark", "dark")]
+    [InlineData("system", "system")]
+    [InlineData("LiGhT", "light")]
+    [InlineData("DARK", "dark")]
+    public void Set_ThemeMode_Persists(string input, string expected)
+    {
+        var config = CreateConfig();
+        ConfigSetCommand.ApplyField(config.Settings, "themeMode", input);
+        config.SaveSettings();
+
+        var reloaded = CreateConfig();
+        Assert.Equal(expected, reloaded.Settings.ThemeMode);
+        Assert.Equal(expected, ConfigGetCommand.ReadField(reloaded.Settings, "themeMode"));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Set_ThemeMode_Empty_Throws(string value)
+    {
+        Assert.Throws<ArgumentException>(() => ConfigSetCommand.ApplyField(CreateConfig().Settings, "themeMode", value));
+    }
+
+    [Fact]
+    public void Set_ThemeMode_Unknown_Throws()
+    {
+        var ex = Assert.Throws<ArgumentException>(
+            () => ConfigSetCommand.ApplyField(CreateConfig().Settings, "themeMode", "nonexistent_mode"));
+        Assert.Contains("Valid modes", ex.Message);
+    }
 }

@@ -1,4 +1,4 @@
-using Ivy.Tendril.Agents.Abstractions;
+﻿using Ivy.Tendril.Agents.Abstractions;
 
 namespace Ivy.Tendril.Services;
 
@@ -6,6 +6,10 @@ public record AgentResolution(
     IAgentCli Cli,
     string Model,
     string Effort,
+    // Name of the profile whose settings actually applied — after the promptware defaults, the
+    // caller's override and the balanced/default fallback have all had their say. Empty when no
+    // profile matched, so nothing shaped the model or effort.
+    string Profile,
     IReadOnlyList<string> AllowedTools,
     IReadOnlyList<string> ExtraArgs,
     IReadOnlyDictionary<string, string> EnvironmentVariables)
@@ -42,9 +46,9 @@ public static class AgentProviderFactory
 
         var allowedTools = ResolveAllowedTools(settings, promptwareName, jobContext);
         var (profileName, extraArgs, envVars) = ResolveAgentConfig(settings, codingAgent, promptwareName, profileOverride);
-        var (model, effort) = ApplyProfile(settings, codingAgent, profileName, cli, extraArgs);
+        var (model, effort, appliedProfile) = ApplyProfile(settings, codingAgent, profileName, cli, extraArgs);
 
-        return new AgentResolution(cli, model, effort, allowedTools, extraArgs, envVars);
+        return new AgentResolution(cli, model, effort, appliedProfile, allowedTools, extraArgs, envVars);
     }
 
     private static List<string> ResolveAllowedTools(
@@ -113,42 +117,53 @@ public static class AgentProviderFactory
         return (profileName, extraArgs, envVars);
     }
 
-    private static (string Model, string Effort) ApplyProfile(
+    private static (string Model, string Effort, string AppliedProfile) ApplyProfile(
         TendrilSettings settings,
         string codingAgent,
         string profileName,
         IAgentCli cli,
         List<string> extraArgs)
     {
-        if (string.IsNullOrEmpty(profileName))
-            return ("", "");
-
         var agentConfig = settings.CodingAgents.FirstOrDefault(a =>
             NormalizeAgentName(a.Name).Equals(codingAgent, StringComparison.OrdinalIgnoreCase));
 
-        if (agentConfig == null)
-            return ("", "");
+        if (agentConfig == null && string.IsNullOrEmpty(profileName))
+            return ("", "", "");
 
-        var profile = agentConfig.Profiles.FirstOrDefault(p =>
-            p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
+        AgentProfileConfig? profile = null;
+        if (!string.IsNullOrEmpty(profileName) && agentConfig != null)
+        {
+            profile = agentConfig.Profiles.FirstOrDefault(p =>
+                p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase));
+        }
 
-        if (profile == null)
-            return ("", "");
+        if (profile == null && agentConfig != null && agentConfig.Profiles.Count > 0)
+        {
+            profile = agentConfig.Profiles.FirstOrDefault(p => p.Name.Equals("balanced", StringComparison.OrdinalIgnoreCase))
+                ?? agentConfig.Profiles.FirstOrDefault(p => p.Name.Equals("default", StringComparison.OrdinalIgnoreCase))
+                ?? agentConfig.Profiles.FirstOrDefault(p => !string.IsNullOrEmpty(p.Model) && !p.Model.Equals("default", StringComparison.OrdinalIgnoreCase));
+        }
 
         var model = "";
         var effort = "";
 
-        if (!string.IsNullOrEmpty(profile.Model) &&
-            !profile.Model.Equals("default", StringComparison.OrdinalIgnoreCase) &&
-            cli.Capabilities.HasFlag(AgentCapabilities.ModelSelection))
-            model = profile.Model;
-        if (!string.IsNullOrEmpty(profile.Effort) &&
-            cli.Capabilities.HasFlag(AgentCapabilities.EffortControl))
-            effort = profile.Effort;
-        if (!string.IsNullOrWhiteSpace(profile.Arguments))
-            extraArgs.AddRange(SplitArgs(profile.Arguments));
+        if (profile != null)
+        {
+            if (!string.IsNullOrEmpty(profile.Model) &&
+                !profile.Model.Equals("default", StringComparison.OrdinalIgnoreCase) &&
+                cli.Capabilities.HasFlag(AgentCapabilities.ModelSelection))
+                model = profile.Model;
+            if (!string.IsNullOrEmpty(profile.Effort) &&
+                cli.Capabilities.HasFlag(AgentCapabilities.EffortControl))
+                effort = profile.Effort;
+            if (!string.IsNullOrWhiteSpace(profile.Arguments))
+                extraArgs.AddRange(SplitArgs(profile.Arguments));
+        }
 
-        return (model, effort);
+        // The applied profile is the one that was found, not the one that was asked for: an override
+        // naming a profile the agent does not define falls through to balanced/default below, and
+        // recording the request rather than the fallback would misreport what the job ran under.
+        return (model, effort, profile?.Name ?? "");
     }
 
     internal static string NormalizeAgentName(string name) => name.ToLowerInvariant() switch

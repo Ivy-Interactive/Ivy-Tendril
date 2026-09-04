@@ -1,4 +1,5 @@
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Themes;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
@@ -68,9 +69,9 @@ public record ProjectConfig
 
     public string SecurityPreset { get; set; } = "Custom";
     public string OutsideFileAccessPolicy { get; set; } = "Allow";
-    public string TerminalAutoExecution { get; set; } = "Always Proceed";
-    public string SandboxMode { get; set; } = "Inherit General";
-    public string AutoImplementPlans { get; set; } = "Inherit General";
+    public string TerminalAutoExecution { get; set; } = "AlwaysProceed";
+    public string SandboxMode { get; set; } = "InheritGeneral";
+    public string AutoImplementPlans { get; set; } = "InheritGeneral";
 
     public List<FileAccessRuleConfig> FilePermissions { get; set; } = new();
     public List<NetworkAccessRuleConfig> NetworkAccessRules { get; set; } = new();
@@ -218,9 +219,14 @@ public class TendrilSettings
     public Dictionary<string, PromptwareConfig> Promptwares { get; set; } = new();
     public List<AgentConfig> CodingAgents { get; set; } = new();
     public Tunnel.TunnelConfig? Tunnel { get; set; }
+    public Tunnel.TunnelConfig? ShareTunnel { get; set; }
+    public VaultSettings? Vault { get; set; }
+    public List<VaultSettings> Vaults { get; set; } = new();
     public bool Telemetry { get; set; } = true;
     public bool DesktopNotifications { get; set; } = true;
     public bool SidebarOpen { get; set; } = true;
+    public string Theme { get; set; } = "default";
+    public string ThemeMode { get; set; } = "system";
     public bool Beta { get; set; } = false;
     public string? DismissedUpdateVersion { get; set; }
 
@@ -232,6 +238,28 @@ public class TendrilSettings
         new LevelConfig { Name = "Chore", Color = "Slate" },
         new LevelConfig { Name = "Nitpick", Color = "Gray" }
     };
+}
+
+public record ProjectVaultTracking
+{
+    public string? VaultProjectName { get; set; }
+    public string InstalledVersion { get; set; } = "";
+    public DateTimeOffset InstalledAt { get; set; } = DateTimeOffset.UtcNow;
+    public string? VaultId { get; set; }
+    public string? VaultRepoUrl { get; set; }
+    public Dictionary<string, string> LocalRepoPaths { get; set; } = new();
+}
+
+public class VaultSettings
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Name { get; set; } = "";
+    public bool Enabled { get; set; } = true;
+    public string RepoUrl { get; set; } = "";
+    public string LocalPath { get; set; } = "";
+    public bool AlwaysUpToDate { get; set; } = false;
+    public DateTimeOffset? LastSyncedAt { get; set; }
+    public Dictionary<string, ProjectVaultTracking> TrackedProjects { get; set; } = new();
 }
 
 public record ConfigParseError(string Message, string FilePath, Exception? InnerException);
@@ -350,6 +378,7 @@ public class ConfigService : IConfigService, IDisposable
 
             MigrateProjectColors();
             MigrateLevelColors();
+            MigrateProjectEnumEncodings();
             CreateConfigBackup();
 
             return (true, settings);
@@ -380,6 +409,9 @@ public class ConfigService : IConfigService, IDisposable
     private void FinalizeConfiguration()
     {
         ValidateSettings();
+        MigrateProjectColors();
+        MigrateLevelColors();
+        MigrateProjectEnumEncodings();
         VariableExpansion.InitializeUserSecrets(_logger);
         ExpandSettingsVariables();
         ExpandRepoPaths();
@@ -421,7 +453,6 @@ public class ConfigService : IConfigService, IDisposable
     {
         Directory.CreateDirectory(TendrilHome);
         Directory.CreateDirectory(Path.Combine(TendrilHome, "Inbox"));
-        Directory.CreateDirectory(Path.Combine(TendrilHome, "Trash"));
         Directory.CreateDirectory(PlanFolder);
         Directory.CreateDirectory(Path.Combine(TendrilHome, "Promptwares"));
         Directory.CreateDirectory(Path.Combine(TendrilHome, "Hooks"));
@@ -514,6 +545,29 @@ public class ConfigService : IConfigService, IDisposable
             _logger.LogWarning("MaxConcurrentJobs {Value} is out of bounds (1-512). Using default 20.",
                 Settings.MaxConcurrentJobs);
             Settings.MaxConcurrentJobs = 20;
+        }
+
+        // Theme: fallback to default if null, empty, or unrecognised
+        if (string.IsNullOrWhiteSpace(Settings.Theme))
+        {
+            Settings.Theme = "default";
+        }
+        else
+        {
+            Settings.Theme = TendrilThemes.GetTheme(Settings.Theme).Id;
+        }
+
+        // ThemeMode: fallback to system if null, empty, or unrecognised
+        if (string.IsNullOrWhiteSpace(Settings.ThemeMode) ||
+            (!Settings.ThemeMode.Equals("light", StringComparison.OrdinalIgnoreCase) &&
+             !Settings.ThemeMode.Equals("dark", StringComparison.OrdinalIgnoreCase) &&
+             !Settings.ThemeMode.Equals("system", StringComparison.OrdinalIgnoreCase)))
+        {
+            Settings.ThemeMode = "system";
+        }
+        else
+        {
+            Settings.ThemeMode = Settings.ThemeMode.ToLowerInvariant();
         }
     }
 
@@ -636,6 +690,7 @@ public class ConfigService : IConfigService, IDisposable
             ValidateSettings();
             MigrateProjectColors();
             MigrateLevelColors();
+            MigrateProjectEnumEncodings();
             _levelNamesCache = null;
             VariableExpansion.InitializeUserSecrets(_logger);
             ExpandSettingsVariables();
@@ -810,6 +865,7 @@ public class ConfigService : IConfigService, IDisposable
                     Settings = restored;
                     MigrateProjectColors();
                     MigrateLevelColors();
+                    MigrateProjectEnumEncodings();
                     VariableExpansion.InitializeUserSecrets(_logger);
                     ExpandSettingsVariables();
                     ExpandRepoPaths();
@@ -853,6 +909,7 @@ public class ConfigService : IConfigService, IDisposable
             Settings = YamlHelper.Deserializer.Deserialize<TendrilSettings>(yaml) ?? new TendrilSettings();
             MigrateProjectColors();
             MigrateLevelColors();
+            MigrateProjectEnumEncodings();
             CreateConfigBackup();
             ParseError = null;
             NeedsOnboarding = false;
@@ -1013,6 +1070,92 @@ public class ConfigService : IConfigService, IDisposable
         }
     }
 
+    internal static string MigrateTerminalAutoExecution(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "AlwaysProceed";
+        return value.Trim() switch
+        {
+            "Always Proceed" => "AlwaysProceed",
+            "Inherit General" => "InheritGeneral",
+            "Always Ask" => "AlwaysAsk",
+            var s when s.Replace(" ", "") is var cleaned && (cleaned == "AlwaysProceed" || cleaned == "InheritGeneral" || cleaned == "AlwaysAsk") => cleaned,
+            _ => value.Replace(" ", "")
+        };
+    }
+
+    internal static string MigrateSandboxMode(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "InheritGeneral";
+        return value.Trim() switch
+        {
+            "Inherit General" => "InheritGeneral",
+            var s when s.Replace(" ", "") is var cleaned && (cleaned == "InheritGeneral" || cleaned == "Disabled" || cleaned == "Enabled") => cleaned,
+            _ => value.Replace(" ", "")
+        };
+    }
+
+    internal static string MigrateAutoImplementPlans(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "InheritGeneral";
+        return value.Trim() switch
+        {
+            "Auto-Implement Plans" or "Auto Implement Plans" or "Auto-implement plans" => "AutoImplementPlans",
+            "Always Ask Review" or "Always Ask" => "AlwaysAskReview",
+            "Inherit General" => "InheritGeneral",
+            var s when s.Replace("-", "").Replace(" ", "") is var cleaned && (cleaned == "AutoImplementPlans" || cleaned == "AlwaysAskReview" || cleaned == "InheritGeneral") => cleaned,
+            _ => value.Replace("-", "").Replace(" ", "")
+        };
+    }
+
+    internal static bool NormalizeProjectEnumEncodings(ProjectConfig project)
+    {
+        if (project == null) return false;
+        var changed = false;
+
+        var term = MigrateTerminalAutoExecution(project.TerminalAutoExecution);
+        if (term != project.TerminalAutoExecution)
+        {
+            project.TerminalAutoExecution = term;
+            changed = true;
+        }
+
+        var sandbox = MigrateSandboxMode(project.SandboxMode);
+        if (sandbox != project.SandboxMode)
+        {
+            project.SandboxMode = sandbox;
+            changed = true;
+        }
+
+        var autoImpl = MigrateAutoImplementPlans(project.AutoImplementPlans);
+        if (autoImpl != project.AutoImplementPlans)
+        {
+            project.AutoImplementPlans = autoImpl;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private void MigrateProjectEnumEncodings()
+    {
+        if (Settings?.Projects == null) return;
+
+        var needsSave = false;
+        foreach (var project in Settings.Projects)
+        {
+            if (NormalizeProjectEnumEncodings(project))
+            {
+                needsSave = true;
+            }
+        }
+
+        if (needsSave && File.Exists(ConfigPath))
+        {
+            var yaml = YamlHelper.SerializerCompact.Serialize(Settings);
+            FileHelper.WriteAllText(ConfigPath, yaml);
+        }
+    }
+
     internal void SetTendrilHome(string tendrilHome)
     {
         TendrilHome = tendrilHome;
@@ -1043,6 +1186,7 @@ public class ConfigService : IConfigService, IDisposable
         ValidateSettings();
         MigrateProjectColors();
         MigrateLevelColors();
+        MigrateProjectEnumEncodings();
         _levelNamesCache = null;
         VariableExpansion.InitializeUserSecrets(_logger);
         ExpandSettingsVariables();

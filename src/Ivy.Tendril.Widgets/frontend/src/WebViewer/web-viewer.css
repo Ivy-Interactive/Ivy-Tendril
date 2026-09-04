@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #f3f4f6;
+  background: var(--muted);
 }
 
 .wvr-stage {
@@ -17,11 +17,14 @@
   align-items: flex-start;
   justify-content: center;
   padding: 16px;
-  background: #e5e7eb;
+  background: var(--muted);
 }
 
 .wvr-frame {
   border: 0;
+  /* Deliberately not a theme token: this is the canvas the PROXIED page paints onto, and a
+     page with a transparent body expects the browser default. Tinting it with the host
+     app's theme would show through as a wrong background on every light site. */
   background: #fff;
   display: block;
 }
@@ -34,14 +37,18 @@
 
 .wvr-empty {
   margin: auto;
-  color: #6b7280;
+  color: var(--muted-foreground);
   font:
     13px/1.4 ui-sans-serif,
     system-ui,
     sans-serif;
 }
+/* ---- comment overlay ----
+   Styled to match the annotation popover in DraftMarkdown (.pmv-popover): the same Ivy
+   theme tokens, radii, type scale and ghost/primary buttons, so the two widgets read as
+   one product. Using the tokens rather than fixed colours is also what makes this legible
+   in dark mode — the previous hard-coded greys were light-only. */
 
-/* ---- comment overlay (rendered on top of the iframe) ---- */
 .wvr-overlay {
   position: absolute;
   inset: 0;
@@ -49,97 +56,199 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(17, 24, 39, 0.45);
+  background: rgb(0 0 0 / 0.25);
 }
 
 .wvr-comment-box {
-  width: min(440px, 90%);
-  background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
-  padding: 16px;
-  font:
-    13px/1.45 ui-sans-serif,
-    system-ui,
-    sans-serif;
-  color: #111827;
+  width: min(38rem, 92%);
+  max-height: 86%;
+  overflow-y: auto;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  padding: 0.75rem;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+  font-size: 0.875rem;
 }
 
 .wvr-comment-title {
+  font-size: 0.8125rem;
   font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 10px;
+  color: var(--foreground);
+  margin-bottom: 0.5rem;
 }
 
-.wvr-comment-xpath {
-  font-family: ui-monospace, monospace;
-  font-size: 12px;
-  color: #374151;
-  word-break: break-all;
-  margin-bottom: 6px;
+/* The element's own text, quoted — the DraftMarkdown popover leads with the same thing. */
+.wvr-comment-snippet {
+  font-weight: 400;
+  color: var(--muted-foreground);
 }
 
 .wvr-comment-tag {
   display: inline-block;
-  background: #eef2ff;
-  color: #4338ca;
-  border-radius: 4px;
-  padding: 0 5px;
-  margin-right: 6px;
+  margin: 0 0.375rem;
+  padding: 0 0.3125rem;
+  border-radius: 0.25rem;
+  background: var(--muted);
+  color: var(--foreground);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
   font-weight: 600;
 }
 
-.wvr-comment-meta {
-  font-size: 12px;
-  color: #6b7280;
-  word-break: break-all;
-  margin-bottom: 6px;
+/* One labelled block per locator: the value gets a full line to wrap into rather than
+   being pushed around by an inline label. */
+.wvr-comment-field {
+  margin-top: 0.625rem;
 }
 
-.wvr-comment-key {
-  display: inline-block;
-  min-width: 60px;
-  color: #9ca3af;
-  margin-right: 6px;
+.wvr-comment-label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+  margin-bottom: 0.125rem;
+}
+
+.wvr-comment-value {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--foreground);
+  word-break: break-all;
+}
+
+/* The resolved original location — the part a fixing agent actually acts on. */
+.wvr-comment-source {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.wvr-comment-muted {
+  color: var(--muted-foreground);
+}
+
+.wvr-comment-note {
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  margin-top: 0.125rem;
+}
+
+/* Real source text out of the map's sourcesContent, target line marked. Scrolls rather
+   than stretching the box, and never wraps — a wrapped code frame is unreadable.
+   Positioned so a line's offsetTop is measured against this box: the centring in
+   WebViewer.tsx depends on it, and without it the frame scrolls right past the hit. */
+.wvr-comment-code {
+  position: relative;
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.625rem;
+  max-height: 12rem;
+  overflow: auto;
+  border-radius: 0.25rem;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.71875rem;
+  line-height: 1.5;
+  color: var(--foreground);
+  white-space: pre;
+  tab-size: 2;
+}
+
+/* --accent and --muted carry the same value in Ivy's theme, so swapping the background
+   alone leaves the marked line invisible. Lift it onto --background instead and rule it
+   with --primary; both invert with the theme, so it stays legible in dark mode. An inset
+   shadow rather than a border keeps the text from shifting a pixel. */
+.wvr-code-hit {
+  background: var(--background);
+  box-shadow: inset 0.125rem 0 0 var(--primary);
+  color: var(--foreground);
+  font-weight: 600;
 }
 
 .wvr-comment-input {
   width: 100%;
   box-sizing: border-box;
-  margin-top: 8px;
-  padding: 8px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font: inherit;
-  resize: vertical;
+  margin-top: 0.75rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--input);
+  background: var(--background);
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.875rem;
+  resize: none;
+  outline: none;
+}
+
+.wvr-comment-input:focus {
+  box-shadow: 0 0 0 1px var(--ring);
 }
 
 .wvr-comment-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
 }
 
 .wvr-btn {
-  padding: 6px 14px;
-  border: 1px solid #d1d5db;
-  background: #fff;
-  border-radius: 6px;
+  border: none;
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.625rem;
+  font-family: inherit;
+  font-size: 0.75rem;
   cursor: pointer;
-  font: inherit;
 }
 
-.wvr-btn:hover {
-  background: #f9fafb;
+.wvr-btn--ghost {
+  background: transparent;
+  color: var(--muted-foreground);
 }
 
-.wvr-btn-primary {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #fff;
+.wvr-btn--ghost:hover {
+  background: var(--muted);
 }
 
-.wvr-btn-primary:hover {
-  background: #1d4ed8;
+.wvr-btn--primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.wvr-btn--primary:hover {
+  opacity: 0.9;
+}
+
+.wvr-btn--danger {
+  background: transparent;
+  color: var(--destructive);
+}
+
+.wvr-btn--danger:hover {
+  background: var(--destructive);
+  color: var(--destructive-foreground, var(--background));
+}
+
+/* Pushed away from Save/Cancel: deleting a comment is not undoable. */
+.wvr-comment-delete {
+  margin-right: auto;
+}
+
+/* The number the pin in the page is showing, so the box and the page agree at a glance.
+   Deliberately the pin's own yellow rather than a theme token: it is the same object. */
+.wvr-comment-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: 0.375rem;
+  border-radius: 50%;
+  border: 1px solid #a16207;
+  background: #facc15;
+  color: #1c1917;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  vertical-align: middle;
 }

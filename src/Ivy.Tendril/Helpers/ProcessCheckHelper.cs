@@ -150,6 +150,7 @@ public static class ProcessCheckHelper
     {
         try
         {
+            url = RepoPathValidator.Normalize(url);
             if (url.Contains('\'') || url.Contains('"')) return false;
 
             var isPull = Directory.Exists(destinationPath);

@@ -138,7 +138,7 @@ public class JobService : IJobService
         // so its appender stays open until DisposeResources below.
         job.CloseRawLog();
         _completionHandler.HandleCompletion(
-            job, _jobs, PersistJob, RaiseNotification, RaiseJobsPropertyChanged, StartJobSkipDepCheck);
+            job, _jobs, PersistJob, RaiseNotification, RaiseJobsPropertyChanged, StartJobSkipDepCheck, DeleteJobFromDatabase);
 
         if (job.Status == JobStatus.Completed)
             job.StatusMessage = null;
@@ -167,10 +167,10 @@ public class JobService : IJobService
                 var errorMessage = JobFailureAnalyzer.TryExtractErrorEvent(job.OutputLines);
                 if (errorMessage != null)
                 {
-                    if (IsRecoveredExecutionJob(job))
+                    if (IsRecoveredJob(job))
                     {
                         _logger.LogInformation(
-                            "Job {JobId}: Agent encountered a recoverable error ({ErrorMessage}) but completed execution, recorded commits, and passed verifications.",
+                            "Job {JobId}: Agent encountered a recoverable error ({ErrorMessage}) but completed execution and verified artifacts.",
                             job.Id, errorMessage);
                     }
                     else
@@ -290,9 +290,9 @@ public class JobService : IJobService
         PersistJob(job);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
-            _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
+            _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase);
 
-        _completionHandler.HandleWaitForJobsDependents(job, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob);
+        _completionHandler.HandleWaitForJobsDependents(job, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob, DeleteJobFromDatabase);
 
         RaiseJobsStructureChanged();
 
@@ -336,16 +336,16 @@ public class JobService : IJobService
         if (_jobs.TryRemove(id, out var removed))
         {
             removed.DisposeResources(_logger);
-            try { _database?.DeleteJob(id); } catch { /* Best-effort */ }
+            DeleteJobFromDatabase(id);
             // The job's four artifacts in <TendrilHome>/Jobs/ are deliberately kept: deleting a job removes
             // it from the UI and the database, not the forensic record of what it did.
 
             ApplyDeletePlanState(removed);
 
             if (removed.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
-                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
+                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase);
 
-            _completionHandler.HandleWaitForJobsDependents(removed, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob);
+            _completionHandler.HandleWaitForJobsDependents(removed, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob, DeleteJobFromDatabase);
         }
         RaiseJobsStructureChanged();
     }
@@ -421,7 +421,7 @@ public class JobService : IJobService
         {
             var hasBlocked = _jobs.Values.Any(j => j.Status == JobStatus.Blocked);
             if (hasBlocked)
-                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck);
+                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase);
         }
         catch
         {
@@ -554,7 +554,10 @@ public class JobService : IJobService
 
     public List<JobItem> GetJobs()
     {
-        return _jobs.Values.ToArray().OrderByDescending(j => j.StartedAt ?? DateTime.MinValue).ToList();
+        return _jobs.Values.ToArray()
+            .OrderByDescending(j => j.StartedAt ?? DateTime.MaxValue)
+            .ThenByDescending(j => j.Id)
+            .ToList();
     }
 
     public JobItem? GetJob(string id)
@@ -639,7 +642,8 @@ public class JobService : IJobService
             activeJobs.TryAdd(dbJob.Id, dbJob);
 
         return activeJobs.Values
-            .OrderByDescending(j => j.StartedAt ?? DateTime.MinValue)
+            .OrderByDescending(j => j.StartedAt ?? DateTime.MaxValue)
+            .ThenByDescending(j => j.Id)
             .ToList();
     }
 
@@ -666,10 +670,12 @@ public class JobService : IJobService
             foreach (var job in historicalJobs)
                 if (_jobs.TryAdd(job.Id, job))
                     ReconcileRestoredJob(job);
+
+            ProcessJobQueue();
         }
         catch
         {
-            /* Best-effort — don't block startup */
+            /* Best-effort: don't block startup */
         }
     }
 
@@ -677,15 +683,117 @@ public class JobService : IJobService
     ///     Decides what to do with a non-terminal job restored from the database after a master
     ///     restart. If its agent process is still alive the job keeps running detached (this process
     ///     holds no Process handle for it); otherwise it is marked Failed so it doesn't linger as a
-    ///     ghost. Blocked jobs are left alone — the 60s blocked-job timer and ForceStartJob own them.
+    ///     ghost.
     /// </summary>
     private void ReconcileRestoredJob(JobItem job)
     {
         if (Environment.GetEnvironmentVariable("TENDRIL_NOT_MASTER") == "1" || IsOtherMasterRunning())
             return;
 
+        if (job.Status == JobStatus.Failed && job.Type == Constants.JobTypes.CreatePlan)
+        {
+            var plansDir = _planReaderService?.PlansDirectory
+                ?? (_configService != null ? Path.Combine(_configService.TendrilHome, "Plans") : null);
+            if (!string.IsNullOrEmpty(plansDir) && Directory.Exists(plansDir))
+            {
+                var planId = job.ReportedPlanId ?? job.AllocatedPlanId ?? PlanYamlHelper.ExtractPlanIdFromFolder(job.PlanFile);
+                if (!string.IsNullOrEmpty(planId))
+                {
+                    var folder = PlanYamlHelper.FindPlanFolderById(plansDir, planId);
+                    if (folder != null)
+                    {
+                        job.Status = JobStatus.Completed;
+                        job.StatusMessage = null;
+                        job.PlanFile = folder;
+                        PersistJob(job);
+                        _logger.LogInformation(
+                            "Job {JobId}: Reconciled historical CreatePlan job to Completed (plan folder {Folder} exists)",
+                            job.Id, folder);
+                        return;
+                    }
+                }
+            }
+        }
+
+        if (job.Status == JobStatus.Blocked)
+        {
+            var plansDir = _planReaderService?.PlansDirectory
+                ?? (_configService != null ? Path.Combine(_configService.TendrilHome, "Plans") : null);
+
+            var planFolder = job.TypedArgs?.PlanFolder ?? job.PlanFile;
+            string? resolvedFolder = null;
+            if (!string.IsNullOrEmpty(planFolder))
+            {
+                if (Directory.Exists(planFolder))
+                {
+                    resolvedFolder = planFolder;
+                }
+                else if (!string.IsNullOrEmpty(plansDir) && Directory.Exists(plansDir))
+                {
+                    var combined = Path.Combine(plansDir, planFolder);
+                    if (Directory.Exists(combined))
+                    {
+                        resolvedFolder = combined;
+                    }
+                    else
+                    {
+                        var planId = PlanYamlHelper.ExtractPlanIdFromFolder(planFolder);
+                        if (!string.IsNullOrEmpty(planId))
+                            resolvedFolder = PlanYamlHelper.FindPlanFolderById(plansDir, planId);
+                    }
+                }
+            }
+
+            var hasOtherActiveJob = !string.IsNullOrEmpty(resolvedFolder) && _jobs.Values.Any(j =>
+                j.Id != job.Id &&
+                j.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending &&
+                (string.Equals(j.PlanFile, resolvedFolder, StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(j.TypedArgs?.PlanFolder, resolvedFolder, StringComparison.OrdinalIgnoreCase)));
+
+            var isPlanCompletedOrExecuting = false;
+            if (resolvedFolder != null && File.Exists(Path.Combine(resolvedFolder, "plan.yaml")))
+            {
+                var planYaml = PlanYamlHelper.ReadPlanYaml(resolvedFolder);
+                if (planYaml != null)
+                {
+                    var state = planYaml.State;
+                    if (state.Equals(nameof(PlanStatus.Completed), StringComparison.OrdinalIgnoreCase) ||
+                        state.Equals(nameof(PlanStatus.Review), StringComparison.OrdinalIgnoreCase) ||
+                        state.Equals(nameof(PlanStatus.Executing), StringComparison.OrdinalIgnoreCase) ||
+                        state.Equals(nameof(PlanStatus.Skipped), StringComparison.OrdinalIgnoreCase))
+                    {
+                        isPlanCompletedOrExecuting = true;
+                    }
+                }
+            }
+            else if (resolvedFolder == null && !string.IsNullOrEmpty(planFolder))
+            {
+                isPlanCompletedOrExecuting = true;
+            }
+
+            if (hasOtherActiveJob || isPlanCompletedOrExecuting)
+            {
+                job.Status = JobStatus.Failed;
+                job.StatusMessage = "Superseded by subsequent execution or plan completed";
+                job.CompletedAt = DateTime.UtcNow;
+                PersistJob(job);
+                _logger.LogInformation(
+                    "Job {JobId}: Reconciled restored Blocked job to Failed (superseded or plan completed)", job.Id);
+                return;
+            }
+
+            return;
+        }
+
         if (job.Status is not (JobStatus.Pending or JobStatus.Queued or JobStatus.Running))
             return;
+
+        if (job.Status == JobStatus.Queued)
+        {
+            lock (_queueLock) { _jobQueue.Enqueue(job.Id, -job.Priority); }
+            _logger.LogInformation("Job {JobId}: Re-enqueued restored Queued job", job.Id);
+            return;
+        }
 
         if (IsAgentProcessAlive(job))
         {
@@ -707,7 +815,7 @@ public class JobService : IJobService
             job.StatusMessage = "Interrupted by Tendril master restart";
             job.CompletedAt = DateTime.UtcNow;
             PersistJob(job);
-            _logger.LogWarning("Job {JobId}: Marked Failed — interrupted by a Tendril master restart", job.Id);
+            _logger.LogWarning("Job {JobId}: Marked Failed (interrupted by a Tendril master restart)", job.Id);
         }
     }
 
@@ -817,6 +925,18 @@ public class JobService : IJobService
         }
     }
 
+    private void DeleteJobFromDatabase(string id)
+    {
+        try
+        {
+            _database?.DeleteJob(id);
+        }
+        catch
+        {
+            /* Best-effort */
+        }
+    }
+
     private void RaiseJobsChanged()
     {
         if (_syncContext != null)
@@ -887,6 +1007,8 @@ public class JobService : IJobService
 
         if (!_jobs.TryRemove(id, out _)) return;
 
+        DeleteJobFromDatabase(id);
+
         // Plan transition is handled centrally by StartJobInternal.
         StartJobInternal(typedArgs, inboxFilePath: null, skipDependencyCheck: true, skipWaitForCheck: true);
         RaiseJobsStructureChanged();
@@ -914,6 +1036,10 @@ public class JobService : IJobService
         // Persist while in flight, not just on completion: the agent reports status over HTTP and
         // must still be resolvable if the master restarts mid-job (#1759).
         PersistJob(job);
+
+        // Tracked here rather than at launch: the job is queued from this point on, even if it
+        // goes straight to Blocked below. Not flushed — job_completed flushes the batch later.
+        _telemetryService?.TrackJobCreated(new JobCreatedContext(job.Type, job.Provider, job.ResolvePlanId()));
 
         if (TryBlockForDependencies(job, skipDependencyCheck))
         {
@@ -1344,6 +1470,61 @@ public class JobService : IJobService
 
     internal static void LogCostToCsv(string planFolder, string jobType, int tokens, double cost)
         => PlanYamlHelper.LogCostToCsv(planFolder, jobType, tokens, cost);
+
+    internal bool IsRecoveredJob(JobItem job)
+    {
+        if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs || job.Type is Constants.JobTypes.ExecutePlan or Constants.JobTypes.RetryPlan)
+        {
+            return IsRecoveredExecutionJob(job);
+        }
+
+        if (job.TypedArgs is CreatePlanArgs || job.Type == Constants.JobTypes.CreatePlan)
+        {
+            return _completionHandler.IsCreatePlanSuccessful(job);
+        }
+
+        if (job.TypedArgs is CreatePrArgs || job.Type == Constants.JobTypes.CreatePr)
+        {
+            return IsRecoveredCreatePrJob(job);
+        }
+
+        if (job.TypedArgs is UpdatePlanArgs or ExpandPlanArgs || job.Type is Constants.JobTypes.UpdatePlan or Constants.JobTypes.ExpandPlan)
+        {
+            return IsRecoveredPlanModificationJob(job);
+        }
+
+        if (job.TypedArgs is SplitPlanArgs or CreateIssueArgs || job.Type is Constants.JobTypes.SplitPlan or Constants.JobTypes.CreateIssue)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    internal static bool IsRecoveredCreatePrJob(JobItem job)
+    {
+        var planFolder = job.TypedArgs?.PlanFolder;
+        if (!string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder))
+        {
+            var plan = PlanYamlHelper.ReadPlanYaml(planFolder);
+            if (plan?.Prs?.Count > 0)
+                return true;
+        }
+
+        foreach (var line in job.OutputLines)
+        {
+            if (JobCompletionHandler.GitHubPrUrlPattern.IsMatch(line))
+                return true;
+        }
+
+        return false;
+    }
+
+    internal static bool IsRecoveredPlanModificationJob(JobItem job)
+    {
+        var planFolder = job.TypedArgs?.PlanFolder;
+        return !string.IsNullOrEmpty(planFolder) && Directory.Exists(planFolder);
+    }
 
     internal static bool IsRecoveredExecutionJob(JobItem job)
     {

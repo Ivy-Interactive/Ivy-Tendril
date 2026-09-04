@@ -11,6 +11,12 @@ When changing the `plan.yaml` structure (adding/removing/renaming fields, changi
 
 Existing plans on disk are never recreated — they must be migrated in place. If a migration can't fix a plan it is logged and skipped, and that plan won't appear in the UI. Always test your migration against real plan files. Terminal plans (Completed/Skipped) are treated as immutable and are not migrated.
 
+## Question Blocks
+
+Fenced `questions` blocks let a planning agent ask the user something from a headless run. The normative spec is the `## Question Blocks` section of `Prompts/Plans.md` (embedded as an assembly resource and injected into every promptware firmware); the enforcement is `Services/Plans/QuestionValidationService.cs`, reached from `RevisionWriter.WriteNext` so the CLI, REST and MCP write paths are all covered. **The two must change together** — a rule the validator enforces but Plans.md does not document is a rule agents cannot follow, and vice versa.
+
+No `plan.yaml` migration is involved: questions live in the revision markdown, not in `plan.yaml`.
+
 ## Project Structure
 
 - `Services/` — ConfigService, PlanReaderService, JobService, GitService
@@ -25,7 +31,7 @@ Existing plans on disk are never recreated — they must be migrated in place. I
 
 Tendril uses these environment variables:
 
-- **`TENDRIL_HOME`** (required): Base path for all Tendril data (Plans/, Inbox/, Trash/, config.yaml, etc.)
+- **`TENDRIL_HOME`** (required): Base path for all Tendril data (Plans/, Inbox/, config.yaml, etc.)
   - Must be set before starting Tendril, otherwise onboarding is triggered
   - Example: `/home/user/.tendril` or `C:\Users\User\.tendril`
 
@@ -69,7 +75,7 @@ The server runs over stdio and exposes these tools:
 - **`tendril_list_plans`** — Query plans by state, project, or date range (returns up to 50 results)
 - **`tendril_inbox`** — Create a new plan by writing to the Tendril inbox (picked up by InboxWatcherService)
 - **`tendril_transition_plan`** — Change a plan's state (e.g., Draft → Executing)
-- **`tendril_get_config`** — Get a top-level config value (`codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate`)
+- **`tendril_get_config`** — Get a top-level config value (`codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate`, `theme`)
 - **`tendril_set_config`** — Set a top-level config value (integer fields are bounds-checked)
 
 ### Authentication
@@ -137,7 +143,7 @@ All paths resolve from environment variables — check these first:
 
 | Variable | Purpose | Fallback |
 |----------|---------|----------|
-| `TENDRIL_HOME` | Config, database, hooks, trash, inbox | Required — onboarding triggers if unset |
+| `TENDRIL_HOME` | Config, database, hooks, inbox | Required — onboarding triggers if unset |
 | `TENDRIL_PLANS` | Plans directory (overrides `TENDRIL_HOME/Plans`) | `TENDRIL_HOME/Plans` |
 | `REPOS_HOME` | Base path for `%REPOS_HOME%` expansion in config.yaml repo paths | None (optional) |
 
@@ -155,7 +161,6 @@ $TENDRIL_HOME/
       verification/    # Verification reports
       artifacts/       # Build artifacts, screenshots
       worktrees/       # Git worktree paths used during execution
-  Trash/               # Deleted/duplicate plans (PlanId-Title.md)
   Inbox/               # Incoming plan requests (.md files, picked up by InboxWatcherService)
   Jobs/                # Every job artifact (see below) plus .counter, the job-ID counter
   Logs/worktrees.log   # Worktree create/remove lifecycle trail (not a job log)
@@ -193,13 +198,12 @@ Jobs flow through: `Pending → Queued → Running → Completed/Failed/Timeout/
 
 1. Agent output doesn't contain a `"PlanId: <id>"` line resolving to a folder on disk (`FindPlanFolderById`)
 2. No plan folder matching `AllocatedPlanId` exists on disk either (`FindPlanFolderById`)
-3. No trash entry for that ID exists either (`FindTrashEntryById`)
+3. Agent output doesn't carry the `identified as duplicate:` marker either (`IsDuplicatePlan`)
 
 When debugging a failed CreatePlan, check in order:
 1. Does the plan folder exist in `$TENDRIL_PLANS/{PlanId}-*`?
-2. Does a trash entry exist in `$TENDRIL_HOME/Trash/{PlanId}-*.md`?
-3. Read the Job Log `$TENDRIL_HOME/Jobs/{JobId}-CreatePlan.md`
-4. Read the raw output `$TENDRIL_HOME/Jobs/{JobId}-CreatePlan.raw.jsonl`
+2. Read the Job Log `$TENDRIL_HOME/Jobs/{JobId}-CreatePlan.md`
+3. Read the raw output `$TENDRIL_HOME/Jobs/{JobId}-CreatePlan.raw.jsonl`
 
 ### CLI Commands
 

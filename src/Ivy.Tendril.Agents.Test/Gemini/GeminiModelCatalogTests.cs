@@ -21,6 +21,16 @@ public class GeminiModelCatalogTests
     }
 
     [Fact]
+    public void GetStaticModels_ContainsGemini38Flash()
+    {
+        var models = _catalog.GetStaticModels();
+        var flash = models.FirstOrDefault(m => m.Id == "gemini-3.8-flash");
+        Assert.NotNull(flash);
+        Assert.Equal("Gemini 3.8 Flash", flash!.DisplayName);
+        Assert.Equal("google", flash.Provider);
+    }
+
+    [Fact]
     public void GetStaticModels_ContainsGemini37Flash()
     {
         var models = _catalog.GetStaticModels();
@@ -37,15 +47,6 @@ public class GeminiModelCatalogTests
         var flash = models.FirstOrDefault(m => m.Id == "gemini-3.6-flash");
         Assert.NotNull(flash);
         Assert.Equal("Gemini 3.6 Flash", flash!.DisplayName);
-    }
-
-    [Fact]
-    public void GetStaticModels_ContainsGemini35Flash()
-    {
-        var models = _catalog.GetStaticModels();
-        var flash = models.FirstOrDefault(m => m.Id == "gemini-3.5-flash");
-        Assert.NotNull(flash);
-        Assert.Equal("Gemini 3.5 Flash", flash!.DisplayName);
     }
 
     [Fact]

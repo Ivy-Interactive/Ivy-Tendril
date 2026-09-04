@@ -37,7 +37,7 @@ public class PlanCleanupCommand : Command<PlanCleanupSettings>
             throw new InvalidOperationException($"Plan is not in a terminal state (current: {plan.State}). Use --force to override.");
 
         var worktreesDir = Path.Combine(planFolder, "Worktrees");
-        if (!Directory.Exists(worktreesDir) || Directory.GetDirectories(worktreesDir).Length == 0)
+        if (!Directory.Exists(worktreesDir) || !GitHelper.EnumerateWorktreeDirectories(worktreesDir).Any())
         {
             AnsiConsole.MarkupLine("[green]No worktrees to clean up.[/]");
             return 0;
@@ -45,7 +45,7 @@ public class PlanCleanupCommand : Command<PlanCleanupSettings>
 
         WorktreeCleanupService.RemoveWorktrees(planFolder);
 
-        var remaining = Directory.Exists(worktreesDir) ? Directory.GetDirectories(worktreesDir).Length : 0;
+        var remaining = Directory.Exists(worktreesDir) ? GitHelper.EnumerateWorktreeDirectories(worktreesDir).Count() : 0;
         if (remaining == 0)
         {
             AnsiConsole.MarkupLine("[green]Worktrees cleaned up successfully.[/]");

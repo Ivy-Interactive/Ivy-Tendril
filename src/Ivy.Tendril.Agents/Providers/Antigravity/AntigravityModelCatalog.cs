@@ -27,27 +27,33 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
     [
         new()
         {
-            Id = "gemini-3.7-flash", DisplayName = "Gemini 3.7 Flash",
+            Id = "gemini-3.8-flash", DisplayName = "Gemini 3.8 Flash",
             Capabilities = MidCaps,
             SupportedEfforts = EffortLevels.Antigravity,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
+            InputPerMillion = 0.15m, OutputPerMillion = 0.60m,
+            CacheWritePerMillion = 0m, CacheReadPerMillion = 0.0375m,
         },
         new()
         {
-            Id = "gemini-3.6-flash", DisplayName = "Gemini 3.6 Flash",
+            Id = "gemini-3.7-flash", DisplayName = "Gemini 3.7 Flash",
             Capabilities = MidCaps, IsDefault = true,
             SupportedEfforts = EffortLevels.Antigravity,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
+            InputPerMillion = 0.15m, OutputPerMillion = 0.60m,
+            CacheWritePerMillion = 0m, CacheReadPerMillion = 0.0375m,
         },
         new()
         {
-            Id = "gemini-3.5-flash", DisplayName = "Gemini 3.5 Flash",
+            Id = "gemini-3.6-flash", DisplayName = "Gemini 3.6 Flash",
             Capabilities = MidCaps,
             SupportedEfforts = EffortLevels.Antigravity,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
+            InputPerMillion = 0.15m, OutputPerMillion = 0.60m,
+            CacheWritePerMillion = 0m, CacheReadPerMillion = 0.0375m,
         },
         new()
         {
@@ -56,6 +62,28 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
             SupportedEfforts = EffortLevels.Antigravity,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "google",
+            InputPerMillion = 1.25m, OutputPerMillion = 10.00m,
+            CacheWritePerMillion = 0m, CacheReadPerMillion = 0.315m,
+        },
+        new()
+        {
+            Id = "claude-fable-5", DisplayName = "Claude Fable 5",
+            Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "anthropic",
+            InputPerMillion = 10.00m, OutputPerMillion = 50.00m,
+            CacheWritePerMillion = 12.50m, CacheReadPerMillion = 1.00m,
+        },
+        new()
+        {
+            Id = "claude-opus-5-1", DisplayName = "Claude Opus 5.1",
+            Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "anthropic",
+            InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
+            CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
         },
         new()
         {
@@ -64,22 +92,8 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
             SupportedEfforts = EffortLevels.Claude,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "anthropic",
-        },
-        new()
-        {
-            Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5",
-            Capabilities = FullCaps,
-            SupportedEfforts = EffortLevels.Claude,
-            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
-            Provider = "anthropic",
-        },
-        new()
-        {
-            Id = "claude-sonnet-4-6", DisplayName = "Claude Sonnet 4.6",
-            Capabilities = FullCaps,
-            SupportedEfforts = EffortLevels.Claude,
-            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
-            Provider = "anthropic",
+            InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
+            CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
         },
         new()
         {
@@ -88,6 +102,48 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
             SupportedEfforts = EffortLevels.Claude,
             ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
             Provider = "anthropic",
+            InputPerMillion = 5.00m, OutputPerMillion = 25.00m,
+            CacheWritePerMillion = 6.25m, CacheReadPerMillion = 0.50m,
+        },
+        new()
+        {
+            Id = "claude-sonnet-5-1", DisplayName = "Claude Sonnet 5.1",
+            Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "anthropic",
+            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
+            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
+        },
+        new()
+        {
+            Id = "claude-5.1", DisplayName = "Claude 5.1",
+            Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "anthropic",
+            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
+            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
+        },
+        new()
+        {
+            Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5",
+            Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "anthropic",
+            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
+            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
+        },
+        new()
+        {
+            Id = "claude-sonnet-4-6", DisplayName = "Claude Sonnet 4.6",
+            Capabilities = FullCaps,
+            SupportedEfforts = EffortLevels.Claude,
+            ContextWindow = 1_000_000, MaxOutputTokens = 65_536,
+            Provider = "anthropic",
+            InputPerMillion = 3.00m, OutputPerMillion = 15.00m,
+            CacheWritePerMillion = 3.75m, CacheReadPerMillion = 0.30m,
         },
         new()
         {
@@ -96,6 +152,8 @@ public sealed class AntigravityModelCatalog : CachedModelCatalogProvider
             SupportedEfforts = EffortLevels.Antigravity,
             ContextWindow = 128_000, MaxOutputTokens = 32_768,
             Provider = "openai",
+            InputPerMillion = 0.15m, OutputPerMillion = 0.60m,
+            CacheWritePerMillion = 0m, CacheReadPerMillion = 0m,
         },
     ];
 

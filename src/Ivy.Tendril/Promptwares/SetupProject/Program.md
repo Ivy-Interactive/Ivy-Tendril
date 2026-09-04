@@ -156,13 +156,15 @@ Inspect each repo to determine how to run the application. For website projects,
 
 For each review action:
 - **name**: Short descriptive name (e.g. "App", "Docs", "Frontend", "API")
-- **condition**: A `Test-Path` expression that checks if the worktree path exists (e.g. `Test-Path "Worktrees/<RepoName>/src/<Project>"`). **Do NOT use a leading slash or backslash** (e.g. use `Test-Path "Worktrees/..."`, NOT `Test-Path "\Worktrees/..."`), as leading slashes cause PowerShell to resolve relative to the drive root instead of the plan working directory.
-- **command**: The command to launch the application
+- **condition**: A `Test-Path` expression that checks if the worktree path exists (e.g. `Test-Path "Worktrees/<owner>/<repo>/src/<Project>"` or `Test-Path "Worktrees/<repo>/src/<Project>"`).
+  - The repo path under `Worktrees/` preserves the repo origin structure (e.g. `<owner>/<repo>` such as `ivy-interactive/ivy-tendril` for repos under `Repos/<owner>/<repo>` or from GitHub).
+  - **Do NOT use a leading slash or backslash** (e.g. use `Test-Path "Worktrees/..."`, NOT `Test-Path "\Worktrees/..."`), as leading slashes cause PowerShell to resolve relative to the drive root instead of the plan working directory.
+- **command**: The command to launch the application.
 
 ```bash
 tendril project add-review-action <project-name> "<name>" \
   --command="<launch command>" \
-  --condition="Test-Path \"Worktrees/<RepoName>/<path>\""
+  --condition="Test-Path \"Worktrees/<owner>/<repo>/<path>\""
 ```
 
 ### 4. Set the Stack Hash
@@ -221,8 +223,23 @@ Self-check before persisting: segments in Rule-1 order; absent layers omitted; o
 tendril project set <project-name> stackHash <hash>
 ```
 
-### 5. Summary
+### 5. Save Project Stack & Architecture Memory (`stack.md`)
+
+Write a comprehensive architecture and tech stack overview document to:
+`$TendrilHome/Projects/<project-name>/Memory/stack.md` (or use `$TENDRIL_HOME/Projects/<project-name>/Memory/stack.md`).
+Ensure the `Memory` directory exists before writing.
+
+Include the following sections in `stack.md`:
+1. **Overview & Tech Stack**: Languages, core frameworks, ORMs, databases, test runners, and styling engines detected.
+2. **Project Structure & Key Paths**: Directory layout, entry points, configuration files, and solution/project paths.
+3. **Build & Test Workflows**: Exact commands used to build, format, test, and run the project locally.
+4. **Conventions & Architecture Notes**: Any notable architecture patterns or design choices identified during repo analysis.
+
+### 6. Summary
 
 Print a summary of what was configured:
 - Verifications added
 - Review actions added
+- Stack hash configured
+- Project memory created (`stack.md`)
+

@@ -1,4 +1,6 @@
-using Ivy.Tendril.Apps.Drafts.Dialogs;
+using Ivy;
+using Ivy.Tendril.Apps.Plans.Dialogs;
+using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 
@@ -74,4 +76,57 @@ public class CreatePlanDialogTests
         Assert.Equal("Add Project", actions[0].Label);
         Assert.DoesNotContain(options, o => o.Value == CreatePlanDialog.AddProjectActionValue);
     }
+
+    [Theory]
+    [InlineData(0, SelectInputVariant.Toggle)]
+    [InlineData(1, SelectInputVariant.Toggle)]
+    [InlineData(6, SelectInputVariant.Toggle)]
+    [InlineData(7, SelectInputVariant.Select)]
+    [InlineData(10, SelectInputVariant.Select)]
+    public void GetProjectPickerVariant_SelectsCorrectVariantBasedOnCount(int count, SelectInputVariant expected)
+    {
+        var variant = CreatePlanDialog.GetProjectPickerVariant(count);
+
+        Assert.Equal(expected, variant);
+    }
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    [InlineData(6, false)]
+    [InlineData(7, true)]
+    [InlineData(12, true)]
+    public void IsProjectPickerSearchable_EnablesSearchOnlyWhenMoreThanSixProjects(int count, bool expected)
+    {
+        var searchable = CreatePlanDialog.IsProjectPickerSearchable(count);
+
+        Assert.Equal(expected, searchable);
+    }
+
+    [Fact]
+    public void BuildProjectSelectOptions_MultipleProjects_IncludesAutoAndAddProject()
+    {
+        var projects = new[] { "p1", "p2", "p3", "p4", "p5", "p6", "p7" };
+        var options = CreatePlanDialog.BuildProjectSelectOptions(projects);
+
+        Assert.Equal(9, options.Count);
+        Assert.Equal("Auto", options[0].Value);
+        for (var i = 0; i < projects.Length; i++)
+        {
+            Assert.Equal(projects[i], options[i + 1].Value);
+        }
+        Assert.Equal(CreatePlanDialog.AddProjectActionValue, options[8].Value);
+    }
+
+    [Fact]
+    public void BuildProjectSelectOptions_SingleProject_OmitsAutoAndIncludesAddProject()
+    {
+        var projects = new[] { "Tendril-Services" };
+        var options = CreatePlanDialog.BuildProjectSelectOptions(projects);
+
+        Assert.Equal(2, options.Count);
+        Assert.Equal("Tendril-Services", options[0].Value);
+        Assert.Equal(CreatePlanDialog.AddProjectActionValue, options[1].Value);
+    }
 }
+

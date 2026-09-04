@@ -64,7 +64,7 @@ public static class GitTabDataBuilder
 
         if (Directory.Exists(worktreesDir))
         {
-            foreach (var repoDir in Directory.GetDirectories(worktreesDir))
+            foreach (var repoDir in GitHelper.EnumerateWorktreeDirectories(worktreesDir))
             {
                 var section = BuildSectionForWorktree(repoDir, allCommitRows, assignedCommitHashes, gitService);
                 if (section != null)

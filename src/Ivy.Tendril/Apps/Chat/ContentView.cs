@@ -1,10 +1,11 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Ivy;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Apps.Chat.Dialogs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
@@ -19,23 +20,41 @@ public class ContentView(
     IState<string> selectedAgent,
     IState<string> selectedModel,
     IState<string> selectedEffort,
-    IState<bool> isStreaming,
-    IState<string?> streamingSessionId,
-    IState<HashSet<string>> runningSessionIds,
-    IState<Dictionary<string, string>> liveSessionStreams,
-    IRef<ConcurrentQueue<ChatSendMessageDto>> messageQueue,
-    IRef<IAgentSession?> activeSessionRef,
     List<ChatSessionDto> sessionDtos,
     List<AgentOptionDto> agentDtos,
     List<ModelOptionDto> modelDtos,
     List<EffortOptionDto> effortDtos,
     bool supportsEffort,
+    bool isStreaming,
+    string streamingText,
     IChatHistoryService chatService,
+    IChatExecutionService executionService,
     IAgentRunner agentRunner,
-    Action<ChatSendMessageDto> sendMessage) : ViewBase
+    Action<ChatSendMessageDto> sendMessage,
+    Action<string> selectSession) : ViewBase
 {
     public override object Build()
     {
+        var configService = UseService<IConfigService>();
+        var deletingSessionId = UseState<string?>(null);
+
+        var upload = UseUpload(async (fileUpload, stream, ct) =>
+        {
+            var targetSession = activeSessionId.Value ?? "temp";
+            var attachDir = Path.Combine(configService.TendrilHome, "Attachments", targetSession);
+            Directory.CreateDirectory(attachDir);
+            var rawName = Path.GetFileName(fileUpload.FileName);
+            var safeFileName = !string.IsNullOrWhiteSpace(rawName)
+                ? string.Concat(rawName.Split(Path.GetInvalidFileNameChars()))
+                : $"file_{Guid.NewGuid():N}.bin";
+            if (string.IsNullOrWhiteSpace(safeFileName)) safeFileName = $"file_{Guid.NewGuid():N}.bin";
+            var filePath = Path.Combine(attachDir, safeFileName);
+            await using var fileStream = File.Create(filePath);
+            await stream.CopyToAsync(fileStream, ct);
+        });
+
+        _ = sessionVersion.Value;
+
         if (activeSession == null)
         {
             var newChatBtn = new Button("Start New Chat")
@@ -44,8 +63,7 @@ public class ContentView(
                 .OnClick(() =>
                 {
                     var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
-                    activeSessionId.Set(newSess.Id);
-                    sessionVersion.Set(v => v + 1);
+                    selectSession(newSess.Id);
                 });
 
             return Layout.Vertical().AlignContent(Align.Center).Width(Size.Full()).Height(Size.Full())
@@ -55,14 +73,26 @@ public class ContentView(
                 | newChatBtn;
         }
 
-        string activeSessionLiveStream = activeSessionId.Value != null && liveSessionStreams.Value.TryGetValue(activeSessionId.Value, out var streamText)
-            ? streamText
-            : "";
+        var sessionToDelete = deletingSessionId.Value != null
+            ? chatService.GetSession(deletingSessionId.Value) ?? activeSession
+            : activeSession;
 
-        return new ChatWidget
+        var deleteDialog = new DeleteSessionDialog(deletingSessionId, sessionToDelete, chatService, activeSessionId, sessionVersion);
+
+        var activeQueuedItems = activeSessionId.Value != null
+            ? chatService.GetQueuedMessages(activeSessionId.Value)
+            : Array.Empty<ChatQueuedItem>();
+
+        var queuedMessageDtos = activeQueuedItems.Select(q => new ChatQueuedMessageDto(
+            q.Id,
+            q.Prompt,
+            q.Attachments
+        )).ToList();
+
+        var chatWidget = new ChatWidget
         {
             ActiveSessionId = activeSessionId.Value,
-            StreamingSessionId = streamingSessionId.Value,
+            UploadUrl = upload.Value.UploadUrl,
             Sessions = sessionDtos,
             Agents = agentDtos,
             Models = modelDtos,
@@ -71,23 +101,21 @@ public class ContentView(
             SelectedModel = selectedModel.Value,
             SelectedEffort = selectedEffort.Value,
             SupportsEffort = supportsEffort,
-            IsStreaming = activeSessionId.Value != null && runningSessionIds.Value.Contains(activeSessionId.Value),
-            StreamingText = activeSessionLiveStream,
+            IsStreaming = isStreaming,
+            StreamingText = streamingText,
+            QueuedMessages = queuedMessageDtos,
 
             OnSelectSession = e =>
             {
-                activeSessionId.Set(e.Value);
+                if (!string.IsNullOrEmpty(e.Value))
+                {
+                    selectSession(e.Value);
+                }
                 return ValueTask.CompletedTask;
             },
             OnDeleteSession = e =>
             {
-                chatService.DeleteSession(e.Value);
-                sessionVersion.Set(v => v + 1);
-                if (activeSessionId.Value == e.Value)
-                {
-                    var remaining = chatService.GetSessions();
-                    activeSessionId.Set(remaining.FirstOrDefault()?.Id);
-                }
+                deletingSessionId.Set(e.Value);
                 return ValueTask.CompletedTask;
             },
             OnRenameSession = e =>
@@ -102,7 +130,7 @@ public class ContentView(
             OnCreateSession = _ =>
             {
                 var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
-                activeSessionId.Set(newSess.Id);
+                selectSession(newSess.Id);
                 return ValueTask.CompletedTask;
             },
             OnSendMessage = e =>
@@ -112,22 +140,11 @@ public class ContentView(
             },
             OnCancelStream = async _ =>
             {
-                while (messageQueue.Value.TryDequeue(out var _)) { }
-                try
+                if (activeSessionId.Value != null)
                 {
-                    if (activeSessionRef.Value != null)
-                    {
-                        await activeSessionRef.Value.StopAsync();
-                    }
+                    chatService.ClearQueuedMessages(activeSessionId.Value);
+                    await executionService.CancelAsync(activeSessionId.Value);
                 }
-                catch
-                {
-                    // Ignore cancel exceptions
-                }
-                isStreaming.Set(false);
-                streamingSessionId.Set(null);
-                runningSessionIds.Set(new HashSet<string>());
-                liveSessionStreams.Set(new Dictionary<string, string>());
             },
             OnAgentChanged = e =>
             {
@@ -150,10 +167,42 @@ public class ContentView(
             {
                 selectedEffort.Set(e.Value);
                 return ValueTask.CompletedTask;
+            },
+            OnDeleteQueuedMessage = e =>
+            {
+                if (activeSessionId.Value != null && !string.IsNullOrEmpty(e.Value))
+                {
+                    chatService.RemoveQueuedMessage(activeSessionId.Value, e.Value);
+                }
+                return ValueTask.CompletedTask;
+            },
+            OnUpdateQueuedMessage = e =>
+            {
+                if (activeSessionId.Value != null && e.Value != null && e.Value.Length >= 2)
+                {
+                    chatService.UpdateQueuedMessage(activeSessionId.Value, e.Value[0], e.Value[1]);
+                }
+                return ValueTask.CompletedTask;
+            },
+            OnSendQueuedNow = e =>
+            {
+                if (activeSessionId.Value != null && !string.IsNullOrEmpty(e.Value))
+                {
+                    var items = chatService.GetQueuedMessages(activeSessionId.Value);
+                    var item = items.FirstOrDefault(q => q.Id == e.Value);
+                    if (item != null)
+                    {
+                        chatService.RemoveQueuedMessage(activeSessionId.Value, e.Value);
+                        sendMessage(new ChatSendMessageDto(item.Prompt, item.Attachments, activeSessionId.Value));
+                    }
+                }
+                return ValueTask.CompletedTask;
             }
         }
         .WithLayout()
         .Full()
         .RemoveParentPadding();
+
+        return new Fragment(chatWidget, deleteDialog);
     }
 }

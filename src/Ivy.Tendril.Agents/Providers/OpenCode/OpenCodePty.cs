@@ -66,7 +66,7 @@ public sealed class OpenCodePty : IAgentPty
         if (!string.IsNullOrEmpty(config.Model))
         {
             args.Add("--model");
-            args.Add(config.Model);
+            args.Add(Helpers.OpenCodeModelHelper.FormatModel(config.Model));
         }
 
         // OpenCode's --session resumes an existing session; it does not accept

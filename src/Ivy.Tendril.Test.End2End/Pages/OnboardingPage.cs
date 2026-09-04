@@ -79,7 +79,7 @@ public class OnboardingPage
         // Wait for dashboard content
         try
         {
-            await _page.Locator("text=/Loading Dashboard Data|No plans yet|Create your first plan|Dashboard/")
+            await _page.Locator("text=/Loading Dashboard Data|Dashboard/")
                 .First.WaitForAsync(new() { State = WaitForSelectorState.Visible, Timeout = 30_000 });
         }
         catch (TimeoutException)

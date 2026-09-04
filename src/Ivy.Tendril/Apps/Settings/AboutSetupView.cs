@@ -19,11 +19,33 @@ public class AboutSetupView : ViewBase
         string Runtime,
         string TendrilHome);
 
-    private record BundledToolInfo(
+    public record BundledToolInfo(
         string Tool,
         string Status,
+        string License,
         string Version,
         string Location);
+
+    public static BundledToolInfo[] GetDefaultToolchain(
+        bool isIvyAgentBundled,
+        string ivyAgentPath,
+        string ivyAgentVersion,
+        bool isDotnetBundled,
+        string dotnetPath,
+        string dotnetVersion,
+        bool isPwshBundled,
+        string pwshPath,
+        string pwshVersion,
+        string gitVersion)
+    {
+        return
+        [
+            new BundledToolInfo("OpenCode CLI", isIvyAgentBundled ? "Bundled" : File.Exists(ivyAgentPath) ? "Installed" : "Not Found", "MIT License", ivyAgentVersion, ivyAgentPath),
+            new BundledToolInfo(".NET SDK / Runtime", isDotnetBundled ? "Bundled SDK" : "Runtime", "MIT License", dotnetVersion, dotnetPath),
+            new BundledToolInfo("PowerShell", isPwshBundled ? "Bundled" : File.Exists(pwshPath) ? "System" : "Not Found", "MIT License", pwshVersion, pwshPath),
+            new BundledToolInfo("Git", "System Tool", "GPL v2", gitVersion, "git")
+        ];
+    }
 
     public override object Build()
     {
@@ -80,49 +102,51 @@ public class AboutSetupView : ViewBase
             Runtime: frameworkDesc,
             TendrilHome: tendrilHome);
 
-        var systemDetailsCard = new Card(
-            systemInfo.ToDetails()
-                .Label(x => x.Application, "Application")
-                .Label(x => x.Version, "Tendril Version")
-                .Label(x => x.Framework, "UI Framework")
-                .Label(x => x.OperatingSystem, "Operating System")
-                .Label(x => x.Architecture, "Architecture")
-                .Label(x => x.Runtime, ".NET Runtime")
-                .Label(x => x.TendrilHome, "Tendril Home")
-                .Builder(x => x.Version, f => f.CopyToClipboard())
-                .Builder(x => x.TendrilHome, f => f.CopyToClipboard())
-        ).Header("System & Environment", icon: Icons.Cpu);
+        var systemDetails = systemInfo.ToDetails()
+            .Label(x => x.Application, "Application")
+            .Label(x => x.Version, "Tendril Version")
+            .Label(x => x.Framework, "UI Framework")
+            .Label(x => x.OperatingSystem, "Operating System")
+            .Label(x => x.Architecture, "Architecture")
+            .Label(x => x.Runtime, ".NET Runtime")
+            .Label(x => x.TendrilHome, "Tendril Home")
+            .Builder(x => x.Version, f => f.CopyToClipboard())
+            .Builder(x => x.TendrilHome, f => f.CopyToClipboard());
 
-        var toolsList = new[]
-        {
-            new BundledToolInfo("Ivy Agent CLI", isIvyAgentBundled ? "Bundled" : File.Exists(ivyAgentPath) ? "Installed" : "Not Found", ivyAgentVersionState.Value, ivyAgentPath),
-            new BundledToolInfo(".NET SDK / Runtime", isDotnetBundled ? "Bundled SDK" : "Runtime", dotnetVersionState.Value, dotnetPath),
-            new BundledToolInfo("PowerShell", isPwshBundled ? "Bundled" : File.Exists(pwshPath) ? "System" : "Not Found", pwshVersionState.Value, pwshPath),
-            new BundledToolInfo("Git", "System Tool", gitVersionState.Value, "git"),
-        };
+        var toolsList = GetDefaultToolchain(
+            isIvyAgentBundled,
+            ivyAgentPath,
+            ivyAgentVersionState.Value,
+            isDotnetBundled,
+            dotnetPath,
+            dotnetVersionState.Value,
+            isPwshBundled,
+            pwshPath,
+            pwshVersionState.Value,
+            gitVersionState.Value);
 
-        var toolsTableCard = new Card(
-            toolsList.ToTable()
-                .Width(Size.Full())
-                .Header(x => x.Tool, "Software Tool")
-                .Header(x => x.Status, "Status")
-                .Header(x => x.Version, "Version")
-                .Header(x => x.Location, "Binary Path")
-                .Builder(x => x.Status, f => f.Func((string status) => status switch
-                {
-                    "Bundled" or "Bundled SDK" => new Badge(status).Variant(BadgeVariant.Primary).Small(),
-                    "Installed" => new Badge(status).Variant(BadgeVariant.Secondary).Small(),
-                    "System Tool" or "Runtime" => new Badge(status).Variant(BadgeVariant.Outline).Small(),
-                    _ => new Badge(status).Variant(BadgeVariant.Destructive).Small()
-                }))
-                .Builder(x => x.Version, f => f.CopyToClipboard())
-                .Builder(x => x.Location, f => f.CopyToClipboard())
-        ).Header("Software Toolchain", icon: Icons.Package);
+        var toolsTable = toolsList.ToTable()
+            .Width(Size.Full())
+            .Header(x => x.Tool, "Software Tool")
+            .Header(x => x.Status, "Status")
+            .Header(x => x.License, "License")
+            .Header(x => x.Version, "Version")
+            .Header(x => x.Location, "Binary Path")
+            .Builder(x => x.Status, f => f.Func((string status) => status switch
+            {
+                "Bundled" or "Bundled SDK" => new Badge(status).Variant(BadgeVariant.Primary).Small(),
+                "Installed" => new Badge(status).Variant(BadgeVariant.Secondary).Small(),
+                "System Tool" or "Runtime" => new Badge(status).Variant(BadgeVariant.Outline).Small(),
+                _ => new Badge(status).Variant(BadgeVariant.Destructive).Small()
+            }))
+            .Builder(x => x.License, f => f.Func((string license) => new Badge(license).Variant(BadgeVariant.Outline).Small()))
+            .Builder(x => x.Version, f => f.CopyToClipboard())
+            .Builder(x => x.Location, f => f.CopyToClipboard());
 
         var systemReport = new StringBuilder()
             .AppendLine($"Tendril: v{tendrilVersion}")
             .AppendLine($"Ivy Framework: v{ivyVersion}")
-            .AppendLine($"Ivy Agent CLI: {ivyAgentVersionState.Value} ({ivyAgentPath})")
+            .AppendLine($"OpenCode / Ivy Agent CLI: {ivyAgentVersionState.Value} ({ivyAgentPath})")
             .AppendLine($".NET SDK: {dotnetVersionState.Value} ({dotnetPath})")
             .AppendLine($"PowerShell: {pwshVersionState.Value} ({pwshPath})")
             .AppendLine($"Git: {gitVersionState.Value}")
@@ -181,8 +205,11 @@ public class AboutSetupView : ViewBase
                     }));
 
         var content = Layout.Vertical().Width(Size.Full().Max(Size.Units(200)))
-            | systemDetailsCard
-            | toolsTableCard;
+            | Text.H4("System & Environment")
+            | systemDetails
+            | Text.H4("Software Toolchain")
+            | toolsTable;
+
 
         return new HeaderLayout(header, content);
     }

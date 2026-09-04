@@ -1,4 +1,5 @@
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Agents.Providers.Ivy;
 using Ivy.Tendril.Agents.Providers.OpenCode;
 
@@ -6,9 +7,9 @@ namespace Ivy.Tendril.Agents.Providers.OpenAiProxy;
 
 public sealed class OpenAiProxyCli : IAgentCli
 {
-    private readonly OpenCodeCli _inner = new();
     private readonly Func<string?> _apiKeyProvider;
     private readonly Func<string?> _baseUrlProvider;
+    private readonly OpenCodeCli _inner = new();
 
     public OpenAiProxyCli(Func<string?>? apiKeyProvider = null, Func<string?>? baseUrlProvider = null)
     {
@@ -28,16 +29,48 @@ public sealed class OpenAiProxyCli : IAgentCli
         get
         {
             var baseUrl = _baseUrlProvider();
+            if (baseUrl != null && baseUrl.Contains("llmproxy.ivy.app"))
+            {
+                return
+                [
+                    new AgentProfileDefault(ProfileTier.Deep, "claude-opus-5", "max"),
+                    new AgentProfileDefault(ProfileTier.Balanced, "gemini-3.7-flash", "medium"),
+                    new AgentProfileDefault(ProfileTier.Quick, "gemini-3.7-flash", "low"),
+                ];
+            }
+            if (baseUrl != null && baseUrl.Contains("api.anthropic.com"))
+            {
+                return
+                [
+                    new AgentProfileDefault(ProfileTier.Deep, "claude-opus-5", "max"),
+                    new AgentProfileDefault(ProfileTier.Balanced, "claude-sonnet-5", "high"),
+                    new AgentProfileDefault(ProfileTier.Quick, "claude-haiku-4-5", "low"),
+                ];
+            }
+            if (baseUrl != null && (baseUrl.Contains("generativelanguage.googleapis.com") || baseUrl.Contains("gemini") || baseUrl.Contains("google")))
+            {
+                return
+                [
+                    new AgentProfileDefault(ProfileTier.Deep, "gemini-3.7-flash", "high"),
+                    new AgentProfileDefault(ProfileTier.Balanced, "gemini-3.7-flash", "medium"),
+                    new AgentProfileDefault(ProfileTier.Quick, "gemini-3.7-flash", "medium"),
+                ];
+            }
             if (baseUrl != null && baseUrl.Contains("api.berget.ai"))
             {
                 return
                 [
-                    new AgentProfileDefault(ProfileTier.Deep, "moonshotai/Kimi-K3", null),
-                    new AgentProfileDefault(ProfileTier.Balanced, "moonshotai/Kimi-K3", null),
-                    new AgentProfileDefault(ProfileTier.Quick, "moonshotai/Kimi-K3", null),
+                    new AgentProfileDefault(ProfileTier.Deep, "moonshotai/Kimi-K3", "max"),
+                    new AgentProfileDefault(ProfileTier.Balanced, "moonshotai/Kimi-K3", "high"),
+                    new AgentProfileDefault(ProfileTier.Quick, "moonshotai/Kimi-K3", "low"),
                 ];
             }
-            return _inner.DefaultProfiles;
+            return
+            [
+                new AgentProfileDefault(ProfileTier.Deep, "gpt-5.6-sol", "high"),
+                new AgentProfileDefault(ProfileTier.Balanced, "gpt-5.6-terra", "medium"),
+                new AgentProfileDefault(ProfileTier.Quick, "gpt-5.6-luna", "low"),
+            ];
         }
     }
 
@@ -50,16 +83,7 @@ public sealed class OpenAiProxyCli : IAgentCli
     public AgentProcessSpec BuildProcessSpec(AgentLaunchConfig config)
     {
         var baseUrl = _baseUrlProvider();
-        var isBerget = baseUrl?.Contains("api.berget.ai") ?? false;
-        var model = config.Model;
-        if (isBerget && (string.IsNullOrEmpty(model) || model == "default" || model.Equals("kimi-k3", StringComparison.OrdinalIgnoreCase)))
-        {
-            model = "moonshotai/Kimi-K3";
-        }
-        else if (string.IsNullOrEmpty(model))
-        {
-            model = "moonshotai/Kimi-K3";
-        }
+        var model = OpenCodeModelHelper.FormatModel(config.Model, baseUrl);
 
         config = config with { Model = model };
 
@@ -68,8 +92,9 @@ public sealed class OpenAiProxyCli : IAgentCli
         var env = new Dictionary<string, string>(spec.Environment);
         if (!string.IsNullOrEmpty(baseUrl))
         {
-            env["OPENAI_BASE_URL"] = baseUrl;
-            env["ANTHROPIC_BASE_URL"] = baseUrl;
+            var trimmedBase = baseUrl.Trim().TrimEnd('/');
+            env["ANTHROPIC_BASE_URL"] = trimmedBase.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? trimmedBase[..^3] : trimmedBase;
+            env["OPENAI_BASE_URL"] = trimmedBase.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? trimmedBase : $"{trimmedBase}/v1";
         }
 
         var apiKey = _apiKeyProvider();
@@ -91,6 +116,7 @@ public sealed class OpenAiProxyCli : IAgentCli
             RedirectStderr = spec.RedirectStderr,
             CreateNoWindow = spec.CreateNoWindow,
             UseShellExecute = spec.UseShellExecute,
+            TempFiles = spec.TempFiles,
         };
     }
 
@@ -100,8 +126,9 @@ public sealed class OpenAiProxyCli : IAgentCli
         var baseUrl = _baseUrlProvider();
         if (!string.IsNullOrEmpty(baseUrl))
         {
-            env["OPENAI_BASE_URL"] = baseUrl;
-            env["ANTHROPIC_BASE_URL"] = baseUrl;
+            var trimmedBase = baseUrl.Trim().TrimEnd('/');
+            env["ANTHROPIC_BASE_URL"] = trimmedBase.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? trimmedBase[..^3] : trimmedBase;
+            env["OPENAI_BASE_URL"] = trimmedBase.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? trimmedBase : $"{trimmedBase}/v1";
         }
         var apiKey = _apiKeyProvider();
         if (!string.IsNullOrEmpty(apiKey))

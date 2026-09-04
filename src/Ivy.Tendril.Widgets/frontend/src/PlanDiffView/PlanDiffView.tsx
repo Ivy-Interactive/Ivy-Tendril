@@ -9,6 +9,7 @@ import { getMarkdownPlugins } from "../math";
 import { MessageSquare } from "lucide-react";
 import { refractor } from "refractor/all";
 import { prismTheme } from "../prismTheme";
+import { getInitials } from "../PlanMarkdown/annotationUtils";
 
 const refractorAdapter = {
   ...refractor,
@@ -128,6 +129,8 @@ interface DraftComment {
   changeKey: string;
   content: string;
   lineNumber: number;
+  author?: string;
+  isResolved?: boolean;
 }
 
 interface PlanDiffViewProps {
@@ -148,6 +151,7 @@ interface PlanDiffViewProps {
   defaultCollapsed?: boolean;
   comments?: DraftComment[];
   filePath?: string;
+  currentAuthor?: string;
 }
 
 function getLineNumber(change: ChangeData | null): number {
@@ -161,10 +165,6 @@ function getBasename(path: string): string {
   return parts[parts.length - 1] || path;
 }
 
-/**
- * Tracks whether a container is narrower than {@link NARROW_BREAKPOINT}, measured
- * against the element's own width (via ResizeObserver) rather than the viewport.
- */
 export function useIsNarrow(): [React.RefObject<HTMLDivElement | null>, boolean] {
   const ref = useRef<HTMLDivElement | null>(null);
   const [isNarrow, setIsNarrow] = useState(false);
@@ -175,29 +175,18 @@ export function useIsNarrow(): [React.RefObject<HTMLDivElement | null>, boolean]
 
     let animFrameId: number | null = null;
 
-    const update = (width: number) => {
-      const next = width > 0 && width < NARROW_BREAKPOINT;
-      setIsNarrow((prev) => (prev === next ? prev : next));
-    };
-
-    update(element.clientWidth || element.getBoundingClientRect?.().width || 0);
-
     const observer = new ResizeObserver((entries) => {
-      if (entries.length === 0) return;
+      if (!entries[0]) return;
       const width = entries[0].contentRect.width;
-      if (animFrameId !== null) {
-        cancelAnimationFrame(animFrameId);
-      }
+      if (animFrameId !== null) cancelAnimationFrame(animFrameId);
       animFrameId = requestAnimationFrame(() => {
-        update(width);
+        setIsNarrow(width > 0 && width < NARROW_BREAKPOINT);
       });
     });
 
     observer.observe(element);
     return () => {
-      if (animFrameId !== null) {
-        cancelAnimationFrame(animFrameId);
-      }
+      if (animFrameId !== null) cancelAnimationFrame(animFrameId);
       observer.disconnect();
     };
   }, []);
@@ -208,14 +197,16 @@ export function useIsNarrow(): [React.RefObject<HTMLDivElement | null>, boolean]
 interface CommentWidgetContainerProps {
   changeKey: string;
   comments: DraftComment[];
-  isEditing?: boolean;
+  isEditing: boolean;
   editingText?: string;
-  originalLineText: string;
+  editingComment?: DraftComment;
+  originalLineText?: string;
+  currentAuthor?: string;
   onAddComment: (text: string) => void;
-  onUpdateComment: (text: string) => void;
-  onDeleteComment: () => void;
+  onUpdateComment: (comment: DraftComment) => void;
+  onDeleteComment: (comment: DraftComment) => void;
   onCancelForm: () => void;
-  onStartEdit: (text: string) => void;
+  onStartEdit: (comment: DraftComment) => void;
   onCancelEdit: () => void;
 }
 
@@ -223,6 +214,8 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
   comments,
   isEditing,
   editingText,
+  editingComment,
+  currentAuthor,
   onAddComment,
   onUpdateComment,
   onDeleteComment,
@@ -232,38 +225,98 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
 }) => {
   const [inputText, setInputText] = useState("");
   const hasComment = comments.length > 0;
+  const isAuthor = !currentAuthor || !currentAuthor.trim();
 
   return (
     <div className="diff-comment-widget p-3 bg-[var(--background)] border border-[var(--border)] rounded-md m-2 shadow-sm max-w-[600px] text-xs font-sans">
       {hasComment && !isEditing ? (
         <div className="flex flex-col gap-2">
-          {comments.map((comment, idx) => (
-            <div key={idx} className="flex flex-col gap-1 border-b border-[var(--border)] pb-2 last:border-0 last:pb-0">
-              <div className="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
-                <span className="font-medium text-[var(--foreground)]">Agent Instruction (Draft)</span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    className="hover:underline hover:text-[var(--foreground)] cursor-pointer"
-                    onClick={() => onStartEdit(comment.content)}
-                  >
-                    Edit
-                  </button>
-                  <span>&bull;</span>
-                  <button
-                    type="button"
-                    className="hover:underline hover:text-[var(--destructive)] cursor-pointer"
-                    onClick={onDeleteComment}
-                  >
-                    Delete
-                  </button>
+          {comments.map((comment, idx) => {
+            const isResolved = comment.isResolved ?? false;
+            const isOwner = !comment.author?.trim() || (currentAuthor && comment.author.trim() === currentAuthor.trim());
+            const canResolve = true; 
+            const canDelete = isAuthor || isOwner;
+            const canEdit = isAuthor || isOwner;
+
+            return (
+              <div
+                key={idx}
+                className={`flex flex-col gap-1 border-b border-[var(--border)] pb-2 last:border-0 last:pb-0 ${
+                  isResolved ? "opacity-75" : ""
+                }`}
+              >
+                <div className="flex items-center justify-between text-xs text-[var(--muted-foreground)]">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {comment.author?.trim() && (
+                      <div
+                        className="pmv-comment-avatar"
+                        title={comment.author.trim()}
+                      >
+                        {getInitials(comment.author.trim())}
+                      </div>
+                    )}
+                    <span className="font-medium text-[var(--foreground)] truncate">
+                      {comment.author?.trim() ? comment.author.trim() : "Agent Instruction (Draft)"}
+                    </span>
+                    {isResolved && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 text-[10px] font-medium rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        ✓ Resolved
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {canEdit && !isResolved && (
+                      <>
+                        <button
+                          type="button"
+                          className="hover:underline hover:text-[var(--foreground)] cursor-pointer"
+                          onClick={() => onStartEdit(comment)}
+                        >
+                          Edit
+                        </button>
+                        <span>&bull;</span>
+                      </>
+                    )}
+                    {canResolve && (
+                      <>
+                        <button
+                          type="button"
+                          className={`hover:underline cursor-pointer ${
+                            isResolved
+                              ? "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                              : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 font-medium"
+                          }`}
+                          onClick={() =>
+                            onUpdateComment({
+                              ...comment,
+                              isResolved: !isResolved,
+                            })
+                          }
+                          title={isResolved ? "Reopen comment" : "Mark comment as resolved"}
+                        >
+                          {isResolved ? "Unresolve" : "Resolve"}
+                        </button>
+                        {canDelete && <span>&bull;</span>}
+                      </>
+                    )}
+                    {canDelete && (
+                      <button
+                        type="button"
+                        className="hover:underline text-[var(--destructive)] cursor-pointer"
+                        onClick={() => onDeleteComment(comment)}
+                        title="Delete comment"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="diff-comment-markdown leading-relaxed text-sm text-[var(--foreground)] mt-1">
+                  <Markdown {...getMarkdownPlugins(comment.content)}>{comment.content}</Markdown>
                 </div>
               </div>
-              <div className="diff-comment-markdown leading-relaxed text-sm text-[var(--foreground)] mt-1">
-                <Markdown {...getMarkdownPlugins(comment.content)}>{comment.content}</Markdown>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -279,7 +332,7 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
             value={isEditing ? (editingText ?? "") : inputText}
             onChange={(e) => {
               if (isEditing) {
-                onStartEdit(e.target.value);
+                if (editingComment) onStartEdit({ ...editingComment, content: e.target.value });
               } else {
                 setInputText(e.target.value);
               }
@@ -306,8 +359,8 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
               className="px-3 py-1 text-xs font-medium bg-[var(--primary)] text-[var(--primary-foreground)] rounded hover:opacity-90 transition-colors disabled:opacity-50 cursor-pointer"
               disabled={isEditing ? !editingText?.trim() : !inputText.trim()}
               onClick={() => {
-                if (isEditing) {
-                  onUpdateComment(editingText ?? "");
+                if (isEditing && editingComment) {
+                  onUpdateComment({ ...editingComment, content: editingText ?? editingComment.content });
                 } else {
                   onAddComment(inputText);
                   setInputText("");
@@ -334,13 +387,14 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
   language,
   oldRevision,
   newRevision,
-  wordWrap,
-  collapsible = false,
+  wordWrap = true,
+  collapsible = true,
   defaultCollapsed = false,
   comments = [],
   filePath = "",
+  currentAuthor,
 }) => {
-  const dispatchEvent = eventHandler ?? onIvyEvent;
+  const dispatchEvent = eventHandler || onIvyEvent;
   const files = useMemo(() => {
     if (!diff) return [];
     try {
@@ -350,13 +404,13 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
     }
   }, [diff]);
 
-  const [collapsedState, setCollapsedState] = useState<Record<string, boolean>>({});
   const [activeFormKeys, setActiveFormKeys] = useState<Record<string, boolean>>({});
-  const [editingCommentKeys, setEditingCommentKeys] = useState<Record<string, string>>({});
+  const [editingCommentKeys, setEditingCommentKeys] = useState<Record<string, DraftComment>>({});
+  const [viewedState, setViewedState] = useState<Record<string, boolean>>({});
   const [commentsHidden, setCommentsHidden] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    setCollapsedState({});
+    setViewedState({});
     setCommentsHidden({});
     setActiveFormKeys({});
     setEditingCommentKeys({});
@@ -383,24 +437,18 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       filePath,
       changeKey,
       content,
-      lineNumber
+      lineNumber,
+      author: currentAuthor?.trim() || undefined,
+      isResolved: false,
     }]);
   };
 
-  const handleUpdateComment = (changeKey: string, content: string, lineNumber: number) => {
-    dispatchEvent?.("OnUpdateComment", id, [{
-      filePath,
-      changeKey,
-      content,
-      lineNumber
-    }]);
+  const handleUpdateComment = (comment: DraftComment) => {
+    dispatchEvent?.("OnUpdateComment", id, [comment]);
   };
 
-  const handleDeleteComment = (changeKey: string) => {
-    const existing = commentsByChangeKey[changeKey]?.[0];
-    if (existing) {
-      dispatchEvent?.("OnDeleteComment", id, [existing]);
-    }
+  const handleDeleteComment = (comment: DraftComment) => {
+    dispatchEvent?.("OnDeleteComment", id, [comment]);
   };
 
   const getWidgets = (hunks: HunkData[], hideComments = false) => {
@@ -425,29 +473,31 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
             changeKey={changeKey}
             comments={visibleComments}
             isEditing={isEditing}
-            editingText={editingCommentKeys[changeKey]}
+            editingText={editingCommentKeys[changeKey]?.content}
+            editingComment={editingCommentKeys[changeKey]}
             originalLineText={originalLineText}
+            currentAuthor={currentAuthor}
             onAddComment={(text) => {
               handleAddComment(changeKey, text, getLineNumber(change));
               setActiveFormKeys(prev => ({ ...prev, [changeKey]: false }));
             }}
-            onUpdateComment={(text) => {
-              handleUpdateComment(changeKey, text, getLineNumber(change));
+            onUpdateComment={(updatedComment) => {
+              handleUpdateComment(updatedComment);
               setEditingCommentKeys(prev => {
                 const copy = { ...prev };
                 delete copy[changeKey];
                 return copy;
               });
             }}
-            onDeleteComment={() => {
-              handleDeleteComment(changeKey);
+            onDeleteComment={(commentToDelete) => {
+              handleDeleteComment(commentToDelete);
               setActiveFormKeys(prev => ({ ...prev, [changeKey]: false }));
             }}
             onCancelForm={() => {
               setActiveFormKeys(prev => ({ ...prev, [changeKey]: false }));
             }}
-            onStartEdit={(text) => {
-              setEditingCommentKeys(prev => ({ ...prev, [changeKey]: text }));
+            onStartEdit={(commentToEdit) => {
+              setEditingCommentKeys(prev => ({ ...prev, [changeKey]: commentToEdit }));
             }}
             onCancelEdit={() => {
               setEditingCommentKeys(prev => {
@@ -471,15 +521,15 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       const oldName = rawOld === "/dev/null" ? "" : rawOld;
       const newName = rawNew === "/dev/null" ? "" : rawNew;
       const isRename = oldName !== newName && oldName !== "" && newName !== "";
-      const hasHeader = Boolean(oldName || newName);
+      const hasHeader = Boolean(oldName || newName || filePath || collapsible);
       const elementId = filePath || `${id}-${file.newPath || file.oldPath || `diff-${fileIndex}`}`;
       const label = isRename
         ? `${getBasename(oldName)} → ${getBasename(newName)}`
-        : getBasename(newName || oldName) || `Diff ${fileIndex + 1}`;
+        : getBasename(newName || oldName || filePath) || `Diff ${fileIndex + 1}`;
 
       return { oldName, newName, isRename, hasHeader, elementId, label };
     });
-  }, [files, id, oldRevision, newRevision, filePath]);
+  }, [files, id, oldRevision, newRevision, filePath, collapsible]);
 
   const scrollToFile = useCallback((elementId: string) => {
     if (typeof document === "undefined") return;
@@ -487,6 +537,29 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
       .getElementById(elementId)
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
+
+  // Pre-tokenize all files and hunks once when files/language change, instead of synchronously tokenizing on every render
+  const tokensByFile = useMemo(() => {
+    return files.map((file, fileIndex) => {
+      const meta = fileMeta[fileIndex];
+      const effectiveFilePath = filePath || meta?.newName || meta?.oldName || "";
+      const fileLang = language || getLanguageFromFilePath(effectiveFilePath);
+      if (file.hunks && file.hunks.length > 0) {
+        try {
+          if (fileLang && refractor.registered(fileLang)) {
+            return tokenize(file.hunks, {
+              highlight: true,
+              refractor: refractorAdapter,
+              language: fileLang,
+            });
+          }
+        } catch {
+          // Fallback if language tokenization fails
+        }
+      }
+      return undefined;
+    });
+  }, [files, fileMeta, filePath, language]);
 
   const style: React.CSSProperties = {
     ...getWidth(width),
@@ -553,13 +626,14 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
         const effectiveFilePath = filePath || newName || oldName;
         const fileKey = effectiveFilePath || file.newPath || file.oldPath || `diff-${fileIndex}`;
 
-        const isCollapsed = collapsedState[fileKey] ?? defaultCollapsed;
+        const isViewed = viewedState[fileKey] ?? false;
+        const isCollapsed = collapsible ? isViewed : defaultCollapsed;
 
-        const toggleCollapsed = () => {
+        const toggleViewed = () => {
           if (!collapsible) return;
-          setCollapsedState((prev) => ({
+          setViewedState((prev) => ({
             ...prev,
-            [fileKey]: !isCollapsed,
+            [fileKey]: !isViewed,
           }));
         };
 
@@ -603,7 +677,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
           <div
             key={fileIndex}
             id={elementId}
-            className={`border border-[var(--border)] rounded-md ${isCollapsed ? "mb-0" : "mb-1.5"} bg-[var(--background)] overflow-clip`}
+            className={`ivy-diff-file border border-[var(--border)] rounded-md ${isCollapsed ? "mb-0" : "mb-1.5"} bg-[var(--background)] overflow-clip`}
             style={{ scrollMarginTop: showFileDropdown ? "2rem" : 0 }}
           >
             {hasHeader && (
@@ -615,7 +689,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
               >
                 <div
                   className="flex items-center gap-2 cursor-pointer select-none grow min-w-0"
-                  onClick={collapsible ? toggleCollapsed : undefined}
+                  onClick={collapsible ? toggleViewed : undefined}
                 >
                   {collapsible && (
                     <svg
@@ -636,7 +710,7 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                     </div>
                   ) : (
                     <div className="truncate">
-                      {renderFilePath(newName || oldName)}
+                      {renderFilePath(newName || oldName || filePath || "Diff")}
                     </div>
                   )}
                 </div>
@@ -655,24 +729,21 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                   <button
                     type="button"
                     role="checkbox"
-                    aria-checked={isCollapsed}
+                    aria-checked={isViewed}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setCollapsedState((prev) => ({
-                        ...prev,
-                        [fileKey]: !isCollapsed,
-                      }));
+                      toggleViewed();
                     }}
                     className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] cursor-pointer select-none font-medium focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--ring)] rounded px-1 py-0.5"
                   >
                     <span
                       className={`size-3.5 shrink-0 rounded-sm border transition-colors flex items-center justify-center ${
-                        isCollapsed
+                        isViewed
                           ? "bg-[var(--primary)] text-[var(--primary-foreground)] border-[var(--primary)]"
                           : "border-[var(--border)] bg-[var(--background)] hover:bg-[var(--accent)]"
                       }`}
                     >
-                      {isCollapsed && (
+                      {isViewed && (
                         <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="2 6 5 9 10 3" />
                         </svg>
@@ -715,54 +786,37 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                 </div>
               </div>
             )}
-            {!isCollapsed && (() => {
-              const fileLang = language || getLanguageFromFilePath(effectiveFilePath);
-              let fileTokens: any = undefined;
-              if (file.hunks && file.hunks.length > 0) {
-                try {
-                  if (fileLang && refractor.registered(fileLang)) {
-                    fileTokens = tokenize(file.hunks, {
-                      highlight: true,
-                      refractor: refractorAdapter,
-                      language: fileLang,
-                    });
+            {!isCollapsed && (
+              <div className="overflow-x-auto">
+                <Diff
+                  className={`${effectiveViewType === "unified" ? "diff-unified-view" : "diff-split-view"} ${deletions === 0 && additions > 0 ? "diff-no-deletions" : ""} ${additions === 0 && deletions > 0 ? "diff-no-additions" : ""}`}
+                  viewType={effectiveViewType}
+                  diffType={file.type}
+                  hunks={file.hunks}
+                  tokens={tokensByFile[fileIndex]}
+                  renderToken={customRenderToken}
+                  widgets={getWidgets(file.hunks, commentsHidden[fileKey] ?? false)}
+                  gutterEvents={{
+                    onClick: ({ change }) => {
+                      if (change) {
+                        const changeKey = getChangeKey(change);
+                        setActiveFormKeys((prev) => ({ ...prev, [changeKey]: !prev[changeKey] }));
+                      }
+                    },
+                  }}
+                >
+                  {(hunks) =>
+                    hunks.map((hunk) => (
+                      <Hunk key={hunk.content} hunk={hunk} />
+                    ))
                   }
-                } catch {
-                  // Fallback if language tokenization fails
-                }
-              }
-
-              return (
-                <div className="overflow-x-auto">
-                  <Diff
-                    className={`${effectiveViewType === "unified" ? "diff-unified-view" : "diff-split-view"} ${deletions === 0 && additions > 0 ? "diff-no-deletions" : ""} ${additions === 0 && deletions > 0 ? "diff-no-additions" : ""}`}
-                    viewType={effectiveViewType}
-                    diffType={file.type}
-                    hunks={file.hunks}
-                    tokens={fileTokens}
-                    renderToken={customRenderToken}
-                    widgets={getWidgets(file.hunks, commentsHidden[fileKey] ?? false)}
-                    gutterEvents={{
-                      onClick: ({ change }) => {
-                        if (change) {
-                          const changeKey = getChangeKey(change);
-                          setActiveFormKeys((prev) => ({ ...prev, [changeKey]: !prev[changeKey] }));
-                        }
-                      },
-                    }}
-                  >
-                    {(hunks) =>
-                      hunks.map((hunk) => (
-                        <Hunk key={hunk.content} hunk={hunk} />
-                      ))
-                    }
-                  </Diff>
-                </div>
-              );
-            })()}
+                </Diff>
+              </div>
+            )}
           </div>
         );
       })}
     </div>
   );
 };
+

@@ -1,12 +1,15 @@
 using Ivy.Core.Apps;
 using Ivy.Helpers;
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Widgets;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -37,6 +40,8 @@ public static class TendrilServer
             : tendrilArgs.Quiet ? "Warning"
             : "Information";
 
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, configService);
+
         server.UseWebApplicationBuilder(builder =>
         {
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
@@ -47,10 +52,46 @@ public static class TendrilServer
                 ["Logging:LogLevel:Ivy"] = appLogLevel,
                 ["Logging:LogLevel:Ivy.Core"] = "Warning",
             });
+
+            builder.Services.Configure<Microsoft.AspNetCore.SignalR.HubOptions>(options =>
+            {
+                options.MaximumReceiveMessageSize = 100 * 1024 * 1024;
+            });
+
+            builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+            {
+                options.MultipartBodyLengthLimit = 100 * 1024 * 1024;
+            });
         });
 
         server.UseWebApplication(app =>
         {
+            if (isBeta)
+            {
+                app.Use(async (context, next) =>
+                {
+                    if (context.Request.Query.ContainsKey("share") ||
+                        string.Equals(context.Request.Query["mode"], "share", StringComparison.OrdinalIgnoreCase) ||
+                        context.Request.Headers.ContainsKey("X-Tendril-Share") ||
+                        context.Request.Cookies.ContainsKey("tendril_share_mode"))
+                    {
+                        context.Items["IsShareMode"] = true;
+
+                        if (!context.Request.Cookies.ContainsKey("tendril_share_mode"))
+                        {
+                            context.Response.Cookies.Append("tendril_share_mode", "1", new CookieOptions
+                            {
+                                HttpOnly = false,
+                                SameSite = SameSiteMode.Lax,
+                                Path = "/",
+                                MaxAge = TimeSpan.FromDays(7)
+                            });
+                        }
+                    }
+                    await next(context);
+                });
+            }
+
             app.UseMiddleware<ApiKeyAuthMiddleware>();
 
             if (!configService.NeedsOnboarding)
@@ -88,11 +129,6 @@ public static class TendrilServer
             });
             app.UseAssets(server.Args, app.Services.GetRequiredService<ILogger<Server>>(), "Assets", "tendril/assets");
         });
-
-        var isBeta = tendrilArgs.Beta ||
-                     configService.Settings.Beta ||
-                     Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
-                     Environment.GetEnvironmentVariable("IVY_BETA") == "1";
 
         var assembly = typeof(TendrilServer).Assembly;
         server.AppRepository.AddFactory(() => AppHelpers.GetApps(assembly)
@@ -137,6 +173,7 @@ public static class TendrilServer
         var version = typeof(TendrilAppShell).Assembly.GetName().Version!;
         var versionString = version.ToString(3);
         var appShellSettings = new AppShellSettings()
+            .DefaultApp<PlansApp>()
             .Header(
                 Layout.Horizontal(
                     new Image("/tendril/assets/Tendril.svg").Width(Size.Px(32)).Height(Size.Px(32)),
@@ -146,7 +183,6 @@ public static class TendrilServer
                     ).Gap(0)
                 ).Gap(2).Padding(2).AlignContent(Align.Left)
             )
-            .WallpaperApp<WallpaperApp>()
             .HideArgsInUrl()
             .UseTabs(true);
 

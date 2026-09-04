@@ -41,6 +41,7 @@ public sealed record AgentPtySpec
     public required IReadOnlyList<string> CommandLine { get; init; }
     public required string WorkingDirectory { get; init; }
     public required IReadOnlyDictionary<string, string> Environment { get; init; }
+    public IReadOnlyList<string> TempFiles { get; init; } = [];
 }
 
 public sealed record AgentActivityPatterns

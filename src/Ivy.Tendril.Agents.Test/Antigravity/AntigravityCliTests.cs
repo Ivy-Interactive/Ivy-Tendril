@@ -28,6 +28,7 @@ public class AntigravityCliTests
                        AgentCapabilities.EffortControl |
                        AgentCapabilities.DirectoryRestriction |
                        AgentCapabilities.HealthCheck |
+                       AgentCapabilities.CostInOutput |
                        AgentCapabilities.ExtraArgPassthrough;
 
         Assert.Equal(expected, _cli.Capabilities);
@@ -55,7 +56,7 @@ public class AntigravityCliTests
     public void DefaultProfiles_Correct()
     {
         Assert.Equal(3, _cli.DefaultProfiles.Count);
-        Assert.All(_cli.DefaultProfiles, p => Assert.Equal("gemini-3.6-flash", p.Model));
+        Assert.All(_cli.DefaultProfiles, p => Assert.Equal("gemini-3.7-flash", p.Model));
     }
 
     [Fact]
@@ -73,16 +74,19 @@ public class AntigravityCliTests
         Assert.Equal("/tmp", spec.WorkingDirectory);
         Assert.Contains("--print", spec.Arguments);
         Assert.Contains("--dangerously-skip-permissions", spec.Arguments);
+        Assert.Contains("--print-timeout", spec.Arguments);
+        var timeoutIdx = spec.Arguments.ToList().IndexOf("--print-timeout");
+        Assert.Equal("1800s", spec.Arguments[timeoutIdx + 1]);
     }
 
     [Fact]
-    public void BuildProcessSpec_WithTimeout_IncludesConfiguredPrintTimeout()
+    public void BuildProcessSpec_WithoutExplicitTimeout_IncludesDefaultPrintTimeout()
     {
         var config = new AgentLaunchConfig
         {
             Prompt = "Hello",
             WorkingDirectory = "/tmp",
-            Timeout = TimeSpan.FromMinutes(30),
+            Timeout = null,
         };
 
         var spec = _cli.BuildProcessSpec(config);
@@ -91,6 +95,24 @@ public class AntigravityCliTests
         var timeoutIdx = args.IndexOf("--print-timeout");
         Assert.True(timeoutIdx >= 0);
         Assert.Equal("1800s", args[timeoutIdx + 1]);
+    }
+
+    [Fact]
+    public void BuildProcessSpec_WithExplicitTimeout_IncludesConfiguredPrintTimeout()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "Hello",
+            WorkingDirectory = "/tmp",
+            Timeout = TimeSpan.FromMinutes(15),
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+        var args = spec.Arguments.ToList();
+
+        var timeoutIdx = args.IndexOf("--print-timeout");
+        Assert.True(timeoutIdx >= 0);
+        Assert.Equal("900s", args[timeoutIdx + 1]);
     }
 
     [Fact]

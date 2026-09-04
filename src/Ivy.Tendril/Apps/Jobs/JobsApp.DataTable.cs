@@ -1,4 +1,4 @@
-using Ivy.Tendril.Apps.Drafts;
+using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Apps.Jobs.Dialogs;
 using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Models;
@@ -145,7 +145,7 @@ public partial class JobsApp
                                 {
                                     if (plan.Status is PlanStatus.Draft or PlanStatus.Blocked)
                                     {
-                                        nav.Navigate<DraftsApp>(new DraftsAppArgs(plan.FolderName));
+                                        nav.Navigate<PlansApp>(new PlansAppArgs(plan.FolderName));
                                     }
                                     else if (plan.Status is PlanStatus.Review or PlanStatus.Failed)
                                     {

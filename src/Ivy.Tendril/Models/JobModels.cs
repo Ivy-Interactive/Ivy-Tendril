@@ -76,6 +76,23 @@ public record JobItem
     // Settable: the standalone CLI runners resolve the agent after the job object exists.
     public string Provider { get; set; } = "claude";
     public string? Model { get; set; }
+
+    /// <summary>
+    /// The execution profile this job ran under — <c>deep</c>, <c>balanced</c> — as resolved at
+    /// launch, or null for a job launched before migration 020 (no backfill) or one no profile
+    /// applied to. Recorded rather than re-read from the plan: the plan's profile can be changed
+    /// after the fact, and only ExecutePlan/RetryPlan take it from there in the first place.
+    /// </summary>
+    public string? ExecutionProfile { get; set; }
+
+    /// <summary>
+    /// The reasoning effort this job ran at - <c>high</c>, <c>medium</c> - as resolved at launch,
+    /// or null for a job launched before migration 021 and for an agent with no effort control.
+    /// Recorded at launch for the same reason as <see cref="ExecutionProfile" />: it is a property
+    /// of the run, not of the configuration as it stands now.
+    /// </summary>
+    public string? Effort { get; set; }
+
     public int Priority { get; init; }
     public List<string>? WaitForJobIds { get; init; }
     public decimal? Cost { get; set; }

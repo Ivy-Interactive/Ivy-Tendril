@@ -9,6 +9,7 @@ using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Vault;
 
 namespace Ivy.Tendril.Apps.Settings;
 
@@ -30,7 +31,11 @@ public class ProjectDetailView(
         var projectColor = UseState<Colors?>(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count && Enum.TryParse<Colors>(config.Settings.Projects[projectIndex].Color, true, out var c) ? c : Colors.Slate);
 
         // Agent Behavior State
-        var autoImplement = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? (config.Settings.Projects[projectIndex].AutoImplementPlans == "Auto-Implement Plans" ? "Auto-Implement Plans" : "Always Ask Review") : "Always Ask Review");
+        var autoImplement = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count
+            ? (config.Settings.Projects[projectIndex].AutoImplementPlans is "AutoImplementPlans" or "Auto-Implement Plans"
+                ? "AutoImplementPlans"
+                : "AlwaysAskReview")
+            : "AlwaysAskReview");
 
         // Repositories State
         var repos = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? new List<RepoRef>(config.Settings.Projects[projectIndex].Repos) : new List<RepoRef>());
@@ -50,8 +55,8 @@ public class ProjectDetailView(
         var (reviewActionTrigger, showReviewActionTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
             new OnboardingEditReviewActionDialog(isOpen, existingIndex, reviewActions));
 
-        var (verificationTrigger, showVerificationTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
-            new OnboardingEditVerificationDialog(isOpen, existingIndex, config, client, refreshToken, projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : ""));
+        var (verificationTrigger, showVerificationTrigger) = UseTrigger((IState<bool> isOpen, string? existingVerificationName) =>
+            new OnboardingEditVerificationDialog(isOpen, existingVerificationName, config, client, refreshToken, projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : "", projectVerifications: verifications));
 
         var (mcpSheet, openMcpSheet) = UseTrigger((IState<bool> isOpen, int? editingIndex) =>
             new EditMcpServerSheet(isOpen, editingIndex, mcpServers));
@@ -68,10 +73,7 @@ public class ProjectDetailView(
         var (importSkillsDialog, openImportSkillsDialog) = UseTrigger((IState<bool> isOpen) =>
             new ImportRepoAssetsDialog(isOpen, ImportAssetKind.Skills, projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : "", repos.Value, config, client, skills: skills));
 
-        var isBeta = (tendrilArgs?.Beta ?? false) ||
-                     (config?.Settings?.Beta ?? false) ||
-                     Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
-                     Environment.GetEnvironmentVariable("IVY_BETA") == "1";
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
 
         // Auto-save settings on state changes
         void SaveProjectChanges()
@@ -194,6 +196,39 @@ public class ProjectDetailView(
         // Color Picker Control at the top
         var colorInput = projectColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker);
 
+        // Vault Tracking Info
+        VaultSettings? linkedVault = null;
+        ProjectVaultTracking? trackedProject = null;
+
+        foreach (var v in config.Settings.Vaults)
+        {
+            if (v.TrackedProjects.TryGetValue(project.Name, out var tp))
+            {
+                linkedVault = v;
+                trackedProject = tp;
+                break;
+            }
+        }
+
+        if (linkedVault == null && config.Settings.Vault != null && config.Settings.Vault.TrackedProjects.TryGetValue(project.Name, out var vtp))
+        {
+            linkedVault = config.Settings.Vault;
+            trackedProject = vtp;
+        }
+
+        object? vaultBadge = null;
+        if (linkedVault != null)
+        {
+            var vaultLabel = VaultService.ExtractRepoName(!string.IsNullOrEmpty(linkedVault.Name) && linkedVault.Name.Contains('/') ? linkedVault.Name : linkedVault.RepoUrl);
+            var versionText = trackedProject != null && !string.IsNullOrEmpty(trackedProject.InstalledVersion)
+                ? $" • v{trackedProject.InstalledVersion}"
+                : "";
+
+            vaultBadge = Layout.Horizontal().AlignContent(Align.Left)
+                | Icons.FolderGit2.ToIcon()
+                | new Badge($"Vault: {vaultLabel}{versionText}").Variant(BadgeVariant.Secondary).Small();
+        }
+
         // Title Header with Inline Editing & Color Picker
         var nameHeader = isEditingName.Value
             ? (Layout.Horizontal().AlignContent(Align.Left)
@@ -224,7 +259,12 @@ public class ProjectDetailView(
                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Rename Project").OnClick(() => isEditingName.Set(true)));
 
         // Agent Behavior Dropdown
-        var autoImplementSelect = autoImplement.ToSelectInput(new[] { "Auto-Implement Plans", "Always Ask Review" })
+        var autoImplementOptions = new[]
+        {
+            new Option<string>("Auto-Implement Plans", "AutoImplementPlans"),
+            new Option<string>("Always Ask Review", "AlwaysAskReview")
+        };
+        var autoImplementSelect = autoImplement.ToSelectInput(autoImplementOptions)
             .WithField().Label("Artifact Review / Auto-Implement Policy");
 
         Func<RepoRef, Task<RepoRef?>> cloneRemoteOnAdd = async draft =>
@@ -252,39 +292,34 @@ public class ProjectDetailView(
         var innerContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(160)))
             // Section 1: Header (Color Picker + Name)
             | nameHeader
-            | new Separator()
+            | vaultBadge
 
             // Section 2: Repositories
             | Text.H4("Repositories").Bold()
             | new ProjectRepoPickerView(repos, onAdd: cloneRemoteOnAdd, showBaseBranchPicker: true)
-            | new Separator()
 
             // Section 3: Review Actions
             | Text.H4("Review Actions").Bold()
-            | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx))
-            | new Button("Add Review Action").Icon(Icons.Plus).Outline().Small().OnClick(() => showReviewActionTrigger(null))
-            | new Separator()
+            | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx), projectName: editName.Value)
+            | new Button("Add Review Action").Icon(Icons.Plus).Outline().OnClick(() => showReviewActionTrigger(null))
 
             // Section 4: Verifications
             | Text.H4("Verifications").Bold()
-            | new ProjectVerificationsTableView(verifications, idx => showVerificationTrigger(idx))
-            | new Button("Add Verification").Icon(Icons.Plus).Outline().Small().OnClick(() => showVerificationTrigger(null))
-            | new Separator()
+            | new ProjectVerificationsTableView(verifications, name => showVerificationTrigger(name))
+            | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() => showVerificationTrigger(null))
 
             // Section 5: Agent Behavior
             | (isBeta
                 ? (object)(Layout.Vertical()
                     | Text.H4("Agent Behavior").Bold()
-                    | autoImplementSelect
-                    | new Separator())
+                    | autoImplementSelect)
                 : null!)
 
             // Section 6: Local Permissions (MCP Tools & Servers)
             | (isBeta
                 ? (object)(Layout.Vertical()
                     | Text.H4("Local Permissions").Bold()
-                    | new McpServersTableView(mcpServers, repos, idx => openMcpSheet(idx), onImport: () => openImportMcpDialog(), onDelete: idx => DeleteMcpServer(idx))
-                    | new Separator())
+                    | new McpServersTableView(mcpServers, repos, idx => openMcpSheet(idx), onImport: () => openImportMcpDialog(), onDelete: idx => DeleteMcpServer(idx)))
                 : null!)
 
             // Section 7: Customizations
@@ -292,8 +327,7 @@ public class ProjectDetailView(
                 ? (object)(Layout.Vertical()
                     | Text.H4("Customizations").Bold()
                     | new ProjectMemoryTableView(config.TendrilHome, project.Name, memoryRefresh, fileName => openMemorySheet(fileName))
-                    | new SkillsTableView(skills, repos, idx => openSkillSheet(idx), onImport: () => openImportSkillsDialog(), onDelete: idx => DeleteSkill(idx))
-                    | new Separator())
+                    | new SkillsTableView(skills, repos, idx => openSkillSheet(idx), onImport: () => openImportSkillsDialog(), onDelete: idx => DeleteSkill(idx)))
                 : null!)
 
             // Section 8: Danger Zone

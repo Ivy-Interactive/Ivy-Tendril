@@ -16,6 +16,10 @@ using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Git;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Services.Tunnel;
+using Ivy.Tendril.Services.Share;
+using Ivy.Tendril.Services.Plans;
+using Ivy.Tendril.Apps.Views.Dialogs;
 using Microsoft.Extensions.Logging;
 using Ivy.Tendril.Widgets;
 
@@ -42,14 +46,22 @@ public class ContentView(
         var syncingWorktrees = UseState(new HashSet<string>());
         var selectedRecTitles = UseState(() => new HashSet<string>());
         var selectedTab = UseState(0);
-        var draftComments = UseState(() => new List<DraftComment>());
+        var draftDiffCommentService = UseService<Ivy.Tendril.Services.Plans.IPlanDiffCommentService>();
+        var draftComments = UseState(() => selectedPlanState.Value != null
+            ? draftDiffCommentService.GetDraftCommentsForPlan(selectedPlanState.Value.FolderPath)
+            : new List<DraftComment>());
         var args = UseArgs<ReviewAppArgs>();
         var nav = UseNavigation();
-
-        var processView = Context.UseTendrilProcess();
-
+        var planWatcher = UseService<IPlanWatcherService>();
+        var localRefresh = UseRefreshToken();
         var githubService = UseService<IGithubService>();
         var agentRunner = UseService<IAgentRunner>();
+        var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
+        var shareTunnelService = UseService<Ivy.Tendril.Services.Tunnel.IShareTunnelService>();
+        var resetToDraftLogger = UseService<ILogger<ResetToDraftDialog>>();
+        Context.TryUseService<TendrilArgs>(out var tendrilArgs);
+
+        var processView = Context.UseTendrilProcess();
 
         var (discardDialog, showDiscardDialog) = UseTrigger((isOpen) =>
         {
@@ -63,6 +75,12 @@ public class ContentView(
             return new SuggestChangesDialog(isOpen, selectedPlanState.Value!, jobService, refreshPlans, draftComments.Value, draftComments);
         });
 
+        var (shareModal, showShareModal) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new ShareTunnelModal(isOpen, selectedPlanState.Value?.FolderName, isReview: true);
+        });
+
         var (createPrDialog, showCreatePrDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
@@ -70,7 +88,6 @@ public class ContentView(
                 config, githubService);
         });
 
-        var resetToDraftLogger = UseService<ILogger<ResetToDraftDialog>>();
         var (resetToDraftDialog, showResetToDraftDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
@@ -93,7 +110,7 @@ public class ContentView(
             if (!isOpen.Value) return null;
             return new Sheet(
                 () => isOpen.Set(false),
-                new JobCostSheet(jobId, jobService),
+                new JobCostSheetView(jobId, jobService),
                 "Cost & Tokens"
             ).Width(UxHelper.SheetWidth).Resizable();
         });
@@ -183,9 +200,6 @@ public class ContentView(
                 new List<(string Name, bool ConditionMet)>(), null, new GitTabDataBuilder.GitTabData([], []))
         );
 
-        var planWatcher = UseService<IPlanWatcherService>();
-        var localRefresh = UseRefreshToken();
-
         UseEffect(() =>
         {
             void OnChanged(string? _) => localRefresh.Refresh();
@@ -205,7 +219,31 @@ public class ContentView(
         UseEffect(() => { selectedRecTitles.Set(new HashSet<string>()); return Disposable.Empty; },
             selectedPlanState);
 
-        UseEffect(() => { draftComments.Set(new List<DraftComment>()); return Disposable.Empty; }, selectedPlanState);
+        UseEffect(() =>
+        {
+            var loaded = selectedPlanState.Value != null
+                ? draftDiffCommentService.GetDraftCommentsForPlan(selectedPlanState.Value.FolderPath)
+                : new List<DraftComment>();
+            draftComments.Set(loaded);
+            return Disposable.Empty;
+        }, selectedPlanState);
+
+        UseEffect(() =>
+        {
+            void OnCommentsChanged(string folderPath, List<DraftComment> updated)
+            {
+                if (selectedPlanState.Value != null && folderPath == selectedPlanState.Value.FolderPath)
+                {
+                    draftComments.Set(updated);
+                }
+            }
+
+            draftDiffCommentService.CommentsChanged += OnCommentsChanged;
+            return Disposable.Create(() => draftDiffCommentService.CommentsChanged -= OnCommentsChanged);
+        });
+
+        var isShareMode = shareContext.IsShareMode;
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
 
         if (selectedPlanState.Value is null)
         {
@@ -224,14 +262,14 @@ public class ContentView(
             selectedPlanState.Value!, selectedRecTitles, client,
             planContentQuery.Mutator.Revalidate);
 
-        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, context, showCreatePrDialog);
+        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, context, showCreatePrDialog, showDiscardDialog, isShareMode, draftComments, shareContext);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
-            context, agentRunner, draftComments);
+            context, agentRunner, draftComments, isShareMode, isBeta, shareTunnelService, showShareModal);
         var content = BuildContent(
             selectedPlanState.Value, planContentQuery, selectedTab, sheets,
             syncingWorktrees, selectedRecTitles, context, showDebugJob, showCostJob, draftComments,
-            ImplementRecommendations);
+            ImplementRecommendations, isShareMode, isBeta);
 
         var mainLayout = new HeaderLayout(
             header,
@@ -241,7 +279,8 @@ public class ContentView(
             ).Scroll(Scroll.None).Size(Size.Full())
         ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlanState.Value.Id);
 
-        return new Fragment(mainLayout, discardDialog, suggestChangesDialog, createPrDialog, resetToDraftDialog,
+        return new Fragment(mainLayout, discardDialog, suggestChangesDialog,
+            isBeta || isShareMode ? shareModal : null, createPrDialog, resetToDraftDialog,
             debugSheet, costSheet);
     }
 
@@ -250,7 +289,11 @@ public class ContentView(
         List<PlanFile> allPlans,
         int currentIndex,
         ReviewViewContext context,
-        Action showCreatePrDialog)
+        Action showCreatePrDialog,
+        Action showDiscardDialog,
+        bool isShareMode,
+        IState<List<DraftComment>> draftComments,
+        IShareContext shareContext)
     {
         object BuildTitleArea(bool isMobile)
         {
@@ -293,7 +336,17 @@ public class ContentView(
 
         object BuildControls(bool isMobile)
         {
-            var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right)
+            if (isShareMode)
+            {
+                var persona = shareContext.Persona;
+                var initials = Ivy.Tendril.Services.Share.AnonymousPersonaGenerator.GetInitials(persona);
+                var reviewerBadge = Layout.Horizontal().AlignContent(Align.Right)
+                    | new Avatar(initials).Small()
+                    | Text.Block(persona).Small().Bold().NoWrap();
+                return reviewerBadge.Width(isMobile ? Size.Full() : Size.Fit());
+            }
+
+            var rightSide = Layout.Horizontal().AlignContent(Align.Right)
                            | Text.Rich()
                                .NoWrap()
                                .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
@@ -333,27 +386,36 @@ public class ContentView(
             }
             else
             {
-                var completePlanBtn = new Button("Complete Plan").Icon(Icons.CircleCheck).OnClick(() =>
+                var completionBlockReason = planService.GetCompletionBlockReason(selectedPlan.FolderName);
+                if (completionBlockReason != null)
                 {
-                    try
+                    var skipPlanBtn = new Button("Skip Plan").Icon(Icons.Ban).OnClick(showDiscardDialog).ShortcutKey("m");
+                    rightSide |= skipPlanBtn.Primary();
+                }
+                else
+                {
+                    var completePlanBtn = new Button("Complete Plan").Icon(Icons.CircleCheck).OnClick(() =>
                     {
-                        // Optimistic UI - update state and refresh immediately
-                        planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                    }
-                    catch (PlanTransitionBlockedException ex)
-                    {
-                        // This handler is fire-and-forget, so an uncaught throw would look like a
-                        // silent no-op. Surface the reason and leave the plan where it is.
-                        context.Client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
-                        return;
-                    }
+                        try
+                        {
+                            // Optimistic UI - update state and refresh immediately
+                            planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                        }
+                        catch (PlanTransitionBlockedException ex)
+                        {
+                            // This handler is fire-and-forget, so an uncaught throw would look like a
+                            // silent no-op. Surface the reason and leave the plan where it is.
+                            context.Client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
+                            return;
+                        }
 
-                    refreshPlans();
+                        refreshPlans();
 
-                    // Fire and forget - clean up worktrees in the background
-                    WorktreeCleanupService.RemoveWorktreesInBackground(selectedPlan.FolderPath);
-                }).ShortcutKey("m");
-                rightSide |= completePlanBtn.Primary();
+                        // Fire and forget - clean up worktrees in the background
+                        WorktreeCleanupService.RemoveWorktreesInBackground(selectedPlan.FolderPath);
+                    }).ShortcutKey("m");
+                    rightSide |= completePlanBtn.Primary();
+                }
             }
 
             return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
@@ -369,10 +431,39 @@ public class ContentView(
         Action showDiscardDialog,
         ReviewViewContext context,
         IAgentRunner agentRunner,
-        IState<List<DraftComment>> draftComments)
+        IState<List<DraftComment>> draftComments,
+        bool isShareMode,
+        bool isBeta,
+        IShareTunnelService shareTunnelService,
+        Action showShareModal)
     {
         var (client, logger, nav, _, copyToClipboard) = context;
         var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner, config);
+
+        void HandleSharePlan()
+        {
+            if (shareTunnelService.IsConnected && !string.IsNullOrEmpty(shareTunnelService.TunnelUrl))
+            {
+                var link = shareTunnelService.GetShareUrlForPlan(selectedPlan.FolderName, isReview: true);
+                copyToClipboard(link);
+                client.Toast("Plan share link copied to clipboard", "Link Copied");
+            }
+            else
+            {
+                showShareModal();
+            }
+        }
+
+        if (isShareMode)
+        {
+            return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
+                | new Button("Share Plan").Icon(Icons.Share2).Outline().OnClick(HandleSharePlan)
+                | new Button("Copy Path").Icon(Icons.Copy).Ghost().OnClick(() =>
+                {
+                    copyToClipboard(selectedPlan.FolderPath);
+                    client.Toast("Copied path to clipboard", "Path Copied");
+                });
+        }
 
         // Standard overflow menu items
         var standardOverflowItems = new[]
@@ -381,20 +472,6 @@ public class ContentView(
                 .OnSelect(() => nav.Navigate<AgentApp>(new AgentAppArgs(
                     $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode.",
                     $"#{TendrilAppShell.FormatPlanId(selectedPlan.FolderName)}"))),
-            new MenuItem("Set Completed", Icon: Icons.CircleCheck, Tag: "SetCompleted").OnSelect(() =>
-            {
-                try
-                {
-                    planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
-                }
-                catch (PlanTransitionBlockedException ex)
-                {
-                    client.Toast(ex.Message, "Cannot Complete Plan", variant: ToastVariant.Destructive);
-                    return;
-                }
-
-                refreshPlans();
-            }),
             new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
                 .OnSelect(() => { PlatformHelper.OpenInFileManager(selectedPlan.FolderPath, logger); }),
             new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal").OnSelect(() =>
@@ -456,9 +533,13 @@ public class ContentView(
         var minimalDropdownItems = new List<MenuItem>
         {
             new MenuItem("Reset to Draft", Icon: Icons.RotateCcw, Tag: "ResetToDraft").OnSelect(showResetToDraftDialog),
-            new MenuItem(requestChangesMenuLabel, Icon: Icons.MessageSquare, Tag: "RequestChanges").OnSelect(showSuggestChangesDialog),
-            new MenuItem("Discard", Icon: Icons.Trash, Tag: "Discard").OnSelect(showDiscardDialog)
+            new MenuItem(requestChangesMenuLabel, Icon: Icons.MessageSquare, Tag: "RequestChanges").OnSelect(showSuggestChangesDialog)
         };
+        if (isBeta)
+        {
+            minimalDropdownItems.Add(new MenuItem("Share", Icon: Icons.Share2, Tag: "Share").OnSelect(HandleSharePlan));
+        }
+        minimalDropdownItems.Add(new MenuItem("Discard", Icon: Icons.Trash, Tag: "Discard").OnSelect(showDiscardDialog));
         minimalDropdownItems.AddRange(standardOverflowItems);
 
         var requestChangesBtn = new Button("Request Changes")
@@ -477,13 +558,18 @@ public class ContentView(
         }
 
         // Action bar without .Wrap() - single row with progressive collapse.
-        // Full (>=1024px): Reset to Draft, Request Changes, Discard inline + overflow dropdown.
-        // Compact (768-1023px): Reset to Draft, Request Changes inline; Discard in dropdown.
-        // Minimal (<768px): everything in dropdown.
-        return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
+        var actionBar = Layout.Horizontal().AlignContent(Align.Left).Gap(2)
                 | new Button("Reset to Draft").Icon(Icons.RotateCcw).Outline().ShortcutKey("r")
                     .OnClick(showResetToDraftDialog).CompactUp()
-                | requestChangesBtn
+                | requestChangesBtn;
+
+        if (isBeta)
+        {
+            actionBar |= new Button("Share").Icon(Icons.Share2).Outline()
+                .OnClick(HandleSharePlan).CompactUp();
+        }
+
+        actionBar = actionBar
                 | new Button("Discard").Icon(Icons.Trash).Outline().ShortcutKey("Backspace")
                     .OnClick(showDiscardDialog).FullOnly()
                 | ActionBarResponsive.DropdownAtFull(
@@ -495,6 +581,8 @@ public class ContentView(
                 | ActionBarResponsive.DropdownAtMinimal(
                     new Button().Icon(Icons.EllipsisVertical).Ghost(),
                     minimalDropdownItems.ToArray());
+
+        return actionBar;
     }
 
     private object BuildContent(
@@ -508,7 +596,9 @@ public class ContentView(
         Action<string> showDebugJob,
         Action<string> showCostJob,
         IState<List<DraftComment>> draftComments,
-        Action onImplementRecommendations)
+        Action onImplementRecommendations,
+        bool isShareMode,
+        bool isBeta)
     {
         var (client, logger, nav, args, copyToClipboard) = context;
         var (openVerification, openCommit, openFile, openArtifact, artifactContentQuery) = sheets;
@@ -569,6 +659,15 @@ public class ContentView(
             var totalArtifacts = (planData.Artifacts.GetValueOrDefault("screenshots")?.Count ?? 0)
                                  + (planData.Artifacts.ContainsKey("sample") ? 1 : 0);
 
+            var completionBlockReason = planService.GetCompletionBlockReason(selectedPlan.FolderName);
+            if (completionBlockReason != null)
+            {
+                content |= Layout.Vertical().Padding(2, 2, 1, 2)
+                    | Callout.Info(
+                        "Pre-execution validation found no changes needed because the issue or task is already resolved. You can discard or skip this plan.",
+                        "No Changes Needed");
+            }
+
             content |= new ReviewActionsBarView(selectedPlan, planData.ReviewActionStates, config);
 
             var recommendationsTab = new RecommendationsTabView(pendingRecs, selectedRecTitles, config, onImplementRecommendations, onLinkClick);
@@ -601,7 +700,11 @@ public class ContentView(
                     config, planData.SummaryMarkdown, selectedPlan.Verifications,
                     planData.VerificationReports, v => openVerification.Set(v), onLinkClick,
                     planContentQuery.Loading) : new Empty()),
-                new Tab("Plan", isPlanSelected ? Cap(planTabContent) : new Empty()),
+                // Plan is DraftMarkdown too, so it is unwrapped for the same reason as Summary —
+                // Cap()'s inset and max-width are what the widget already applies, and wrapping it
+                // applied each twice. Unwrapped, the two tabs also start their text in the same
+                // place, which is what switching between them should look like.
+                new Tab("Plan", isPlanSelected ? planTabContent : new Empty()),
                 new Tab("Details", isDetailsSelected ? Cap(new DetailsTabView(selectedPlan,
                     jobService.GetJobsForPlan(selectedPlan.FolderName),
                     showDebugJob, showCostJob, planService, selectedPlanState, refreshPlans,
@@ -641,6 +744,7 @@ public class ContentView(
                     .Badge(pendingRecs.Count.ToString()));
                 tabNamesList.Add("recommendations");
             }
+
 
             var actualTabNames = tabNamesList.ToArray();
 

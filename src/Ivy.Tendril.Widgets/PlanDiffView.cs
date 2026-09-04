@@ -6,12 +6,27 @@ public enum DiffViewType
     Split
 }
 
-public record DraftComment(
-    string FilePath,
-    string ChangeKey,
-    string Content,
-    int LineNumber
-);
+public record DraftComment
+{
+    public string FilePath { get; init; } = "";
+    public string ChangeKey { get; init; } = "";
+    public string Content { get; init; } = "";
+    public int LineNumber { get; init; }
+    public string? Author { get; init; }
+    public bool IsResolved { get; init; }
+
+    public DraftComment() { }
+
+    public DraftComment(string filePath, string changeKey, string content, int lineNumber, string? author = null, bool isResolved = false)
+    {
+        FilePath = filePath;
+        ChangeKey = changeKey;
+        Content = content;
+        LineNumber = lineNumber;
+        Author = author;
+        IsResolved = isResolved;
+    }
+}
 
 public record DirectEditArgs(
     string FilePath,
@@ -57,6 +72,9 @@ public record PlanDiffView : WidgetBase<PlanDiffView>
 
     /// <summary>The file path of the diff</summary>
     [Prop] public string? FilePath { get; init; }
+
+    /// <summary>The current reviewer persona / author name when adding new comments</summary>
+    [Prop] public string? CurrentAuthor { get; init; }
 
     [Event] public Func<Event<PlanDiffView, int>, ValueTask>? OnLineClick { get; init; }
 
@@ -106,6 +124,9 @@ public static class PlanDiffViewExtensions
 
     public static PlanDiffView FilePath(this PlanDiffView w, string filePath) =>
         w with { FilePath = filePath };
+
+    public static PlanDiffView CurrentAuthor(this PlanDiffView w, string? currentAuthor) =>
+        w with { CurrentAuthor = currentAuthor };
 
     public static PlanDiffView OnLineClick(
         this PlanDiffView w,

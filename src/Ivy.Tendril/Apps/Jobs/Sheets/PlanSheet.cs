@@ -1,3 +1,4 @@
+using Ivy.Tendril.Widgets;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
@@ -17,7 +18,8 @@ public class PlanSheet(
 
         object sheetContent = string.IsNullOrEmpty(content)
             ? Text.P("Plan not found or empty.")
-            : new Markdown(MarkdownHelper.PrepareForDisplay(content, config))
+            // Read-only: `questions` blocks present their answers rather than raw YAML.
+            : new PlanMarkdown(MarkdownHelper.PrepareForDisplay(content, config))
                 .Article()
                 .DangerouslyAllowLocalFiles()
                 .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile));

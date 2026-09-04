@@ -35,6 +35,8 @@ public class ChangesTabView(
         var gitService = UseService<IGitService>();
         var config = UseService<IConfigService>();
         var agentRunner = UseService<IAgentRunner>();
+        var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
+        var draftDiffCommentService = UseService<Ivy.Tendril.Services.Plans.IPlanDiffCommentService>();
         var hideFormatting = UseState(true);
 
         var (suggestChangesDialog, showSuggestChangesDialog) = UseTrigger((isOpen) =>
@@ -99,7 +101,6 @@ public class ChangesTabView(
             });
 
         var diffsLayout = Layout.Vertical().Gap(1).Width(Size.Grow().Min(Size.Px(0))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)));
-        var isManyFiles = sortedFileDiffs.Count > 10;
         for (var i = 0; i < sortedFileDiffs.Count; i++)
         {
             var fileDiff = sortedFileDiffs[i];
@@ -110,16 +111,20 @@ public class ChangesTabView(
                 Diff = fileDiff.Diff,
                 FilePath = path,
                 Collapsible = true,
-                DefaultCollapsed = isManyFiles && i >= 5,
                 Comments = draftComments.Value.Where(c => c.FilePath == path).ToList(),
-                OnAddComment = e =>
+                CurrentAuthor = shareContext.IsShareMode ? shareContext.Persona : null,
+                OnAddComment = async e =>
                 {
-                    var list = new List<DraftComment>(draftComments.Value);
-                    list.Add(e.Value);
+                    var comment = e.Value;
+                    if (string.IsNullOrEmpty(comment.Author) && shareContext.IsShareMode)
+                    {
+                        comment = comment with { Author = shareContext.Persona };
+                    }
+                    var list = new List<DraftComment>(draftComments.Value) { comment };
                     draftComments.Set(list);
-                    return ValueTask.CompletedTask;
+                    await draftDiffCommentService.SaveDraftCommentsAsync(selectedPlan.FolderPath, list);
                 },
-                OnUpdateComment = e =>
+                OnUpdateComment = async e =>
                 {
                     var c = e.Value;
                     var list = new List<DraftComment>(draftComments.Value);
@@ -128,16 +133,16 @@ public class ChangesTabView(
                     {
                         list[idx] = c;
                         draftComments.Set(list);
+                        await draftDiffCommentService.SaveDraftCommentsAsync(selectedPlan.FolderPath, list);
                     }
-                    return ValueTask.CompletedTask;
                 },
-                OnDeleteComment = e =>
+                OnDeleteComment = async e =>
                 {
                     var c = e.Value;
                     var list = new List<DraftComment>(draftComments.Value);
                     list.RemoveAll(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
                     draftComments.Set(list);
-                    return ValueTask.CompletedTask;
+                    await draftDiffCommentService.SaveDraftCommentsAsync(selectedPlan.FolderPath, list);
                 },
                 OnDirectEdit = async e =>
                 {

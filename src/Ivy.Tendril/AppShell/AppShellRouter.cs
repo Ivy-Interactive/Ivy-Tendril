@@ -3,6 +3,12 @@ using Ivy.Core.Apps;
 
 namespace Ivy.Tendril.AppShell;
 
+/// <summary>
+///     Routing for the hybrid shell: regular apps render as the single page inside the
+///     content frame, while session apps (AllowDuplicateTabs — agent terminals and
+///     review actions) open as tabs in the bottom session strip. Pages navigation mode
+///     keeps its all-pages behavior.
+/// </summary>
 internal class AppShellRouter
 {
     internal record RouteResult
@@ -18,7 +24,6 @@ internal class AppShellRouter
     {
         OpenPage,
         SwitchToExistingTab,
-        RefreshExistingTab,
         CreateNewTab,
         Error,
         Noop
@@ -28,16 +33,15 @@ internal class AppShellRouter
         NavigateArgs navigateArgs,
         AppShellNavigation navigationMode,
         string? defaultAppId,
-        ImmutableArray<TendrilAppShell.TabState> currentTabs,
-        AppDescriptor? appDescriptor,
-        bool preventTabDuplicates)
+        ImmutableArray<TendrilAppShell.TabState> sessionTabs,
+        AppDescriptor? appDescriptor)
     {
         return navigationMode == AppShellNavigation.Pages
             ? RouteForPages(navigateArgs, defaultAppId)
-            : RouteForTabs(navigateArgs, currentTabs, appDescriptor, preventTabDuplicates);
+            : RouteHybrid(navigateArgs, sessionTabs, appDescriptor);
     }
 
-    private RouteResult RouteForPages(NavigateArgs navigateArgs, string? defaultAppId)
+    private static RouteResult RouteForPages(NavigateArgs navigateArgs, string? defaultAppId)
     {
         var effectiveAppId = navigateArgs.AppId ?? defaultAppId;
         return new RouteResult
@@ -47,16 +51,15 @@ internal class AppShellRouter
         };
     }
 
-    private RouteResult RouteForTabs(
+    private static RouteResult RouteHybrid(
         NavigateArgs navigateArgs,
-        ImmutableArray<TendrilAppShell.TabState> currentTabs,
-        AppDescriptor? appDescriptor,
-        bool preventTabDuplicates)
+        ImmutableArray<TendrilAppShell.TabState> sessionTabs,
+        AppDescriptor? appDescriptor)
     {
-        // Handle TabId lookup
+        // A TabId means restoring an existing session tab (e.g. browser history).
         if (!string.IsNullOrEmpty(navigateArgs.TabId))
         {
-            var tabIndex = FindTabIndex(currentTabs, navigateArgs.TabId);
+            var tabIndex = FindTabIndex(sessionTabs, navigateArgs.TabId);
             if (tabIndex >= 0)
             {
                 return new RouteResult
@@ -82,30 +85,18 @@ internal class AppShellRouter
             return new RouteResult { Action = RouteAction.Noop };
         }
 
-        // Check for duplicate tabs
-        if (preventTabDuplicates)
+        if (appDescriptor?.AllowDuplicateTabs == true)
         {
-            var existingTabIndex = FindTabIndexByAppId(currentTabs, navigateArgs.AppId);
-            if (existingTabIndex >= 0 && appDescriptor?.AllowDuplicateTabs != true)
+            return new RouteResult
             {
-                var newArgsJson = navigateArgs.ToAppHost().AppArgs;
-                var existingArgsJson = currentTabs[existingTabIndex].AppHost?.AppArgs;
-                var action = newArgsJson != null && newArgsJson != existingArgsJson
-                    ? RouteAction.RefreshExistingTab
-                    : RouteAction.SwitchToExistingTab;
-                return new RouteResult
-                {
-                    Action = action,
-                    TabIndex = existingTabIndex,
-                    TabId = currentTabs[existingTabIndex].Id
-                };
-            }
+                Action = RouteAction.CreateNewTab,
+                EffectiveAppId = navigateArgs.AppId
+            };
         }
 
-        // Create new tab
         return new RouteResult
         {
-            Action = RouteAction.CreateNewTab,
+            Action = RouteAction.OpenPage,
             EffectiveAppId = navigateArgs.AppId
         };
     }
@@ -114,13 +105,6 @@ internal class AppShellRouter
     {
         for (var i = 0; i < tabs.Length; i++)
             if (tabs[i].Id == tabId) return i;
-        return -1;
-    }
-
-    private static int FindTabIndexByAppId(ImmutableArray<TendrilAppShell.TabState> tabs, string appId)
-    {
-        for (var i = 0; i < tabs.Length; i++)
-            if (tabs[i].AppId == appId) return i;
         return -1;
     }
 }

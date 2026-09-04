@@ -33,6 +33,8 @@ public class ProjectRepoPickerView(
             var path = (inputValue.Value ?? "").Trim();
             if (string.IsNullOrWhiteSpace(path)) return;
 
+            path = RepoPathValidator.Normalize(path);
+
             if (!RepoPathValidator.IsValid(path))
             {
                 addingError.Set("Invalid repository path.");
@@ -93,7 +95,7 @@ public class ProjectRepoPickerView(
 
         if (isDesktop)
         {
-            pickerControls = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center).Gap(2)
+            pickerControls = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center)
                              | repoInput
                              | new Button("Browse").Icon(Icons.FolderOpen).Outline()
                                  .OnClick(() =>
@@ -108,12 +110,12 @@ public class ProjectRepoPickerView(
             pickerControls = repoInput;
         }
 
-        var addButton = new Button("Add Repository").Icon(Icons.Plus)
+        var addButton = new Button("Add Repository").Icon(Icons.Plus).Outline()
             .Disabled(string.IsNullOrWhiteSpace(inputValue.Value) || isAdding.Value)
             .Loading(isAdding.Value)
             .OnClick(() => { _ = AddAsync(); });
 
-        var listLayout = Layout.Vertical().Gap(3);
+        var listLayout = Layout.Vertical();
         var current = repos.Value;
         for (var i = 0; i < current.Count; i++)
         {
@@ -139,29 +141,29 @@ public class ProjectRepoPickerView(
                 }
             }
 
-            object row = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center).Gap(2)
+            object row = Layout.Horizontal().Width(Size.Full()).AlignContent(Align.Center)
                          | (validityIcon ?? null!)
                          | pathLabel
                          | new Spacer()
                          | (showBaseBranchPicker
                              ? (object)BuildBaseBranchSelector(repos, idx)
                              : null!)
-                         | new Button().Icon(Icons.X).Ghost().OnClick(() =>
+                         | new Button().Icon(Icons.X).Outline().Small().OnClick(() =>
                          {
                              var list = new List<RepoRef>(repos.Value);
                              if (idx < list.Count) list.RemoveAt(idx);
                              repos.Set(list);
                          }).WithTooltip("Remove");
 
-            listLayout |= new Box(row).BorderStyle(BorderStyle.None).Background(Colors.Muted).Padding(4, 2, 2, 2).Width(Size.Full());
+            listLayout |= new Box(row).BorderStyle(BorderStyle.None).Background(Colors.Muted).Width(Size.Full());
         }
 
-        var scrollableContent = Layout.Vertical().Gap(3)
+        var scrollableContent = Layout.Vertical()
                | pickerControls
                | (current.Count > 0 ? listLayout : null!)
                | addButton;
 
-        return Layout.Vertical().Width(Size.Full()).Gap(4)
+        return Layout.Vertical().Width(Size.Full())
                | Text.Label("Add one or more Git repositories")
                | (addingError.Value != null ? Text.Danger(addingError.Value) : null!)
                | scrollableContent;

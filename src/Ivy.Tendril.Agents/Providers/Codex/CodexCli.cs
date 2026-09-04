@@ -13,6 +13,7 @@ public sealed class CodexCli : IAgentCli
         AgentCapabilities.StdinPrompt |
         AgentCapabilities.StreamJsonOutput |
         AgentCapabilities.ModelSelection |
+        AgentCapabilities.EffortControl |
         AgentCapabilities.DirectoryRestriction |
         AgentCapabilities.HealthCheck |
         AgentCapabilities.ExtraArgPassthrough;
@@ -23,10 +24,12 @@ public sealed class CodexCli : IAgentCli
 
     public IReadOnlyList<AgentProfileDefault> DefaultProfiles { get; } =
     [
-        new(ProfileTier.Deep, null, "high"),
-        new(ProfileTier.Balanced, null, "medium"),
-        new(ProfileTier.Quick, null, "low"),
+        new(ProfileTier.Deep, "gpt-5.6-sol", "high"),
+        new(ProfileTier.Balanced, "gpt-5.6-terra", "medium"),
+        new(ProfileTier.Quick, "gpt-5.6-luna", "low"),
     ];
+
+    public IReadOnlyList<EffortOption> SupportedEfforts => EffortLevels.Codex;
 
     private static readonly FrozenDictionary<string, string> ToolNameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
@@ -61,19 +64,64 @@ public sealed class CodexCli : IAgentCli
 
     public AgentProcessSpec BuildProcessSpec(AgentLaunchConfig config)
     {
-        var args = new List<string>
+        var args = new List<string> { "exec" };
+
+        switch (config.PermissionMode)
         {
-            "exec",
-            "--sandbox", "workspace-write",
-            "-c", "sandbox_workspace_write.network_access=true",
-            "--json",
-            "--skip-git-repo-check",
-        };
+            case PermissionMode.FullAuto:
+                args.Add("--sandbox");
+                args.Add("danger-full-access");
+                args.Add("-c");
+                args.Add("approval_policy=\"never\"");
+                break;
+
+            case PermissionMode.AcceptEdits:
+                args.Add("--sandbox");
+                args.Add("workspace-write");
+                args.Add("-c");
+                args.Add("sandbox_workspace_write.network_access=true");
+                args.Add("-c");
+                args.Add("sandbox_permissions=[\"disk-full-read-access\"]");
+                args.Add("-c");
+                args.Add("approval_policy=\"never\"");
+                break;
+
+            case PermissionMode.Plan:
+                args.Add("--sandbox");
+                args.Add("read-only");
+                break;
+
+            case PermissionMode.Default:
+            default:
+                args.Add("--sandbox");
+                args.Add("workspace-write");
+                args.Add("-c");
+                args.Add("sandbox_workspace_write.network_access=true");
+                break;
+        }
+
+        args.Add("--json");
+        args.Add("--skip-git-repo-check");
 
         if (!string.IsNullOrEmpty(config.Model))
         {
             args.Add("--model");
             args.Add(config.Model);
+        }
+
+        if (config.Effort is not null)
+        {
+            var effort = config.Effort.Value switch
+            {
+                EffortLevel.Low => "low",
+                EffortLevel.Medium => "medium",
+                EffortLevel.High => "high",
+                EffortLevel.XHigh => "xhigh",
+                EffortLevel.Max => "xhigh",
+                _ => "medium"
+            };
+            args.Add("-c");
+            args.Add($"model_reasoning_effort=\"{effort}\"");
         }
 
         var extractedDirs = ExtractWritableDirectories(config.AllowedTools);
@@ -87,9 +135,12 @@ public sealed class CodexCli : IAgentCli
             args.Add(dir);
         }
 
+        var tempFiles = new List<string>();
+
         var mcpConfigFile = global::Ivy.Tendril.Agents.Helpers.McpConfigWriter.WriteConfigFile(config.McpServers);
         if (!string.IsNullOrEmpty(mcpConfigFile))
         {
+            tempFiles.Add(mcpConfigFile);
             args.Add("--mcp-config");
             args.Add(mcpConfigFile);
         }
@@ -114,6 +165,7 @@ public sealed class CodexCli : IAgentCli
             Environment = env,
             StdinContent = config.Prompt,
             RedirectStdin = true,
+            TempFiles = tempFiles,
         };
     }
 

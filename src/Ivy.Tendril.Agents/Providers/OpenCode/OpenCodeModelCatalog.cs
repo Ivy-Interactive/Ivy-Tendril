@@ -35,17 +35,37 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
         },
         new()
         {
+            Id = "claude-fable-5", DisplayName = "Claude Fable 5",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
+        },
+        new()
+        {
+            Id = "claude-opus-5-1", DisplayName = "Claude Opus 5.1",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
+        },
+        new()
+        {
             Id = "claude-opus-5", DisplayName = "Claude Opus 5",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
         },
         new()
         {
-            Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5",
+            Id = "claude-opus-4-7", DisplayName = "Claude Opus 4.7",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
         },
         new()
         {
-            Id = "claude-opus-4-7", DisplayName = "Claude Opus 4.7",
+            Id = "claude-sonnet-5-1", DisplayName = "Claude Sonnet 5.1",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
+        },
+        new()
+        {
+            Id = "claude-5.1", DisplayName = "Claude 5.1",
+            Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
+        },
+        new()
+        {
+            Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
         },
         new()
@@ -76,7 +96,7 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
         return await ParseModelsListAsync(stdout, ct);
     }
 
-    private static Task<IReadOnlyList<ModelInfo>?> ParseModelsListAsync(string output, CancellationToken ct)
+    internal static Task<IReadOnlyList<ModelInfo>?> ParseModelsListAsync(string output, CancellationToken ct = default)
     {
         var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (lines.Length == 0) return Task.FromResult<IReadOnlyList<ModelInfo>?>(null);
@@ -110,7 +130,8 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
             first = false;
         }
 
-        return Task.FromResult<IReadOnlyList<ModelInfo>?>(results.Count > 0 ? results : null);
+        var sorted = ModelCatalogSorter.Sort(results);
+        return Task.FromResult<IReadOnlyList<ModelInfo>?>(sorted.Count > 0 ? sorted : null);
     }
 
     private static string ExtractProvider(string modelId)
@@ -150,8 +171,15 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
     private static readonly (string Pattern, KnownPricing Pricing)[] KnownPricingTable =
     [
         // Anthropic
+        ("claude-fable-5",    new(10.00m, 50.00m, 1.00m, 12.50m, 1_000_000)),
+        ("claude-opus-5-1",   new(5.00m, 25.00m, 0.50m, 6.25m, 1_000_000)),
+        ("claude-opus-5.1",   new(5.00m, 25.00m, 0.50m, 6.25m, 1_000_000)),
         ("claude-opus-5",     new(5.00m, 25.00m, 0.50m, 6.25m, 1_000_000)),
+        ("claude-sonnet-5-1", new(3.00m, 15.00m, 0.30m, 3.75m, 1_000_000)),
+        ("claude-sonnet-5.1", new(3.00m, 15.00m, 0.30m, 3.75m, 1_000_000)),
+        ("claude-5.1",        new(3.00m, 15.00m, 0.30m, 3.75m, 1_000_000)),
         ("claude-sonnet-5",   new(3.00m, 15.00m, 0.30m, 3.75m, 1_000_000)),
+        ("claude-haiku-5-1",  new(1.00m, 5.00m, 0.10m, 1.25m, 200_000)),
         ("claude-opus-4-7",   new(10.00m, 50.00m, 1.00m, 12.50m, 200_000)),
         ("claude-opus-4-6",   new(5.00m, 25.00m, 0.50m, 6.25m, 200_000)),
         ("claude-opus-4-5",   new(5.00m, 25.00m, 0.50m, 6.25m, 200_000)),
@@ -182,9 +210,9 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
         ("o1-pro",        new(150.00m, 600.00m, 0m, 0m, 128_000)),
         ("o1",            new(15.00m, 60.00m, 7.50m, 18.75m, 200_000)),
         // Google
+        ("gemini-3.8-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576)),
         ("gemini-3.7-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576)),
         ("gemini-3.6-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576)),
-        ("gemini-3.5-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576)),
         ("gemini-3.1-pro",   new(1.25m, 10.00m, 0.3125m, 1.5625m, 1_048_576)),
         ("gemini-2.5-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576)),
         ("gemini-2.5",       new(1.25m, 10.00m, 0.3125m, 1.5625m, 1_048_576)),

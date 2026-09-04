@@ -50,9 +50,17 @@ public sealed class ModelPricingProvider : IModelPricingProvider, IModelPricingR
 
                 var hasPricing = model.InputPerMillion > 0 || model.OutputPerMillion > 0;
                 if (hasPricing)
-                    pricing[model.Id] = entry;
+                {
+                    if (!pricing.TryGetValue(model.Id, out var existing) ||
+                        (existing.InputPerMillion == 0 && existing.OutputPerMillion == 0))
+                    {
+                        pricing[model.Id] = entry;
+                    }
+                }
                 else
+                {
                     pricing.TryAdd(model.Id, entry);
+                }
 
             }
         }

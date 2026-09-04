@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import Markdown from "react-markdown";
 import "./agent-output.css";
 import type { EventHandler, PresentationEvent } from "./types";
 import { getHeight, getWidth } from "../styles";
-import { CodeBlock } from "../CodeBlock";
+import { BlockHandler } from "../BlockHandler";
 import { useAutoScroll } from "./use-auto-scroll";
 import { parseEventWireStream } from "./parse-events";
 import { deriveStatus } from "./status";
@@ -13,7 +13,7 @@ import { ResultSummary } from "./result-summary";
 import { groupToolUseEvents } from "./group-events";
 import { ToolUseGroup } from "./tool-use-group";
 import { getMarkdownPlugins } from "../math";
-import { AlertBlockquote } from "../DraftMarkdown/AlertBlockquote";
+import { AlertBlockquote } from "../PlanMarkdown/AlertBlockquote";
 
 function buildSuppressIndices(events: PresentationEvent[]): Set<number> {
   const indices = new Set<number>();
@@ -31,8 +31,6 @@ function buildSuppressIndices(events: PresentationEvent[]): Set<number> {
   return indices;
 }
 
-type StreamSubscriber = (streamId: string, onData: (data: unknown) => void) => () => void;
-
 interface AgentViewerProps {
   id: string;
   width?: string;
@@ -40,8 +38,6 @@ interface AgentViewerProps {
   eventHandler: EventHandler;
   events?: string[];
   jsonStream?: string;
-  stream?: { id: string };
-  subscribeToStream?: StreamSubscriber;
   autoScroll?: boolean;
   showThinking?: boolean;
   showSystemEvents?: boolean;
@@ -57,8 +53,6 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
   eventHandler,
   events: enabledEvents = [],
   jsonStream,
-  stream,
-  subscribeToStream,
   autoScroll = true,
   showThinking = false,
   showSystemEvents = false,
@@ -66,32 +60,9 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
   statusLabelOverride,
   groupToolCalls = false,
 }) => {
-  const [streamedLines, setStreamedLines] = useState<string[]>([]);
-
-  useEffect(() => {
-    setStreamedLines([]);
-  }, [jsonStream]);
-
-  useEffect(() => {
-    if (!stream?.id || !subscribeToStream) return;
-    const unsubscribe = subscribeToStream(stream.id, (data) => {
-      if (typeof data === "string") {
-        setStreamedLines((prev) => [...prev, data]);
-      }
-    });
-    return unsubscribe;
-  }, [stream?.id, subscribeToStream]);
-
-  const combinedStream = useMemo(() => {
-    const parts: string[] = [];
-    if (jsonStream) parts.push(jsonStream);
-    if (streamedLines.length > 0) parts.push(streamedLines.join("\n"));
-    return parts.join("\n");
-  }, [jsonStream, streamedLines]);
-
   const parsedEvents = useMemo<PresentationEvent[]>(
-    () => parseEventWireStream(combinedStream),
-    [combinedStream],
+    () => (jsonStream ? parseEventWireStream(jsonStream) : []),
+    [jsonStream],
   );
 
   const derived = useMemo(() => deriveStatus(parsedEvents), [parsedEvents]);
@@ -191,7 +162,7 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
                 <div key={idx} className="aov-markdown aov-assistant">
                   <Markdown
                     {...getMarkdownPlugins(event.text)}
-                    components={{ code: CodeBlock, blockquote: AlertBlockquote }}
+                    components={{ code: BlockHandler, blockquote: AlertBlockquote, pre: ({ children }) => <>{children}</> }}
                   >
                     {event.text}
                   </Markdown>

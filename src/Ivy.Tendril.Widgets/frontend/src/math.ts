@@ -1,7 +1,10 @@
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
 import type { Options } from "react-markdown";
+import { hasRawHtml, rawHtmlSchema } from "./rawHtml";
 
 type MarkdownPlugins = Required<Pick<Options, "remarkPlugins" | "rehypePlugins">>;
 
@@ -17,10 +20,10 @@ const MATH_DELIMITER = /\$\$/;
 export const hasMath = (content: string): boolean => MATH_DELIMITER.test(content);
 
 /**
- * The remark/rehype plugin lists for rendering markdown: GFM always, plus
- * remark-math and rehype-katex when the content actually contains math. Gating
- * on the content keeps the KaTeX pass off the render path for the overwhelming
- * majority of plan markdown, notes and agent output, which has no math at all.
+ * The remark/rehype plugin lists for rendering markdown: GFM always, plus the
+ * raw-HTML pair and the math pair when the content actually needs them. Gating
+ * on the content keeps both extra tree walks off the render path for the
+ * overwhelming majority of plan markdown, notes and agent output.
  *
  * `singleDollarTextMath: false` is required, not a preference: Tendril markdown
  * is full of prose dollar signs (`$env:PORT`, `$IsMacOS`, prices), and with
@@ -36,10 +39,22 @@ export const hasMath = (content: string): boolean => MATH_DELIMITER.test(content
  * `.katex` rules and all `KaTeX_*` `@font-face` declarations), so the widget
  * bundle inherits them and only needs the plugins.
  */
-export const getMarkdownPlugins = (content: string): MarkdownPlugins =>
-  hasMath(content)
-    ? {
-        remarkPlugins: [remarkGfm, [remarkMath, { singleDollarTextMath: false }]],
-        rehypePlugins: [rehypeKatex],
-      }
-    : { remarkPlugins: [remarkGfm], rehypePlugins: [] };
+export const getMarkdownPlugins = (content: string): MarkdownPlugins => {
+  const remarkPlugins: MarkdownPlugins["remarkPlugins"] = [remarkGfm];
+  const rehypePlugins: MarkdownPlugins["rehypePlugins"] = [];
+
+  // Raw HTML first: rehype-raw reparses the raw nodes into real elements, then
+  // rehype-sanitize prunes everything outside the allow-list. See `rawHtml.ts`.
+  if (hasRawHtml(content)) {
+    rehypePlugins.push(rehypeRaw, [rehypeSanitize, rawHtmlSchema]);
+  }
+
+  // KaTeX has to run after sanitising: its output is a large tree of classed
+  // spans, inline styles and MathML that the allow-list would strip.
+  if (hasMath(content)) {
+    remarkPlugins.push([remarkMath, { singleDollarTextMath: false }]);
+    rehypePlugins.push(rehypeKatex);
+  }
+
+  return { remarkPlugins, rehypePlugins };
+};

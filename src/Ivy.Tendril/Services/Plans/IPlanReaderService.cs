@@ -26,6 +26,11 @@ public interface IPlanReaderService
     /// </summary>
     void CompleteWithPartialDelivery(string folderName);
 
+    /// <summary>
+    ///     Returns the reason a plan must not be marked Completed, or null when the transition is fine.
+    /// </summary>
+    string? GetCompletionBlockReason(string folderName) => null;
+
     void ResetToDraft(string folderName);
     void ResetVerificationsForRetry(string folderName);
     void SetVerificationStatus(string folderName, string name, VerificationStatus status);
@@ -38,6 +43,8 @@ public interface IPlanReaderService
     void SavePlan(string folderName, string fullContent);
     void UpdateLatestRevision(string folderName, string content);
     DashboardModels GetDashboardData(string? projectFilter);
+    DashboardActivityStats GetDashboardActivity(int monthsBack = 24);
+    List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days);
     decimal GetPlanTotalCost(string folderPath);
     int GetPlanTotalTokens(string folderPath);
     List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null);

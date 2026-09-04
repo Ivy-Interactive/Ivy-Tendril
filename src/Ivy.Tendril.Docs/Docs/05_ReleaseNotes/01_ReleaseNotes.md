@@ -14,6 +14,111 @@ icon: ScrollText
 Version history, new features, improvements, and bug fixes for each Tendril release.
 </Ingress>
 
+## 1.2.0 (2026-09-01)
+
+### Features
+
+- **Redesigned App Shell (Figma)** - Modernized desktop shell layout with collapsible navigation sections, persistent session tabs, and integrated project status indicators (`#2173`).
+- **Redesigned Tendril Dashboard** - Built the new `TendrilDashboard` React widget with live status counters, activity trends, active job tracking, and Cloudflare Quick Tunnel QR code display (`#2201`).
+- **Drafts to Plans Unification** - Renamed the Drafts app, services, and models to "Plans" across the entire codebase, establishing a cohesive lifecycle from issue intake to verified execution (`#2258`).
+- **HTTP Multipart Uploads for Chat Attachments** - Replaced inline base64 transmission with chunked HTTP multipart uploads, avoiding SignalR payload limits on large images and files (`#2255`, `#2224`).
+- **Persistent Queued Messages in Chat** - Queued messages persist and remain visible across chat session switches, allowing developers to queue prompts while an agent is actively running (`#2253`).
+- **In-Page Search Shortcut (Ctrl+F / Cmd+F)** - Added in-page search within markdown views and plans without disrupting layout flow (`#2254`).
+- **Review Action Live Preview** - Added preview and run capabilities for review actions directly within Project Settings (`#2225`).
+- **Lovably Theme Preset** - Added a modern UI theme preset based on Lovable design tokens and color scales (`#2256`).
+- **Monospace CodeInput Expansion** - Integrated syntax-styled `CodeInput` across Review Action commands and conditions (`#2247`), MCP environment variables (`#2248`), Verification prompts (`#2249`), and Project Memory markdown content (`#2259`).
+- **Safe Chat Guardrails** - Prohibited direct unverified codebase edits inside exploratory chat sessions, enforcing formal plan creation for changes (`#2221`).
+- **Team Vault Project Merge on Conflict** - Added intelligent merge resolution when importing vault projects that share names with local projects (`#2219`).
+
+### Improvements
+
+- **Enriched Agent Chat & Issue Generation Prompts** - Provided full project context, repo mappings, and attachment metadata to initial agent chat prompts and GitHub issue creation (`#2226`).
+- **Appearance Settings Theme Mode Indicators** - Displayed active light/dark mode states clearly in Appearance settings (`#2213`).
+- **Theme-Responsive ContentInput Widget** - Adapted input bars, buttons, and borders dynamically across custom theme presets (`#2241`).
+- **Review Actions Table Simplification** - Streamlined Review Actions configuration table in Project Settings for improved readability (`#2240`).
+- **Staging Container Source Builds** - Configured Docker staging images to build directly from source for accurate PR preview branch testing (`#2229`).
+- **Sidebar Layout and Spacing Polish** - Refined completed checkmark badge spacing and generating session layouts in the Chat sidebar (`#2220`, `#2223`).
+- **Native Delete Session Dialog** - Replaced React modal popup with a native `DeleteSessionDialog` widget for session deletion (`#2222`).
+
+### Bug Fixes
+
+- **Job Visibility & Queue Rehydration** - Fixed missing job cards and restored active queued job states correctly following application restarts (`#2243`).
+- **Ghost Blocked Jobs Cleanup** - Prevented orphaned or superseded blocked jobs from lingering in SQLite storage and Output views (`#2250`).
+- **Antigravity Agent Chat Timeouts** - Configured Antigravity agent sessions to respect configured global timeout defaults rather than timing out prematurely (`#2218`).
+- **Project Settings Verification Edit Target** - Fixed verification dialog targeting the incorrect verification entry during edits (`#2252`).
+- **Markdown Code Block Overflow** - Prevented wide code snippets from horizontally overflowing parent plan containers (`#2214`).
+- **Dracula & Forest Dark Theme Contrast** - Resolved text and icon hover visibility bugs on sidebar items, settings icons, and tabs in dark themes (`#2210`, `#2211`, `#2212`, `#2239`, `#2242`).
+- **Duplicate Sidebar Elimination** - Eliminated redundant sidebar rendering during app shell transitions (`#2244`).
+- **Completed Draft State on Solved Issues** - Resolved non-completable state when generating plans for previously solved issues (`#2217`).
+- **Deprecated Model Cleanup** - Removed deprecated Gemini 3.5 Flash model references in favor of Gemini 3.7 Flash (`#2215`).
+- **Ephemeral Test Artifact Cleanup** - Ensured end-to-end test runs clean up temporary directories and agent scratch files (`#2209`).
+
+## 1.1.36 (2026-08-28)
+
+### Features
+
+- **Live Onboarding Model Testing & Auth Verification** - Onboarding now actively tests endpoint credentials and profile models (`Deep`, `Balanced`, `Quick`) with live prompt requests before allowing navigation, blocking invalid model names and unwrapping nested proxy error payloads into clear messages.
+- **Model Profile Priority Constants & Provider Enums** - Replaced ternary cascades with declarative priority tables (`ModelProfilePriorities`) and enums (`ModelProviderKind`, `ModelProfileKind`) for consistent default and candidate model resolution across onboarding and settings.
+- **On-Demand Promptware Deployment Fallback** - Added automatic fallback deployment in `PromptwareRunner` and `PromptwareRunCommand` to extract missing promptwares from embedded resources on demand if `Program.md` is absent.
+
+### Improvements
+
+- **Bundled Ivy Agent Binary Priority** - Enforced resolution of bundled or Tendril-managed `ivy-agent` binaries (`~/.tendril/bin`), preventing unmanaged system `PATH` executables from interfering with agent execution.
+- **Settings Custom Model Input Persistence** - Fixed custom model name inputs reverting on Enter or re-render in `CodingAgentSetupView`.
+- **Trash Feature Removal** - Removed the obsolete Trash app and command suite, replacing trash markers with clean duplicate rejection handling in `CreatePlan`.
+
+## 1.1.35 (2026-08-28)
+
+### Features
+
+- **Share Mode Tunnel & External Sharing `[Beta]`** - Securely share plan and draft links externally over Cloudflare tunnels with automatic share URL generation and copy actions, gated behind the beta flag (`beta: true` in settings or `TENDRIL_BETA`).
+- **Session Protection for Shared Mode** - Added password session protection with Argon2 hashing in Settings under a unified "Security & Tunneling" section.
+- **Anonymous Reviewer Personas** - Generated friendly anonymous personas with initialed avatars for external collaborators reviewing shared plans.
+- **Draft & Plan Diff Inline Comments** - Added real-time inline reviewer commenting on diff chunks in Review mode (`DraftDiffCommentService`) with a dedicated "Request Changes" action and badge counts.
+- **Draft Text Selection Annotations** - Added text selection highlighting and popovers anchored to character offsets in `DraftMarkdown` (`DraftAnnotationService`).
+- **Team Configuration Vault `[Beta]`** - Introduced centralized team configuration sync backed by Git repositories (`VaultService`, accessible under beta flag), allowing teams to create, connect, import, and push project configs to remote vaults with automated secret sanitization (`VaultSecretSanitizer`).
+
+### Improvements
+
+- **Job Provenance & Profile Recording** - Recorded execution profiles per job and structured cost sheet provenance as facts.
+- **Beta Feature Isolation** - Ensured Share buttons, tunnel controls, and vault configurations are cleanly isolated behind beta flags in both UI and command layers.
+
+### Bug Fixes
+
+- **Windows Desktop Packaging** - Fixed packaging failure by using junk-path zip extraction for bundled `ivy-agent.exe` on Windows x64 and arm64 builds.
+
+## 1.1.34 (2026-08-25)
+
+### Features
+
+- **Embedded PTY Terminal for Review Actions** - Review actions now execute in a responsive embedded terminal tab powered by Xterm (`ReviewActionApp`) instead of launching external terminal windows.
+- **Bundled Ivy Agent CLI** - Bundled the standalone `ivy-agent` executable directly with the Tendril application installer, removing manual installation requirements.
+- **Bring Your Own LLM (BYO LLM) & Model Catalogs** - Added provider catalogs and model selectors for BYO LLM configurations and Ivy Proxy across onboarding and settings, with support for Gemini 3.7 Flash, Claude models, and OpenAI reasoning models.
+- **Model Reasoning Effort Selection** - Introduced effort level pickers (low, medium, high) for supported reasoning models in coding agent profile settings.
+- **Custom MCP Servers and Agent Skills** - Added support for importing MCP servers and custom skills directly from Git repositories, remote URLs, and local file paths, complete with management UI and validation.
+- **Token and Cost Breakdown Sheet** - Introduced interactive token usage and cost breakdown sheets accessible directly from Job cost cells in the Jobs table.
+- **Multi-Repo Worktree Organization** - Structured plan worktrees under `Worktrees/<owner>/<repo>` paths to support multi-repo setups and complex project layouts.
+- **Keyboard Navigation & Tab Management** - Added `Cmd+W` / `Ctrl+W` shortcut support to close active tabs in standalone Tendril, and polished macOS Command (`⌘`) shortcut indicators across dialogs.
+
+### Improvements
+
+- **Draft & Review Performance Optimization** - Dramatically reduced plan switching latency and tab-switch overhead in both Review and Drafts apps.
+- **Jobs DataTable Scalability** - Optimized DataTable rendering and data sync to seamlessly handle over 100+ active and historical jobs without UI stutter.
+- **Chat Queue and Status Indicators** - Redesigned Chat queued messages panel with inline controls, and added real-time generating status badges in the sidebar.
+- **Draft Annotations Anchoring** - Anchored selection popovers and toolbar highlights to text character offsets in DraftMarkdown to prevent drift when scrolling.
+- **Worktree Base Branch Display** - Displayed upstream base branch fork points in the Review Git tab and added branch tracking in the Pull Requests overview.
+- **Desktop Notification Toast Suppression** - Suppressed redundant in-app toast alerts when native operating system desktop notifications are displayed.
+- **Settings UI Redesign** - Refactored project settings layout with project color swatches, collapsible custom skills/MCP cards, and standardized button sizing.
+
+### Bug Fixes
+
+- **Worktree Unpushed Commit Protection** - Stopped the worktree reaper from orphaning or deleting unpushed plan commits during background cleanup.
+- **Tool Call Header Stickiness** - Ensured agent tool call titles stick to the top of the viewport during long stream outputs.
+- **False Job Failure on Recovered Tool Errors** - Prevented Antigravity jobs from falsely failing when the agent successfully self-heals after an initial tool error.
+- **GitHub PR URL Case Insensitivity** - Supported case-insensitive repository URLs (`Https://`, `Git@`, etc.) during GitHub import and PR operations.
+- **Markdown Link Polisher Span Preservation** - Fixed plan link replacement in markdown polisher from corrupting nested plan spans.
+- **Onboarding Flow Stability** - Fixed onboarding hang when an agent installation fails or when required binaries are temporarily missing.
+
 ## 1.1.19 (2026-07-28)
 
 ### Features

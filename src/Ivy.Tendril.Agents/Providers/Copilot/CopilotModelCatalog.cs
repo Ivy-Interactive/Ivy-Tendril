@@ -13,13 +13,17 @@ public sealed class CopilotModelCatalog : CachedModelCatalogProvider
     public override IReadOnlyList<ModelInfo> GetStaticModels() =>
     [
         new() { Id = "gpt-5.4", DisplayName = "GPT-5.4", Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Copilot, Provider = "openai", IsDefault = true },
+        new() { Id = "gpt-5.4-mini", DisplayName = "GPT-5.4 Mini", Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Copilot, Provider = "openai" },
         new() { Id = "gpt-5.3-codex", DisplayName = "GPT-5.3 Codex", Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Copilot, Provider = "openai" },
         new() { Id = "gpt-5.2-codex", DisplayName = "GPT-5.2 Codex", Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Copilot, Provider = "openai" },
         new() { Id = "gpt-5.2", DisplayName = "GPT-5.2", Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Copilot, Provider = "openai" },
-        new() { Id = "gpt-5.4-mini", DisplayName = "GPT-5.4 Mini", Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Copilot, Provider = "openai" },
         new() { Id = "gpt-5-mini", DisplayName = "GPT-5 Mini", Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Copilot, Provider = "openai" },
         new() { Id = "gpt-4.1", DisplayName = "GPT-4.1", Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Copilot, Provider = "openai" },
+        new() { Id = "claude-fable-5", DisplayName = "Claude Fable 5", Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic" },
+        new() { Id = "claude-opus-5-1", DisplayName = "Claude Opus 5.1", Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic" },
         new() { Id = "claude-opus-5", DisplayName = "Claude Opus 5", Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic" },
+        new() { Id = "claude-sonnet-5-1", DisplayName = "Claude Sonnet 5.1", Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic" },
+        new() { Id = "claude-5.1", DisplayName = "Claude 5.1", Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic" },
         new() { Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5", Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic" },
         new() { Id = "claude-sonnet-4-6", DisplayName = "Claude Sonnet 4.6", Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic" },
         new() { Id = "claude-sonnet-4-5", DisplayName = "Claude Sonnet 4.5", Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic" },

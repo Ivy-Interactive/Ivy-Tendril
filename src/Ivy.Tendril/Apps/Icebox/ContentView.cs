@@ -1,3 +1,4 @@
+using Ivy.Tendril.Widgets;
 using Ivy.Core;
 using Ivy.Tendril.Apps.Icebox.Dialogs;
 using Ivy.Tendril.Apps.Views;
@@ -65,9 +66,13 @@ public class ContentView(
                      | titleArea
                      | controls;
 
-        var scrollableContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(200))).Padding(6, 2, 6, 2)
+        // No max-width or inset here: DraftMarkdown reproduces both itself (see .pmv-markdown), so
+        // wrapping it the way the plain Markdown widget needed would apply each of them twice.
+        var scrollableContent = Layout.Vertical().Width(Size.Full())
                                 |
-                                new Markdown(MarkdownHelper.PrepareForDisplay(selectedPlan.LatestRevisionContent, config))
+                                // Read-only: no annotation or answer handlers, so `questions` blocks
+                                // present their answers rather than raw YAML.
+                                new PlanMarkdown(MarkdownHelper.PrepareForDisplay(selectedPlan.LatestRevisionContent, config))
                                     .Article()
                                     .DangerouslyAllowLocalFiles()
                                     .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>

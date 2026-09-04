@@ -2,6 +2,7 @@ using System.ClientModel;
 using Ivy.Core.Exceptions;
 using Ivy.Tendril.Agents;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,6 +22,8 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<IConfigService>(configService);
         server.Services.AddSingleton<ConfigService>(configService);
         server.Services.AddSingleton<IChatHistoryService, ChatHistoryService>();
+        server.Services.AddSingleton<IChatSessionNamingService, ChatSessionNamingService>();
+        server.Services.AddSingleton<IChatExecutionService, ChatExecutionService>();
         server.Services.AddSingleton<ICreatePlanPreferences, CreatePlanPreferences>();
 
         Program.SetConfigServiceForCleanup(configService);
@@ -32,10 +35,7 @@ internal static class ServiceRegistration
 
         server.Services.AddAgentInfrastructure(opts =>
         {
-            opts.IncludeBetaProviders = (tendrilArgs?.Beta ?? false) ||
-                                        configService.Settings.Beta ||
-                                        Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
-                                        Environment.GetEnvironmentVariable("IVY_BETA") == "1";
+            opts.IncludeBetaProviders = BetaHelper.IsBeta(tendrilArgs, configService);
 
             opts.IvyApiKeyProviderFactory = sp =>
             {
@@ -81,10 +81,13 @@ internal static class ServiceRegistration
                     if (config?.Settings != null)
                     {
                         var openAiProxyAgent = config.Settings.CodingAgents.FirstOrDefault(a =>
-                            a.Name.Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
-                        if (openAiProxyAgent != null && openAiProxyAgent.EnvironmentVariables.TryGetValue("ANTHROPIC_API_KEY", out var key) && !string.IsNullOrEmpty(key))
+                            a.Name.Equals("openaiproxy", StringComparison.OrdinalIgnoreCase) ||
+                            a.Name.Equals("ivy", StringComparison.OrdinalIgnoreCase));
+                        if (openAiProxyAgent != null)
                         {
-                            return key;
+                            if (openAiProxyAgent.EnvironmentVariables.TryGetValue("ANTHROPIC_API_KEY", out var key) && !string.IsNullOrEmpty(key)) return key;
+                            if (openAiProxyAgent.EnvironmentVariables.TryGetValue("OPENAI_API_KEY", out key) && !string.IsNullOrEmpty(key)) return key;
+                            if (openAiProxyAgent.EnvironmentVariables.TryGetValue("IVY_API_KEY", out key) && !string.IsNullOrEmpty(key)) return key;
                         }
                     }
                     return null;
@@ -99,10 +102,13 @@ internal static class ServiceRegistration
                     if (config?.Settings != null)
                     {
                         var openAiProxyAgent = config.Settings.CodingAgents.FirstOrDefault(a =>
-                            a.Name.Equals("openaiproxy", StringComparison.OrdinalIgnoreCase));
-                        if (openAiProxyAgent != null && openAiProxyAgent.EnvironmentVariables.TryGetValue("ANTHROPIC_BASE_URL", out var url) && !string.IsNullOrEmpty(url))
+                            a.Name.Equals("openaiproxy", StringComparison.OrdinalIgnoreCase) ||
+                            a.Name.Equals("ivy", StringComparison.OrdinalIgnoreCase));
+                        if (openAiProxyAgent != null)
                         {
-                            return url;
+                            if (openAiProxyAgent.EnvironmentVariables.TryGetValue("ANTHROPIC_BASE_URL", out var url) && !string.IsNullOrEmpty(url)) return url;
+                            if (openAiProxyAgent.EnvironmentVariables.TryGetValue("OPENAI_BASE_URL", out url) && !string.IsNullOrEmpty(url)) return url;
+                            if (openAiProxyAgent.EnvironmentVariables.TryGetValue("IVY_BASE_URL", out url) && !string.IsNullOrEmpty(url)) return url;
                         }
                     }
                     return null;
@@ -210,10 +216,9 @@ internal static class ServiceRegistration
             var planReader = sp.GetRequiredService<IPlanReaderService>();
             var jobService = sp.GetRequiredService<IJobService>();
             var planWatcher = sp.GetRequiredService<IPlanWatcherService>();
-            var config = sp.GetRequiredService<IConfigService>();
             var logger = sp.GetRequiredService<ILogger<TendrilProcessStatusService>>();
             var chatHistory = sp.GetService<IChatHistoryService>();
-            return new TendrilProcessStatusService(planReader, jobService, planWatcher, config, logger, chatHistory);
+            return new TendrilProcessStatusService(planReader, jobService, planWatcher, logger, chatHistory);
         });
         server.Services.AddSingleton<ITendrilProcessStatusService>(sp => sp.GetRequiredService<TendrilProcessStatusService>());
         server.Services.AddSingleton<InboxWatcherService>(sp =>
@@ -265,6 +270,25 @@ internal static class ServiceRegistration
             sp.GetRequiredService<Services.Tunnel.CloudflaredService>());
         server.Services.AddSingleton<IStartable>(sp =>
             sp.GetRequiredService<Services.Tunnel.CloudflaredService>());
+
+        server.Services.AddSingleton<Services.Tunnel.ShareTunnelService>(sp =>
+        {
+            var config = sp.GetRequiredService<IConfigService>();
+            var httpFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var appLifetime = sp.GetRequiredService<Microsoft.Extensions.Hosting.IHostApplicationLifetime>();
+            var svr = sp.GetRequiredService<Microsoft.AspNetCore.Hosting.Server.IServer>();
+            var logger = sp.GetRequiredService<ILogger<Services.Tunnel.ShareTunnelService>>();
+            return new Services.Tunnel.ShareTunnelService(config, httpFactory, appLifetime, svr, logger);
+        });
+        server.Services.AddSingleton<Services.Tunnel.IShareTunnelService>(sp =>
+            sp.GetRequiredService<Services.Tunnel.ShareTunnelService>());
+        server.Services.AddSingleton<IStartable>(sp =>
+            sp.GetRequiredService<Services.Tunnel.ShareTunnelService>());
+
+        server.Services.AddSingleton<Services.Plans.IPlanAnnotationService, Services.Plans.PlanAnnotationService>();
+        server.Services.AddSingleton<Services.Plans.IPlanDiffCommentService, Services.Plans.PlanDiffCommentService>();
+        server.Services.AddTransient<Services.Share.IShareContext, Services.Share.ShareContext>();
+        server.Services.AddSingleton<Services.Vault.IVaultService, Services.Vault.VaultService>();
 
         server.Services.AddSingleton<Services.Telemetry.ModelPricingWarmupService>();
         server.Services.AddSingleton<IStartable>(sp =>

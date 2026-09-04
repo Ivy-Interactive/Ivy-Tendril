@@ -13,9 +13,14 @@ export interface DerivedStatus {
 export function deriveStatus(events: PresentationEvent[]): DerivedStatus {
   if (events.length === 0) return { text: "Starting…", complete: false };
 
-  const last = events[events.length - 1];
-  if (last.kind === "result") {
-    return { text: last.wire.is_success ? "Completed" : "Failed", complete: true };
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e.kind === "result") {
+      return { text: e.wire.is_success ? "Completed" : "Failed", complete: true };
+    }
+    if (e.kind === "error") {
+      return { text: "Failed", complete: true };
+    }
   }
 
   for (let i = events.length - 1; i >= 0; i--) {
@@ -25,6 +30,7 @@ export function deriveStatus(events: PresentationEvent[]): DerivedStatus {
     }
   }
 
+  const last = events[events.length - 1];
   if (last.kind === "assistant-text") return { text: "Thinking…", complete: false };
   if (last.kind === "thinking") return { text: "Thinking…", complete: false };
   return { text: "Working…", complete: false };

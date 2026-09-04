@@ -29,6 +29,7 @@ public class RecommendationsTabView(
             .Icon(Icons.Rocket)
             .Primary()
             .Disabled(count == 0)
+            .Tooltip(count == 0 ? "Select at least one recommendation to implement" : null)
             .OnClick(onImplement);
 
         if (count > 0)

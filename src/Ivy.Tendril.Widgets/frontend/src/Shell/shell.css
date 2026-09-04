@@ -1,0 +1,1046 @@
+/* Tendril app shell — design tokens and component styles.
+   Light values are the exact colors from the Figma prototype (claude-code-prototype);
+   dark values map onto the Ivy theme tokens so the shell follows the host theme. */
+
+.tsh-root,
+.tsh-section,
+.tsh-rail-tooltip {
+  /* Every token derives from the host theme's variables so alternate themes
+     (Retro, etc.) recolor the shell; the literals are only fallbacks for when
+     the widget renders outside a themed host, and match the Figma prototype. */
+  --tsh-bg: color-mix(in srgb, var(--foreground, #000000) 3%, var(--background, #fafafa));
+  --tsh-surface: var(--card, #ffffff);
+  /* Tab strip and popovers track the shell/card colors independently of the
+     bg/surface pair, which dark theme swaps. */
+  --tsh-shell-chrome: color-mix(in srgb, var(--foreground, #000000) 3%, var(--background, #fafafa));
+  --tsh-popover: var(--popover, #ffffff);
+  --tsh-border: var(--border, #e0e0e0);
+  --tsh-tab-border: var(--border, #d1d1d1);
+  --tsh-fg: var(--foreground, #000000);
+  --tsh-fg-title: var(--foreground, #202221);
+  --tsh-row-active: color-mix(in srgb, var(--accent, #f0f0f0) 22%, color-mix(in srgb, var(--foreground, #000000) 6%, var(--background, #ffffff)));
+  --tsh-row-active-fg: var(--foreground, #000000);
+  --tsh-badge-bg: var(--muted, #f0f0f0);
+  --tsh-badge-bg-active: color-mix(in srgb, var(--accent, #e6e6e6) 45%, var(--background, #ffffff));
+  --tsh-rail-badge-bg: var(--primary, #000000);
+  --tsh-rail-badge-fg: var(--primary-foreground, #ffffff);
+  --tsh-cta-bg: var(--primary, #000000);
+  --tsh-cta-fg: var(--primary-foreground, #f8f8f8);
+  /* Status chips are pale fills with the status color as text: themes pair
+     e.g. warning #d97706 with a white foreground, which is unreadable at this
+     size, so the raw color is tinted toward the surface instead. */
+  --tsh-badge-project-bg: color-mix(in srgb, var(--info, #bcd6ff) 18%, var(--card, #ffffff));
+  --tsh-badge-project-fg: color-mix(in srgb, var(--info, #183b75) 40%, var(--foreground, #000000));
+  --tsh-badge-success-bg: color-mix(in srgb, var(--success, #b7e4b9) 18%, var(--card, #ffffff));
+  --tsh-badge-success-fg: color-mix(in srgb, var(--success, #1f4924) 40%, var(--foreground, #000000));
+  --tsh-badge-warning-bg: color-mix(in srgb, var(--warning, #fce4b5) 18%, var(--card, #ffffff));
+  --tsh-badge-warning-fg: color-mix(in srgb, var(--warning, #6b4e14) 40%, var(--foreground, #000000));
+  --tsh-badge-border: color-mix(in srgb, var(--foreground, #000000) 30%, transparent);
+
+  --tsh-sidebar-width: 320px;
+  --tsh-rail-width: 56px;
+  --tsh-anim: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  font-family: var(--font-sans, "Geist", sans-serif);
+  color: var(--tsh-fg);
+}
+
+.dark .tsh-root,
+.dark .tsh-section,
+.dark .tsh-rail-tooltip {
+  /* Dark theme swaps these two roles relative to light: the shell backdrop
+     takes the lighter grey and the content frame sits darker inside it, so the
+     frame reads as inset rather than as a lighter card on black. */
+  --tsh-bg: var(--card, #0a0a0a);
+  --tsh-surface: var(--background, #000000);
+  --tsh-shell-chrome: var(--card, #0a0a0a);
+  --tsh-popover: var(--card, #0a0a0a);
+  --tsh-border: var(--border, #27272a);
+  --tsh-tab-border: var(--border, #27272a);
+  --tsh-fg: var(--foreground, #f8f8f8);
+  --tsh-fg-title: var(--foreground, #f8f8f8);
+  --tsh-row-active: color-mix(in srgb, var(--accent, #27272a) 30%, color-mix(in srgb, var(--foreground, #f8f8f8) 8%, var(--background, #000000)));
+  --tsh-row-active-fg: var(--foreground, #f8f8f8);
+  --tsh-badge-bg: var(--muted, #27272a);
+  --tsh-badge-bg-active: color-mix(in srgb, var(--accent, #18181b) 55%, var(--background, #000000));
+  --tsh-rail-badge-bg: var(--primary, #ffffff);
+  --tsh-rail-badge-fg: var(--primary-foreground, #000000);
+  --tsh-cta-bg: var(--primary, #f8f8f8);
+  --tsh-cta-fg: var(--primary-foreground, #000000);
+  --tsh-badge-project-bg: color-mix(in srgb, var(--info, #1e3a6d) 28%, var(--card, #000000));
+  --tsh-badge-project-fg: color-mix(in srgb, var(--info, #bcd6ff) 40%, var(--foreground, #ffffff));
+  --tsh-badge-success-bg: color-mix(in srgb, var(--success, #1f4924) 28%, var(--card, #000000));
+  --tsh-badge-success-fg: color-mix(in srgb, var(--success, #b7e4b9) 40%, var(--foreground, #ffffff));
+  --tsh-badge-warning-bg: color-mix(in srgb, var(--warning, #6b4e14) 28%, var(--card, #000000));
+  --tsh-badge-warning-fg: color-mix(in srgb, var(--warning, #fce4b5) 40%, var(--foreground, #ffffff));
+  --tsh-badge-border: color-mix(in srgb, var(--foreground, #ffffff) 25%, transparent);
+}
+
+.tsh-root *,
+.tsh-section * {
+  box-sizing: border-box;
+}
+
+/* ---------- Shell layout ---------- */
+
+.tsh-root {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--tsh-bg);
+  overflow: hidden;
+}
+
+.tsh-sidebar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: var(--tsh-sidebar-width);
+  height: 100%;
+  min-height: 0;
+  padding: 16px 12px 14px;
+  overflow: hidden;
+  transition: width var(--tsh-anim), padding var(--tsh-anim);
+}
+
+.tsh-root[data-collapsed="true"] .tsh-sidebar {
+  width: var(--tsh-rail-width);
+  padding: 16px 8px 14px;
+}
+
+.tsh-sidebar-header {
+  flex-shrink: 0;
+}
+
+.tsh-sidebar-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Hugs the 38px settings row (see .tsh-settings) rather than a fixed height, so
+   the settings icon lines up with the session-tab icons across the content edge.
+   The top margin keeps the plan list from crowding it. */
+.tsh-sidebar-footer {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+/* ---------- Content area ---------- */
+
+.tsh-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 12px 12px 12px 0;
+}
+
+/* One bordered rounded card holds the white content surface and, inside its
+   bottom edge, the session tab strip (matching the prototype's Frame 233). */
+.tsh-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  background: var(--tsh-shell-chrome);
+  border: 1px solid var(--tsh-border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.tsh-frame {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+  background: var(--tsh-surface);
+  border-radius: 0 0 12px 12px;
+  overflow: hidden;
+}
+
+/* The bottom border only exists to separate the frame from the tab strip, so it
+   appears only while there are tabs to separate from. */
+.tsh-frame[data-has-tabs="true"] {
+  border-bottom: 1px solid var(--tsh-border);
+}
+
+.tsh-frame-pane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* opacity too: visibility alone can be overridden by descendants that set their own */
+.tsh-frame-pane[data-active="false"] {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tsh-tabs-row {
+  flex-shrink: 0;
+}
+
+/* ---------- Sidebar header ---------- */
+
+.tsh-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-top: 18px;
+  overflow: hidden;
+}
+
+.tsh-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.tsh-header-logo {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.tsh-header-text {
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+  transition: opacity 200ms ease, max-width var(--tsh-anim);
+  max-width: 200px;
+  overflow: hidden;
+}
+
+.tsh-header-title {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 21px;
+  color: var(--tsh-fg);
+}
+
+.tsh-header-version {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 18px;
+  color: var(--tsh-fg);
+  opacity: 0.6;
+}
+
+.tsh-header-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-top: -2px;
+  margin-right: -4px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--tsh-fg);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.tsh-header-toggle:hover {
+  opacity: 1;
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+.tsh-root[data-collapsed="true"] .tsh-header {
+  flex-direction: column;
+  align-items: center;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-header-text {
+  max-width: 0;
+  opacity: 0;
+  display: none;
+}
+
+/* Rail header: the logo doubles as the expand control — hovering it fades the
+   logo out and the panel icon in (Lovable-style). */
+.tsh-logo-toggle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  padding: 0;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--tsh-fg);
+  cursor: pointer;
+}
+
+.tsh-logo-toggle .tsh-header-logo {
+  transition: opacity 150ms ease;
+}
+
+.tsh-logo-toggle-icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.tsh-logo-toggle:hover .tsh-header-logo {
+  opacity: 0;
+}
+
+.tsh-logo-toggle:hover .tsh-logo-toggle-icon {
+  opacity: 1;
+}
+
+.tsh-logo-toggle:hover {
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+/* ---------- New Plan button ---------- */
+
+.tsh-newplan-wrap {
+  padding-top: 12px;
+  flex-shrink: 0;
+}
+
+/* The rail drops the header text above this row, so it needs a little more
+   breathing room than the expanded sidebar. */
+.tsh-root[data-collapsed="true"] .tsh-newplan-wrap {
+  padding-top: 16px;
+}
+
+.tsh-newplan {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 40px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--tsh-cta-bg);
+  color: var(--tsh-cta-fg);
+  cursor: pointer;
+  transition: opacity 150ms ease, padding var(--tsh-anim);
+}
+
+.tsh-newplan:hover {
+  opacity: 0.88;
+}
+
+.tsh-newplan-label-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  transition: gap var(--tsh-anim);
+}
+
+.tsh-newplan-label {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 200px;
+  transition: max-width var(--tsh-anim), opacity 200ms ease;
+}
+
+.tsh-kbd {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+  opacity: 0.8;
+  white-space: nowrap;
+  transition: max-width var(--tsh-anim), opacity 200ms ease;
+  max-width: 80px;
+  overflow: hidden;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-newplan {
+  justify-content: center;
+  padding: 4px 0;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-newplan-label,
+.tsh-root[data-collapsed="true"] .tsh-newplan .tsh-kbd {
+  max-width: 0;
+  opacity: 0;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-newplan-label-group,
+.tsh-root[data-collapsed="true"] .tsh-agent-brand,
+.tsh-root[data-collapsed="true"] .tsh-nav-item-main,
+.tsh-root[data-collapsed="true"] .tsh-settings {
+  gap: 0;
+}
+
+/* ---------- Agent button ---------- */
+
+.tsh-agent-wrap {
+  padding-top: 8px;
+  flex-shrink: 0;
+}
+
+.tsh-agent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 38px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tsh-fg);
+  cursor: pointer;
+  transition: background-color 150ms ease, padding var(--tsh-anim);
+}
+
+.tsh-agent:hover,
+.tsh-agent[data-active="true"] {
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+.tsh-agent[data-active="true"] .tsh-agent-label {
+  font-weight: 500;
+}
+
+.tsh-agent-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  transition: gap var(--tsh-anim);
+}
+
+.tsh-agent-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tsh-agent-label {
+  font-size: 14px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 160px;
+  transition: max-width var(--tsh-anim), opacity 200ms ease;
+}
+
+.tsh-agent-actions {
+  display: flex;
+  align-items: center;
+  color: var(--tsh-fg);
+  max-width: 160px;
+  overflow: hidden;
+  transition: max-width var(--tsh-anim), opacity 200ms ease;
+}
+
+.tsh-agent .tsh-kbd {
+  color: var(--tsh-fg);
+}
+
+.tsh-root[data-collapsed="true"] .tsh-agent {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-agent-label,
+.tsh-root[data-collapsed="true"] .tsh-agent-actions {
+  max-width: 0;
+  opacity: 0;
+}
+
+/* ---------- Nav ---------- */
+
+.tsh-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 12px;
+  flex-shrink: 0;
+}
+
+.tsh-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 38px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tsh-fg);
+  cursor: pointer;
+  transition: background-color 150ms ease, padding var(--tsh-anim);
+}
+
+.tsh-nav-item:hover {
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+.tsh-nav-item[data-active="true"] {
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+.tsh-nav-item-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  opacity: 0.6;
+  transition: opacity 150ms ease, gap var(--tsh-anim);
+}
+
+.tsh-nav-item:hover .tsh-nav-item-main,
+.tsh-nav-item[data-active="true"] .tsh-nav-item-main {
+  opacity: 1;
+}
+
+.tsh-nav-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tsh-nav-label {
+  font-size: 14px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 200px;
+  transition: max-width var(--tsh-anim), opacity 200ms ease;
+}
+
+.tsh-nav-item[data-active="true"] .tsh-nav-label {
+  font-weight: 500;
+}
+
+.tsh-nav-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--tsh-badge-bg);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 13px;
+  color: var(--tsh-fg);
+  white-space: nowrap;
+  transition: max-width var(--tsh-anim), opacity 200ms ease, padding var(--tsh-anim);
+  max-width: 60px;
+  overflow: hidden;
+}
+
+.tsh-nav-item[data-active="true"] .tsh-nav-badge {
+  background: var(--tsh-badge-bg-active);
+  color: inherit;
+}
+
+.tsh-nav-divider {
+  height: 20px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.tsh-nav-divider::after {
+  content: "";
+  width: 100%;
+  height: 1px;
+  background: var(--tsh-border);
+}
+
+.tsh-root[data-collapsed="true"] .tsh-nav-item {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-nav-label {
+  max-width: 0;
+  opacity: 0;
+}
+
+/* Collapsed rail: the label is gone, so the count rides the icon's top-right
+   corner — same look as the expanded badge, inverted colors. */
+.tsh-root[data-collapsed="true"] .tsh-nav-item {
+  position: relative;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-nav-badge,
+.tsh-root[data-collapsed="true"] .tsh-nav-item[data-active="true"] .tsh-nav-badge {
+  position: absolute;
+  top: 3px;
+  /* Anchored just past the 16px icon's right edge so the number never covers
+     it, and left-aligned so longer counts stretch rightward. Padding is a
+     touch tighter than the expanded badge: the rail leaves only ~20px beside
+     the icon, and this keeps a two-digit count inside it (ShellNav caps the
+     rail text at two digits for the same reason). */
+  left: calc(50% + 8px);
+  right: auto;
+  padding: 2px 4px;
+  background: var(--tsh-rail-badge-bg);
+  color: var(--tsh-rail-badge-fg);
+}
+
+/* ---------- Sidebar section (plan list) ---------- */
+
+.tsh-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding-top: 6px;
+  overflow: hidden;
+  transition: opacity 200ms ease;
+}
+
+/* Headerless usage (e.g. inside the plan search dialog): plain list, no inset. */
+.tsh-section[data-headerless="true"] {
+  padding-top: 0;
+}
+
+.tsh-section[data-headerless="true"] .tsh-section-list {
+  margin-top: 0;
+}
+
+/* Collapsed rail variant: search button on top, then each plan's ID tag as a
+   narrow chip (rendered by ShellSidebarSection when the shell is collapsed). */
+.tsh-section-rail {
+  align-items: stretch;
+}
+
+.tsh-rail-search {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  color: var(--tsh-fg);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.tsh-rail-search:hover {
+  opacity: 1;
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+.tsh-rail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+.tsh-rail-item {
+  flex-shrink: 0;
+  width: 100%;
+  padding: 6px 2px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tsh-fg);
+  opacity: 0.6;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  /* Plan IDs run #0000-#1000 and share a leading "#", so a right-side ellipsis
+     would hide the digits that actually differ. RTL direction moves the
+     ellipsis to the left; the inner span is isolated back to LTR so the digits
+     keep their real order and only the head is clipped ("…123", not "321…"). */
+  direction: rtl;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.tsh-rail-item-text {
+  unicode-bidi: isolate;
+  direction: ltr;
+}
+
+.tsh-rail-item:hover {
+  opacity: 1;
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+.tsh-rail-item[data-selected="true"] {
+  opacity: 1;
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+/* Hover flyout for a rail plan chip: title plus the row badges. Fixed-position
+   (portaled to <body>) so the sidebar's overflow:hidden cannot clip it. */
+.tsh-rail-tooltip {
+  position: fixed;
+  transform: translateY(-50%);
+  z-index: 60;
+  max-width: 260px;
+  padding: 8px 10px;
+  border: 1px solid var(--tsh-border);
+  border-radius: 8px;
+  background: var(--tsh-popover);
+  color: var(--tsh-fg);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--foreground, #000000) 12%, transparent);
+  pointer-events: none;
+  font-family: var(--font-sans, "Geist", sans-serif);
+}
+
+.tsh-rail-tooltip-title {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 17px;
+}
+
+.tsh-rail-tooltip-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.tsh-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  flex-shrink: 0;
+  min-height: 20px;
+}
+
+.tsh-section-title {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 18px;
+  color: var(--tsh-fg);
+  white-space: nowrap;
+}
+
+.tsh-section-search {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-right: -2px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  color: var(--tsh-fg);
+  opacity: 0.7;
+  cursor: pointer;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.tsh-section-search:hover {
+  opacity: 1;
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+.tsh-section-list {
+  margin-top: 10px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--tsh-border) transparent;
+}
+
+.tsh-section-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 150ms ease;
+}
+
+.tsh-section-item:hover {
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+.tsh-section-item[data-selected="true"] {
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+.tsh-section-item:hover .tsh-section-item-title,
+.tsh-section-item:hover .tsh-section-item-tag,
+.tsh-section-item[data-selected="true"] .tsh-section-item-title,
+.tsh-section-item[data-selected="true"] .tsh-section-item-tag {
+  color: inherit;
+}
+
+.tsh-section-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.tsh-section-item-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--tsh-fg-title);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tsh-section-item-tag {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  color: var(--tsh-fg);
+}
+
+.tsh-section-item-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.tsh-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 0.5px solid var(--tsh-badge-border);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+.tsh-badge[data-kind="project"] {
+  background: var(--tsh-badge-project-bg);
+  color: var(--tsh-badge-project-fg);
+}
+
+.tsh-badge[data-kind="success"] {
+  background: var(--tsh-badge-success-bg);
+  color: var(--tsh-badge-success-fg);
+}
+
+.tsh-badge[data-kind="warning"] {
+  background: var(--tsh-badge-warning-bg);
+  color: var(--tsh-badge-warning-fg);
+}
+
+.tsh-badge[data-kind="neutral"] {
+  background: var(--tsh-badge-bg);
+  color: var(--tsh-fg);
+}
+
+.tsh-section-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--tsh-fg);
+  opacity: 0.5;
+}
+
+/* ---------- Settings button ---------- */
+
+.tsh-settings {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tsh-fg);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.tsh-settings:hover {
+  opacity: 1;
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+.tsh-settings-label {
+  font-size: 14px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 200px;
+  transition: max-width var(--tsh-anim), opacity 200ms ease;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-settings {
+  justify-content: center;
+  padding: 6px 0;
+  width: 100%;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-settings-label {
+  max-width: 0;
+  opacity: 0;
+}
+
+/* ---------- Session tabs ---------- */
+
+.tsh-tabs {
+  display: flex;
+  align-items: stretch;
+  height: 40px;
+}
+
+.tsh-tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 200px;
+  min-width: 0;
+  padding: 10px 16px;
+  border: none;
+  border-right: 1px solid var(--tsh-tab-border);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.tsh-tab:hover {
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+.tsh-tab-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--tsh-fg);
+}
+
+.tsh-tab[data-active="false"] .tsh-tab-main {
+  opacity: 0.6;
+}
+
+.tsh-tab-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.tsh-tab-label {
+  font-size: 14px;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tsh-tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  border-radius: 3px;
+  color: var(--tsh-fg);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.tsh-tab-close:hover {
+  opacity: 1;
+  background: var(--tsh-badge-bg-active);
+}
+
+.tsh-tab-new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: none;
+  border-right: 1px solid var(--tsh-tab-border);
+  background: transparent;
+  color: var(--tsh-fg);
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.tsh-tab-new:hover {
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}

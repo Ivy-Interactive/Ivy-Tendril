@@ -11,7 +11,8 @@ public class PlanJobsDataTableView(List<JobItem> jobs, Action<string> showDebug,
             return Text.Muted("No jobs for this plan.");
 
         var rows = jobs
-            .OrderByDescending(j => j.StartedAt ?? DateTime.MinValue)
+            .OrderByDescending(j => j.StartedAt ?? DateTime.MaxValue)
+            .ThenByDescending(j => j.Id)
             .Select(j => new PlanJobRow
             {
                 Id = j.Id,

@@ -178,3 +178,16 @@
 .bselect-action:hover {
   color: var(--foreground);
 }
+
+/* Dropdown search input in Radix Select popovers */
+[data-radix-select-content] .relative input,
+[data-radix-select-content] input[type="text"] {
+  padding-left: 2.25rem !important;
+}
+
+[data-radix-select-content] .relative svg {
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  pointer-events: none !important;
+}
+

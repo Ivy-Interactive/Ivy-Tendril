@@ -25,6 +25,17 @@ public static class SidebarListRow
         return BuildButton(row, onClick, isSelected, BorderRadius.Rounded);
     }
 
+    public static object BuildExpandable(string title, Icons icon, bool isExpanded, Action onClick, bool isSelected = false)
+    {
+        var row = Layout.Horizontal().AlignContent(Align.Left).Width(Size.Full())
+            | icon.ToIcon()
+            | Text.Literal(title)
+            | new Spacer()
+            | (isExpanded ? Icons.ChevronDown : Icons.ChevronRight).ToIcon().Small();
+
+        return BuildButton(row, onClick, isSelected, BorderRadius.Rounded);
+    }
+
     public static object BuildSubItem(string title, Icons? icon, Action onClick, bool isSelected = false)
     {
         return BuildSubItem(title, icon, null, onClick, isSelected);

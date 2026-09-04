@@ -9,9 +9,9 @@ namespace Ivy.Tendril;
 public static class Constants
 {
     public const int Dashboard = 10;
-    public const int Recommendations = 20;
-    public const int Drafts = 30;
-    public const int Review = 40;
+    public const int Plans = 20;
+    public const int Review = 30;
+    public const int Recommendations = 40;
     public const int Jobs = 50;
     public const int PullRequests = 60;
     public const int Issues = 65;
@@ -19,7 +19,6 @@ public static class Constants
     public const int Chat = 75;
     public const int Agent = 80;
     public const int ReviewAction = 85;
-    public const int Trash = 90;
     public const int Help = 100;
     public const int Onboarding = 110;
 

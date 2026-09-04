@@ -134,10 +134,7 @@ public class EditProjectBladeView(
             })
             .WithTooltip(hasInvalidRepos ? "Fix or remove invalid repositories before saving" : null);
 
-        var isBeta = (tendrilArgs?.Beta ?? false) ||
-                     (config?.Settings?.Beta ?? false) ||
-                     Environment.GetEnvironmentVariable("TENDRIL_BETA") == "1" ||
-                     Environment.GetEnvironmentVariable("IVY_BETA") == "1";
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
 
         var tabs = new List<Tab>
         {
@@ -146,7 +143,7 @@ public class EditProjectBladeView(
                 | Text.Block("Configure the project's name, color, and AI context.").Muted().Small()
                 | editName.ToTextInput("Project name...").Invalid(nameError).WithField().Label("Name")
                 | editColor.ToColorInput().Variant(ColorInputVariant.SwatchPicker).Nullable().WithField().Label("Color")
-                | editContext.ToTextareaInput("Project context or prompt for AI agents...").Rows(4).WithField().Label("Context / Prompt")
+                | MarkdownFieldBuilders.BuildProjectContextField(editContext)
             ),
             new Tab("Repositories",
                 Layout.Vertical()
@@ -201,7 +198,7 @@ public class EditProjectBladeView(
             | new ReviewActionsTableView(editReviewActions, idx =>
             {
                 bladeContext.Push(this, new EditReviewActionBladeView(idx, editReviewActions), title: idx == null ? "Add Review Action" : "Edit Review Action");
-            })
+            }, projectName: editName.Value)
             | new Button("Add Review Action").Icon(Icons.Plus).Outline().OnClick(() =>
             {
                 bladeContext.Push(this, new EditReviewActionBladeView(null, editReviewActions), title: "Add Review Action");

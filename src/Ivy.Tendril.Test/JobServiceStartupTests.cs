@@ -334,6 +334,50 @@ public class JobServiceStartupTests
     }
 
     [Fact]
+    public void ReconcileRestoredJob_BlockedJobWithCompletedPlan_MarksFailedOrCleansUp()
+    {
+        var tendrilHome = Path.Combine(Path.GetTempPath(), $"tendril-blocked-test-{Guid.NewGuid()}");
+        var plansDir = Path.Combine(tendrilHome, "Plans");
+        var planFolder = Path.Combine(plansDir, "00042-MyPlan");
+        Directory.CreateDirectory(planFolder);
+
+        try
+        {
+            File.WriteAllText(Path.Combine(planFolder, "plan.yaml"),
+                "state: Completed\nproject: TestProject\nlevel: Feature\ntitle: My Plan\ncreated: 2026-01-01T00:00:00Z\nupdated: 2026-01-01T00:00:00Z\ndependsOn: []\nprs: []\ncommits: []\nverifications: []\nrelatedPlans: []\nrepos: []\n");
+
+            var db = new FakeDatabaseService
+            {
+                Jobs =
+                {
+                    new JobItem
+                    {
+                        Id = "job-blocked-ghost",
+                        Type = "ExecutePlan",
+                        Status = JobStatus.Blocked,
+                        PlanFile = planFolder,
+                        TypedArgs = new ExecutePlanArgs(planFolder)
+                    }
+                }
+            };
+
+            var config = new FakeConfigService(tendrilHome);
+            var service = new JobService(config, database: db);
+
+            var job = service.GetJob("job-blocked-ghost");
+            Assert.NotNull(job);
+            Assert.Equal(JobStatus.Failed, job!.Status);
+            Assert.Equal("Superseded by subsequent execution or plan completed", job.StatusMessage);
+            Assert.NotNull(job.CompletedAt);
+            Assert.Contains("job-blocked-ghost", db.UpsertedJobIds);
+        }
+        finally
+        {
+            try { Directory.Delete(tendrilHome, true); } catch { /* best-effort */ }
+        }
+    }
+
+    [Fact]
     public void StartJob_PersistsJobToDatabaseWhileStillRunning()
     {
         var db = new FakeDatabaseService();
@@ -353,6 +397,46 @@ public class JobServiceStartupTests
         }
 
         Assert.NotNull(db.GetJobById(id));
+    }
+
+    [Fact]
+    public void LoadHistoricalJobs_QueuedJob_ReEnqueuedAndLaunched()
+    {
+        var db = new FakeDatabaseService
+        {
+            Jobs =
+            {
+                new JobItem
+                {
+                    Id = "job-queued",
+                    Type = "ExecutePlan",
+                    Status = JobStatus.Queued,
+                    Priority = 5
+                }
+            }
+        };
+
+        // When maxConcurrentJobs is 0, the job should be re-enqueued but remain Queued because no slots are free.
+        var serviceZero = new JobService(
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromMinutes(10),
+            database: db,
+            maxConcurrentJobs: 0);
+
+        var queuedJob = serviceZero.GetJob("job-queued");
+        Assert.NotNull(queuedJob);
+        Assert.Equal(JobStatus.Queued, queuedJob!.Status);
+
+        // When slots are available (default maxConcurrentJobs = 20), ProcessJobQueue dequeues and launches the job.
+        var serviceWithSlots = new JobService(
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromMinutes(10),
+            database: db,
+            maxConcurrentJobs: 20);
+
+        var launchedJob = serviceWithSlots.GetJob("job-queued");
+        Assert.NotNull(launchedJob);
+        Assert.NotEqual(JobStatus.Queued, launchedJob!.Status);
     }
 
     private class FakeConfigService : IConfigService
@@ -402,6 +486,7 @@ public class JobServiceStartupTests
     private class FakeDatabaseService : IPlanDatabaseService
     {
         public List<JobItem> Jobs { get; } = new();
+        public List<string> DeletedJobIds { get; } = new();
 
         /// <summary>Ids passed to <see cref="UpsertJob" />, in call order.</summary>
         public List<string> UpsertedJobIds { get; } = new();
@@ -412,7 +497,7 @@ public class JobServiceStartupTests
         {
             if (ThrowOnGetRecentJobs) throw new Exception("DB error");
             // Snapshot: LoadHistoricalJobs iterates the result while reconciling, and reconciling
-            // a job persists it back via UpsertJob — mutating Jobs directly here would corrupt
+            // a job persists it back via UpsertJob, mutating Jobs directly here would corrupt
             // that iteration.
             return Jobs.ToList();
         }
@@ -429,6 +514,8 @@ public class JobServiceStartupTests
 
         public void DeleteJob(string id)
         {
+            DeletedJobIds.Add(id);
+            Jobs.RemoveAll(j => j.Id == id);
         }
 
         public void Dispose()
@@ -463,6 +550,11 @@ public class JobServiceStartupTests
         public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30)
         {
             return new List<(DateOnly Date, int Count)>();
+        }
+
+        public DashboardActivityStats GetActivityStats(int monthsBack = 24)
+        {
+            return new DashboardActivityStats([], 0);
         }
 
         public decimal GetPlanTotalCost(int planId)

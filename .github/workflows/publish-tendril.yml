@@ -355,42 +355,54 @@ jobs:
           if [[ "$RID" == win-x64 ]]; then
             URL="https://cdn.ivy.app/ivy-agent-cli/releases/download/$IVY_AGENT_VERSION/ivy-agent-cli-windows-x64.zip"
             curl -L -o ivy-agent.zip "$URL"
-            unzip -q -o ivy-agent.zip -d "$PUBLISH_DIR"
-            rm ivy-agent.zip
+            unzip -j -q -o ivy-agent.zip -d "$PUBLISH_DIR"
+            rm -f ivy-agent.zip
           elif [[ "$RID" == win-arm64 ]]; then
             URL="https://cdn.ivy.app/ivy-agent-cli/releases/download/$IVY_AGENT_VERSION/ivy-agent-cli-windows-arm64.zip"
             curl -L -o ivy-agent.zip "$URL"
-            unzip -q -o ivy-agent.zip -d "$PUBLISH_DIR"
-            rm ivy-agent.zip
+            unzip -j -q -o ivy-agent.zip -d "$PUBLISH_DIR"
+            rm -f ivy-agent.zip
           elif [[ "$RID" == osx-x64 ]]; then
             URL="https://cdn.ivy.app/ivy-agent-cli/releases/download/$IVY_AGENT_VERSION/ivy-agent-cli-darwin-x64.tar.gz"
             curl -L -o ivy-agent.tar.gz "$URL"
             tar -xzf ivy-agent.tar.gz -C "$PUBLISH_DIR"
-            rm ivy-agent.tar.gz
+            rm -f ivy-agent.tar.gz
           elif [[ "$RID" == osx-arm64 ]]; then
             URL="https://cdn.ivy.app/ivy-agent-cli/releases/download/$IVY_AGENT_VERSION/ivy-agent-cli-darwin-arm64.tar.gz"
             curl -L -o ivy-agent.tar.gz "$URL"
             tar -xzf ivy-agent.tar.gz -C "$PUBLISH_DIR"
-            rm ivy-agent.tar.gz
+            rm -f ivy-agent.tar.gz
           elif [[ "$RID" == linux-x64 ]]; then
             URL="https://cdn.ivy.app/ivy-agent-cli/releases/download/$IVY_AGENT_VERSION/ivy-agent-cli-linux-x64.tar.gz"
             curl -L -o ivy-agent.tar.gz "$URL"
             tar -xzf ivy-agent.tar.gz -C "$PUBLISH_DIR"
-            rm ivy-agent.tar.gz
+            rm -f ivy-agent.tar.gz
           elif [[ "$RID" == linux-arm64 ]]; then
             URL="https://cdn.ivy.app/ivy-agent-cli/releases/download/$IVY_AGENT_VERSION/ivy-agent-cli-linux-arm64.tar.gz"
             curl -L -o ivy-agent.tar.gz "$URL"
             tar -xzf ivy-agent.tar.gz -C "$PUBLISH_DIR"
-            rm ivy-agent.tar.gz
+            rm -f ivy-agent.tar.gz
           fi
           
           # Verify ivy-agent executable exists and is executable
           if [[ "$RID" == win-* ]]; then
             if [[ ! -f "$PUBLISH_DIR/ivy-agent.exe" ]]; then
+              FOUND_EXE=$(find "$PUBLISH_DIR" -type f -name "ivy-agent.exe" | head -n 1)
+              if [[ -n "$FOUND_EXE" && -f "$FOUND_EXE" ]]; then
+                mv "$FOUND_EXE" "$PUBLISH_DIR/ivy-agent.exe"
+              fi
+            fi
+            if [[ ! -f "$PUBLISH_DIR/ivy-agent.exe" ]]; then
               echo "Error: ivy-agent.exe not found after extraction!"
               exit 1
             fi
           else
+            if [[ ! -f "$PUBLISH_DIR/ivy-agent" ]]; then
+              FOUND_BIN=$(find "$PUBLISH_DIR" -type f -name "ivy-agent" | head -n 1)
+              if [[ -n "$FOUND_BIN" && -f "$FOUND_BIN" ]]; then
+                mv "$FOUND_BIN" "$PUBLISH_DIR/ivy-agent"
+              fi
+            fi
             if [[ ! -f "$PUBLISH_DIR/ivy-agent" ]]; then
               echo "Error: ivy-agent not found after extraction!"
               exit 1

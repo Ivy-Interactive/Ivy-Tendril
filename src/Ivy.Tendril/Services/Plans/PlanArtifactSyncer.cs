@@ -109,15 +109,8 @@ internal class PlanArtifactSyncer
         return changed;
     }
 
-    private static IEnumerable<string> IterateWorktrees(string worktreesDir)
-    {
-        foreach (var wtDir in Directory.GetDirectories(worktreesDir))
-        {
-            var gitFile = Path.Combine(wtDir, ".git");
-            if (File.Exists(gitFile))
-                yield return wtDir;
-        }
-    }
+    private static IEnumerable<string> IterateWorktrees(string worktreesDir) =>
+        GitHelper.EnumerateWorktreeDirectories(worktreesDir);
 
     private List<string> ExtractCommitsFromWorktree(string wtDir, string branchName, PlanYaml plan)
     {

@@ -10,24 +10,20 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
     private readonly IPlanReaderService _planReaderService;
     private readonly IJobService _jobService;
     private readonly IPlanWatcherService _planWatcher;
-    private readonly IConfigService _config;
     private readonly ILogger<TendrilProcessStatusService> _logger;
     private readonly IChatHistoryService? _chatHistoryService;
-    private readonly FileSystemWatcher? _trashWatcher;
     private readonly System.Timers.Timer _debounceTimer;
 
     public TendrilProcessStatusService(
         IPlanReaderService planReaderService,
         IJobService jobService,
         IPlanWatcherService planWatcher,
-        IConfigService config,
         ILogger<TendrilProcessStatusService> logger,
         IChatHistoryService? chatHistoryService = null)
     {
         _planReaderService = planReaderService;
         _jobService = jobService;
         _planWatcher = planWatcher;
-        _config = config;
         _logger = logger;
         _chatHistoryService = chatHistoryService;
 
@@ -44,22 +40,6 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
         {
             _chatHistoryService.GeneratingSessionsChanged += OnChatHistoryChanged;
             _chatHistoryService.SessionsChanged += OnChatHistoryChanged;
-        }
-
-        if (!string.IsNullOrEmpty(config.TendrilHome))
-        {
-            // Create the directory up front — a watcher can only be attached to an existing
-            // directory, and Trash views rely on this signal alone (no polling).
-            var trashDir = Path.Combine(config.TendrilHome, "Trash");
-            Directory.CreateDirectory(trashDir);
-            _trashWatcher = new FileSystemWatcher(trashDir, "*.md")
-            {
-                NotifyFilter = NotifyFilters.FileName,
-                EnableRaisingEvents = true
-            };
-            _trashWatcher.Created += (_, _) => ScheduleRefresh();
-            _trashWatcher.Deleted += (_, _) => ScheduleRefresh();
-            _trashWatcher.Renamed += (_, _) => ScheduleRefresh();
         }
     }
 
@@ -150,14 +130,6 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
             }
         }
 
-        var trashCount = 0;
-        if (!string.IsNullOrEmpty(_config.TendrilHome))
-        {
-            var trashDir = Path.Combine(_config.TendrilHome, "Trash");
-            if (Directory.Exists(trashDir))
-                trashCount = Directory.GetFiles(trashDir, "*.md").Length;
-        }
-
         var generatingChatCount = _chatHistoryService?.GetGeneratingSessionIds().Count ?? 0;
 
         return new TendrilProcessStatus
@@ -166,7 +138,6 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
             ReviewCount = Math.Max(0, snapshot.Review + snapshot.Failed - prematureReviews),
             IceboxCount = snapshot.Icebox,
             JobCount = activeJobs.Count,
-            TrashCount = trashCount,
             CreatingPlansCount = creatingCount,
             UpdatingPlansCount = updatingCount,
             ExecutingPlansCount = executingCount,
@@ -187,7 +158,6 @@ public class TendrilProcessStatusService : ITendrilProcessStatusService
             _chatHistoryService.GeneratingSessionsChanged -= OnChatHistoryChanged;
             _chatHistoryService.SessionsChanged -= OnChatHistoryChanged;
         }
-        _trashWatcher?.Dispose();
         _debounceTimer.Dispose();
         _subject.Dispose();
     }

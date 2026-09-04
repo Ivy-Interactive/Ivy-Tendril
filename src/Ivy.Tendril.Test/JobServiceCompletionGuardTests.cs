@@ -353,6 +353,25 @@ public class JobServiceCompletionGuardTests : IDisposable
         Assert.Equal(JobStatus.Completed, job.Status);
     }
 
+    [Fact]
+    public void CompleteJob_CreatePlan_FailsWhenDuplicateMarkerIsOnlyTheDocumentedTemplate()
+    {
+        var service = CreateServiceWithPlanReader(_tempDir.Path);
+        var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
+
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        // The agent read Program.md mid-run, so the marker's template form appears in its output.
+        // That must not pass for a real duplicate rejection.
+        job.EnqueueOutput("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"identified as duplicate: <existing plan folder name>\"}]}}");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Failed, job.Status);
+    }
+
     private class StubPlanReaderService(string plansDirectory) : IPlanReaderService
     {
         public string PlansDirectory => plansDirectory;
@@ -453,6 +472,16 @@ public class JobServiceCompletionGuardTests : IDisposable
         public DashboardModels GetDashboardData(string? projectFilter)
         {
             return new DashboardModels(0, 0, 0, 0, 0, 0, 0, [], []);
+        }
+
+        public DashboardActivityStats GetDashboardActivity(int monthsBack = 24)
+        {
+            return new DashboardActivityStats([], 0);
+        }
+
+        public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days)
+        {
+            return [];
         }
 
         public decimal GetPlanTotalCost(string folderPath)

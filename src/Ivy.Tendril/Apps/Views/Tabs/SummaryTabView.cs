@@ -29,7 +29,7 @@ public class SummaryTabView(
                                     > `Reset to Draft` or `Request Changes` to retry the plan.
                                     """;
 
-        return new DraftMarkdown(MarkdownHelper.PrepareForDisplay(md, config))
+        return new PlanMarkdown(MarkdownHelper.PrepareForDisplay(md, config))
             .Article()
             .DangerouslyAllowLocalFiles()
             .Height(Size.Full())

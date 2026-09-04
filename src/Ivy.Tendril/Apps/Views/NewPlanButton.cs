@@ -1,7 +1,15 @@
+using System.Runtime.InteropServices;
+
 namespace Ivy.Tendril.Apps.Views;
 
 public class NewPlanButton(bool collapsed = false) : ViewBase
 {
+    public static string GetTooltip(bool isMac) =>
+        isMac ? "New Plan (⌘+⌥+N)" : "New Plan (Ctrl+Alt+N)";
+
+    public static string GetTooltip() =>
+        GetTooltip(RuntimeInformation.IsOSPlatform(OSPlatform.OSX));
+
     public override object Build()
     {
         return new CreatePlanDialogLauncher(
@@ -11,7 +19,7 @@ public class NewPlanButton(bool collapsed = false) : ViewBase
                     .Width(Size.Full())
                     .Variant(ButtonVariant.Primary)
                     .OnClick(open)
-                    .Tooltip("New Plan (Ctrl+Alt+N)")
+                    .Tooltip(GetTooltip())
                     .ShortcutKey("CTRL+ALT+N")
                 : new Button("New Plan")
                     .Icon(Icons.Plus)
