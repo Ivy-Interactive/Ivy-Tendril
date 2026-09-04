@@ -793,6 +793,56 @@
   color: var(--tsh-row-active-fg);
 }
 
+/* No list to title (other apps, or an empty Review/Drafts list): the header
+   slot becomes a full-width Search row styled like a nav item, with the
+   shortcut hint on the right like the New Plan and agent rows. */
+.tsh-section-header[data-search-button="true"] {
+  padding: 0;
+}
+
+.tsh-section-search-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 38px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tsh-fg);
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.tsh-section-search-button:hover {
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+.tsh-section-search-button-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  opacity: 0.6;
+  transition: opacity 150ms ease;
+}
+
+.tsh-section-search-button:hover .tsh-section-search-button-main {
+  opacity: 1;
+}
+
+.tsh-section-search-button-label {
+  font-size: 14px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.tsh-section-search-button .tsh-kbd {
+  color: var(--tsh-fg);
+}
+
 .tsh-section-list {
   margin-top: 10px;
   flex: 1;

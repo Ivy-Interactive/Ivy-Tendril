@@ -1,8 +1,10 @@
-import React from "react";
+import React, { useCallback, useEffect } from "react";
 import { Search } from "lucide-react";
 import { useShell } from "./ShellContext";
-import { ShellSectionItemDto, ShellWidgetProps } from "./types";
+import { ShellSectionItemDto, ShellWidgetProps, isEditableTarget, isModKey, modKeyLabel } from "./types";
 import "./shell.css";
+
+const SEARCH_SHORTCUT_KEY = "K";
 
 interface ShellSidebarSectionProps extends ShellWidgetProps {
   title?: string;
@@ -16,6 +18,9 @@ interface ShellSidebarSectionProps extends ShellWidgetProps {
  * The contextual list under the nav — plans for Review/Drafts, recommendations,
  * etc. Published by the active app. In the collapsed rail the list shrinks to
  * narrow ID chips (the row tags, e.g. "#40") with the search button above.
+ * Without a list (other apps, or an app whose list is empty) the header slot
+ * holds a full-width Search button instead of the title, and Cmd/Ctrl+K opens
+ * the search from anywhere in the shell.
  */
 export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
   id,
@@ -31,11 +36,31 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
     if (events.includes("OnSelectItem")) eventHandler("OnSelectItem", id, [itemId]);
   };
 
-  const openSearch = () => {
+  const openSearch = useCallback(() => {
     if (events.includes("OnSearch")) eventHandler("OnSearch", id, []);
-  };
+  }, [events, eventHandler, id]);
+
+  useEffect(() => {
+    if (!searchable) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (
+        isModKey(e) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        e.key.toLowerCase() === SEARCH_SHORTCUT_KEY.toLowerCase() &&
+        !isEditableTarget(e)
+      ) {
+        e.preventDefault();
+        openSearch();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [searchable, openSearch]);
 
   const { collapsed } = useShell();
+  const shortcutHint = `${modKeyLabel()}+${SEARCH_SHORTCUT_KEY}`;
+  const searchTitle = `Search plans (${shortcutHint})`;
 
   // Rail chips get a hover flyout (title + badges) since the chip itself only
   // shows the ID. Fixed-position and portaled so the rail cannot clip it.
@@ -46,6 +71,7 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
   } | null>(null);
 
   const hasHeader = !!title || searchable;
+  const showSearchButton = searchable && (!title || items.length === 0);
 
   if (collapsed) {
     return (
@@ -55,7 +81,7 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
             className="tsh-rail-search"
             onClick={openSearch}
             aria-label="Search plans"
-            title="Search plans"
+            title={searchTitle}
           >
             <Search size={16} />
           </button>
@@ -103,7 +129,26 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
 
   return (
     <div className="tsh-section" data-headerless={!hasHeader}>
-      {hasHeader && (
+      {hasHeader && showSearchButton && (
+        <div className="tsh-section-header" data-search-button="true">
+          <button
+            className="tsh-section-search-button"
+            onClick={openSearch}
+            aria-label="Search plans"
+            title={searchTitle}
+          >
+            <span className="tsh-section-search-button-main">
+              <Search size={16} />
+              <span className="tsh-section-search-button-label">Search</span>
+            </span>
+            <span className="tsh-kbd">
+              <span>{modKeyLabel()}</span>
+              <span>{SEARCH_SHORTCUT_KEY}</span>
+            </span>
+          </button>
+        </div>
+      )}
+      {hasHeader && !showSearchButton && (
         <div className="tsh-section-header">
           <span className="tsh-section-title">{title}</span>
           {searchable && (
@@ -111,7 +156,7 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
               className="tsh-section-search"
               onClick={openSearch}
               aria-label="Search plans"
-              title="Search plans"
+              title={searchTitle}
             >
               <Search size={16} />
             </button>
