@@ -717,6 +717,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Searchable(list.Searchable)
                 .OnSelectItem(itemId =>
                     OpenApp(new NavigateArgs(capturedList.AppId, capturedList.BuildSelectArgs(itemId))))
+                .OnItemAction((itemId, actionId) =>
+                {
+                    capturedList.OnItemAction?.Invoke(itemId, actionId);
+                    OpenApp(new NavigateArgs(capturedList.AppId, capturedList.BuildSelectArgs(itemId)));
+                })
                 .OnSearch(showPlanSearchDialog);
         }
 

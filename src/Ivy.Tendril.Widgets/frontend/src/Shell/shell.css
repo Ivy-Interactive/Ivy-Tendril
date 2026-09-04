@@ -724,34 +724,86 @@
   color: var(--tsh-row-active-fg);
 }
 
-/* Hover flyout for a rail plan chip: title plus the row badges. Fixed-position
-   (portaled to <body>) so the sidebar's overflow:hidden cannot clip it. */
+/* Hover flyout for a rail plan chip: title, row badges, and quick actions.
+   Fixed-position so the sidebar's overflow:hidden cannot clip it; it stays
+   interactive so the pointer can move in and press the action buttons. The
+   shift variable is set by the widget to keep the flyout inside the viewport. */
 .tsh-rail-tooltip {
   position: fixed;
-  transform: translateY(-50%);
+  transform: translateY(calc(-50% + var(--tsh-flyout-shift, 0px)));
   z-index: 60;
-  max-width: 260px;
-  padding: 8px 10px;
+  min-width: 240px;
+  max-width: 340px;
+  padding: 12px 14px;
   border: 1px solid var(--tsh-border);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--tsh-popover);
   color: var(--tsh-fg);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--foreground, #000000) 12%, transparent);
-  pointer-events: none;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--foreground, #000000) 14%, transparent);
   font-family: var(--font-sans, "Geist", sans-serif);
 }
 
 .tsh-rail-tooltip-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
-  line-height: 17px;
+  line-height: 20px;
+  color: var(--tsh-fg-title);
 }
 
 .tsh-rail-tooltip-badges {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.tsh-rail-tooltip .tsh-badge {
+  padding: 2px 7px;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.tsh-rail-tooltip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.tsh-rail-tooltip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--tsh-border);
+  border-radius: 6px;
+  background: var(--tsh-surface);
+  color: var(--tsh-fg);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 150ms ease, opacity 150ms ease;
+}
+
+.tsh-rail-tooltip-btn:hover {
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+.tsh-rail-tooltip-btn[data-primary="true"] {
+  border-color: var(--tsh-cta-bg);
+  background: var(--tsh-cta-bg);
+  color: var(--tsh-cta-fg);
+}
+
+.tsh-rail-tooltip-btn[data-primary="true"]:hover {
+  background: var(--tsh-cta-bg);
+  color: var(--tsh-cta-fg);
+  opacity: 0.88;
 }
 
 .tsh-section-header {

@@ -15,7 +15,8 @@ public record ShellSidebarListState(
     List<ShellSectionItemDto> Items,
     string? SelectedId,
     Func<string, object?> BuildSelectArgs,
-    bool Searchable = true);
+    bool Searchable = true,
+    Action<string, string>? OnItemAction = null);
 
 [Signal(BroadcastType.AppShell)]
 public class ShellSidebarListSignal : AbstractSignal<ShellSidebarListState, Unit> { }

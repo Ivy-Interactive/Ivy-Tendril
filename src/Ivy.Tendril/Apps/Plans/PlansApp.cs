@@ -22,14 +22,22 @@ public class PlansApp : ViewBase
         return badges;
     }
 
-    internal static ShellSidebarListState BuildSidebarList(List<PlanFile> plans, PlanFile? selected)
+    internal static List<ShellItemActionDto>? BuildRowActions(bool allowActions) =>
+        allowActions
+            ? [new ShellItemActionDto(ShellSidebarActions.Execute, "Execute", "Rocket", Primary: true)]
+            : null;
+
+    internal static ShellSidebarListState BuildSidebarList(List<PlanFile> plans, PlanFile? selected,
+        Action<string, string>? onItemAction = null, bool allowActions = true)
     {
         var items = plans
-            .Select(p => new ShellSectionItemDto(p.FolderName, p.Title, $"#{p.Id}", BuildRowBadges(p)))
+            .Select(p => new ShellSectionItemDto(p.FolderName, p.Title, $"#{p.Id}", BuildRowBadges(p),
+                BuildRowActions(allowActions)))
             .ToList();
         return new ShellSidebarListState(
             "plans", "Plans", items, selected?.FolderName,
-            planId => new PlansAppArgs(planId));
+            planId => new PlansAppArgs(planId),
+            OnItemAction: onItemAction);
     }
 
     public override object Build()
@@ -52,6 +60,8 @@ public class PlansApp : ViewBase
         });
         var refreshToken = UseRefreshToken();
         var sidebarListSignal = Context.UseSignal<ShellSidebarListSignal, ShellSidebarListState, Unit>();
+        var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
+        var pendingSidebarAction = UseState<ShellSidebarActionRequest?>((ShellSidebarActionRequest?)null);
 
         Context.UseInboxAutoRefresh(refreshToken);
 
@@ -118,10 +128,12 @@ public class PlansApp : ViewBase
 
         previousPlans.Value = plans;
 
-        _ = sidebarListSignal.Send(BuildSidebarList(plans, selectedPlanState.Value));
+        _ = sidebarListSignal.Send(BuildSidebarList(plans, selectedPlanState.Value,
+            (itemId, actionId) => pendingSidebarAction.Set(new ShellSidebarActionRequest(itemId, actionId)),
+            allowActions: !shareContext.IsShareMode));
 
         return new ContentView(selectedPlanState.Value, plans, selectedPlanState, planService, jobService,
-            RefreshPlans, configService, gitService);
+            RefreshPlans, configService, gitService, pendingSidebarAction);
 
         void RefreshPlans()
         {
