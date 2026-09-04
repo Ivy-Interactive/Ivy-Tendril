@@ -26,14 +26,24 @@ public class ReviewApp : ViewBase
         return badges;
     }
 
-    internal static ShellSidebarListState BuildSidebarList(List<PlanFile> plans, PlanFile? selected)
+    internal static List<ShellItemActionDto>? BuildRowActions(PlanFile plan, bool allowActions)
+    {
+        if (!allowActions || plan.Commits.Count == 0) return null;
+        var label = plan.IsPullRequestSource ? "Update PR" : "Create PR";
+        return [new ShellItemActionDto(ShellSidebarActions.CreatePr, label, "GitPullRequest", Primary: true)];
+    }
+
+    internal static ShellSidebarListState BuildSidebarList(List<PlanFile> plans, PlanFile? selected,
+        Action<string, string>? onItemAction = null, bool allowActions = true)
     {
         var items = plans
-            .Select(p => new ShellSectionItemDto(p.FolderName, p.Title, $"#{p.Id}", BuildRowBadges(p)))
+            .Select(p => new ShellSectionItemDto(p.FolderName, p.Title, $"#{p.Id}", BuildRowBadges(p),
+                BuildRowActions(p, allowActions)))
             .ToList();
         return new ShellSidebarListState(
             "review", "Review", items, selected?.FolderName,
-            planId => new ReviewAppArgs(planId));
+            planId => new ReviewAppArgs(planId),
+            OnItemAction: onItemAction);
     }
 
     public override object Build()
@@ -56,6 +66,8 @@ public class ReviewApp : ViewBase
         });
         var refreshToken = UseRefreshToken();
         var sidebarListSignal = Context.UseSignal<ShellSidebarListSignal, ShellSidebarListState, Unit>();
+        var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
+        var pendingSidebarAction = UseState<ShellSidebarActionRequest?>((ShellSidebarActionRequest?)null);
 
         Context.UseInboxAutoRefresh(refreshToken);
 
@@ -111,10 +123,12 @@ public class ReviewApp : ViewBase
 
         previousPlans.Value = plans;
 
-        _ = sidebarListSignal.Send(BuildSidebarList(plans, selectedPlanState.Value));
+        _ = sidebarListSignal.Send(BuildSidebarList(plans, selectedPlanState.Value,
+            (itemId, actionId) => pendingSidebarAction.Set(new ShellSidebarActionRequest(itemId, actionId)),
+            allowActions: !shareContext.IsShareMode));
 
         return new ContentView(selectedPlanState, plans, planService, jobService,
-            RefreshPlans, configService, gitService);
+            RefreshPlans, configService, gitService, pendingSidebarAction);
 
         void RefreshPlans()
         {

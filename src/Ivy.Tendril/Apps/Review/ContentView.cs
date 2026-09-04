@@ -32,7 +32,8 @@ public class ContentView(
     IJobService jobService,
     Action refreshPlans,
     IConfigService config,
-    IGitService gitService) : ViewBase
+    IGitService gitService,
+    IState<ShellSidebarActionRequest?> pendingSidebarAction) : ViewBase
 {
     public override object Build()
     {
@@ -242,6 +243,42 @@ public class ContentView(
             return Disposable.Create(() => draftDiffCommentService.CommentsChanged -= OnCommentsChanged);
         });
 
+        void StartCreatePr()
+        {
+            var plan = selectedPlanState.Value;
+            if (plan is null || plan.Commits.Count == 0) return;
+
+            if (plan.IsPullRequestSource)
+            {
+                // Push the fix onto the original PR's branch and leave the PR open for
+                // review. ExecutePlan already based the worktree on the PR's head branch,
+                // so CreatePr's push updates the existing PR (no new PR is created).
+                jobService.StartJob(new CreatePrArgs(
+                    plan.FolderPath,
+                    SolveMergeConflicts: true,
+                    Merge: false,
+                    DeleteBranch: false,
+                    IncludeArtifacts: true));
+                refreshPlans();
+            }
+            else
+            {
+                showCreatePrDialog();
+            }
+        }
+
+        UseEffect(() =>
+        {
+            if (pendingSidebarAction.Value is not { } request) return;
+            if (selectedPlanState.Value is not { } plan ||
+                !plan.FolderName.Equals(request.ItemId, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            pendingSidebarAction.Set((ShellSidebarActionRequest?)null);
+            if (request.ActionId == ShellSidebarActions.CreatePr)
+                StartCreatePr();
+        }, pendingSidebarAction, selectedPlanState);
+
         var isShareMode = shareContext.IsShareMode;
         var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
 
@@ -262,7 +299,7 @@ public class ContentView(
             selectedPlanState.Value!, selectedRecTitles, client,
             planContentQuery.Mutator.Revalidate);
 
-        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, context, showCreatePrDialog, showDiscardDialog, isShareMode, draftComments, shareContext);
+        var header = BuildHeader(selectedPlanState.Value, allPlans, currentIndex, context, StartCreatePr, showDiscardDialog, isShareMode, draftComments, shareContext);
         var actionBar = BuildActionBar(
             selectedPlanState.Value, showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog,
             context, agentRunner, draftComments, isShareMode, isBeta, shareTunnelService, showShareModal);
@@ -289,7 +326,7 @@ public class ContentView(
         List<PlanFile> allPlans,
         int currentIndex,
         ReviewViewContext context,
-        Action showCreatePrDialog,
+        Action startCreatePr,
         Action showDiscardDialog,
         bool isShareMode,
         IState<List<DraftComment>> draftComments,
@@ -360,26 +397,7 @@ public class ContentView(
                 var isPrUpdate = selectedPlan.IsPullRequestSource;
 
                 var createPrBtn = new Button(isPrUpdate ? "Update PR" : "Create PR")
-                    .Icon(Icons.GitPullRequest).OnClick(() =>
-                {
-                    if (isPrUpdate)
-                    {
-                        // Push the fix onto the original PR's branch and leave the PR open for
-                        // review. ExecutePlan already based the worktree on the PR's head branch,
-                        // so CreatePr's push updates the existing PR (no new PR is created).
-                        jobService.StartJob(new CreatePrArgs(
-                            selectedPlan.FolderPath,
-                            SolveMergeConflicts: true,
-                            Merge: false,
-                            DeleteBranch: false,
-                            IncludeArtifacts: true));
-                        refreshPlans();
-                    }
-                    else
-                    {
-                        showCreatePrDialog();
-                    }
-                }).ShortcutKey("m");
+                    .Icon(Icons.GitPullRequest).OnClick(startCreatePr).ShortcutKey("m");
                 createPrBtn = createPrBtn.Primary();
 
                 rightSide |= createPrBtn;

@@ -3,6 +3,7 @@ using System.Reactive.Disposables;
 using System.Text;
 using System.Text.RegularExpressions;
 using Ivy.Core;
+using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Apps.Plans.Dialogs;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Views;
@@ -25,7 +26,8 @@ public class ContentView(
     IJobService jobService,
     Action refreshPlans,
     IConfigService config,
-    IGitService gitService) : ViewBase
+    IGitService gitService,
+    IState<ShellSidebarActionRequest?> pendingSidebarAction) : ViewBase
 {
     public override object Build()
     {
@@ -174,6 +176,41 @@ public class ContentView(
             revisionContent.Set(selectedPlan?.LatestRevisionContent ?? "");
         }
 
+        void StartExecute()
+        {
+            var plan = selectedPlanState.Value;
+            if (plan is null) return;
+
+            var planQuestions = QuestionAnswers.Read(revisionContent.Value);
+            var answered = planQuestions.Count(q => q.HasAnswer);
+            var unanswered = planQuestions.Count(q => !q.HasAnswer && !q.IsOptional);
+            var activeAnnotationCount = annotations.Value.Count(a => !a.IsResolved);
+
+            runPreflight(plan.Project, result =>
+            {
+                // Unincorporated work first, then unanswered questions: the former
+                // would be ignored outright, the latter merely decided for you.
+                if (activeAnnotationCount > 0 || answered > 0)
+                    showAnnotationsDialog.Set(true);
+                else if (unanswered > 0)
+                    showQuestionsDialog.Set(true);
+                else
+                    ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
+            });
+        }
+
+        UseEffect(() =>
+        {
+            if (pendingSidebarAction.Value is not { } request) return;
+            if (selectedPlanState.Value is not { } plan ||
+                !plan.FolderName.Equals(request.ItemId, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            pendingSidebarAction.Set((ShellSidebarActionRequest?)null);
+            if (request.ActionId == ShellSidebarActions.Execute)
+                StartExecute();
+        }, pendingSidebarAction, selectedPlanState);
+
         if (selectedPlan is null)
             return BuildNoSelectionView(processView);
 
@@ -278,17 +315,7 @@ public class ContentView(
             rightSide |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
                             .Loading(isCheckingPreflight)
                             .Disabled(isCheckingPreflight)
-                            .OnClick(() => runPreflight(selectedPlan.Project, result =>
-                            {
-                                // Unincorporated work first, then unanswered questions: the former
-                                // would be ignored outright, the latter merely decided for you.
-                                if (activeAnnotationCount > 0 || answeredQuestions > 0)
-                                    showAnnotationsDialog.Set(true);
-                                else if (unansweredQuestions > 0)
-                                    showQuestionsDialog.Set(true);
-                                else
-                                    ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
-                            }));
+                            .OnClick(StartExecute);
 
             return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
         }
@@ -612,48 +639,48 @@ public class ContentView(
 
     private void LaunchExecute(List<string>? waitJobIds = null)
     {
-        if (selectedPlan is null) return;
+        if (selectedPlanState.Value is not { } plan) return;
 
         var hasWaits = waitJobIds is { Count: > 0 };
 
         // When chained behind an UpdatePlan job the plan is already Updating;
         // JobLauncher sets Executing once the blocked ExecutePlan launches.
         if (!hasWaits)
-            TransitionPlanOptimistically(PlanStatus.Creating);
+            TransitionPlanOptimistically(plan, PlanStatus.Creating);
 
-        jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = hasWaits ? waitJobIds : null });
+        jobService.StartJob(new ExecutePlanArgs(plan.FolderPath) { WaitForJobs = hasWaits ? waitJobIds : null });
         refreshPlans();
     }
 
     private void LaunchWithSync(PreflightResult preflight, List<string>? waitJobIds = null,
         UntrackedChangesPolicy policy = UntrackedChangesPolicy.Stash)
     {
-        if (selectedPlan is null) return;
+        if (selectedPlanState.Value is not { } plan) return;
 
         var hasWaits = waitJobIds is { Count: > 0 };
         var allWaitIds = hasWaits ? new List<string>(waitJobIds!) : new List<string>();
         foreach (var (repoPath, baseBranch, _) in preflight.DirtyRepos)
         {
-            var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch, selectedPlan.FolderPath, policy));
+            var jobId = jobService.StartJob(new SyncRepoArgs(repoPath, baseBranch, plan.FolderPath, policy));
             allWaitIds.Add(jobId);
         }
 
         // When chained behind an UpdatePlan job the plan is already Updating;
         // JobLauncher sets Executing once the blocked ExecutePlan launches.
         if (!hasWaits)
-            TransitionPlanOptimistically(PlanStatus.Creating);
+            TransitionPlanOptimistically(plan, PlanStatus.Creating);
 
-        jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = allWaitIds });
+        jobService.StartJob(new ExecutePlanArgs(plan.FolderPath) { WaitForJobs = allWaitIds });
         refreshPlans();
     }
 
     // Optimistically update UI state; the authoritative plan transition (and pre-state
     // snapshot) is performed by JobService.StartJob.
-    private void TransitionPlanOptimistically(PlanStatus status)
+    private void TransitionPlanOptimistically(PlanFile plan, PlanStatus status)
     {
-        var optimisticPlan = selectedPlan! with
+        var optimisticPlan = plan with
         {
-            Metadata = selectedPlan.Metadata with { State = status }
+            Metadata = plan.Metadata with { State = status }
         };
         selectedPlanState.Set(optimisticPlan);
     }
@@ -698,7 +725,7 @@ public class ContentView(
     {
         var prompt = BuildUpdatePrompt(annotations.Value.Where(a => !a.IsResolved), answeredQuestions);
 
-        TransitionPlanOptimistically(PlanStatus.Updating);
+        TransitionPlanOptimistically(selectedPlan!, PlanStatus.Updating);
         var jobId = jobService.StartJob(new UpdatePlanArgs(selectedPlan!.FolderPath, prompt));
         annotations.Set(ImmutableList<MarkdownAnnotation>.Empty);
         if (selectedPlan != null)

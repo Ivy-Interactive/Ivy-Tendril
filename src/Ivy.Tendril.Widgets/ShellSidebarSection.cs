@@ -16,6 +16,7 @@ public record ShellSidebarSection : WidgetBase<ShellSidebarSection>
 
     [Event] public EventHandler<Event<ShellSidebarSection, string>>? OnSelectItem { get; init; }
     [Event] public EventHandler<Event<ShellSidebarSection>>? OnSearch { get; init; }
+    [Event] public EventHandler<Event<ShellSidebarSection, ShellItemActionEvent>>? OnItemAction { get; init; }
 }
 
 public static class ShellSidebarSectionExtensions
@@ -40,4 +41,7 @@ public static class ShellSidebarSectionExtensions
 
     public static ShellSidebarSection OnSearch(this ShellSidebarSection w, Action handler) =>
         w with { OnSearch = new(_ => { handler(); return ValueTask.CompletedTask; }) };
+
+    public static ShellSidebarSection OnItemAction(this ShellSidebarSection w, Action<string, string> handler) =>
+        w with { OnItemAction = new(e => { handler(e.Value.ItemId, e.Value.ActionId); return ValueTask.CompletedTask; }) };
 }

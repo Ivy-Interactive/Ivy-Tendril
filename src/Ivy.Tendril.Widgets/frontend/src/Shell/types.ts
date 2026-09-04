@@ -20,11 +20,19 @@ export interface ShellBadgeDto {
   kind: "project" | "success" | "warning" | "neutral";
 }
 
+export interface ShellItemActionDto {
+  id: string;
+  label: string;
+  icon?: string;
+  primary?: boolean;
+}
+
 export interface ShellSectionItemDto {
   id: string;
   title: string;
   tag?: string;
   badges?: ShellBadgeDto[];
+  actions?: ShellItemActionDto[];
 }
 
 export interface ShellTabDto {

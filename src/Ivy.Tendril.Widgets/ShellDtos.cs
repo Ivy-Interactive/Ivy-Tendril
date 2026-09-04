@@ -9,6 +9,15 @@ public record ShellBadgeDto(string Label, string Kind = "neutral")
     public static ShellBadgeDto Warning(string label) => new(label, "warning");
 }
 
-public record ShellSectionItemDto(string Id, string Title, string? Tag = null, List<ShellBadgeDto>? Badges = null);
+public record ShellItemActionDto(string Id, string Label, string? Icon = null, bool Primary = false);
+
+public record ShellSectionItemDto(
+    string Id,
+    string Title,
+    string? Tag = null,
+    List<ShellBadgeDto>? Badges = null,
+    List<ShellItemActionDto>? Actions = null);
+
+public record ShellItemActionEvent(string ItemId, string ActionId);
 
 public record ShellTabDto(string Id, string Title);

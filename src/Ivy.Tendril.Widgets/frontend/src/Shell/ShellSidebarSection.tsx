@@ -1,5 +1,5 @@
 import React from "react";
-import { Search } from "lucide-react";
+import { GitPullRequest, LucideIcon, Rocket, Search } from "lucide-react";
 import { useShell } from "./ShellContext";
 import { ShellSectionItemDto, ShellWidgetProps } from "./types";
 import "./shell.css";
@@ -11,6 +11,14 @@ interface ShellSidebarSectionProps extends ShellWidgetProps {
   searchable?: boolean;
   emptyText?: string;
 }
+
+const actionIcons: Record<string, LucideIcon> = {
+  Rocket,
+  GitPullRequest,
+};
+
+const FLYOUT_CLOSE_DELAY_MS = 150;
+const FLYOUT_VIEWPORT_MARGIN_PX = 8;
 
 /**
  * The contextual list under the nav — plans for Review/Drafts, recommendations,
@@ -37,13 +45,55 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
 
   const { collapsed } = useShell();
 
-  // Rail chips get a hover flyout (title + badges) since the chip itself only
-  // shows the ID. Fixed-position and portaled so the rail cannot clip it.
+  // Rail chips get a hover flyout (title, badges, actions) since the chip itself
+  // only shows the ID. Fixed-position so the rail cannot clip it.
   const [flyout, setFlyout] = React.useState<{
     item: ShellSectionItemDto;
     top: number;
     left: number;
   } | null>(null);
+  const flyoutRef = React.useRef<HTMLDivElement | null>(null);
+  const closeTimer = React.useRef<number | null>(null);
+
+  const cancelClose = () => {
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  };
+
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimer.current = window.setTimeout(() => {
+      closeTimer.current = null;
+      setFlyout(null);
+    }, FLYOUT_CLOSE_DELAY_MS);
+  };
+
+  const closeFlyout = () => {
+    cancelClose();
+    setFlyout(null);
+  };
+
+  React.useEffect(() => cancelClose, []);
+
+  React.useLayoutEffect(() => {
+    const el = flyoutRef.current;
+    if (!el || !flyout) return;
+    el.style.setProperty("--tsh-flyout-shift", "0px");
+    const rect = el.getBoundingClientRect();
+    const overflowBottom = rect.bottom - (window.innerHeight - FLYOUT_VIEWPORT_MARGIN_PX);
+    const overflowTop = FLYOUT_VIEWPORT_MARGIN_PX - rect.top;
+    let shift = 0;
+    if (overflowBottom > 0) shift = -overflowBottom;
+    else if (overflowTop > 0) shift = overflowTop;
+    if (shift !== 0) el.style.setProperty("--tsh-flyout-shift", `${shift}px`);
+  }, [flyout]);
+
+  const runAction = (itemId: string, actionId: string) => {
+    closeFlyout();
+    if (events.includes("OnItemAction")) eventHandler("OnItemAction", id, [{ itemId, actionId }]);
+  };
 
   const hasHeader = !!title || searchable;
 
@@ -60,7 +110,7 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
             <Search size={16} />
           </button>
         )}
-        <div className="tsh-rail-list" onScroll={() => setFlyout(null)}>
+        <div className="tsh-rail-list" onScroll={closeFlyout}>
           {items.map(
             (item) =>
               item.tag && (
@@ -70,10 +120,11 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
                   data-selected={item.id === selectedId}
                   onClick={() => select(item.id)}
                   onMouseEnter={(e) => {
+                    cancelClose();
                     const r = e.currentTarget.getBoundingClientRect();
                     setFlyout({ item, top: r.top + r.height / 2, left: r.right + 10 });
                   }}
-                  onMouseLeave={() => setFlyout(null)}
+                  onMouseLeave={scheduleClose}
                 >
                   <span className="tsh-rail-item-text">{item.tag}</span>
                 </button>
@@ -82,8 +133,12 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
         </div>
         {flyout && (
           <div
+            ref={flyoutRef}
             className="tsh-rail-tooltip"
+            role="tooltip"
             style={{ top: flyout.top, left: flyout.left }}
+            onMouseEnter={cancelClose}
+            onMouseLeave={scheduleClose}
           >
             <div className="tsh-rail-tooltip-title">{flyout.item.title}</div>
             {flyout.item.badges && flyout.item.badges.length > 0 && (
@@ -93,6 +148,25 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
                     {badge.label}
                   </span>
                 ))}
+              </div>
+            )}
+            {flyout.item.actions && flyout.item.actions.length > 0 && (
+              <div className="tsh-rail-tooltip-actions">
+                {flyout.item.actions.map((action) => {
+                  const Icon = action.icon ? actionIcons[action.icon] : undefined;
+                  return (
+                    <button
+                      key={action.id}
+                      type="button"
+                      className="tsh-rail-tooltip-btn"
+                      data-primary={!!action.primary}
+                      onClick={() => runAction(flyout.item.id, action.id)}
+                    >
+                      {Icon && <Icon size={14} />}
+                      <span>{action.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
