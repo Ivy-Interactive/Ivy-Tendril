@@ -768,4 +768,52 @@ describe("ChatWidget File Uploads and Attachments", () => {
     expect(screen.getByText("test. Alive?")).toBeInTheDocument();
     expect(screen.queryByText("Start a conversation")).not.toBeInTheDocument();
   });
+
+  it("optimistically displays assistant Starting status and switches Send button to Stop/Queue immediately upon clicking Send", async () => {
+    const handleEvent = vi.fn();
+    const session = {
+      id: "sess-1",
+      title: "Active Chat",
+      agentId: "codex",
+      modelId: "gpt-5.6-sol",
+      createdAt: "2026-09-03T10:00:00Z",
+      updatedAt: "2026-09-03T10:00:00Z",
+      messages: [],
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-1"
+        selectedAgent="codex"
+        sessions={[session]}
+        eventHandler={handleEvent}
+        events={["OnSendMessage", "OnCancelStream"]}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(/Ask/i);
+    fireEvent.change(textarea, { target: { value: "retry again" } });
+
+    const sendBtn = screen.getByRole("button", { name: /Send/i });
+    expect(sendBtn).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Stop/i })).not.toBeInTheDocument();
+
+    fireEvent.click(sendBtn);
+
+    // Immediately shows Stop and Queue buttons without waiting for server props
+    expect(screen.getByRole("button", { name: /Stop/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Queue/i })).toBeInTheDocument();
+
+    // Immediately shows the Starting... status indicator
+    expect(screen.getByText("Starting…")).toBeInTheDocument();
+
+    // Clicking Stop cancels optimistic stream
+    const stopBtn = screen.getByRole("button", { name: /Stop/i });
+    fireEvent.click(stopBtn);
+    expect(handleEvent).toHaveBeenCalledWith("OnCancelStream", "test-chat", []);
+    expect(screen.queryByRole("button", { name: /Stop/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Send/i })).toBeInTheDocument();
+  });
 });
+

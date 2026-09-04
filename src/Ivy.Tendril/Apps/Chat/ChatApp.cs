@@ -1,19 +1,13 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Reactive.Disposables;
 using Ivy;
 using Ivy.Core;
-using Ivy.Core.Hooks;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Agents.Providers;
-using Ivy.Tendril.Agents.Runtime;
-using Ivy.Tendril.Apps.Chat.Dialogs;
+using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Widgets;
@@ -28,9 +22,8 @@ public class ChatApp : ViewBase
         var args = UseArgs<ChatAppArgs>();
         var configService = UseService<IConfigService>();
         var chatService = UseService<IChatHistoryService>();
+        var executionService = UseService<IChatExecutionService>();
         var agentRunner = UseService<IAgentRunner>();
-        var namingService = UseService<IChatSessionNamingService>();
-        var serializer = UseService<IEventSerializer>();
 
         var activeSessionId = UseState<string?>(() =>
         {
@@ -56,39 +49,61 @@ public class ChatApp : ViewBase
             var sess = !string.IsNullOrEmpty(args?.SessionId) ? chatService.GetSession(args.SessionId) : chatService.GetSessions().FirstOrDefault();
             return sess?.Effort ?? "default";
         });
-        var isStreaming = UseState(false);
-        var streamingSessionId = UseState<string?>(null);
-        var liveSessionStreams = UseState(new Dictionary<string, string>());
-        var activeSessionRef = UseRef<IAgentSession?>(null);
-        var runningSessionIds = UseState(() => new HashSet<string>(chatService.GetGeneratingSessionIds()));
-        var initialHandled = UseRef(false);
-
         var searchState = UseState("");
+        var initialHandled = UseRef(false);
+        var streamVersion = UseState(0);
 
         UseEffect(() =>
         {
             void OnSessionsChanged(object? sender, EventArgs e) => sessionVersion.Set(v => v + 1);
-            void OnGeneratingSessionsChanged(object? sender, EventArgs e)
+
+            void OnGeneratingChanged(object? sender, EventArgs e)
             {
-                runningSessionIds.Set(new HashSet<string>(chatService.GetGeneratingSessionIds()));
+                if (!string.IsNullOrEmpty(activeSessionId.Value))
+                {
+                    chatService.ClearSessionCompleted(activeSessionId.Value);
+                }
+                sessionVersion.Set(v => v + 1);
+            }
+
+            void OnStreamUpdated(string sessId)
+            {
+                if (!string.IsNullOrEmpty(activeSessionId.Value) &&
+                    string.Equals(sessId, activeSessionId.Value, StringComparison.OrdinalIgnoreCase))
+                {
+                    streamVersion.Set(v => v + 1);
+                }
+            }
+
+            void OnSessionGeneratingChanged(string sessId)
+            {
+                if (!string.IsNullOrEmpty(activeSessionId.Value) &&
+                    string.Equals(sessId, activeSessionId.Value, StringComparison.OrdinalIgnoreCase))
+                {
+                    chatService.ClearSessionCompleted(activeSessionId.Value);
+                    streamVersion.Set(v => v + 1);
+                    sessionVersion.Set(v => v + 1);
+                }
             }
 
             chatService.SessionsChanged += OnSessionsChanged;
-            chatService.GeneratingSessionsChanged += OnGeneratingSessionsChanged;
-            return Disposable.Create(() =>
-            {
-                chatService.SessionsChanged -= OnSessionsChanged;
-                chatService.GeneratingSessionsChanged -= OnGeneratingSessionsChanged;
-            });
-        });
+            chatService.GeneratingSessionsChanged += OnGeneratingChanged;
+            executionService.StreamUpdated += OnStreamUpdated;
+            executionService.SessionGeneratingChanged += OnSessionGeneratingChanged;
 
-        UseEffect(() =>
-        {
             if (!string.IsNullOrEmpty(activeSessionId.Value))
             {
                 chatService.ClearSessionCompleted(activeSessionId.Value);
             }
-        }, [activeSessionId]);
+
+            return Disposable.Create(() =>
+            {
+                chatService.SessionsChanged -= OnSessionsChanged;
+                chatService.GeneratingSessionsChanged -= OnGeneratingChanged;
+                executionService.StreamUpdated -= OnStreamUpdated;
+                executionService.SessionGeneratingChanged -= OnSessionGeneratingChanged;
+            });
+        });
 
         void SelectSession(string sessionId)
         {
@@ -104,9 +119,12 @@ public class ChatApp : ViewBase
         }
 
         var currentVersion = sessionVersion.Value;
+        _ = streamVersion.Value;
         var sessions = chatService.GetSessions();
         var currentSessionId = activeSessionId.Value;
         var activeSession = currentSessionId != null ? chatService.GetSession(currentSessionId) : null;
+        var isSessionGenerating = currentSessionId != null && executionService.IsGenerating(currentSessionId);
+        var streamSnapshot = isSessionGenerating ? executionService.GetStreamSnapshot(currentSessionId!) : string.Empty;
 
         var registeredAgentIds = agentRunner.RegisteredAgents;
         if (registeredAgentIds.Count == 0)
@@ -132,10 +150,14 @@ public class ChatApp : ViewBase
             ? selectedEffort.Value
             : "default";
 
+        // Compact DTO serialization: only serialize full message history for the active session,
+        // preventing massive SignalR payload bloat when a user has hundreds of sessions.
         var sessionDtos = sessions.Select(s =>
         {
-            var isGenerating = runningSessionIds.Value.Contains(s.Id);
+            var isGenerating = executionService.IsGenerating(s.Id);
             var status = isGenerating ? "generating" : "done";
+            var isActive = s.Id == currentSessionId;
+
             return new ChatSessionDto(
                 s.Id,
                 s.Title,
@@ -143,271 +165,30 @@ public class ChatApp : ViewBase
                 s.ModelId,
                 s.CreatedAt.ToString("o"),
                 s.UpdatedAt.ToString("o"),
-                s.Messages.Select(m => new ChatMessageDto(
-                    m.Id,
-                    m.Role,
-                    m.Content,
-                    m.Timestamp.ToString("t"),
-                    m.AgentId,
-                    m.ModelId,
-                    m.RawStream,
-                    m.Effort
-                )).ToList(),
+                isActive
+                    ? s.Messages.Select(m => new ChatMessageDto(
+                        m.Id,
+                        m.Role,
+                        m.Content,
+                        m.Timestamp.ToString("t"),
+                        m.AgentId,
+                        m.ModelId,
+                        m.RawStream,
+                        m.Effort
+                    )).ToList()
+                    : [],
                 status,
                 s.Effort
             );
         }).ToList();
 
-        async Task ExecuteSendMessage(ChatSendMessageDto dto)
-        {
-            var userPrompt = dto.Prompt?.Trim() ?? "";
-            var attachments = dto.Attachments ?? [];
-            if (string.IsNullOrWhiteSpace(userPrompt) && attachments.Count == 0) return;
-
-            string targetSessionId = dto.SessionId ?? "";
-            if (string.IsNullOrEmpty(targetSessionId)) return;
-
-            var targetAgent = selectedAgent.Value;
-            var targetModel = effectiveModel;
-            var targetEffort = effectiveEffort;
-
-            var runningSet = new HashSet<string>(runningSessionIds.Value) { targetSessionId };
-            runningSessionIds.Set(runningSet);
-            streamingSessionId.Set(targetSessionId);
-            chatService.SetSessionGenerating(targetSessionId, true);
-
-            try
-            {
-                var attachedFilePaths = new List<string>();
-                var attachmentErrors = new List<string>();
-                if (attachments.Count > 0)
-                {
-                    var attachDir = Path.Combine(configService.TendrilHome, "Attachments", targetSessionId);
-                    if (!Directory.Exists(attachDir))
-                    {
-                        Directory.CreateDirectory(attachDir);
-                    }
-
-                    foreach (var att in attachments)
-                    {
-                        try
-                        {
-                            var rawName = Path.GetFileName(att.Name);
-                            var fileName = !string.IsNullOrWhiteSpace(rawName)
-                                ? string.Concat(rawName.Split(Path.GetInvalidFileNameChars()))
-                                : $"file_{Guid.NewGuid():N}.bin";
-                            if (string.IsNullOrWhiteSpace(fileName)) fileName = $"file_{Guid.NewGuid():N}.bin";
-                            var filePath = !string.IsNullOrWhiteSpace(att.LocalPath) && File.Exists(att.LocalPath)
-                                ? att.LocalPath
-                                : Path.Combine(attachDir, fileName);
-
-                            if (!string.IsNullOrEmpty(att.Base64Data))
-                            {
-                                var base64 = att.Base64Data.Contains(",")
-                                    ? att.Base64Data[(att.Base64Data.IndexOf(",") + 1)..]
-                                    : att.Base64Data;
-                                var bytes = Convert.FromBase64String(base64);
-                                File.WriteAllBytes(filePath, bytes);
-                            }
-
-                            if (File.Exists(filePath))
-                            {
-                                attachedFilePaths.Add(filePath);
-                            }
-                            else
-                            {
-                                attachmentErrors.Add($"Attachment '{att.Name}' was not found at {filePath}");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            attachmentErrors.Add($"Failed to process attachment '{att.Name}': {ex.Message}");
-                        }
-                    }
-                }
-
-                var promptWithAttachments = userPrompt;
-                if (attachedFilePaths.Count > 0)
-                {
-                    var sb = new StringBuilder();
-                    if (!string.IsNullOrWhiteSpace(userPrompt))
-                    {
-                        sb.AppendLine(userPrompt);
-                        sb.AppendLine();
-                    }
-                    sb.AppendLine("[Attached Files]:");
-                    foreach (var path in attachedFilePaths)
-                    {
-                        sb.AppendLine($"- {path}");
-                    }
-                    promptWithAttachments = sb.ToString().TrimEnd();
-                }
-
-                if (attachmentErrors.Count > 0)
-                {
-                    var warning = "Warning: Some attachments could not be processed:\n" + string.Join("\n", attachmentErrors.Select(e => $"- {e}"));
-                    chatService.AddMessage(targetSessionId, "assistant", warning, selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
-                }
-
-                var sess = chatService.GetSession(targetSessionId);
-                var history = sess?.Messages ?? [];
-
-                var agentPromptBuilder = new StringBuilder();
-                if (history.Count > 0)
-                {
-                    agentPromptBuilder.AppendLine("# Previous Conversation Discussion History");
-                    agentPromptBuilder.AppendLine("The following is the previous conversation history in this chat session:");
-                    agentPromptBuilder.AppendLine();
-
-                    foreach (var prevMsg in history)
-                    {
-                        var roleLabel = prevMsg.Role.Equals("user", StringComparison.OrdinalIgnoreCase) ? "User" : "Assistant";
-                        agentPromptBuilder.AppendLine($"### {roleLabel}");
-                        agentPromptBuilder.AppendLine(prevMsg.Content);
-                        agentPromptBuilder.AppendLine();
-                    }
-
-                    agentPromptBuilder.AppendLine("---");
-                    agentPromptBuilder.AppendLine();
-                }
-
-                agentPromptBuilder.AppendLine("# Current User Request");
-                agentPromptBuilder.AppendLine(promptWithAttachments);
-
-                var fullAgentPrompt = agentPromptBuilder.ToString();
-
-                chatService.AddMessage(targetSessionId, "user", promptWithAttachments, targetAgent, targetModel, effort: targetEffort);
-                isStreaming.Set(true);
-
-                var effortOverride = targetEffort != "default" ? AgentProviderFactory.ParseEffort(targetEffort) : null;
-                var context = AgentLaunchHelper.PrepareResolutionContext(
-                    configService,
-                    agentRunner,
-                    targetAgent,
-                    fullAgentPrompt,
-                    modelOverride: targetModel,
-                    effortOverride: effortOverride,
-                    permissionMode: PermissionMode.FullAuto);
-
-                var session = await agentRunner.LaunchAsync(context);
-                activeSessionRef.Value = session;
-
-                var rawLines = new List<string>();
-                string? lastTextEvent = null;
-                var rawLock = new object();
-
-                using var sub = session.Events.Subscribe(evt =>
-                {
-                    try
-                    {
-                        if (evt is TextEvent textEvt && !string.IsNullOrWhiteSpace(textEvt.Text))
-                        {
-                            lock (rawLock)
-                            {
-                                lastTextEvent = textEvt.Text;
-                            }
-                        }
-
-                        var wireJson = serializer.Serialize(evt);
-                        if (!string.IsNullOrEmpty(wireJson))
-                        {
-                            lock (rawLock)
-                            {
-                                rawLines.Add(wireJson);
-                                var map = new Dictionary<string, string>(liveSessionStreams.Value)
-                                {
-                                    [targetSessionId] = string.Join("\n", rawLines)
-                                };
-                                liveSessionStreams.Set(map);
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // Ignore serialization exceptions
-                    }
-                });
-
-                var jobTimeoutMinutes = configService.Settings.JobTimeout;
-                var totalTimeout = jobTimeoutMinutes > 0
-                    ? TimeSpan.FromMinutes(jobTimeoutMinutes)
-                    : TimeSpan.FromMinutes(15);
-                using var timeoutCts = new CancellationTokenSource(totalTimeout);
-
-                var result = await session.WaitForCompletionAsync(timeoutCts.Token);
-
-                string? collectedText = null;
-                string? fullRawStream = null;
-                lock (rawLock)
-                {
-                    collectedText = lastTextEvent;
-                    if (rawLines.Count > 0) fullRawStream = string.Join("\n", rawLines);
-                }
-
-                var responseContent = !string.IsNullOrWhiteSpace(result.Response)
-                    ? result.Response
-                    : (!string.IsNullOrWhiteSpace(collectedText)
-                        ? collectedText
-                        : (result.IsSuccess ? "Task completed successfully." : "Agent execution completed with status code " + (result.ExitCode?.ToString() ?? "unknown")));
-
-                chatService.AddMessage(targetSessionId, "assistant", responseContent, targetAgent, targetModel, rawStream: fullRawStream, effort: targetEffort);
-
-                var currentSession = chatService.GetSession(targetSessionId);
-                if (currentSession != null &&
-                    (currentSession.Title == "New Chat" || string.IsNullOrWhiteSpace(currentSession.Title)) &&
-                    currentSession.Messages.Count == 2)
-                {
-                    var firstUserMsg = currentSession.Messages.FirstOrDefault(m => m.Role == "user")?.Content;
-                    if (!string.IsNullOrWhiteSpace(firstUserMsg))
-                    {
-                        var agentId = targetAgent;
-                        var modelId = targetModel;
-                        _ = Task.Run(async () =>
-                        {
-                            await namingService.GenerateAndSetTitleAsync(
-                                targetSessionId,
-                                firstUserMsg,
-                                responseContent,
-                                agentId,
-                                modelId);
-                        });
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                chatService.AddMessage(targetSessionId, "assistant", $"Error executing request: {ex.Message}", targetAgent, targetModel, effort: targetEffort);
-            }
-            finally
-            {
-                activeSessionRef.Value = null;
-                isStreaming.Set(false);
-                streamingSessionId.Set(null);
-
-                var finishedSet = new HashSet<string>(runningSessionIds.Value);
-                finishedSet.Remove(targetSessionId);
-                runningSessionIds.Set(finishedSet);
-                chatService.SetSessionGenerating(targetSessionId, false);
-
-                var map = new Dictionary<string, string>(liveSessionStreams.Value);
-                map.Remove(targetSessionId);
-                liveSessionStreams.Set(map);
-
-                if (chatService.TryDequeueMessage(targetSessionId, out var nextQueuedItem) && nextQueuedItem != null)
-                {
-                    var nextDto = new ChatSendMessageDto(nextQueuedItem.Prompt, nextQueuedItem.Attachments, targetSessionId);
-                    _ = ExecuteSendMessage(nextDto);
-                }
-            }
-        }
-
         void SendMessage(ChatSendMessageDto dto)
         {
-            var userPrompt = dto.Prompt?.Trim() ?? "";
+            var userPrompt = dto.Prompt?.Trim() ?? string.Empty;
             var attachments = dto.Attachments ?? [];
             if (string.IsNullOrWhiteSpace(userPrompt) && attachments.Count == 0) return;
 
-            string targetSessionId = !string.IsNullOrEmpty(dto.SessionId) ? dto.SessionId : (activeSessionId.Value ?? "");
+            string targetSessionId = !string.IsNullOrEmpty(dto.SessionId) ? dto.SessionId : (activeSessionId.Value ?? string.Empty);
             if (string.IsNullOrEmpty(targetSessionId))
             {
                 var newSess = chatService.CreateSession(selectedAgent.Value, effectiveModel, effort: effectiveEffort);
@@ -415,16 +196,16 @@ public class ChatApp : ViewBase
                 SelectSession(targetSessionId);
             }
 
-            var pinnedDto = new ChatSendMessageDto(userPrompt, dto.Attachments, targetSessionId);
+            sessionVersion.Set(v => v + 1);
+            streamVersion.Set(v => v + 1);
 
-            if (runningSessionIds.Value.Contains(targetSessionId))
-            {
-                chatService.EnqueueMessage(targetSessionId, pinnedDto);
-            }
-            else
-            {
-                _ = ExecuteSendMessage(pinnedDto);
-            }
+            _ = executionService.SendMessageAsync(
+                targetSessionId,
+                userPrompt,
+                attachments,
+                selectedAgent.Value,
+                effectiveModel,
+                effectiveEffort);
         }
 
         if (!initialHandled.Value && !string.IsNullOrEmpty(args?.Prompt))
@@ -459,17 +240,15 @@ public class ChatApp : ViewBase
             selectedAgent,
             selectedModel,
             selectedEffort,
-            isStreaming,
-            streamingSessionId,
-            runningSessionIds,
-            liveSessionStreams,
-            activeSessionRef,
             sessionDtos,
             agentDtos,
             modelDtos,
             currentEffortOptions,
             supportsEffort,
+            isSessionGenerating,
+            streamSnapshot,
             chatService,
+            executionService,
             agentRunner,
             SendMessage,
             SelectSession

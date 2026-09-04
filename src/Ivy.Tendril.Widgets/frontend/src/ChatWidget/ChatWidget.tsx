@@ -201,8 +201,6 @@ export interface ChatWidgetProps {
   supportsEffort?: boolean;
   isStreaming?: boolean;
   streamingText?: string;
-  streamingStream?: { id: string };
-  subscribeToStream?: (streamId: string, onData: (data: unknown) => void) => () => void;
   queuedMessages?: ChatQueuedMessageDto[];
   events?: string[];
   eventHandler?: IvyEventHandler;
@@ -335,8 +333,6 @@ export function ChatWidget({
   supportsEffort = true,
   isStreaming = false,
   streamingText = "",
-  streamingStream: _streamingStream,
-  subscribeToStream: _subscribeToStream,
   queuedMessages: queuedMessagesProp,
   events = [],
   eventHandler,
@@ -352,6 +348,7 @@ export function ChatWidget({
   const [editingQueuedText, setEditingQueuedText] = useState("");
   const [pendingRenames, setPendingRenames] = useState<Record<string, string>>({});
   const [optimisticMessages, setOptimisticMessages] = useState<Record<string, ChatMessageDto[]>>({});
+  const [optimisticStreaming, setOptimisticStreaming] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -368,13 +365,14 @@ export function ChatWidget({
   const isAnyFailed = attachments.some((att) => att.uploadStatus === "failed");
   const hasValidAttachments = attachments.some((att) => att.uploadStatus === "finished" || !att.uploadStatus);
   const isSendDisabled = isPayloadOversized || isUploading || isAnyFailed || (!promptText.trim() && !hasValidAttachments);
+  const effectiveIsStreaming = isStreaming || (optimisticStreaming !== null && (optimisticStreaming === activeSessionId || optimisticStreaming === "__active__"));
   const sendTitle = isPayloadOversized
     ? "Attachments exceed the 50 MB limit"
     : isUploading
     ? "Files are uploading..."
     : isAnyFailed
     ? "Some attachments failed to upload"
-    : isStreaming
+    : effectiveIsStreaming
     ? "Queue message"
     : "Send message";
 
@@ -407,9 +405,39 @@ export function ChatWidget({
     }
   }, [sessions, pendingRenames]);
 
+  const prevIsStreamingRef = useRef(isStreaming);
+  useEffect(() => {
+    if (prevIsStreamingRef.current && !isStreaming) {
+      setOptimisticStreaming(null);
+    }
+    prevIsStreamingRef.current = isStreaming;
+  }, [isStreaming]);
+
+  useEffect(() => {
+    setOptimisticStreaming(null);
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    if (!isStreaming && optimisticStreaming) {
+      const msgs = activeSession?.messages;
+      if (msgs && msgs.length > 0 && msgs[msgs.length - 1].role === "assistant") {
+        setOptimisticStreaming(null);
+      }
+    }
+  }, [isStreaming, optimisticStreaming, activeSession?.messages]);
+
+  useEffect(() => {
+    if (optimisticStreaming) {
+      const timer = setTimeout(() => {
+        setOptimisticStreaming(null);
+      }, 60000);
+      return () => clearTimeout(timer);
+    }
+  }, [optimisticStreaming]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeSession?.messages, displayMessages.length, isStreaming, streamingText, queuedMessages]);
+  }, [activeSession?.messages, displayMessages.length, effectiveIsStreaming, streamingText, queuedMessages]);
 
   useEffect(() => {
     if (activeSessionId && sessions.length > 0) {
@@ -500,24 +528,27 @@ export function ChatWidget({
     }));
 
     const payload = { prompt: trimmed, attachments: payloadAttachments, sessionId: activeSessionId };
-    if (isStreaming) {
+    if (effectiveIsStreaming) {
       setQueuedMessages((prev) => [
         ...prev,
         { id: `q-${Date.now()}-${Math.random()}`, prompt: trimmed, attachments: payloadAttachments },
       ]);
-    } else if (activeSessionId) {
-      const optMsg: ChatMessageDto = {
-        id: `opt-${Date.now()}-${Math.random()}`,
-        role: "user",
-        content: trimmed,
-        timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
-        agentId: selectedAgent,
-        modelId: selectedModel,
-      };
-      setOptimisticMessages((prev) => ({
-        ...prev,
-        [activeSessionId]: [...(prev[activeSessionId] || []), optMsg],
-      }));
+    } else {
+      setOptimisticStreaming(activeSessionId || "__active__");
+      if (activeSessionId) {
+        const optMsg: ChatMessageDto = {
+          id: `opt-${Date.now()}-${Math.random()}`,
+          role: "user",
+          content: trimmed,
+          timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+          agentId: selectedAgent,
+          modelId: selectedModel,
+        };
+        setOptimisticMessages((prev) => ({
+          ...prev,
+          [activeSessionId]: [...(prev[activeSessionId] || []), optMsg],
+        }));
+      }
     }
 
     emit("OnSendMessage", payload);
@@ -529,6 +560,7 @@ export function ChatWidget({
   };
 
   const handleCancelStream = () => {
+    setOptimisticStreaming(null);
     setQueuedMessages([]);
     emit("OnCancelStream");
   };
@@ -1057,7 +1089,7 @@ export function ChatWidget({
             </div>
           )}
 
-          {isStreaming && (
+          {effectiveIsStreaming && (
             <div className="chat-message-row assistant">
               <div className="chat-message-bubble" style={{ width: "85%", maxWidth: "85%" }}>
                 <div className="chat-message-header">
@@ -1329,7 +1361,7 @@ export function ChatWidget({
               </div>
 
               <div className="chat-input-actions-right">
-                {isStreaming ? (
+                {effectiveIsStreaming ? (
                   <>
                     <button
                       type="button"

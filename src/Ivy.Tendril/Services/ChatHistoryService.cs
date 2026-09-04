@@ -42,6 +42,15 @@ public class ChatHistoryService : IChatHistoryService
         }
     }
 
+    public void ClearAllGeneratingSessions()
+    {
+        if (!_generatingSessions.IsEmpty)
+        {
+            _generatingSessions.Clear();
+            GeneratingSessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
     public IReadOnlySet<string> GetGeneratingSessionIds()
     {
         return _generatingSessions.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
