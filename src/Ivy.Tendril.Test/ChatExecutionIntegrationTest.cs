@@ -617,6 +617,53 @@ public class ChatExecutionIntegrationTest
         return services.BuildServiceProvider();
     }
 
+    [Fact]
+    public async Task ChatApp_Build_WithLargeRawStreamMessages_SerializesSuccessfully()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatLargeStreamTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        var chatsDir = Path.Combine(tempDir, "Chats");
+        Directory.CreateDirectory(chatsDir);
+
+        var realChatFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril", "Chats", "26d45c6819b34286a2eb3cdbef35b1e5.json");
+        if (File.Exists(realChatFile))
+        {
+            File.Copy(realChatFile, Path.Combine(chatsDir, "26d45c6819b34286a2eb3cdbef35b1e5.json"));
+        }
+
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+
+            var sp = CreateServiceProvider(configService, chatService, agentRunner, serializer);
+
+            var app = new Ivy.Tendril.Apps.Chat.ChatApp();
+            var contentBuilder = new Ivy.ContentBuilder();
+            var tree = new Ivy.Core.WidgetTree(app, contentBuilder, sp);
+
+            var buildTask = tree.BuildAsync();
+            var completedTask = await Task.WhenAny(buildTask, Task.Delay(5000));
+            Assert.True(completedTask == buildTask, "tree.BuildAsync timed out!");
+
+            var widgets = tree.GetWidgets();
+            Assert.NotNull(widgets);
+            var serialized = widgets.Serialize();
+            Assert.NotNull(serialized);
+            _output.WriteLine($"Serialized widgets successfully: {serialized.ToJsonString().Length} chars");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
     private sealed class DummyClientProvider : IClientProvider
     {
         public IClientSender Sender { get; set; } = new DummyClientSender();
@@ -627,4 +674,5 @@ public class ChatExecutionIntegrationTest
         public void Send(string method, object? data) { }
     }
 }
+
 

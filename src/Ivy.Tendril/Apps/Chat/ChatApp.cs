@@ -57,14 +57,7 @@ public class ChatApp : ViewBase
         {
             void OnSessionsChanged(object? sender, EventArgs e) => sessionVersion.Set(v => v + 1);
 
-            void OnGeneratingChanged(object? sender, EventArgs e)
-            {
-                if (!string.IsNullOrEmpty(activeSessionId.Value))
-                {
-                    chatService.ClearSessionCompleted(activeSessionId.Value);
-                }
-                sessionVersion.Set(v => v + 1);
-            }
+            void OnGeneratingChanged(object? sender, EventArgs e) => sessionVersion.Set(v => v + 1);
 
             void OnStreamUpdated(string sessId)
             {
@@ -80,7 +73,6 @@ public class ChatApp : ViewBase
                 if (!string.IsNullOrEmpty(activeSessionId.Value) &&
                     string.Equals(sessId, activeSessionId.Value, StringComparison.OrdinalIgnoreCase))
                 {
-                    chatService.ClearSessionCompleted(activeSessionId.Value);
                     streamVersion.Set(v => v + 1);
                     sessionVersion.Set(v => v + 1);
                 }

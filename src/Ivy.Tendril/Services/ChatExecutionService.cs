@@ -356,8 +356,6 @@ public sealed class ChatExecutionService : IChatExecutionService
             }
             finally
             {
-                StreamUpdated?.Invoke(sessionId);
-
                 if (_activeExecutions.TryRemove(sessionId, out var removedExec))
                 {
                     removedExec.Dispose();
@@ -365,6 +363,7 @@ public sealed class ChatExecutionService : IChatExecutionService
 
                 _chatService.SetSessionGenerating(sessionId, false);
                 SessionGeneratingChanged?.Invoke(sessionId);
+                StreamUpdated?.Invoke(sessionId);
 
                 // Process next queued message if one exists
                 if (_chatService.TryDequeueMessage(sessionId, out var nextQueuedItem) && nextQueuedItem != null)

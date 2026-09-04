@@ -15,7 +15,8 @@ public class ChatHistoryService : IChatHistoryService
     private readonly ConcurrentDictionary<string, byte> _generatingSessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _completedSessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, List<ChatQueuedItem>> _queuedMessages = new(StringComparer.OrdinalIgnoreCase);
-    private readonly object _lock = new();
+    private readonly object _sessionLock = new();
+    private readonly object _queueLock = new();
 
     public event EventHandler? SessionsChanged;
     public event EventHandler? GeneratingSessionsChanged;
@@ -73,7 +74,7 @@ public class ChatHistoryService : IChatHistoryService
     public IReadOnlyList<ChatQueuedItem> GetQueuedMessages(string sessionId)
     {
         if (string.IsNullOrEmpty(sessionId)) return Array.Empty<ChatQueuedItem>();
-        lock (_lock)
+        lock (_queueLock)
         {
             if (_queuedMessages.TryGetValue(sessionId, out var list))
             {
@@ -91,7 +92,7 @@ public class ChatHistoryService : IChatHistoryService
             Attachments: dto.Attachments != null ? new List<ChatAttachmentDto>(dto.Attachments) : null,
             CreatedAt: DateTimeOffset.UtcNow
         );
-        lock (_lock)
+        lock (_queueLock)
         {
             if (!_queuedMessages.TryGetValue(sessionId, out var list))
             {
@@ -109,7 +110,7 @@ public class ChatHistoryService : IChatHistoryService
         item = null;
         if (string.IsNullOrEmpty(sessionId)) return false;
         bool dequeued = false;
-        lock (_lock)
+        lock (_queueLock)
         {
             if (_queuedMessages.TryGetValue(sessionId, out var list) && list.Count > 0)
             {
@@ -133,7 +134,7 @@ public class ChatHistoryService : IChatHistoryService
     {
         if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(queueId)) return false;
         bool removed = false;
-        lock (_lock)
+        lock (_queueLock)
         {
             if (_queuedMessages.TryGetValue(sessionId, out var list))
             {
@@ -159,7 +160,7 @@ public class ChatHistoryService : IChatHistoryService
     {
         if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(queueId)) return false;
         bool updated = false;
-        lock (_lock)
+        lock (_queueLock)
         {
             if (_queuedMessages.TryGetValue(sessionId, out var list))
             {
@@ -182,7 +183,7 @@ public class ChatHistoryService : IChatHistoryService
     {
         if (string.IsNullOrEmpty(sessionId)) return;
         bool cleared = false;
-        lock (_lock)
+        lock (_queueLock)
         {
             cleared = _queuedMessages.TryRemove(sessionId, out _);
         }
@@ -331,16 +332,21 @@ public class ChatHistoryService : IChatHistoryService
     public void RenameSession(string id, string newTitle)
     {
         if (string.IsNullOrEmpty(id) || string.IsNullOrWhiteSpace(newTitle)) return;
-        lock (_lock)
+        ChatSessionModel? updated = null;
+        lock (_sessionLock)
         {
             var session = GetSession(id);
             if (session == null) return;
-            var updated = session with
+            updated = session with
             {
                 Title = CleanTitle(newTitle),
                 UpdatedAt = DateTimeOffset.UtcNow
             };
             _sessions[id] = updated;
+        }
+
+        if (updated != null)
+        {
             PersistSessionToDisk(updated);
             SessionsChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -348,7 +354,9 @@ public class ChatHistoryService : IChatHistoryService
 
     public ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null, string? effort = null)
     {
-        lock (_lock)
+        ChatMessageModel msg;
+        ChatSessionModel updatedSession;
+        lock (_sessionLock)
         {
             var session = GetSession(sessionId);
             if (session == null)
@@ -356,7 +364,7 @@ public class ChatHistoryService : IChatHistoryService
                 session = CreateSession(agentId ?? "claude", modelId ?? "opus", effort: effort);
             }
 
-            var msg = new ChatMessageModel(
+            msg = new ChatMessageModel(
                 Id: Guid.NewGuid().ToString("N"),
                 Role: role,
                 Content: content,
@@ -369,7 +377,7 @@ public class ChatHistoryService : IChatHistoryService
 
             var updatedMessages = new List<ChatMessageModel>(session.Messages) { msg };
 
-            var updatedSession = session with
+            updatedSession = session with
             {
                 UpdatedAt = DateTimeOffset.UtcNow,
                 AgentId = agentId ?? session.AgentId,
@@ -379,10 +387,11 @@ public class ChatHistoryService : IChatHistoryService
             };
 
             _sessions[session.Id] = updatedSession;
-            PersistSessionToDisk(updatedSession);
-            SessionsChanged?.Invoke(this, EventArgs.Empty);
-            return msg;
         }
+
+        PersistSessionToDisk(updatedSession);
+        SessionsChanged?.Invoke(this, EventArgs.Empty);
+        return msg;
     }
 
     private void PersistSessionToDisk(ChatSessionModel session)
