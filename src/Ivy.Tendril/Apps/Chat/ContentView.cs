@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -21,19 +20,18 @@ public class ContentView(
     IState<string> selectedAgent,
     IState<string> selectedModel,
     IState<string> selectedEffort,
-    IState<bool> isStreaming,
-    IState<string?> streamingSessionId,
-    IState<HashSet<string>> runningSessionIds,
-    IState<Dictionary<string, string>> liveSessionStreams,
-    IRef<IAgentSession?> activeSessionRef,
     List<ChatSessionDto> sessionDtos,
     List<AgentOptionDto> agentDtos,
     List<ModelOptionDto> modelDtos,
     List<EffortOptionDto> effortDtos,
     bool supportsEffort,
+    bool isStreaming,
+    string streamingText,
     IChatHistoryService chatService,
+    IChatExecutionService executionService,
     IAgentRunner agentRunner,
-    Action<ChatSendMessageDto> sendMessage) : ViewBase
+    Action<ChatSendMessageDto> sendMessage,
+    Action<string> selectSession) : ViewBase
 {
     public override object Build()
     {
@@ -55,6 +53,8 @@ public class ContentView(
             await stream.CopyToAsync(fileStream, ct);
         });
 
+        _ = sessionVersion.Value;
+
         if (activeSession == null)
         {
             var newChatBtn = new Button("Start New Chat")
@@ -63,8 +63,7 @@ public class ContentView(
                 .OnClick(() =>
                 {
                     var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
-                    activeSessionId.Set(newSess.Id);
-                    sessionVersion.Set(v => v + 1);
+                    selectSession(newSess.Id);
                 });
 
             return Layout.Vertical().AlignContent(Align.Center).Width(Size.Full()).Height(Size.Full())
@@ -73,10 +72,6 @@ public class ContentView(
                 | Text.Muted("Select an existing chat session from history or start a new chat.")
                 | newChatBtn;
         }
-
-        string activeSessionLiveStream = activeSessionId.Value != null && liveSessionStreams.Value.TryGetValue(activeSessionId.Value, out var streamText)
-            ? streamText
-            : "";
 
         var sessionToDelete = deletingSessionId.Value != null
             ? chatService.GetSession(deletingSessionId.Value) ?? activeSession
@@ -97,7 +92,6 @@ public class ContentView(
         var chatWidget = new ChatWidget
         {
             ActiveSessionId = activeSessionId.Value,
-            StreamingSessionId = streamingSessionId.Value,
             UploadUrl = upload.Value.UploadUrl,
             Sessions = sessionDtos,
             Agents = agentDtos,
@@ -107,13 +101,16 @@ public class ContentView(
             SelectedModel = selectedModel.Value,
             SelectedEffort = selectedEffort.Value,
             SupportsEffort = supportsEffort,
-            IsStreaming = activeSessionId.Value != null && runningSessionIds.Value.Contains(activeSessionId.Value),
-            StreamingText = activeSessionLiveStream,
+            IsStreaming = isStreaming,
+            StreamingText = streamingText,
             QueuedMessages = queuedMessageDtos,
 
             OnSelectSession = e =>
             {
-                activeSessionId.Set(e.Value);
+                if (!string.IsNullOrEmpty(e.Value))
+                {
+                    selectSession(e.Value);
+                }
                 return ValueTask.CompletedTask;
             },
             OnDeleteSession = e =>
@@ -133,7 +130,7 @@ public class ContentView(
             OnCreateSession = _ =>
             {
                 var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
-                activeSessionId.Set(newSess.Id);
+                selectSession(newSess.Id);
                 return ValueTask.CompletedTask;
             },
             OnSendMessage = e =>
@@ -146,22 +143,8 @@ public class ContentView(
                 if (activeSessionId.Value != null)
                 {
                     chatService.ClearQueuedMessages(activeSessionId.Value);
+                    await executionService.CancelAsync(activeSessionId.Value);
                 }
-                try
-                {
-                    if (activeSessionRef.Value != null)
-                    {
-                        await activeSessionRef.Value.StopAsync();
-                    }
-                }
-                catch
-                {
-                    // Ignore cancel exceptions
-                }
-                isStreaming.Set(false);
-                streamingSessionId.Set(null);
-                runningSessionIds.Set(new HashSet<string>());
-                liveSessionStreams.Set(new Dictionary<string, string>());
             },
             OnAgentChanged = e =>
             {

@@ -733,9 +733,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         // ----- Content + session tabs -----
 
-        object? pageContent = currentApp.Value;
+        object? pageContent = currentApp.Value != null
+            ? currentApp.Value.Key(currentApp.Value.AppId + (currentApp.Value.AppArgs != null ? ":" + currentApp.Value.AppArgs : ""))
+            : null;
         if (pageContent == null && settings.WallpaperAppId != null)
-            pageContent = new AppHost(settings.WallpaperAppId, null, args.ConnectionId);
+            pageContent = new AppHost(settings.WallpaperAppId, null, args.ConnectionId).Key(settings.WallpaperAppId);
 
         var sessionContents = tabs.Value
             .Select(t => (object?)t.AppHost.Key(StringHelper.GetShortHash(t.Id + t.RefreshToken)))

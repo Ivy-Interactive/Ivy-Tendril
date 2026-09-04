@@ -74,7 +74,6 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Prop] public bool SupportsEffort { get; init; } = true;
     [Prop] public bool IsStreaming { get; init; } = false;
     [Prop] public string? StreamingText { get; init; }
-    [Prop] public IWriteStream<string>? StreamingStream { get; init; }
     [Prop] public List<ChatQueuedMessageDto> QueuedMessages { get; init; } = new();
 
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnSelectSession { get; init; }

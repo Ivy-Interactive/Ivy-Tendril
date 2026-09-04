@@ -85,6 +85,10 @@
   min-width: 0;
 }
 
+.aov-status-done .aov-status-icon {
+  color: #10b981;
+}
+
 .aov-status-icon {
   display: inline-flex;
   align-items: center;

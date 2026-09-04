@@ -218,6 +218,97 @@ describe("ChatWidget Queued Messages UI", () => {
     );
   });
 
+  it("preserves optimistically queued message when in-flight queuedMessages prop is empty", () => {
+    const handleEvent = vi.fn();
+    const { rerender } = render(
+      <ChatWidget
+        id="test-chat"
+        isStreaming={true}
+        activeSessionId="sess-1"
+        queuedMessages={[]}
+        events={["OnSendMessage"]}
+        eventHandler={handleEvent}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(/Ask/i);
+    const queueBtn = screen.getByRole("button", { name: /Queue/i });
+
+    fireEvent.change(textarea, { target: { value: "optimistic prompt" } });
+    fireEvent.click(queueBtn);
+
+    expect(screen.getByText("Queued Messages")).toBeInTheDocument();
+    expect(screen.getByText("optimistic prompt")).toBeInTheDocument();
+
+    // Simulate in-flight SignalR update where server hasn't yet included the queued message
+    rerender(
+      <ChatWidget
+        id="test-chat"
+        isStreaming={true}
+        activeSessionId="sess-1"
+        queuedMessages={[]}
+        events={["OnSendMessage"]}
+        eventHandler={handleEvent}
+      />
+    );
+
+    // Should still be visible optimistically!
+    expect(screen.getByText("Queued Messages")).toBeInTheDocument();
+    expect(screen.getByText("optimistic prompt")).toBeInTheDocument();
+
+    // When server confirms the queued message
+    rerender(
+      <ChatWidget
+        id="test-chat"
+        isStreaming={true}
+        activeSessionId="sess-1"
+        queuedMessages={[{ id: "guid-server-123", prompt: "optimistic prompt" }]}
+        events={["OnSendMessage"]}
+        eventHandler={handleEvent}
+      />
+    );
+
+    expect(screen.getByText("Queued Messages")).toBeInTheDocument();
+    expect(screen.getByText("optimistic prompt")).toBeInTheDocument();
+  });
+
+  it("does not drop queued message when its content matches an existing historical message", () => {
+    const handleEvent = vi.fn();
+    const session = {
+      id: "sess-repeat",
+      title: "Repeat Test",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "2026-08-15T12:00:00Z",
+      updatedAt: "2026-08-15T12:30:00Z",
+      messages: [{ id: "m-1", role: "user" as const, content: "what can you do?", timestamp: "10:00" }],
+      status: "generating" as const,
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        isStreaming={true}
+        activeSessionId="sess-repeat"
+        sessions={[session]}
+        queuedMessages={[]}
+        events={["OnSendMessage"]}
+        eventHandler={handleEvent}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(/Ask/i);
+    const queueBtn = screen.getByRole("button", { name: /Queue/i });
+
+    fireEvent.change(textarea, { target: { value: "what can you do?" } });
+    fireEvent.click(queueBtn);
+
+    expect(screen.getByText("Queued Messages")).toBeInTheDocument();
+    // Verify it is inside the queued panel
+    const queuedItem = document.querySelector(".chat-queued-item-text");
+    expect(queuedItem).toHaveTextContent("what can you do?");
+  });
+
   it("renders delete button next to chat title and directly emits OnDeleteSession upon click", () => {
     const handleEvent = vi.fn();
     const session = {
@@ -729,4 +820,91 @@ describe("ChatWidget File Uploads and Attachments", () => {
       window.XMLHttpRequest = origXHR;
     }
   });
+
+  it("optimistically displays user message immediately upon clicking Send", async () => {
+    const handleEvent = vi.fn();
+    const session = {
+      id: "sess-empty",
+      title: "New Chat",
+      agentId: "codex",
+      modelId: "gpt-5.6-sol",
+      createdAt: "2026-09-03T10:00:00Z",
+      updatedAt: "2026-09-03T10:00:00Z",
+      messages: [],
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-empty"
+        sessions={[session]}
+        eventHandler={handleEvent}
+        events={["OnSendMessage"]}
+      />
+    );
+
+    expect(screen.getByText("Start a conversation")).toBeInTheDocument();
+
+    const textarea = screen.getByPlaceholderText(/Ask/i);
+    fireEvent.change(textarea, { target: { value: "test. Alive?" } });
+
+    const sendBtn = screen.getByRole("button", { name: /Send/i });
+    fireEvent.click(sendBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith("OnSendMessage", "test-chat", [
+      { prompt: "test. Alive?", attachments: [], sessionId: "sess-empty" },
+    ]);
+
+    // Optimistic message should appear immediately without waiting for props update!
+    expect(screen.getByText("test. Alive?")).toBeInTheDocument();
+    expect(screen.queryByText("Start a conversation")).not.toBeInTheDocument();
+  });
+
+  it("optimistically displays assistant Starting status and switches Send button to Stop/Queue immediately upon clicking Send", async () => {
+    const handleEvent = vi.fn();
+    const session = {
+      id: "sess-1",
+      title: "Active Chat",
+      agentId: "codex",
+      modelId: "gpt-5.6-sol",
+      createdAt: "2026-09-03T10:00:00Z",
+      updatedAt: "2026-09-03T10:00:00Z",
+      messages: [],
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-1"
+        selectedAgent="codex"
+        sessions={[session]}
+        eventHandler={handleEvent}
+        events={["OnSendMessage", "OnCancelStream"]}
+      />
+    );
+
+    const textarea = screen.getByPlaceholderText(/Ask/i);
+    fireEvent.change(textarea, { target: { value: "retry again" } });
+
+    const sendBtn = screen.getByRole("button", { name: /Send/i });
+    expect(sendBtn).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Stop/i })).not.toBeInTheDocument();
+
+    fireEvent.click(sendBtn);
+
+    // Immediately shows Stop and Queue buttons without waiting for server props
+    expect(screen.getByRole("button", { name: /Stop/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Queue/i })).toBeInTheDocument();
+
+    // Immediately shows the Starting... status indicator
+    expect(screen.getByText("Starting…")).toBeInTheDocument();
+
+    // Clicking Stop cancels optimistic stream
+    const stopBtn = screen.getByRole("button", { name: /Stop/i });
+    fireEvent.click(stopBtn);
+    expect(handleEvent).toHaveBeenCalledWith("OnCancelStream", "test-chat", []);
+    expect(screen.queryByRole("button", { name: /Stop/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Send/i })).toBeInTheDocument();
+  });
 });
+

@@ -45,6 +45,7 @@ public interface IChatHistoryService
     void RenameSession(string id, string newTitle);
     ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null, string? effort = null);
     void SetSessionGenerating(string sessionId, bool isGenerating);
+    void ClearAllGeneratingSessions();
     IReadOnlySet<string> GetGeneratingSessionIds();
     IReadOnlySet<string> GetCompletedSessionIds();
     void ClearSessionCompleted(string sessionId);

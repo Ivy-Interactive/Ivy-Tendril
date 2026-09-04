@@ -40,6 +40,8 @@ x86/
 .ivy/
 **/tmp_out/
 msbuild.binlog
+crash.log
+**/crash.log
 
 ## Updater binaries (CI-generated, embedded as resources)
 **/PublishedBinaries/

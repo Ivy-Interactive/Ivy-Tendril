@@ -43,6 +43,7 @@ public class DeleteSessionDialogTests
             if (isGenerating) GeneratingSessions.Add(sessionId);
             else { GeneratingSessions.Remove(sessionId); CompletedSessions.Add(sessionId); }
         }
+        public void ClearAllGeneratingSessions() => GeneratingSessions.Clear();
         public IReadOnlySet<string> GetGeneratingSessionIds() => GeneratingSessions;
         public IReadOnlySet<string> GetCompletedSessionIds() => CompletedSessions;
         public void ClearSessionCompleted(string sessionId) => CompletedSessions.Remove(sessionId);
