@@ -183,7 +183,7 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
               return null;
           }
         })}
-        {showStatusLabel && (
+        {showStatusLabel && !isComplete && (
           <div className="aov-status-row">
             <AnimatedStatus statusText={statusText} isComplete={isComplete} />
           </div>

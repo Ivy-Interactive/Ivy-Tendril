@@ -1061,7 +1061,7 @@ export function ChatWidget({
                       autoScroll={false}
                       showThinking={true}
                       showSystemEvents={false}
-                      showStatusLabel={true}
+                      showStatusLabel={false}
                       groupToolCalls={true}
                       eventHandler={noopEventHandler}
                     />
