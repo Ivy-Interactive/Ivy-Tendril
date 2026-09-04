@@ -378,7 +378,14 @@ export function ChatWidget({
 
   useEffect(() => {
     if (queuedMessagesProp !== undefined) {
-      setQueuedMessages(queuedMessagesProp);
+      setQueuedMessages((prev) => {
+        const optimistic = prev.filter(
+          (item) =>
+            item.id.startsWith("q-") &&
+            !queuedMessagesProp.some((p) => p.prompt === item.prompt)
+        );
+        return [...queuedMessagesProp, ...optimistic];
+      });
     }
   }, [queuedMessagesProp]);
 
@@ -415,6 +422,7 @@ export function ChatWidget({
 
   useEffect(() => {
     setOptimisticStreaming(null);
+    setQueuedMessages(queuedMessagesProp || []);
   }, [activeSessionId]);
 
   useEffect(() => {
@@ -456,13 +464,6 @@ export function ChatWidget({
     }
   }, [sessions, activeSessionId]);
 
-  useEffect(() => {
-    if (activeSession?.messages) {
-      setQueuedMessages((prev) =>
-        prev.filter((q) => !activeSession.messages.some((m) => m.content === q.prompt))
-      );
-    }
-  }, [activeSession?.messages]);
 
   const adjustTextareaHeight = () => {
     const el = textareaRef.current;

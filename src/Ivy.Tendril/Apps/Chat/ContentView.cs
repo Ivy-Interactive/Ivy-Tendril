@@ -53,6 +53,8 @@ public class ContentView(
             await stream.CopyToAsync(fileStream, ct);
         });
 
+        _ = sessionVersion.Value;
+
         if (activeSession == null)
         {
             var newChatBtn = new Button("Start New Chat")

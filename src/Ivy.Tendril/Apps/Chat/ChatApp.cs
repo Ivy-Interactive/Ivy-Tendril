@@ -188,9 +188,6 @@ public class ChatApp : ViewBase
                 SelectSession(targetSessionId);
             }
 
-            sessionVersion.Set(v => v + 1);
-            streamVersion.Set(v => v + 1);
-
             _ = executionService.SendMessageAsync(
                 targetSessionId,
                 userPrompt,
@@ -198,6 +195,9 @@ public class ChatApp : ViewBase
                 selectedAgent.Value,
                 effectiveModel,
                 effectiveEffort);
+
+            sessionVersion.Set(v => v + 1);
+            streamVersion.Set(v => v + 1);
         }
 
         if (!initialHandled.Value && !string.IsNullOrEmpty(args?.Prompt))
