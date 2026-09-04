@@ -1,6 +1,6 @@
 using Ivy;
 using Ivy.Tendril.Widgets;
-using DraftMarkdownWidget = Ivy.Tendril.Widgets.DraftMarkdown;
+using DraftMarkdownWidget = Ivy.Tendril.Widgets.PlanMarkdown;
 
 namespace WidgetSamples.Apps.DraftMarkdown;
 
@@ -147,7 +147,7 @@ class ComparisonApp : ViewBase
                   | new Markdown(markdown).Article().Height(Size.Full()).DangerouslyAllowLocalFiles()
                   )
                | (Layout.Vertical().Width(Size.Fraction(0.5f)).Height(Size.Full())
-                  | Text.Block("DraftMarkdown (Widget)").Bold().Small()
+                  | Text.Block("PlanMarkdown (Widget)").Bold().Small()
                   | new DraftMarkdownWidget(markdown).Article().Height(Size.Full()).DangerouslyAllowLocalFiles()
                   );
     }

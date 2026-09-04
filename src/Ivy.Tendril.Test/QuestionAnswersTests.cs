@@ -7,7 +7,7 @@ namespace Ivy.Tendril.Test;
 
 /// <summary>
 ///     <see cref="QuestionAnswers" /> is the host-side merge behind
-///     <c>DraftMarkdown.OnAnswersChange</c>. It lives in the widgets assembly, but it is tested here
+///     <c>PlanMarkdown.OnAnswersChange</c>. It lives in the widgets assembly, but it is tested here
 ///     because this is where <see cref="QuestionBlockParser" /> and
 ///     <see cref="QuestionValidationService" /> are — a merge whose output the validator rejects is a
 ///     bug, and several of these tests assert exactly that round trip.
