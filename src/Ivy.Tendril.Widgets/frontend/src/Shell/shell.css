@@ -537,13 +537,10 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-  opacity: 0.6;
-  transition: opacity 150ms ease, gap var(--tsh-anim);
-}
-
-.tsh-nav-item:hover .tsh-nav-item-main,
-.tsh-nav-item[data-active="true"] .tsh-nav-item-main {
+  /* App rows read at full strength whether or not they're the active one;
+     the active row is distinguished by its background and label weight. */
   opacity: 1;
+  transition: gap var(--tsh-anim);
 }
 
 .tsh-nav-icon {
