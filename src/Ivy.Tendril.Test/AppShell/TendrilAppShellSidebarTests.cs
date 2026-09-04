@@ -24,4 +24,21 @@ public class TendrilAppShellSidebarTests
         var result = HasSidebarSection(appId);
         Assert.Equal(expected, result);
     }
+
+    [Theory]
+    [InlineData("review", "review", true)]
+    [InlineData("review", "REVIEW", true)]
+    [InlineData("review", "plans", true)]
+    [InlineData("plans", "review", true)]
+    [InlineData("recommendations", "drafts", true)]
+    [InlineData("review", "jobs", false)]
+    [InlineData("review", "settings", false)]
+    [InlineData("review", null, false)]
+    [InlineData(null, "review", false)]
+    [InlineData(null, null, false)]
+    public void UsesSidebarList_ReturnsExpectedValue(string? listAppId, string? currentAppId, bool expected)
+    {
+        var result = UsesSidebarList(listAppId, currentAppId);
+        Assert.Equal(expected, result);
+    }
 }
