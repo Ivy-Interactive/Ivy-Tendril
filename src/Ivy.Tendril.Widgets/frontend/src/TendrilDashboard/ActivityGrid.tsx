@@ -18,7 +18,7 @@ export const ActivityGrid: React.FC<ActivityGridProps> = ({ months }) => {
   if (months.length === 0 || maxWeek === 0) {
     return (
       <div className="tdb-empty-note">
-        {months.length === 7 ? "No merged pull requests this week" : "No merged pull requests yet"}
+        No merged pull requests yet
       </div>
     );
   }
@@ -39,9 +39,7 @@ export const ActivityGrid: React.FC<ActivityGridProps> = ({ months }) => {
                     className="tdb-activity-cell"
                     data-level={rampLevel(count, maxWeek)}
                     onMouseEnter={showTip(
-                      months.length === 7
-                        ? month.label
-                        : `${month.label}, week ${weekIndex + 1}`,
+                      `${month.label}, week ${weekIndex + 1}`,
                       `${count} PR${count === 1 ? "" : "s"} merged`,
                     )}
                     onMouseLeave={hideTip}

@@ -52,9 +52,7 @@ export interface TendrilDashboardProps {
   trend?: DashboardTrendDto | null;
   trendWeekly?: DashboardTrendDto | null;
   pullRequests?: DashboardMonthValueDto[];
-  pullRequestsWeekly?: DashboardMonthValueDto[];
   activity?: DashboardActivityMonthDto[];
-  activityWeekly?: DashboardActivityMonthDto[];
   jobs?: DashboardJobDto[];
   slots?: {
     ProcessViewer?: React.ReactNode;

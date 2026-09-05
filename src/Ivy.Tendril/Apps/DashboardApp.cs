@@ -124,9 +124,7 @@ public class DashboardApp : ViewBase
                 .TakeLast(6)
                 .Select(m => new DashboardMonthValueDto(MonthLabel(m.Month), m.PrsMerged))
                 .ToList())
-            .PullRequestsWeekly(BuildWeeklyPullRequests(prDays, today))
             .Activity(BuildActivityMonths(prDays, firstActivityMonth))
-            .ActivityWeekly(BuildWeeklyActivity(prDays, today))
             .Jobs(BuildActiveJobs(jobs, planService))
             .OnDrafts(() => navigator.Navigate<PlansApp>())
             .OnReview(() => navigator.Navigate<ReviewApp>())
@@ -327,42 +325,6 @@ public class DashboardApp : ViewBase
             window.Select(w => (double)w.PlansCreated).ToList(),
             prevCost,
             prevPlans);
-    }
-
-    internal static List<DashboardMonthValueDto> BuildWeeklyPullRequests(
-        List<(DateOnly Date, int Count)> prDays, DateTime today)
-    {
-        var byDay = prDays.ToDictionary(p => p.Date, p => p.Count);
-        var currentMonday = DateOnly.FromDateTime(today).AddDays(-(((int)today.DayOfWeek + 6) % 7));
-        var list = new List<DashboardMonthValueDto>(7);
-
-        for (var d = 0; d < 7; d++)
-        {
-            var day = currentMonday.AddDays(d);
-            var count = byDay.GetValueOrDefault(day, 0);
-            list.Add(new DashboardMonthValueDto(DayNames[d], count));
-        }
-
-        return list;
-    }
-
-    internal static List<DashboardActivityMonthDto> BuildWeeklyActivity(
-        List<(DateOnly Date, int Count)> prDays, DateTime today)
-    {
-        var byDay = prDays.ToDictionary(p => p.Date, p => p.Count);
-        var currentMonday = DateOnly.FromDateTime(today).AddDays(-(((int)today.DayOfWeek + 6) % 7));
-        var days = new List<DashboardActivityMonthDto>(7);
-
-        for (var d = 0; d < 7; d++)
-        {
-            var day = currentMonday.AddDays(d);
-            var count = byDay.GetValueOrDefault(day, 0);
-            var cellCount = Math.Min(count, 7);
-            var cells = count > 0 ? Enumerable.Repeat(count, cellCount).ToList() : [];
-            days.Add(new DashboardActivityMonthDto(DayNames[d], cells));
-        }
-
-        return days;
     }
 
     private static string FormatWeekLabel(DateOnly weekStart) =>

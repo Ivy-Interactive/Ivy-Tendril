@@ -272,47 +272,4 @@ public class DashboardAppViewModelTests
         // Compared to 4 weeks earlier (index 19, which had i = 4, cost 50m)
         Assert.Equal(50.0, trend.PrevCost[^1]);
     }
-
-    [Fact]
-    public void BuildWeeklyPullRequests_ReturnsSevenDaysOfCounts()
-    {
-        var today = new DateTime(2026, 9, 5); // Saturday
-        var monday = DateOnly.FromDateTime(today).AddDays(-5); // Aug 31
-        var prDays = new List<(DateOnly Date, int Count)>
-        {
-            (monday.AddDays(1), 3), // Tue Sep 1 -> this week
-            (monday.AddDays(-2), 2) // Sat Aug 29 -> last week
-        };
-
-        var weeklyPrs = DashboardApp.BuildWeeklyPullRequests(prDays, today);
-
-        Assert.Equal(7, weeklyPrs.Count);
-        Assert.Equal("Mon", weeklyPrs[0].Label);
-        Assert.Equal(0, weeklyPrs[0].Value);
-        Assert.Equal("Tue", weeklyPrs[1].Label);
-        Assert.Equal(3, weeklyPrs[1].Value);
-        Assert.Equal("Sat", weeklyPrs[5].Label);
-        Assert.Equal(0, weeklyPrs[5].Value);
-    }
-
-    [Fact]
-    public void BuildWeeklyActivity_ReturnsSevenDaysOfActivity()
-    {
-        var today = new DateTime(2026, 9, 5);
-        var monday = DateOnly.FromDateTime(today).AddDays(-5);
-        var prDays = new List<(DateOnly Date, int Count)>
-        {
-            (monday, 4) // Monday has 4 PRs
-        };
-
-        var weeklyActivity = DashboardApp.BuildWeeklyActivity(prDays, today);
-
-        Assert.Equal(7, weeklyActivity.Count);
-        Assert.Equal("Mon", weeklyActivity[0].Label);
-        Assert.Equal(4, weeklyActivity[0].Weeks.Count);
-        Assert.All(weeklyActivity[0].Weeks, c => Assert.Equal(4, c));
-
-        Assert.Equal("Tue", weeklyActivity[1].Label);
-        Assert.Empty(weeklyActivity[1].Weeks);
-    }
 }

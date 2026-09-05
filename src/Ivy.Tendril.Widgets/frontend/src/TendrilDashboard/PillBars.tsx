@@ -14,7 +14,7 @@ export const PillBars: React.FC<PillBarsProps> = ({ items }) => {
   if (items.length === 0 || max === 0) {
     return (
       <div className="tdb-empty-note">
-        {items.length === 7 ? "No merged pull requests this week" : "No merged pull requests yet"}
+        No merged pull requests yet
       </div>
     );
   }

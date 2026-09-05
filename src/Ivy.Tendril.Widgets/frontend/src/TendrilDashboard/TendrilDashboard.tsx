@@ -59,18 +59,13 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
   trend = null,
   trendWeekly = null,
   pullRequests = [],
-  pullRequestsWeekly = [],
   activity = [],
-  activityWeekly = [],
   jobs = [],
   slots,
 }) => {
   const [tab, setTab] = useState<"cost" | "plans">("cost");
   const [sideTab, setSideTab] = useState<"git" | "prs">("git");
   const [trendPeriod, setTrendPeriod] = useState<"month" | "week">("month");
-  const [prPeriod, setPrPeriod] = useState<"month" | "week">("month");
-  const [activityPeriod, setActivityPeriod] = useState<"month" | "week">("month");
-  const [sidePeriod, setSidePeriod] = useState<"month" | "week">("month");
 
   const fireEvent = (eventName: string) => {
     if (events.includes(eventName)) {
@@ -261,30 +256,12 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                         Pull Requests
                       </button>
                     </div>
-                    <div className="tdb-granularity-toggle">
-                      <button
-                        type="button"
-                        className="tdb-granularity-btn"
-                        data-active={sidePeriod === "month"}
-                        onClick={() => setSidePeriod("month")}
-                      >
-                        Month
-                      </button>
-                      <button
-                        type="button"
-                        className="tdb-granularity-btn"
-                        data-active={sidePeriod === "week"}
-                        onClick={() => setSidePeriod("week")}
-                      >
-                        Week
-                      </button>
-                    </div>
                   </div>
                   <div className="tdb-side-body">
                     {sideTab === "git" ? (
-                      <ActivityGrid months={sidePeriod === "week" && activityWeekly.length > 0 ? activityWeekly : activity} />
+                      <ActivityGrid months={activity} />
                     ) : (
-                      <PillBars items={sidePeriod === "week" && pullRequestsWeekly.length > 0 ? pullRequestsWeekly : pullRequests} />
+                      <PillBars items={pullRequests} />
                     )}
                   </div>
                 </div>
@@ -301,57 +278,17 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                 <div className="tdb-block tdb-side-block">
                   <div className="tdb-side-head">
                     <div className="tdb-block-title">Git Activity</div>
-                    {activityWeekly.length > 0 && (
-                      <div className="tdb-granularity-toggle">
-                        <button
-                          type="button"
-                          className="tdb-granularity-btn"
-                          data-active={activityPeriod === "month"}
-                          onClick={() => setActivityPeriod("month")}
-                        >
-                          Month
-                        </button>
-                        <button
-                          type="button"
-                          className="tdb-granularity-btn"
-                          data-active={activityPeriod === "week"}
-                          onClick={() => setActivityPeriod("week")}
-                        >
-                          Week
-                        </button>
-                      </div>
-                    )}
                   </div>
                   <div className="tdb-side-body">
-                    <ActivityGrid months={activityPeriod === "week" && activityWeekly.length > 0 ? activityWeekly : activity} />
+                    <ActivityGrid months={activity} />
                   </div>
                 </div>
                 <div className="tdb-block tdb-side-block">
                   <div className="tdb-side-head">
                     <div className="tdb-block-title">Pull Requests</div>
-                    {pullRequestsWeekly.length > 0 && (
-                      <div className="tdb-granularity-toggle">
-                        <button
-                          type="button"
-                          className="tdb-granularity-btn"
-                          data-active={prPeriod === "month"}
-                          onClick={() => setPrPeriod("month")}
-                        >
-                          Month
-                        </button>
-                        <button
-                          type="button"
-                          className="tdb-granularity-btn"
-                          data-active={prPeriod === "week"}
-                          onClick={() => setPrPeriod("week")}
-                        >
-                          Week
-                        </button>
-                      </div>
-                    )}
                   </div>
                   <div className="tdb-side-body">
-                    <PillBars items={prPeriod === "week" && pullRequestsWeekly.length > 0 ? pullRequestsWeekly : pullRequests} />
+                    <PillBars items={pullRequests} />
                   </div>
                 </div>
               </>
