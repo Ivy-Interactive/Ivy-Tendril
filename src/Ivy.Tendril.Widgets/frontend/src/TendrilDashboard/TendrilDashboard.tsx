@@ -78,7 +78,7 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
   };
 
   const statusItems = [
-    { icon: <Feather size={16} />, count: draftCount, label: "Drafts", event: "OnDrafts" },
+    { icon: <Feather size={16} />, count: draftCount, label: "Plans", event: "OnDrafts" },
     { icon: <Sprout size={16} />, count: inProgressCount, label: "In Progress", event: "OnJobs" },
     { icon: <Eye size={16} />, count: reviewCount, label: "Ready For Review", event: "OnReview" },
     { icon: <Check size={16} />, count: completedCount, label: "Completed", event: "OnJobs" },
