@@ -2,6 +2,7 @@ using Ivy;
 using Ivy.Core;
 using Ivy.Tendril.Apps.Icebox;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
 using Ivy.Tendril.Test.TestHelpers;
 
 namespace Ivy.Tendril.Test.Apps.Icebox;
