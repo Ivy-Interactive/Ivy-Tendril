@@ -32,7 +32,7 @@ public class EditProjectMemoryBladeView(
 
         return Layout.Vertical()
             | editFileName.ToTextInput("Memory filename (e.g. stack.md, conventions.md)...").WithField().Label("Filename").Required()
-            | editContent.ToTextareaInput("Markdown memory content (e.g. tech stack, rules, architectural conventions)...").Rows(8).WithField().Label("Content (Markdown)").Required()
+            | MarkdownFieldBuilders.BuildProjectMemoryContentField(editContent)
             | Layout.Horizontal()
                 | new Button("Cancel").Outline().OnClick(() => bladeContext.Pop(this))
                 | new Button(isNew ? "Add" : "Save").Primary().OnClick(() =>

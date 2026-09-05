@@ -239,6 +239,60 @@ public class ProjectAgentStepView(
                     try
                     {
                         await handle.Completion;
+                        if (handle.ExitCode is not null and not 0 && !session.Cancelled.Value)
+                        {
+                            var failureReason = handle.LogJob?.ReportedFailureReason;
+                            if (string.IsNullOrWhiteSpace(failureReason))
+                            {
+                                var lastError = handle.LogJob?.OutputLines
+                                    .Reverse()
+                                    .Select(line =>
+                                    {
+                                        try
+                                        {
+                                            using var d = System.Text.Json.JsonDocument.Parse(line);
+                                            if (d.RootElement.TryGetProperty("kind", out var k) && k.GetString() == "error" &&
+                                                d.RootElement.TryGetProperty("message", out var m))
+                                                return m.GetString();
+                                        }
+                                        catch { }
+                                        return null;
+                                    })
+                                    .FirstOrDefault(m => !string.IsNullOrWhiteSpace(m));
+
+                                failureReason = lastError;
+                            }
+
+                            if (string.IsNullOrWhiteSpace(failureReason))
+                            {
+                                var analyzer = agentRunner.GetFailureAnalyzer(handle.Provider);
+                                if (analyzer != null && handle.LogJob != null)
+                                {
+                                    var stderrLines = handle.LogJob.OutputLines
+                                        .Where(l => l.StartsWith("[stderr] "))
+                                        .Select(l => l["[stderr] ".Length..])
+                                        .ToList();
+                                    var analysis = analyzer.Analyze(new FailureContext
+                                    {
+                                        Events = [],
+                                        StderrLines = stderrLines,
+                                        ExitCode = handle.ExitCode,
+                                        TimedOut = false,
+                                        IdleTimeout = false,
+                                        AgentId = handle.Provider
+                                    });
+                                    if (analysis.Kind != FailureKind.Unknown)
+                                        failureReason = analysis.Reason;
+                                }
+                            }
+
+                            if (string.IsNullOrWhiteSpace(failureReason))
+                            {
+                                failureReason = $"Setup failed with exit code {handle.ExitCode}";
+                            }
+
+                            session.Error.Set(failureReason);
+                        }
                     }
                     catch (OperationCanceledException) { }
                     catch (Exception ex)
@@ -288,9 +342,9 @@ public class ProjectAgentStepView(
 
         // The agent output stream always renders while the agent is running. Before any
         // output arrives, the AgentViewer's own status label (below the stream) shows the
-        // "Starting…" loading indicator, so we don't render a separate Loading() above it —
+        // "Starting…" loading indicator, so we don't render a separate Loading() above it:
         // that avoided a layout shift when the bordered/padded Box swapped in on first output.
-        var showStream = !isCloning.Value && (session.Running.Value || session.HasOutput.Value || aboutToStart);
+        var showStream = !isCloning.Value && (session.Running.Value || session.HasOutput.Value || aboutToStart || session.Error.Value != null);
 
         var viewer = new AgentViewer()
             .Stream(session.Stream)
@@ -307,7 +361,7 @@ public class ProjectAgentStepView(
             }
         };
 
-        return Layout.Vertical().Margin(0, 0, 0, 2)
+        return Layout.Vertical()
                | (showHeader ? Text.H3("Setting up your project") : null!)
                | Text.Muted(isCloning.Value
                    ? (progressMessage.Value ?? "Setting up your project...")
@@ -324,7 +378,6 @@ public class ProjectAgentStepView(
                    ? (object)new Box(viewer)
                         .Width(Size.Full())
                         .Height(Size.Units(100).Max(Size.Fraction(0.6f)))
-                        .Padding(4, 4, 0, 4)
                    : null!)
                | buttonArea
                | (showHeader ? (object)new Spacer().Height(Size.Units(4)) : null!)

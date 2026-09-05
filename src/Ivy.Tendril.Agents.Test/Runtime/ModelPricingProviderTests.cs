@@ -8,6 +8,45 @@ public class ModelPricingProviderTests
     private readonly ModelPricingProvider _provider = new();
 
     [Fact]
+    public void GetPricing_ClaudeFable5_ReturnsPricingAndCacheRates()
+    {
+        var pricing = _provider.GetPricing("claude-fable-5");
+
+        Assert.NotNull(pricing);
+        Assert.Equal("claude-fable-5", pricing.Model);
+        Assert.Equal(10.00m, pricing.InputPerMillion);
+        Assert.Equal(50.00m, pricing.OutputPerMillion);
+        Assert.Equal(1.00m, pricing.CacheReadPerMillion);
+        Assert.Equal(12.50m, pricing.CacheWritePerMillion);
+    }
+
+    [Fact]
+    public void GetPricing_ClaudeOpus51_ReturnsPricingAndCacheRates()
+    {
+        var pricing = _provider.GetPricing("claude-opus-5-1");
+
+        Assert.NotNull(pricing);
+        Assert.Equal("claude-opus-5-1", pricing.Model);
+        Assert.Equal(5.00m, pricing.InputPerMillion);
+        Assert.Equal(25.00m, pricing.OutputPerMillion);
+        Assert.Equal(0.50m, pricing.CacheReadPerMillion);
+        Assert.Equal(6.25m, pricing.CacheWritePerMillion);
+    }
+
+    [Fact]
+    public void GetPricing_Claude51_ReturnsPricingAndCacheRates()
+    {
+        var pricing = _provider.GetPricing("claude-5.1");
+
+        Assert.NotNull(pricing);
+        Assert.Equal("claude-5.1", pricing.Model);
+        Assert.Equal(3.00m, pricing.InputPerMillion);
+        Assert.Equal(15.00m, pricing.OutputPerMillion);
+        Assert.Equal(0.30m, pricing.CacheReadPerMillion);
+        Assert.Equal(3.75m, pricing.CacheWritePerMillion);
+    }
+
+    [Fact]
     public void GetPricing_KnownModel_ReturnsPricing()
     {
         var pricing = _provider.GetPricing("opus");

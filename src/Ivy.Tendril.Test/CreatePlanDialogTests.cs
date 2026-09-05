@@ -1,5 +1,6 @@
 using Ivy;
-using Ivy.Tendril.Apps.Drafts.Dialogs;
+using Ivy.Tendril.Apps.Plans.Dialogs;
+using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 

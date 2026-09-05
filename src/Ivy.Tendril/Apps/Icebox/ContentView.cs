@@ -72,7 +72,7 @@ public class ContentView(
                                 |
                                 // Read-only: no annotation or answer handlers, so `questions` blocks
                                 // present their answers rather than raw YAML.
-                                new DraftMarkdown(MarkdownHelper.PrepareForDisplay(selectedPlan.LatestRevisionContent, config))
+                                new PlanMarkdown(MarkdownHelper.PrepareForDisplay(selectedPlan.LatestRevisionContent, config))
                                     .Article()
                                     .DangerouslyAllowLocalFiles()
                                     .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>

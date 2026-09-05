@@ -30,6 +30,7 @@ public class VaultSetupView : ViewBase
         var projectToDelete = UseState<string?>(null);
         var openDeleteConfirm = UseState(false);
         var isDeleting = UseState(false);
+        var isMergeMode = UseState(false);
 
         var selectedVaultId = UseState(() =>
         {
@@ -110,14 +111,11 @@ public class VaultSetupView : ViewBase
             trackedProjectNames.Add(cp.Name);
         }
 
-        var untrackedLocalProjects = config.Settings.Projects
-            .Where(p => !trackedProjectNames.Contains(p.Name))
-            .Select(p => p.Name)
-            .ToList();
+        var allLocalProjects = config.Settings.Projects.Select(p => p.Name).ToList();
 
-        var availablePushProjects = !string.IsNullOrEmpty(selectedPushProject.Value) && !untrackedLocalProjects.Contains(selectedPushProject.Value)
-            ? untrackedLocalProjects.Concat(new[] { selectedPushProject.Value }).ToList()
-            : untrackedLocalProjects;
+        var availablePushProjects = !string.IsNullOrEmpty(selectedPushProject.Value) && !allLocalProjects.Contains(selectedPushProject.Value, StringComparer.OrdinalIgnoreCase)
+            ? allLocalProjects.Concat(new[] { selectedPushProject.Value }).ToList()
+            : allLocalProjects;
 
         var createDialog = new CreateVaultDialog(
             openCreateDialog, vaultService, client,
@@ -154,7 +152,8 @@ public class VaultSetupView : ViewBase
                 vaultsQuery.Mutator.Revalidate();
                 statusQuery.Mutator.Revalidate();
                 catalogQuery.Mutator.Revalidate();
-            });
+            },
+            isMergeMode: isMergeMode);
 
         var confirmDeleteDialog = (openDeleteConfirm.Value && !string.IsNullOrEmpty(projectToDelete.Value))
             ? new Dialog(
@@ -232,8 +231,10 @@ public class VaultSetupView : ViewBase
 
         bool hasChangesToPublish = catalog.Projects.Any(p =>
             p.SyncStatus == VaultItemSyncStatus.LocalOnly ||
-            p.SyncStatus == VaultItemSyncStatus.UpdateAvailable)
-            || status.CommitsAhead > 0;
+            p.SyncStatus == VaultItemSyncStatus.UpdateAvailable ||
+            p.SyncStatus == VaultItemSyncStatus.Modified)
+            || status.CommitsAhead > 0
+            || config.Settings.Projects.Count > 0;
 
         var headerToolbar = Layout.Horizontal().AlignContent(Align.Right)
             | new Button("Sync")
@@ -243,7 +244,7 @@ public class VaultSetupView : ViewBase
                 .Loading(isSyncing.Value)
                 .OnClick(async () => await HandleSync())
             | (hasChangesToPublish
-                ? new Button("Publish Update (PR)")
+                ? new Button("Open a PR")
                     .Icon(Icons.GitPullRequest)
                     .Outline()
                     .Small()
@@ -366,18 +367,30 @@ public class VaultSetupView : ViewBase
                             .Small()
                             .OnClick(() =>
                             {
+                                isMergeMode.Set(false);
                                 selectedImportItem.Set(item);
                                 openImportDialog.Set(true);
                             });
                         break;
 
                     case VaultItemSyncStatus.Conflict:
+                        actionButtons |= new Button("Link & Merge")
+                            .Icon(Icons.GitMerge)
+                            .Primary()
+                            .Small()
+                            .OnClick(() =>
+                            {
+                                isMergeMode.Set(true);
+                                selectedImportItem.Set(item);
+                                openImportDialog.Set(true);
+                            });
                         actionButtons |= new Button("Import As...")
                             .Icon(Icons.Download)
                             .Outline()
                             .Small()
                             .OnClick(() =>
                             {
+                                isMergeMode.Set(false);
                                 selectedImportItem.Set(item);
                                 openImportDialog.Set(true);
                             });
@@ -402,11 +415,14 @@ public class VaultSetupView : ViewBase
                             });
                         break;
 
+                    case VaultItemSyncStatus.UpToDate:
+                    case VaultItemSyncStatus.Modified:
                     case VaultItemSyncStatus.LocalOnly:
-                        actionButtons |= new Button("Publish")
-                            .Icon(Icons.Upload)
+                        actionButtons |= new Button(item.SyncStatus == VaultItemSyncStatus.LocalOnly ? "Publish" : "Open PR")
+                            .Icon(item.SyncStatus == VaultItemSyncStatus.LocalOnly ? Icons.Upload : Icons.GitPullRequest)
                             .Outline()
                             .Small()
+                            .Tooltip($"Open a PR to update '{item.Name}' in vault")
                             .OnClick(() =>
                             {
                                 selectedPushProject.Set(item.Name);
@@ -432,6 +448,7 @@ public class VaultSetupView : ViewBase
             .Builder(t => t.SyncStatus, f => f.Func<VaultProjectTableRow, VaultItemSyncStatus>(s => s switch
             {
                 VaultItemSyncStatus.UpToDate => new Badge("✓ In Sync").Variant(BadgeVariant.Secondary).Small(),
+                VaultItemSyncStatus.Modified => new Badge("Local Changes").Variant(BadgeVariant.Outline).Small(),
                 VaultItemSyncStatus.UpdateAvailable => new Badge("Update Available").Variant(BadgeVariant.Destructive).Small(),
                 VaultItemSyncStatus.LocalOnly => new Badge("Local Only").Variant(BadgeVariant.Outline).Small(),
                 VaultItemSyncStatus.NotImported => new Badge("Not Imported").Variant(BadgeVariant.Outline).Small(),

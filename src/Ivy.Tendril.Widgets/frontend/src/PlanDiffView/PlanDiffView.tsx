@@ -9,7 +9,7 @@ import { getMarkdownPlugins } from "../math";
 import { MessageSquare } from "lucide-react";
 import { refractor } from "refractor/all";
 import { prismTheme } from "../prismTheme";
-import { getInitials } from "../DraftMarkdown/annotationUtils";
+import { getInitials } from "../PlanMarkdown/annotationUtils";
 
 const refractorAdapter = {
   ...refractor,

@@ -42,11 +42,15 @@ public class AntigravityModelCatalogTests
     }
 
     [Theory]
+    [InlineData("gemini-3.8-flash")]
     [InlineData("gemini-3.7-flash")]
     [InlineData("gemini-3.6-flash")]
-    [InlineData("gemini-3.5-flash")]
     [InlineData("gemini-3.1-pro")]
+    [InlineData("claude-fable-5")]
+    [InlineData("claude-opus-5-1")]
     [InlineData("claude-opus-5")]
+    [InlineData("claude-sonnet-5-1")]
+    [InlineData("claude-5.1")]
     [InlineData("claude-sonnet-5")]
     [InlineData("claude-sonnet-4-6")]
     public void GetStaticModels_ContainsModels(string expectedId)
@@ -56,10 +60,22 @@ public class AntigravityModelCatalogTests
     }
 
     [Fact]
-    public void GetStaticModels_DefaultIsGemini36Flash()
+    public void GetStaticModels_ContainsGemini38Flash()
+    {
+        var models = _catalog.GetStaticModels();
+        var flash = models.FirstOrDefault(m => m.Id == "gemini-3.8-flash");
+        Assert.NotNull(flash);
+        Assert.Equal("Gemini 3.8 Flash", flash!.DisplayName);
+        Assert.Equal("google", flash.Provider);
+        Assert.Equal(0.15m, flash.InputPerMillion);
+        Assert.Equal(0.60m, flash.OutputPerMillion);
+    }
+
+    [Fact]
+    public void GetStaticModels_DefaultIsGemini37Flash()
     {
         var defaultModel = _catalog.GetStaticModels().Single(m => m.IsDefault);
-        Assert.Equal("gemini-3.6-flash", defaultModel.Id);
+        Assert.Equal("gemini-3.7-flash", defaultModel.Id);
     }
 
     [Fact]

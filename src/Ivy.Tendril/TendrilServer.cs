@@ -1,6 +1,7 @@
 using Ivy.Core.Apps;
 using Ivy.Helpers;
 using Ivy.Tendril.Apps;
+using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Controllers;
 using Ivy.Tendril.Services;
@@ -50,6 +51,16 @@ public static class TendrilServer
                 ["Logging:LogLevel:Microsoft.Hosting.Lifetime"] = "Information",
                 ["Logging:LogLevel:Ivy"] = appLogLevel,
                 ["Logging:LogLevel:Ivy.Core"] = "Warning",
+            });
+
+            builder.Services.Configure<Microsoft.AspNetCore.SignalR.HubOptions>(options =>
+            {
+                options.MaximumReceiveMessageSize = 100 * 1024 * 1024;
+            });
+
+            builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+            {
+                options.MultipartBodyLengthLimit = 100 * 1024 * 1024;
             });
         });
 
@@ -162,6 +173,7 @@ public static class TendrilServer
         var version = typeof(TendrilAppShell).Assembly.GetName().Version!;
         var versionString = version.ToString(3);
         var appShellSettings = new AppShellSettings()
+            .DefaultApp<PlansApp>()
             .Header(
                 Layout.Horizontal(
                     new Image("/tendril/assets/Tendril.svg").Width(Size.Px(32)).Height(Size.Px(32)),
@@ -171,7 +183,6 @@ public static class TendrilServer
                     ).Gap(0)
                 ).Gap(2).Padding(2).AlignContent(Align.Left)
             )
-            .WallpaperApp<WallpaperApp>()
             .HideArgsInUrl()
             .UseTabs(true);
 

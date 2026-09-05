@@ -175,4 +175,95 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                 avgCost, dailyStats, projectCounts);
         }
     }
+
+    public DashboardActivityStats GetActivityStats(int monthsBack = 24)
+    {
+        using (new ReadLockHandle(lockSlim))
+        {
+            var today = DateTime.UtcNow.Date;
+            var firstMonth = new DateTime(today.Year, today.Month, 1).AddMonths(-(monthsBack - 1));
+            var cutoff = firstMonth.ToString("yyyy-MM-dd");
+
+            var created = new Dictionary<string, int>();
+            var prs = new Dictionary<string, int>();
+            var costs = new Dictionary<string, decimal>();
+            var tokens = new Dictionary<string, long>();
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT strftime('%Y-%m', Created) AS ym, COUNT(*)
+                    FROM Plans WHERE Created >= @cutoff GROUP BY ym
+                    """;
+                cmd.Parameters.AddWithValue("@cutoff", cutoff);
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                    created[r.GetString(0)] = r.GetInt32(1);
+            }
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT strftime('%Y-%m', p.Updated) AS ym, COUNT(*)
+                    FROM PullRequests pr JOIN Plans p ON p.Id = pr.PlanId
+                    WHERE p.Updated >= @cutoff AND p.State = 'Completed'
+                    GROUP BY ym
+                    """;
+                cmd.Parameters.AddWithValue("@cutoff", cutoff);
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                    prs[r.GetString(0)] = r.GetInt32(1);
+            }
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT strftime('%Y-%m', p.Updated) AS ym, SUM(c.Cost), SUM(c.Tokens)
+                    FROM Costs c JOIN Plans p ON p.Id = c.PlanId
+                    WHERE p.Updated >= @cutoff AND p.State IN ('Completed', 'Failed', 'Review')
+                    GROUP BY ym
+                    """;
+                cmd.Parameters.AddWithValue("@cutoff", cutoff);
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    var key = r.GetString(0);
+                    costs[key] = Convert.ToDecimal(r.GetValue(1), CultureInfo.InvariantCulture);
+                    tokens[key] = Convert.ToInt64(r.GetValue(2), CultureInfo.InvariantCulture);
+                }
+            }
+
+            decimal prevWeekAvgCost;
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT CASE WHEN COUNT(DISTINCT p.Id) > 0
+                        THEN COALESCE(SUM(c.Cost), 0) / COUNT(DISTINCT p.Id) ELSE 0 END
+                    FROM Costs c JOIN Plans p ON p.Id = c.PlanId
+                    WHERE p.Created >= @from AND p.Created < @to
+                      AND p.State IN ('Completed', 'Failed', 'Review')
+                    """;
+                cmd.Parameters.AddWithValue("@from", today.AddDays(-13).ToString("yyyy-MM-dd"));
+                cmd.Parameters.AddWithValue("@to", today.AddDays(-6).ToString("yyyy-MM-dd"));
+                prevWeekAvgCost = Convert.ToDecimal(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
+            }
+
+            var months = new List<DashboardMonthStats>(monthsBack);
+            for (var i = 0; i < monthsBack; i++)
+            {
+                var month = firstMonth.AddMonths(i);
+                var key = month.ToString("yyyy-MM");
+                months.Add(new DashboardMonthStats(
+                    month.Year,
+                    month.Month,
+                    created.GetValueOrDefault(key),
+                    prs.GetValueOrDefault(key),
+                    costs.GetValueOrDefault(key),
+                    tokens.GetValueOrDefault(key)
+                ));
+            }
+
+            return new DashboardActivityStats(months, prevWeekAvgCost);
+        }
+    }
 }

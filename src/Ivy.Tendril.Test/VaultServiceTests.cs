@@ -597,4 +597,263 @@ verifications: []
 
         Assert.NotNull(discovered);
     }
+
+    [Fact]
+    public async Task MergeProjectAsync_WithExistingLocalProject_PreservesLocalReposAndMergesVaultAssets()
+    {
+        var config = CreateConfig();
+        var vaultDir = Path.Combine(_tempDir.Path, "Vault");
+        var projectDir = Path.Combine(vaultDir, "projects", "LocalApp");
+        var skillsDir = Path.Combine(projectDir, "skills");
+        var memoryDir = Path.Combine(projectDir, "memory");
+        Directory.CreateDirectory(skillsDir);
+        Directory.CreateDirectory(memoryDir);
+
+        File.WriteAllText(Path.Combine(skillsDir, "vault-skill.md"), "# Vault Skill\n\nVault instructions.");
+        File.WriteAllText(Path.Combine(memoryDir, "vault-notes.md"), "# Vault Notes\n\nSome notes.");
+
+        var manifest = new VaultProjectManifest
+        {
+            Name = "LocalApp",
+            Version = "2026.09.01.120000",
+            Context = "Merged context",
+            Color = "Emerald",
+            Skills = new List<ProjectSkillRef>
+            {
+                new() { Name = "vault-skill", Description = "Vault skill description", Instructions = "Vault skill instructions" }
+            },
+            McpServers = new List<ProjectMcpServerRef>
+            {
+                new() { Name = "vault-mcp", Command = "node", Arguments = new() { "server.js" } }
+            },
+            ReviewActions = new List<ReviewActionConfig>
+            {
+                new() { Name = "vault-action", Command = "npm test" }
+            },
+            Verifications = new List<ProjectVerificationRef>
+            {
+                new() { Name = "vault-verif", Required = true }
+            },
+            VerificationDefinitions = new List<VerificationConfig>
+            {
+                new() { Name = "vault-verif", Prompt = "Run vault verif prompt" }
+            }
+        };
+
+        File.WriteAllText(Path.Combine(projectDir, "project.yaml"), YamlHelper.SerializerCompact.Serialize(manifest));
+
+        config.Settings.Vault = new VaultSettings
+        {
+            Enabled = true,
+            RepoUrl = "https://github.com/team/Tendril-Vault.git",
+            LocalPath = vaultDir
+        };
+
+        var vaultService = new VaultService(config, NullLogger<VaultService>.Instance);
+
+        var mergeReq = new VaultImportRequest
+        {
+            ProjectName = "LocalApp",
+            TargetLocalProjectName = "LocalApp",
+            SelectedSkills = new() { "vault-skill" },
+            SelectedMcps = new() { "vault-mcp" },
+            SelectedReviewActions = new() { "vault-action" },
+            SelectedVerifications = new() { "vault-verif" },
+            SelectedMemories = new() { "vault-notes.md" },
+            ImportPermissions = false
+        };
+
+        var result = await vaultService.MergeProjectAsync(mergeReq);
+
+        Assert.True(result.Success);
+
+        var merged = config.Settings.Projects.Find(p => p.Name == "LocalApp");
+        Assert.NotNull(merged);
+
+        // Preserves original local repo
+        Assert.Single(merged.Repos);
+        Assert.Equal("/tmp/repos/local-app", merged.Repos[0].Path);
+
+        // Preserves original local skill AND adds vault skill
+        Assert.Contains(merged.Skills, s => s.Name == "local-skill");
+        Assert.Contains(merged.Skills, s => s.Name == "vault-skill");
+
+        // Merges MCPs, ReviewActions, Verifications
+        Assert.Contains(merged.McpServers, m => m.Name == "vault-mcp");
+        Assert.Contains(merged.ReviewActions, a => a.Name == "vault-action");
+        Assert.Contains(merged.Verifications, v => v.Name == "vault-verif");
+
+        // Merges verification definition
+        Assert.Contains(config.Settings.Verifications, v => v.Name == "vault-verif");
+
+        // Copies files
+        var localSkillsDir = ProjectPathHelper.GetSkillsDir(_tempDir.Path, "LocalApp");
+        Assert.True(File.Exists(Path.Combine(localSkillsDir, "vault-skill.md")));
+
+        var localMemoryDir = ProjectPathHelper.GetMemoryDir(_tempDir.Path, "LocalApp");
+        Assert.True(File.Exists(Path.Combine(localMemoryDir, "vault-notes.md")));
+
+        // Tracked in vault
+        var activeVault = config.Settings.Vaults.Count > 0 ? config.Settings.Vaults[0] : config.Settings.Vault;
+        Assert.True(activeVault.TrackedProjects.ContainsKey("LocalApp"));
+        Assert.Equal("2026.09.01.120000", activeVault.TrackedProjects["LocalApp"].InstalledVersion);
+    }
+
+    [Fact]
+    public async Task GetCatalogAsync_AfterMergingConflictingProject_ReportsUpToDate()
+    {
+        var config = CreateConfig();
+        var vaultDir = Path.Combine(_tempDir.Path, "Vault");
+        var projectDir = Path.Combine(vaultDir, "projects", "LocalApp");
+        var skillsDir = Path.Combine(projectDir, "skills");
+        var memoryDir = Path.Combine(projectDir, "memory");
+        Directory.CreateDirectory(skillsDir);
+        Directory.CreateDirectory(memoryDir);
+
+        File.WriteAllText(Path.Combine(skillsDir, "skillA.md"), "# Skill A");
+        File.WriteAllText(Path.Combine(skillsDir, "local-skill.md"), "# Local Skill");
+        File.WriteAllText(Path.Combine(memoryDir, "notes.md"), "# Notes");
+
+        var manifest = new VaultProjectManifest
+        {
+            Name = "LocalApp",
+            Version = "2026.09.01.150000",
+            Skills = new List<ProjectSkillRef> { new() { Name = "skillA" }, new() { Name = "local-skill" } },
+            Repos = new List<VaultRepoRef> { new() { Name = "local-app" } }
+        };
+        File.WriteAllText(Path.Combine(projectDir, "project.yaml"), YamlHelper.SerializerCompact.Serialize(manifest));
+
+        config.Settings.Vault = new VaultSettings
+        {
+            Enabled = true,
+            RepoUrl = "https://github.com/team/Tendril-Vault.git",
+            LocalPath = vaultDir
+        };
+
+        var vaultService = new VaultService(config, NullLogger<VaultService>.Instance);
+
+        // Before merge: should report Conflict because LocalApp exists in config but is not tracked
+        var catalogBefore = await vaultService.GetCatalogAsync();
+        var catalogItemBefore = catalogBefore.Projects.Find(p => p.Name == "LocalApp");
+        Assert.NotNull(catalogItemBefore);
+        Assert.Equal(VaultItemSyncStatus.Conflict, catalogItemBefore.SyncStatus);
+
+        // Merge project
+        var mergeReq = new VaultImportRequest
+        {
+            ProjectName = "LocalApp",
+            TargetLocalProjectName = "LocalApp"
+        };
+        var mergeResult = await vaultService.MergeProjectAsync(mergeReq);
+        Assert.True(mergeResult.Success);
+
+        // After merge: should report UpToDate
+        var catalogAfter = await vaultService.GetCatalogAsync();
+        var catalogItemAfter = catalogAfter.Projects.Find(p => p.Name == "LocalApp");
+        Assert.NotNull(catalogItemAfter);
+        Assert.Equal(VaultItemSyncStatus.UpToDate, catalogItemAfter.SyncStatus);
+    }
+
+    [Fact]
+    public async Task MergeProjectAsync_PreservesExistingCustomSettings()
+    {
+        var config = CreateConfig();
+        var existingProj = config.Settings.Projects.Find(p => p.Name == "LocalApp");
+        Assert.NotNull(existingProj);
+
+        existingProj.Verifications.Add(new ProjectVerificationRef { Name = "CustomLocalBuild", Required = true });
+        existingProj.ReviewActions.Add(new ReviewActionConfig { Name = "CustomLocalReview", Command = "echo local" });
+
+        var vaultDir = Path.Combine(_tempDir.Path, "Vault");
+        var projectDir = Path.Combine(vaultDir, "projects", "LocalApp");
+        Directory.CreateDirectory(projectDir);
+
+        var manifest = new VaultProjectManifest
+        {
+            Name = "LocalApp",
+            Version = "2026.09.01.180000",
+            Verifications = new List<ProjectVerificationRef>
+            {
+                new() { Name = "VaultDotnetTest", Required = true }
+            },
+            ReviewActions = new List<ReviewActionConfig>
+            {
+                new() { Name = "VaultTeamReview", Command = "echo team review" }
+            }
+        };
+        File.WriteAllText(Path.Combine(projectDir, "project.yaml"), YamlHelper.SerializerCompact.Serialize(manifest));
+
+        config.Settings.Vault = new VaultSettings
+        {
+            Enabled = true,
+            RepoUrl = "https://github.com/team/Tendril-Vault.git",
+            LocalPath = vaultDir
+        };
+
+        var vaultService = new VaultService(config, NullLogger<VaultService>.Instance);
+
+        var mergeReq = new VaultImportRequest
+        {
+            ProjectName = "LocalApp",
+            TargetLocalProjectName = "LocalApp"
+        };
+
+        var result = await vaultService.MergeProjectAsync(mergeReq);
+        Assert.True(result.Success);
+
+        var merged = config.Settings.Projects.Find(p => p.Name == "LocalApp");
+        Assert.NotNull(merged);
+
+        // Verify existing custom verifications and review actions are preserved
+        Assert.Contains(merged.Verifications, v => v.Name == "CustomLocalBuild");
+        Assert.Contains(merged.Verifications, v => v.Name == "VaultDotnetTest");
+
+        Assert.Contains(merged.ReviewActions, a => a.Name == "CustomLocalReview");
+        Assert.Contains(merged.ReviewActions, a => a.Name == "VaultTeamReview");
+    }
+
+    [Fact]
+    public async Task GetCatalogAsync_WhenLocalProjectHasLocalChanges_DetectsModifiedSyncStatus()
+    {
+        var config = CreateConfig();
+        var vaultDir = Path.Combine(_tempDir.Path, "Vault");
+        var projectDir = Path.Combine(vaultDir, "projects", "LocalApp");
+        Directory.CreateDirectory(projectDir);
+
+        var manifest = new VaultProjectManifest
+        {
+            Name = "LocalApp",
+            Version = "2026.09.01.200000",
+            Skills = new List<ProjectSkillRef> { new() { Name = "skillA" } }
+        };
+        File.WriteAllText(Path.Combine(projectDir, "project.yaml"), YamlHelper.SerializerCompact.Serialize(manifest));
+
+        config.Settings.Vault = new VaultSettings
+        {
+            Enabled = true,
+            RepoUrl = "https://github.com/team/Tendril-Vault.git",
+            LocalPath = vaultDir,
+            TrackedProjects = new()
+            {
+                ["LocalApp"] = new ProjectVaultTracking
+                {
+                    VaultProjectName = "LocalApp",
+                    InstalledVersion = "2026.09.01.200000"
+                }
+            }
+        };
+
+        // Add remote skillA locally plus a new local skill that is not present in the remote vault manifest
+        var localSkillsDir = ProjectPathHelper.GetSkillsDir(_tempDir.Path, "LocalApp");
+        Directory.CreateDirectory(localSkillsDir);
+        File.WriteAllText(Path.Combine(localSkillsDir, "skillA.md"), "# Skill A");
+        File.WriteAllText(Path.Combine(localSkillsDir, "new-local-skill.md"), "# New Skill");
+
+        var vaultService = new VaultService(config, NullLogger<VaultService>.Instance);
+        var catalog = await vaultService.GetCatalogAsync();
+
+        var item = catalog.Projects.Find(p => p.Name == "LocalApp");
+        Assert.NotNull(item);
+        Assert.Equal(VaultItemSyncStatus.Modified, item.SyncStatus);
+    }
 }

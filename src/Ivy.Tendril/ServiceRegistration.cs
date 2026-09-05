@@ -23,6 +23,7 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<ConfigService>(configService);
         server.Services.AddSingleton<IChatHistoryService, ChatHistoryService>();
         server.Services.AddSingleton<IChatSessionNamingService, ChatSessionNamingService>();
+        server.Services.AddSingleton<IChatExecutionService, ChatExecutionService>();
         server.Services.AddSingleton<ICreatePlanPreferences, CreatePlanPreferences>();
 
         Program.SetConfigServiceForCleanup(configService);
@@ -284,8 +285,8 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<IStartable>(sp =>
             sp.GetRequiredService<Services.Tunnel.ShareTunnelService>());
 
-        server.Services.AddSingleton<Services.Plans.IDraftAnnotationService, Services.Plans.DraftAnnotationService>();
-        server.Services.AddSingleton<Services.Plans.IDraftDiffCommentService, Services.Plans.DraftDiffCommentService>();
+        server.Services.AddSingleton<Services.Plans.IPlanAnnotationService, Services.Plans.PlanAnnotationService>();
+        server.Services.AddSingleton<Services.Plans.IPlanDiffCommentService, Services.Plans.PlanDiffCommentService>();
         server.Services.AddTransient<Services.Share.IShareContext, Services.Share.ShareContext>();
         server.Services.AddSingleton<Services.Vault.IVaultService, Services.Vault.VaultService>();
 

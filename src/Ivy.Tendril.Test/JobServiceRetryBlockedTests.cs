@@ -543,6 +543,58 @@ public class JobServiceRetryBlockedTests : IDisposable
         Directory.Delete(plansDir, true);
     }
 
+    [Fact]
+    public void RetryBlockedJobs_WhenDependenciesSatisfied_DeletesBlockedJobFromDatabase()
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        var plansDir = CreatePlansDirectory(("01100-DepPlan", "Completed"));
+        var dependentPlan = CreatePlanFolder("Draft", ["01100-DepPlan"]);
+
+        var planReader = new FakePlanReaderService(plansDir);
+        var db = new FakeDatabaseService();
+        var service = new JobService(
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromMinutes(10),
+            planReaderService: planReader,
+            database: db);
+
+        var blockedId = service.CreateTestJob(new ExecutePlanArgs(dependentPlan));
+        var blockedJob = service.GetJob(blockedId)!;
+        blockedJob.Status = JobStatus.Blocked;
+
+        var completingId = service.CreateTestJob(new CreatePrArgs(Path.GetTempPath()));
+
+        service.CompleteJob(completingId, 0);
+
+        Assert.Null(service.GetJob(blockedId));
+        Assert.Contains(blockedId, db.DeletedJobIds);
+
+        Directory.Delete(dependentPlan, true);
+        Directory.Delete(plansDir, true);
+    }
+
+    [Fact]
+    public void ForceStartJob_BlockedJob_DeletesOldRecordFromDatabase()
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        var db = new FakeDatabaseService();
+        var service = new JobService(
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromMinutes(10),
+            database: db);
+
+        var blockedId = service.CreateTestJob(new ExecutePlanArgs("/path/to/plan"));
+        var blockedJob = service.GetJob(blockedId)!;
+        blockedJob.Status = JobStatus.Blocked;
+
+        service.ForceStartJob(blockedId);
+
+        Assert.Null(service.GetJob(blockedId));
+        Assert.Contains(blockedId, db.DeletedJobIds);
+    }
+
     /// <summary>
     ///     Minimal fake that provides PlansDirectory for dependency checking.
     /// </summary>
@@ -641,6 +693,16 @@ public class JobServiceRetryBlockedTests : IDisposable
             return new DashboardModels(0, 0, 0, 0, 0, 0, 0, [], []);
         }
 
+        public DashboardActivityStats GetDashboardActivity(int monthsBack = 24)
+        {
+            return new DashboardActivityStats([], 0);
+        }
+
+        public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days)
+        {
+            return [];
+        }
+
         public decimal GetPlanTotalCost(string folderPath)
         {
             return 0;
@@ -699,6 +761,181 @@ public class JobServiceRetryBlockedTests : IDisposable
         }
 
         public void AcceptRecommendationsAndRetry(string folderName, IReadOnlyCollection<string> titles)
+        {
+        }
+    }
+
+    private class FakeDatabaseService : IPlanDatabaseService
+    {
+        public DashboardActivityStats GetActivityStats(int monthsBack = 24) => new([], 0m);
+        public List<JobItem> Jobs { get; } = new();
+        public List<string> DeletedJobIds { get; } = new();
+        public List<string> UpsertedJobIds { get; } = new();
+
+        public List<JobItem> GetRecentJobs(int limit = 100)
+        {
+            return Jobs.ToList();
+        }
+
+        public JobItem? GetJobById(string id)
+        {
+            return Jobs.FirstOrDefault(j => j.Id == id);
+        }
+
+        public List<JobItem> GetJobsForPlan(string planFile)
+        {
+            return Jobs.Where(j => j.PlanFile == planFile).ToList();
+        }
+
+        public void DeleteJob(string id)
+        {
+            DeletedJobIds.Add(id);
+            Jobs.RemoveAll(j => j.Id == id);
+        }
+
+        public void Dispose()
+        {
+        }
+
+        public List<PlanFile> GetPlans(PlanStatus? statusFilter = null)
+        {
+            return [];
+        }
+
+        public PlanFile? GetPlanByFolder(string folderPath)
+        {
+            return null;
+        }
+
+        public PlanFile? GetPlanById(int planId)
+        {
+            return null;
+        }
+
+        public PlanReaderService.PlanCountSnapshot ComputePlanCounts()
+        {
+            return new PlanReaderService.PlanCountSnapshot(0, 0, 0, 0, 0, 0);
+        }
+
+        public DashboardModels GetDashboardData(string? projectFilter)
+        {
+            return new DashboardModels(0, 0, 0, 0, 0, 0, 0, [], []);
+        }
+
+        public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30)
+        {
+            return [];
+        }
+
+        public decimal GetPlanTotalCost(int planId)
+        {
+            return 0;
+        }
+
+        public int GetPlanTotalTokens(int planId)
+        {
+            return 0;
+        }
+
+        public List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null)
+        {
+            return [];
+        }
+
+        public List<Recommendation> GetRecommendations()
+        {
+            return [];
+        }
+
+        public int GetPendingRecommendationsCount()
+        {
+            return 0;
+        }
+
+        public List<PlanFile> SearchPlans(string query)
+        {
+            return [];
+        }
+
+        public void RebuildFtsIndex()
+        {
+        }
+
+        public void UpdatePlanState(int planId, PlanStatus state)
+        {
+        }
+
+        public void UpdatePlanContent(int planId, string latestRevisionContent, int revisionCount)
+        {
+        }
+
+        public void UpdateRecommendationState(int planId, string recommendationTitle, string newState, string? declineReason)
+        {
+        }
+
+        public void UpsertPlan(PlanFile plan)
+        {
+        }
+
+        public void DeletePlan(int planId)
+        {
+        }
+
+        public void UpsertCosts(int planId, List<CostEntry> costs)
+        {
+        }
+
+        public void UpsertRecommendations(int planId, string folderName, List<RecommendationYaml> recommendations,
+            string project, string planTitle, DateTime updated, PlanStatus status)
+        {
+        }
+
+        public void BulkUpsertPlans(List<PlanFile> plans, bool forceOverwrite = false)
+        {
+        }
+
+        public HashSet<int> GetTerminalPlanIds()
+        {
+            return [];
+        }
+
+        public void UpsertJob(JobItem job)
+        {
+            UpsertedJobIds.Add(job.Id);
+            Jobs.RemoveAll(j => j.Id == job.Id);
+            Jobs.Add(job);
+        }
+
+        public List<string> PurgeOldJobs(int keepCount = 500)
+        {
+            return [];
+        }
+
+        public Dictionary<string, PrInfo> GetAllPrStatuses()
+        {
+            return new Dictionary<string, PrInfo>();
+        }
+
+        public void UpsertPrStatus(string prUrl, string owner, string repo, string status, string branch, DateTime lastChecked)
+        {
+        }
+
+        public List<string> GetNonMergedPrUrls()
+        {
+            return [];
+        }
+
+        public long GetDatabaseSize()
+        {
+            return 0;
+        }
+
+        public DateTime GetLastSyncTime()
+        {
+            return DateTime.UtcNow;
+        }
+
+        public void SetLastSyncTime(DateTime time)
         {
         }
     }

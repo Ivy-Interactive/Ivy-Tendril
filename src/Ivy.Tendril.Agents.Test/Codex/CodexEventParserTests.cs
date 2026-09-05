@@ -1,4 +1,4 @@
-﻿using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Providers.Codex;
 
 namespace Ivy.Tendril.Agents.Test.Codex;
@@ -282,5 +282,73 @@ public class CodexEventParserTests
 
         Assert.Single(events);
         Assert.IsType<UnknownEvent>(events[0]);
+    }
+
+    [Fact]
+    public void ParseLine_ErrorWithNestedJson_ReturnsCleanErrorEvent()
+    {
+        var json = """{"type":"error","message":"{\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'gpt-5.6-sol' model is not supported when using Codex with a ChatGPT account.\"}}"}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var err = Assert.IsType<ErrorEvent>(events[0]);
+        Assert.Equal(AgentEventKind.Error, err.Kind);
+        Assert.Equal("The 'gpt-5.6-sol' model is not supported when using Codex with a ChatGPT account.", err.Message);
+        Assert.False(err.IsAuthError);
+    }
+
+    [Fact]
+    public void ParseLine_ErrorWithPlainString_ReturnsErrorEvent()
+    {
+        var json = """{"type":"error","message":"You've hit your usage limit. To continue using Codex and get access to GPT-5.3-Codex, start a free trial of Plus today."}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var err = Assert.IsType<ErrorEvent>(events[0]);
+        Assert.Equal(AgentEventKind.Error, err.Kind);
+        Assert.Contains("hit your usage limit", err.Message);
+    }
+
+    [Fact]
+    public void ParseLine_TurnFailed_ReturnsErrorEvent()
+    {
+        var json = """{"type":"turn.failed","error":{"message":"The request timed out."}}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var err = Assert.IsType<ErrorEvent>(events[0]);
+        Assert.Equal(AgentEventKind.Error, err.Kind);
+        Assert.Equal("The request timed out.", err.Message);
+    }
+
+    [Fact]
+    public void ParseLine_ItemCompleted_Error_ReturnsErrorEvent()
+    {
+        var json = """{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Model metadata not found."}}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var err = Assert.IsType<ErrorEvent>(events[0]);
+        Assert.Equal(AgentEventKind.Error, err.Kind);
+        Assert.Equal("Model metadata not found.", err.Message);
+    }
+
+    [Fact]
+    public void BuildResult_WithTextEvents_PopulatesResponse()
+    {
+        var agentMsgJson = """{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"Yep, alive and ready."}}""";
+        var turnCompletedJson = """{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":5}}""";
+
+        var events = new List<AgentEvent>();
+        events.AddRange(_parser.ParseLine(agentMsgJson));
+        events.AddRange(_parser.ParseLine(turnCompletedJson));
+
+        var result = _parser.BuildResult(events, 0);
+
+        Assert.NotNull(result);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Yep, alive and ready.", result.Response);
+        Assert.NotNull(result.Usage);
+        Assert.Equal(10, result.Usage.InputTokens);
     }
 }

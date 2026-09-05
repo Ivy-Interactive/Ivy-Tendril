@@ -1,4 +1,5 @@
 using Ivy.Tendril.Apps.ReviewAction;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Test.TestHelpers;
 
@@ -59,5 +60,41 @@ public class ReviewActionAppTests
         var action = ReviewActionApp.ResolveAction(BuildConfig(), project, actionName);
 
         Assert.Null(action);
+    }
+
+    [Fact]
+    public void ResolveWorkingDirectory_PlanNotNull_ReturnsPlanFolderPath()
+    {
+        var metadata = new PlanMetadata(
+            1, "Tendril", "Feature", "Test", PlanStatus.Draft,
+            [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
+        var plan = new PlanFile(metadata, "", "/plans/00001-Test", "");
+
+        var workDir = ReviewActionApp.ResolveWorkingDirectory(BuildConfig(), plan, null);
+
+        Assert.Equal("/plans/00001-Test", workDir);
+    }
+
+    [Fact]
+    public void ResolveWorkingDirectory_ProjectWithNoRepos_ReturnsTendrilHome()
+    {
+        var config = BuildConfig();
+        var project = new ProjectConfig
+        {
+            Name = "Tendril",
+            Repos = []
+        };
+
+        var workDir = ReviewActionApp.ResolveWorkingDirectory(config, null, project);
+
+        Assert.Equal(config.TendrilHome, workDir);
+    }
+
+    [Fact]
+    public void ResolveWorkingDirectory_NullPlanAndProject_ReturnsNull()
+    {
+        var workDir = ReviewActionApp.ResolveWorkingDirectory(BuildConfig(), null, null);
+
+        Assert.Null(workDir);
     }
 }

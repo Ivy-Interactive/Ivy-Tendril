@@ -23,3 +23,17 @@ public record DashboardDayStats(
 );
 
 public record ProjectCount(string Project, int Count);
+
+public record DashboardActivityStats(
+    List<DashboardMonthStats> Months,
+    decimal PrevWeekAvgCostPerPlan
+);
+
+public record DashboardMonthStats(
+    int Year,
+    int Month,
+    int PlansCreated,
+    int PrsMerged,
+    decimal Cost,
+    long Tokens
+);

@@ -28,48 +28,48 @@ public static class ModelProfilePriorities
             // === Ivy Proxy ===
             [(ModelProviderKind.Ivy, ModelProfileKind.Deep)] =
             [
-                "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5",
-                "claude-opus-4", "opus", "gpt-5.6-sol", "sol", "claude-sonnet-5", "gemini-3.7-flash"
+                "claude-fable-5", "claude-opus-5-1", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5",
+                "claude-opus-4", "opus", "gpt-5.6-sol", "sol", "claude-sonnet-5", "gemini-3.8-flash", "gemini-3.7-flash"
             ],
             [(ModelProviderKind.Ivy, ModelProfileKind.Balanced)] =
             [
-                "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "claude-sonnet-5",
+                "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "claude-sonnet-5-1", "claude-5.1", "claude-sonnet-5",
                 "claude-sonnet-4-6", "gpt-5.6-terra", "terra", "gemini-2.5-flash"
             ],
             [(ModelProviderKind.Ivy, ModelProfileKind.Quick)] =
             [
-                "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "claude-haiku-4-5",
+                "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "claude-haiku-5-1", "claude-haiku-4-5",
                 "claude-haiku-5", "gpt-5.6-luna", "luna", "gpt-4o-mini"
             ],
 
             // === Anthropic Direct ===
             [(ModelProviderKind.Anthropic, ModelProfileKind.Deep)] =
             [
-                "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5",
+                "claude-fable-5", "claude-opus-5-1", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5",
                 "claude-opus-4", "opus", "claude-sonnet-5"
             ],
             [(ModelProviderKind.Anthropic, ModelProfileKind.Balanced)] =
             [
-                "claude-sonnet-5", "claude-sonnet-4-6", "claude-sonnet-4-5", "claude-sonnet-4", "sonnet", "claude-haiku-4-5"
+                "claude-sonnet-5-1", "claude-5.1", "claude-sonnet-5", "claude-sonnet-4-6", "claude-sonnet-4-5", "claude-sonnet-4", "sonnet", "claude-haiku-4-5"
             ],
             [(ModelProviderKind.Anthropic, ModelProfileKind.Quick)] =
             [
-                "claude-haiku-4-5", "claude-haiku-5", "claude-3-5-haiku", "claude-haiku-4", "haiku"
+                "claude-haiku-5-1", "claude-haiku-4-5", "claude-haiku-5", "claude-3-5-haiku", "claude-haiku-4", "haiku"
             ],
 
             // === Google / Gemini ===
             [(ModelProviderKind.Google, ModelProfileKind.Deep)] =
             [
-                "gemini-3.7-flash", "gemini-3.7-pro", "gemini-3.6-flash", "gemini-3.6-pro", "gemini-3.1-pro",
+                "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.7-pro", "gemini-3.6-flash", "gemini-3.6-pro", "gemini-3.1-pro",
                 "gemini-3-pro", "gemini-2.5-pro", "gemini-2.5-flash"
             ],
             [(ModelProviderKind.Google, ModelProfileKind.Balanced)] =
             [
-                "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-2.0-flash"
+                "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.0-flash"
             ],
             [(ModelProviderKind.Google, ModelProfileKind.Quick)] =
             [
-                "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"
+                "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"
             ],
 
             // === OpenAI Direct ===
@@ -103,29 +103,29 @@ public static class ModelProfilePriorities
             // === OpenCode ===
             [(ModelProviderKind.OpenCode, ModelProfileKind.Deep)] =
             [
-                "claude-opus-5", "gpt-5.6-sol", "gemini-3.7-flash", "claude-sonnet-5"
+                "claude-fable-5", "claude-opus-5-1", "claude-opus-5", "gpt-5.6-sol", "gemini-3.8-flash", "gemini-3.7-flash", "claude-sonnet-5"
             ],
             [(ModelProviderKind.OpenCode, ModelProfileKind.Balanced)] =
             [
-                "gemini-3.7-flash", "claude-sonnet-5", "gpt-5.6-terra"
+                "gemini-3.8-flash", "gemini-3.7-flash", "claude-sonnet-5-1", "claude-5.1", "claude-sonnet-5", "gpt-5.6-terra"
             ],
             [(ModelProviderKind.OpenCode, ModelProfileKind.Quick)] =
             [
-                "gemini-3.7-flash", "claude-haiku-4-5", "gpt-5.6-luna"
+                "gemini-3.8-flash", "gemini-3.7-flash", "claude-haiku-4-5", "gpt-5.6-luna"
             ],
 
             // === Generic / Fallback ===
             [(ModelProviderKind.Generic, ModelProfileKind.Deep)] =
             [
-                "gpt-5.6-sol", "claude-opus-5", "gemini-3.7-flash", "claude-sonnet-5", "gpt-4o"
+                "gpt-5.6-sol", "claude-fable-5", "claude-opus-5-1", "claude-opus-5", "gemini-3.8-flash", "gemini-3.7-flash", "claude-sonnet-5", "gpt-4o"
             ],
             [(ModelProviderKind.Generic, ModelProfileKind.Balanced)] =
             [
-                "gpt-5.6-terra", "gemini-3.7-flash", "claude-sonnet-5", "gpt-4o"
+                "gpt-5.6-terra", "gemini-3.8-flash", "gemini-3.7-flash", "claude-sonnet-5-1", "claude-5.1", "claude-sonnet-5", "gpt-4o"
             ],
             [(ModelProviderKind.Generic, ModelProfileKind.Quick)] =
             [
-                "gpt-5.6-luna", "gemini-3.7-flash", "claude-haiku-4-5", "gpt-4o-mini"
+                "gpt-5.6-luna", "gemini-3.8-flash", "gemini-3.7-flash", "claude-haiku-4-5", "gpt-4o-mini"
             ],
         }.ToFrozenDictionary();
 

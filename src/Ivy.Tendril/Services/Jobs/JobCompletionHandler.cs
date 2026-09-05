@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -49,7 +49,8 @@ internal class JobCompletionHandler
         Action<JobItem> persistJob,
         Action<JobNotification> raiseNotification,
         Action raisePropertyChanged,
-        Func<JobArgsBase, string> startJobSkipDepCheck)
+        Func<JobArgsBase, string> startJobSkipDepCheck,
+        Action<string>? deleteJob = null)
     {
         var isSuccess = job.Status == JobStatus.Completed;
 
@@ -67,10 +68,10 @@ internal class JobCompletionHandler
         // so the user can inspect or resume. Worktree cleanup happens only on explicit
         // user actions (Delete ExecutePlan, Complete Plan, Reset to Draft).
 
-        HandleWaitForJobsDependents(job, jobs, raiseNotification, startJobSkipDepCheck, persistJob);
+        HandleWaitForJobsDependents(job, jobs, raiseNotification, startJobSkipDepCheck, persistJob, deleteJob);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
-            _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
+            _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck, deleteJob);
 
         if (isSuccess && job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs or CreateIssueArgs)
         {
@@ -943,7 +944,8 @@ internal class JobCompletionHandler
         ConcurrentDictionary<string, JobItem> jobs,
         Action<JobNotification> raiseNotification,
         Func<JobArgsBase, string> startJobSkipDepCheck,
-        Action<JobItem>? persistJob = null)
+        Action<JobItem>? persistJob = null,
+        Action<string>? deleteJob = null)
     {
         var queue = new Queue<JobItem>();
         queue.Enqueue(completedJob);
@@ -984,6 +986,7 @@ internal class JobCompletionHandler
                     continue;
 
                 jobs.TryRemove(waitingJob.Id, out _);
+                deleteJob?.Invoke(waitingJob.Id);
                 startJobSkipDepCheck(waitingJob.TypedArgs!);
 
                 raiseNotification(new JobNotification(
@@ -1013,8 +1016,9 @@ internal class JobCompletionHandler
     internal void HandleRetryBlockedJobs(
         ConcurrentDictionary<string, JobItem> jobs,
         Action<JobNotification> raiseNotification,
-        Func<JobArgsBase, string> startJobSkipDepCheck)
-        => _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck);
+        Func<JobArgsBase, string> startJobSkipDepCheck,
+        Action<string>? deleteJob = null)
+        => _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck, deleteJob);
 
     internal void WriteJobLog(JobItem job)
     {

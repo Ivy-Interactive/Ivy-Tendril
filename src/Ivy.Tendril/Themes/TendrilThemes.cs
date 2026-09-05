@@ -336,7 +336,7 @@ public static class TendrilThemes
         Name = "Dracula",
         Description = "Classic dark violet background with purple, pink, and cyan accents",
         IsDark = true,
-        PreviewColors = ["#bd93f9", "#ff79c6", "#8be9fd", "#282a36"],
+        PreviewColors = ["#bd93f9", "#ff79c6", "#44475a", "#282a36"],
         IvyTheme = new Theme
         {
             Name = "Dracula",
@@ -381,8 +381,8 @@ public static class TendrilThemes
                     PrimaryForeground = "#282a36",
                     Secondary = "#ff79c6",
                     SecondaryForeground = "#282a36",
-                    Accent = "#8be9fd",
-                    AccentForeground = "#282a36",
+                    Accent = "#44475a",
+                    AccentForeground = "#f8f8f2",
                     Background = "#282a36",
                     Foreground = "#f8f8f2",
                     Destructive = "#ff5555",
@@ -396,7 +396,7 @@ public static class TendrilThemes
                     Border = "#44475a",
                     Input = "#383a59",
                     Ring = "#bd93f9",
-                    Muted = "#34374a",
+                    Muted = "#44475a",
                     MutedForeground = "#b0b7da",
                     Card = "#343746",
                     CardForeground = "#f8f8f2",
@@ -490,7 +490,7 @@ public static class TendrilThemes
         Name = "Forest",
         Description = "Deep earthy woodland dark background with fresh emerald and forest green",
         IsDark = true,
-        PreviewColors = ["#1eb854", "#1fd65f", "#1db954", "#171212"],
+        PreviewColors = ["#1eb854", "#1fd65f", "#243328", "#171212"],
         IvyTheme = new Theme
         {
             Name = "Forest",
@@ -535,8 +535,8 @@ public static class TendrilThemes
                     PrimaryForeground = "#000000",
                     Secondary = "#1fd65f",
                     SecondaryForeground = "#000000",
-                    Accent = "#1db954",
-                    AccentForeground = "#000000",
+                    Accent = "#243328",
+                    AccentForeground = "#ebfaef",
                     Background = "#171212",
                     Foreground = "#ebfaef",
                     Destructive = "#e11d48",
@@ -1023,6 +1023,160 @@ public static class TendrilThemes
         }
     };
 
+    public static readonly TendrilThemeDescriptor Lovably = new()
+    {
+        Id = "lovably",
+        Name = "Lovably",
+        Description = "Vibrant magenta and violet gradient aesthetic inspired by lovable.dev with crisp obsidian dark and warm parchment light modes",
+        IsDark = true,
+        PreviewColors = ["#ff2e7e", "#8b5cf6", "#ff7a45", "#09090b"],
+        IvyTheme = new Theme
+        {
+            Name = "Lovably",
+            FontFamily = "Geist",
+            FontSize = "16px",
+            BorderRadiusBoxes = Theme.Default.BorderRadiusBoxes,
+            BorderRadiusFields = Theme.Default.BorderRadiusFields,
+            BorderRadiusSelectors = Theme.Default.BorderRadiusSelectors,
+            Colors = new ThemeColorScheme
+            {
+                Light = new ThemeColors
+                {
+                    Primary = "#ff2e7e",
+                    PrimaryForeground = "#ffffff",
+                    Secondary = "#7c3aed",
+                    SecondaryForeground = "#ffffff",
+                    Accent = "#ff7a45",
+                    AccentForeground = "#ffffff",
+                    Background = "#faf8f5",
+                    Foreground = "#18181b",
+                    Destructive = "#ef4444",
+                    DestructiveForeground = "#ffffff",
+                    Success = "#10b981",
+                    SuccessForeground = "#ffffff",
+                    Warning = "#f59e0b",
+                    WarningForeground = "#ffffff",
+                    Info = "#06b6d4",
+                    InfoForeground = "#ffffff",
+                    Border = "#e4e4e7",
+                    Input = "#f4f4f5",
+                    Ring = "#ff2e7e",
+                    Muted = "#f4f4f5",
+                    MutedForeground = "#71717a",
+                    Card = "#ffffff",
+                    CardForeground = "#18181b",
+                    Popover = "#faf8f5",
+                    PopoverForeground = "#18181b"
+                },
+                Dark = new ThemeColors
+                {
+                    Primary = "#ff2e7e",
+                    PrimaryForeground = "#ffffff",
+                    Secondary = "#8b5cf6",
+                    SecondaryForeground = "#ffffff",
+                    Accent = "#ff7a45",
+                    AccentForeground = "#ffffff",
+                    Background = "#09090b",
+                    Foreground = "#f4f4f5",
+                    Destructive = "#f43f5e",
+                    DestructiveForeground = "#ffffff",
+                    Success = "#10b981",
+                    SuccessForeground = "#ffffff",
+                    Warning = "#f59e0b",
+                    WarningForeground = "#09090b",
+                    Info = "#38bdf8",
+                    InfoForeground = "#09090b",
+                    Border = "#27272a",
+                    Input = "#18181b",
+                    Ring = "#ff2e7e",
+                    Muted = "#1f1f23",
+                    MutedForeground = "#a1a1aa",
+                    Card = "#121215",
+                    CardForeground = "#f4f4f5",
+                    Popover = "#09090b",
+                    PopoverForeground = "#f4f4f5"
+                }
+            }
+        }
+    };
+
+    public static readonly TendrilThemeDescriptor HelloKitty = new()
+    {
+        Id = "hellokitty",
+        Name = "Hello Kitty",
+        Description = "Playful pastel pink and milk-white theme with ruby red bow and pastel yellow accents",
+        IsDark = false,
+        PreviewColors = ["#ff7da7", "#ff3366", "#ffd166", "#fff5f8"],
+        IvyTheme = new Theme
+        {
+            Name = "Hello Kitty",
+            FontFamily = "Geist",
+            FontSize = "16px",
+            BorderRadiusBoxes = Theme.Default.BorderRadiusBoxes,
+            BorderRadiusFields = Theme.Default.BorderRadiusFields,
+            BorderRadiusSelectors = Theme.Default.BorderRadiusSelectors,
+            Colors = new ThemeColorScheme
+            {
+                Light = new ThemeColors
+                {
+                    Primary = "#ff7da7",
+                    PrimaryForeground = "#ffffff",
+                    Secondary = "#ffb3c6",
+                    SecondaryForeground = "#2d1520",
+                    Accent = "#ff3366",
+                    AccentForeground = "#ffffff",
+                    Background = "#fff5f8",
+                    Foreground = "#2d1520",
+                    Destructive = "#e11d48",
+                    DestructiveForeground = "#ffffff",
+                    Success = "#10b981",
+                    SuccessForeground = "#ffffff",
+                    Warning = "#ffd166",
+                    WarningForeground = "#2d1520",
+                    Info = "#38bdf8",
+                    InfoForeground = "#ffffff",
+                    Border = "#ffd6e0",
+                    Input = "#fae8ee",
+                    Ring = "#ff7da7",
+                    Muted = "#fae8ee",
+                    MutedForeground = "#804a60",
+                    Card = "#ffffff",
+                    CardForeground = "#2d1520",
+                    Popover = "#fff5f8",
+                    PopoverForeground = "#2d1520"
+                },
+                Dark = new ThemeColors
+                {
+                    Primary = "#ff6599",
+                    PrimaryForeground = "#1f0e16",
+                    Secondary = "#ff9ebb",
+                    SecondaryForeground = "#1f0e16",
+                    Accent = "#ff3366",
+                    AccentForeground = "#ffffff",
+                    Background = "#1f141a",
+                    Foreground = "#fff0f5",
+                    Destructive = "#fb7185",
+                    DestructiveForeground = "#1f0e16",
+                    Success = "#34d399",
+                    SuccessForeground = "#1f0e16",
+                    Warning = "#ffd166",
+                    WarningForeground = "#1f0e16",
+                    Info = "#38bdf8",
+                    InfoForeground = "#1f0e16",
+                    Border = "#3d2130",
+                    Input = "#2a1923",
+                    Ring = "#ff6599",
+                    Muted = "#331c2a",
+                    MutedForeground = "#c798ad",
+                    Card = "#2a1923",
+                    CardForeground = "#fff0f5",
+                    Popover = "#1f141a",
+                    PopoverForeground = "#fff0f5"
+                }
+            }
+        }
+    };
+
     public static readonly IReadOnlyList<TendrilThemeDescriptor> All =
     [
         Default,
@@ -1038,7 +1192,9 @@ public static class TendrilThemes
         Sunset,
         Coffee,
         Dim,
-        Luxury
+        Luxury,
+        Lovably,
+        HelloKitty
     ];
 
     private static readonly Dictionary<string, TendrilThemeDescriptor> ThemesById =
@@ -1058,5 +1214,19 @@ public static class TendrilThemes
         themeService.SetTheme(descriptor.IvyTheme);
         var css = themeService.GenerateThemeCss();
         client.ApplyTheme(css);
+    }
+
+    public static ThemeMode ParseThemeMode(string? mode)
+    {
+        if (string.Equals(mode, "light", StringComparison.OrdinalIgnoreCase))
+            return ThemeMode.Light;
+        if (string.Equals(mode, "dark", StringComparison.OrdinalIgnoreCase))
+            return ThemeMode.Dark;
+        return ThemeMode.System;
+    }
+
+    public static void ApplyThemeMode(IClientProvider client, string? mode)
+    {
+        client.SetThemeMode(ParseThemeMode(mode));
     }
 }

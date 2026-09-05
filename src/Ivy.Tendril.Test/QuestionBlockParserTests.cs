@@ -157,6 +157,174 @@ public class QuestionBlockParserTests
         Assert.True(blocks[0].Line < blocks[1].Line);
     }
 
+    // ------------------------------------------------------------------ wrapper-less shapes
+    //
+    // A fence that already says `questions` makes the word inside look redundant, so agents keep
+    // leaving it out. Read the same, these are answerable; read as legacy, they render as a code
+    // listing and the plan stalls on a question nobody can answer.
+
+    [Fact]
+    public void Parse_ReadsABareSequenceWrittenWithoutTheQuestionsKey()
+    {
+        const string markdown = """
+            ```questions
+            - id: caching-strategy
+              title: Which caching strategy should we use?
+              options:
+                - title: In-Memory
+                  value: in-memory
+                - title: Distributed Redis
+                  value: redis
+            - id: eviction
+              title: How should entries expire?
+            ```
+            """;
+
+        var block = Assert.Single(QuestionBlockParser.Parse(markdown));
+
+        Assert.False(block.IsLegacy);
+        Assert.Null(block.YamlError);
+        Assert.Equal(2, block.Block!.Questions.Count);
+        Assert.Equal("caching-strategy", block.Block.Questions[0].Id);
+        Assert.Equal("Which caching strategy should we use?", block.Block.Questions[0].Title);
+        Assert.Equal("redis", block.Block.Questions[0].Options![1].Value);
+        Assert.Equal("eviction", block.Block.Questions[1].Id);
+    }
+
+    [Fact]
+    public void Parse_ReadsASingleQuestionWrittenWithoutAnyWrapper()
+    {
+        const string markdown = """
+            ```questions
+            id: confirmation-prompt
+            title: Should we prompt before deleting?
+            other: false
+            options:
+              - title: Yes
+                value: prompt
+              - title: No
+                value: silent
+            ```
+            """;
+
+        var block = Assert.Single(QuestionBlockParser.Parse(markdown));
+
+        Assert.False(block.IsLegacy);
+        var question = Assert.Single(block.Block!.Questions);
+        Assert.Equal("confirmation-prompt", question.Id);
+        Assert.False(question.Other);
+        Assert.Equal(2, question.Options!.Count);
+    }
+
+    // The `answer` key is read off the raw YAML, so each shape has to find it where it sits.
+    [Fact]
+    public void Parse_StampsAnswersOnABareSequence()
+    {
+        const string markdown = """
+            ```questions
+            - id: q1
+              title: Which way?
+              answer: left
+            - id: q2
+              title: And then?
+            ```
+            """;
+
+        var questions = Assert.Single(QuestionBlockParser.Parse(markdown)).Block!.Questions;
+
+        Assert.Equal(AnswerState.Answered, questions[0].AnswerState);
+        Assert.Equal("left", Assert.Single(questions[0].AnswerValues));
+        Assert.Equal(AnswerState.Unanswered, questions[1].AnswerState);
+    }
+
+    [Fact]
+    public void Parse_StampsAnswersOnASingleQuestionWithoutAWrapper()
+    {
+        const string markdown = """
+            ```questions
+            id: q1
+            title: Which way?
+            answer: left
+            ```
+            """;
+
+        var question = Assert.Single(Assert.Single(QuestionBlockParser.Parse(markdown)).Block!.Questions);
+
+        Assert.Equal(AnswerState.Answered, question.AnswerState);
+        Assert.Equal("left", Assert.Single(question.AnswerValues));
+    }
+
+    [Fact]
+    public void Parse_TreatsABulletListOfProseAsLegacy()
+    {
+        // The pre-schema form is often a list. Without an `id` on every item a sequence is prose —
+        // and prose must warn, never fail the write.
+        const string markdown = """
+            ```questions
+            - Should this use JWTs or server sessions?
+            - How long should a session live?
+            ```
+            """;
+
+        var block = Assert.Single(QuestionBlockParser.Parse(markdown));
+
+        Assert.True(block.IsLegacy);
+        Assert.Null(block.YamlError);
+    }
+
+    [Fact]
+    public void Parse_TreatsAMappingWithoutAnIdAsLegacy()
+    {
+        const string markdown = """
+            ```questions
+            topic: caching
+            note: we could not settle this from the code
+            ```
+            """;
+
+        var block = Assert.Single(QuestionBlockParser.Parse(markdown));
+
+        Assert.True(block.IsLegacy);
+        Assert.Null(block.YamlError);
+    }
+
+    [Fact]
+    public void Parse_ReportsBrokenYamlInAWrapperLessBlockAsError()
+    {
+        // An opening `- id:` says the body meant to be structured, so what follows it is an error to
+        // fix rather than prose to leave alone.
+        const string markdown = """
+            ```questions
+            - id: q1
+              title: Broken
+              options: [unclosed
+            ```
+            """;
+
+        var block = Assert.Single(QuestionBlockParser.Parse(markdown));
+
+        Assert.False(block.IsLegacy);
+        Assert.NotNull(block.YamlError);
+    }
+
+    [Fact]
+    public void Parse_RejectsAnUnknownKeyInAWrapperLessBlock()
+    {
+        // The schema is additionalProperties: false in every shape, not just the canonical one.
+        const string markdown = """
+            ```questions
+            - id: q1
+              title: Which way?
+              titel: typo
+            ```
+            """;
+
+        var block = Assert.Single(QuestionBlockParser.Parse(markdown));
+
+        Assert.False(block.IsLegacy);
+        Assert.NotNull(block.YamlError);
+    }
+
     [Fact]
     public void Parse_TreatsProseBodyAsLegacyWithoutYamlError()
     {

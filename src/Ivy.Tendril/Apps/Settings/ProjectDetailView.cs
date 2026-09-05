@@ -55,8 +55,8 @@ public class ProjectDetailView(
         var (reviewActionTrigger, showReviewActionTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
             new OnboardingEditReviewActionDialog(isOpen, existingIndex, reviewActions));
 
-        var (verificationTrigger, showVerificationTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
-            new OnboardingEditVerificationDialog(isOpen, existingIndex, config, client, refreshToken, projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : ""));
+        var (verificationTrigger, showVerificationTrigger) = UseTrigger((IState<bool> isOpen, string? existingVerificationName) =>
+            new OnboardingEditVerificationDialog(isOpen, existingVerificationName, config, client, refreshToken, projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : "", projectVerifications: verifications));
 
         var (mcpSheet, openMcpSheet) = UseTrigger((IState<bool> isOpen, int? editingIndex) =>
             new EditMcpServerSheet(isOpen, editingIndex, mcpServers));
@@ -300,12 +300,12 @@ public class ProjectDetailView(
 
             // Section 3: Review Actions
             | Text.H4("Review Actions").Bold()
-            | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx))
+            | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx), projectName: editName.Value)
             | new Button("Add Review Action").Icon(Icons.Plus).Outline().OnClick(() => showReviewActionTrigger(null))
 
             // Section 4: Verifications
             | Text.H4("Verifications").Bold()
-            | new ProjectVerificationsTableView(verifications, idx => showVerificationTrigger(idx))
+            | new ProjectVerificationsTableView(verifications, name => showVerificationTrigger(name))
             | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() => showVerificationTrigger(null))
 
             // Section 5: Agent Behavior

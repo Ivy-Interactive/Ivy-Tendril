@@ -22,6 +22,7 @@ public sealed class AgentSession : IAgentSession
     private readonly TaskCompletionSource<ResultEvent> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly CancellationTokenSource _cts = new();
     private readonly List<AgentEvent> _allEvents = [];
+    private readonly List<string> _tempFiles = [];
     private volatile SessionState _state = SessionState.NotStarted;
     private long _lastActivityTicks;
     private bool _idleTimeoutFired;
@@ -62,8 +63,14 @@ public sealed class AgentSession : IAgentSession
         _lastActivityTicks = Stopwatch.GetTimestamp();
     }
 
+    internal void AddTempFiles(IEnumerable<string> tempFiles)
+    {
+        _tempFiles.AddRange(tempFiles);
+    }
+
     internal async Task StartAsync(AgentProcessSpec spec, CancellationToken ct)
     {
+        _tempFiles.AddRange(spec.TempFiles);
         _state = SessionState.Starting;
 
         if (spec.RedirectStdin && spec.StdinContent is not null)
@@ -284,6 +291,8 @@ public sealed class AgentSession : IAgentSession
         _events.OnCompleted();
         _rawOutput.OnCompleted();
 
+        CleanupTempFiles();
+
         if (result is not null)
             _completion.TrySetResult(result);
         else
@@ -293,6 +302,22 @@ public sealed class AgentSession : IAgentSession
                 IsSuccess = false,
                 ExitCode = exitCode,
             });
+    }
+
+    private void CleanupTempFiles()
+    {
+        foreach (var file in _tempFiles)
+        {
+            try
+            {
+                if (File.Exists(file))
+                    File.Delete(file);
+            }
+            catch
+            {
+                // Best-effort cleanup
+            }
+        }
     }
 
     internal bool IdleTimeoutFired => _idleTimeoutFired;
@@ -332,6 +357,11 @@ public sealed class AgentSession : IAgentSession
         }
 
         await _cts.CancelAsync();
+
+        if (!_completion.Task.IsCompleted)
+        {
+            Complete(_process.HasExited ? _process.ExitCode : -1, SessionState.Stopped);
+        }
     }
 
     public async Task KillAsync()
@@ -344,6 +374,11 @@ public sealed class AgentSession : IAgentSession
             await _completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
         }
         catch { }
+
+        if (!_completion.Task.IsCompleted)
+        {
+            Complete(_process.HasExited ? _process.ExitCode : -1, SessionState.Failed);
+        }
     }
 
     public Task RespondToPermissionAsync(string requestId, PermissionDecision decision, CancellationToken ct = default)
@@ -379,6 +414,8 @@ public sealed class AgentSession : IAgentSession
         {
             ProcessRunner.KillProcessTree(_process);
         }
+
+        CleanupTempFiles();
 
         _process.Dispose();
         _events.Dispose();

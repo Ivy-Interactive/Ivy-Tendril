@@ -32,7 +32,7 @@ public class EditSkillBladeView(
         return Layout.Vertical()
             | editName.ToTextInput("Skill name (e.g. code-review)...").WithField().Label("Name").Required()
             | editDescription.ToTextInput("Short description...").WithField().Label("Description")
-            | editInstructions.ToTextareaInput("Instructions / markdown rules...").Rows(5).WithField().Label("Inline Instructions")
+            | MarkdownFieldBuilders.BuildSkillInstructionsField(editInstructions)
             | editPath.ToTextInput("Path to skill folder/file (e.g. %TENDRIL_HOME%/Skills/my-skill)...").WithField().Label("File/Folder Path")
             | Layout.Horizontal()
                 | new Button("Cancel").Outline().OnClick(() => bladeContext.Pop(this))

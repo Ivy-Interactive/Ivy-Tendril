@@ -22,7 +22,7 @@ public readonly record struct QuestionBlockSource(int Index, int BodyStart, int 
 /// </summary>
 /// <param name="BlockIndex">0-based index of the <c>questions</c> fence holding it.</param>
 /// <param name="Id">The question's <c>id</c> — unique across the revision, and what
-/// <see cref="DraftMarkdown.ScrollTo" /> addresses.</param>
+/// <see cref="PlanMarkdown.ScrollTo" /> addresses.</param>
 /// <param name="Title">The question itself. Empty when the block omitted it.</param>
 /// <param name="Header">The optional short label shown as an eyebrow above the title.</param>
 /// <param name="HasAnswer">Whether the question carries an <c>answer</c>.</param>
@@ -39,7 +39,7 @@ public readonly record struct QuestionSummary(
     bool IsOptional);
 
 /// <summary>
-///     Merges a <see cref="QuestionAnswer" /> reported by <see cref="DraftMarkdown.OnAnswersChange" />
+///     Merges a <see cref="QuestionAnswer" /> reported by <see cref="PlanMarkdown.OnAnswersChange" />
 ///     back into the markdown it came from.
 ///     <para>
 ///         The widget never rewrites its own document: it reports what changed and the host decides
@@ -89,21 +89,7 @@ public static class QuestionAnswers
         {
             var body = Dedent(block.Body, block.Indent);
 
-            YamlMappingNode? root;
-            try
-            {
-                var stream = new YamlStream();
-                stream.Load(new StringReader(body));
-                root = stream.Documents.Count > 0 ? stream.Documents[0].RootNode as YamlMappingNode : null;
-            }
-            catch (YamlException)
-            {
-                continue;
-            }
-
-            if (root is null ||
-                !root.Children.TryGetValue(new YamlScalarNode(InfoWord), out var node) ||
-                node is not YamlSequenceNode questions)
+            if (QuestionNodes(body) is not { } questions)
                 continue;
 
             // Ids gate the whole block, exactly as the renderer's own reader does. A question with
@@ -113,7 +99,7 @@ public static class QuestionAnswers
             var seen = new HashSet<string>(StringComparer.Ordinal);
             var readable = new List<QuestionSummary>();
 
-            foreach (var child in questions.Children)
+            foreach (var child in questions)
             {
                 if (child is not YamlMappingNode entry)
                 {
@@ -210,25 +196,10 @@ public static class QuestionAnswers
     {
         edited = body;
 
-        YamlMappingNode? root;
-        try
-        {
-            var stream = new YamlStream();
-            stream.Load(new StringReader(body));
-            root = stream.Documents.Count > 0 ? stream.Documents[0].RootNode as YamlMappingNode : null;
-        }
-        catch (YamlException)
-        {
-            // A block the widget could not render either. Leave it alone and keep looking.
-            return false;
-        }
-
-        if (root is null ||
-            !root.Children.TryGetValue(new YamlScalarNode(InfoWord), out var node) ||
-            node is not YamlSequenceNode questions)
+        if (QuestionNodes(body) is not { } questions)
             return false;
 
-        foreach (var child in questions.Children)
+        foreach (var child in questions)
         {
             if (child is not YamlMappingNode entry || !HasId(entry, answer.QuestionId))
                 continue;
@@ -241,6 +212,55 @@ public static class QuestionAnswers
 
         return false;
     }
+
+    /// <summary>
+    ///     The question nodes of one block body, in document order, or null when the body is not a
+    ///     questions block this reader can address — the pre-schema plain-text form, or YAML that
+    ///     does not parse at all.
+    ///     <para>
+    ///         Three shapes say the same thing, and agents write all three: the canonical
+    ///         <c>questions:</c> mapping, the list written bare without that wrapper, and a single
+    ///         question written without either. The C# <c>QuestionBlockParser</c> and the frontend's
+    ///         <c>questionsSchema.ts</c> accept exactly these three, and must keep agreeing: a shape
+    ///         one of them reads and another does not is a picker whose answer goes nowhere.
+    ///     </para>
+    ///     <para>
+    ///         A bare sequence is only a question list when every item looks like a question, which is
+    ///         what keeps a legacy bullet list of prose out.
+    ///     </para>
+    /// </summary>
+    private static List<YamlNode>? QuestionNodes(string body)
+    {
+        YamlNode? root;
+        try
+        {
+            var stream = new YamlStream();
+            stream.Load(new StringReader(body));
+            root = stream.Documents.Count > 0 ? stream.Documents[0].RootNode : null;
+        }
+        catch (YamlException)
+        {
+            // A block the widget could not render either. Leave it alone and keep looking.
+            return null;
+        }
+
+        return root switch
+        {
+            YamlMappingNode mapping when mapping.Children.TryGetValue(new YamlScalarNode(InfoWord), out var node) =>
+                node is YamlSequenceNode questions ? [.. questions.Children] : null,
+            YamlSequenceNode sequence when sequence.Children.Count > 0 && sequence.Children.All(LooksLikeQuestion) =>
+                [.. sequence.Children],
+            YamlMappingNode single when LooksLikeQuestion(single) => [single],
+            _ => null
+        };
+    }
+
+    /// <summary>
+    ///     A mapping that carries an <c>id</c> — the one field a question cannot do without, since an
+    ///     answer travels as an id and a value and nothing else.
+    /// </summary>
+    private static bool LooksLikeQuestion(YamlNode node) =>
+        node is YamlMappingNode mapping && mapping.Children.ContainsKey(new YamlScalarNode("id"));
 
     private static bool HasId(YamlMappingNode entry, string questionId) =>
         Value(entry, "id") is { } id && string.Equals(id, questionId, StringComparison.Ordinal);

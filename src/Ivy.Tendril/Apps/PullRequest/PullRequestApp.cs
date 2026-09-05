@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Apps.PullRequest;
 
-[App(title: "Pull Requests", icon: Icons.GitPullRequest, group: ["Apps"], order: Constants.PullRequests)]
+[App(title: "Pull Requests", icon: Icons.GitPullRequest, group: ["Apps"], order: Constants.PullRequests, isVisible: false)]
 public class PullRequestApp : ViewBase
 {
     public override object Build()

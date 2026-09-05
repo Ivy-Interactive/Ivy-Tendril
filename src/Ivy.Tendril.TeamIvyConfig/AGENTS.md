@@ -233,15 +233,16 @@ Read/write top-level settings in `config.yaml`. Valid keys: `codingAgent`, `jobT
 
 ## Creating Plans Interactively
 
-When the user asks you to create a plan:
+When the user asks you to create a plan in an interactive session (or after discussing a task with you):
 
-1. **Do the work the description implies, first.** If the description asks you to *suggest*, *research*, *investigate*, *compare*, or *decide* something, actually do that work before creating the plan. Explore the project's repos, read the relevant code, and produce concrete, specific proposals. For example, "Suggest a few dev tools we can add" means you go look at the project and come back with named tools and why — it does **not** mean creating a plan titled "Suggest dev tools to add".
+1. **Do the work the description implies, first.** If the description asks you to *suggest*, *research*, *investigate*, *compare*, or *decide* something, actually do that work before creating the plan. Explore the project's repos, read the relevant code, and produce concrete, specific proposals. For example, "Suggest a few dev tools we can add" means you go look at the project and come back with named tools and why: it does not mean creating a plan titled "Suggest dev tools to add".
 2. **Confirm scope when it's open-ended.** Briefly share what you found and what you propose, so the user can steer before you commit it to a plan.
-3. **Create the plan by starting a CreatePlan job** — do **not** run `tendril plan create` / `write-revision` yourself. Once the scope is concrete, start the job:
+3. **Pass full context from the chat session.** When launching the `CreatePlan` job, include all key insights and details discovered during the conversation in the `--description` argument (problem root cause, specific files and functions identified, proposed solution steps, architectural choices, and test requirements). Do not just pass the user's initial vague prompt. The `CreatePlan` promptware uses this description to author the plan and any downstream GitHub issues.
+4. **Create the plan by starting a CreatePlan job**: do not run `tendril plan create` / `write-revision` yourself. Once the scope is concrete, start the job:
    ```bash
-   tendril job start CreatePlan --description="<concrete, refined description>" --project="<project>"
+   tendril job start CreatePlan --description="<concrete, refined description with findings and solution approach>" --project="<project>"
    ```
-   The CreatePlan promptware then researches, detects duplicates, and writes the full plan. Pass the specific description you developed (the concrete tools/steps you proposed), **not** the user's original vague request. Add `--priority <n>` or `--force` if appropriate. Report the job back to the user.
+   The CreatePlan promptware then researches, detects duplicates, and writes the full plan. Add `--priority <n>` or `--force` if appropriate. Report the job back to the user.
 
 ## Important Notes
 

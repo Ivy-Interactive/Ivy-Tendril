@@ -16,6 +16,10 @@ public class ModelCatalogSorterTests
             new() { Id = "claude-opus-5", DisplayName = "Claude Opus 5", Provider = "anthropic" },
             new() { Id = "claude-haiku-4-5", DisplayName = "Claude Haiku 4.5", Provider = "anthropic" },
             new() { Id = "claude-opus-4-8", DisplayName = "Claude Opus 4.8", Provider = "anthropic" },
+            new() { Id = "claude-fable-5", DisplayName = "Claude Fable 5", Provider = "anthropic" },
+            new() { Id = "claude-opus-5-1", DisplayName = "Claude Opus 5.1", Provider = "anthropic" },
+            new() { Id = "claude-sonnet-5-1", DisplayName = "Claude Sonnet 5.1", Provider = "anthropic" },
+            new() { Id = "claude-haiku-5-1", DisplayName = "Claude Haiku 5.1", Provider = "anthropic" },
             new() { Id = "claude-sonnet-4-6", DisplayName = "Claude Sonnet 4.6", Provider = "anthropic" },
             new() { Id = "claude-3.7-sonnet", DisplayName = "Claude Sonnet 3.7", Provider = "anthropic" },
             new() { Id = "claude-3-haiku", DisplayName = "Claude Haiku 3", Provider = "anthropic" },
@@ -25,15 +29,49 @@ public class ModelCatalogSorterTests
 
         var expectedIds = new[]
         {
+            "claude-fable-5",
+            "claude-opus-5-1",
             "claude-opus-5",
             "claude-opus-4-8",
             "claude-opus-4-5",
+            "claude-sonnet-5-1",
             "claude-sonnet-5",
             "claude-sonnet-4-6",
             "claude-3.7-sonnet",
             "claude-3-5-sonnet",
+            "claude-haiku-5-1",
             "claude-haiku-4-5",
             "claude-3-haiku",
+        };
+
+        Assert.Equal(expectedIds, sorted.Select(m => m.Id).ToArray());
+    }
+
+    [Fact]
+    public void Sort_ClaudeFableAnd51Models_SortsCorrectly()
+    {
+        var models = new List<ModelInfo>
+        {
+            new() { Id = "claude-5.1", DisplayName = "Claude 5.1", Provider = "anthropic" },
+            new() { Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5", Provider = "anthropic" },
+            new() { Id = "claude-fable-5", DisplayName = "Claude Fable 5", Provider = "anthropic" },
+            new() { Id = "claude-opus-5", DisplayName = "Claude Opus 5", Provider = "anthropic" },
+            new() { Id = "claude-opus-5-1", DisplayName = "Claude Opus 5.1", Provider = "anthropic" },
+            new() { Id = "claude-sonnet-5-1", DisplayName = "Claude Sonnet 5.1", Provider = "anthropic" },
+            new() { Id = "claude-haiku-5-1", DisplayName = "Claude Haiku 5.1", Provider = "anthropic" },
+        };
+
+        var sorted = ModelCatalogSorter.Sort(models);
+
+        var expectedIds = new[]
+        {
+            "claude-fable-5",
+            "claude-opus-5-1",
+            "claude-opus-5",
+            "claude-sonnet-5-1",
+            "claude-sonnet-5",
+            "claude-haiku-5-1",
+            "claude-5.1",
         };
 
         Assert.Equal(expectedIds, sorted.Select(m => m.Id).ToArray());
@@ -79,7 +117,6 @@ public class ModelCatalogSorterTests
         var models = new List<ModelInfo>
         {
             new() { Id = "gemini-2.0-flash", DisplayName = "Gemini 2.0 Flash", Provider = "google" },
-            new() { Id = "gemini-3.5-flash", DisplayName = "Gemini 3.5 Flash", Provider = "google" },
             new() { Id = "gemini-3.7-flash", DisplayName = "Gemini 3.7 Flash", Provider = "google" },
             new() { Id = "gemini-2.5-flash", DisplayName = "Gemini 2.5 Flash", Provider = "google" },
             new() { Id = "gemini-3.1-pro", DisplayName = "Gemini 3.1 Pro", Provider = "google" },
@@ -90,7 +127,6 @@ public class ModelCatalogSorterTests
         var expectedIds = new[]
         {
             "gemini-3.7-flash",
-            "gemini-3.5-flash",
             "gemini-3.1-pro",
             "gemini-2.5-flash",
             "gemini-2.0-flash",
@@ -133,14 +169,12 @@ public class ModelCatalogSorterTests
             new() { Id = "gemini-2.5-flash", DisplayName = "Gemini 2.5 Flash", Provider = "google" },
             new() { Id = "gemini-3.6-flash", DisplayName = "Gemini 3.6 Flash", Provider = "google", IsDefault = true },
             new() { Id = "gemini-3.7-flash", DisplayName = "Gemini 3.7 Flash", Provider = "google" },
-            new() { Id = "gemini-3.5-flash", DisplayName = "Gemini 3.5 Flash", Provider = "google" },
         };
 
         var sorted = ModelCatalogSorter.Sort(models, preserveDefault: true);
 
         Assert.Equal("gemini-3.6-flash", sorted[0].Id);
         Assert.Equal("gemini-3.7-flash", sorted[1].Id);
-        Assert.Equal("gemini-3.5-flash", sorted[2].Id);
-        Assert.Equal("gemini-2.5-flash", sorted[3].Id);
+        Assert.Equal("gemini-2.5-flash", sorted[2].Id);
     }
 }

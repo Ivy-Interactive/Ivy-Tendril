@@ -19,7 +19,7 @@ public class PlanSheet(
         object sheetContent = string.IsNullOrEmpty(content)
             ? Text.P("Plan not found or empty.")
             // Read-only: `questions` blocks present their answers rather than raw YAML.
-            : new DraftMarkdown(MarkdownHelper.PrepareForDisplay(content, config))
+            : new PlanMarkdown(MarkdownHelper.PrepareForDisplay(content, config))
                 .Article()
                 .DangerouslyAllowLocalFiles()
                 .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile));

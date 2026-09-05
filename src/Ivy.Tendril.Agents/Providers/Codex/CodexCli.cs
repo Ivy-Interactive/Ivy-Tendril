@@ -64,14 +64,44 @@ public sealed class CodexCli : IAgentCli
 
     public AgentProcessSpec BuildProcessSpec(AgentLaunchConfig config)
     {
-        var args = new List<string>
+        var args = new List<string> { "exec" };
+
+        switch (config.PermissionMode)
         {
-            "exec",
-            "--sandbox", "workspace-write",
-            "-c", "sandbox_workspace_write.network_access=true",
-            "--json",
-            "--skip-git-repo-check",
-        };
+            case PermissionMode.FullAuto:
+                args.Add("--sandbox");
+                args.Add("danger-full-access");
+                args.Add("-c");
+                args.Add("approval_policy=\"never\"");
+                break;
+
+            case PermissionMode.AcceptEdits:
+                args.Add("--sandbox");
+                args.Add("workspace-write");
+                args.Add("-c");
+                args.Add("sandbox_workspace_write.network_access=true");
+                args.Add("-c");
+                args.Add("sandbox_permissions=[\"disk-full-read-access\"]");
+                args.Add("-c");
+                args.Add("approval_policy=\"never\"");
+                break;
+
+            case PermissionMode.Plan:
+                args.Add("--sandbox");
+                args.Add("read-only");
+                break;
+
+            case PermissionMode.Default:
+            default:
+                args.Add("--sandbox");
+                args.Add("workspace-write");
+                args.Add("-c");
+                args.Add("sandbox_workspace_write.network_access=true");
+                break;
+        }
+
+        args.Add("--json");
+        args.Add("--skip-git-repo-check");
 
         if (!string.IsNullOrEmpty(config.Model))
         {
@@ -105,9 +135,12 @@ public sealed class CodexCli : IAgentCli
             args.Add(dir);
         }
 
+        var tempFiles = new List<string>();
+
         var mcpConfigFile = global::Ivy.Tendril.Agents.Helpers.McpConfigWriter.WriteConfigFile(config.McpServers);
         if (!string.IsNullOrEmpty(mcpConfigFile))
         {
+            tempFiles.Add(mcpConfigFile);
             args.Add("--mcp-config");
             args.Add(mcpConfigFile);
         }
@@ -132,6 +165,7 @@ public sealed class CodexCli : IAgentCli
             Environment = env,
             StdinContent = config.Prompt,
             RedirectStdin = true,
+            TempFiles = tempFiles,
         };
     }
 

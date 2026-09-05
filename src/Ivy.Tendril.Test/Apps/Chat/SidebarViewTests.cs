@@ -41,9 +41,16 @@ public class SidebarViewTests
             if (isGenerating) GeneratingSessions.Add(sessionId);
             else { GeneratingSessions.Remove(sessionId); CompletedSessions.Add(sessionId); }
         }
+        public void ClearAllGeneratingSessions() => GeneratingSessions.Clear();
         public IReadOnlySet<string> GetGeneratingSessionIds() => GeneratingSessions;
         public IReadOnlySet<string> GetCompletedSessionIds() => CompletedSessions;
         public void ClearSessionCompleted(string sessionId) => CompletedSessions.Remove(sessionId);
+        public IReadOnlyList<ChatQueuedItem> GetQueuedMessages(string sessionId) => [];
+        public ChatQueuedItem EnqueueMessage(string sessionId, Ivy.Tendril.Widgets.ChatSendMessageDto dto) => new(Guid.NewGuid().ToString(), dto.Prompt, dto.Attachments, DateTimeOffset.UtcNow);
+        public bool TryDequeueMessage(string sessionId, out ChatQueuedItem? item) { item = null; return false; }
+        public bool RemoveQueuedMessage(string sessionId, string queueId) => false;
+        public bool UpdateQueuedMessage(string sessionId, string queueId, string prompt) => false;
+        public void ClearQueuedMessages(string sessionId) { }
     }
 
     private class TestState<T> : IState<T>
@@ -88,9 +95,10 @@ public class SidebarViewTests
         var sessionVersion = new TestState<int>(1);
         var selectedAgent = new TestState<string>("claude");
         var selectedModel = new TestState<string>("opus");
+        var selectedEffort = new TestState<string>("default");
         var searchState = new TestState<string>("");
 
-        var view = new SidebarView(sessions, activeSessionId, sessionVersion, selectedAgent, selectedModel, searchState, service);
+        var view = new SidebarView(sessions, activeSessionId, sessionVersion, selectedAgent, selectedModel, selectedEffort, searchState, service, _ => { });
         var result = view.Build();
 
         Assert.NotNull(result);
@@ -110,12 +118,48 @@ public class SidebarViewTests
         var sessionVersion = new TestState<int>(1);
         var selectedAgent = new TestState<string>("claude");
         var selectedModel = new TestState<string>("opus");
+        var selectedEffort = new TestState<string>("default");
         var searchState = new TestState<string>("xyz non existent");
 
-        var view = new SidebarView(sessions, activeSessionId, sessionVersion, selectedAgent, selectedModel, searchState, service);
+        var view = new SidebarView(sessions, activeSessionId, sessionVersion, selectedAgent, selectedModel, selectedEffort, searchState, service, _ => { });
         var result = view.Build();
 
         Assert.NotNull(result);
         var headerLayout = Assert.IsType<HeaderLayout>(result);
     }
+
+    [Fact]
+    public void Build_RendersSelectedAndUnselectedSessionButtons_WithCorrectVariants()
+    {
+        var service = new FakeChatHistoryService();
+        var sessions = new List<ChatSessionModel>
+        {
+            new("sess-1", "Selected session", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "claude", "opus", []),
+            new("sess-2", "Unselected session", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "claude", "sonnet", [])
+        };
+
+        var activeSessionId = new TestState<string?>("sess-1");
+        var sessionVersion = new TestState<int>(1);
+        var selectedAgent = new TestState<string>("claude");
+        var selectedModel = new TestState<string>("opus");
+        var selectedEffort = new TestState<string>("default");
+        var searchState = new TestState<string>("");
+
+        var view = new SidebarView(sessions, activeSessionId, sessionVersion, selectedAgent, selectedModel, selectedEffort, searchState, service, _ => { });
+        var result = view.Build();
+
+        Assert.NotNull(result);
+        var headerLayout = Assert.IsType<HeaderLayout>(result);
+        var contentSlot = Assert.IsType<Slot>(headerLayout.Children[1]);
+        var list = Assert.IsType<List>(contentSlot.Children[0]);
+        Assert.NotNull(list.Children);
+        Assert.Equal(2, list.Children.Length);
+
+        var selectedBtn = Assert.IsType<Button>(list.Children[0]);
+        Assert.Equal(ButtonVariant.Secondary, selectedBtn.Variant);
+
+        var unselectedBtn = Assert.IsType<Button>(list.Children[1]);
+        Assert.Equal(ButtonVariant.Ghost, unselectedBtn.Variant);
+    }
 }
+

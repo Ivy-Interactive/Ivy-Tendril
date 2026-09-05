@@ -139,6 +139,18 @@ public static class AgentLaunchHelper
         var resolvedEffort = effortOverride ?? ResolveEffort(config, runner, agentId);
         var env = GetEnvironment(config, agentId);
 
+        var jobTimeoutMinutes = config.Settings.JobTimeout;
+        var totalTimeout = jobTimeoutMinutes > 0
+            ? TimeSpan.FromMinutes(jobTimeoutMinutes)
+            : TimeSpan.FromMinutes(30);
+
+        var timeoutPolicy = new TimeoutPolicy
+        {
+            TotalTimeout = totalTimeout,
+            IdleTimeout = TimeoutPolicy.Default.IdleTimeout,
+            StartupTimeout = TimeoutPolicy.Default.StartupTimeout,
+        };
+
         return new AgentResolutionContext
         {
             AgentId = agentId,
@@ -149,6 +161,7 @@ public static class AgentLaunchHelper
             WorkingDirectory = workDir,
             PermissionMode = permissionMode,
             ExtraEnvironment = env,
+            TimeoutPolicy = timeoutPolicy,
         };
     }
 

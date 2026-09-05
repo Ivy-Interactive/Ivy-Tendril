@@ -472,6 +472,87 @@ public class QuestionValidationServiceTests
         Assert.Equal(QuestionIssueSeverity.Warning, issue.Severity);
     }
 
+    // ---------------------------------------------------------------- wrapper-less shapes
+    //
+    // These used to be read as legacy prose, which meant the lint rules never ran on them: a block
+    // with colliding ids or a bad option value warned once and shipped.
+
+    [Fact]
+    public void Validate_AcceptsABareSequenceWrittenWithoutTheQuestionsKey()
+    {
+        Assert.Empty(Validate("""
+            - id: caching-strategy
+              title: Which caching strategy should we use?
+              options:
+                - title: In-Memory
+                  value: in-memory
+                - title: Distributed Redis
+                  value: redis
+            """));
+    }
+
+    [Fact]
+    public void Validate_AcceptsASingleQuestionWrittenWithoutAnyWrapper()
+    {
+        Assert.Empty(Validate("""
+            id: confirmation-prompt
+            title: Should we prompt before deleting?
+            """));
+    }
+
+    [Fact]
+    public void Validate_LintsABareSequenceLikeAnyOtherBlock()
+    {
+        Assert.Contains("duplicate option value 'redis'", SingleError("""
+            - id: caching-strategy
+              title: Which caching strategy should we use?
+              options:
+                - title: Redis
+                  value: redis
+                - title: Redis again
+                  value: redis
+            """));
+    }
+
+    [Fact]
+    public void Validate_LintsASingleQuestionWrittenWithoutAnyWrapper()
+    {
+        Assert.Contains("title is required", SingleError("""
+            id: confirmation-prompt
+            other: true
+            """));
+    }
+
+    [Fact]
+    public void Validate_CatchesIdsCollidingAcrossShapes()
+    {
+        // Ids are addressed document-wide, so the shape a block was written in changes nothing.
+        var issues = QuestionValidationService.Validate("""
+            ```questions
+            questions:
+              - id: same
+                title: First?
+            ```
+
+            ```questions
+            - id: same
+              title: Second?
+            ```
+            """);
+
+        var issue = Assert.Single(issues);
+        Assert.Equal(QuestionIssueSeverity.Error, issue.Severity);
+        Assert.Contains("duplicate question id 'same'", issue.Message);
+    }
+
+    [Fact]
+    public void Validate_ReportsAnEmptyQuestionsKeyRatherThanThrowing()
+    {
+        // `questions:` with nothing under it deserializes the list to null. It reaches the validator
+        // as an empty block, which is a thing the agent can be told to fix.
+        Assert.Contains("at least one question is required", SingleError("questions:"));
+    }
+
     // ---------------------------------------------------------------- multiple blocks
 
     [Fact]

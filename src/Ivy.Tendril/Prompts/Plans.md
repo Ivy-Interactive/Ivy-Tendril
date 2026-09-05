@@ -307,6 +307,39 @@ questions:                    # 1-4 items
 ```
 ````
 
+The `questions:` wrapper above is the canonical shape and the one to write. Two shorthands are read
+as well, because a fence that already says `questions` makes the word inside look redundant: a bare
+sequence of questions with no wrapper, and — for a block asking exactly one thing — a lone question
+mapping with no wrapper and no dash. All three parse, validate and answer identically.
+
+````
+```questions
+- id: caching-strategy       # a bare sequence: the list without its `questions:` key
+  title: Which caching strategy?
+  options:
+    - title: In-memory
+      value: in-memory
+    - title: Redis
+      value: redis
+```
+````
+
+````
+```questions
+id: confirm-delete           # one question, no wrapper and no dash
+title: Should we prompt before deleting?
+options:
+  - title: Yes
+    value: yes-prompt
+  - title: No
+    value: no-prompt
+```
+````
+
+An `id` is what separates either shorthand from the pre-schema plain-text form, so a question written
+this way must carry one. A block with neither the wrapper nor an `id` is read as legacy free text: it
+warns rather than failing the write, and renders as a static callout the user cannot answer.
+
 Every question carries an `id` — a short, stable handle such as `retry-scope`. It is how an answer is
 addressed: the UI reports an answer as that id and a value, with no block or position alongside it.
 So an `id` must be unique across the **whole revision**, not merely within its own block, and must

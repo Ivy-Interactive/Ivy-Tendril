@@ -36,7 +36,7 @@ public class ChangesTabView(
         var config = UseService<IConfigService>();
         var agentRunner = UseService<IAgentRunner>();
         var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
-        var draftDiffCommentService = UseService<Ivy.Tendril.Services.Plans.IDraftDiffCommentService>();
+        var draftDiffCommentService = UseService<Ivy.Tendril.Services.Plans.IPlanDiffCommentService>();
         var hideFormatting = UseState(true);
 
         var (suggestChangesDialog, showSuggestChangesDialog) = UseTrigger((isOpen) =>

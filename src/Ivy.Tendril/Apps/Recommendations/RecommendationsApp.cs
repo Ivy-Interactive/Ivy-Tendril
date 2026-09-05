@@ -1,21 +1,49 @@
+using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
+using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Recommendations;
 
 [App(title: "Recommendations", icon: Icons.Lightbulb, group: ["Apps"], order: Constants.Recommendations)]
 public class RecommendationsApp : ViewBase
 {
+    internal static string RecommendationId(Recommendation rec) => $"{rec.PlanId}::{rec.Title}";
+
+    internal static List<ShellBadgeDto> BuildRowBadges(Recommendation rec)
+    {
+        // Mirror the detail header's badge row (Project + Impact) so each row is self-describing.
+        var badges = new List<ShellBadgeDto> { ShellBadgeDto.Project(rec.Project) };
+        if (rec.Impact is { } impact)
+            badges.Add(impact switch
+            {
+                "High" => ShellBadgeDto.Success(impact),
+                "Medium" => ShellBadgeDto.Warning(impact),
+                _ => new ShellBadgeDto(impact)
+            });
+        return badges;
+    }
+
+    internal static ShellSidebarListState BuildSidebarList(List<Recommendation> recommendations, Recommendation? selected)
+    {
+        var items = recommendations
+            .Select(r => new ShellSectionItemDto(RecommendationId(r), r.Title, $"#{r.ShortPlanId}", BuildRowBadges(r)))
+            .ToList();
+        return new ShellSidebarListState(
+            "recommendations", "Recommendations", items,
+            selected != null ? RecommendationId(selected) : null,
+            id => new RecommendationsAppArgs(id));
+    }
+
     public override object Build()
     {
         var planService = UseService<IPlanReaderService>();
         var jobService = UseService<IJobService>();
         var refreshToken = UseRefreshToken();
+        var args = UseArgs<RecommendationsAppArgs>();
         var selectedState = UseState<Recommendation?>(null);
-        var projectFilter = UseState<string?>(null);
-        var impactFilter = UseState<string?>(null);
-        var textFilter = UseState<string?>("");
-        var filtersOpen = UseState(false);
+        var sidebarListSignal = Context.UseSignal<ShellSidebarListSignal, ShellSidebarListState, Unit>();
 
         Context.UseInboxAutoRefresh(refreshToken);
 
@@ -25,55 +53,26 @@ public class RecommendationsApp : ViewBase
             .Where(r => r.State == RecommendationStatus.Pending && r.SourcePlanStatus == PlanStatus.Completed)
             .ToList();
 
-        var filtered = allPending
-            .Where(r => projectFilter.Value == null || r.Project == projectFilter.Value)
-            .Where(r => impactFilter.Value == null || r.Impact == impactFilter.Value)
-            .Where(r =>
-            {
-                if (string.IsNullOrWhiteSpace(textFilter.Value)) return true;
-                var search = textFilter.Value.ToLowerInvariant();
-                return r.Title.ToLowerInvariant().Contains(search) ||
-                       r.Description.ToLowerInvariant().Contains(search) ||
-                       r.PlanId.Contains(search) ||
-                       r.PlanTitle.ToLowerInvariant().Contains(search);
-            })
-            .ToList();
+        if (selectedState.Value == null && !string.IsNullOrEmpty(args?.RecommendationId))
+        {
+            var fromArgs = allPending.FirstOrDefault(r => RecommendationId(r) == args.RecommendationId);
+            if (fromArgs != null) selectedState.Set(fromArgs);
+        }
 
-        if (selectedState.Value == null && filtered.Count > 0) selectedState.Set(filtered[0]);
+        if (selectedState.Value == null && allPending.Count > 0) selectedState.Set(allPending[0]);
 
-        // If selected recommendation is no longer in filtered list, adjust selection
+        // If selected recommendation is no longer in the list, adjust selection
         if (selectedState.Value is { } selected &&
-            !filtered.Any(r => r.PlanId == selected.PlanId && r.Title == selected.Title))
-            selectedState.Set(filtered.Count > 0 ? filtered[0] : null);
+            !allPending.Any(r => r.PlanId == selected.PlanId && r.Title == selected.Title))
+            selectedState.Set(allPending.Count > 0 ? allPending[0] : null);
 
         void Refresh()
         {
             refreshToken.Refresh();
         }
 
-        var totalPendingCount = allPending.Count;
-        var hasActiveFilters = projectFilter.Value != null ||
-                               impactFilter.Value != null ||
-                               !string.IsNullOrWhiteSpace(textFilter.Value);
+        _ = sidebarListSignal.Send(BuildSidebarList(allPending, selectedState.Value));
 
-        var sidebar = new SidebarView(
-            allPending,
-            selectedState,
-            projectFilter,
-            impactFilter,
-            totalPendingCount,
-            hasActiveFilters,
-            textFilter,
-            filtersOpen
-        );
-
-        var content = new ContentView(selectedState.Value, filtered, selectedState, planService, jobService, Refresh);
-        if (allPending.Count == 0)
-            return content;
-
-        return new SidebarLayout(
-            content,
-            sidebar
-        ).SidebarContentScroll(Scroll.None);
+        return new ContentView(selectedState.Value, allPending, selectedState, planService, jobService, Refresh);
     }
 }

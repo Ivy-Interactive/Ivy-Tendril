@@ -47,7 +47,8 @@ public sealed class AntigravityCli : IAgentCli
             "--output-format", "stream-json",
         };
 
-        if (config.Timeout is { } timeout && timeout > TimeSpan.Zero)
+        var effectiveTimeout = config.Timeout ?? TimeoutPolicy.Default.TotalTimeout;
+        if (effectiveTimeout is { } timeout && timeout > TimeSpan.Zero)
         {
             args.Add("--print-timeout");
             args.Add($"{(int)timeout.TotalSeconds}s");
@@ -80,9 +81,12 @@ public sealed class AntigravityCli : IAgentCli
             args.Add(dir);
         }
 
+        var tempFiles = new List<string>();
+
         var mcpConfigFile = global::Ivy.Tendril.Agents.Helpers.McpConfigWriter.WriteConfigFile(config.McpServers);
         if (!string.IsNullOrEmpty(mcpConfigFile))
         {
+            tempFiles.Add(mcpConfigFile);
             args.Add("--mcp-config");
             args.Add(mcpConfigFile);
         }
@@ -104,6 +108,7 @@ public sealed class AntigravityCli : IAgentCli
         {
             var tempFile = Path.Combine(Path.GetTempPath(), $"tendril-agy-prompt-{Guid.NewGuid():N}.md");
             File.WriteAllText(tempFile, finalPrompt);
+            tempFiles.Add(tempFile);
             var normalizedTemp = tempFile.Replace('\\', '/');
             args.Add($"@{normalizedTemp}");
         }
@@ -123,6 +128,7 @@ public sealed class AntigravityCli : IAgentCli
             Environment = env,
             StdinContent = null,
             RedirectStdin = false,
+            TempFiles = tempFiles,
         };
     }
 

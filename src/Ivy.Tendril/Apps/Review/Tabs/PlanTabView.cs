@@ -29,7 +29,7 @@ public class PlanTabView(
         // Returned bare, exactly as SummaryTabView does. The widget owns its own scroll, left inset
         // and max-width, so any wrapper here would inset it a second time and start this tab's text
         // somewhere the Summary tab's does not.
-        return new DraftMarkdown(annotated)
+        return new PlanMarkdown(annotated)
             .DangerouslyAllowLocalFiles()
             .Article()
             .Height(Size.Full())

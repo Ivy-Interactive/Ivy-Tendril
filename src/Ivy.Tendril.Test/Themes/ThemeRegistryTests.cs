@@ -25,6 +25,8 @@ public class ThemeRegistryTests
     [InlineData("coffee")]
     [InlineData("dim")]
     [InlineData("luxury")]
+    [InlineData("lovably")]
+    [InlineData("hellokitty")]
     public void CoreThemes_AreRegistered(string themeId)
     {
         var theme = TendrilThemes.GetTheme(themeId);
@@ -73,4 +75,107 @@ public class ThemeRegistryTests
         Assert.NotNull(theme);
         Assert.Equal(TendrilThemes.Default.Id, theme.Id);
     }
+
+    [Fact]
+    public void DraculaDark_AccentForeground_IsReadableAndDistinctFromBackground()
+    {
+        var dracula = TendrilThemes.GetTheme("dracula");
+        Assert.NotNull(dracula);
+
+        var darkColors = dracula.IvyTheme.Colors.Dark;
+        Assert.NotNull(darkColors);
+
+        Assert.Equal("#44475a", darkColors.Accent);
+        Assert.Equal("#f8f8f2", darkColors.AccentForeground);
+        Assert.NotEqual(darkColors.Background, darkColors.AccentForeground);
+        Assert.Equal("#282a36", darkColors.Background);
+    }
+
+    [Fact]
+    public void DraculaTheme_DarkColors_HaveProperAccentContrast()
+    {
+        var dracula = TendrilThemes.GetTheme("dracula");
+        Assert.NotNull(dracula);
+        Assert.NotNull(dracula.IvyTheme?.Colors?.Dark);
+        var dark = dracula.IvyTheme.Colors.Dark;
+        Assert.Equal("#44475a", dark.Accent, ignoreCase: true);
+        Assert.Equal("#f8f8f2", dark.AccentForeground, ignoreCase: true);
+        Assert.NotEqual(dark.Background, dark.AccentForeground, StringComparer.OrdinalIgnoreCase);
+        Assert.NotEqual(dark.Accent, dark.AccentForeground, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ForestTheme_DarkColors_HaveProperAccentContrast()
+    {
+        var forest = TendrilThemes.GetTheme("forest");
+        Assert.NotNull(forest);
+        Assert.NotNull(forest.IvyTheme?.Colors?.Dark);
+        var dark = forest.IvyTheme.Colors.Dark;
+        Assert.Equal("#243328", dark.Accent, ignoreCase: true);
+        Assert.Equal("#ebfaef", dark.AccentForeground, ignoreCase: true);
+        Assert.NotEqual(dark.Background, dark.AccentForeground, StringComparer.OrdinalIgnoreCase);
+        Assert.NotEqual(dark.Accent, dark.AccentForeground, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void LovablyTheme_HasValidContrastAndTokens()
+    {
+        var lovably = TendrilThemes.GetTheme("lovably");
+        Assert.NotNull(lovably);
+        Assert.Equal("Lovably", lovably.Name);
+        Assert.True(lovably.IsDark);
+        Assert.Equal(["#ff2e7e", "#8b5cf6", "#ff7a45", "#09090b"], lovably.PreviewColors);
+
+        var light = lovably.IvyTheme?.Colors?.Light;
+        Assert.NotNull(light);
+        Assert.Equal("#ff2e7e", light.Primary, ignoreCase: true);
+        Assert.Equal("#ffffff", light.PrimaryForeground, ignoreCase: true);
+        Assert.Equal("#7c3aed", light.Secondary, ignoreCase: true);
+        Assert.Equal("#ff7a45", light.Accent, ignoreCase: true);
+        Assert.Equal("#faf8f5", light.Background, ignoreCase: true);
+        Assert.Equal("#18181b", light.Foreground, ignoreCase: true);
+        Assert.NotEqual(light.Background, light.Foreground, StringComparer.OrdinalIgnoreCase);
+
+        var dark = lovably.IvyTheme?.Colors?.Dark;
+        Assert.NotNull(dark);
+        Assert.Equal("#ff2e7e", dark.Primary, ignoreCase: true);
+        Assert.Equal("#ffffff", dark.PrimaryForeground, ignoreCase: true);
+        Assert.Equal("#8b5cf6", dark.Secondary, ignoreCase: true);
+        Assert.Equal("#ff7a45", dark.Accent, ignoreCase: true);
+        Assert.Equal("#09090b", dark.Background, ignoreCase: true);
+        Assert.Equal("#f4f4f5", dark.Foreground, ignoreCase: true);
+        Assert.NotEqual(dark.Background, dark.Foreground, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void HelloKittyTheme_HasValidContrastAndTokens()
+    {
+        var helloKitty = TendrilThemes.GetTheme("hellokitty");
+        Assert.NotNull(helloKitty);
+        Assert.Equal("Hello Kitty", helloKitty.Name);
+        Assert.False(helloKitty.IsDark);
+        Assert.Equal(["#ff7da7", "#ff3366", "#ffd166", "#fff5f8"], helloKitty.PreviewColors);
+
+        var light = helloKitty.IvyTheme?.Colors?.Light;
+        Assert.NotNull(light);
+        Assert.Equal("#ff7da7", light.Primary, ignoreCase: true);
+        Assert.Equal("#ffffff", light.PrimaryForeground, ignoreCase: true);
+        Assert.Equal("#ffb3c6", light.Secondary, ignoreCase: true);
+        Assert.Equal("#ff3366", light.Accent, ignoreCase: true);
+        Assert.Equal("#fff5f8", light.Background, ignoreCase: true);
+        Assert.Equal("#2d1520", light.Foreground, ignoreCase: true);
+        Assert.NotEqual(light.Background, light.Foreground, StringComparer.OrdinalIgnoreCase);
+
+        var dark = helloKitty.IvyTheme?.Colors?.Dark;
+        Assert.NotNull(dark);
+        Assert.Equal("#ff6599", dark.Primary, ignoreCase: true);
+        Assert.Equal("#1f0e16", dark.PrimaryForeground, ignoreCase: true);
+        Assert.Equal("#ff9ebb", dark.Secondary, ignoreCase: true);
+        Assert.Equal("#ff3366", dark.Accent, ignoreCase: true);
+        Assert.Equal("#1f141a", dark.Background, ignoreCase: true);
+        Assert.Equal("#fff0f5", dark.Foreground, ignoreCase: true);
+        Assert.NotEqual(dark.Background, dark.Foreground, StringComparer.OrdinalIgnoreCase);
+    }
 }
+
+
