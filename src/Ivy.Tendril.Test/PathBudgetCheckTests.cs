@@ -46,7 +46,7 @@ public class PathBudgetCheckTests
         var legacyFolderName = "00001-" + new string('A', 60);
         Directory.CreateDirectory(Path.Combine(plansRoot, legacyFolderName));
 
-        var mockConfigService = new MockConfigService { PlansFolder = plansRoot };
+        var mockConfigService = new MockConfigService { PlanFolder = plansRoot };
         var check = new PathBudgetCheck(mockConfigService);
 
         var result = await check.RunAsync();
@@ -60,24 +60,39 @@ public class PathBudgetCheckTests
 
     private class MockConfigService : Services.IConfigService
     {
-        public string PlansFolder { get; set; } = string.Empty;
-        public List<Models.ProjectConfig> Projects { get; } = new();
+        public string PlanFolder { get; set; } = string.Empty;
+        public List<Services.ProjectConfig> Projects { get; } = new();
 
+        public Services.TendrilSettings Settings => new();
         public string ConfigPath => string.Empty;
         public string TendrilHome => string.Empty;
-        public string? DefaultExecutionProfile => null;
-        public List<Models.Level> Levels => new();
-        public List<Models.VerificationConfig> Verifications => new();
-        public Dictionary<string, string> ReviewActions => new();
-        public Models.LLMConfig LLM => new();
-        public string? AppsUri => null;
-        public List<string> PinnedTools => new();
-        public bool McpEnabled => false;
-        public List<Models.McpServerConfig> McpServers => new();
+        public List<Services.LevelConfig> Levels => new();
+        public string[] LevelNames => Array.Empty<string>();
+        public Services.EditorConfig Editor => new();
+        public bool NeedsOnboarding => false;
+        public Services.ConfigParseError? ParseError => null;
 
-        public string? GetAppUri(string appName) => null;
-        public Models.ProjectConfig? GetProject(string projectName) => null;
-        public Models.VerificationConfig? GetVerification(string verificationName) => null;
-        public void Reload() { }
+        public Services.ProjectConfig? GetProject(string name) => null;
+        public bool TryAutoHeal() => false;
+        public void ResetToDefaults() { }
+        public void RetryLoadConfig() { }
+        public Ivy.Colors? GetLevelColor(string level) => null;
+        public Ivy.Colors? GetProjectColor(string projectName) => null;
+        public void SaveSettings() { }
+        public void MutateAndSave(Action<Services.TendrilSettings> mutate) { }
+        public void ReloadSettings() { }
+        public event EventHandler? SettingsReloaded;
+        public void SetPendingTendrilHome(string path) { }
+        public string? GetPendingTendrilHome() => null;
+        public void SetPendingProject(Services.ProjectConfig project) { }
+        public Services.ProjectConfig? GetPendingProject() => null;
+        public void SetPendingCodingAgent(string name) { }
+        public string? GetPendingCodingAgent() => null;
+        public void SetPendingVerificationDefinitions(List<Services.VerificationConfig> definitions) { }
+        public List<Services.VerificationConfig>? GetPendingVerificationDefinitions() => null;
+        public void CompleteOnboarding(string tendrilHome) { }
+        public void OpenInEditor(string path) { }
+        public string PolishMarkdown(string content) => content;
+        public void Dispose() { }
     }
 }

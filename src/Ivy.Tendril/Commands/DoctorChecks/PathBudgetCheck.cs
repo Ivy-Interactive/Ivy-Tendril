@@ -19,7 +19,7 @@ internal class PathBudgetCheck : IDoctorCheck
         var statuses = new List<CheckStatus>();
         var hasErrors = false;
 
-        var plansRoot = _configService.PlansFolder;
+        var plansRoot = _configService.PlanFolder;
         var plansRootLength = plansRoot.Length;
         statuses.Add(new CheckStatus("Plans root", $"{plansRoot} ({plansRootLength} chars)", StatusKind.Ok));
 
@@ -30,7 +30,7 @@ internal class PathBudgetCheck : IDoctorCheck
         {
             foreach (var repo in project.Repos)
             {
-                var relPath = GitHelper.DeriveWorktreeRelativePath(repo);
+                var relPath = GitHelper.DeriveWorktreeRelativePath(repo.Path);
                 if (relPath.Length > longestRepoPathLength)
                 {
                     longestRepoPath = relPath;
