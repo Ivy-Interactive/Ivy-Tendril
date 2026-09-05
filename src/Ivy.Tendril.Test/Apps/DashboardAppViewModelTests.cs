@@ -197,22 +197,21 @@ public class DashboardAppViewModelTests
 
         var kpis = DashboardApp.BuildKpis(stats, activity, prDays, today);
 
-        Assert.Equal(5, kpis.Count);
+        Assert.Equal(4, kpis.Count);
         Assert.Equal("Avg Daily PR count", kpis[0].Label);
         Assert.Equal("1", kpis[0].Value);
         Assert.Equal("+100%", kpis[0].Delta);
         Assert.Equal("Avg Cost/Month", kpis[1].Label);
         // The projection sits next to the retrospective average it is read against.
         Assert.Equal("Forecast This Month", kpis[2].Label);
-        Assert.Equal("Avg Tokens/Month", kpis[3].Label);
-        Assert.Equal("Avg Cost/Plan", kpis[4].Label);
+        Assert.Equal("Avg Cost/Plan", kpis[3].Label);
     }
 
     [Fact]
-    public void BuildKpis_ForecastHintStatesBothDayCounts()
+    public void BuildKpis_ForecastComputesCalendarProjection()
     {
         // August 2026 has 31 days. Ten days of history, three of which cost anything: the calendar
-        // basis divides by 10, the activity basis by 3, and the hint has to name both.
+        // basis divides by 10.
         var today = new DateTime(2026, 8, 31);
         var dailyCosts = new List<DashboardDailyCost>
         {
@@ -228,10 +227,7 @@ public class DashboardAppViewModelTests
 
         // 60 over 10 days times 31, rounded by FormatCost above 100.
         Assert.Equal("$186", forecast.Value);
-        Assert.NotNull(forecast.Hint);
-        Assert.Contains("10 days", forecast.Hint);
-        Assert.Contains("3 active days", forecast.Hint);
-        Assert.Contains("$620", forecast.Hint);
+        Assert.Null(forecast.Hint);
     }
 
     [Fact]
@@ -248,5 +244,75 @@ public class DashboardAppViewModelTests
         Assert.Equal("-", forecast.Value);
         Assert.Equal("No cost data in the last 30 days", forecast.Hint);
         Assert.Null(forecast.Delta);
+    }
+
+    [Fact]
+    public void BuildWeeklyTrend_ProjectsLastFourWeeksWithComparison()
+    {
+        var today = new DateOnly(2026, 9, 1);
+        var monday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
+        var weeks = new List<DashboardWeekStats>();
+        for (var i = 23; i >= 0; i--)
+        {
+            var start = monday.AddDays(-7 * i);
+            weeks.Add(new DashboardWeekStats(start, i + 1, (i + 1) * 2, (i + 1) * 10m, 1000));
+        }
+
+        var activity = new DashboardActivityStats([], 0m, null, weeks);
+        var trend = DashboardApp.BuildWeeklyTrend(activity);
+
+        Assert.Equal(4, trend.Months.Count);
+        Assert.Equal(4, trend.Cost.Count);
+        Assert.Equal(4, trend.Plans.Count);
+        Assert.Equal(4, trend.PrevCost.Count);
+        Assert.Equal(4, trend.PrevPlans.Count);
+
+        // Most recent week (i = 0 in countdown, index 23 in all)
+        Assert.Equal(10.0, trend.Cost[^1]);
+        // Compared to 4 weeks earlier (index 19, which had i = 4, cost 50m)
+        Assert.Equal(50.0, trend.PrevCost[^1]);
+    }
+
+    [Fact]
+    public void BuildWeeklyPullRequests_ReturnsSevenDaysOfCounts()
+    {
+        var today = new DateTime(2026, 9, 5); // Saturday
+        var monday = DateOnly.FromDateTime(today).AddDays(-5); // Aug 31
+        var prDays = new List<(DateOnly Date, int Count)>
+        {
+            (monday.AddDays(1), 3), // Tue Sep 1 -> this week
+            (monday.AddDays(-2), 2) // Sat Aug 29 -> last week
+        };
+
+        var weeklyPrs = DashboardApp.BuildWeeklyPullRequests(prDays, today);
+
+        Assert.Equal(7, weeklyPrs.Count);
+        Assert.Equal("Mon", weeklyPrs[0].Label);
+        Assert.Equal(0, weeklyPrs[0].Value);
+        Assert.Equal("Tue", weeklyPrs[1].Label);
+        Assert.Equal(3, weeklyPrs[1].Value);
+        Assert.Equal("Sat", weeklyPrs[5].Label);
+        Assert.Equal(0, weeklyPrs[5].Value);
+    }
+
+    [Fact]
+    public void BuildWeeklyActivity_ReturnsSevenDaysOfActivity()
+    {
+        var today = new DateTime(2026, 9, 5);
+        var monday = DateOnly.FromDateTime(today).AddDays(-5);
+        var prDays = new List<(DateOnly Date, int Count)>
+        {
+            (monday, 4) // Monday has 4 PRs
+        };
+
+        var weeklyActivity = DashboardApp.BuildWeeklyActivity(prDays, today);
+
+        Assert.Equal(7, weeklyActivity.Count);
+        Assert.Equal("Mon", weeklyActivity[0].Label);
+        Assert.Equal(4, weeklyActivity[0].Weeks.Count);
+        Assert.All(weeklyActivity[0].Weeks, c => Assert.Equal(4, c));
+
+        Assert.Equal("Tue", weeklyActivity[1].Label);
+        Assert.Empty(weeklyActivity[1].Weeks);
     }
 }

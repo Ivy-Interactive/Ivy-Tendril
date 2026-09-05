@@ -10,16 +10,19 @@ const css = readFileSync(cssPath, "utf-8");
 const kpiGridBlocks = [...css.matchAll(/\.tdb-kpis\s*\{([^}]*)\}/g)].map((m) => m[1]);
 
 describe("dashboard.css KPI grid", () => {
-  it("lays the cards out by available width rather than a hard column count", () => {
-    // The card list grew from four to five with the forecast, and a fixed count either squeezes
-    // the row or orphans the extra.
-    expect(css).toContain("grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));");
+  it("lays four cards out across four columns when full width", () => {
+    expect(css).toContain("grid-template-columns: repeat(4, minmax(0, 1fr));");
   });
 
-  it("never falls back to a two column grid, which would leave the fifth card alone", () => {
+  it("folds to a balanced 2x2 grid on narrower containers", () => {
     expect(kpiGridBlocks.length).toBeGreaterThan(1);
+    const twoColBlocks = kpiGridBlocks.filter((block) => block.includes("repeat(2,"));
+    expect(twoColBlocks.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("never falls back to a three column grid, which would leave the fourth card alone", () => {
     for (const block of kpiGridBlocks) {
-      expect(block).not.toContain("repeat(2,");
+      expect(block).not.toContain("repeat(3,");
     }
   });
 

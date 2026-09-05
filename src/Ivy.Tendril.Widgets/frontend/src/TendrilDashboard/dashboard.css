@@ -207,11 +207,10 @@
 
 /* ---------- KPI cards ---------- */
 
-/* auto-fit rather than a fixed count: the card list grew to five and will grow
-   again, and a hard count leaves the extras squeezed or orphaned. */
+/* Four KPI metrics: 4 columns across when wide, folding to a 2x2 grid when narrower. */
 .tdb-kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 24px;
 }
 
@@ -309,6 +308,39 @@
   width: 1px;
   height: 24px;
   background: var(--tdb-divider);
+}
+
+.tdb-granularity-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: var(--tdb-pill-bg);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.tdb-granularity-btn {
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--tdb-muted);
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 14px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tdb-granularity-btn:hover {
+  color: var(--tdb-fg);
+}
+
+.tdb-granularity-btn[data-active="true"] {
+  background: var(--tdb-bg);
+  color: var(--tdb-fg);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--tdb-fg) 8%, transparent);
 }
 
 .tdb-legend {
@@ -469,6 +501,7 @@
 .tdb-activity-col {
   display: flex;
   flex-direction: column-reverse;
+  align-items: center;
   gap: 8px;
   flex: 1 0 12px;
   min-width: 12px;
@@ -498,7 +531,7 @@
   min-width: 12px;
   font-size: 12px;
   color: var(--tdb-muted);
-  text-align: left;
+  text-align: center;
   white-space: nowrap;
 }
 
@@ -685,7 +718,7 @@
 /* Narrow two-column band: the main column is squeezed, so compact the
    status strip and fold the KPI cards. Below 1080px the grid goes
    single-column and the full-width layouts fit again. */
-@container tdb (min-width: 1080px) and (max-width: 1200px) {
+@container tdb (min-width: 1080px) and (max-width: 1260px) {
   .tdb-status {
     gap: 8px 4px;
   }
@@ -699,7 +732,7 @@
   }
 
   .tdb-kpis {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -729,10 +762,16 @@
 
 @container tdb (max-width: 860px) {
   .tdb-kpis {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .tdb-status-sep {
     display: none;
+  }
+}
+
+@container tdb (max-width: 480px) {
+  .tdb-kpis {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

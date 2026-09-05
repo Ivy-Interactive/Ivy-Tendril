@@ -206,4 +206,37 @@ public class DashboardActivityStatsTests : IDisposable
         // Contrast: the monthly series still excludes it, which is the behaviour being worked around.
         Assert.Equal(0m, stats.Months[^1].Cost);
     }
+
+    [Fact]
+    public void GetActivityStats_AggregatesByWeek()
+    {
+        var now = DateTime.UtcNow;
+        var monday = now.Date.AddDays(-(((int)now.DayOfWeek + 6) % 7));
+        var lastWeekMonday = monday.AddDays(-7);
+
+        var plan1 = CreateTestPlan(1600, PlanStatus.Completed, monday.AddDays(1), monday.AddDays(1), prCount: 2);
+        var plan2 = CreateTestPlan(1601, PlanStatus.Completed, lastWeekMonday.AddDays(2), lastWeekMonday.AddDays(2), prCount: 1);
+
+        _db.UpsertPlan(plan1);
+        _db.UpsertPlan(plan2);
+        _db.UpsertCosts(1600, [new CostEntry("ExecutePlan", 500, 15m, monday.AddDays(1))]);
+        _db.UpsertCosts(1601, [new CostEntry("ExecutePlan", 200, 5m, lastWeekMonday.AddDays(2))]);
+
+        var stats = _db.GetActivityStats();
+
+        Assert.NotNull(stats.Weeks);
+        Assert.Equal(24, stats.Weeks.Count);
+
+        var thisWeekStats = stats.Weeks[^1];
+        Assert.Equal(DateOnly.FromDateTime(monday), thisWeekStats.WeekStart);
+        Assert.Equal(1, thisWeekStats.PlansCreated);
+        Assert.Equal(2, thisWeekStats.PrsMerged);
+        Assert.Equal(15m, thisWeekStats.Cost);
+
+        var lastWeekStats = stats.Weeks[^2];
+        Assert.Equal(DateOnly.FromDateTime(lastWeekMonday), lastWeekStats.WeekStart);
+        Assert.Equal(1, lastWeekStats.PlansCreated);
+        Assert.Equal(1, lastWeekStats.PrsMerged);
+        Assert.Equal(5m, lastWeekStats.Cost);
+    }
 }

@@ -57,13 +57,20 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
   failedCount = 0,
   kpis = [],
   trend = null,
+  trendWeekly = null,
   pullRequests = [],
+  pullRequestsWeekly = [],
   activity = [],
+  activityWeekly = [],
   jobs = [],
   slots,
 }) => {
   const [tab, setTab] = useState<"cost" | "plans">("cost");
   const [sideTab, setSideTab] = useState<"git" | "prs">("git");
+  const [trendPeriod, setTrendPeriod] = useState<"month" | "week">("month");
+  const [prPeriod, setPrPeriod] = useState<"month" | "week">("month");
+  const [activityPeriod, setActivityPeriod] = useState<"month" | "week">("month");
+  const [sidePeriod, setSidePeriod] = useState<"month" | "week">("month");
 
   const fireEvent = (eventName: string) => {
     if (events.includes(eventName)) {
@@ -78,26 +85,30 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
   };
 
   const statusItems = [
-    { icon: <Feather size={16} />, count: draftCount, label: "Drafts", event: "OnDrafts" },
+    { icon: <Feather size={16} />, count: draftCount, label: "Plans", event: "OnDrafts" },
     { icon: <Sprout size={16} />, count: inProgressCount, label: "In Progress", event: "OnJobs" },
     { icon: <Eye size={16} />, count: reviewCount, label: "Ready For Review", event: "OnReview" },
     { icon: <Check size={16} />, count: completedCount, label: "Completed", event: "OnJobs" },
     { icon: <MessageSquareWarning size={16} />, count: failedCount, label: "Failed", event: "OnJobs" },
   ];
 
+  const activeTrend = trendPeriod === "week" && trendWeekly ? trendWeekly : trend;
+  const currentTrendName = trendPeriod === "week" ? "Last 4 weeks" : "Last 12 months";
+  const previousTrendName = trendPeriod === "week" ? "Previous 4 weeks" : "Previous year";
+
   const trendData =
-    trend == null
+    activeTrend == null
       ? null
       : tab === "cost"
         ? {
-            values: trend.cost,
-            previous: trend.prevCost,
+            values: activeTrend.cost,
+            previous: activeTrend.prevCost,
             formatTick: formatCurrencyTick,
             formatValue: formatCurrencyValue,
           }
         : {
-            values: trend.plans,
-            previous: trend.prevPlans,
+            values: activeTrend.plans,
+            previous: activeTrend.prevPlans,
             formatTick: formatCountTick,
             formatValue: formatPlansValue,
           };
@@ -156,6 +167,7 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                 <div className="tdb-trend-header">
                   <div className="tdb-tabs">
                     <button
+                      type="button"
                       className="tdb-tab"
                       data-active={tab === "cost"}
                       onClick={() => setTab("cost")}
@@ -163,6 +175,7 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                       Total Cost
                     </button>
                     <button
+                      type="button"
                       className="tdb-tab"
                       data-active={tab === "plans"}
                       onClick={() => setTab("plans")}
@@ -170,25 +183,48 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                       Total Plans
                     </button>
                   </div>
+                  {trendWeekly && (
+                    <>
+                      <div className="tdb-trend-sep" />
+                      <div className="tdb-granularity-toggle">
+                        <button
+                          type="button"
+                          className="tdb-granularity-btn"
+                          data-active={trendPeriod === "month"}
+                          onClick={() => setTrendPeriod("month")}
+                        >
+                          Month
+                        </button>
+                        <button
+                          type="button"
+                          className="tdb-granularity-btn"
+                          data-active={trendPeriod === "week"}
+                          onClick={() => setTrendPeriod("week")}
+                        >
+                          Week
+                        </button>
+                      </div>
+                    </>
+                  )}
                   <div className="tdb-trend-sep" />
                   <div className="tdb-legend">
                     <span className="tdb-legend-item">
                       <span className="tdb-legend-dot" />
-                      Last 12 months
+                      {currentTrendName}
                     </span>
                     <span className="tdb-legend-item">
                       <span className="tdb-legend-dash" />
-                      Previous year
+                      {previousTrendName}
                     </span>
                   </div>
                 </div>
                 <div className="tdb-trend-chart">
                   <TrendChart
-                    labels={trend!.months}
+                    labels={activeTrend!.months}
                     values={trendData.values}
                     previous={trendData.previous}
-                    currentName="Last 12 months"
-                    previousName="Previous year"
+                    currentName={currentTrendName}
+                    previousName={previousTrendName}
                     formatTick={trendData.formatTick}
                     formatValue={trendData.formatValue}
                   />
@@ -209,6 +245,7 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                   <div className="tdb-side-head">
                     <div className="tdb-tabs">
                       <button
+                        type="button"
                         className="tdb-tab"
                         data-active={sideTab === "git"}
                         onClick={() => setSideTab("git")}
@@ -216,6 +253,7 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                         Git Activity
                       </button>
                       <button
+                        type="button"
                         className="tdb-tab"
                         data-active={sideTab === "prs"}
                         onClick={() => setSideTab("prs")}
@@ -223,12 +261,30 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                         Pull Requests
                       </button>
                     </div>
+                    <div className="tdb-granularity-toggle">
+                      <button
+                        type="button"
+                        className="tdb-granularity-btn"
+                        data-active={sidePeriod === "month"}
+                        onClick={() => setSidePeriod("month")}
+                      >
+                        Month
+                      </button>
+                      <button
+                        type="button"
+                        className="tdb-granularity-btn"
+                        data-active={sidePeriod === "week"}
+                        onClick={() => setSidePeriod("week")}
+                      >
+                        Week
+                      </button>
+                    </div>
                   </div>
                   <div className="tdb-side-body">
                     {sideTab === "git" ? (
-                      <ActivityGrid months={activity} />
+                      <ActivityGrid months={sidePeriod === "week" && activityWeekly.length > 0 ? activityWeekly : activity} />
                     ) : (
-                      <PillBars items={pullRequests} />
+                      <PillBars items={sidePeriod === "week" && pullRequestsWeekly.length > 0 ? pullRequestsWeekly : pullRequests} />
                     )}
                   </div>
                 </div>
@@ -243,15 +299,59 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
             ) : (
               <>
                 <div className="tdb-block tdb-side-block">
-                  <div className="tdb-block-title">Git Activity</div>
+                  <div className="tdb-side-head">
+                    <div className="tdb-block-title">Git Activity</div>
+                    {activityWeekly.length > 0 && (
+                      <div className="tdb-granularity-toggle">
+                        <button
+                          type="button"
+                          className="tdb-granularity-btn"
+                          data-active={activityPeriod === "month"}
+                          onClick={() => setActivityPeriod("month")}
+                        >
+                          Month
+                        </button>
+                        <button
+                          type="button"
+                          className="tdb-granularity-btn"
+                          data-active={activityPeriod === "week"}
+                          onClick={() => setActivityPeriod("week")}
+                        >
+                          Week
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <div className="tdb-side-body">
-                    <ActivityGrid months={activity} />
+                    <ActivityGrid months={activityPeriod === "week" && activityWeekly.length > 0 ? activityWeekly : activity} />
                   </div>
                 </div>
                 <div className="tdb-block tdb-side-block">
-                  <div className="tdb-block-title">Pull Requests</div>
+                  <div className="tdb-side-head">
+                    <div className="tdb-block-title">Pull Requests</div>
+                    {pullRequestsWeekly.length > 0 && (
+                      <div className="tdb-granularity-toggle">
+                        <button
+                          type="button"
+                          className="tdb-granularity-btn"
+                          data-active={prPeriod === "month"}
+                          onClick={() => setPrPeriod("month")}
+                        >
+                          Month
+                        </button>
+                        <button
+                          type="button"
+                          className="tdb-granularity-btn"
+                          data-active={prPeriod === "week"}
+                          onClick={() => setPrPeriod("week")}
+                        >
+                          Week
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <div className="tdb-side-body">
-                    <PillBars items={pullRequests} />
+                    <PillBars items={prPeriod === "week" && pullRequestsWeekly.length > 0 ? pullRequestsWeekly : pullRequests} />
                   </div>
                 </div>
               </>

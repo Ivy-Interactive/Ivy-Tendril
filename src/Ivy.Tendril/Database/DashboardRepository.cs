@@ -302,7 +302,87 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                 ));
             }
 
-            return new DashboardActivityStats(months, prevWeekAvgCost, dailyCosts);
+            // Weekly aggregation: 24 weeks back (for 12 weeks current + 12 weeks previous comparison)
+            const int weeksBack = 24;
+            var currentMonday = DateOnly.FromDateTime(today).AddDays(-(((int)today.DayOfWeek + 6) % 7));
+            var firstMonday = currentMonday.AddDays(-7 * (weeksBack - 1));
+            var weekCutoff = firstMonday.ToString("yyyy-MM-dd");
+
+            var weekCreated = new Dictionary<string, int>();
+            var weekPrs = new Dictionary<string, int>();
+            var weekCosts = new Dictionary<string, decimal>();
+            var weekTokens = new Dictionary<string, long>();
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT DATE(Created, 'weekday 0', '-6 days') AS yw, COUNT(*)
+                    FROM Plans WHERE Created >= @cutoff GROUP BY yw
+                    """;
+                cmd.Parameters.AddWithValue("@cutoff", weekCutoff);
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    if (!r.IsDBNull(0))
+                        weekCreated[r.GetString(0)] = r.GetInt32(1);
+                }
+            }
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT DATE(p.Updated, 'weekday 0', '-6 days') AS yw, COUNT(*)
+                    FROM PullRequests pr JOIN Plans p ON p.Id = pr.PlanId
+                    WHERE p.Updated >= @cutoff AND p.State = 'Completed'
+                    GROUP BY yw
+                    """;
+                cmd.Parameters.AddWithValue("@cutoff", weekCutoff);
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    if (!r.IsDBNull(0))
+                        weekPrs[r.GetString(0)] = r.GetInt32(1);
+                }
+            }
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT DATE(COALESCE(c.LogTimestamp, p.Updated), 'weekday 0', '-6 days') AS yw,
+                           COALESCE(SUM(c.Cost), 0), SUM(c.Tokens)
+                    FROM Costs c JOIN Plans p ON p.Id = c.PlanId
+                    WHERE COALESCE(c.LogTimestamp, p.Updated) >= @cutoff
+                      AND p.State IN ('Completed', 'Failed', 'Review')
+                    GROUP BY yw
+                    """;
+                cmd.Parameters.AddWithValue("@cutoff", weekCutoff);
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    if (!r.IsDBNull(0))
+                    {
+                        var key = r.GetString(0);
+                        weekCosts[key] = Convert.ToDecimal(r.GetValue(1), CultureInfo.InvariantCulture);
+                        weekTokens[key] = Convert.ToInt64(r.GetValue(2), CultureInfo.InvariantCulture);
+                    }
+                }
+            }
+
+            var weeks = new List<DashboardWeekStats>(weeksBack);
+            for (var i = 0; i < weeksBack; i++)
+            {
+                var weekStart = firstMonday.AddDays(i * 7);
+                var key = weekStart.ToString("yyyy-MM-dd");
+                weeks.Add(new DashboardWeekStats(
+                    weekStart,
+                    weekCreated.GetValueOrDefault(key),
+                    weekPrs.GetValueOrDefault(key),
+                    weekCosts.GetValueOrDefault(key),
+                    weekTokens.GetValueOrDefault(key)
+                ));
+            }
+
+            return new DashboardActivityStats(months, prevWeekAvgCost, dailyCosts, weeks);
         }
     }
 }
