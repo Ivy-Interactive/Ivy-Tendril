@@ -30,12 +30,21 @@ const layOut = (container: HTMLElement) => {
 const renderNav = (collapsed = false) => {
   const utils = render(
     <ShellContext.Provider value={{ collapsed, toggle: () => {} }}>
-      <div className="tsh-sidebar-body" ref={(el) => {
-        if (el) el.getBoundingClientRect = () => ({ top: 0, bottom: 1000 }) as DOMRect;
-      }}>
-        <ShellNav id="nav-1" items={items} showDivider={true} events={["OnSelect"]} eventHandler={vi.fn()} />
+      <div
+        className="tsh-sidebar-body"
+        ref={(el) => {
+          if (el) el.getBoundingClientRect = () => ({ top: 0, bottom: 1000 }) as DOMRect;
+        }}
+      >
+        <ShellNav
+          id="nav-1"
+          items={items}
+          showDivider={true}
+          events={["OnSelect"]}
+          eventHandler={vi.fn()}
+        />
       </div>
-    </ShellContext.Provider>
+    </ShellContext.Provider>,
   );
   return { ...utils, ...layOut(utils.container) };
 };

@@ -632,8 +632,8 @@
   opacity: 0;
 }
 
-/* Collapsed rail: the label is gone, so the count rides the icon's top-right
-   corner with the same look as the expanded badge. */
+/* Collapsed rail: the label is hidden, so the count rides the top-right
+   corner of the icon, leaving most of the icon visible while avoiding clipping. */
 .tsh-root[data-collapsed="true"] .tsh-nav-item {
   position: relative;
 }
@@ -641,10 +641,13 @@
 .tsh-root[data-collapsed="true"] .tsh-nav-badge {
   position: absolute;
   top: 3px;
-  /* Anchored relative to the 16px icon so the badge remains legible
-     without clipping against the rail boundary. */
-  left: calc(50% + 2px);
+  /* Anchored on the icon's top-right corner so it leaves >60% of the icon visible
+     while keeping the badge well clear of the right sidebar boundary. */
+  left: calc(50% + 1px);
   right: auto;
+  min-width: 15px;
+  padding: 1px 3.5px;
+  z-index: 1;
 }
 
 /* ---------- Sidebar section (plan list) ---------- */
