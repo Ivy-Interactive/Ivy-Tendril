@@ -1407,6 +1407,18 @@ public class JobService : IJobService
         set => _staleOutputTimeout = value;
     }
 
+    internal TimeSpan HookConditionTimeout
+    {
+        get => _completionHandler.HookConditionTimeout;
+        set => _completionHandler.HookConditionTimeout = value;
+    }
+
+    internal TimeSpan HookActionTimeout
+    {
+        get => _completionHandler.HookActionTimeout;
+        set => _completionHandler.HookActionTimeout = value;
+    }
+
 
     private void ProcessJobQueue()
     {
