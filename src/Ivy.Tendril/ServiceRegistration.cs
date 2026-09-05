@@ -4,6 +4,10 @@ using Ivy.Tendril.Agents;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.IssueTrackers;
+using Ivy.Tendril.Services.IssueTrackers.Providers.GitHub;
+using Ivy.Tendril.Services.IssueTrackers.Providers.Jira;
+using Ivy.Tendril.Services.IssueTrackers.Providers.Linear;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -138,6 +142,18 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<IOnboardingSetupService>(sp => sp.GetRequiredService<OnboardingSetupService>());
         server.Services.AddSingleton<GithubService>();
         server.Services.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
+
+        server.Services.AddSingleton<GitHubTrackerProvider>();
+        server.Services.AddSingleton<IIssueTrackerProvider>(sp => sp.GetRequiredService<GitHubTrackerProvider>());
+        server.Services.AddSingleton<IReviewTrackerProvider>(sp => sp.GetRequiredService<GitHubTrackerProvider>());
+
+        server.Services.AddSingleton<JiraTrackerProvider>();
+        server.Services.AddSingleton<IIssueTrackerProvider>(sp => sp.GetRequiredService<JiraTrackerProvider>());
+
+        server.Services.AddSingleton<LinearTrackerProvider>();
+        server.Services.AddSingleton<IIssueTrackerProvider>(sp => sp.GetRequiredService<LinearTrackerProvider>());
+
+        server.Services.AddSingleton<IIssueTrackerService, IssueTrackerService>();
         server.Services.AddSingleton<IGitService>(sp =>
             new GitService(
                 sp.GetRequiredService<IConfigService>(),

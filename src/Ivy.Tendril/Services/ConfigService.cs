@@ -52,12 +52,21 @@ public record NetworkAccessRuleConfig
     public string Mode { get; set; } = "Allow"; // Allow, Deny
 }
 
+public record ProjectTrackerConfig
+{
+    public string? Provider { get; set; }
+    public string? ProjectKey { get; set; }
+    public string? TeamKey { get; set; }
+    public string? Repo { get; set; }
+}
+
 public record ProjectConfig
 {
     public string Name { get; set; } = "";
     public string Color { get; set; } = "";
     public Dictionary<string, object> Meta { get; set; } = new();
     public List<RepoRef> Repos { get; set; } = new();
+    public ProjectTrackerConfig? IssueTracker { get; set; }
     public List<ProjectVerificationRef> Verifications { get; set; } = new();
     public string Context { get; set; } = "";
     public string? StackHash { get; set; }
@@ -201,6 +210,30 @@ public record ApiSettings
     public string? ApiKey { get; set; }
 }
 
+public record GitHubTrackerConfig
+{
+    public string? Token { get; set; }
+}
+
+public record JiraTrackerConfig
+{
+    public string? Url { get; set; }
+    public string? Email { get; set; }
+    public string? ApiToken { get; set; }
+}
+
+public record LinearTrackerConfig
+{
+    public string? ApiKey { get; set; }
+}
+
+public record IssueTrackerSettings
+{
+    public GitHubTrackerConfig? GitHub { get; set; }
+    public JiraTrackerConfig? Jira { get; set; }
+    public LinearTrackerConfig? Linear { get; set; }
+}
+
 public class TendrilSettings
 {
     public string CodingAgent { get; set; } = "claude";
@@ -216,6 +249,7 @@ public class TendrilSettings
     public LlmConfig? Llm { get; set; }
     public AuthConfig? Auth { get; set; }
     public ApiSettings? Api { get; set; }
+    public IssueTrackerSettings? IssueTrackers { get; set; }
     public Dictionary<string, PromptwareConfig> Promptwares { get; set; } = new();
     public List<AgentConfig> CodingAgents { get; set; } = new();
     public Tunnel.TunnelConfig? Tunnel { get; set; }

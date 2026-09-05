@@ -3,7 +3,7 @@ using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
-using Ivy.Tendril.Services.Git;
+using Ivy.Tendril.Services.IssueTrackers.Models;
 
 namespace Ivy.Tendril.Apps.Inbox;
 
@@ -11,18 +11,23 @@ public record IssueRow
 {
     public string Id { get; init; } = "";
     public bool Selected { get; init; }
-    public int Number { get; init; }
+    public string Key { get; init; } = "";
     public string Issue { get; init; } = "";
-    public string Repository { get; init; } = "";
+    public string Provider { get; init; } = "";
+    public string Scope { get; init; } = "";
+    public string Status { get; init; } = "";
+    public string? Priority { get; init; }
     public string[] Labels { get; init; } = [];
     public string Assignees { get; init; } = "";
+    public string Updated { get; init; } = "";
 }
 
 public record ReviewRow
 {
     public string Id { get; init; } = "";
-    public int Number { get; init; }
+    public string Key { get; init; } = "";
     public string Review { get; init; } = "";
+    public string Provider { get; init; } = "";
     public string Repository { get; init; } = "";
     public string Branch { get; init; } = "";
     public string Updated { get; init; } = "";
@@ -32,43 +37,50 @@ public class ContentView(
     IState<InboxCategory> selectedCategory,
     IState<string?> selectedProject,
     IReadOnlyList<ProjectConfig> projects,
-    IState<HashSet<int>> selectedIssueNumbers,
-    IReadOnlyList<GitHubIssue> myIssues,
-    IReadOnlyList<GitHubReviewItem> reviewRequests,
-    IReadOnlyList<GitHubIssue> projectIssues,
+    IState<HashSet<string>> selectedIssueIds,
+    IReadOnlyList<TrackerIssue> myIssues,
+    IReadOnlyList<TrackerReviewItem> reviewRequests,
+    IReadOnlyList<TrackerIssue> projectIssues,
     bool isFetching,
     string? errorMessage,
     IState<bool> isImporting,
     IConfigService config,
-    IGithubService githubService,
     RefreshToken refreshToken,
     Func<Task> onRefresh,
-    Func<IReadOnlyList<GitHubIssue>, Task> onFireOffIssues) : ViewBase
+    Func<IReadOnlyList<TrackerIssue>, Task> onFireOffIssues) : ViewBase
 {
     public override object Build()
     {
         var client = UseService<IClientProvider>();
         var openFile = UseState<string?>(null);
 
-        var (issueSheet, showIssueSheet) = UseTrigger<GitHubIssue>((isOpen, issue) =>
+        var (issueSheet, showIssueSheet) = UseTrigger<TrackerIssue>((isOpen, issue) =>
         {
             if (!isOpen.Value || issue == null) return null;
 
-            var issueUrl = issue.Url ?? (issue.Repository != null
-                ? $"https://github.com/{issue.Repository}/issues/{issue.Number}"
-                : null);
+            var providerDisplayName = issue.ProviderId switch
+            {
+                "jira" => "Jira",
+                "linear" => "Linear",
+                "github" => "GitHub",
+                "gitlab" => "GitLab",
+                _ => issue.ProviderId
+            };
 
             var sheetHeader = Layout.Vertical().Width(Size.Full())
                 | (Layout.Horizontal().Height(Size.Auto()).AlignContent(Align.SpaceBetween).Width(Size.Full())
                     | (Layout.Horizontal().Height(Size.Auto()).Width(Size.Auto()).AlignContent(Align.Left).Wrap()
-                        | (!string.IsNullOrEmpty(issue.Repository) ? new Badge(issue.Repository).Variant(BadgeVariant.Secondary).Small() : null)
+                        | new Badge(providerDisplayName).Variant(BadgeVariant.Outline).Small()
+                        | (!string.IsNullOrEmpty(issue.Scope) ? new Badge(issue.Scope).Variant(BadgeVariant.Secondary).Small() : null)
+                        | (!string.IsNullOrEmpty(issue.Status) && issue.Status != "Open" ? new Badge(issue.Status).Variant(BadgeVariant.Secondary).Small() : null)
+                        | (!string.IsNullOrEmpty(issue.Priority) ? new Badge(issue.Priority).Variant(BadgeVariant.Outline).Small() : null)
                         | (issue.Assignees.Length > 0 ? Text.Muted($"Assigned: {string.Join(", ", issue.Assignees.Where(a => !string.IsNullOrWhiteSpace(a)))}").Small() : null))
                     | (Layout.Horizontal().Height(Size.Auto()).Width(Size.Auto()).AlignContent(Align.Right)
-                        | (issueUrl != null
-                            ? new Button("GitHub")
+                        | (issue.Url != null
+                            ? new Button(providerDisplayName)
                                 .Icon(Icons.ExternalLink)
                                 .Ghost().Small()
-                                .OnClick(() => client.OpenUrl(issueUrl))
+                                .OnClick(() => client.OpenUrl(issue.Url))
                             : null)
                         | new Button("Fire off in Tendril")
                             .Icon(Icons.Zap)
@@ -98,24 +110,32 @@ public class ContentView(
             var sheet = new Sheet(
                 () => isOpen.Set(false),
                 sheetContent,
-                $"#{issue.Number} {issue.Title}"
+                $"{issue.Key} {issue.Title}"
             ).Width(UxHelper.SheetWidth).Resizable();
 
             return sheet;
         });
 
-        var (reviewSheet, showReviewSheet) = UseTrigger<GitHubReviewItem>((isOpen, review) =>
+        var (reviewSheet, showReviewSheet) = UseTrigger<TrackerReviewItem>((isOpen, review) =>
         {
             if (!isOpen.Value || review == null) return null;
+
+            var providerDisplayName = review.ProviderId switch
+            {
+                "gitlab" => "GitLab",
+                "github" => "GitHub",
+                _ => review.ProviderId
+            };
 
             var sheetHeader = Layout.Vertical().Width(Size.Full())
                 | (Layout.Horizontal().Height(Size.Auto()).AlignContent(Align.SpaceBetween).Width(Size.Full())
                     | (Layout.Horizontal().Height(Size.Auto()).Width(Size.Auto()).AlignContent(Align.Left).Wrap()
+                        | new Badge(providerDisplayName).Variant(BadgeVariant.Outline).Small()
                         | new Badge(review.Repository).Variant(BadgeVariant.Secondary).Small()
                         | (!string.IsNullOrEmpty(review.Branch) ? new Badge(review.Branch).Variant(BadgeVariant.Outline).Small() : null)
                         | (review.Assignees.Length > 0 ? Text.Muted($"Assigned: {string.Join(", ", review.Assignees.Where(a => !string.IsNullOrWhiteSpace(a)))}").Small() : null))
                     | (Layout.Horizontal().Height(Size.Auto()).Width(Size.Auto()).AlignContent(Align.Right)
-                        | new Button("Open on GitHub")
+                        | new Button($"Open on {providerDisplayName}")
                             .Icon(Icons.ExternalLink)
                             .Primary().Small()
                             .OnClick(() => client.OpenUrl(review.Url))));
@@ -134,7 +154,7 @@ public class ContentView(
             var sheet = new Sheet(
                 () => isOpen.Set(false),
                 sheetContent,
-                $"#{review.Number} {review.Title}"
+                $"{review.Key} {review.Title}"
             ).Width(UxHelper.SheetWidth).Resizable();
 
             return sheet;
@@ -174,7 +194,7 @@ public class ContentView(
         return new Fragment(mainView, issueSheet, reviewSheet, new FileSheet(openFile, config));
     }
 
-    private object BuildReviewsView(IClientProvider client, Action<GitHubReviewItem> showReviewSheet)
+    private object BuildReviewsView(IClientProvider client, Action<TrackerReviewItem> showReviewSheet)
     {
         var refreshButton = new Button()
             .Icon(Icons.RefreshCw)
@@ -194,7 +214,7 @@ public class ContentView(
                 | header
                 | (Layout.Vertical().AlignContent(Align.Center).Height(Size.Grow())
                     | new Loading()
-                    | Text.Muted("Fetching review requests from GitHub..."));
+                    | Text.Muted("Fetching review requests..."));
         }
 
         if (errorMessage != null)
@@ -215,9 +235,15 @@ public class ContentView(
 
         var rows = reviewRequests.Select(pr => new ReviewRow
         {
-            Id = $"{pr.Repository}#{pr.Number}",
-            Number = pr.Number,
-            Review = $"#{pr.Number} {pr.Title}",
+            Id = pr.Id,
+            Key = pr.Key,
+            Review = $"{pr.Key} {pr.Title}",
+            Provider = pr.ProviderId switch
+            {
+                "gitlab" => "GitLab",
+                "github" => "GitHub",
+                _ => pr.ProviderId
+            },
             Repository = pr.Repository,
             Branch = pr.Branch ?? "",
             Updated = pr.UpdatedAt.HasValue ? pr.UpdatedAt.Value.ToString("M/d") : ""
@@ -230,21 +256,24 @@ public class ContentView(
             .Height(Size.Full())
             .Order(
                 e => e.Review,
+                e => e.Provider,
                 e => e.Repository,
                 e => e.Branch,
                 e => e.Updated
             )
             .Header(t => t.Review, "Pull Request")
+            .Header(t => t.Provider, "Provider")
             .Header(t => t.Repository, "Repository")
             .Header(t => t.Branch, "Branch")
             .Header(t => t.Updated, "Updated")
-            .Width(t => t.Review, Size.Fraction(0.5f))
+            .Width(t => t.Review, Size.Fraction(0.45f))
+            .Width(t => t.Provider, Size.Px(100))
             .Width(t => t.Repository, Size.Px(180))
             .Width(t => t.Branch, Size.Px(160))
             .Width(t => t.Updated, Size.Px(100))
             .Renderer(t => t.Repository, new LabelsDisplayRenderer())
             .Hidden(t => t.Id)
-            .Hidden(t => t.Number)
+            .Hidden(t => t.Key)
             .Config(c =>
             {
                 c.AllowSorting = true;
@@ -260,13 +289,13 @@ public class ContentView(
                 var row = rows.FirstOrDefault(r => r.Id == id) ?? rows.ElementAtOrDefault(e.Value.RowIndex);
                 if (row != null)
                 {
-                    var raw = reviewRequests.FirstOrDefault(r => r.Number == row.Number && r.Repository == row.Repository);
+                    var raw = reviewRequests.FirstOrDefault(r => r.Id == row.Id);
                     if (raw != null) showReviewSheet(raw);
                 }
                 return ValueTask.CompletedTask;
             })
             .RowActions(
-                new MenuItem("Review on GitHub", Icon: Icons.ExternalLink, Tag: "open-github").Tooltip("Open pull request on GitHub"),
+                new MenuItem("Open in Browser", Icon: Icons.ExternalLink, Tag: "open-browser").Tooltip("Open pull request in browser"),
                 new MenuItem("View Details", Icon: Icons.FileText, Tag: "view-details").Tooltip("View review details")
             )
             .OnRowAction(e =>
@@ -276,10 +305,10 @@ public class ContentView(
                 var row = rows.FirstOrDefault(r => r.Id == id);
                 if (row != null)
                 {
-                    var raw = reviewRequests.FirstOrDefault(r => r.Number == row.Number && r.Repository == row.Repository);
+                    var raw = reviewRequests.FirstOrDefault(r => r.Id == row.Id);
                     if (raw != null)
                     {
-                        if (tag == "open-github") client.OpenUrl(raw.Url);
+                        if (tag == "open-browser") client.OpenUrl(raw.Url);
                         else if (tag == "view-details") showReviewSheet(raw);
                     }
                 }
@@ -298,10 +327,10 @@ public class ContentView(
 
     private object BuildIssuesView(
         string title,
-        IReadOnlyList<GitHubIssue> allIssues,
+        IReadOnlyList<TrackerIssue> allIssues,
         bool showRepoBadge,
         IClientProvider client,
-        Action<GitHubIssue> showIssueSheet)
+        Action<TrackerIssue> showIssueSheet)
     {
         var refreshButton = new Button()
             .Icon(Icons.RefreshCw)
@@ -310,24 +339,24 @@ public class ContentView(
             .Loading(isFetching)
             .OnClick(async () => await onRefresh());
 
-        var selectedCount = selectedIssueNumbers.Value.Count;
+        var selectedCount = selectedIssueIds.Value.Count;
         var selectedIssuesList = allIssues
-            .Where(i => selectedIssueNumbers.Value.Contains(i.Number))
+            .Where(i => selectedIssueIds.Value.Contains(i.Id))
             .ToList();
 
         void SelectAll()
         {
-            var next = new HashSet<int>(selectedIssueNumbers.Value);
-            foreach (var i in allIssues) next.Add(i.Number);
-            selectedIssueNumbers.Set(next);
+            var next = new HashSet<string>(selectedIssueIds.Value);
+            foreach (var i in allIssues) next.Add(i.Id);
+            selectedIssueIds.Set(next);
             refreshToken.Refresh();
         }
 
         void DeselectAll()
         {
-            var next = new HashSet<int>(selectedIssueNumbers.Value);
-            foreach (var i in allIssues) next.Remove(i.Number);
-            selectedIssueNumbers.Set(next);
+            var next = new HashSet<string>(selectedIssueIds.Value);
+            foreach (var i in allIssues) next.Remove(i.Id);
+            selectedIssueIds.Set(next);
             refreshToken.Refresh();
         }
 
@@ -352,7 +381,7 @@ public class ContentView(
                 | header
                 | (Layout.Vertical().AlignContent(Align.Center).Height(Size.Grow())
                     | new Loading()
-                    | Text.Muted("Loading issues from GitHub..."));
+                    | Text.Muted("Loading issues..."));
         }
 
         if (errorMessage != null)
@@ -373,13 +402,23 @@ public class ContentView(
 
         var rows = allIssues.Select(issue => new IssueRow
         {
-            Id = issue.Number.ToString(),
-            Selected = selectedIssueNumbers.Value.Contains(issue.Number),
-            Number = issue.Number,
-            Issue = $"#{issue.Number} {issue.Title}",
-            Repository = issue.Repository ?? "",
+            Id = issue.Id,
+            Selected = selectedIssueIds.Value.Contains(issue.Id),
+            Key = issue.Key,
+            Issue = $"{issue.Key} {issue.Title}",
+            Provider = issue.ProviderId switch
+            {
+                "jira" => "Jira",
+                "linear" => "Linear",
+                "github" => "GitHub",
+                _ => issue.ProviderId
+            },
+            Scope = issue.Scope ?? "",
+            Status = issue.Status,
+            Priority = issue.Priority,
             Labels = issue.Labels,
-            Assignees = string.Join(", ", issue.Assignees.Where(a => !string.IsNullOrWhiteSpace(a)))
+            Assignees = string.Join(", ", issue.Assignees.Where(a => !string.IsNullOrWhiteSpace(a))),
+            Updated = issue.UpdatedAt.HasValue ? issue.UpdatedAt.Value.ToString("M/d") : ""
         }).ToList();
 
         var dataTable = rows.AsQueryable()
@@ -390,23 +429,29 @@ public class ContentView(
             .Order(
                 e => e.Selected,
                 e => e.Issue,
-                e => e.Repository,
+                e => e.Provider,
+                e => e.Scope,
+                e => e.Status,
                 e => e.Labels,
                 e => e.Assignees
             )
             .Header(t => t.Selected, "")
             .Header(t => t.Issue, "Issue")
-            .Header(t => t.Repository, "Repository")
+            .Header(t => t.Provider, "Provider")
+            .Header(t => t.Scope, "Scope")
+            .Header(t => t.Status, "Status")
             .Header(t => t.Labels, "Labels")
             .Header(t => t.Assignees, "Assignees")
             .Width(t => t.Selected, Size.Px(45))
-            .Width(t => t.Issue, Size.Fraction(0.45f))
-            .Width(t => t.Repository, Size.Px(180))
-            .Width(t => t.Labels, Size.Px(200))
-            .Width(t => t.Assignees, Size.Px(150))
-            .Renderer(t => t.Repository, new LabelsDisplayRenderer())
+            .Width(t => t.Issue, Size.Fraction(0.4f))
+            .Width(t => t.Provider, Size.Px(95))
+            .Width(t => t.Scope, Size.Px(170))
+            .Width(t => t.Status, Size.Px(110))
+            .Width(t => t.Labels, Size.Px(180))
+            .Width(t => t.Assignees, Size.Px(140))
+            .Renderer(t => t.Scope, new LabelsDisplayRenderer())
             .Hidden(t => t.Id)
-            .Hidden(t => t.Number)
+            .Hidden(t => t.Key)
             .Config(c =>
             {
                 c.AllowSorting = true;
@@ -422,9 +467,9 @@ public class ContentView(
                 var row = rows.FirstOrDefault(r => r.Id == id) ?? rows.ElementAtOrDefault(e.Value.RowIndex);
                 if (row != null)
                 {
-                    var next = new HashSet<int>(selectedIssueNumbers.Value);
-                    if (!next.Remove(row.Number)) next.Add(row.Number);
-                    selectedIssueNumbers.Set(next);
+                    var next = new HashSet<string>(selectedIssueIds.Value);
+                    if (!next.Remove(row.Id)) next.Add(row.Id);
+                    selectedIssueIds.Set(next);
                     refreshToken.Refresh();
                 }
                 return ValueTask.CompletedTask;
@@ -435,7 +480,7 @@ public class ContentView(
                 var row = rows.FirstOrDefault(r => r.Id == id) ?? rows.ElementAtOrDefault(e.Value.RowIndex);
                 if (row != null)
                 {
-                    var raw = allIssues.FirstOrDefault(i => i.Number == row.Number);
+                    var raw = allIssues.FirstOrDefault(i => i.Id == row.Id);
                     if (raw != null) showIssueSheet(raw);
                 }
                 return ValueTask.CompletedTask;
@@ -443,7 +488,7 @@ public class ContentView(
             .RowActions(
                 new MenuItem("Fire off in Tendril", Icon: Icons.Zap, Tag: "fire-off").Tooltip("Fire off this issue in Tendril"),
                 new MenuItem("View Details", Icon: Icons.FileText, Tag: "view-details").Tooltip("View issue details"),
-                new MenuItem("Open in GitHub", Icon: Icons.ExternalLink, Tag: "open-github").Tooltip("Open issue on GitHub")
+                new MenuItem("Open in Browser", Icon: Icons.ExternalLink, Tag: "open-browser").Tooltip("Open issue in browser")
             )
             .OnRowAction(async e =>
             {
@@ -452,7 +497,7 @@ public class ContentView(
                 var row = rows.FirstOrDefault(r => r.Id == id);
                 if (row != null)
                 {
-                    var raw = allIssues.FirstOrDefault(i => i.Number == row.Number);
+                    var raw = allIssues.FirstOrDefault(i => i.Id == row.Id);
                     if (raw != null)
                     {
                         if (tag == "fire-off")
@@ -463,12 +508,9 @@ public class ContentView(
                         {
                             showIssueSheet(raw);
                         }
-                        else if (tag == "open-github")
+                        else if (tag == "open-browser")
                         {
-                            var url = raw.Url ?? (raw.Repository != null
-                                ? $"https://github.com/{raw.Repository}/issues/{raw.Number}"
-                                : null);
-                            if (url != null) client.OpenUrl(url);
+                            if (!string.IsNullOrEmpty(raw.Url)) client.OpenUrl(raw.Url);
                         }
                     }
                 }

@@ -3,6 +3,8 @@ using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Git;
+using Ivy.Tendril.Services.IssueTrackers;
+using Ivy.Tendril.Services.IssueTrackers.Models;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Apps.Inbox;
@@ -12,6 +14,7 @@ public class InboxApp : ViewBase
 {
     public override object Build()
     {
+        var issueTrackerService = UseService<IIssueTrackerService>();
         var githubService = UseService<IGithubService>();
         var config = UseService<IConfigService>();
         var client = UseService<IClientProvider>();
@@ -22,13 +25,11 @@ public class InboxApp : ViewBase
         var searchQuery = UseState("");
         var selectedAssignees = UseState(Array.Empty<string>());
         var selectedLabels = UseState(Array.Empty<string>());
-        var selectedIssueNumbers = UseState<HashSet<int>>([]);
+        var selectedIssueIds = UseState<HashSet<string>>([]);
 
-        var myIssues = UseState<List<GitHubIssue>>([]);
-        var reviewRequests = UseState<List<GitHubReviewItem>>([]);
-        var projectIssues = UseState<List<GitHubIssue>>([]);
-        var availableAssignees = UseState<List<string>>([]);
-        var availableLabels = UseState<List<string>>([]);
+        var myIssues = UseState<List<TrackerIssue>>([]);
+        var reviewRequests = UseState<List<TrackerReviewItem>>([]);
+        var projectIssues = UseState<List<TrackerIssue>>([]);
 
         var isFetching = UseState(false);
         var isImporting = UseState(false);
@@ -38,7 +39,7 @@ public class InboxApp : ViewBase
 
         UseEffect(() =>
         {
-            selectedIssueNumbers.Set([]);
+            selectedIssueIds.Set([]);
             searchQuery.Set("");
             selectedAssignees.Set(Array.Empty<string>());
             selectedLabels.Set(Array.Empty<string>());
@@ -50,7 +51,7 @@ public class InboxApp : ViewBase
         {
             if (selectedCategory.Value == InboxCategory.Project)
             {
-                selectedIssueNumbers.Set([]);
+                selectedIssueIds.Set([]);
                 searchQuery.Set("");
                 selectedAssignees.Set(Array.Empty<string>());
                 selectedLabels.Set(Array.Empty<string>());
@@ -66,19 +67,19 @@ public class InboxApp : ViewBase
                 hasInitialLoaded.Set(true);
                 Task.Run(FetchCurrentDataAsync);
 
-                // Also background-fetch counts for MyIssues and Reviews
+                // Background-fetch counts for MyIssues and Reviews
                 Task.Run(async () =>
                 {
                     try
                     {
-                        var (issues, _) = await githubService.GetMyAssignedIssuesAsync();
+                        var (issues, _) = await issueTrackerService.GetMyAssignedIssuesAsync();
                         myIssues.Set(issues);
                     }
                     catch { }
 
                     try
                     {
-                        var (reviews, _) = await githubService.GetReviewRequestsAsync();
+                        var (reviews, _) = await issueTrackerService.GetReviewRequestsAsync();
                         reviewRequests.Set(reviews);
                     }
                     catch { }
@@ -95,10 +96,10 @@ public class InboxApp : ViewBase
             {
                 if (selectedCategory.Value == InboxCategory.MyIssues)
                 {
-                    var (issues, err) = await githubService.GetMyAssignedIssuesAsync();
-                    if (err != null)
+                    var (issues, errors) = await issueTrackerService.GetMyAssignedIssuesAsync();
+                    if (errors.Count > 0 && issues.Count == 0)
                     {
-                        errorMessage.Set(err);
+                        errorMessage.Set(string.Join("\n", errors));
                     }
                     else
                     {
@@ -107,10 +108,10 @@ public class InboxApp : ViewBase
                 }
                 else if (selectedCategory.Value == InboxCategory.Reviews)
                 {
-                    var (reviews, err) = await githubService.GetReviewRequestsAsync();
-                    if (err != null)
+                    var (reviews, errors) = await issueTrackerService.GetReviewRequestsAsync();
+                    if (errors.Count > 0 && reviews.Count == 0)
                     {
-                        errorMessage.Set(err);
+                        errorMessage.Set(string.Join("\n", errors));
                     }
                     else
                     {
@@ -133,42 +134,16 @@ public class InboxApp : ViewBase
                         return;
                     }
 
-                    var resolvedRepos = githubService.GetResolvedGithubRepos(proj);
-                    if (resolvedRepos.Count == 0)
+                    var (issues, errors) = await issueTrackerService.GetProjectIssuesAsync(proj, new TrackerIssueQuery());
+                    if (errors.Count > 0 && issues.Count == 0)
                     {
+                        errorMessage.Set(string.Join("\n", errors));
                         projectIssues.Set([]);
-                        errorMessage.Set($"No git remotes resolved for project {proj.Name}.");
-                        return;
                     }
-
-                    var allIssues = new List<GitHubIssue>();
-                    var allAssignees = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    var allLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                    foreach (var repoStr in resolvedRepos)
+                    else
                     {
-                        var parts = repoStr.Split('/');
-                        if (parts.Length != 2) continue;
-                        var owner = parts[0];
-                        var repoName = parts[1];
-
-                        var (issues, err) = await githubService.SearchIssuesAsync(new IssueSearchRequest(
-                            owner, repoName, Limit: 100));
-
-                        if (err != null && errorMessage.Value == null)
-                            errorMessage.Set(err);
-
-                        foreach (var issue in issues)
-                        {
-                            allIssues.Add(issue with { Repository = repoStr });
-                            foreach (var a in issue.Assignees) if (!string.IsNullOrWhiteSpace(a)) allAssignees.Add(a);
-                            foreach (var l in issue.Labels) if (!string.IsNullOrWhiteSpace(l)) allLabels.Add(l);
-                        }
+                        projectIssues.Set(issues);
                     }
-
-                    projectIssues.Set(allIssues);
-                    availableAssignees.Set(allAssignees.OrderBy(a => a).ToList());
-                    availableLabels.Set(allLabels.OrderBy(l => l).ToList());
                 }
             }
             catch (Exception ex)
@@ -183,12 +158,12 @@ public class InboxApp : ViewBase
             }
         }
 
-        async Task FireOffIssues(IReadOnlyList<GitHubIssue> issuesToFire)
+        async Task FireOffIssues(IReadOnlyList<TrackerIssue> issuesToFire)
         {
             if (issuesToFire.Count == 0) return;
 
             var distinctIssues = issuesToFire
-                .DistinctBy(i => i.Number)
+                .DistinctBy(i => i.Id)
                 .ToList();
             if (distinctIssues.Count == 0) return;
 
@@ -202,25 +177,35 @@ public class InboxApp : ViewBase
 
                 foreach (var issue in distinctIssues)
                 {
+                    var safeKey = SanitizeKey(issue.Key);
                     var safeName = SanitizeFileName(issue.Title);
-                    var fileName = $"{issue.Number}-{safeName}.md";
+                    var fileName = $"{safeKey}-{safeName}.md";
                     var filePath = Path.Combine(inboxPath, fileName);
 
                     if (File.Exists(filePath)) continue;
 
                     var targetProject = selectedCategory.Value == InboxCategory.Project && !string.IsNullOrEmpty(selectedProject.Value)
                         ? selectedProject.Value
-                        : (issue.Repository != null ? githubService.FindProjectForGithubRepo(issue.Repository)?.Name : null) ?? "Auto";
+                        : (issue.Scope != null ? FindProjectForScope(config, githubService, issue.Scope, issue.ProviderId)?.Name : null) ?? "Auto";
 
-                    var issueUrl = issue.Url ?? (issue.Repository != null
-                        ? $"https://github.com/{issue.Repository}/issues/{issue.Number}"
-                        : "");
+                    var providerTitle = issue.ProviderId switch
+                    {
+                        "jira" => "Jira",
+                        "linear" => "Linear",
+                        "github" => "GitHub",
+                        "gitlab" => "GitLab",
+                        _ => issue.ProviderId
+                    };
+
+                    var issueHeader = !string.IsNullOrEmpty(issue.Url)
+                        ? $"[{providerTitle} Issue {issue.Key}]({issue.Url})"
+                        : $"# Issue {issue.Key}: {issue.Title}";
 
                     var content = $"""
                                    ---
                                    project: {targetProject}
                                    ---
-                                   {(string.IsNullOrEmpty(issueUrl) ? $"# Issue #{issue.Number}: {issue.Title}" : $"[GitHub Issue #{issue.Number}]({issueUrl})")}
+                                   {issueHeader}
 
                                    {issue.Body}
                                    """;
@@ -229,10 +214,10 @@ public class InboxApp : ViewBase
                     importedCount++;
                 }
 
-                selectedIssueNumbers.Set(prev =>
+                selectedIssueIds.Set(prev =>
                 {
-                    var next = new HashSet<int>(prev);
-                    foreach (var i in distinctIssues) next.Remove(i.Number);
+                    var next = new HashSet<string>(prev);
+                    foreach (var i in distinctIssues) next.Remove(i.Id);
                     return next;
                 });
                 refreshToken.Refresh();
@@ -270,7 +255,7 @@ public class InboxApp : ViewBase
             selectedCategory,
             selectedProject,
             config.Settings.Projects,
-            selectedIssueNumbers,
+            selectedIssueIds,
             myIssues.Value,
             reviewRequests.Value,
             projectIssues.Value,
@@ -278,7 +263,6 @@ public class InboxApp : ViewBase
             errorMessage.Value,
             isImporting,
             config,
-            githubService,
             refreshToken,
             onRefresh: FetchCurrentDataAsync,
             onFireOffIssues: FireOffIssues
@@ -290,9 +274,33 @@ public class InboxApp : ViewBase
         );
     }
 
+    public static ProjectConfig? FindProjectForScope(IConfigService config, IGithubService githubService, string scope, string providerId)
+    {
+        var explicitMatch = config.Settings.Projects.FirstOrDefault(p =>
+            p.IssueTracker != null &&
+            (string.Equals(p.IssueTracker.Repo, scope, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(p.IssueTracker.ProjectKey, scope, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(p.IssueTracker.TeamKey, scope, StringComparison.OrdinalIgnoreCase)));
+        if (explicitMatch != null) return explicitMatch;
+
+        if (string.Equals(providerId, "github", StringComparison.OrdinalIgnoreCase))
+        {
+            return githubService.FindProjectForGithubRepo(scope);
+        }
+
+        return null;
+    }
+
     public static string GetProjectForRepo(IGithubService githubService, string owner, string repo)
     {
         return githubService.FindProjectForGithubRepo($"{owner}/{repo}")?.Name ?? "Auto";
+    }
+
+    public static string SanitizeKey(string key)
+    {
+        var trimmed = key.TrimStart('#');
+        var sanitized = Regex.Replace(trimmed, @"[^a-zA-Z0-9_-]", "");
+        return string.IsNullOrEmpty(sanitized) ? "issue" : sanitized;
     }
 
     public static string SanitizeFileName(string title)
@@ -323,4 +331,4 @@ public class InboxApp : ViewBase
     }
 }
 
-public sealed record FetchedIssueGroup(string? Assignee, IReadOnlyList<GitHubIssue> Issues);
+public sealed record FetchedIssueGroup(string? Assignee, IReadOnlyList<TrackerIssue> Issues);
