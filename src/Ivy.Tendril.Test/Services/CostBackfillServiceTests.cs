@@ -181,7 +181,7 @@ public class CostBackfillServiceTests : IDisposable
 
         var lines = File.ReadAllLines(csvPath);
         Assert.Equal("CreatePlan,25000,0.0750,claude-opus-5", lines[1]);
-        Assert.Equal($"ExecutePlan,150000,{ExpectedEstimate:F4},claude-opus-5", lines[2]);
+        Assert.Equal(FormattableString.Invariant($"ExecutePlan,150000,{ExpectedEstimate:F4},claude-opus-5"), lines[2]);
     }
 
     [Fact]
