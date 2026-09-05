@@ -1,4 +1,7 @@
+using Ivy;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Services;
+using Ivy.Tendril.Test.TestHelpers;
 
 namespace Ivy.Tendril.Test;
 
@@ -41,5 +44,54 @@ public class ProjectHelperTests
     {
         var result = ProjectHelper.FormatProjectsForDisplay(input);
         Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void BuildBadges_NullOrEmpty_ReturnsEmpty(string? input)
+    {
+        var config = new StubConfigService();
+        var badges = ProjectHelper.BuildBadges(input, config).ToList();
+        Assert.Empty(badges);
+    }
+
+    [Fact]
+    public void BuildBadges_SingleProject_ReturnsOutlineBadgeWithConfiguredColor()
+    {
+        var config = new StubConfigService(
+        [
+            new ProjectConfig { Name = "Tendril", Color = "Blue" }
+        ]);
+
+        var badges = ProjectHelper.BuildBadges("Tendril", config).ToList();
+
+        var badge = Assert.Single(badges);
+        Assert.Equal("Tendril", badge.Title);
+        Assert.Equal(BadgeVariant.Outline, badge.Variant);
+        Assert.Equal(Colors.Blue, badge.Color);
+    }
+
+    [Fact]
+    public void BuildBadges_MultipleProjects_ReturnsBadgeForEachProject()
+    {
+        var config = new StubConfigService(
+        [
+            new ProjectConfig { Name = "Tendril", Color = "Blue" },
+            new ProjectConfig { Name = "Framework", Color = "Amber" }
+        ]);
+
+        var badges = ProjectHelper.BuildBadges("Tendril, Framework", config).ToList();
+
+        Assert.Equal(2, badges.Count);
+
+        Assert.Equal("Tendril", badges[0].Title);
+        Assert.Equal(BadgeVariant.Outline, badges[0].Variant);
+        Assert.Equal(Colors.Blue, badges[0].Color);
+
+        Assert.Equal("Framework", badges[1].Title);
+        Assert.Equal(BadgeVariant.Outline, badges[1].Variant);
+        Assert.Equal(Colors.Amber, badges[1].Color);
     }
 }

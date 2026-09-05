@@ -27,7 +27,8 @@ public class StubConfigService(List<ProjectConfig>? projects = null) : IConfigSe
 
     public Colors? GetProjectColor(string projectName)
     {
-        return null;
+        var colorStr = GetProject(projectName)?.Color;
+        return !string.IsNullOrEmpty(colorStr) && Enum.TryParse<Colors>(colorStr, ignoreCase: true, out var c) ? c : null;
     }
 
     public void SaveSettings()
