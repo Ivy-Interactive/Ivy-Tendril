@@ -1,5 +1,6 @@
 using Ivy.Tendril.Commands.DoctorChecks;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Test;
 
@@ -41,7 +42,7 @@ public class PathBudgetCheckTests
     public async Task RunAsync_WithLegacyFolders_ReportsWarnButNoError()
     {
         using var fixture = new TempDirectoryFixture();
-        var plansRoot = fixture.TempDirectory;
+        var plansRoot = fixture.Path;
 
         var legacyFolderName = "00001-" + new string('A', 60);
         Directory.CreateDirectory(Path.Combine(plansRoot, legacyFolderName));
@@ -58,38 +59,40 @@ public class PathBudgetCheckTests
         Assert.Contains("1 folder", legacyStatus.Value);
     }
 
-    private class MockConfigService : Services.IConfigService
+    private class MockConfigService : IConfigService
     {
         public string PlanFolder { get; set; } = string.Empty;
-        public List<Services.ProjectConfig> Projects { get; } = new();
+        public List<ProjectConfig> Projects { get; } = new();
 
-        public Services.TendrilSettings Settings => new();
+        public TendrilSettings Settings => new();
         public string ConfigPath => string.Empty;
         public string TendrilHome => string.Empty;
-        public List<Services.LevelConfig> Levels => new();
+        public List<LevelConfig> Levels => new();
         public string[] LevelNames => Array.Empty<string>();
-        public Services.EditorConfig Editor => new();
+        public EditorConfig Editor => new();
         public bool NeedsOnboarding => false;
-        public Services.ConfigParseError? ParseError => null;
+        public ConfigParseError? ParseError => null;
 
-        public Services.ProjectConfig? GetProject(string name) => null;
+        public ProjectConfig? GetProject(string name) => null;
         public bool TryAutoHeal() => false;
         public void ResetToDefaults() { }
         public void RetryLoadConfig() { }
         public Ivy.Colors? GetLevelColor(string level) => null;
         public Ivy.Colors? GetProjectColor(string projectName) => null;
         public void SaveSettings() { }
-        public void MutateAndSave(Action<Services.TendrilSettings> mutate) { }
+        public void MutateAndSave(Action<TendrilSettings> mutate) { }
         public void ReloadSettings() { }
+#pragma warning disable CS0067
         public event EventHandler? SettingsReloaded;
+#pragma warning restore CS0067
         public void SetPendingTendrilHome(string path) { }
         public string? GetPendingTendrilHome() => null;
-        public void SetPendingProject(Services.ProjectConfig project) { }
-        public Services.ProjectConfig? GetPendingProject() => null;
+        public void SetPendingProject(ProjectConfig project) { }
+        public ProjectConfig? GetPendingProject() => null;
         public void SetPendingCodingAgent(string name) { }
         public string? GetPendingCodingAgent() => null;
-        public void SetPendingVerificationDefinitions(List<Services.VerificationConfig> definitions) { }
-        public List<Services.VerificationConfig>? GetPendingVerificationDefinitions() => null;
+        public void SetPendingVerificationDefinitions(List<VerificationConfig> definitions) { }
+        public List<VerificationConfig>? GetPendingVerificationDefinitions() => null;
         public void CompleteOnboarding(string tendrilHome) { }
         public void OpenInEditor(string path) { }
         public string PolishMarkdown(string content) => content;
