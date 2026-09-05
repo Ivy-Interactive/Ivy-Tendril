@@ -34,6 +34,7 @@ public class InboxApp : ViewBase
         var isImporting = UseState(false);
         var errorMessage = UseState<string?>(null);
         var hasInitialLoaded = UseState(false);
+        var refreshToken = UseRefreshToken();
 
         UseEffect(() =>
         {
@@ -178,6 +179,7 @@ public class InboxApp : ViewBase
             finally
             {
                 isFetching.Set(false);
+                refreshToken.Refresh();
             }
         }
 
@@ -233,6 +235,7 @@ public class InboxApp : ViewBase
                     foreach (var i in distinctIssues) next.Remove(i.Number);
                     return next;
                 });
+                refreshToken.Refresh();
 
                 client.Toast($"Fired off {importedCount} issue{(importedCount == 1 ? "" : "s")} in Tendril", "Inbox");
             }
@@ -267,11 +270,6 @@ public class InboxApp : ViewBase
             selectedCategory,
             selectedProject,
             config.Settings.Projects,
-            searchQuery,
-            selectedAssignees,
-            selectedLabels,
-            availableAssignees.Value,
-            availableLabels.Value,
             selectedIssueNumbers,
             myIssues.Value,
             reviewRequests.Value,
@@ -281,6 +279,7 @@ public class InboxApp : ViewBase
             isImporting,
             config,
             githubService,
+            refreshToken,
             onRefresh: FetchCurrentDataAsync,
             onFireOffIssues: FireOffIssues
         );
@@ -288,7 +287,7 @@ public class InboxApp : ViewBase
         return new SidebarLayout(
             content,
             sidebar
-        ).SidebarContentScroll(Scroll.None);
+        );
     }
 
     public static string GetProjectForRepo(IGithubService githubService, string owner, string repo)

@@ -24,6 +24,8 @@ public class SidebarView(
 {
     public override object Build()
     {
+        var isProjectsExpanded = UseState(true);
+
         var isMyIssuesSelected = selectedCategory.Value == InboxCategory.MyIssues;
         var isReviewsSelected = selectedCategory.Value == InboxCategory.Reviews;
 
@@ -31,26 +33,37 @@ public class SidebarView(
         {
             SidebarListRow.Build("My issues", Icons.CircleDot, onSelectMyIssues, isMyIssuesSelected, myIssuesCount),
             SidebarListRow.Build("Reviews", Icons.GitPullRequest, onSelectReviews, isReviewsSelected, reviewsCount),
+            SidebarListRow.BuildExpandable(
+                "Projects",
+                Icons.Folder,
+                isProjectsExpanded.Value,
+                () => isProjectsExpanded.Set(!isProjectsExpanded.Value),
+                selectedCategory.Value == InboxCategory.Project
+            )
         };
 
-        rows.Add(Text.Label("PROJECTS"));
-
-        if (projects.Count == 0)
+        if (isProjectsExpanded.Value)
         {
-            rows.Add(Text.Muted("No projects configured in settings.").Small());
-        }
-        else
-        {
-            for (var i = 0; i < projects.Count; i++)
+            if (projects.Count == 0)
             {
-                var proj = projects[i];
-                var isSelected = selectedCategory.Value == InboxCategory.Project &&
-                                 string.Equals(selectedProject.Value, proj.Name, StringComparison.OrdinalIgnoreCase);
-                var projColor = Enum.TryParse<Colors>(proj.Color, out var parsed) ? parsed : (config.GetProjectColor(proj.Name) ?? Colors.Slate);
-                rows.Add(SidebarListRow.BuildSubItem(proj.Name, null, projColor, () => onSelectProject(proj.Name), isSelected));
+                rows.Add(SidebarListRow.BuildSubItem("No projects in settings", Icons.FolderClosed, () => {}, false));
+            }
+            else
+            {
+                for (var i = 0; i < projects.Count; i++)
+                {
+                    var proj = projects[i];
+                    var isSelected = selectedCategory.Value == InboxCategory.Project &&
+                                     string.Equals(selectedProject.Value, proj.Name, StringComparison.OrdinalIgnoreCase);
+                    var projColor = Enum.TryParse<Colors>(proj.Color, out var parsed)
+                        ? parsed
+                        : (config.GetProjectColor(proj.Name) ?? Colors.Slate);
+                    rows.Add(SidebarListRow.BuildSubItem(proj.Name, null, projColor, () => onSelectProject(proj.Name), isSelected));
+                }
             }
         }
 
         return Layout.Vertical(rows);
     }
 }
+

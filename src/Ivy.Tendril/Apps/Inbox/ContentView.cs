@@ -7,15 +7,31 @@ using Ivy.Tendril.Services.Git;
 
 namespace Ivy.Tendril.Apps.Inbox;
 
+public record IssueRow
+{
+    public string Id { get; init; } = "";
+    public bool Selected { get; init; }
+    public int Number { get; init; }
+    public string Issue { get; init; } = "";
+    public string Repository { get; init; } = "";
+    public string[] Labels { get; init; } = [];
+    public string Assignees { get; init; } = "";
+}
+
+public record ReviewRow
+{
+    public string Id { get; init; } = "";
+    public int Number { get; init; }
+    public string Review { get; init; } = "";
+    public string Repository { get; init; } = "";
+    public string Branch { get; init; } = "";
+    public string Updated { get; init; } = "";
+}
+
 public class ContentView(
     IState<InboxCategory> selectedCategory,
     IState<string?> selectedProject,
     IReadOnlyList<ProjectConfig> projects,
-    IState<string> searchQuery,
-    IState<string[]> selectedAssignees,
-    IState<string[]> selectedLabels,
-    IReadOnlyList<string> availableAssignees,
-    IReadOnlyList<string> availableLabels,
     IState<HashSet<int>> selectedIssueNumbers,
     IReadOnlyList<GitHubIssue> myIssues,
     IReadOnlyList<GitHubReviewItem> reviewRequests,
@@ -25,6 +41,7 @@ public class ContentView(
     IState<bool> isImporting,
     IConfigService config,
     IGithubService githubService,
+    RefreshToken refreshToken,
     Func<Task> onRefresh,
     Func<IReadOnlyList<GitHubIssue>, Task> onFireOffIssues) : ViewBase
 {
@@ -138,7 +155,6 @@ public class ContentView(
                 subtitle: "Issues assigned to you across GitHub repositories",
                 allIssues: myIssues,
                 showRepoBadge: true,
-                showProjectFilters: false,
                 client: client,
                 showIssueSheet: showIssueSheet
             );
@@ -154,7 +170,6 @@ public class ContentView(
                 subtitle: $"Browse and fire off issues for {projName}",
                 allIssues: projectIssues,
                 showRepoBadge: false,
-                showProjectFilters: true,
                 client: client,
                 showIssueSheet: showIssueSheet
             );
@@ -165,20 +180,6 @@ public class ContentView(
 
     private object BuildReviewsView(IClientProvider client, Action<GitHubReviewItem> showReviewSheet)
     {
-        var filteredReviews = reviewRequests;
-        if (!string.IsNullOrWhiteSpace(searchQuery.Value))
-        {
-            var q = searchQuery.Value.Trim();
-            filteredReviews = filteredReviews.Where(r =>
-                r.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                r.Number.ToString().Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                r.Repository.Contains(q, StringComparison.OrdinalIgnoreCase)
-            ).ToList();
-        }
-
-        var searchInput = searchQuery.ToSearchInput()
-            .Placeholder("Search reviews by title, #number, or repo...");
-
         var refreshButton = new Button()
             .Icon(Icons.RefreshCw)
             .Ghost()
@@ -191,7 +192,6 @@ public class ContentView(
                 | Text.H3("Reviews").Bold()
                 | Text.Muted("Pull requests requesting your review on GitHub"))
             | (Layout.Horizontal().AlignContent(Align.Right)
-                | searchInput
                 | refreshButton);
 
         if (isFetching && reviewRequests.Count == 0)
@@ -214,7 +214,7 @@ public class ContentView(
             );
         }
 
-        if (filteredReviews.Count == 0)
+        if (reviewRequests.Count == 0)
         {
             return new HeaderLayout(
                 headerToolbar,
@@ -222,40 +222,80 @@ public class ContentView(
             );
         }
 
-        var headerRow = new TableRow(
-            new TableCell(Text.Literal("Pull Request")).IsHeader(),
-            new TableCell(Text.Literal("Repository")).Width(Size.Px(180)).IsHeader(),
-            new TableCell(Text.Literal("Branch")).Width(Size.Px(160)).IsHeader(),
-            new TableCell(Text.Literal("Updated")).Width(Size.Px(100)).IsHeader(),
-            new TableCell(Text.Literal("Actions")).Width(Size.Px(140)).AlignContent(Align.Right).IsHeader()
-        ).IsHeader();
-
-        var dataRows = filteredReviews.Select(pr =>
+        var rows = reviewRequests.Select(pr => new ReviewRow
         {
-            var titleCell = new TableCell(
-                new Button($"#{pr.Number} {pr.Title}")
-                    .Link()
-                    .OnClick(() => showReviewSheet(pr))
-            );
+            Id = $"{pr.Repository}#{pr.Number}",
+            Number = pr.Number,
+            Review = $"#{pr.Number} {pr.Title}",
+            Repository = pr.Repository,
+            Branch = pr.Branch ?? "",
+            Updated = pr.UpdatedAt.HasValue ? pr.UpdatedAt.Value.ToString("M/d") : ""
+        }).ToList();
 
-            var repoCell = new TableCell(new Badge(pr.Repository).Variant(BadgeVariant.Secondary).Small()).Width(Size.Px(180));
-            var branchCell = new TableCell(!string.IsNullOrEmpty(pr.Branch) ? new Badge(pr.Branch).Variant(BadgeVariant.Outline).Small() : null).Width(Size.Px(160));
-            var dateCell = new TableCell(pr.UpdatedAt.HasValue ? Text.Muted(pr.UpdatedAt.Value.ToString("M/d")).Small() : null).Width(Size.Px(100));
+        var dataTable = rows.AsQueryable()
+            .ToDataTable(t => t.Id)
+            .RefreshToken(refreshToken)
+            .Width(Size.Full())
+            .Height(Size.Full())
+            .Order(
+                e => e.Review,
+                e => e.Repository,
+                e => e.Branch,
+                e => e.Updated
+            )
+            .Header(t => t.Review, "Pull Request")
+            .Header(t => t.Repository, "Repository")
+            .Header(t => t.Branch, "Branch")
+            .Header(t => t.Updated, "Updated")
+            .Width(t => t.Review, Size.Fraction(0.5f))
+            .Width(t => t.Repository, Size.Px(180))
+            .Width(t => t.Branch, Size.Px(160))
+            .Width(t => t.Updated, Size.Px(100))
+            .Renderer(t => t.Repository, new LabelsDisplayRenderer())
+            .Hidden(t => t.Id)
+            .Hidden(t => t.Number)
+            .Config(c =>
+            {
+                c.AllowSorting = true;
+                c.AllowFiltering = true;
+                c.ShowSearch = true;
+                c.SelectionMode = SelectionModes.None;
+                c.ShowIndexColumn = false;
+                c.BatchSize = 50;
+            })
+            .OnCellAction(t => t.Review, e =>
+            {
+                var id = e.Value.RowId?.ToString();
+                var row = rows.FirstOrDefault(r => r.Id == id) ?? rows.ElementAtOrDefault(e.Value.RowIndex);
+                if (row != null)
+                {
+                    var raw = reviewRequests.FirstOrDefault(r => r.Number == row.Number && r.Repository == row.Repository);
+                    if (raw != null) showReviewSheet(raw);
+                }
+                return ValueTask.CompletedTask;
+            })
+            .RowActions(
+                new MenuItem("Review on GitHub", Icon: Icons.ExternalLink, Tag: "open-github").Tooltip("Open pull request on GitHub"),
+                new MenuItem("View Details", Icon: Icons.FileText, Tag: "view-details").Tooltip("View review details")
+            )
+            .OnRowAction(e =>
+            {
+                var tag = e.Value.Tag?.ToString();
+                var id = e.Value.Id?.ToString();
+                var row = rows.FirstOrDefault(r => r.Id == id);
+                if (row != null)
+                {
+                    var raw = reviewRequests.FirstOrDefault(r => r.Number == row.Number && r.Repository == row.Repository);
+                    if (raw != null)
+                    {
+                        if (tag == "open-github") client.OpenUrl(raw.Url);
+                        else if (tag == "view-details") showReviewSheet(raw);
+                    }
+                }
+                return ValueTask.CompletedTask;
+            });
 
-            var actionsCell = new TableCell(
-                Layout.Horizontal().AlignContent(Align.Right)
-                    | new Button("Review")
-                        .Icon(Icons.ExternalLink)
-                        .Outline().Small()
-                        .OnClick(() => client.OpenUrl(pr.Url))
-            ).Width(Size.Px(140)).AlignContent(Align.Right);
-
-            return new TableRow(titleCell, repoCell, branchCell, dateCell, actionsCell);
-        }).ToArray();
-
-        var table = new Table(new[] { headerRow }.Concat(dataRows).ToArray()).Width(Size.Full());
-
-        return new HeaderLayout(headerToolbar, table);
+        return new HeaderLayout(headerToolbar, dataTable).Scroll(Scroll.None);
     }
 
     private object BuildIssuesView(
@@ -263,42 +303,9 @@ public class ContentView(
         string subtitle,
         IReadOnlyList<GitHubIssue> allIssues,
         bool showRepoBadge,
-        bool showProjectFilters,
         IClientProvider client,
         Action<GitHubIssue> showIssueSheet)
     {
-        var filteredIssues = allIssues;
-
-        if (!string.IsNullOrWhiteSpace(searchQuery.Value))
-        {
-            var q = searchQuery.Value.Trim();
-            filteredIssues = filteredIssues.Where(i =>
-                i.Title.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                i.Number.ToString().Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                (i.Body != null && i.Body.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
-                (i.Repository != null && i.Repository.Contains(q, StringComparison.OrdinalIgnoreCase))
-            ).ToList();
-        }
-
-        if (selectedAssignees.Value.Length > 0)
-        {
-            var filterAssignees = selectedAssignees.Value.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            filteredIssues = filteredIssues.Where(i =>
-                i.Assignees.Any(a => filterAssignees.Contains(a))
-            ).ToList();
-        }
-
-        if (selectedLabels.Value.Length > 0)
-        {
-            var filterLabels = selectedLabels.Value.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            filteredIssues = filteredIssues.Where(i =>
-                i.Labels.Any(l => filterLabels.Contains(l))
-            ).ToList();
-        }
-
-        var searchInput = searchQuery.ToSearchInput()
-            .Placeholder("Search issues by title, #number, or description...");
-
         var refreshButton = new Button()
             .Icon(Icons.RefreshCw)
             .Ghost()
@@ -306,28 +313,12 @@ public class ContentView(
             .Loading(isFetching)
             .OnClick(async () => await onRefresh());
 
-        var filterBar = Layout.Horizontal().AlignContent(Align.Right).Wrap()
-            | searchInput;
-
-        if (showProjectFilters && availableAssignees.Count > 0)
-        {
-            filterBar |= selectedAssignees.ToSelectInput(availableAssignees.ToOptions())
-                .Placeholder("Assignees...");
-        }
-
-        if (showProjectFilters && availableLabels.Count > 0)
-        {
-            filterBar |= selectedLabels.ToSelectInput(availableLabels.ToOptions())
-                .Placeholder("Labels...");
-        }
-
-        filterBar |= refreshButton;
-
         var headerTop = Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full())
             | (Layout.Vertical().AlignContent(Align.Left)
                 | Text.H3(title).Bold()
                 | Text.Muted(subtitle))
-            | filterBar;
+            | (Layout.Horizontal().AlignContent(Align.Right)
+                | refreshButton);
 
         if (isFetching && allIssues.Count == 0)
         {
@@ -349,41 +340,51 @@ public class ContentView(
             );
         }
 
-        if (filteredIssues.Count == 0)
+        if (allIssues.Count == 0)
         {
             return new HeaderLayout(
                 headerTop,
-                new NoContentView("No Issues Found", "No issues match the selected view or search filters.")
+                new NoContentView("No Issues Found", "No issues match the selected view.")
             );
         }
 
+        var rows = allIssues.Select(issue => new IssueRow
+        {
+            Id = issue.Number.ToString(),
+            Selected = selectedIssueNumbers.Value.Contains(issue.Number),
+            Number = issue.Number,
+            Issue = $"#{issue.Number} {issue.Title}",
+            Repository = issue.Repository ?? "",
+            Labels = issue.Labels,
+            Assignees = string.Join(", ", issue.Assignees.Where(a => !string.IsNullOrWhiteSpace(a)))
+        }).ToList();
+
         var selectedCount = selectedIssueNumbers.Value.Count;
-        var selectedIssuesList = filteredIssues
+        var selectedIssuesList = allIssues
             .Where(i => selectedIssueNumbers.Value.Contains(i.Number))
             .ToList();
 
         void SelectAll()
         {
             var next = new HashSet<int>(selectedIssueNumbers.Value);
-            foreach (var i in filteredIssues) next.Add(i.Number);
+            foreach (var i in allIssues) next.Add(i.Number);
             selectedIssueNumbers.Set(next);
+            refreshToken.Refresh();
         }
 
         void DeselectAll()
         {
             var next = new HashSet<int>(selectedIssueNumbers.Value);
-            foreach (var i in filteredIssues) next.Remove(i.Number);
+            foreach (var i in allIssues) next.Remove(i.Number);
             selectedIssueNumbers.Set(next);
+            refreshToken.Refresh();
         }
-
-        var allSelected = filteredIssues.Count > 0 && selectedCount == filteredIssues.Count;
-        var anySelected = selectedCount > 0;
 
         var batchBar = Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full())
             | (Layout.Horizontal().AlignContent(Align.Left)
                 | new Button("Select All").Ghost().Small().OnClick(SelectAll)
                 | new Button("Deselect All").Ghost().Small().Disabled(selectedCount == 0).OnClick(DeselectAll)
-                | Text.Muted($"{selectedCount} of {filteredIssues.Count} selected").Small())
+                | Text.Muted($"{selectedCount} of {rows.Count} selected").Small())
             | new Button(selectedCount > 0 ? $"Fire off in Tendril ({selectedCount})" : "Fire off in Tendril")
                 .Icon(Icons.Zap)
                 .Primary()
@@ -396,88 +397,98 @@ public class ContentView(
             | new Separator()
             | batchBar;
 
-        var headerRow = new TableRow(
-            new TableCell(
-                new Button()
-                    .Icon(allSelected ? Icons.SquareCheck : (anySelected ? Icons.SquareMinus : Icons.Square))
-                    .Ghost().Small()
-                    .OnClick(() =>
+        var dataTable = rows.AsQueryable()
+            .ToDataTable(t => t.Id)
+            .RefreshToken(refreshToken)
+            .Width(Size.Full())
+            .Height(Size.Full())
+            .Order(
+                e => e.Selected,
+                e => e.Issue,
+                e => e.Repository,
+                e => e.Labels,
+                e => e.Assignees
+            )
+            .Header(t => t.Selected, "")
+            .Header(t => t.Issue, "Issue")
+            .Header(t => t.Repository, "Repository")
+            .Header(t => t.Labels, "Labels")
+            .Header(t => t.Assignees, "Assignees")
+            .Width(t => t.Selected, Size.Px(45))
+            .Width(t => t.Issue, Size.Fraction(0.45f))
+            .Width(t => t.Repository, Size.Px(180))
+            .Width(t => t.Labels, Size.Px(200))
+            .Width(t => t.Assignees, Size.Px(150))
+            .Renderer(t => t.Repository, new LabelsDisplayRenderer())
+            .Hidden(t => t.Id)
+            .Hidden(t => t.Number)
+            .Config(c =>
+            {
+                c.AllowSorting = true;
+                c.AllowFiltering = true;
+                c.ShowSearch = true;
+                c.SelectionMode = SelectionModes.None;
+                c.ShowIndexColumn = false;
+                c.BatchSize = 50;
+            })
+            .OnCellAction(t => t.Selected, e =>
+            {
+                var id = e.Value.RowId?.ToString();
+                var row = rows.FirstOrDefault(r => r.Id == id) ?? rows.ElementAtOrDefault(e.Value.RowIndex);
+                if (row != null)
+                {
+                    var next = new HashSet<int>(selectedIssueNumbers.Value);
+                    if (!next.Remove(row.Number)) next.Add(row.Number);
+                    selectedIssueNumbers.Set(next);
+                    refreshToken.Refresh();
+                }
+                return ValueTask.CompletedTask;
+            })
+            .OnCellAction(t => t.Issue, e =>
+            {
+                var id = e.Value.RowId?.ToString();
+                var row = rows.FirstOrDefault(r => r.Id == id) ?? rows.ElementAtOrDefault(e.Value.RowIndex);
+                if (row != null)
+                {
+                    var raw = allIssues.FirstOrDefault(i => i.Number == row.Number);
+                    if (raw != null) showIssueSheet(raw);
+                }
+                return ValueTask.CompletedTask;
+            })
+            .RowActions(
+                new MenuItem("Fire off in Tendril", Icon: Icons.Zap, Tag: "fire-off").Tooltip("Fire off this issue in Tendril"),
+                new MenuItem("View Details", Icon: Icons.FileText, Tag: "view-details").Tooltip("View issue details"),
+                new MenuItem("Open in GitHub", Icon: Icons.ExternalLink, Tag: "open-github").Tooltip("Open issue on GitHub")
+            )
+            .OnRowAction(async e =>
+            {
+                var tag = e.Value.Tag?.ToString();
+                var id = e.Value.Id?.ToString();
+                var row = rows.FirstOrDefault(r => r.Id == id);
+                if (row != null)
+                {
+                    var raw = allIssues.FirstOrDefault(i => i.Number == row.Number);
+                    if (raw != null)
                     {
-                        if (allSelected) DeselectAll();
-                        else SelectAll();
-                    })
-            ).Width(Size.Px(44)).AlignContent(Align.Center).IsHeader(),
-            new TableCell(Text.Literal("Issue")).IsHeader(),
-            new TableCell(Text.Literal("Repository")).Width(Size.Px(180)).IsHeader(),
-            new TableCell(Text.Literal("Labels")).Width(Size.Px(200)).IsHeader(),
-            new TableCell(Text.Literal("Assignees")).Width(Size.Px(160)).IsHeader(),
-            new TableCell(Text.Literal("Actions")).Width(Size.Px(100)).AlignContent(Align.Right).IsHeader()
-        ).IsHeader();
+                        if (tag == "fire-off")
+                        {
+                            await onFireOffIssues([raw]);
+                        }
+                        else if (tag == "view-details")
+                        {
+                            showIssueSheet(raw);
+                        }
+                        else if (tag == "open-github")
+                        {
+                            var url = raw.Url ?? (raw.Repository != null
+                                ? $"https://github.com/{raw.Repository}/issues/{raw.Number}"
+                                : null);
+                            if (url != null) client.OpenUrl(url);
+                        }
+                    }
+                }
+            });
 
-        var dataRows = filteredIssues.Select(issue =>
-        {
-            var isChecked = selectedIssueNumbers.Value.Contains(issue.Number);
-            var issueUrl = issue.Url ?? (issue.Repository != null
-                ? $"https://github.com/{issue.Repository}/issues/{issue.Number}"
-                : null);
-
-            var checkboxCell = new TableCell(
-                new Button()
-                    .Icon(isChecked ? Icons.SquareCheck : Icons.Square)
-                    .Ghost().Small()
-                    .OnClick(() =>
-                    {
-                        var next = new HashSet<int>(selectedIssueNumbers.Value);
-                        if (!next.Remove(issue.Number)) next.Add(issue.Number);
-                        selectedIssueNumbers.Set(next);
-                    })
-            ).Width(Size.Px(44)).AlignContent(Align.Center);
-
-            var titleCell = new TableCell(
-                new Button($"#{issue.Number} {issue.Title}")
-                    .Link()
-                    .OnClick(() => showIssueSheet(issue))
-            );
-
-            var repoCell = new TableCell(
-                (showRepoBadge || !string.IsNullOrEmpty(issue.Repository))
-                    ? (!string.IsNullOrEmpty(issue.Repository) ? new Badge(issue.Repository).Variant(BadgeVariant.Secondary).Small() : null)
-                    : null
-            ).Width(Size.Px(180));
-
-            var labelsContent = issue.Labels.Length > 0
-                ? (object)(Layout.Horizontal().AlignContent(Align.Left).Wrap()
-                    | issue.Labels.Take(3).Select(l => (object)new Badge(l).Variant(BadgeVariant.Outline).Small()).ToArray()
-                    | (issue.Labels.Length > 3 ? Text.Muted($"+{issue.Labels.Length - 3}").Small() : null))
-                : null;
-            var labelsCell = new TableCell(labelsContent).Width(Size.Px(200));
-
-            var assigneesContent = issue.Assignees.Length > 0
-                ? Text.Muted(string.Join(", ", issue.Assignees.Where(a => !string.IsNullOrWhiteSpace(a)))).Small()
-                : null;
-            var assigneesCell = new TableCell(assigneesContent).Width(Size.Px(160));
-
-            var actionsContent = Layout.Horizontal().AlignContent(Align.Right)
-                | new Button()
-                    .Icon(Icons.Zap)
-                    .Ghost().Small()
-                    .Tooltip("Fire off in Tendril")
-                    .Loading(isImporting.Value)
-                    .OnClick(async () => await onFireOffIssues([issue]))
-                | (issueUrl != null
-                    ? new Button()
-                        .Icon(Icons.ExternalLink)
-                        .Ghost().Small()
-                        .Tooltip("Open on GitHub")
-                        .OnClick(() => client.OpenUrl(issueUrl))
-                    : null);
-            var actionsCell = new TableCell(actionsContent).Width(Size.Px(100)).AlignContent(Align.Right);
-
-            return new TableRow(checkboxCell, titleCell, repoCell, labelsCell, assigneesCell, actionsCell);
-        }).ToArray();
-
-        var table = new Table(new[] { headerRow }.Concat(dataRows).ToArray()).Width(Size.Full());
-
-        return new HeaderLayout(fullHeader, table);
+        return new HeaderLayout(fullHeader, dataTable).Scroll(Scroll.None);
     }
 }
