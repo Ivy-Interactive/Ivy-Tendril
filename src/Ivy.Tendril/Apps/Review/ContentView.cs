@@ -913,12 +913,18 @@ public class ContentView(
 
             if (exitCode == 0)
             {
-                var planFolder = Path.GetFullPath(Path.Combine(worktreePath, "..", ".."));
-                planService.SyncPlanArtifacts(planFolder);
-                var refreshed = planService.GetPlanByFolderFromDisk(planFolder);
-                if (refreshed != null)
-                    selectedPlanState.Set(refreshed);
-                client.Toast("Worktree synchronized successfully", "Synchronized");
+                if (WorktreePathHelper.TryGetPlanFolderFromWorktree(worktreePath, out var planFolder))
+                {
+                    planService.SyncPlanArtifacts(planFolder);
+                    var refreshed = planService.GetPlanByFolderFromDisk(planFolder);
+                    if (refreshed != null)
+                        selectedPlanState.Set(refreshed);
+                    client.Toast("Worktree synchronized successfully", "Synchronized");
+                }
+                else
+                {
+                    client.Toast("Failed to locate plan folder from worktree path", "Synchronization failed");
+                }
             }
             else
             {
