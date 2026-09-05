@@ -34,7 +34,7 @@ Plans live under `planFolder` from `config.yaml`.
 `{ID:D5}-{SafeTitle}` — e.g. `01098-MakeAnEmptyAppCalledReview`
 
 - **ID**: 5-digit value from `.counter`
-- **SafeTitle**: Title-cased, first 60 chars of description, alphanumeric only, no spaces (e.g. `"Fix login bug"` – `FixLoginBug`)
+- **SafeTitle**: Title-cased, first 24 chars of description, alphanumeric only, no spaces (e.g. `"Fix login bug"` – `FixLoginBug`). The 24-character cap keeps worktree paths within the Windows process creation budget (MAX_PATH limit).
 
 **SafeTitle is for the folder name only.** It is derived automatically from the title by the CLI — do not pass it anywhere. The plan's `title` field is a separate, **human-readable** string (Title Case *with spaces*). Never reuse the PascalCase SafeTitle form as the `title`.
 

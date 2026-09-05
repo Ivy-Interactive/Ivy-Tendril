@@ -43,6 +43,7 @@ public static class DoctorCommand
         var checks = new IDoctorCheck[]
         {
             new InstallationCheck(),
+            new PathBudgetCheck(configService),
             new EnvironmentCheck(),
             new SoftwareCheck(configService, agentRunner),
             new DatabaseCheck(),

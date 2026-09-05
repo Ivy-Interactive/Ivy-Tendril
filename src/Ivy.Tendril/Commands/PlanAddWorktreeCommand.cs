@@ -45,8 +45,7 @@ public class PlanAddWorktreeCommand : Command<PlanAddWorktreeSettings>
         }
 
         var branchName = DeriveBranchName(planFolder);
-        var relWorktreePath = GitHelper.DeriveWorktreeRelativePath(settings.Repo);
-        var worktreePath = Path.Combine(planFolder, "Worktrees", relWorktreePath);
+        var worktreePath = WorktreePathHelper.GetWorktreePath(planFolder, settings.Repo);
 
         Directory.CreateDirectory(Path.GetDirectoryName(worktreePath)!);
 

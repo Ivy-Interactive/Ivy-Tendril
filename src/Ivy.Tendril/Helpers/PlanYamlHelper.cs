@@ -278,12 +278,18 @@ internal static class PlanYamlHelper
         return dashIdx > 0 ? folderName[(dashIdx + 1)..] : null;
     }
 
+    /// <summary>
+    /// Maximum length for the SafeTitle component of a plan folder name.
+    /// Set to keep worktree paths below the Windows process creation limit.
+    /// </summary>
+    internal const int SafeTitleMaxLength = 24;
+
     internal static string ToSafeTitle(string title)
     {
         var words = title.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var safe = string.Concat(words.Select(w =>
             char.ToUpperInvariant(w[0]) + w[1..]));
         safe = Regex.Replace(safe, @"[^a-zA-Z0-9]", "");
-        return safe.Length > 60 ? safe[..60] : safe;
+        return safe.Length > SafeTitleMaxLength ? safe[..SafeTitleMaxLength] : safe;
     }
 }
