@@ -268,5 +268,8 @@ public class GitTabDataBuilderTests : IDisposable
             WorktreeBaseFails
                 ? GitResult<WorktreeBaseInfo?>.Failure(GitError.CommandFailed, "Not implemented in stub")
                 : GitResult<WorktreeBaseInfo?>.Success(WorktreeBase);
+
+        public GitResult<List<string>> GetBranches(string repoPath) =>
+            GitResult<List<string>>.Success([]);
     }
 }
