@@ -16,6 +16,15 @@ public record ChatMessageDto(
     string? Effort = null
 );
 
+public record ChatJobDto(
+    string Id,
+    string Type,
+    string Status,
+    string? PlanId = null,
+    string? PlanTitle = null,
+    string? StatusMessage = null
+);
+
 public record ChatSessionDto(
     string Id,
     string Title,
@@ -25,7 +34,8 @@ public record ChatSessionDto(
     string UpdatedAt,
     List<ChatMessageDto> Messages,
     string Status = "done",
-    string? Effort = null
+    string? Effort = null,
+    List<ChatJobDto>? SpawnedJobs = null
 );
 
 public record AgentOptionDto(string Id, string Label);

@@ -344,4 +344,35 @@ public class ChatHistoryServiceTests
         Assert.Equal("/tmp/attachments/report.pdf", att.LocalPath);
         Assert.Equal("att-12345", att.FileId);
     }
+
+    [Fact]
+    public void AddSpawnedJob_And_GetSpawnedJobs_TracksAndPersistsJobIds()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus");
+            Assert.Empty(service.GetSpawnedJobs(session.Id));
+
+            service.AddSpawnedJob(session.Id, "job-101");
+            service.AddSpawnedJob(session.Id, "job-102");
+            // Should not duplicate
+            service.AddSpawnedJob(session.Id, "job-101");
+
+            var jobs = service.GetSpawnedJobs(session.Id);
+            Assert.Equal(2, jobs.Count);
+            Assert.Equal("job-101", jobs[0]);
+            Assert.Equal("job-102", jobs[1]);
+
+            var storedSession = service.GetSession(session.Id);
+            Assert.NotNull(storedSession);
+            Assert.NotNull(storedSession.SpawnedJobIds);
+            Assert.Equal(new[] { "job-101", "job-102" }, storedSession.SpawnedJobIds);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
 }

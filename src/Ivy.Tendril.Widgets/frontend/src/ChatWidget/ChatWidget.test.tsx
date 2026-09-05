@@ -5,7 +5,7 @@ import "@testing-library/jest-dom";
 vi.mock("pdfjs-dist", () => ({ GlobalWorkerOptions: {}, getDocument: vi.fn() }));
 vi.mock("pdfjs-dist/build/pdf.worker.mjs?url", () => ({ default: "" }));
 
-import { ChatWidget } from "./ChatWidget";
+import { ChatWidget, type ChatSessionDto } from "./ChatWidget";
 
 describe("ChatWidget Queued Messages UI", () => {
   beforeEach(() => {
@@ -906,5 +906,57 @@ describe("ChatWidget File Uploads and Attachments", () => {
     expect(screen.queryByRole("button", { name: /Stop/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Send/i })).toBeInTheDocument();
   });
+
+  it("displays spawned jobs banner and emits OnSendMessage when reviewing outcomes", () => {
+    const handleEvent = vi.fn();
+    const session: ChatSessionDto = {
+      id: "sess-jobs",
+      title: "Jobs Chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+      spawnedJobs: [
+        {
+          id: "job-101",
+          type: "plan",
+          status: "Completed",
+          planTitle: "Add OAuth2 authentication",
+        },
+      ],
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-jobs"
+        sessions={[session]}
+        eventHandler={handleEvent}
+        events={["OnSendMessage"]}
+      />
+    );
+
+    expect(screen.getByText(/Spawned Jobs \(1\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 completed/i)).toBeInTheDocument();
+    expect(screen.getByText("Add OAuth2 authentication")).toBeInTheDocument();
+
+    const reviewBtn = screen.getByRole("button", { name: /Ask agent to review outcomes/i });
+    expect(reviewBtn).toBeInTheDocument();
+
+    fireEvent.click(reviewBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnSendMessage",
+      "test-chat",
+      expect.arrayContaining([
+        expect.objectContaining({
+          prompt: expect.stringContaining("All spawned jobs have completed"),
+          sessionId: "sess-jobs",
+        }),
+      ])
+    );
+  });
 });
+
 

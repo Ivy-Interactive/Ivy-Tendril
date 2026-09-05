@@ -51,6 +51,8 @@ public class SidebarViewTests
         public bool RemoveQueuedMessage(string sessionId, string queueId) => false;
         public bool UpdateQueuedMessage(string sessionId, string queueId, string prompt) => false;
         public void ClearQueuedMessages(string sessionId) { }
+        public void AddSpawnedJob(string sessionId, string jobId) { }
+        public IReadOnlyList<string> GetSpawnedJobs(string sessionId) => [];
     }
 
     private class TestState<T> : IState<T>

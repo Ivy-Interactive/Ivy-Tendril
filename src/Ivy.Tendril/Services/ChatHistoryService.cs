@@ -394,6 +394,41 @@ public class ChatHistoryService : IChatHistoryService
         return msg;
     }
 
+    public void AddSpawnedJob(string sessionId, string jobId)
+    {
+        if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(jobId)) return;
+        ChatSessionModel? updated = null;
+        lock (_sessionLock)
+        {
+            var session = GetSession(sessionId);
+            if (session == null) return;
+            var currentJobs = session.SpawnedJobIds != null ? new List<string>(session.SpawnedJobIds) : new List<string>();
+            if (!currentJobs.Contains(jobId, StringComparer.OrdinalIgnoreCase))
+            {
+                currentJobs.Add(jobId);
+                updated = session with
+                {
+                    UpdatedAt = DateTimeOffset.UtcNow,
+                    SpawnedJobIds = currentJobs
+                };
+                _sessions[sessionId] = updated;
+            }
+        }
+
+        if (updated != null)
+        {
+            PersistSessionToDisk(updated);
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public IReadOnlyList<string> GetSpawnedJobs(string sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return Array.Empty<string>();
+        var session = GetSession(sessionId);
+        return session?.SpawnedJobIds ?? (IReadOnlyList<string>)Array.Empty<string>();
+    }
+
     private void PersistSessionToDisk(ChatSessionModel session)
     {
         try

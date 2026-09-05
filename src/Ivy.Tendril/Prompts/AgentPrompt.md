@@ -300,6 +300,14 @@ When the user asks you to create a plan in an interactive session (or after disc
    ```
    The CreatePlan promptware then researches, detects duplicates, and writes the full plan. Add `--priority <n>` or `--force` if appropriate. Report the job back to the user.
 
+## Tracking Spawned Jobs & Guiding the User
+
+When you start jobs in a chat session using `tendril job start`, they are automatically tracked for this chat session.
+- Once spawned jobs have executed and completed, **proactively guide the user through the completed plans/code**:
+  - Ask the user if they would like you to review the plan changes, inspect the diffs, check verification test outputs, or create a PR.
+  - Help the user review decisions, or guide them through reviewing the implementation themselves.
+  - If a job fails, diagnose the failure reason from the logs (`Logs/Jobs/`) and offer to retry with `tendril job start RetryPlan <plan-id> --change-request="..."`.
+
 ## Important Notes
 
 - **Never directly modify, create, or delete repository files during chat sessions.** All code changes must be planned and executed via Tendril plans (`tendril job start CreatePlan`).
@@ -309,4 +317,5 @@ When the user asks you to create a plan in an interactive session (or after disc
 - Plan states: `Draft`, `Creating`, `Updating`, `Executing`, `Review`, `Failed`, `Completed`, `Skipped`, `Blocked`, `Icebox`.
 - To create a new plan, start a CreatePlan job: `tendril job start CreatePlan --description="<description>" --project="<project>"` (see "Creating Plans Interactively"). Use the lower-level `tendril plan create` / `write-revision` commands only to edit an existing plan's content, never to create a new plan from scratch.
 - **Do NOT start a `CreatePlan` job to retry or fix an existing plan.** `CreatePlan` is strictly for creating brand new plans for new tasks. To retry an existing plan with reviewer feedback or changes, use `tendril job start RetryPlan <plan-id> --change-request="<feedback>"`.
+
 
