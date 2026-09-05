@@ -340,17 +340,29 @@ public class ContentView(
             {
                 var persona = shareContext.Persona;
                 var initials = Ivy.Tendril.Services.Share.AnonymousPersonaGenerator.GetInitials(persona);
-                var reviewerBadge = Layout.Horizontal().AlignContent(Align.Right)
-                    | new Avatar(initials).Small()
-                    | Text.Block(persona).Small().Bold().NoWrap();
+                var reviewerBadge = Layout.Horizontal().Gap(2).AlignContent(Align.Right);
+
+                foreach (var badge in ProjectHelper.BuildBadges(selectedPlan.Project, config))
+                {
+                    reviewerBadge |= badge;
+                }
+
+                reviewerBadge |= new Avatar(initials).Small();
+                reviewerBadge |= Text.Block(persona).Small().Bold().NoWrap();
                 return reviewerBadge.Width(isMobile ? Size.Full() : Size.Fit());
             }
 
-            var rightSide = Layout.Horizontal().AlignContent(Align.Right)
-                           | Text.Rich()
-                               .NoWrap()
-                               .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
-                               .Muted("plans", word: true);
+            var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right);
+
+            foreach (var badge in ProjectHelper.BuildBadges(selectedPlan.Project, config))
+            {
+                rightSide |= badge;
+            }
+
+            rightSide |= Text.Rich()
+                .NoWrap()
+                .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
+                .Muted("plans", word: true);
 
             if (selectedPlan.Commits.Count > 0)
             {
