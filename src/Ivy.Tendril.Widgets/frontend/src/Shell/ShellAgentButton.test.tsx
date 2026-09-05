@@ -80,7 +80,7 @@ describe("ShellAgentButton", () => {
       />
     );
 
-    const button = container.querySelector("button.tsh-agent")!;
+    const button = container.querySelector("button.tsh-agent") as HTMLButtonElement;
     expect(button.title).toBe("Claude Code (Ctrl+Alt+A)");
 
     const kbd = container.querySelector(".tsh-kbd")!;
