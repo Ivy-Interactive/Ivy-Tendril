@@ -24,7 +24,6 @@ public class CreatePrDialogTests
         Assert.NotNull(fieldObj);
         var field = Assert.IsType<Field>(fieldObj);
         Assert.Equal("Target Branch", field.Label);
-        Assert.Contains("development", field.Description);
 
         var select = Assert.IsType<SelectInput<string>>(Assert.Single(field.Children));
         Assert.True(select.Searchable);

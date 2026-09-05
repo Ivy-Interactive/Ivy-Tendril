@@ -203,7 +203,6 @@ public class CreatePrDialog(
         return branchBinding.ToSelectInput(options)
             .Searchable(true)
             .Placeholder("Select target branch...")
-            .WithField().Label("Target Branch")
-            .Description($"Default: {defaultBranch} (configured in project settings)");
+            .WithField().Label("Target Branch");
     }
 }
