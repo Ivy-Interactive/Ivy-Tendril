@@ -636,8 +636,8 @@
   opacity: 0;
 }
 
-/* Collapsed rail: the label is gone, so the count rides the icon's top-right
-   corner — same look as the expanded badge, inverted colors. */
+/* Collapsed rail: the label is hidden, so the count rides the top-right
+   corner of the icon, leaving most of the icon visible while avoiding clipping. */
 .tsh-root[data-collapsed="true"] .tsh-nav-item {
   position: relative;
 }
@@ -646,14 +646,13 @@
 .tsh-root[data-collapsed="true"] .tsh-nav-item[data-active="true"] .tsh-nav-badge {
   position: absolute;
   top: 3px;
-  /* Anchored just past the 16px icon's right edge so the number never covers
-     it, and left-aligned so longer counts stretch rightward. Padding is a
-     touch tighter than the expanded badge: the rail leaves only ~20px beside
-     the icon, and this keeps a two-digit count inside it (ShellNav caps the
-     rail text at two digits for the same reason). */
-  left: calc(50% + 8px);
+  /* Anchored on the icon's top-right corner so it leaves >60% of the icon visible
+     while keeping the badge well clear of the right sidebar boundary. */
+  left: calc(50% + 1px);
   right: auto;
-  padding: 2px 4px;
+  min-width: 15px;
+  padding: 1px 3.5px;
+  z-index: 1;
   background: var(--tsh-rail-badge-bg);
   color: var(--tsh-rail-badge-fg);
 }

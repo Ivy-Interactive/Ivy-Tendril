@@ -30,12 +30,21 @@ const layOut = (container: HTMLElement) => {
 const renderNav = (collapsed = false) => {
   const utils = render(
     <ShellContext.Provider value={{ collapsed, toggle: () => {} }}>
-      <div className="tsh-sidebar-body" ref={(el) => {
-        if (el) el.getBoundingClientRect = () => ({ top: 0, bottom: 1000 }) as DOMRect;
-      }}>
-        <ShellNav id="nav-1" items={items} showDivider={true} events={["OnSelect"]} eventHandler={vi.fn()} />
+      <div
+        className="tsh-sidebar-body"
+        ref={(el) => {
+          if (el) el.getBoundingClientRect = () => ({ top: 0, bottom: 1000 }) as DOMRect;
+        }}
+      >
+        <ShellNav
+          id="nav-1"
+          items={items}
+          showDivider={true}
+          events={["OnSelect"]}
+          eventHandler={vi.fn()}
+        />
       </div>
-    </ShellContext.Provider>
+    </ShellContext.Provider>,
   );
   return { ...utils, ...layOut(utils.container) };
 };
@@ -93,5 +102,54 @@ describe("ShellNav divider resizing", () => {
     expect(divider).toHaveAttribute("data-resizable", "false");
     drag(divider, 270, 210);
     expect(list.style.maxHeight).toBe("");
+  });
+});
+
+describe("ShellNav badge rendering", () => {
+  const badgeItems: ShellNavItemDto[] = [
+    { id: "plans", label: "Plans", icon: "ChartBar", badge: "7", isActive: true },
+    { id: "review", label: "Review", icon: "ThumbsUp", badge: "12" },
+    { id: "drafts", label: "Drafts", icon: "Feather", badge: "123" },
+    { id: "settings", label: "Settings", icon: "Activity" },
+  ];
+
+  const renderNavWithBadges = (collapsed = false) => {
+    return render(
+      <ShellContext.Provider value={{ collapsed, toggle: () => {} }}>
+        <ShellNav id="nav-badges" items={badgeItems} events={["OnSelect"]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>,
+    );
+  };
+
+  it("renders navigation items and badges in expanded mode", () => {
+    renderNavWithBadges(false);
+    expect(screen.getByText("Plans")).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByText("12")).toBeInTheDocument();
+    expect(screen.getByText("123")).toBeInTheDocument();
+  });
+
+  it("renders navigation items and badges in collapsed mode", () => {
+    renderNavWithBadges(true);
+    expect(screen.getByTitle("Plans")).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByText("12")).toBeInTheDocument();
+  });
+
+  it("caps badge numbers longer than 2 characters at 99 in collapsed mode", () => {
+    renderNavWithBadges(true);
+    expect(screen.queryByText("123")).toBeNull();
+    expect(screen.getByText("99")).toBeInTheDocument();
+  });
+
+  it("passes data-active=true for active items and preserves badge rendering", () => {
+    renderNavWithBadges(false);
+    const activeItem = screen.getByTitle("Plans");
+    expect(activeItem).toHaveAttribute("data-active", "true");
+    expect(activeItem.querySelector(".tsh-nav-badge")).toHaveTextContent("7");
+
+    const inactiveItem = screen.getByTitle("Review");
+    expect(inactiveItem).toHaveAttribute("data-active", "false");
+    expect(inactiveItem.querySelector(".tsh-nav-badge")).toHaveTextContent("12");
   });
 });
