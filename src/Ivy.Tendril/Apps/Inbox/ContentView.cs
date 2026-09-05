@@ -13,13 +13,9 @@ public record IssueRow
     public bool Selected { get; init; }
     public string Key { get; init; } = "";
     public string Issue { get; init; } = "";
-    public string Provider { get; init; } = "";
-    public string Scope { get; init; } = "";
-    public string Status { get; init; } = "";
-    public string? Priority { get; init; }
+    public string Repository { get; init; } = "";
     public string[] Labels { get; init; } = [];
     public string Assignees { get; init; } = "";
-    public string Updated { get; init; } = "";
 }
 
 public record ReviewRow
@@ -406,19 +402,9 @@ public class ContentView(
             Selected = selectedIssueIds.Value.Contains(issue.Id),
             Key = issue.Key,
             Issue = $"{issue.Key} {issue.Title}",
-            Provider = issue.ProviderId switch
-            {
-                "jira" => "Jira",
-                "linear" => "Linear",
-                "github" => "GitHub",
-                _ => issue.ProviderId
-            },
-            Scope = issue.Scope ?? "",
-            Status = issue.Status,
-            Priority = issue.Priority,
+            Repository = issue.Scope ?? "",
             Labels = issue.Labels,
-            Assignees = string.Join(", ", issue.Assignees.Where(a => !string.IsNullOrWhiteSpace(a))),
-            Updated = issue.UpdatedAt.HasValue ? issue.UpdatedAt.Value.ToString("M/d") : ""
+            Assignees = string.Join(", ", issue.Assignees.Where(a => !string.IsNullOrWhiteSpace(a)))
         }).ToList();
 
         var dataTable = rows.AsQueryable()
@@ -429,27 +415,21 @@ public class ContentView(
             .Order(
                 e => e.Selected,
                 e => e.Issue,
-                e => e.Provider,
-                e => e.Scope,
-                e => e.Status,
+                e => e.Repository,
                 e => e.Labels,
                 e => e.Assignees
             )
             .Header(t => t.Selected, "")
             .Header(t => t.Issue, "Issue")
-            .Header(t => t.Provider, "Provider")
-            .Header(t => t.Scope, "Scope")
-            .Header(t => t.Status, "Status")
+            .Header(t => t.Repository, "Repository")
             .Header(t => t.Labels, "Labels")
             .Header(t => t.Assignees, "Assignees")
             .Width(t => t.Selected, Size.Px(45))
-            .Width(t => t.Issue, Size.Fraction(0.4f))
-            .Width(t => t.Provider, Size.Px(95))
-            .Width(t => t.Scope, Size.Px(170))
-            .Width(t => t.Status, Size.Px(110))
-            .Width(t => t.Labels, Size.Px(180))
-            .Width(t => t.Assignees, Size.Px(140))
-            .Renderer(t => t.Scope, new LabelsDisplayRenderer())
+            .Width(t => t.Issue, Size.Fraction(0.45f))
+            .Width(t => t.Repository, Size.Px(180))
+            .Width(t => t.Labels, Size.Px(200))
+            .Width(t => t.Assignees, Size.Px(150))
+            .Renderer(t => t.Repository, new LabelsDisplayRenderer())
             .Hidden(t => t.Id)
             .Hidden(t => t.Key)
             .Config(c =>
