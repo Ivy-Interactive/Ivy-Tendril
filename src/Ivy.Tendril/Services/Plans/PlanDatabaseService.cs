@@ -320,7 +320,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                                SELECT
                                    strftime('%Y-%m-%d %H:00:00', COALESCE(c.LogTimestamp, p.Updated)) as Hour,
                                    p.Project,
-                                   SUM(c.Cost) as TotalCost,
+                                   COALESCE(SUM(c.Cost), 0) as TotalCost,
                                    SUM(c.Tokens) as TotalTokens
                                FROM Costs c
                                JOIN Plans p ON p.Id = c.PlanId
@@ -563,13 +563,14 @@ public class PlanDatabaseService : IPlanDatabaseService
 
             using var insertCmd = _connection.CreateCommand();
             insertCmd.CommandText = """
-                                    INSERT INTO Costs (PlanId, Promptware, Tokens, Cost, LogTimestamp)
-                                    VALUES (@planId, @promptware, @tokens, @cost, @logTimestamp)
+                                    INSERT INTO Costs (PlanId, Promptware, Tokens, Cost, Model, LogTimestamp)
+                                    VALUES (@planId, @promptware, @tokens, @cost, @model, @logTimestamp)
                                     """;
             insertCmd.Parameters.AddWithValue("@planId", planId);
             insertCmd.Parameters.AddWithValue("@promptware", string.Empty);
             insertCmd.Parameters.AddWithValue("@tokens", 0);
-            insertCmd.Parameters.AddWithValue("@cost", 0.0);
+            insertCmd.Parameters.AddWithValue("@cost", DBNull.Value);
+            insertCmd.Parameters.AddWithValue("@model", DBNull.Value);
             insertCmd.Parameters.AddWithValue("@logTimestamp", DBNull.Value);
 
             foreach (var cost in costs)
@@ -577,7 +578,10 @@ public class PlanDatabaseService : IPlanDatabaseService
                 insertCmd.Parameters["@planId"].Value = planId;
                 insertCmd.Parameters["@promptware"].Value = cost.Promptware;
                 insertCmd.Parameters["@tokens"].Value = cost.Tokens;
-                insertCmd.Parameters["@cost"].Value = (double)cost.Cost;
+                // Explicit DBNull: AddWithValue throws on a null value rather than binding NULL, and
+                // NULL is the whole point here (see CostEntry.Cost).
+                insertCmd.Parameters["@cost"].Value = cost.Cost.HasValue ? (double)cost.Cost.Value : DBNull.Value;
+                insertCmd.Parameters["@model"].Value = (object?)cost.Model ?? DBNull.Value;
                 insertCmd.Parameters["@logTimestamp"].Value = cost.LogTimestamp.HasValue
                     ? cost.LogTimestamp.Value.ToString("O", CultureInfo.InvariantCulture)
                     : DBNull.Value;
