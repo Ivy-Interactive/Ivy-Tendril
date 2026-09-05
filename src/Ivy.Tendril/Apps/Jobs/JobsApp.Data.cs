@@ -22,7 +22,7 @@ public partial class JobsApp
                 Id = j.Id,
                 Status = JobsApp.FormatStatusBadge(j.Status),
                 PlanId = planId,
-                Plan = JobsApp.GetPromptDisplay(j, planService),
+                Prompt = JobsApp.GetPromptDisplay(j, planService),
                 Type = j.Type,
                 Project = string.Join(", ", ProjectHelper.ParseProjects(j.Project)),
                 Timer = JobsApp.FormatTimer(j),
