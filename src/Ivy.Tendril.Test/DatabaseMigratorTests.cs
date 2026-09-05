@@ -1,4 +1,4 @@
-﻿using Ivy.Tendril.Database;
+using Ivy.Tendril.Database;
 using Ivy.Tendril.Database.Migrations;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
@@ -730,6 +730,111 @@ public class DatabaseMigratorTests : IDisposable
         using var selectCmd = _connection.CreateCommand();
         selectCmd.CommandText = "SELECT ExecutionProfile || '|' || Effort FROM Jobs WHERE Id = 'job-1';";
         Assert.Equal("deep|high", selectCmd.ExecuteScalar()?.ToString());
+    }
+
+    /// <summary>
+    ///     A table rebuild rather than an ALTER, since SQLite cannot drop NOT NULL. Three things can go
+    ///     wrong that an added column never could: the copy loses rows, DROP TABLE takes an index that is
+    ///     not put back, and the NOT NULL survives the rebuild.
+    /// </summary>
+    [Fact]
+    public void Migration_022_CostsNullableCostAndModel_PreservesRowsAndAllowsNullCost()
+    {
+        ApplyMigrationsThrough021();
+
+        using (var seedCmd = _connection.CreateCommand())
+        {
+            seedCmd.CommandText = """
+                                  INSERT INTO Plans (Id, Title, Project, Level, State, FolderPath, FolderName, YamlRaw, Created, Updated)
+                                  VALUES (1500, 'Cost Plan', 'Tendril', 'NiceToHave', 'Completed', '/p/01500', '01500-CostPlan', '', '2026-01-01', '2026-01-01');
+                                  INSERT INTO Costs (PlanId, Promptware, Tokens, Cost, LogTimestamp)
+                                  VALUES (1500, 'ExecutePlan', 150000, 1.5, '2026-01-01T10:00:00Z');
+                                  """;
+            seedCmd.ExecuteNonQuery();
+        }
+
+        // The constraint the migration exists to remove, asserted before it runs so the test cannot pass
+        // against a schema that never had it.
+        using (var nullBeforeCmd = _connection.CreateCommand())
+        {
+            nullBeforeCmd.CommandText =
+                "INSERT INTO Costs (PlanId, Promptware, Tokens, Cost) VALUES (1500, 'CreatePr', 10000, NULL);";
+            Assert.Throws<SqliteException>(() => nullBeforeCmd.ExecuteNonQuery());
+        }
+
+        Assert.Equal(21, GetUserVersion());
+
+        new Migration_022_CostsNullableCostAndModel().Apply(_connection);
+
+        Assert.Equal(22, GetUserVersion());
+
+        var columns = new List<string>();
+        using (var pragmaCmd = _connection.CreateCommand())
+        {
+            pragmaCmd.CommandText = "PRAGMA table_info(Costs);";
+            using var reader = pragmaCmd.ExecuteReader();
+            while (reader.Read())
+                columns.Add(reader.GetString(reader.GetOrdinal("name")));
+        }
+
+        Assert.Contains("Model", columns);
+
+        // DROP TABLE takes the table's indexes with it. Migration_006 left this as the only one.
+        Assert.True(IndexExists("idx_costs_plan_logtimestamp"));
+
+        // The pre-existing row came across intact, Id included: costs.csv is the durable record but the
+        // rows are what every dashboard aggregate reads.
+        using (var preExistingCmd = _connection.CreateCommand())
+        {
+            preExistingCmd.CommandText =
+                "SELECT Id || '|' || Tokens || '|' || Cost || '|' || LogTimestamp FROM Costs WHERE PlanId = 1500;";
+            Assert.Equal("1|150000|1.5|2026-01-01T10:00:00Z", preExistingCmd.ExecuteScalar()?.ToString());
+        }
+
+        using (var insertCmd = _connection.CreateCommand())
+        {
+            insertCmd.CommandText = """
+                                    INSERT INTO Costs (PlanId, Promptware, Tokens, Cost, Model, LogTimestamp)
+                                    VALUES (1500, 'CreatePr', 10000, NULL, 'claude-opus-5', '2026-01-01T11:00:00Z');
+                                    """;
+            insertCmd.ExecuteNonQuery();
+        }
+
+        // What the whole change is for: SUM skips the unknown row instead of averaging a 0 into it.
+        using var sumCmd = _connection.CreateCommand();
+        sumCmd.CommandText =
+            "SELECT SUM(Cost), COUNT(Cost), COUNT(*), SUM(Tokens) FROM Costs WHERE PlanId = 1500;";
+        using var sumReader = sumCmd.ExecuteReader();
+        Assert.True(sumReader.Read());
+        Assert.Equal(1.5, sumReader.GetDouble(0));
+        Assert.Equal(1, sumReader.GetInt32(1));
+        Assert.Equal(2, sumReader.GetInt32(2));
+        Assert.Equal(160000, sumReader.GetInt32(3));
+    }
+
+    private void ApplyMigrationsThrough021()
+    {
+        new Migration_001_InitialSchema().Apply(_connection);
+        new Migration_002_Fts5Search().Apply(_connection);
+        new Migration_003_JobsTable().Apply(_connection);
+        new Migration_004_SourceUrl().Apply(_connection);
+        new Migration_005_CostsLogTimestampIndex().Apply(_connection);
+        new Migration_006_CostsCompositeIndex().Apply(_connection);
+        new Migration_007_FtsSourceUrl().Apply(_connection);
+        new Migration_008_PrStatusTable().Apply(_connection);
+        new Migration_009_JobsArgs().Apply(_connection);
+        new Migration_010_RecommendationImpactRisk().Apply(_connection);
+        new Migration_011_JobsTypedArgs().Apply(_connection);
+        new Migration_012_JobsPlanFileIndex().Apply(_connection);
+        new Migration_013_JobsWorkingDirAndCliCommand().Apply(_connection);
+        new Migration_014_JobsCleared().Apply(_connection);
+        new Migration_015_RenamePlanStates().Apply(_connection);
+        new Migration_016_DropRecommendationRisk().Apply(_connection);
+        new Migration_017_JobsInFlightFields().Apply(_connection);
+        new Migration_018_PrStatusBranch().Apply(_connection);
+        new Migration_019_JobsTokenBreakdown().Apply(_connection);
+        new Migration_020_JobsExecutionProfile().Apply(_connection);
+        new Migration_021_JobsEffort().Apply(_connection);
     }
 
     private class FakeMigration : IMigration

@@ -6,6 +6,12 @@ namespace Ivy.Tendril.Database;
 
 public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSlim lockSlim)
 {
+    /// <summary>
+    ///     How far back the daily spend series goes. Long enough to project a month from, short enough
+    ///     that the COALESCE in its WHERE clause (which rules out an index only scan) stays cheap.
+    /// </summary>
+    internal const int DailyCostWindowDays = 30;
+
     private sealed class ReadLockHandle : IDisposable
     {
         private readonly ReaderWriterLockSlim _lock;
@@ -39,8 +45,12 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                         COALESCE(SUM(CASE WHEN State = 'Review' THEN 1 ELSE 0 END), 0),
                         COALESCE(SUM(CASE WHEN State = 'Completed' THEN 1 ELSE 0 END), 0),
                         COALESCE(SUM(CASE WHEN State = 'Failed' THEN 1 ELSE 0 END), 0),
-                        (SELECT CASE WHEN COUNT(DISTINCT p2.Id) > 0
-                            THEN COALESCE(SUM(c2.Cost), 0) / COUNT(DISTINCT p2.Id) ELSE 0 END
+                        -- Averaged over the plans that could be priced, not over every plan with a
+                        -- Costs row: a subscription run stores NULL, and counting it in the divisor
+                        -- would report an average nobody spent. COUNT(column) skips NULL for us.
+                        (SELECT CASE WHEN COUNT(DISTINCT CASE WHEN c2.Cost IS NOT NULL THEN p2.Id END) > 0
+                            THEN COALESCE(SUM(c2.Cost), 0)
+                                 / COUNT(DISTINCT CASE WHEN c2.Cost IS NOT NULL THEN p2.Id END) ELSE 0 END
                          FROM Costs c2 JOIN Plans p2 ON p2.Id = c2.PlanId
                          WHERE p2.Created >= @cutoff AND p2.State IN ('Completed', 'Failed', 'Review') {pfAlias2}
                         ) AS AvgCost
@@ -96,7 +106,7 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                         GROUP BY DATE(p.Updated)
                     ),
                     cte_costs AS (
-                        SELECT DATE(p.Updated) AS d, SUM(c.Cost) AS cost, SUM(c.Tokens) AS tokens
+                        SELECT DATE(p.Updated) AS d, COALESCE(SUM(c.Cost), 0) AS cost, SUM(c.Tokens) AS tokens
                         FROM Costs c JOIN Plans p ON p.Id = c.PlanId
                         WHERE p.Updated >= @cutoff AND p.State IN ('Completed', 'Failed', 'Review') {pfAlias}
                         GROUP BY DATE(p.Updated)
@@ -218,7 +228,7 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
             using (var cmd = connection.CreateCommand())
             {
                 cmd.CommandText = """
-                    SELECT strftime('%Y-%m', p.Updated) AS ym, SUM(c.Cost), SUM(c.Tokens)
+                    SELECT strftime('%Y-%m', p.Updated) AS ym, COALESCE(SUM(c.Cost), 0), SUM(c.Tokens)
                     FROM Costs c JOIN Plans p ON p.Id = c.PlanId
                     WHERE p.Updated >= @cutoff AND p.State IN ('Completed', 'Failed', 'Review')
                     GROUP BY ym
@@ -237,8 +247,9 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
             using (var cmd = connection.CreateCommand())
             {
                 cmd.CommandText = """
-                    SELECT CASE WHEN COUNT(DISTINCT p.Id) > 0
-                        THEN COALESCE(SUM(c.Cost), 0) / COUNT(DISTINCT p.Id) ELSE 0 END
+                    SELECT CASE WHEN COUNT(DISTINCT CASE WHEN c.Cost IS NOT NULL THEN p.Id END) > 0
+                        THEN COALESCE(SUM(c.Cost), 0)
+                             / COUNT(DISTINCT CASE WHEN c.Cost IS NOT NULL THEN p.Id END) ELSE 0 END
                     FROM Costs c JOIN Plans p ON p.Id = c.PlanId
                     WHERE p.Created >= @from AND p.Created < @to
                       AND p.State IN ('Completed', 'Failed', 'Review')
@@ -246,6 +257,34 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                 cmd.Parameters.AddWithValue("@from", today.AddDays(-13).ToString("yyyy-MM-dd"));
                 cmd.Parameters.AddWithValue("@to", today.AddDays(-6).ToString("yyyy-MM-dd"));
                 prevWeekAvgCost = Convert.ToDecimal(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
+            }
+
+            // Deliberately unfiltered by p.State: money an Executing plan has spent is already spent,
+            // and dropping it is a large part of why the monthly figures above read low. Bucketed on
+            // the cost row's own timestamp where it has one, so spend lands on the day it happened
+            // rather than the day the plan was last touched.
+            var dailyCosts = new List<DashboardDailyCost>();
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT DATE(COALESCE(c.LogTimestamp, p.Updated)) AS d,
+                           COALESCE(SUM(c.Cost), 0), COALESCE(SUM(c.Tokens), 0)
+                    FROM Costs c JOIN Plans p ON p.Id = c.PlanId
+                    WHERE COALESCE(c.LogTimestamp, p.Updated) >= @cutoff
+                    GROUP BY d ORDER BY d
+                    """;
+                cmd.Parameters.AddWithValue("@cutoff",
+                    today.AddDays(-(DailyCostWindowDays - 1)).ToString("O", CultureInfo.InvariantCulture));
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    if (!DateOnly.TryParse(r.GetString(0), CultureInfo.InvariantCulture, out var day))
+                        continue;
+                    dailyCosts.Add(new DashboardDailyCost(
+                        day,
+                        Convert.ToDecimal(r.GetValue(1), CultureInfo.InvariantCulture),
+                        Convert.ToInt64(r.GetValue(2), CultureInfo.InvariantCulture)));
+                }
             }
 
             var months = new List<DashboardMonthStats>(monthsBack);
@@ -263,7 +302,87 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                 ));
             }
 
-            return new DashboardActivityStats(months, prevWeekAvgCost);
+            // Weekly aggregation: 24 weeks back (for 12 weeks current + 12 weeks previous comparison)
+            const int weeksBack = 24;
+            var currentMonday = DateOnly.FromDateTime(today).AddDays(-(((int)today.DayOfWeek + 6) % 7));
+            var firstMonday = currentMonday.AddDays(-7 * (weeksBack - 1));
+            var weekCutoff = firstMonday.ToString("yyyy-MM-dd");
+
+            var weekCreated = new Dictionary<string, int>();
+            var weekPrs = new Dictionary<string, int>();
+            var weekCosts = new Dictionary<string, decimal>();
+            var weekTokens = new Dictionary<string, long>();
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT DATE(Created, 'weekday 0', '-6 days') AS yw, COUNT(*)
+                    FROM Plans WHERE Created >= @cutoff GROUP BY yw
+                    """;
+                cmd.Parameters.AddWithValue("@cutoff", weekCutoff);
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    if (!r.IsDBNull(0))
+                        weekCreated[r.GetString(0)] = r.GetInt32(1);
+                }
+            }
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT DATE(p.Updated, 'weekday 0', '-6 days') AS yw, COUNT(*)
+                    FROM PullRequests pr JOIN Plans p ON p.Id = pr.PlanId
+                    WHERE p.Updated >= @cutoff AND p.State = 'Completed'
+                    GROUP BY yw
+                    """;
+                cmd.Parameters.AddWithValue("@cutoff", weekCutoff);
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    if (!r.IsDBNull(0))
+                        weekPrs[r.GetString(0)] = r.GetInt32(1);
+                }
+            }
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT DATE(COALESCE(c.LogTimestamp, p.Updated), 'weekday 0', '-6 days') AS yw,
+                           COALESCE(SUM(c.Cost), 0), SUM(c.Tokens)
+                    FROM Costs c JOIN Plans p ON p.Id = c.PlanId
+                    WHERE COALESCE(c.LogTimestamp, p.Updated) >= @cutoff
+                      AND p.State IN ('Completed', 'Failed', 'Review')
+                    GROUP BY yw
+                    """;
+                cmd.Parameters.AddWithValue("@cutoff", weekCutoff);
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    if (!r.IsDBNull(0))
+                    {
+                        var key = r.GetString(0);
+                        weekCosts[key] = Convert.ToDecimal(r.GetValue(1), CultureInfo.InvariantCulture);
+                        weekTokens[key] = Convert.ToInt64(r.GetValue(2), CultureInfo.InvariantCulture);
+                    }
+                }
+            }
+
+            var weeks = new List<DashboardWeekStats>(weeksBack);
+            for (var i = 0; i < weeksBack; i++)
+            {
+                var weekStart = firstMonday.AddDays(i * 7);
+                var key = weekStart.ToString("yyyy-MM-dd");
+                weeks.Add(new DashboardWeekStats(
+                    weekStart,
+                    weekCreated.GetValueOrDefault(key),
+                    weekPrs.GetValueOrDefault(key),
+                    weekCosts.GetValueOrDefault(key),
+                    weekTokens.GetValueOrDefault(key)
+                ));
+            }
+
+            return new DashboardActivityStats(months, prevWeekAvgCost, dailyCosts, weeks);
         }
     }
 }

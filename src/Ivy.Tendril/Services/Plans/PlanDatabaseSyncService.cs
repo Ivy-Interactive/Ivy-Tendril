@@ -191,8 +191,18 @@ public class PlanDatabaseSyncService : IDisposable
                 var promptware = parts[0].Trim();
                 if (!int.TryParse(parts[1].Trim(), NumberStyles.Any, CultureInfo.InvariantCulture,
                         out var tokens)) continue;
-                if (!decimal.TryParse(parts[2].Trim(), NumberStyles.Any, CultureInfo.InvariantCulture,
-                        out var cost)) continue;
+
+                // An unpriceable cost does not discard the row: the tokens were still spent, and a
+                // null Cost is what every aggregate needs to skip the plan rather than average a zero
+                // in. Applies to the empty field the v2 writer produces for a subscription run and to
+                // a field that is simply corrupt.
+                var cost = decimal.TryParse(parts[2].Trim(), NumberStyles.Any, CultureInfo.InvariantCulture,
+                    out var parsedCost)
+                    ? parsedCost
+                    : (decimal?)null;
+
+                // Fourth column since costs.csv v2; files written before it have three.
+                var model = parts.Length > 3 && !string.IsNullOrWhiteSpace(parts[3]) ? parts[3].Trim() : null;
 
                 DateTime? timestamp = null;
                 if (logsByPromptware.TryGetValue(promptware, out var queue) && queue.Count > 0)
@@ -201,7 +211,7 @@ public class PlanDatabaseSyncService : IDisposable
                     timestamp = ExtractCompletedTimestamp(logEntry.Path);
                 }
 
-                costs.Add(new CostEntry(promptware, tokens, cost, timestamp));
+                costs.Add(new CostEntry(promptware, tokens, cost, timestamp, model));
             }
 
             _database.UpsertCosts(plan.Id, costs);

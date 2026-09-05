@@ -5,6 +5,7 @@ export interface DashboardKpiDto {
   value: string;
   delta?: string | null;
   direction?: "up" | "down" | null;
+  hint?: string | null;
 }
 
 export interface DashboardMonthValueDto {
@@ -49,8 +50,11 @@ export interface TendrilDashboardProps {
   failedCount?: number;
   kpis?: DashboardKpiDto[];
   trend?: DashboardTrendDto | null;
+  trendWeekly?: DashboardTrendDto | null;
   pullRequests?: DashboardMonthValueDto[];
+  pullRequestsWeekly?: DashboardMonthValueDto[];
   activity?: DashboardActivityMonthDto[];
+  activityWeekly?: DashboardActivityMonthDto[];
   jobs?: DashboardJobDto[];
   slots?: {
     ProcessViewer?: React.ReactNode;

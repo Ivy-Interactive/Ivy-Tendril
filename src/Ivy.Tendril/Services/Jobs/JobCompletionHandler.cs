@@ -16,6 +16,7 @@ internal class JobCompletionHandler
     private readonly IConfigService? _configService;
     private readonly ILogger _logger;
     private readonly ModelPricingService? _modelPricingService;
+    private readonly IModelPricingProvider? _pricingProvider;
     private readonly IPlanReaderService? _planReaderService;
     private readonly IPlanWatcherService? _planWatcherService;
     private readonly ITelemetryService? _telemetryService;
@@ -35,11 +36,16 @@ internal class JobCompletionHandler
         IPlanReaderService? planReaderService,
         ITelemetryService? telemetryService,
         IPlanWatcherService? planWatcherService,
-        string promptsRoot)
+        string promptsRoot,
+        IModelPricingProvider? pricingProvider = null)
     {
         _configService = configService;
         _logger = logger;
         _modelPricingService = modelPricingService;
+        // Taken separately from _modelPricingService rather than off it: the estimated-cost tier has
+        // to work on the telemetry-off path below, where there is no pricing service at all but the
+        // agent still reported tokens.
+        _pricingProvider = pricingProvider;
         _planReaderService = planReaderService;
         _telemetryService = telemetryService;
         _planWatcherService = planWatcherService;
@@ -266,9 +272,10 @@ internal class JobCompletionHandler
 
         if (_modelPricingService == null)
         {
-            // No pricing service to derive cost from: still surface the tokens we have (cost stays
-            // null rather than a misleading $0.0000).
-            var inlineOnly = ResolveJobCost(inlineUsage, priced: null);
+            // No session parse to derive cost from, but the inline tokens can still be priced against
+            // the local price list, which is the only figure a subscription plan ever yields. Cost
+            // stays null when even that finds no rates, rather than a misleading $0.0000.
+            var inlineOnly = ResolveJobCost(inlineUsage, priced: null, _pricingProvider);
             if (inlineOnly.Tokens > 0)
                 ApplyCost(job, persistJob, raisePropertyChanged, inlineOnly);
             return;
@@ -287,7 +294,7 @@ internal class JobCompletionHandler
             try
             {
                 var costCalc = _modelPricingService.CalculateSessionCost(sessionId, provider);
-                var usage = ResolveJobCost(inlineUsage, costCalc);
+                var usage = ResolveJobCost(inlineUsage, costCalc, _pricingProvider);
                 if (usage.Tokens > 0 || usage.Cost is > 0)
                 {
                     if (jobs.TryGetValue(jobId, out var j))
@@ -298,7 +305,7 @@ internal class JobCompletionHandler
                     }
 
                     if (jobPlanFolder != null)
-                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, usage.Tokens, (double)(usage.Cost ?? 0m));
+                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, usage.Tokens, usage.Cost, usage.Model);
                 }
             }
             catch (Exception ex)
@@ -311,11 +318,17 @@ internal class JobCompletionHandler
     /// <summary>
     /// Reconciles the agent-reported inline usage with the pricing-derived session cost.
     /// Prefers any positive cost (inline first, then priced) and records which of the two it came
-    /// from; carries the best available token count and per-bucket breakdown; leaves cost null when
-    /// neither source has a positive cost so the UI shows nothing instead of a misleading $0.0000
-    /// next to a positive token count.
+    /// from; carries the best available token count and per-bucket breakdown; and, when neither
+    /// source charged anything, falls back to pricing this job's own token buckets against
+    /// <paramref name="pricing" /> under <see cref="JobCostSources.Estimated" />, which is what a
+    /// subscription plan like Claude Max needs, since it reports tokens and no charge at all.
+    /// Cost stays null when even that yields nothing, so the UI shows nothing instead of a
+    /// misleading $0.0000 next to a positive token count.
     /// </summary>
-    internal static JobUsageSnapshot ResolveJobCost(AgentUsage? inline, CostCalculation? priced)
+    internal static JobUsageSnapshot ResolveJobCost(
+        AgentUsage? inline,
+        CostCalculation? priced,
+        IModelPricingProvider? pricing = null)
     {
         var inlineTokens = inline is not null ? inline.InputTokens + inline.OutputTokens : 0;
         var inlineCost = inline?.CostUsd ?? 0m;
@@ -341,19 +354,43 @@ internal class JobCompletionHandler
                                (priced.InputTokens > 0 || priced.OutputTokens > 0 ||
                                 priced.CacheReadTokens > 0 || priced.CacheWriteTokens > 0);
 
+        var model = priced?.Model ?? inline?.Model;
+        var inputTokens = pricedHasBuckets ? priced!.InputTokens : inline?.InputTokens;
+        var outputTokens = pricedHasBuckets ? priced!.OutputTokens : inline?.OutputTokens;
+        var cacheReadTokens = pricedHasBuckets ? priced!.CacheReadTokens : inline?.CacheReadTokens;
+        var cacheWriteTokens = pricedHasBuckets ? priced!.CacheWriteTokens : inline?.CacheWriteTokens;
+        // Only the inline ResultEvent carries reasoning tokens; SessionCostResult has no such
+        // bucket, so this is never sourced from the priced path.
+        var reasoningTokens = inline?.ReasoningTokens;
+
+        // Last resort. The buckets priced here are the ones this snapshot is about to write to the
+        // job, so an estimate can never disagree with the token numbers shown beside it. Reasoning
+        // tokens are excluded by BuildBuckets/ComputeCost, and an unpriced model yields null rather
+        // than 0, so an unknown model stays unknown instead of reading as a free run.
+        if (cost is null && pricing is not null && !string.IsNullOrWhiteSpace(model))
+        {
+            var estimated = JobCostModelBuilder.ComputeCost(JobCostModelBuilder.BuildBuckets(
+                inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, reasoningTokens,
+                pricing.GetPricing(model)));
+
+            if (estimated is > 0)
+            {
+                cost = estimated;
+                costSource = JobCostSources.Estimated;
+            }
+        }
+
         return new JobUsageSnapshot
         {
             Tokens = tokens,
             Cost = cost,
             CostSource = costSource,
-            Model = priced?.Model ?? inline?.Model,
-            InputTokens = pricedHasBuckets ? priced!.InputTokens : inline?.InputTokens,
-            OutputTokens = pricedHasBuckets ? priced!.OutputTokens : inline?.OutputTokens,
-            CacheReadTokens = pricedHasBuckets ? priced!.CacheReadTokens : inline?.CacheReadTokens,
-            CacheWriteTokens = pricedHasBuckets ? priced!.CacheWriteTokens : inline?.CacheWriteTokens,
-            // Only the inline ResultEvent carries reasoning tokens; SessionCostResult has no such
-            // bucket, so this is never sourced from the priced path.
-            ReasoningTokens = inline?.ReasoningTokens,
+            Model = model,
+            InputTokens = inputTokens,
+            OutputTokens = outputTokens,
+            CacheReadTokens = cacheReadTokens,
+            CacheWriteTokens = cacheWriteTokens,
+            ReasoningTokens = reasoningTokens,
         };
     }
 
@@ -369,7 +406,7 @@ internal class JobCompletionHandler
 
         var jobPlanFolder = job.TypedArgs?.PlanFolder;
         if (jobPlanFolder != null)
-            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, usage.Tokens, (double)(usage.Cost ?? 0m));
+            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, usage.Tokens, usage.Cost, usage.Model);
     }
 
     /// <summary>

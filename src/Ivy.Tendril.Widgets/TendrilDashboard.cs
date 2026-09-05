@@ -1,6 +1,15 @@
 namespace Ivy.Tendril.Widgets;
 
-public record DashboardKpiDto(string Label, string Value, string? Delta = null, string? Direction = null);
+/// <param name="Hint">
+///     A second line under the value, for a figure that is not actionable without its basis (the cost
+///     forecast states the day counts it projected from here). Null on the cards that need none.
+/// </param>
+public record DashboardKpiDto(
+    string Label,
+    string Value,
+    string? Delta = null,
+    string? Direction = null,
+    string? Hint = null);
 
 public record DashboardMonthValueDto(string Label, double Value);
 
@@ -66,8 +75,11 @@ public record TendrilDashboard : WidgetBase<TendrilDashboard>
     [Prop] public int FailedCount { get; init; }
     [Prop] public List<DashboardKpiDto> Kpis { get; init; } = new();
     [Prop] public DashboardTrendDto? Trend { get; init; }
+    [Prop] public DashboardTrendDto? TrendWeekly { get; init; }
     [Prop] public List<DashboardMonthValueDto> PullRequests { get; init; } = new();
+    [Prop] public List<DashboardMonthValueDto> PullRequestsWeekly { get; init; } = new();
     [Prop] public List<DashboardActivityMonthDto> Activity { get; init; } = new();
+    [Prop] public List<DashboardActivityMonthDto> ActivityWeekly { get; init; } = new();
     [Prop] public List<DashboardJobDto> Jobs { get; init; } = new();
 
     [Event] public EventHandler<Event<TendrilDashboard>>? OnDrafts { get; init; }
@@ -108,11 +120,20 @@ public static class TendrilDashboardExtensions
     public static TendrilDashboard Trend(this TendrilDashboard w, DashboardTrendDto? value) =>
         w with { Trend = value };
 
+    public static TendrilDashboard TrendWeekly(this TendrilDashboard w, DashboardTrendDto? value) =>
+        w with { TrendWeekly = value };
+
     public static TendrilDashboard PullRequests(this TendrilDashboard w, List<DashboardMonthValueDto> value) =>
         w with { PullRequests = value };
 
+    public static TendrilDashboard PullRequestsWeekly(this TendrilDashboard w, List<DashboardMonthValueDto> value) =>
+        w with { PullRequestsWeekly = value };
+
     public static TendrilDashboard Activity(this TendrilDashboard w, List<DashboardActivityMonthDto> value) =>
         w with { Activity = value };
+
+    public static TendrilDashboard ActivityWeekly(this TendrilDashboard w, List<DashboardActivityMonthDto> value) =>
+        w with { ActivityWeekly = value };
 
     public static TendrilDashboard Jobs(this TendrilDashboard w, List<DashboardJobDto> value) =>
         w with { Jobs = value };

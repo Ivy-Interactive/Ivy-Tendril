@@ -12,6 +12,14 @@ public static class JobCostSources
 
     /// <summary>The agent reported no cost, so it was computed from Tendril's model price list.</summary>
     public const string Computed = "computed";
+
+    /// <summary>
+    /// Nobody charged anything we could observe (a subscription plan such as Claude Max reports
+    /// tokens but no cost, and no session file could be priced), so the figure was derived from the
+    /// job's own token buckets times the price list. A distinct provenance on purpose: an estimate
+    /// must never be presented as a charge.
+    /// </summary>
+    public const string Estimated = "estimated";
 }
 
 /// <summary>
