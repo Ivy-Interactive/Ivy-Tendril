@@ -23,6 +23,11 @@ internal class JobCompletionHandler
     private readonly PlanArtifactSyncer _artifactSyncer;
     private readonly DependencyChecker _dependencyChecker;
 
+    // Guards for the pwsh processes a hook spawns. Settable so a test can exercise the kill path
+    // without paying the real guard in wall clock time, matching JobService.JobTimeout.
+    internal TimeSpan HookConditionTimeout { get; set; } = TimeSpan.FromSeconds(10);
+    internal TimeSpan HookActionTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
     internal JobCompletionHandler(
         IConfigService? configService,
         ILogger logger,
@@ -419,7 +424,7 @@ internal class JobCompletionHandler
         }
     }
 
-    private static bool EvaluateHookCondition(PromptwareHookConfig hook, string planFolder, JobItem job)
+    private bool EvaluateHookCondition(PromptwareHookConfig hook, string planFolder, JobItem job)
     {
         if (string.IsNullOrWhiteSpace(hook.Condition))
             return true;
@@ -449,13 +454,13 @@ internal class JobCompletionHandler
         // class). The reads complete when the pipes close on exit or kill.
         var condOutTask = condProc.StandardOutput.ReadToEndAsync();
         var condErrTask = condProc.StandardError.ReadToEndAsync();
-        var condExitedNormally = condProc.WaitForExitOrKill(10000);
+        var condExitedNormally = condProc.WaitForExitOrKill((int)HookConditionTimeout.TotalMilliseconds);
         var condOutput = HarvestHookStream(condOutTask);
         _ = HarvestHookStream(condErrTask); // drain to prevent a full stderr pipe from wedging the read
 
         if (!condExitedNormally)
         {
-            job.EnqueueSystemOutput($"[hook:{hook.Name}] Condition timed out after 10s and was terminated, skipping");
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Condition timed out after {HookConditionTimeout.TotalSeconds:0.##}s and was terminated, skipping");
             return false;
         }
 
@@ -516,7 +521,7 @@ internal class JobCompletionHandler
         // class). The reads complete when the pipes close on exit or kill.
         var outTask = actionProc.StandardOutput.ReadToEndAsync();
         var errTask = actionProc.StandardError.ReadToEndAsync();
-        var exitedNormally = actionProc.WaitForExitOrKill(30000);
+        var exitedNormally = actionProc.WaitForExitOrKill((int)HookActionTimeout.TotalMilliseconds);
         var output = HarvestHookStream(outTask);
         var stderr = HarvestHookStream(errTask);
 
@@ -526,7 +531,7 @@ internal class JobCompletionHandler
             job.EnqueueSystemOutput($"[hook:{hook.Name}] [stderr] {stderr}");
 
         if (!exitedNormally)
-            job.EnqueueSystemOutput($"[hook:{hook.Name}] Hook timed out after 30s and was terminated");
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Hook timed out after {HookActionTimeout.TotalSeconds:0.##}s and was terminated");
         else if (actionProc.ExitCode != 0)
             job.EnqueueSystemOutput($"[hook:{hook.Name}] Hook failed with exit code {actionProc.ExitCode}");
     }
