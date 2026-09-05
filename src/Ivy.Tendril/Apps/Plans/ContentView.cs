@@ -181,8 +181,7 @@ public class ContentView(
 
         var questions = QuestionAnswers.Read(revisionContent.Value);
         var answeredQuestions = questions.Count(q => q.HasAnswer);
-        // Optional questions are never outstanding: the plan is complete without them.
-        var unansweredQuestions = questions.Count(q => !q.HasAnswer && !q.IsOptional);
+        var unansweredQuestions = CountUnansweredQuestions(questions);
 
         void ApplyAnswer(QuestionAnswer answer)
         {
@@ -770,6 +769,14 @@ public class ContentView(
 
         return sb.ToString().TrimEnd();
     }
+
+    internal static int CountUnansweredQuestions(IEnumerable<QuestionSummary> questions) =>
+        questions.Count(q => !q.HasAnswer);
+
+    internal static int CountUnansweredQuestions(string? revisionContent) =>
+        string.IsNullOrEmpty(revisionContent)
+            ? 0
+            : CountUnansweredQuestions(QuestionAnswers.Read(revisionContent));
 
     private record PlanContentData(
         string? SummaryMarkdown,

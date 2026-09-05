@@ -5,8 +5,7 @@ namespace Ivy.Tendril.Apps.Plans.Dialogs;
 ///     <para>
 ///         Not a block: an unanswered question means "you decide", and ExecutePlan resolves one
 ///         itself by taking the <c>recommended</c> option. This is the confirmation that you meant
-///         to let it. Optional questions are never counted here — the plan is complete without
-///         them, so they are not something to warn about.
+///         to let it.
 ///     </para>
 /// </summary>
 public class UnansweredQuestionsDialog(
