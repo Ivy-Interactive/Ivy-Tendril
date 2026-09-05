@@ -105,51 +105,54 @@ describe("ShellNav divider resizing", () => {
   });
 });
 
-describe("ShellNav badge rendering", () => {
+describe("ShellNav badges", () => {
   const badgeItems: ShellNavItemDto[] = [
-    { id: "plans", label: "Plans", icon: "ChartBar", badge: "7", isActive: true },
-    { id: "review", label: "Review", icon: "ThumbsUp", badge: "12" },
-    { id: "drafts", label: "Drafts", icon: "Feather", badge: "123" },
-    { id: "settings", label: "Settings", icon: "Activity" },
+    { id: "plans", label: "Plans", icon: "Feather", badge: "7", isActive: true },
+    { id: "review", label: "Review", icon: "ThumbsUp", badge: "1" },
+    { id: "recommendations", label: "Recommendations", icon: "Lightbulb", badge: "105" },
+    { id: "activity", label: "Activity", icon: "Activity" },
   ];
 
-  const renderNavWithBadges = (collapsed = false) => {
-    return render(
-      <ShellContext.Provider value={{ collapsed, toggle: () => {} }}>
-        <ShellNav id="nav-badges" items={badgeItems} events={["OnSelect"]} eventHandler={vi.fn()} />
-      </ShellContext.Provider>,
+  it("renders navigation item badges in expanded mode with .tsh-nav-badge", () => {
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: false, toggle: () => {} }}>
+        <ShellNav id="nav-1" items={badgeItems} events={[]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>
     );
-  };
 
-  it("renders navigation items and badges in expanded mode", () => {
-    renderNavWithBadges(false);
-    expect(screen.getByText("Plans")).toBeInTheDocument();
-    expect(screen.getByText("7")).toBeInTheDocument();
-    expect(screen.getByText("12")).toBeInTheDocument();
-    expect(screen.getByText("123")).toBeInTheDocument();
+    const badges = container.querySelectorAll(".tsh-nav-badge");
+    expect(badges).toHaveLength(3);
+    expect(badges[0]).toHaveTextContent("7");
+    expect(badges[1]).toHaveTextContent("1");
+    expect(badges[2]).toHaveTextContent("105");
   });
 
-  it("renders navigation items and badges in collapsed mode", () => {
-    renderNavWithBadges(true);
-    expect(screen.getByTitle("Plans")).toBeInTheDocument();
-    expect(screen.getByText("7")).toBeInTheDocument();
-    expect(screen.getByText("12")).toBeInTheDocument();
+  it("renders navigation item badges in collapsed mode with .tsh-nav-badge and caps large counts", () => {
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellNav id="nav-1" items={badgeItems} events={[]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>
+    );
+
+    const badges = container.querySelectorAll(".tsh-nav-badge");
+    expect(badges).toHaveLength(3);
+    expect(badges[0]).toHaveTextContent("7");
+    expect(badges[1]).toHaveTextContent("1");
+    expect(badges[2]).toHaveTextContent("99");
   });
 
-  it("caps badge numbers longer than 2 characters at 99 in collapsed mode", () => {
-    renderNavWithBadges(true);
-    expect(screen.queryByText("123")).toBeNull();
-    expect(screen.getByText("99")).toBeInTheDocument();
-  });
+  it("sets data-active='true' on active items and retains the badge element", () => {
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: false, toggle: () => {} }}>
+        <ShellNav id="nav-1" items={badgeItems} events={[]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>
+    );
 
-  it("passes data-active=true for active items and preserves badge rendering", () => {
-    renderNavWithBadges(false);
-    const activeItem = screen.getByTitle("Plans");
-    expect(activeItem).toHaveAttribute("data-active", "true");
-    expect(activeItem.querySelector(".tsh-nav-badge")).toHaveTextContent("7");
-
-    const inactiveItem = screen.getByTitle("Review");
-    expect(inactiveItem).toHaveAttribute("data-active", "false");
-    expect(inactiveItem.querySelector(".tsh-nav-badge")).toHaveTextContent("12");
+    const activeItem = container.querySelector('.tsh-nav-item[data-active="true"]');
+    expect(activeItem).toBeInTheDocument();
+    expect(activeItem).toHaveAttribute("data-menu-item", "plans");
+    const badge = activeItem?.querySelector(".tsh-nav-badge");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent("7");
   });
 });
