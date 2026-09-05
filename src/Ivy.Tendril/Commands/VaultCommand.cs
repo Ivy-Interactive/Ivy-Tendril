@@ -539,34 +539,13 @@ public class VaultPushCommand(IVaultService vaultService, IConfigService config)
 
         foreach (var projName in projectList)
         {
-            var proj = config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projName, StringComparison.OrdinalIgnoreCase));
-            if (proj != null)
-            {
-                var skills = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var s in proj.Skills) skills.Add(s.Name);
-                var skillsDir = ProjectPathHelper.GetSkillsDir(config.TendrilHome, proj.Name);
-                if (Directory.Exists(skillsDir))
-                {
-                    foreach (var f in Directory.GetFiles(skillsDir, "*.md"))
-                        skills.Add(Path.GetFileNameWithoutExtension(f));
-                }
-                selectedSkills[projName] = skills.ToList();
-
-                selectedMcps[projName] = proj.McpServers.Select(m => m.Name).ToList();
-
-                var mems = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                var memoryDir = ProjectPathHelper.GetMemoryDir(config.TendrilHome, proj.Name);
-                if (Directory.Exists(memoryDir))
-                {
-                    foreach (var f in Directory.GetFiles(memoryDir, "*.md"))
-                        mems.Add(Path.GetFileName(f));
-                }
-                selectedMemories[projName] = mems.ToList();
-
-                selectedReviewActions[projName] = proj.ReviewActions.Select(a => a.Name).ToList();
-                selectedVerifications[projName] = proj.Verifications.Select(v => v.Name).ToList();
-                syncPermissions[projName] = true;
-            }
+            var assets = await vaultService.CollectProjectAssetsAsync(projName);
+            selectedSkills[projName] = assets.Skills;
+            selectedMcps[projName] = assets.McpServers;
+            selectedMemories[projName] = assets.Memories;
+            selectedReviewActions[projName] = assets.ReviewActions;
+            selectedVerifications[projName] = assets.Verifications;
+            syncPermissions[projName] = true;
         }
 
         var request = new VaultExportRequest

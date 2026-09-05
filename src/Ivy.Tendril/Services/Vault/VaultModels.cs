@@ -170,3 +170,13 @@ public record VaultPrResult(bool Success, string? PrUrl = null, string? BranchNa
 public record VaultResult(bool Success, string Message, string? ErrorMessage = null);
 
 public record VaultSyncResult(bool Success, int UpdatedProjectsCount = 0, string Message = "", string? ErrorMessage = null);
+
+public record ProjectAssets
+{
+    public string ProjectName { get; init; } = "";
+    public List<string> Skills { get; init; } = new();
+    public List<string> McpServers { get; init; } = new();
+    public List<string> Memories { get; init; } = new();
+    public List<string> ReviewActions { get; init; } = new();
+    public List<string> Verifications { get; init; } = new();
+}
