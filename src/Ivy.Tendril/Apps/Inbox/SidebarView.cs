@@ -63,7 +63,7 @@ public class SidebarView(
             }
         }
 
-        return Layout.Vertical(rows);
+        return Layout.Vertical(rows).Gap(1);
     }
 }
 
