@@ -84,7 +84,7 @@ public class GithubService : IGithubService, IDisposable
     public async Task<(List<GitHubReviewItem> prs, string? error)> GetReviewRequestsAsync()
     {
         return await ExecuteGhCliAsync(
-            "search prs --review-requested=@me --state=open --limit 100 --json number,title,body,labels,assignees,repository,url,updatedAt,headRefName",
+            "search prs --review-requested=@me --state=open --limit 100 --json number,title,body,labels,assignees,repository,url,updatedAt",
             ParseReviewsFromJson,
             new List<GitHubReviewItem>());
     }

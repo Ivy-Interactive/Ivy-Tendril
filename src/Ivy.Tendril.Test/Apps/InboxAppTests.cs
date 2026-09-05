@@ -160,6 +160,33 @@ public class InboxAppTests
         Assert.Equal("https://github.com/owner/repo/pull/202", pr.Url);
     }
 
+    [Fact]
+    public void ParseReviewsFromJson_HandlesMissingHeadRefName()
+    {
+        var json = """
+                   [
+                     {
+                       "number": 303,
+                       "title": "Review Request without HeadRefName",
+                       "body": null,
+                       "labels": [],
+                       "assignees": [],
+                       "repository": {"nameWithOwner": "owner/repo"},
+                       "url": "https://github.com/owner/repo/pull/303",
+                       "updatedAt": "2026-09-05T10:00:00Z"
+                     }
+                   ]
+                   """;
+
+        var reviews = GithubService.ParseReviewsFromJson(json);
+
+        Assert.Single(reviews);
+        var pr = reviews[0];
+        Assert.Equal(303, pr.Number);
+        Assert.Equal("Review Request without HeadRefName", pr.Title);
+        Assert.Null(pr.Branch);
+    }
+
     private sealed class StubGithubService(ProjectConfig? projectToReturn) : IGithubService
     {
         public List<RepoConfig> GetRepos() => [];

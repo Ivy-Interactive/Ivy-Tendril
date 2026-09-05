@@ -59,11 +59,11 @@ public class ContentView(
                 : null);
 
             var sheetHeader = Layout.Vertical().Width(Size.Full())
-                | (Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full())
-                    | (Layout.Horizontal().AlignContent(Align.Left).Wrap()
+                | (Layout.Horizontal().Height(Size.Auto()).AlignContent(Align.SpaceBetween).Width(Size.Full())
+                    | (Layout.Horizontal().Height(Size.Auto()).Width(Size.Auto()).AlignContent(Align.Left).Wrap()
                         | (!string.IsNullOrEmpty(issue.Repository) ? new Badge(issue.Repository).Variant(BadgeVariant.Secondary).Small() : null)
                         | (issue.Assignees.Length > 0 ? Text.Muted($"Assigned: {string.Join(", ", issue.Assignees.Where(a => !string.IsNullOrWhiteSpace(a)))}").Small() : null))
-                    | (Layout.Horizontal().AlignContent(Align.Right)
+                    | (Layout.Horizontal().Height(Size.Auto()).Width(Size.Auto()).AlignContent(Align.Right)
                         | (issueUrl != null
                             ? new Button("GitHub")
                                 .Icon(Icons.ExternalLink)
@@ -80,7 +80,7 @@ public class ContentView(
                                 isOpen.Set(false);
                             })))
                 | (issue.Labels.Length > 0
-                    ? (Layout.Horizontal().AlignContent(Align.Left).Wrap()
+                    ? (Layout.Horizontal().Height(Size.Auto()).AlignContent(Align.Left).Wrap()
                         | issue.Labels.Select(l => (object)new Badge(l).Variant(BadgeVariant.Outline).Small()).ToArray())
                     : null);
 
@@ -109,12 +109,12 @@ public class ContentView(
             if (!isOpen.Value || review == null) return null;
 
             var sheetHeader = Layout.Vertical().Width(Size.Full())
-                | (Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full())
-                    | (Layout.Horizontal().AlignContent(Align.Left).Wrap()
+                | (Layout.Horizontal().Height(Size.Auto()).AlignContent(Align.SpaceBetween).Width(Size.Full())
+                    | (Layout.Horizontal().Height(Size.Auto()).Width(Size.Auto()).AlignContent(Align.Left).Wrap()
                         | new Badge(review.Repository).Variant(BadgeVariant.Secondary).Small()
                         | (!string.IsNullOrEmpty(review.Branch) ? new Badge(review.Branch).Variant(BadgeVariant.Outline).Small() : null)
                         | (review.Assignees.Length > 0 ? Text.Muted($"Assigned: {string.Join(", ", review.Assignees.Where(a => !string.IsNullOrWhiteSpace(a)))}").Small() : null))
-                    | (Layout.Horizontal().AlignContent(Align.Right)
+                    | (Layout.Horizontal().Height(Size.Auto()).Width(Size.Auto()).AlignContent(Align.Right)
                         | new Button("Open on GitHub")
                             .Icon(Icons.ExternalLink)
                             .Primary().Small()
@@ -183,9 +183,10 @@ public class ContentView(
             .Loading(isFetching)
             .OnClick(async () => await onRefresh());
 
-        var header = Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full())
-            | Text.H3("Reviews").Bold()
-            | refreshButton;
+        var header = Layout.Horizontal().Height(Size.Auto()).AlignContent(Align.SpaceBetween).Width(Size.Full())
+            | (Layout.Horizontal().Height(Size.Auto()).Width(Size.Auto()).AlignContent(Align.Left)
+                | Text.H3("Reviews").Bold()
+                | refreshButton);
 
         if (isFetching && reviewRequests.Count == 0)
         {
@@ -285,6 +286,11 @@ public class ContentView(
                 return ValueTask.CompletedTask;
             });
 
+        if (rows.All(r => string.IsNullOrEmpty(r.Branch)))
+        {
+            dataTable = dataTable.Hidden(t => t.Branch);
+        }
+
         return Layout.Vertical().Height(Size.Full())
             | header
             | dataTable;
@@ -325,11 +331,11 @@ public class ContentView(
             refreshToken.Refresh();
         }
 
-        var header = Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full()).Wrap()
-            | (Layout.Horizontal().AlignContent(Align.Left)
+        var header = Layout.Horizontal().Height(Size.Auto()).AlignContent(Align.SpaceBetween).Width(Size.Full())
+            | (Layout.Horizontal().Height(Size.Auto()).Width(Size.Auto()).AlignContent(Align.Left)
                 | Text.H3(title).Bold()
                 | refreshButton)
-            | (Layout.Horizontal().AlignContent(Align.Right)
+            | (Layout.Horizontal().Height(Size.Auto()).Width(Size.Auto()).AlignContent(Align.Right)
                 | new Button("Select All").Ghost().Small().OnClick(SelectAll)
                 | new Button("Deselect All").Ghost().Small().Disabled(selectedCount == 0).OnClick(DeselectAll)
                 | Text.Muted($"{selectedCount} of {allIssues.Count} selected").Small()
