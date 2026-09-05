@@ -15,6 +15,7 @@ public interface IGitService
     GitResult<Dictionary<string, CommitRefStatus>> GetCommitRefStatus(string repoPath, IEnumerable<string> commitHashes);
     GitResult<DirtyRepoResult> GetRepoDirtyState(string repoPath, string expectedBaseBranch);
     GitResult<WorktreeBaseInfo?> GetWorktreeBase(string repoPath);
+    GitResult<List<string>> GetBranches(string repoPath);
 }
 
 public record WorktreeInfo(string Path, string Branch, string CommitHash);

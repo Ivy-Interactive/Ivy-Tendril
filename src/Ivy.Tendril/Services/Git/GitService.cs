@@ -457,6 +457,29 @@ public class GitService : IGitService
         }
     }
 
+    public GitResult<List<string>> GetBranches(string repoPath)
+    {
+        return ExecuteGitCommand(repoPath, "for-each-ref --format=\"%(refname:short)\" refs/heads/ refs/remotes/origin/",
+            output =>
+            {
+                var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                var branches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var raw in lines)
+                {
+                    var name = raw.Trim();
+                    if (name.StartsWith("origin/", StringComparison.OrdinalIgnoreCase))
+                        name = name["origin/".Length..];
+                    if (string.Equals(name, "HEAD", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(name, "origin", StringComparison.OrdinalIgnoreCase) ||
+                        name.StartsWith("origin/", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    if (!string.IsNullOrEmpty(name))
+                        branches.Add(name);
+                }
+                return branches.OrderBy(b => b, StringComparer.OrdinalIgnoreCase).ToList();
+            });
+    }
+
     // --- Infrastructure ---
 
     private GitResult<T> ExecuteGitCommand<T>(string repoPath, string args, Func<string, T> parseOutput)
