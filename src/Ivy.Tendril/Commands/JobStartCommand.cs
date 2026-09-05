@@ -74,7 +74,7 @@ public class JobStartSettings : CommandSettings
     [CommandOption("--repo-path")]
     public string? RepoPath { get; set; }
 
-    [Description("Base branch for SyncRepo (default: main)")]
+    [Description("Base branch for SyncRepo or CreatePr (default: main)")]
     [CommandOption("--base-branch")]
     public string? BaseBranch { get; set; }
 
@@ -212,7 +212,8 @@ public class JobStartCommand : Command<JobStartSettings>
                 IncludeArtifacts: !settings.NoArtifacts,
                 Reviewers: reviewers,
                 Comment: settings.Comment,
-                Draft: settings.Draft);
+                Draft: settings.Draft,
+                BaseBranch: settings.BaseBranch);
         }
 
         if (string.Equals(jobType, Constants.JobTypes.RetryPlan, StringComparison.OrdinalIgnoreCase))

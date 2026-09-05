@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Linq;
 using Ivy.Helpers;
@@ -608,7 +608,11 @@ internal class JobLauncher
         if (job.TypedArgs is not (ExecutePlanArgs or RetryPlanArgs or CreatePrArgs))
             return;
 
-        var repoConfigs = BuildRepoConfigsYaml(planYaml, job.Project);
+        var baseBranchOverride = job.TypedArgs is CreatePrArgs { BaseBranch: not null } pr && !string.IsNullOrWhiteSpace(pr.BaseBranch)
+            ? pr.BaseBranch.Trim()
+            : null;
+
+        var repoConfigs = BuildRepoConfigsYaml(planYaml, job.Project, baseBranchOverride);
         if (!string.IsNullOrEmpty(repoConfigs))
             values["RepoConfigs"] = repoConfigs;
     }
@@ -631,6 +635,8 @@ internal class JobLauncher
             values["PrReviewer"] = string.Join(",", reviewers);
         if (!string.IsNullOrEmpty(pr.Comment))
             values["PrComment"] = pr.Comment;
+        if (!string.IsNullOrWhiteSpace(pr.BaseBranch))
+            values["PrBaseBranch"] = pr.BaseBranch.Trim();
     }
 
     private static Dictionary<string, string> BuildJobContext(JobItem job, Dictionary<string, string> firmwareValues, string programFolder)
@@ -784,7 +790,7 @@ internal class JobLauncher
     internal static void ResolveCommandShim(ProcessStartInfo psi)
         => AgentProcessHelper.ResolveCommandShim(psi);
 
-    private string? BuildRepoConfigsYaml(PlanYaml plan, string project)
+    private string? BuildRepoConfigsYaml(PlanYaml plan, string project, string? baseBranchOverride = null)
     {
         if (plan.Repos.Count == 0)
             return null;
@@ -796,21 +802,24 @@ internal class JobLauncher
 
         var lines = new List<string>();
 
-        AddPlanRepos(plan, projectConfig, lines);
+        AddPlanRepos(plan, projectConfig, lines, baseBranchOverride);
         AddBuildDependencies(projectConfig, planRepoNames, lines);
 
         return string.Join("\n", lines);
     }
 
-    private void AddPlanRepos(PlanYaml plan, ProjectConfig? projectConfig, List<string> lines)
+    private void AddPlanRepos(PlanYaml plan, ProjectConfig? projectConfig, List<string> lines, string? baseBranchOverride = null)
     {
         foreach (var repoPath in plan.Repos)
         {
             var expanded = Environment.ExpandEnvironmentVariables(repoPath);
             var repoRef = FindProjectRepoConfig(projectConfig, Path.GetFileName(expanded));
+            var baseBranch = !string.IsNullOrWhiteSpace(baseBranchOverride)
+                ? baseBranchOverride
+                : repoRef?.BaseBranch ?? GitHelper.ResolveDefaultBranch(expanded, _configService?.TendrilHome);
             var entry = new RepoConfigEntry(
                 expanded,
-                repoRef?.BaseBranch ?? GitHelper.ResolveDefaultBranch(expanded, _configService?.TendrilHome),
+                baseBranch,
                 ReadOnly: false);
             AddRepoToConfigLines(lines, entry);
         }
