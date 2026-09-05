@@ -52,12 +52,26 @@ public record NetworkAccessRuleConfig
     public string Mode { get; set; } = "Allow"; // Allow, Deny
 }
 
+public record TrackerConnectionConfig
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Name { get; set; } = "";
+    public string Provider { get; set; } = "github"; // github, jira, linear
+    public string? Url { get; set; }
+    public string? Email { get; set; }
+    public string? ApiToken { get; set; }
+    public string? ApiKey { get; set; }
+}
+
 public record ProjectTrackerConfig
 {
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string? Name { get; set; }
     public string? Provider { get; set; }
     public string? ProjectKey { get; set; }
     public string? TeamKey { get; set; }
     public string? Repo { get; set; }
+    public string? ConnectionId { get; set; }
 }
 
 public record ProjectConfig
@@ -67,6 +81,7 @@ public record ProjectConfig
     public Dictionary<string, object> Meta { get; set; } = new();
     public List<RepoRef> Repos { get; set; } = new();
     public ProjectTrackerConfig? IssueTracker { get; set; }
+    public List<ProjectTrackerConfig> IssueTrackers { get; set; } = new();
     public List<ProjectVerificationRef> Verifications { get; set; } = new();
     public string Context { get; set; } = "";
     public string? StackHash { get; set; }
@@ -250,6 +265,7 @@ public class TendrilSettings
     public AuthConfig? Auth { get; set; }
     public ApiSettings? Api { get; set; }
     public IssueTrackerSettings? IssueTrackers { get; set; }
+    public List<TrackerConnectionConfig> TrackerConnections { get; set; } = new();
     public Dictionary<string, PromptwareConfig> Promptwares { get; set; } = new();
     public List<AgentConfig> CodingAgents { get; set; } = new();
     public Tunnel.TunnelConfig? Tunnel { get; set; }
@@ -413,6 +429,7 @@ public class ConfigService : IConfigService, IDisposable
             MigrateProjectColors();
             MigrateLevelColors();
             MigrateProjectEnumEncodings();
+            MigrateIssueTrackers();
             CreateConfigBackup();
 
             return (true, settings);
@@ -446,6 +463,7 @@ public class ConfigService : IConfigService, IDisposable
         MigrateProjectColors();
         MigrateLevelColors();
         MigrateProjectEnumEncodings();
+        MigrateIssueTrackers();
         VariableExpansion.InitializeUserSecrets(_logger);
         ExpandSettingsVariables();
         ExpandRepoPaths();
@@ -725,6 +743,7 @@ public class ConfigService : IConfigService, IDisposable
             MigrateProjectColors();
             MigrateLevelColors();
             MigrateProjectEnumEncodings();
+            MigrateIssueTrackers();
             _levelNamesCache = null;
             VariableExpansion.InitializeUserSecrets(_logger);
             ExpandSettingsVariables();
@@ -1187,6 +1206,85 @@ public class ConfigService : IConfigService, IDisposable
         {
             var yaml = YamlHelper.SerializerCompact.Serialize(Settings);
             FileHelper.WriteAllText(ConfigPath, yaml);
+        }
+    }
+
+    private void MigrateIssueTrackers() => MigrateIssueTrackers(Settings);
+
+    public static void MigrateIssueTrackers(TendrilSettings? settings)
+    {
+        if (settings == null) return;
+
+        if (settings.IssueTrackers != null && settings.TrackerConnections.Count == 0)
+        {
+            if (!string.IsNullOrWhiteSpace(settings.IssueTrackers.Jira?.Url))
+            {
+                settings.TrackerConnections.Add(new TrackerConnectionConfig
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = "Jira",
+                    Provider = "jira",
+                    Url = settings.IssueTrackers.Jira.Url,
+                    Email = settings.IssueTrackers.Jira.Email,
+                    ApiToken = settings.IssueTrackers.Jira.ApiToken
+                });
+            }
+            if (!string.IsNullOrWhiteSpace(settings.IssueTrackers.Linear?.ApiKey))
+            {
+                settings.TrackerConnections.Add(new TrackerConnectionConfig
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = "Linear",
+                    Provider = "linear",
+                    ApiKey = settings.IssueTrackers.Linear.ApiKey
+                });
+            }
+            if (!string.IsNullOrWhiteSpace(settings.IssueTrackers.GitHub?.Token))
+            {
+                settings.TrackerConnections.Add(new TrackerConnectionConfig
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = "GitHub",
+                    Provider = "github",
+                    ApiToken = settings.IssueTrackers.GitHub.Token
+                });
+            }
+        }
+
+        foreach (var conn in settings.TrackerConnections)
+        {
+            if (string.IsNullOrEmpty(conn.Id))
+                conn.Id = Guid.NewGuid().ToString();
+        }
+
+        if (settings.Projects != null)
+        {
+            foreach (var project in settings.Projects)
+            {
+                if (project.IssueTracker != null && project.IssueTrackers.Count == 0)
+                {
+                    if (string.IsNullOrEmpty(project.IssueTracker.Id))
+                        project.IssueTracker.Id = Guid.NewGuid().ToString();
+
+                    if (string.IsNullOrEmpty(project.IssueTracker.ConnectionId))
+                    {
+                        var matchingConn = settings.TrackerConnections.FirstOrDefault(c =>
+                            string.Equals(c.Provider, project.IssueTracker.Provider, StringComparison.OrdinalIgnoreCase));
+                        if (matchingConn != null)
+                        {
+                            project.IssueTracker.ConnectionId = matchingConn.Id;
+                        }
+                    }
+
+                    project.IssueTrackers.Add(project.IssueTracker);
+                }
+
+                foreach (var tracker in project.IssueTrackers)
+                {
+                    if (string.IsNullOrEmpty(tracker.Id))
+                        tracker.Id = Guid.NewGuid().ToString();
+                }
+            }
         }
     }
 

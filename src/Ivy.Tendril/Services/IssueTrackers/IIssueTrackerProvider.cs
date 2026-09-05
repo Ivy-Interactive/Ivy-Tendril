@@ -20,10 +20,20 @@ public interface IIssueTrackerProvider
 
     Task<ProviderResult<IReadOnlyList<TrackerIssue>>> GetMyAssignedIssuesAsync(CancellationToken ct = default);
 
+    Task<ProviderResult<IReadOnlyList<TrackerIssue>>> GetMyAssignedIssuesAsync(
+        TrackerConnectionConfig? connection,
+        CancellationToken ct = default) => GetMyAssignedIssuesAsync(ct);
+
     Task<ProviderResult<IReadOnlyList<TrackerIssue>>> GetProjectIssuesAsync(
         ProjectConfig project,
         TrackerIssueQuery query,
         CancellationToken ct = default);
+
+    Task<ProviderResult<IReadOnlyList<TrackerIssue>>> GetProjectIssuesForTrackerAsync(
+        ProjectConfig project,
+        ProjectTrackerConfig tracker,
+        TrackerIssueQuery query,
+        CancellationToken ct = default) => GetProjectIssuesAsync(project, query, ct);
 }
 
 public interface IReviewTrackerProvider

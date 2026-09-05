@@ -96,6 +96,30 @@ public class GitHubTrackerProvider(
         }
     }
 
+    public async Task<ProviderResult<IReadOnlyList<TrackerIssue>>> GetProjectIssuesForTrackerAsync(
+        ProjectConfig project,
+        ProjectTrackerConfig tracker,
+        TrackerIssueQuery query,
+        CancellationToken ct = default)
+    {
+        if (!string.IsNullOrWhiteSpace(tracker.Repo))
+        {
+            var parts = tracker.Repo.Trim().Split('/');
+            if (parts.Length == 2)
+            {
+                var (issues, err) = await githubService.SearchIssuesAsync(new IssueSearchRequest(
+                    parts[0], parts[1], Limit: query.Limit));
+                if (err != null && issues.Count == 0)
+                    return ProviderResult<IReadOnlyList<TrackerIssue>>.Failure(err, []);
+
+                var mapped = issues.Select(i => MapIssue(i, tracker.Repo.Trim())).ToList();
+                return ProviderResult<IReadOnlyList<TrackerIssue>>.Success(mapped);
+            }
+        }
+
+        return await GetProjectIssuesAsync(project, query, ct);
+    }
+
     public async Task<ProviderResult<IReadOnlyList<TrackerReviewItem>>> GetReviewRequestsAsync(CancellationToken ct = default)
     {
         try

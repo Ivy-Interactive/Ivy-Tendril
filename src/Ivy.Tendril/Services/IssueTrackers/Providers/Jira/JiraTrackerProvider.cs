@@ -18,13 +18,23 @@ public class JiraTrackerProvider(
 
     public Task<bool> IsConfiguredAsync(CancellationToken ct = default)
     {
+        var hasConnections = config.Settings.TrackerConnections.Any(c => c.Provider == "jira" && !string.IsNullOrWhiteSpace(c.Url));
+        if (hasConnections) return Task.FromResult(true);
+
         var (url, email, token) = ResolveCredentials();
         return Task.FromResult(!string.IsNullOrWhiteSpace(url) && (!string.IsNullOrWhiteSpace(token) || !string.IsNullOrWhiteSpace(email)));
     }
 
     public async Task<ProviderResult<IReadOnlyList<TrackerIssue>>> GetMyAssignedIssuesAsync(CancellationToken ct = default)
     {
-        var (url, email, token) = ResolveCredentials();
+        return await GetMyAssignedIssuesAsync(connection: null, ct);
+    }
+
+    public async Task<ProviderResult<IReadOnlyList<TrackerIssue>>> GetMyAssignedIssuesAsync(
+        TrackerConnectionConfig? connection,
+        CancellationToken ct = default)
+    {
+        var (url, email, token) = ResolveCredentials(connection);
         if (string.IsNullOrWhiteSpace(url))
             return ProviderResult<IReadOnlyList<TrackerIssue>>.Failure("Jira URL is not configured.", []);
 
@@ -37,15 +47,29 @@ public class JiraTrackerProvider(
         TrackerIssueQuery query,
         CancellationToken ct = default)
     {
-        var (url, email, token) = ResolveCredentials();
+        var tracker = project.IssueTrackers.FirstOrDefault(t => t.Provider == "jira") ?? project.IssueTracker;
+        return await GetProjectIssuesForTrackerAsync(project, tracker ?? new ProjectTrackerConfig { Provider = "jira" }, query, ct);
+    }
+
+    public async Task<ProviderResult<IReadOnlyList<TrackerIssue>>> GetProjectIssuesForTrackerAsync(
+        ProjectConfig project,
+        ProjectTrackerConfig tracker,
+        TrackerIssueQuery query,
+        CancellationToken ct = default)
+    {
+        var connection = !string.IsNullOrEmpty(tracker.ConnectionId)
+            ? config.Settings.TrackerConnections.FirstOrDefault(c => c.Id == tracker.ConnectionId)
+            : config.Settings.TrackerConnections.FirstOrDefault(c => c.Provider == "jira");
+
+        var (url, email, token) = ResolveCredentials(connection);
         if (string.IsNullOrWhiteSpace(url))
             return ProviderResult<IReadOnlyList<TrackerIssue>>.Failure("Jira URL is not configured.", []);
 
-        var projectKey = project.IssueTracker?.ProjectKey ?? project.GetMeta("jira_project") ?? project.GetMeta("jira_key");
+        var projectKey = tracker.ProjectKey ?? project.IssueTracker?.ProjectKey ?? project.GetMeta("jira_project") ?? project.GetMeta("jira_key");
         if (string.IsNullOrWhiteSpace(projectKey))
         {
             return ProviderResult<IReadOnlyList<TrackerIssue>>.Failure(
-                $"No Jira project key configured for project {project.Name}. Set issueTracker.projectKey in config.yaml.", []);
+                $"No Jira project key configured for project {project.Name}.", []);
         }
 
         var jql = $"project = \"{projectKey}\" AND statusCategory != Done ORDER BY updated DESC";
@@ -187,8 +211,13 @@ public class JiraTrackerProvider(
         }
     }
 
-    private (string? url, string? email, string? token) ResolveCredentials()
+    private (string? url, string? email, string? token) ResolveCredentials(TrackerConnectionConfig? connection = null)
     {
+        if (connection != null && connection.Provider == "jira")
+        {
+            return (connection.Url, connection.Email, connection.ApiToken);
+        }
+
         var settings = config.Settings.IssueTrackers?.Jira;
         var url = settings?.Url ?? Environment.GetEnvironmentVariable("JIRA_URL");
         var email = settings?.Email ?? Environment.GetEnvironmentVariable("JIRA_EMAIL");

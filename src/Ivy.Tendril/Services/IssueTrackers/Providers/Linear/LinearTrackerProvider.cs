@@ -19,13 +19,23 @@ public class LinearTrackerProvider(
 
     public Task<bool> IsConfiguredAsync(CancellationToken ct = default)
     {
+        var hasConnections = config.Settings.TrackerConnections.Any(c => c.Provider == "linear" && !string.IsNullOrWhiteSpace(c.ApiKey));
+        if (hasConnections) return Task.FromResult(true);
+
         var apiKey = ResolveApiKey();
         return Task.FromResult(!string.IsNullOrWhiteSpace(apiKey));
     }
 
     public async Task<ProviderResult<IReadOnlyList<TrackerIssue>>> GetMyAssignedIssuesAsync(CancellationToken ct = default)
     {
-        var apiKey = ResolveApiKey();
+        return await GetMyAssignedIssuesAsync(connection: null, ct);
+    }
+
+    public async Task<ProviderResult<IReadOnlyList<TrackerIssue>>> GetMyAssignedIssuesAsync(
+        TrackerConnectionConfig? connection,
+        CancellationToken ct = default)
+    {
+        var apiKey = ResolveApiKey(connection);
         if (string.IsNullOrWhiteSpace(apiKey))
             return ProviderResult<IReadOnlyList<TrackerIssue>>.Failure("Linear API key is not configured.", []);
 
@@ -59,15 +69,29 @@ public class LinearTrackerProvider(
         TrackerIssueQuery query,
         CancellationToken ct = default)
     {
-        var apiKey = ResolveApiKey();
+        var tracker = project.IssueTrackers.FirstOrDefault(t => t.Provider == "linear") ?? project.IssueTracker;
+        return await GetProjectIssuesForTrackerAsync(project, tracker ?? new ProjectTrackerConfig { Provider = "linear" }, query, ct);
+    }
+
+    public async Task<ProviderResult<IReadOnlyList<TrackerIssue>>> GetProjectIssuesForTrackerAsync(
+        ProjectConfig project,
+        ProjectTrackerConfig tracker,
+        TrackerIssueQuery query,
+        CancellationToken ct = default)
+    {
+        var connection = !string.IsNullOrEmpty(tracker.ConnectionId)
+            ? config.Settings.TrackerConnections.FirstOrDefault(c => c.Id == tracker.ConnectionId)
+            : config.Settings.TrackerConnections.FirstOrDefault(c => c.Provider == "linear");
+
+        var apiKey = ResolveApiKey(connection);
         if (string.IsNullOrWhiteSpace(apiKey))
             return ProviderResult<IReadOnlyList<TrackerIssue>>.Failure("Linear API key is not configured.", []);
 
-        var teamKey = project.IssueTracker?.TeamKey ?? project.GetMeta("linear_team") ?? project.GetMeta("linear_key");
+        var teamKey = tracker.TeamKey ?? project.IssueTracker?.TeamKey ?? project.GetMeta("linear_team") ?? project.GetMeta("linear_key");
         if (string.IsNullOrWhiteSpace(teamKey))
         {
             return ProviderResult<IReadOnlyList<TrackerIssue>>.Failure(
-                $"No Linear team key configured for project {project.Name}. Set issueTracker.teamKey in config.yaml.", []);
+                $"No Linear team key configured for project {project.Name}.", []);
         }
 
         const string gql = """
@@ -236,8 +260,13 @@ public class LinearTrackerProvider(
         return current;
     }
 
-    private string? ResolveApiKey()
+    private string? ResolveApiKey(TrackerConnectionConfig? connection = null)
     {
+        if (connection != null && connection.Provider == "linear" && !string.IsNullOrWhiteSpace(connection.ApiKey))
+        {
+            return connection.ApiKey;
+        }
+
         return config.Settings.IssueTrackers?.Linear?.ApiKey ??
                Environment.GetEnvironmentVariable("LINEAR_API_KEY");
     }
