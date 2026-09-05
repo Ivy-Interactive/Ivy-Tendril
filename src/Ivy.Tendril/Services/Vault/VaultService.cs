@@ -1944,4 +1944,85 @@ public class VaultService : IVaultService
             return (null, ex.Message);
         }
     }
+
+    public ProjectAssets CollectProjectAssets(string projectName)
+    {
+        var proj = _config.Settings.Projects.FirstOrDefault(p => p.Name.Equals(projectName, StringComparison.OrdinalIgnoreCase));
+        if (proj == null)
+        {
+            return new ProjectAssets { ProjectName = projectName };
+        }
+
+        var skills = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (proj.Skills != null)
+        {
+            foreach (var s in proj.Skills)
+            {
+                if (!string.IsNullOrWhiteSpace(s.Name)) skills.Add(s.Name);
+            }
+        }
+
+        var skillsDir = ProjectPathHelper.GetSkillsDir(_config.TendrilHome, proj.Name);
+        if (Directory.Exists(skillsDir))
+        {
+            foreach (var f in Directory.GetFiles(skillsDir, "*.md"))
+            {
+                var name = Path.GetFileNameWithoutExtension(f);
+                if (!string.IsNullOrWhiteSpace(name)) skills.Add(name);
+            }
+        }
+
+        var mcps = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (proj.McpServers != null)
+        {
+            foreach (var m in proj.McpServers)
+            {
+                if (!string.IsNullOrWhiteSpace(m.Name)) mcps.Add(m.Name);
+            }
+        }
+
+        var memories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var memoryDir = ProjectPathHelper.GetMemoryDir(_config.TendrilHome, proj.Name);
+        if (Directory.Exists(memoryDir))
+        {
+            foreach (var f in Directory.GetFiles(memoryDir, "*.md"))
+            {
+                var name = Path.GetFileName(f);
+                if (!string.IsNullOrWhiteSpace(name)) memories.Add(name);
+            }
+        }
+
+        var reviewActions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (proj.ReviewActions != null)
+        {
+            foreach (var a in proj.ReviewActions)
+            {
+                if (!string.IsNullOrWhiteSpace(a.Name)) reviewActions.Add(a.Name);
+            }
+        }
+
+        var verifications = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (proj.Verifications != null)
+        {
+            foreach (var v in proj.Verifications)
+            {
+                if (!string.IsNullOrWhiteSpace(v.Name)) verifications.Add(v.Name);
+            }
+        }
+
+        return new ProjectAssets
+        {
+            ProjectName = proj.Name,
+            Skills = skills.ToList(),
+            McpServers = mcps.ToList(),
+            Memories = memories.ToList(),
+            ReviewActions = reviewActions.ToList(),
+            Verifications = verifications.ToList()
+        };
+    }
+
+    public Task<ProjectAssets> CollectProjectAssetsAsync(string projectName)
+    {
+        return Task.FromResult(CollectProjectAssets(projectName));
+    }
 }

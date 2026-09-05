@@ -38,5 +38,9 @@ public interface IVaultService
 
     Task<VaultSyncResult> PullLatestAsync(string? vaultId = null);
 
+    ProjectAssets CollectProjectAssets(string projectName);
+
+    Task<ProjectAssets> CollectProjectAssetsAsync(string projectName);
+
     event Action? VaultChanged;
 }

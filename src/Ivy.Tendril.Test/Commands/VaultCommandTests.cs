@@ -59,6 +59,8 @@ public class FakeVaultService : IVaultService
     public Task<VaultResult> MergeProjectAsync(VaultImportRequest request, string? vaultId = null) => Task.FromResult(MergeResultToReturn);
     public Task<VaultPrResult> DeleteProjectFromVaultAsync(string projectName, string? vaultId = null) => Task.FromResult(DeleteResultToReturn);
     public Task<VaultSyncResult> PullLatestAsync(string? vaultId = null) => Task.FromResult(PullResultToReturn);
+    public ProjectAssets CollectProjectAssets(string projectName) => new() { ProjectName = projectName };
+    public Task<ProjectAssets> CollectProjectAssetsAsync(string projectName) => Task.FromResult(CollectProjectAssets(projectName));
 }
 
 public class VaultCommandSettingsValidationTests
