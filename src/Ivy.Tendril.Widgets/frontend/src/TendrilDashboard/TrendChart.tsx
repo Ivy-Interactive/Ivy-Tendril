@@ -17,7 +17,7 @@ interface Point {
 }
 
 /** Catmull-Rom spline through the points, as an SVG cubic-bezier path. */
-const smoothPath = (points: Point[]): string => {
+const smoothPath = (points: Point[], maxY?: number): string => {
   if (points.length === 0) return "";
   if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
   let d = `M ${points[0].x} ${points[0].y}`;
@@ -26,16 +26,20 @@ const smoothPath = (points: Point[]): string => {
     const p1 = points[i];
     const p2 = points[i + 1];
     const p3 = points[i + 2] ?? p2;
-    const c1x = p1.x + (p2.x - p0.x) / 6;
-    const c1y = p1.y + (p2.y - p0.y) / 6;
-    const c2x = p2.x - (p3.x - p1.x) / 6;
-    const c2y = p2.y - (p3.y - p1.y) / 6;
+    let c1x = p1.x + (p2.x - p0.x) / 6;
+    let c1y = p1.y + (p2.y - p0.y) / 6;
+    let c2x = p2.x + (p3.x - p1.x) / 6;
+    let c2y = p2.y + (p3.y - p1.y) / 6;
+    if (maxY != null) {
+      c1y = Math.min(c1y, maxY);
+      c2y = Math.min(c2y, maxY);
+    }
     d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
   }
   return d;
 };
 
-const HEIGHT = 236;
+const DEFAULT_HEIGHT = 236;
 const PAD_TOP = 10;
 const PAD_BOTTOM = 26;
 const PAD_RIGHT = 8;
@@ -53,25 +57,36 @@ export const TrendChart: React.FC<TrendChartProps> = ({
   formatValue,
 }) => {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
+  const [size, setSize] = useState({ width: 0, height: DEFAULT_HEIGHT });
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const gradientId = useId();
 
   useLayoutEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    setWidth(el.getBoundingClientRect().width);
+    const rect = el.getBoundingClientRect();
+    setSize({
+      width: rect.width,
+      height: Math.max(DEFAULT_HEIGHT, rect.height),
+    });
     const observer = new ResizeObserver((entries) => {
-      setWidth(entries[0].contentRect.width);
+      const entry = entries[0];
+      if (entry) {
+        setSize({
+          width: entry.contentRect.width,
+          height: Math.max(DEFAULT_HEIGHT, entry.contentRect.height),
+        });
+      }
     });
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
+  const { width, height } = size;
   const n = labels.length;
   const plotLeft = Y_LABEL_WIDTH;
   const plotWidth = Math.max(0, width - Y_LABEL_WIDTH - PAD_RIGHT);
-  const plotBottom = HEIGHT - PAD_BOTTOM;
+  const plotBottom = height - PAD_BOTTOM;
   const zeroY = plotBottom - ZERO_LIFT;
   const plotHeight = zeroY - PAD_TOP;
 
@@ -97,7 +112,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
 
   const areaPath = useMemo(() => {
     if (points.length < 2) return "";
-    const line = smoothPath(points);
+    const line = smoothPath(points, zeroY);
     const last = points[points.length - 1];
     const first = points[0];
     return `${line} L ${last.x} ${zeroY} L ${first.x} ${zeroY} Z`;
@@ -129,8 +144,8 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     <div className="tdb-chart-wrap" ref={wrapRef}>
       {width > 0 && (
         <svg
-          height={HEIGHT}
-          viewBox={`0 0 ${width} ${HEIGHT}`}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
           onMouseMove={onMove}
           onMouseLeave={() => setHoverIndex(null)}
         >
@@ -153,15 +168,15 @@ export const TrendChart: React.FC<TrendChartProps> = ({
               key={label + i}
               className="tdb-axis-text"
               x={plotLeft + (n <= 1 ? plotWidth / 2 : (i / (n - 1)) * plotWidth)}
-              y={HEIGHT - 6}
+              y={height - 6}
               textAnchor="middle"
             >
               {label}
             </text>
           ))}
           {areaPath && <path d={areaPath} fill={`url(#${gradientId})`} style={{ color: "var(--tdb-fg)" }} />}
-          {previousPoints.length > 1 && <path className="tdb-trend-compare" d={smoothPath(previousPoints)} />}
-          {points.length > 1 && <path className="tdb-trend-line" d={smoothPath(points)} />}
+          {previousPoints.length > 1 && <path className="tdb-trend-compare" d={smoothPath(previousPoints, zeroY)} />}
+          {points.length > 1 && <path className="tdb-trend-line" d={smoothPath(points, zeroY)} />}
           {hover && (
             <g>
               <line

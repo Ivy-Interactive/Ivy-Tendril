@@ -12,7 +12,11 @@ export const PillBars: React.FC<PillBarsProps> = ({ items }) => {
   const max = useMemo(() => Math.max(0, ...items.map((i) => i.value)), [items]);
 
   if (items.length === 0 || max === 0) {
-    return <div className="tdb-empty-note">No merged pull requests yet</div>;
+    return (
+      <div className="tdb-empty-note">
+        No merged pull requests yet
+      </div>
+    );
   }
 
   const ticks = niceTicks(max);

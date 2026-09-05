@@ -181,8 +181,7 @@ public class ContentView(
 
         var questions = QuestionAnswers.Read(revisionContent.Value);
         var answeredQuestions = questions.Count(q => q.HasAnswer);
-        // Optional questions are never outstanding: the plan is complete without them.
-        var unansweredQuestions = questions.Count(q => !q.HasAnswer && !q.IsOptional);
+        var unansweredQuestions = CountUnansweredQuestions(questions);
 
         void ApplyAnswer(QuestionAnswer answer)
         {
@@ -259,17 +258,29 @@ public class ContentView(
             {
                 var persona = shareContext.Persona;
                 var initials = Ivy.Tendril.Services.Share.AnonymousPersonaGenerator.GetInitials(persona);
-                var reviewerBadge = Layout.Horizontal().AlignContent(Align.Right)
-                    | new Avatar(initials).Small()
-                    | Text.Block(persona).Small().Bold().NoWrap();
+                var reviewerBadge = Layout.Horizontal().Gap(2).AlignContent(Align.Right);
+
+                foreach (var badge in ProjectHelper.BuildBadges(selectedPlan.Project, config))
+                {
+                    reviewerBadge |= badge;
+                }
+
+                reviewerBadge |= new Avatar(initials).Small();
+                reviewerBadge |= Text.Block(persona).Small().Bold().NoWrap();
                 return reviewerBadge.Width(isMobile ? Size.Full() : Size.Fit());
             }
 
-            var rightSide = Layout.Horizontal().AlignContent(Align.Right)
-                           | Text.Rich()
-                               .NoWrap()
-                               .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
-                               .Muted("plans", word: true);
+            var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right);
+
+            foreach (var badge in ProjectHelper.BuildBadges(selectedPlan.Project, config))
+            {
+                rightSide |= badge;
+            }
+
+            rightSide |= Text.Rich()
+                .NoWrap()
+                .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
+                .Muted("plans", word: true);
 
             var activeAnnotationCount = annotations.Value.Count(a => !a.IsResolved);
             if (activeAnnotationCount > 0 || answeredQuestions > 0)
@@ -451,7 +462,7 @@ public class ContentView(
     private object BuildNoSelectionView(object processView)
     {
         if (allPlans.Count == 0)
-            return new NoContentView("No draft plans", "Plans you create will appear here", processView);
+            return new NoContentView("No plans", "Plans you create will appear here", processView);
 
         return Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
                | Text.Muted("Select a plan from the sidebar");
@@ -758,6 +769,14 @@ public class ContentView(
 
         return sb.ToString().TrimEnd();
     }
+
+    internal static int CountUnansweredQuestions(IEnumerable<QuestionSummary> questions) =>
+        questions.Count(q => !q.HasAnswer);
+
+    internal static int CountUnansweredQuestions(string? revisionContent) =>
+        string.IsNullOrEmpty(revisionContent)
+            ? 0
+            : CountUnansweredQuestions(QuestionAnswers.Read(revisionContent));
 
     private record PlanContentData(
         string? SummaryMarkdown,

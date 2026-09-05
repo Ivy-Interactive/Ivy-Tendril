@@ -350,7 +350,7 @@ public record JobItemRow
     /// </summary>
     public string Status { get; init; } = "";
     public string PlanId { get; init; } = "";
-    public string Plan { get; init; } = "";
+    public string Prompt { get; init; } = "";
     public string Type { get; init; } = "";
     public string Project { get; init; } = "";
     public string Timer { get; init; } = "";

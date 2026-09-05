@@ -354,7 +354,9 @@ public class JobServiceHookTests : IDisposable
     // Regression for the #1455 class: a before-hook runs synchronously in the un-monitored pre-launch
     // window (before JobMonitor/TimeoutCts exist), so a hook that never returns would wedge the launch
     // forever with no timeout able to fire. The hook process must be force-killed at its guard
-    // (10s for conditions, 30s for actions) rather than blocking on a ReadToEnd that never completes.
+    // (defaults: 10s for conditions, 30s for actions) rather than blocking on a ReadToEnd that never
+    // completes. This test overrides the condition guard to 1s so the test runtime does not track
+    // pwsh startup and thread pool contention on a loaded machine.
     [Fact]
     public async Task RunHooks_HangingBeforeHook_IsKilledAndDoesNotWedgeLaunch()
     {
@@ -364,23 +366,34 @@ public class JobServiceHookTests : IDisposable
             {
                 Name = "Hanging Hook",
                 When = "before",
-                Condition = "Start-Sleep -Seconds 120; $true", // never returns within the 10s guard
+                Condition = "Start-Sleep -Seconds 120; $true", // never returns within any guard
                 Action = "Write-Host should-not-run"
             }
         };
         var (service, _) = CreateServiceWithHooks(hooks);
+        // The assertion is that a hung hook is killed at its guard, so run a guard the test can afford:
+        // with the real 10s this test measured 10s against a 30s allowance, leaving pwsh startup and
+        // machine load to fit in the remainder. Start-Sleep -Seconds 120 outlives any guard, so the kill
+        // path is identical.
+        service.HookConditionTimeout = TimeSpan.FromSeconds(1);
         var planFolder = CreateTempPlanFolder();
 
         try
         {
-            // StartJob runs before-hooks synchronously; if the hang regressed it would not return.
-            var startTask = Task.Run(() => service.StartJob(new ExecutePlanArgs(planFolder)));
-            var completed = await Task.WhenAny(startTask, Task.Delay(TimeSpan.FromSeconds(30)));
-            Assert.Equal(startTask, completed);
+            // A dedicated thread, not the thread pool: before-hooks run synchronously inside StartJob and
+            // block, so on a pool saturated by other suites the work item can sit queued while the allowance
+            // below is already counting.
+            var startTask = Task.Factory.StartNew(
+                () => service.StartJob(new ExecutePlanArgs(planFolder)),
+                TaskCreationOptions.LongRunning);
+            var allowance = TimeSpan.FromSeconds(30);
+            var completed = await Task.WhenAny(startTask, Task.Delay(allowance));
+            Assert.True(completed == startTask,
+                $"StartJob did not return within {allowance.TotalSeconds:0}s despite a 1s hook guard: a hung before-hook wedged the launch.");
 
             var job = service.GetJob(await startTask)!;
             Assert.Contains(job.OutputLines,
-                l => l.Contains("[hook:Hanging Hook]") && l.Contains("timed out"));
+                l => l.Contains("[hook:Hanging Hook]") && l.Contains("Condition timed out after 1s"));
             Assert.DoesNotContain(job.OutputLines, l => l.Contains("should-not-run"));
 
             service.CompleteJob(job.Id, 0);
@@ -389,6 +402,17 @@ public class JobServiceHookTests : IDisposable
         {
             Directory.Delete(planFolder, true);
         }
+    }
+
+    [Fact]
+    public void HookGuards_DefaultToProductionValues()
+    {
+        // Guards the seam added for RunHooks_HangingBeforeHook_IsKilledAndDoesNotWedgeLaunch: a test
+        // shortens these, so nothing should be able to ship the shortened values.
+        var (service, _) = CreateServiceWithHooks(new List<PromptwareHookConfig>());
+
+        Assert.Equal(TimeSpan.FromSeconds(10), service.HookConditionTimeout);
+        Assert.Equal(TimeSpan.FromSeconds(30), service.HookActionTimeout);
     }
 
     [Fact]

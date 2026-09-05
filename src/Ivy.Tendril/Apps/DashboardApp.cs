@@ -22,7 +22,9 @@ public class DashboardApp : ViewBase
     private const int ActivityMonths = 16;
     private const int TrendMonthsBack = 24;
     private const int TrendMonthsShown = 12;
+    private const int TrendWeeksShown = 4;
     private const int ActiveJobsShown = 8;
+    private static readonly string[] DayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
     public override object Build()
     {
@@ -117,6 +119,7 @@ public class DashboardApp : ViewBase
             .FailedCount(jobs.Count(j => j.Status == JobStatus.Failed))
             .Kpis(BuildKpis(stats, activity, prDays, today))
             .Trend(BuildTrend(activity))
+            .TrendWeekly(BuildWeeklyTrend(activity))
             .PullRequests(activity.Months
                 .TakeLast(6)
                 .Select(m => new DashboardMonthValueDto(MonthLabel(m.Month), m.PrsMerged))
@@ -202,17 +205,29 @@ public class DashboardApp : ViewBase
         var (lastCost, prevCost) = LastTwo(completeMonths, m => m.Cost);
         kpis.Add(Kpi("Avg Cost/Month", FormatCost(avgMonthCost), lastCost, prevCost));
 
-        var tokenMonths = completeMonths.TakeLast(6).Where(m => m.Tokens > 0).ToList();
-        var avgMonthTokens = tokenMonths.Count > 0
-            ? (long)tokenMonths.Average(m => m.Tokens)
-            : activity.Months.Count > 0 ? activity.Months[^1].Tokens : 0;
-        var (lastTokens, prevTokens) = LastTwo(completeMonths, m => m.Tokens);
-        kpis.Add(Kpi("Avg Tokens/Month", FormatTokenAverage(avgMonthTokens), lastTokens, prevTokens));
+        // Next to the retrospective average on purpose: what the month has cost so far and what it is
+        // heading for are read together.
+        kpis.Add(BuildForecastKpi(activity.DailyCosts, today));
+
 
         kpis.Add(Kpi("Avg Cost/Plan", FormatHelper.FormatCost(stats.AvgCostPerPlan),
             stats.AvgCostPerPlan, activity.PrevWeekAvgCostPerPlan));
 
         return kpis;
+    }
+
+    /// <summary>
+    ///     What this month is heading for. No delta, because there is nothing prior to compare a projection against.
+    /// </summary>
+    internal static DashboardKpiDto BuildForecastKpi(List<DashboardDailyCost>? dailyCosts, DateTime today)
+    {
+        const string label = "Forecast This Month";
+
+        var forecast = CostForecastCalculator.Project(dailyCosts ?? [], today);
+        if (forecast.CalendarProjection is not { } projection)
+            return new DashboardKpiDto(label, "-", Hint: "No cost data in the last 30 days");
+
+        return new DashboardKpiDto(label, FormatCost(projection));
     }
 
     private static (decimal Last, decimal Previous) LastTwo(
@@ -239,11 +254,6 @@ public class DashboardApp : ViewBase
 
     private static string FormatCost(decimal cost) =>
         cost >= 100 ? FormatHelper.FormatCost(Math.Round(cost), 0) : FormatHelper.FormatCost(cost);
-
-    private static string FormatTokenAverage(long tokens) =>
-        tokens >= 1_000_000
-            ? FormatHelper.FormatTokens((int)Math.Min(tokens, int.MaxValue))
-            : FormatHelper.FormatCount(tokens);
 
     internal static DashboardTrendDto BuildTrend(DashboardActivityStats activity)
     {
@@ -293,4 +303,30 @@ public class DashboardApp : ViewBase
 
         return months;
     }
+
+    internal static DashboardTrendDto BuildWeeklyTrend(DashboardActivityStats activity)
+    {
+        var all = activity.Weeks ?? [];
+        var start = Math.Max(0, all.Count - TrendWeeksShown);
+        var window = all.Skip(start).ToList();
+
+        var prevCost = new List<double?>(window.Count);
+        var prevPlans = new List<double?>(window.Count);
+        for (var i = 0; i < window.Count; i++)
+        {
+            var prevIndex = start + i - TrendWeeksShown;
+            prevCost.Add(prevIndex >= 0 && prevIndex < all.Count ? (double)all[prevIndex].Cost : null);
+            prevPlans.Add(prevIndex >= 0 && prevIndex < all.Count ? all[prevIndex].PlansCreated : null);
+        }
+
+        return new DashboardTrendDto(
+            window.Select(w => FormatWeekLabel(w.WeekStart)).ToList(),
+            window.Select(w => (double)w.Cost).ToList(),
+            window.Select(w => (double)w.PlansCreated).ToList(),
+            prevCost,
+            prevPlans);
+    }
+
+    private static string FormatWeekLabel(DateOnly weekStart) =>
+        $"{MonthLabel(weekStart.Month)} {weekStart.Day}";
 }

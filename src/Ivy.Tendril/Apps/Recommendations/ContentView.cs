@@ -95,24 +95,26 @@ public class ContentView(
                        .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
         }
 
-        object BuildControls(bool isMobile) => Layout.Horizontal().Gap(2).AlignContent(Align.Right)
-                       | Text.Rich()
-                           .Bold($"{(currentIndex == -1 ? "?" : (currentIndex + 1).ToString())}/{allRecommendations.Count}", word: true)
-                           .Muted("recommendations", word: true)
-                       | new Button("Decline").Icon(Icons.X).Outline().ShortcutKey("Backspace").OnClick(() =>
-                       {
-                           planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, RecommendationStatus.Declined);
-                           refresh();
-                           GoToNext();
-                       })
-                       | new Button("Accept").Icon(Icons.Check).Primary().ShortcutKey("a").OnClick(() =>
-                       {
-                           planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, RecommendationStatus.Accepted);
-                           jobService.StartJob(new CreatePlanArgs(selectedRecommendation.Description, selectedRecommendation.Project));
-                           client.Toast($"Started CreatePlan: {selectedRecommendation.Title}", "Recommendation Accepted");
-                           refresh();
-                           GoToNext();
-                       });
+        object BuildControls(bool isMobile) => BuildControlsLayout(
+            selectedRecommendation.Project,
+            currentIndex,
+            allRecommendations.Count,
+            () =>
+            {
+                planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, RecommendationStatus.Declined);
+                refresh();
+                GoToNext();
+            },
+            () =>
+            {
+                planService.UpdateRecommendationState(selectedRecommendation.PlanFolderName, selectedRecommendation.Title, RecommendationStatus.Accepted);
+                jobService.StartJob(new CreatePlanArgs(selectedRecommendation.Description, selectedRecommendation.Project));
+                client.Toast($"Started CreatePlan: {selectedRecommendation.Title}", "Recommendation Accepted");
+                refresh();
+                GoToNext();
+            },
+            config,
+            isMobile);
 
         var header = ResponsiveHeader.Build(BuildTitleArea, BuildControls);
 
@@ -121,15 +123,15 @@ public class ContentView(
 
         // Description
         scrollableContent |= new Markdown(MarkdownHelper.PrepareForDisplay(selectedRecommendation.Description, config))
-            .DangerouslyAllowLocalFiles()
-            .Article()
-            .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>
-            {
-                var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
+                .DangerouslyAllowLocalFiles()
+                .Article()
+                .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>
+                {
+                    var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")
                     .FirstOrDefault();
-                if (planFolder != null)
-                    showPlan(planFolder);
-            }));
+                    if (planFolder != null)
+                        showPlan(planFolder);
+                }));
 
         // Standard overflow menu items
         var standardOverflowItems = new[]
@@ -220,6 +222,32 @@ public class ContentView(
         ).Scroll(Scroll.None).Size(Size.Full());
 
         return new Fragment(mainLayout, planSheet, notesDialog, new FileSheet(openFile, config));
+    }
+
+    public static object BuildControlsLayout(
+        string? project,
+        int currentIndex,
+        int totalCount,
+        Action onDecline,
+        Action onAccept,
+        IConfigService config,
+        bool isMobile = false)
+    {
+        var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right);
+
+        foreach (var badge in ProjectHelper.BuildBadges(project, config))
+        {
+            rightSide |= badge;
+        }
+
+        rightSide |= Text.Rich()
+            .Bold($"{(currentIndex == -1 ? "?" : (currentIndex + 1).ToString())}/{totalCount}", word: true)
+            .Muted("recommendations", word: true);
+
+        rightSide |= new Button("Decline").Icon(Icons.X).Outline().ShortcutKey("Backspace").OnClick(onDecline);
+        rightSide |= new Button("Accept").Icon(Icons.Check).Primary().ShortcutKey("a").OnClick(onAccept);
+
+        return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
     }
 
     private void GoToNext()

@@ -22,7 +22,7 @@ public readonly record struct QuestionBlockSource(int Index, int BodyStart, int 
 /// </summary>
 /// <param name="BlockIndex">0-based index of the <c>questions</c> fence holding it.</param>
 /// <param name="Id">The question's <c>id</c> — unique across the revision, and what
-/// <see cref="DraftMarkdown.ScrollTo" /> addresses.</param>
+/// <see cref="PlanMarkdown.ScrollTo" /> addresses.</param>
 /// <param name="Title">The question itself. Empty when the block omitted it.</param>
 /// <param name="Header">The optional short label shown as an eyebrow above the title.</param>
 /// <param name="HasAnswer">Whether the question carries an <c>answer</c>.</param>
@@ -39,7 +39,7 @@ public readonly record struct QuestionSummary(
     bool IsOptional);
 
 /// <summary>
-///     Merges a <see cref="QuestionAnswer" /> reported by <see cref="DraftMarkdown.OnAnswersChange" />
+///     Merges a <see cref="QuestionAnswer" /> reported by <see cref="PlanMarkdown.OnAnswersChange" />
 ///     back into the markdown it came from.
 ///     <para>
 ///         The widget never rewrites its own document: it reports what changed and the host decides

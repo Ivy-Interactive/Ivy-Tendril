@@ -81,7 +81,8 @@ public record CreatePrArgs(
     bool IncludeArtifacts = true,
     string[]? Reviewers = null,
     string? Comment = null,
-    bool Draft = false) : JobArgsBase
+    bool Draft = false,
+    string? BaseBranch = null) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.CreatePr;
     public override string PlanFolder => FolderPath;

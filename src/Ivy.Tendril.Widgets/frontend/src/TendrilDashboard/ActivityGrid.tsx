@@ -16,7 +16,11 @@ export const ActivityGrid: React.FC<ActivityGridProps> = ({ months }) => {
   );
 
   if (months.length === 0 || maxWeek === 0) {
-    return <div className="tdb-empty-note">No merged pull requests yet</div>;
+    return (
+      <div className="tdb-empty-note">
+        No merged pull requests yet
+      </div>
+    );
   }
 
   // Label every other month when the range is long, always including the last.

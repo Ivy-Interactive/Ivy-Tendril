@@ -40,7 +40,8 @@ public class JobService : IJobService
         ITelemetryService? telemetryService = null,
         IPlanWatcherService? planWatcherService = null,
         IPlanDatabaseService? database = null,
-        IAgentRunner? agentRunner = null)
+        IAgentRunner? agentRunner = null,
+        IModelPricingProvider? pricingProvider = null)
     {
         _syncContext = SynchronizationContext.Current;
         _configService = configService;
@@ -62,7 +63,7 @@ public class JobService : IJobService
         _jobLauncher = new JobLauncher(configService, agentRunner, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
             configService, _logger, modelPricingService, planReaderService,
-            telemetryService, planWatcherService, promptsRoot);
+            telemetryService, planWatcherService, promptsRoot, pricingProvider);
         configService.SettingsReloaded += OnSettingsReloaded;
         JobIdAllocator.SeedIfNeeded(configService.TendrilHome);
         LoadHistoricalJobs();
@@ -290,7 +291,7 @@ public class JobService : IJobService
         PersistJob(job);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
-            _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase);
+            _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase, PersistJob);
 
         _completionHandler.HandleWaitForJobsDependents(job, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob, DeleteJobFromDatabase);
 
@@ -343,7 +344,7 @@ public class JobService : IJobService
             ApplyDeletePlanState(removed);
 
             if (removed.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
-                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase);
+                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase, PersistJob);
 
             _completionHandler.HandleWaitForJobsDependents(removed, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob, DeleteJobFromDatabase);
         }
@@ -421,7 +422,7 @@ public class JobService : IJobService
         {
             var hasBlocked = _jobs.Values.Any(j => j.Status == JobStatus.Blocked);
             if (hasBlocked)
-                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase);
+                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase, PersistJob);
         }
         catch
         {
@@ -1285,7 +1286,7 @@ public class JobService : IJobService
         return true;
     }
 
-    private static string DescribeWaitDependency(JobItem dep)
+    internal static string DescribeWaitDependency(JobItem dep)
     {
         var planId = dep.ResolvePlanId();
         return string.IsNullOrEmpty(planId)
@@ -1407,6 +1408,18 @@ public class JobService : IJobService
         set => _staleOutputTimeout = value;
     }
 
+    internal TimeSpan HookConditionTimeout
+    {
+        get => _completionHandler.HookConditionTimeout;
+        set => _completionHandler.HookConditionTimeout = value;
+    }
+
+    internal TimeSpan HookActionTimeout
+    {
+        get => _completionHandler.HookActionTimeout;
+        set => _completionHandler.HookActionTimeout = value;
+    }
+
 
     private void ProcessJobQueue()
     {
@@ -1468,8 +1481,28 @@ public class JobService : IJobService
     internal void WriteJobLog(JobItem job)
         => _completionHandler.WriteJobLog(job);
 
-    internal static void LogCostToCsv(string planFolder, string jobType, int tokens, double cost)
-        => PlanYamlHelper.LogCostToCsv(planFolder, jobType, tokens, cost);
+    internal static void LogCostToCsv(string planFolder, string jobType, int tokens, decimal? cost, string? model = null)
+        => PlanYamlHelper.LogCostToCsv(planFolder, jobType, tokens, cost, model);
+
+    /// <summary>
+    /// Writes a cost <see cref="Services.Telemetry.CostBackfillService" /> worked out after the fact
+    /// onto the job this service is holding, so an open Jobs table or cost sheet picks it up instead
+    /// of showing the blank the backfill just repaired until the next reload.
+    /// <para>
+    /// The database row is the backfill's own business; this only reconciles memory. Returns false
+    /// when the job is no longer held, which is the ordinary case for anything older than
+    /// <c>LoadHistoricalJobs</c> kept.
+    /// </para>
+    /// </summary>
+    internal bool ApplyBackfilledCost(string jobId, decimal cost, string costSource)
+    {
+        if (!_jobs.TryGetValue(jobId, out var job)) return false;
+
+        job.Cost = cost;
+        job.CostSource = costSource;
+        RaiseJobsPropertyChanged();
+        return true;
+    }
 
     internal bool IsRecoveredJob(JobItem job)
     {

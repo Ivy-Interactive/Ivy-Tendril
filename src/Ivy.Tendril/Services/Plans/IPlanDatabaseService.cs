@@ -64,4 +64,15 @@ public interface IPlanDatabaseService : IDisposable
     void SetLastSyncTime(DateTime time);
 }
 
-public record CostEntry(string Promptware, int Tokens, decimal Cost, DateTime? LogTimestamp);
+/// <summary>
+///     One row of a plan folder's <c>costs.csv</c>, as synced into the <c>Costs</c> table.
+/// </summary>
+/// <param name="Cost">
+///     Null when nothing could be priced: a subscription plan reports tokens but no charge, and the
+///     aggregates have to skip that plan rather than average a zero in. Distinct from a genuine 0.
+/// </param>
+/// <param name="Model">
+///     What the tokens went on, carried through the CSV because <c>PurgeOldJobs</c> drops the
+///     <c>Jobs</c> row long before the plan folder is archived. Null for a pre v2 file.
+/// </param>
+public record CostEntry(string Promptware, int Tokens, decimal? Cost, DateTime? LogTimestamp, string? Model = null);

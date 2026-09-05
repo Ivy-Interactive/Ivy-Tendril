@@ -179,14 +179,28 @@ internal static class PlanYamlHelper
         }
     }
 
-    internal static void LogCostToCsv(string planFolder, string jobType, int tokens, double cost)
+    /// <summary>
+    ///     Appends one job's usage to the plan folder's <c>costs.csv</c>, which outlives the
+    ///     <c>Jobs</c> row: <c>PurgeOldJobs</c> keeps 500 jobs, so for an older plan this file is the
+    ///     only durable record of what the tokens went on. That is why <paramref name="model" /> is
+    ///     carried here and not just in the database.
+    ///     <para>
+    ///         A null <paramref name="cost" /> writes an empty field rather than <c>0.0000</c>: unknown
+    ///         and free are different facts, and the parser turns the empty field back into SQL NULL so
+    ///         the aggregates skip it instead of averaging a zero in.
+    ///     </para>
+    /// </summary>
+    internal static void LogCostToCsv(string planFolder, string jobType, int tokens, decimal? cost, string? model = null)
     {
         if (!Directory.Exists(planFolder)) return;
 
         var csvPath = Path.Combine(planFolder, "costs.csv");
-        if (!File.Exists(csvPath)) FileHelper.WriteAllText(csvPath, "Promptware,Tokens,Cost\n");
+        // An existing file keeps whatever header it was created with, including the 3 column one: the
+        // parser reads by position and tolerates a short header with long rows appended under it.
+        if (!File.Exists(csvPath)) FileHelper.WriteAllText(csvPath, "Promptware,Tokens,Cost,Model\n");
 
-        var line = $"{jobType},{tokens},{cost.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}\n";
+        var costField = cost?.ToString("F4", System.Globalization.CultureInfo.InvariantCulture) ?? "";
+        var line = $"{jobType},{tokens},{costField},{model}\n";
         FileHelper.AppendAllText(csvPath, line);
     }
 
@@ -264,12 +278,18 @@ internal static class PlanYamlHelper
         return dashIdx > 0 ? folderName[(dashIdx + 1)..] : null;
     }
 
+    /// <summary>
+    /// Maximum length for the SafeTitle component of a plan folder name.
+    /// Set to keep worktree paths below the Windows process creation limit.
+    /// </summary>
+    internal const int SafeTitleMaxLength = 24;
+
     internal static string ToSafeTitle(string title)
     {
         var words = title.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         var safe = string.Concat(words.Select(w =>
             char.ToUpperInvariant(w[0]) + w[1..]));
         safe = Regex.Replace(safe, @"[^a-zA-Z0-9]", "");
-        return safe.Length > 60 ? safe[..60] : safe;
+        return safe.Length > SafeTitleMaxLength ? safe[..SafeTitleMaxLength] : safe;
     }
 }

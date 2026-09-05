@@ -217,7 +217,8 @@ internal static class ServiceRegistration
                 sp.GetRequiredService<ITelemetryService>(),
                 sp.GetRequiredService<IPlanWatcherService>(),
                 string.IsNullOrEmpty(cfg.TendrilHome) ? null : sp.GetRequiredService<IPlanDatabaseService>(),
-                sp.GetRequiredService<IAgentRunner>());
+                sp.GetRequiredService<IAgentRunner>(),
+                sp.GetRequiredService<IModelPricingProvider>());
         });
         server.Services.AddSingleton<IJobService>(sp => sp.GetRequiredService<JobService>());
         server.Services.AddSingleton<PlanWatcherService>(sp =>
@@ -309,5 +310,14 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<Services.Telemetry.ModelPricingWarmupService>();
         server.Services.AddSingleton<IStartable>(sp =>
             sp.GetRequiredService<Services.Telemetry.ModelPricingWarmupService>());
+
+        server.Services.AddSingleton<Services.Telemetry.CostBackfillService>(sp =>
+            new Services.Telemetry.CostBackfillService(
+                sp.GetRequiredService<IPlanDatabaseService>(),
+                sp.GetRequiredService<IModelPricingProvider>(),
+                sp.GetRequiredService<ILogger<Services.Telemetry.CostBackfillService>>(),
+                sp.GetRequiredService<JobService>()));
+        server.Services.AddSingleton<IStartable>(sp =>
+            sp.GetRequiredService<Services.Telemetry.CostBackfillService>());
     }
 }

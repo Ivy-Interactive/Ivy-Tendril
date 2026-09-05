@@ -22,8 +22,6 @@
   --tsh-row-active-fg: var(--foreground, #000000);
   --tsh-badge-bg: var(--muted, #f0f0f0);
   --tsh-badge-bg-active: color-mix(in srgb, var(--accent, #e6e6e6) 45%, var(--background, #ffffff));
-  --tsh-rail-badge-bg: var(--primary, #000000);
-  --tsh-rail-badge-fg: var(--primary-foreground, #ffffff);
   --tsh-cta-bg: var(--primary, #000000);
   --tsh-cta-fg: var(--primary-foreground, #f8f8f8);
   /* Status chips are pale fills with the status color as text: themes pair
@@ -63,8 +61,6 @@
   --tsh-row-active-fg: var(--foreground, #f8f8f8);
   --tsh-badge-bg: var(--muted, #27272a);
   --tsh-badge-bg-active: color-mix(in srgb, var(--accent, #18181b) 55%, var(--background, #000000));
-  --tsh-rail-badge-bg: var(--primary, #ffffff);
-  --tsh-rail-badge-fg: var(--primary-foreground, #000000);
   --tsh-cta-bg: var(--primary, #f8f8f8);
   --tsh-cta-fg: var(--primary-foreground, #000000);
   --tsh-badge-project-bg: color-mix(in srgb, var(--info, #1e3a6d) 28%, var(--card, #000000));
@@ -487,15 +483,30 @@
 .tsh-nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
   padding-top: 12px;
   flex-shrink: 0;
+  min-height: 0;
+}
+
+/* The rows live in their own scroll box so the divider below can cap the
+   nav's height (ShellNav sets max-height while the user drags it). */
+.tsh-nav-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--tsh-border) transparent;
 }
 
 .tsh-nav-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
   width: 100%;
   min-height: 38px;
   padding: 10px 12px;
@@ -558,7 +569,7 @@
   align-items: center;
   justify-content: center;
   min-width: 17px;
-  padding: 2px 5px;
+  padding: 2px 4px;
   border-radius: 4px;
   background: var(--tsh-badge-bg);
   font-size: 10px;
@@ -587,7 +598,28 @@
   content: "";
   width: 100%;
   height: 1px;
+  border-radius: 1px;
   background: var(--tsh-border);
+  transition: background-color 150ms ease, height 150ms ease;
+}
+
+/* Between the nav and the plan list the divider is a drag handle: on hover
+   (and while dragging) the hairline thickens and darkens a touch. */
+.tsh-nav-divider[data-resizable="true"] {
+  cursor: row-resize;
+  touch-action: none;
+  user-select: none;
+}
+
+.tsh-nav-divider[data-resizable="true"]:hover::after,
+.tsh-nav-divider[data-dragging="true"]::after {
+  height: 2px;
+  background: color-mix(in srgb, var(--tsh-fg) 22%, var(--tsh-border));
+}
+
+/* While a drag is in flight the row heights must track the pointer, not ease. */
+.tsh-nav[data-dragging="true"] .tsh-nav-items {
+  transition: none;
 }
 
 .tsh-root[data-collapsed="true"] .tsh-nav-item {
@@ -600,26 +632,22 @@
   opacity: 0;
 }
 
-/* Collapsed rail: the label is gone, so the count rides the icon's top-right
-   corner — same look as the expanded badge, inverted colors. */
+/* Collapsed rail: the label is hidden, so the count rides the top-right
+   corner of the icon, leaving most of the icon visible while avoiding clipping. */
 .tsh-root[data-collapsed="true"] .tsh-nav-item {
   position: relative;
 }
 
-.tsh-root[data-collapsed="true"] .tsh-nav-badge,
-.tsh-root[data-collapsed="true"] .tsh-nav-item[data-active="true"] .tsh-nav-badge {
+.tsh-root[data-collapsed="true"] .tsh-nav-badge {
   position: absolute;
   top: 3px;
   /* Anchored just past the 16px icon's right edge so the number never covers
-     it, and left-aligned so longer counts stretch rightward. Padding is a
-     touch tighter than the expanded badge: the rail leaves only ~20px beside
-     the icon, and this keeps a two-digit count inside it (ShellNav caps the
-     rail text at two digits for the same reason). */
+     it, and left-aligned so longer counts stretch rightward. */
   left: calc(50% + 8px);
   right: auto;
-  padding: 2px 4px;
-  background: var(--tsh-rail-badge-bg);
-  color: var(--tsh-rail-badge-fg);
+  min-width: 15px;
+  padding: 1px 3.5px;
+  z-index: 1;
 }
 
 /* ---------- Sidebar section (plan list) ---------- */
@@ -791,6 +819,56 @@
   opacity: 1;
   background: var(--tsh-row-active);
   color: var(--tsh-row-active-fg);
+}
+
+/* No list to title (other apps, or an empty Review/Drafts list): the header
+   slot becomes a full-width Search row styled like a nav item, with the
+   shortcut hint on the right like the New Plan and agent rows. */
+.tsh-section-header[data-search-button="true"] {
+  padding: 0;
+}
+
+.tsh-section-search-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 38px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tsh-fg);
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.tsh-section-search-button:hover {
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+.tsh-section-search-button-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  opacity: 0.6;
+  transition: opacity 150ms ease;
+}
+
+.tsh-section-search-button:hover .tsh-section-search-button-main {
+  opacity: 1;
+}
+
+.tsh-section-search-button-label {
+  font-size: 14px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.tsh-section-search-button .tsh-kbd {
+  color: var(--tsh-fg);
 }
 
 .tsh-section-list {

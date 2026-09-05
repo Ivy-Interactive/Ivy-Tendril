@@ -9,6 +9,7 @@ using Ivy.Tendril.Database;
 using Ivy.Tendril.Infrastructure;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Git;
+using Ivy.Tendril.Services.Vault;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -271,6 +272,8 @@ public class Program
             // chosen project (PlanSourceProjectGuard). Resolves git remotes of project repos.
             cliServices.AddSingleton<GithubService>();
             cliServices.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
+
+            cliServices.AddSingleton<IVaultService, VaultService>();
 
             var app = ConfigureCliCommands(cliServices);
 
@@ -851,6 +854,36 @@ public class Program
                     .WithDescription("Get a top-level config value");
                 cfg.AddCommand<ConfigSetCommand>("set")
                     .WithDescription("Set a top-level config value");
+            });
+
+            config.AddBranch("vault", vault =>
+            {
+                vault.AddCommand<VaultListCommand>("list")
+                    .WithDescription("List connected vaults");
+                vault.AddCommand<VaultStatusCommand>("status")
+                    .WithDescription("Show detailed status of a vault");
+                vault.AddCommand<VaultDiscoverCommand>("discover")
+                    .WithDescription("Discover existing vault repositories on GitHub");
+                vault.AddCommand<VaultConnectCommand>("connect")
+                    .WithDescription("Connect an existing vault repository");
+                vault.AddCommand<VaultCreateCommand>("create")
+                    .WithDescription("Create a new vault repository on GitHub and connect it");
+                vault.AddCommand<VaultDisconnectCommand>("disconnect")
+                    .WithDescription("Disconnect a vault repository");
+                vault.AddCommand<VaultSyncCommand>("sync")
+                    .WithDescription("Pull latest changes from remote vault repository and update tracked projects");
+                vault.AddCommand<VaultSyncCommand>("pull")
+                    .WithDescription("Alias for sync: pull latest changes from remote vault repository");
+                vault.AddCommand<VaultSetAutoSyncCommand>("set-auto-sync")
+                    .WithDescription("Enable or disable automatic synchronization for a vault");
+                vault.AddCommand<VaultCatalogCommand>("catalog")
+                    .WithDescription("List projects and assets available in the vault catalog");
+                vault.AddCommand<VaultImportCommand>("import")
+                    .WithDescription("Import or merge a project from the vault into Tendril");
+                vault.AddCommand<VaultPushCommand>("push")
+                    .WithDescription("Export project(s) and create a pull request to the vault repository");
+                vault.AddCommand<VaultDeleteCommand>("delete")
+                    .WithDescription("Delete a project from the vault repository and create a pull request");
             });
         });
         return app;

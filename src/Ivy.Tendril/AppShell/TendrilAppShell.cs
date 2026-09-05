@@ -128,6 +128,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     internal static bool HasSidebarSection(string? appId) =>
         appId != null && SidebarSectionAppIds.Contains(appId);
 
+    internal static bool UsesSidebarList(string? listAppId, string? currentAppId) =>
+        listAppId != null &&
+        (string.Equals(listAppId, currentAppId, StringComparison.OrdinalIgnoreCase) ||
+         HasSidebarSection(currentAppId));
+
     private static readonly HashSet<string> ShareAllowedAppIds = new(StringComparer.OrdinalIgnoreCase)
     {
         "review", "plans"
@@ -658,8 +663,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             .Version($"v {versionString}")
             .LogoUrl("/tendril/assets/Tendril.svg");
 
-        // The widget handles Cmd/Ctrl+K client-side; the zero-size ghost button keeps the
-        // legacy Ctrl+Alt+N chord working (ShortcutKey is the only shortcut API Ivy exposes).
+        // The widget only shows the shortcut hint; the zero-size ghost button binds the
+        // Ctrl+Alt+N chord (ShortcutKey is the only shortcut API Ivy exposes).
         var newPlanButton = new CreatePlanDialogLauncher(open => new Fragment(
             new ShellNewPlanButton().OnClick(open),
             Layout.Vertical().Height(Size.Px(0)).Width(Size.Px(0))
@@ -694,10 +699,10 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             })
             .OnNewChat(() => OpenApp(new NavigateArgs(AgentAppId)));
 
-        object? section = null;
-        if (sidebarList.Value is { } list &&
-            (string.Equals(list.AppId, currentApp.Value?.AppId, StringComparison.OrdinalIgnoreCase) ||
-             HasSidebarSection(currentApp.Value?.AppId)))
+        // Plan search is always reachable from the sidebar: apps without a list (and lists
+        // with no rows) get the section's full-width Search button in place of the title.
+        ShellSidebarSection section;
+        if (sidebarList.Value is { } list && UsesSidebarList(list.AppId, currentApp.Value?.AppId))
         {
             var capturedList = list;
             section = new ShellSidebarSection()
@@ -709,10 +714,16 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                     OpenApp(new NavigateArgs(capturedList.AppId, capturedList.BuildSelectArgs(itemId))))
                 .OnSearch(showPlanSearchDialog);
         }
+        else
+        {
+            section = new ShellSidebarSection()
+                .Searchable()
+                .OnSearch(showPlanSearchDialog);
+        }
 
         var nav = new ShellNav()
             .Items(BuildNavItems(menuItems.Value, activeNavAppId))
-            .ShowDivider(section != null)
+            .ShowDivider(true)
             .OnSelect(appId => OpenApp(new NavigateArgs(appId)));
 
         var settingsMenu = new DropDownMenu(

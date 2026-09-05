@@ -16,12 +16,18 @@ internal class JobCompletionHandler
     private readonly IConfigService? _configService;
     private readonly ILogger _logger;
     private readonly ModelPricingService? _modelPricingService;
+    private readonly IModelPricingProvider? _pricingProvider;
     private readonly IPlanReaderService? _planReaderService;
     private readonly IPlanWatcherService? _planWatcherService;
     private readonly ITelemetryService? _telemetryService;
     private readonly string _promptsRoot;
     private readonly PlanArtifactSyncer _artifactSyncer;
     private readonly DependencyChecker _dependencyChecker;
+
+    // Guards for the pwsh processes a hook spawns. Settable so a test can exercise the kill path
+    // without paying the real guard in wall clock time, matching JobService.JobTimeout.
+    internal TimeSpan HookConditionTimeout { get; set; } = TimeSpan.FromSeconds(10);
+    internal TimeSpan HookActionTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
     internal JobCompletionHandler(
         IConfigService? configService,
@@ -30,11 +36,16 @@ internal class JobCompletionHandler
         IPlanReaderService? planReaderService,
         ITelemetryService? telemetryService,
         IPlanWatcherService? planWatcherService,
-        string promptsRoot)
+        string promptsRoot,
+        IModelPricingProvider? pricingProvider = null)
     {
         _configService = configService;
         _logger = logger;
         _modelPricingService = modelPricingService;
+        // Taken separately from _modelPricingService rather than off it: the estimated-cost tier has
+        // to work on the telemetry-off path below, where there is no pricing service at all but the
+        // agent still reported tokens.
+        _pricingProvider = pricingProvider;
         _planReaderService = planReaderService;
         _telemetryService = telemetryService;
         _planWatcherService = planWatcherService;
@@ -71,7 +82,7 @@ internal class JobCompletionHandler
         HandleWaitForJobsDependents(job, jobs, raiseNotification, startJobSkipDepCheck, persistJob, deleteJob);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
-            _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck, deleteJob);
+            _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck, deleteJob, persistJob);
 
         if (isSuccess && job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs or CreateIssueArgs)
         {
@@ -261,9 +272,10 @@ internal class JobCompletionHandler
 
         if (_modelPricingService == null)
         {
-            // No pricing service to derive cost from: still surface the tokens we have (cost stays
-            // null rather than a misleading $0.0000).
-            var inlineOnly = ResolveJobCost(inlineUsage, priced: null);
+            // No session parse to derive cost from, but the inline tokens can still be priced against
+            // the local price list, which is the only figure a subscription plan ever yields. Cost
+            // stays null when even that finds no rates, rather than a misleading $0.0000.
+            var inlineOnly = ResolveJobCost(inlineUsage, priced: null, _pricingProvider);
             if (inlineOnly.Tokens > 0)
                 ApplyCost(job, persistJob, raisePropertyChanged, inlineOnly);
             return;
@@ -282,7 +294,7 @@ internal class JobCompletionHandler
             try
             {
                 var costCalc = _modelPricingService.CalculateSessionCost(sessionId, provider);
-                var usage = ResolveJobCost(inlineUsage, costCalc);
+                var usage = ResolveJobCost(inlineUsage, costCalc, _pricingProvider);
                 if (usage.Tokens > 0 || usage.Cost is > 0)
                 {
                     if (jobs.TryGetValue(jobId, out var j))
@@ -293,7 +305,7 @@ internal class JobCompletionHandler
                     }
 
                     if (jobPlanFolder != null)
-                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, usage.Tokens, (double)(usage.Cost ?? 0m));
+                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, usage.Tokens, usage.Cost, usage.Model);
                 }
             }
             catch (Exception ex)
@@ -306,11 +318,17 @@ internal class JobCompletionHandler
     /// <summary>
     /// Reconciles the agent-reported inline usage with the pricing-derived session cost.
     /// Prefers any positive cost (inline first, then priced) and records which of the two it came
-    /// from; carries the best available token count and per-bucket breakdown; leaves cost null when
-    /// neither source has a positive cost so the UI shows nothing instead of a misleading $0.0000
-    /// next to a positive token count.
+    /// from; carries the best available token count and per-bucket breakdown; and, when neither
+    /// source charged anything, falls back to pricing this job's own token buckets against
+    /// <paramref name="pricing" /> under <see cref="JobCostSources.Estimated" />, which is what a
+    /// subscription plan like Claude Max needs, since it reports tokens and no charge at all.
+    /// Cost stays null when even that yields nothing, so the UI shows nothing instead of a
+    /// misleading $0.0000 next to a positive token count.
     /// </summary>
-    internal static JobUsageSnapshot ResolveJobCost(AgentUsage? inline, CostCalculation? priced)
+    internal static JobUsageSnapshot ResolveJobCost(
+        AgentUsage? inline,
+        CostCalculation? priced,
+        IModelPricingProvider? pricing = null)
     {
         var inlineTokens = inline is not null ? inline.InputTokens + inline.OutputTokens : 0;
         var inlineCost = inline?.CostUsd ?? 0m;
@@ -336,19 +354,43 @@ internal class JobCompletionHandler
                                (priced.InputTokens > 0 || priced.OutputTokens > 0 ||
                                 priced.CacheReadTokens > 0 || priced.CacheWriteTokens > 0);
 
+        var model = priced?.Model ?? inline?.Model;
+        var inputTokens = pricedHasBuckets ? priced!.InputTokens : inline?.InputTokens;
+        var outputTokens = pricedHasBuckets ? priced!.OutputTokens : inline?.OutputTokens;
+        var cacheReadTokens = pricedHasBuckets ? priced!.CacheReadTokens : inline?.CacheReadTokens;
+        var cacheWriteTokens = pricedHasBuckets ? priced!.CacheWriteTokens : inline?.CacheWriteTokens;
+        // Only the inline ResultEvent carries reasoning tokens; SessionCostResult has no such
+        // bucket, so this is never sourced from the priced path.
+        var reasoningTokens = inline?.ReasoningTokens;
+
+        // Last resort. The buckets priced here are the ones this snapshot is about to write to the
+        // job, so an estimate can never disagree with the token numbers shown beside it. Reasoning
+        // tokens are excluded by BuildBuckets/ComputeCost, and an unpriced model yields null rather
+        // than 0, so an unknown model stays unknown instead of reading as a free run.
+        if (cost is null && pricing is not null && !string.IsNullOrWhiteSpace(model))
+        {
+            var estimated = JobCostModelBuilder.ComputeCost(JobCostModelBuilder.BuildBuckets(
+                inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens, reasoningTokens,
+                pricing.GetPricing(model)));
+
+            if (estimated is > 0)
+            {
+                cost = estimated;
+                costSource = JobCostSources.Estimated;
+            }
+        }
+
         return new JobUsageSnapshot
         {
             Tokens = tokens,
             Cost = cost,
             CostSource = costSource,
-            Model = priced?.Model ?? inline?.Model,
-            InputTokens = pricedHasBuckets ? priced!.InputTokens : inline?.InputTokens,
-            OutputTokens = pricedHasBuckets ? priced!.OutputTokens : inline?.OutputTokens,
-            CacheReadTokens = pricedHasBuckets ? priced!.CacheReadTokens : inline?.CacheReadTokens,
-            CacheWriteTokens = pricedHasBuckets ? priced!.CacheWriteTokens : inline?.CacheWriteTokens,
-            // Only the inline ResultEvent carries reasoning tokens; SessionCostResult has no such
-            // bucket, so this is never sourced from the priced path.
-            ReasoningTokens = inline?.ReasoningTokens,
+            Model = model,
+            InputTokens = inputTokens,
+            OutputTokens = outputTokens,
+            CacheReadTokens = cacheReadTokens,
+            CacheWriteTokens = cacheWriteTokens,
+            ReasoningTokens = reasoningTokens,
         };
     }
 
@@ -364,7 +406,7 @@ internal class JobCompletionHandler
 
         var jobPlanFolder = job.TypedArgs?.PlanFolder;
         if (jobPlanFolder != null)
-            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, usage.Tokens, (double)(usage.Cost ?? 0m));
+            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, usage.Tokens, usage.Cost, usage.Model);
     }
 
     /// <summary>
@@ -419,7 +461,7 @@ internal class JobCompletionHandler
         }
     }
 
-    private static bool EvaluateHookCondition(PromptwareHookConfig hook, string planFolder, JobItem job)
+    private bool EvaluateHookCondition(PromptwareHookConfig hook, string planFolder, JobItem job)
     {
         if (string.IsNullOrWhiteSpace(hook.Condition))
             return true;
@@ -449,13 +491,13 @@ internal class JobCompletionHandler
         // class). The reads complete when the pipes close on exit or kill.
         var condOutTask = condProc.StandardOutput.ReadToEndAsync();
         var condErrTask = condProc.StandardError.ReadToEndAsync();
-        var condExitedNormally = condProc.WaitForExitOrKill(10000);
+        var condExitedNormally = condProc.WaitForExitOrKill((int)HookConditionTimeout.TotalMilliseconds);
         var condOutput = HarvestHookStream(condOutTask);
         _ = HarvestHookStream(condErrTask); // drain to prevent a full stderr pipe from wedging the read
 
         if (!condExitedNormally)
         {
-            job.EnqueueSystemOutput($"[hook:{hook.Name}] Condition timed out after 10s and was terminated, skipping");
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Condition timed out after {HookConditionTimeout.TotalSeconds:0.##}s and was terminated, skipping");
             return false;
         }
 
@@ -516,7 +558,7 @@ internal class JobCompletionHandler
         // class). The reads complete when the pipes close on exit or kill.
         var outTask = actionProc.StandardOutput.ReadToEndAsync();
         var errTask = actionProc.StandardError.ReadToEndAsync();
-        var exitedNormally = actionProc.WaitForExitOrKill(30000);
+        var exitedNormally = actionProc.WaitForExitOrKill((int)HookActionTimeout.TotalMilliseconds);
         var output = HarvestHookStream(outTask);
         var stderr = HarvestHookStream(errTask);
 
@@ -526,7 +568,7 @@ internal class JobCompletionHandler
             job.EnqueueSystemOutput($"[hook:{hook.Name}] [stderr] {stderr}");
 
         if (!exitedNormally)
-            job.EnqueueSystemOutput($"[hook:{hook.Name}] Hook timed out after 30s and was terminated");
+            job.EnqueueSystemOutput($"[hook:{hook.Name}] Hook timed out after {HookActionTimeout.TotalSeconds:0.##}s and was terminated");
         else if (actionProc.ExitCode != 0)
             job.EnqueueSystemOutput($"[hook:{hook.Name}] Hook failed with exit code {actionProc.ExitCode}");
     }
@@ -983,7 +1025,24 @@ internal class JobCompletionHandler
                                dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked);
 
                 if (stillPending)
+                {
+                    var remaining = waitingJob.WaitForJobIds!
+                        .Where(id => jobs.TryGetValue(id, out var dep) &&
+                                     dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
+                        .Select(id => jobs[id])
+                        .ToList();
+                    if (remaining.Count > 0)
+                    {
+                        var waitingFor = string.Join(", ", remaining.Select(JobService.DescribeWaitDependency));
+                        var newStatus = $"Waiting for {waitingFor}";
+                        if (waitingJob.StatusMessage != newStatus)
+                        {
+                            waitingJob.StatusMessage = newStatus;
+                            persistJob?.Invoke(waitingJob);
+                        }
+                    }
                     continue;
+                }
 
                 jobs.TryRemove(waitingJob.Id, out _);
                 deleteJob?.Invoke(waitingJob.Id);
@@ -1017,8 +1076,9 @@ internal class JobCompletionHandler
         ConcurrentDictionary<string, JobItem> jobs,
         Action<JobNotification> raiseNotification,
         Func<JobArgsBase, string> startJobSkipDepCheck,
-        Action<string>? deleteJob = null)
-        => _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck, deleteJob);
+        Action<string>? deleteJob = null,
+        Action<JobItem>? persistJob = null)
+        => _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck, deleteJob, persistJob);
 
     internal void WriteJobLog(JobItem job)
     {

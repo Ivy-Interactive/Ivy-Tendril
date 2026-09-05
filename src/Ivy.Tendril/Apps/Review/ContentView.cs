@@ -340,17 +340,29 @@ public class ContentView(
             {
                 var persona = shareContext.Persona;
                 var initials = Ivy.Tendril.Services.Share.AnonymousPersonaGenerator.GetInitials(persona);
-                var reviewerBadge = Layout.Horizontal().AlignContent(Align.Right)
-                    | new Avatar(initials).Small()
-                    | Text.Block(persona).Small().Bold().NoWrap();
+                var reviewerBadge = Layout.Horizontal().Gap(2).AlignContent(Align.Right);
+
+                foreach (var badge in ProjectHelper.BuildBadges(selectedPlan.Project, config))
+                {
+                    reviewerBadge |= badge;
+                }
+
+                reviewerBadge |= new Avatar(initials).Small();
+                reviewerBadge |= Text.Block(persona).Small().Bold().NoWrap();
                 return reviewerBadge.Width(isMobile ? Size.Full() : Size.Fit());
             }
 
-            var rightSide = Layout.Horizontal().AlignContent(Align.Right)
-                           | Text.Rich()
-                               .NoWrap()
-                               .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
-                               .Muted("plans", word: true);
+            var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right);
+
+            foreach (var badge in ProjectHelper.BuildBadges(selectedPlan.Project, config))
+            {
+                rightSide |= badge;
+            }
+
+            rightSide |= Text.Rich()
+                .NoWrap()
+                .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
+                .Muted("plans", word: true);
 
             if (selectedPlan.Commits.Count > 0)
             {
@@ -901,12 +913,18 @@ public class ContentView(
 
             if (exitCode == 0)
             {
-                var planFolder = Path.GetFullPath(Path.Combine(worktreePath, "..", ".."));
-                planService.SyncPlanArtifacts(planFolder);
-                var refreshed = planService.GetPlanByFolderFromDisk(planFolder);
-                if (refreshed != null)
-                    selectedPlanState.Set(refreshed);
-                client.Toast("Worktree synchronized successfully", "Synchronized");
+                if (WorktreePathHelper.TryGetPlanFolderFromWorktree(worktreePath, out var planFolder))
+                {
+                    planService.SyncPlanArtifacts(planFolder);
+                    var refreshed = planService.GetPlanByFolderFromDisk(planFolder);
+                    if (refreshed != null)
+                        selectedPlanState.Set(refreshed);
+                    client.Toast("Worktree synchronized successfully", "Synchronized");
+                }
+                else
+                {
+                    client.Toast("Failed to locate plan folder from worktree path", "Synchronization failed");
+                }
             }
             else
             {
