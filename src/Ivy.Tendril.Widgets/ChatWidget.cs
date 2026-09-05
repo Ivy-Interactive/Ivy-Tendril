@@ -16,6 +16,15 @@ public record ChatMessageDto(
     string? Effort = null
 );
 
+public record ChatJobDto(
+    string Id,
+    string Type,
+    string Status,
+    string? PlanId = null,
+    string? PlanTitle = null,
+    string? StatusMessage = null
+);
+
 public record ChatSessionDto(
     string Id,
     string Title,
@@ -25,7 +34,8 @@ public record ChatSessionDto(
     string UpdatedAt,
     List<ChatMessageDto> Messages,
     string Status = "done",
-    string? Effort = null
+    string? Effort = null,
+    List<ChatJobDto>? SpawnedJobs = null
 );
 
 public record AgentOptionDto(string Id, string Label);
@@ -51,6 +61,13 @@ public record ChatSendMessageDto(
     string Prompt,
     List<ChatAttachmentDto>? Attachments = null,
     string? SessionId = null
+);
+
+public record ChatQuestionAnswerDto(
+    string SessionId,
+    string MessageId,
+    Dictionary<string, string[]> Answers,
+    string ResponseText
 );
 
 [ExternalWidget(
@@ -88,4 +105,5 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnDeleteQueuedMessage { get; init; }
     [Event] public Func<Event<ChatWidget, string[]>, ValueTask>? OnUpdateQueuedMessage { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnSendQueuedNow { get; init; }
+    [Event] public Func<Event<ChatWidget, ChatQuestionAnswerDto>, ValueTask>? OnAnswerQuestion { get; init; }
 }

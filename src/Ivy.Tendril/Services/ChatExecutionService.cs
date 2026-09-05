@@ -14,7 +14,10 @@ using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Agents.Providers;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
+using Ivy.Tendril.Services.Jobs;
 using Ivy.Tendril.Widgets;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;
@@ -27,6 +30,10 @@ public sealed class ChatExecutionService : IChatExecutionService
     private readonly IChatSessionNamingService _namingService;
     private readonly IEventSerializer _serializer;
     private readonly ILogger<ChatExecutionService> _logger;
+    private readonly IServiceProvider? _serviceProvider;
+    private readonly IJobService? _jobService;
+
+    private IJobService? ResolvedJobService => _jobService ?? _serviceProvider?.GetService<IJobService>();
 
     private readonly ConcurrentDictionary<string, ActiveChatExecution> _activeExecutions = new(StringComparer.OrdinalIgnoreCase);
 
@@ -53,7 +60,9 @@ public sealed class ChatExecutionService : IChatExecutionService
         IAgentRunner agentRunner,
         IChatSessionNamingService namingService,
         IEventSerializer serializer,
-        ILogger<ChatExecutionService>? logger = null)
+        ILogger<ChatExecutionService>? logger = null,
+        IServiceProvider? serviceProvider = null,
+        IJobService? jobService = null)
     {
         _configService = configService;
         _chatService = chatService;
@@ -61,6 +70,8 @@ public sealed class ChatExecutionService : IChatExecutionService
         _namingService = namingService;
         _serializer = serializer;
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ChatExecutionService>.Instance;
+        _serviceProvider = serviceProvider;
+        _jobService = jobService;
         _chatService.ClearAllGeneratingSessions();
     }
 
@@ -218,10 +229,72 @@ public sealed class ChatExecutionService : IChatExecutionService
         // Add user message to history
         _chatService.AddMessage(sessionId, "user", promptWithAttachments, targetAgent, targetModel, effort: targetEffort);
 
-        // Build prompt with conversation history
+        // Build prompt with conversation history and spawned jobs status
         var currentSess = _chatService.GetSession(sessionId);
         var history = currentSess?.Messages ?? [];
         var agentPromptBuilder = new StringBuilder();
+
+        var jobService = ResolvedJobService;
+        if (currentSess?.SpawnedJobIds is { Count: > 0 } spawnedIds && jobService != null)
+        {
+            var spawnedJobs = new List<(string Id, string Type, JobStatus Status, string? PlanId, string? PlanTitle, string? StatusMessage)>();
+            foreach (var jId in spawnedIds)
+            {
+                var j = jobService.GetJob(jId);
+                if (j != null)
+                {
+                    spawnedJobs.Add((j.Id, j.Type, j.Status, j.ReportedPlanId, j.ReportedPlanTitle, j.StatusMessage));
+                }
+            }
+
+            if (spawnedJobs.Count > 0)
+            {
+                agentPromptBuilder.AppendLine("# Jobs Spawned in this Chat Session");
+                agentPromptBuilder.AppendLine("The following jobs were spawned in this chat session:");
+                agentPromptBuilder.AppendLine();
+
+                bool allDone = true;
+                bool anyFailed = false;
+
+                foreach (var sj in spawnedJobs)
+                {
+                    var planPart = !string.IsNullOrEmpty(sj.PlanId)
+                        ? $" | Plan: {sj.PlanId} ({sj.PlanTitle})"
+                        : "";
+                    var msgPart = !string.IsNullOrEmpty(sj.StatusMessage)
+                        ? $" | Message: {sj.StatusMessage}"
+                        : "";
+                    agentPromptBuilder.AppendLine($"- Job {sj.Id}: {sj.Type} | Status: {sj.Status}{planPart}{msgPart}");
+
+                    if (sj.Status == JobStatus.Failed || sj.Status == JobStatus.Timeout)
+                    {
+                        anyFailed = true;
+                    }
+                    if (sj.Status != JobStatus.Completed)
+                    {
+                        allDone = false;
+                    }
+                }
+                agentPromptBuilder.AppendLine();
+
+                if (allDone)
+                {
+                    agentPromptBuilder.AppendLine("All spawned jobs have completed. Proactively guide the user through the next steps (e.g. ask if they want you to review the plan or implementation, inspect results, or proceed to creating PRs).");
+                }
+                else if (anyFailed)
+                {
+                    agentPromptBuilder.AppendLine("Some spawned jobs failed or encountered issues. Guide the user through the failures and offer to diagnose, retry, or adjust the plan.");
+                }
+                else
+                {
+                    agentPromptBuilder.AppendLine("Some spawned jobs are still running or pending. Inform the user of their progress as appropriate.");
+                }
+
+                agentPromptBuilder.AppendLine("---");
+                agentPromptBuilder.AppendLine();
+            }
+        }
+
         if (history.Count > 1) // Prior messages exist before this current user message
         {
             agentPromptBuilder.AppendLine("# Previous Conversation Discussion History");
@@ -263,6 +336,12 @@ public sealed class ChatExecutionService : IChatExecutionService
                     modelOverride: targetModel != "default" ? targetModel : null,
                     effortOverride: effortOverride,
                     permissionMode: PermissionMode.FullAuto);
+
+                var envWithChat = new Dictionary<string, string>(context.ExtraEnvironment ?? new Dictionary<string, string>())
+                {
+                    ["TENDRIL_CHAT_SESSION_ID"] = sessionId
+                };
+                context = context with { ExtraEnvironment = envWithChat };
 
                 var session = await _agentRunner.LaunchAsync(context, cts.Token);
                 activeExec.Session = session;

@@ -73,6 +73,7 @@ public record JobItem
     public PlanStatus? PreviousPlanState { get; set; }
 
     public string? SessionId { get; set; }
+    public string? ChatSessionId { get; set; }
     // Settable: the standalone CLI runners resolve the agent after the job object exists.
     public string Provider { get; set; } = "claude";
     public string? Model { get; set; }

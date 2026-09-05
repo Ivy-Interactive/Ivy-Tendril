@@ -5,7 +5,7 @@ import "@testing-library/jest-dom";
 vi.mock("pdfjs-dist", () => ({ GlobalWorkerOptions: {}, getDocument: vi.fn() }));
 vi.mock("pdfjs-dist/build/pdf.worker.mjs?url", () => ({ default: "" }));
 
-import { ChatWidget } from "./ChatWidget";
+import { ChatWidget, type ChatSessionDto } from "./ChatWidget";
 
 describe("ChatWidget Queued Messages UI", () => {
   beforeEach(() => {
@@ -906,5 +906,127 @@ describe("ChatWidget File Uploads and Attachments", () => {
     expect(screen.queryByRole("button", { name: /Stop/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Send/i })).toBeInTheDocument();
   });
+
+  it("displays spawned jobs banner and emits OnSendMessage when reviewing outcomes", () => {
+    const handleEvent = vi.fn();
+    const session: ChatSessionDto = {
+      id: "sess-jobs",
+      title: "Jobs Chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+      spawnedJobs: [
+        {
+          id: "job-101",
+          type: "plan",
+          status: "Completed",
+          planTitle: "Add OAuth2 authentication",
+        },
+      ],
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-jobs"
+        sessions={[session]}
+        eventHandler={handleEvent}
+        events={["OnSendMessage"]}
+      />
+    );
+
+    expect(screen.getByText(/Spawned Jobs \(1\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 completed/i)).toBeInTheDocument();
+    expect(screen.getByText("Add OAuth2 authentication")).toBeInTheDocument();
+
+    const reviewBtn = screen.getByRole("button", { name: /Ask agent to review outcomes/i });
+    expect(reviewBtn).toBeInTheDocument();
+
+    fireEvent.click(reviewBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnSendMessage",
+      "test-chat",
+      expect.arrayContaining([
+        expect.objectContaining({
+          prompt: expect.stringContaining("All spawned jobs have completed"),
+          sessionId: "sess-jobs",
+        }),
+      ])
+    );
+  });
+
+  it("renders interactive questions in chat message and emits OnAnswerQuestion when user submits response", async () => {
+    const handleEvent = vi.fn();
+    const session: ChatSessionDto = {
+      id: "sess-q",
+      title: "Questions Chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [
+        {
+          id: "msg-q1",
+          role: "assistant",
+          content: [
+            "Please confirm your choices below:",
+            "```questions",
+            "- id: deploy_target",
+            "  title: Which environment should we deploy to?",
+            "  options:",
+            "    - title: Staging Environment",
+            "      value: staging",
+            "    - title: Production Environment",
+            "      value: prod",
+            "```",
+          ].join("\n"),
+          timestamp: "12:00 PM",
+        },
+      ],
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-q"
+        sessions={[session]}
+        eventHandler={handleEvent}
+        events={["OnAnswerQuestion"]}
+      />
+    );
+
+    expect(screen.getByText("Which environment should we deploy to?")).toBeInTheDocument();
+    expect(screen.getByText("Staging Environment")).toBeInTheDocument();
+    expect(screen.getByText("Production Environment")).toBeInTheDocument();
+
+    const submitBtn = screen.getByRole("button", { name: /Submit Response/i });
+    expect(submitBtn).toBeDisabled();
+
+    // Select Staging Environment option
+    const stagingRadio = screen.getByRole("radio", { name: /Staging Environment/i });
+    fireEvent.click(stagingRadio);
+
+    // Submit button should now be enabled
+    expect(submitBtn).not.toBeDisabled();
+
+    fireEvent.click(submitBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnAnswerQuestion",
+      "test-chat",
+      expect.arrayContaining([
+        expect.objectContaining({
+          sessionId: "sess-q",
+          messageId: "msg-q1",
+          answers: { deploy_target: ["staging"] },
+          responseText: expect.stringContaining("Staging Environment"),
+        }),
+      ])
+    );
+  });
 });
+
 

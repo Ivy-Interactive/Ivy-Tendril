@@ -10,6 +10,7 @@ using Ivy.Tendril.Agents.Providers;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Jobs;
 using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Chat;
@@ -24,6 +25,7 @@ public class ChatApp : ViewBase
         var chatService = UseService<IChatHistoryService>();
         var executionService = UseService<IChatExecutionService>();
         var agentRunner = UseService<IAgentRunner>();
+        Context.TryUseService<IJobService>(out var jobService);
 
         var activeSessionId = UseState<string?>(() =>
         {
@@ -78,10 +80,13 @@ public class ChatApp : ViewBase
                 }
             }
 
+            void OnJobsChanged() => sessionVersion.Set(v => v + 1);
+
             chatService.SessionsChanged += OnSessionsChanged;
             chatService.GeneratingSessionsChanged += OnGeneratingChanged;
             executionService.StreamUpdated += OnStreamUpdated;
             executionService.SessionGeneratingChanged += OnSessionGeneratingChanged;
+            if (jobService != null) jobService.JobsChanged += OnJobsChanged;
 
             if (!string.IsNullOrEmpty(activeSessionId.Value))
             {
@@ -94,6 +99,7 @@ public class ChatApp : ViewBase
                 chatService.GeneratingSessionsChanged -= OnGeneratingChanged;
                 executionService.StreamUpdated -= OnStreamUpdated;
                 executionService.SessionGeneratingChanged -= OnSessionGeneratingChanged;
+                if (jobService != null) jobService.JobsChanged -= OnJobsChanged;
             });
         });
 
@@ -150,6 +156,24 @@ public class ChatApp : ViewBase
             var status = isGenerating ? "generating" : "done";
             var isActive = s.Id == currentSessionId;
 
+            List<ChatJobDto>? spawnedJobs = null;
+            if (jobService != null && s.SpawnedJobIds is { Count: > 0 } jIds)
+            {
+                spawnedJobs = jIds.Select(jId =>
+                {
+                    var job = jobService.GetJob(jId);
+                    if (job == null) return new ChatJobDto(jId, "Job", "Unknown");
+                    return new ChatJobDto(
+                        job.Id,
+                        job.Type,
+                        job.Status.ToString(),
+                        job.ReportedPlanId,
+                        job.ReportedPlanTitle,
+                        job.StatusMessage
+                    );
+                }).ToList();
+            }
+
             return new ChatSessionDto(
                 s.Id,
                 s.Title,
@@ -170,7 +194,8 @@ public class ChatApp : ViewBase
                     )).ToList()
                     : [],
                 status,
-                s.Effort
+                s.Effort,
+                spawnedJobs
             );
         }).ToList();
 

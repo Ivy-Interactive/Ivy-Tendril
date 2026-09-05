@@ -197,6 +197,19 @@ public class ContentView(
                     }
                 }
                 return ValueTask.CompletedTask;
+            },
+            OnAnswerQuestion = e =>
+            {
+                if (e.Value != null)
+                {
+                    chatService.ApplyQuestionAnswers(e.Value.SessionId, e.Value.MessageId, e.Value.Answers);
+                    sessionVersion.Set(v => v + 1);
+                    if (!string.IsNullOrWhiteSpace(e.Value.ResponseText))
+                    {
+                        sendMessage(new ChatSendMessageDto(e.Value.ResponseText, SessionId: e.Value.SessionId));
+                    }
+                }
+                return ValueTask.CompletedTask;
             }
         }
         .WithLayout()

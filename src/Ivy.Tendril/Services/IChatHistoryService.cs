@@ -30,7 +30,8 @@ public record ChatSessionModel(
     string AgentId,
     string ModelId,
     List<ChatMessageModel> Messages,
-    string? Effort = null
+    string? Effort = null,
+    List<string>? SpawnedJobIds = null
 );
 
 public interface IChatHistoryService
@@ -55,4 +56,7 @@ public interface IChatHistoryService
     bool RemoveQueuedMessage(string sessionId, string queueId);
     bool UpdateQueuedMessage(string sessionId, string queueId, string prompt);
     void ClearQueuedMessages(string sessionId);
+    void AddSpawnedJob(string sessionId, string jobId);
+    IReadOnlyList<string> GetSpawnedJobs(string sessionId);
+    bool ApplyQuestionAnswers(string sessionId, string messageId, IReadOnlyDictionary<string, string[]> answers);
 }

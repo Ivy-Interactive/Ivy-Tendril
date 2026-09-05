@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
-import { Mic, Bot, Cpu, Zap, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square, ArrowRight, Trash2 } from "lucide-react";
+import { Mic, Bot, Cpu, Zap, MessageSquare, ChevronDown, ChevronUp, Check, CheckCircle2, XCircle, Pencil, Paperclip, X, Square, ArrowRight, Trash2, Loader2, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
@@ -8,6 +8,7 @@ import { AgentViewer } from "../AgentViewer";
 import { getMarkdownPlugins } from "../math";
 import { BlockHandler } from "../BlockHandler";
 import { AlertBlockquote } from "../PlanMarkdown/AlertBlockquote";
+import { QuestionsSubmitContext } from "../PlanMarkdown/questionsContext";
 import { isImageFile, processImageFile } from "../imageUtils";
 import "./chat-widget.css";
 
@@ -137,6 +138,15 @@ export interface ChatMessageDto {
   effort?: string;
 }
 
+export interface ChatJobDto {
+  id: string;
+  type: string;
+  status: string;
+  planId?: string;
+  planTitle?: string;
+  statusMessage?: string;
+}
+
 export interface ChatSessionDto {
   id: string;
   title: string;
@@ -147,6 +157,7 @@ export interface ChatSessionDto {
   messages: ChatMessageDto[];
   status?: "generating" | "waiting" | "done";
   effort?: string;
+  spawnedJobs?: ChatJobDto[];
 }
 
 export interface AgentOptionDto {
@@ -318,6 +329,111 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const ChatSpawnedJobs: React.FC<{
+  jobs: ChatJobDto[];
+  onReviewClick: () => void;
+}> = ({ jobs, onReviewClick }) => {
+  const [expanded, setExpanded] = useState(true);
+
+  const runningCount = jobs.filter((j) => j.status === "Running" || j.status === "Pending").length;
+  const completedCount = jobs.filter((j) => j.status === "Completed").length;
+  const failedCount = jobs.filter((j) => j.status === "Failed").length;
+  const allFinished = runningCount === 0 && jobs.length > 0;
+
+  return (
+    <div className="chat-spawned-jobs-bar">
+      <div className="chat-spawned-jobs-header" onClick={() => setExpanded(!expanded)}>
+        <div className="chat-spawned-jobs-title">
+          <Cpu size={14} className="chat-spawned-jobs-icon" />
+          <span>Spawned Jobs ({jobs.length})</span>
+          <div className="chat-spawned-jobs-chips">
+            {runningCount > 0 && (
+              <span className="chat-job-chip chip-running">
+                <Loader2 size={10} className="spin" />
+                {runningCount} running
+              </span>
+            )}
+            {completedCount > 0 && (
+              <span className="chat-job-chip chip-completed">
+                <Check size={10} />
+                {completedCount} completed
+              </span>
+            )}
+            {failedCount > 0 && (
+              <span className="chat-job-chip chip-failed">
+                <X size={10} />
+                {failedCount} failed
+              </span>
+            )}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="chat-spawned-jobs-toggle"
+          aria-label={expanded ? "Collapse spawned jobs" : "Expand spawned jobs"}
+        >
+          {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="chat-spawned-jobs-content">
+          <div className="chat-spawned-jobs-list">
+            {jobs.map((job) => {
+              const isRunning = job.status === "Running";
+              const isCompleted = job.status === "Completed";
+              const isFailed = job.status === "Failed";
+
+              return (
+                <div key={job.id} className={`chat-spawned-job-item ${job.status.toLowerCase()}`}>
+                  <div className="chat-job-status-indicator">
+                    {isRunning && <Loader2 size={13} className="spin" />}
+                    {isCompleted && <CheckCircle2 size={13} />}
+                    {isFailed && <XCircle size={13} />}
+                    {!isRunning && !isCompleted && !isFailed && <span className="chat-job-dot" />}
+                  </div>
+                  <div className="chat-job-details">
+                    <div className="chat-job-meta">
+                      <span className="chat-job-type">{job.type}</span>
+                      <span className="chat-job-id">{job.id}</span>
+                      {job.planTitle && (
+                        <span className="chat-job-plan-title" title={job.planTitle}>
+                          {job.planTitle}
+                        </span>
+                      )}
+                    </div>
+                    {job.statusMessage && (
+                      <div className="chat-job-message" title={job.statusMessage}>
+                        {job.statusMessage}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {allFinished && (
+            <div className="chat-spawned-jobs-review-prompt">
+              <span className="chat-spawned-jobs-review-text">
+                All spawned jobs are complete.
+              </span>
+              <button
+                type="button"
+                className="chat-spawned-jobs-review-btn"
+                onClick={onReviewClick}
+              >
+                <Sparkles size={13} />
+                Ask agent to review outcomes
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export function ChatWidget({
   id,
   activeSessionId,
@@ -477,6 +593,16 @@ export function ChatWidget({
     if (eventHandler && events.includes(eventName)) {
       eventHandler(eventName, id, args);
     }
+  };
+
+  const handleQuestionSubmit = (messageId: string, answers: Record<string, string[]>, responseText: string) => {
+    if (!activeSession) return;
+    emit("OnAnswerQuestion", {
+      sessionId: activeSession.id,
+      messageId,
+      answers,
+      responseText,
+    });
   };
 
   const startHeaderTitleEdit = () => {
@@ -1013,6 +1139,20 @@ export function ChatWidget({
           )}
         </div>
 
+        {/* Spawned Jobs Bar */}
+        {activeSession?.spawnedJobs && activeSession.spawnedJobs.length > 0 && (
+          <ChatSpawnedJobs
+            jobs={activeSession.spawnedJobs}
+            onReviewClick={() => {
+              emit("OnSendMessage", {
+                prompt: "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
+                attachments: [],
+                sessionId: activeSession.id,
+              });
+            }}
+          />
+        )}
+
         {/* Message List Container */}
         <div className="chat-messages-container">
           {activeSession && displayMessages.length > 0 ? (
@@ -1055,26 +1195,34 @@ export function ChatWidget({
                       );
                     })()
                   ) : msg.rawStream ? (
-                    <AgentViewer
-                      id={`msg-${msg.id}`}
-                      jsonStream={msg.rawStream}
-                      autoScroll={false}
-                      showThinking={true}
-                      showSystemEvents={false}
-                      showStatusLabel={false}
-                      groupToolCalls={true}
-                      eventHandler={noopEventHandler}
-                    />
+                    <QuestionsSubmitContext.Provider
+                      value={(answers, summaryText) => handleQuestionSubmit(msg.id, answers, summaryText)}
+                    >
+                      <AgentViewer
+                        id={`msg-${msg.id}`}
+                        jsonStream={msg.rawStream}
+                        autoScroll={false}
+                        showThinking={true}
+                        showSystemEvents={false}
+                        showStatusLabel={false}
+                        groupToolCalls={true}
+                        eventHandler={noopEventHandler}
+                      />
+                    </QuestionsSubmitContext.Provider>
                   ) : (
                     msg.content && (
-                      <div className="chat-markdown-body">
-                        <ReactMarkdown
-                          {...getMarkdownPlugins(msg.content)}
-                          components={{ code: BlockHandler, blockquote: AlertBlockquote, pre: ({ children }) => <>{children}</> }}
-                        >
-                          {msg.content}
-                        </ReactMarkdown>
-                      </div>
+                      <QuestionsSubmitContext.Provider
+                        value={(answers, summaryText) => handleQuestionSubmit(msg.id, answers, summaryText)}
+                      >
+                        <div className="chat-markdown-body">
+                          <ReactMarkdown
+                            {...getMarkdownPlugins(msg.content)}
+                            components={{ code: BlockHandler, blockquote: AlertBlockquote, pre: ({ children }) => <>{children}</> }}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
+                        </div>
+                      </QuestionsSubmitContext.Provider>
                     )
                   )}
                 </div>

@@ -1306,5 +1306,248 @@ button[class*="bg-primary"] .text-muted {
   background-color: color-mix(in srgb, var(--destructive) 15%, transparent);
 }
 
+/* Spawned Jobs Bar */
+.chat-spawned-jobs-bar {
+  border-bottom: 1px solid var(--border);
+  background-color: color-mix(in srgb, var(--card) 95%, var(--primary) 5%);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.chat-spawned-jobs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+
+.chat-spawned-jobs-header:hover {
+  background-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.chat-spawned-jobs-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.chat-spawned-jobs-icon {
+  color: var(--primary);
+}
+
+.chat-spawned-jobs-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  margin-left: 0.5rem;
+}
+
+.chat-job-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.45rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.chat-job-chip.chip-running {
+  background-color: color-mix(in srgb, #0ea5e9 15%, transparent);
+  color: #0284c7;
+  border: 1px solid color-mix(in srgb, #0ea5e9 30%, transparent);
+}
+
+.chat-job-chip.chip-completed {
+  background-color: color-mix(in srgb, #10b981 15%, transparent);
+  color: #059669;
+  border: 1px solid color-mix(in srgb, #10b981 30%, transparent);
+}
+
+.chat-job-chip.chip-failed {
+  background-color: color-mix(in srgb, #ef4444 15%, transparent);
+  color: #dc2626;
+  border: 1px solid color-mix(in srgb, #ef4444 30%, transparent);
+}
+
+.chat-spawned-jobs-toggle {
+  background: transparent;
+  border: none;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius, 4px);
+}
+
+.chat-spawned-jobs-toggle:hover {
+  color: var(--foreground);
+  background-color: var(--accent);
+}
+
+.chat-spawned-jobs-content {
+  padding: 0.5rem 1rem 0.75rem 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chat-spawned-jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.chat-spawned-job-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background-color: var(--background);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 6px);
+  font-size: 0.75rem;
+}
+
+.chat-spawned-job-item.running {
+  border-color: color-mix(in srgb, #0ea5e9 40%, var(--border));
+}
+
+.chat-spawned-job-item.completed {
+  border-color: color-mix(in srgb, #10b981 40%, var(--border));
+}
+
+.chat-spawned-job-item.failed {
+  border-color: color-mix(in srgb, #ef4444 40%, var(--border));
+}
+
+.chat-job-status-indicator {
+  margin-top: 0.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chat-job-status-indicator .spin {
+  animation: spin 1s linear infinite;
+  color: #0284c7;
+}
+
+.chat-job-status-indicator svg:not(.spin) {
+  color: #059669;
+}
+
+.chat-spawned-job-item.failed .chat-job-status-indicator svg {
+  color: #dc2626;
+}
+
+.chat-job-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--muted-foreground);
+}
+
+.chat-job-details {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.chat-job-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.chat-job-type {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.625rem;
+  letter-spacing: 0.03em;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  background-color: var(--muted);
+  color: var(--foreground);
+}
+
+.chat-job-id {
+  font-family: var(--font-mono, monospace);
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+}
+
+.chat-job-plan-title {
+  font-weight: 500;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+.chat-job-message {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-spawned-jobs-review-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background-color: color-mix(in srgb, var(--primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  border-radius: var(--radius, 6px);
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.chat-spawned-jobs-review-text {
+  font-size: 0.75rem;
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+.chat-spawned-jobs-review-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--radius, 4px);
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+}
+
+.chat-spawned-jobs-review-btn:hover {
+  opacity: 0.9;
+}
+
+
 
 
