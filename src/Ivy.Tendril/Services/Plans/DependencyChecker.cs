@@ -5,6 +5,7 @@ using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.PullRequest;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services.Jobs;
 
 namespace Ivy.Tendril.Services.Plans;
 
@@ -91,7 +92,8 @@ internal class DependencyChecker
         ConcurrentDictionary<string, JobItem> jobs,
         Action<JobNotification> raiseNotification,
         Func<JobArgsBase, string> startJobSkipDepCheck,
-        Action<string>? deleteJob = null)
+        Action<string>? deleteJob = null,
+        Action<JobItem>? persistJob = null)
     {
         var blockedJobs = jobs.Values
             .Where(j => j is { Status: JobStatus.Blocked, TypedArgs: ExecutePlanArgs or RetryPlanArgs })
@@ -106,10 +108,36 @@ internal class DependencyChecker
             // JobCompletionHandler.HandleWaitForJobsDependents when those jobs finish, not here.
             // Restarting it while its WaitForJobs are still pending would immediately re-block it,
             // producing a spurious "Job Unblocked" + "Job Blocked" notification pair (issue #1538).
-            if (HasPendingWaitForJobs(blockedJob, jobs)) continue;
+            if (HasPendingWaitForJobs(blockedJob, jobs))
+            {
+                var remaining = blockedJob.WaitForJobIds!
+                    .Where(id => jobs.TryGetValue(id, out var dep) &&
+                                 dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
+                    .Select(id => jobs[id])
+                    .ToList();
+                if (remaining.Count > 0)
+                {
+                    var waitingFor = string.Join(", ", remaining.Select(JobService.DescribeWaitDependency));
+                    var newStatus = $"Waiting for {waitingFor}";
+                    if (blockedJob.StatusMessage != newStatus)
+                    {
+                        blockedJob.StatusMessage = newStatus;
+                        persistJob?.Invoke(blockedJob);
+                    }
+                }
+                continue;
+            }
 
-            var (ok, _) = CheckDependencies(planFolder);
-            if (!ok) continue;
+            var (ok, blockReason) = CheckDependencies(planFolder);
+            if (!ok)
+            {
+                if (!string.IsNullOrEmpty(blockReason) && blockedJob.StatusMessage != blockReason)
+                {
+                    blockedJob.StatusMessage = blockReason;
+                    persistJob?.Invoke(blockedJob);
+                }
+                continue;
+            }
 
             if (HasActiveJobForPlan(planFolder, jobs)) continue;
             if (!jobs.TryRemove(blockedJob.Id, out _)) continue;
