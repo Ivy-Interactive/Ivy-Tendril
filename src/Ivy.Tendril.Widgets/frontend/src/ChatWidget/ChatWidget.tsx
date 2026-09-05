@@ -8,6 +8,7 @@ import { AgentViewer } from "../AgentViewer";
 import { getMarkdownPlugins } from "../math";
 import { BlockHandler } from "../BlockHandler";
 import { AlertBlockquote } from "../PlanMarkdown/AlertBlockquote";
+import { QuestionsSubmitContext } from "../PlanMarkdown/questionsContext";
 import { isImageFile, processImageFile } from "../imageUtils";
 import "./chat-widget.css";
 
@@ -592,6 +593,16 @@ export function ChatWidget({
     if (eventHandler && events.includes(eventName)) {
       eventHandler(eventName, id, args);
     }
+  };
+
+  const handleQuestionSubmit = (messageId: string, answers: Record<string, string[]>, responseText: string) => {
+    if (!activeSession) return;
+    emit("OnAnswerQuestion", {
+      sessionId: activeSession.id,
+      messageId,
+      answers,
+      responseText,
+    });
   };
 
   const startHeaderTitleEdit = () => {
@@ -1184,26 +1195,34 @@ export function ChatWidget({
                       );
                     })()
                   ) : msg.rawStream ? (
-                    <AgentViewer
-                      id={`msg-${msg.id}`}
-                      jsonStream={msg.rawStream}
-                      autoScroll={false}
-                      showThinking={true}
-                      showSystemEvents={false}
-                      showStatusLabel={false}
-                      groupToolCalls={true}
-                      eventHandler={noopEventHandler}
-                    />
+                    <QuestionsSubmitContext.Provider
+                      value={(answers, summaryText) => handleQuestionSubmit(msg.id, answers, summaryText)}
+                    >
+                      <AgentViewer
+                        id={`msg-${msg.id}`}
+                        jsonStream={msg.rawStream}
+                        autoScroll={false}
+                        showThinking={true}
+                        showSystemEvents={false}
+                        showStatusLabel={false}
+                        groupToolCalls={true}
+                        eventHandler={noopEventHandler}
+                      />
+                    </QuestionsSubmitContext.Provider>
                   ) : (
                     msg.content && (
-                      <div className="chat-markdown-body">
-                        <ReactMarkdown
-                          {...getMarkdownPlugins(msg.content)}
-                          components={{ code: BlockHandler, blockquote: AlertBlockquote, pre: ({ children }) => <>{children}</> }}
-                        >
-                          {msg.content}
-                        </ReactMarkdown>
-                      </div>
+                      <QuestionsSubmitContext.Provider
+                        value={(answers, summaryText) => handleQuestionSubmit(msg.id, answers, summaryText)}
+                      >
+                        <div className="chat-markdown-body">
+                          <ReactMarkdown
+                            {...getMarkdownPlugins(msg.content)}
+                            components={{ code: BlockHandler, blockquote: AlertBlockquote, pre: ({ children }) => <>{children}</> }}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
+                        </div>
+                      </QuestionsSubmitContext.Provider>
                     )
                   )}
                 </div>

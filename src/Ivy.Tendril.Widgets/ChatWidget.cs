@@ -63,6 +63,13 @@ public record ChatSendMessageDto(
     string? SessionId = null
 );
 
+public record ChatQuestionAnswerDto(
+    string SessionId,
+    string MessageId,
+    Dictionary<string, string[]> Answers,
+    string ResponseText
+);
+
 [ExternalWidget(
     "frontend/dist/ivy-tendril-widgets.js",
     StylePath = "frontend/dist/ivy-tendril-widgets.css",
@@ -98,4 +105,5 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnDeleteQueuedMessage { get; init; }
     [Event] public Func<Event<ChatWidget, string[]>, ValueTask>? OnUpdateQueuedMessage { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnSendQueuedNow { get; init; }
+    [Event] public Func<Event<ChatWidget, ChatQuestionAnswerDto>, ValueTask>? OnAnswerQuestion { get; init; }
 }

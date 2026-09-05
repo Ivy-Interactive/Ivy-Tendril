@@ -53,6 +53,7 @@ public class SidebarViewTests
         public void ClearQueuedMessages(string sessionId) { }
         public void AddSpawnedJob(string sessionId, string jobId) { }
         public IReadOnlyList<string> GetSpawnedJobs(string sessionId) => [];
+        public bool ApplyQuestionAnswers(string sessionId, string messageId, IReadOnlyDictionary<string, string[]> answers) => false;
     }
 
     private class TestState<T> : IState<T>

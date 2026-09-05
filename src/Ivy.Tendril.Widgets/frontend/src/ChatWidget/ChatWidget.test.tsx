@@ -957,6 +957,76 @@ describe("ChatWidget File Uploads and Attachments", () => {
       ])
     );
   });
+
+  it("renders interactive questions in chat message and emits OnAnswerQuestion when user submits response", async () => {
+    const handleEvent = vi.fn();
+    const session: ChatSessionDto = {
+      id: "sess-q",
+      title: "Questions Chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [
+        {
+          id: "msg-q1",
+          role: "assistant",
+          content: [
+            "Please confirm your choices below:",
+            "```questions",
+            "- id: deploy_target",
+            "  title: Which environment should we deploy to?",
+            "  options:",
+            "    - title: Staging Environment",
+            "      value: staging",
+            "    - title: Production Environment",
+            "      value: prod",
+            "```",
+          ].join("\n"),
+          timestamp: "12:00 PM",
+        },
+      ],
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-q"
+        sessions={[session]}
+        eventHandler={handleEvent}
+        events={["OnAnswerQuestion"]}
+      />
+    );
+
+    expect(screen.getByText("Which environment should we deploy to?")).toBeInTheDocument();
+    expect(screen.getByText("Staging Environment")).toBeInTheDocument();
+    expect(screen.getByText("Production Environment")).toBeInTheDocument();
+
+    const submitBtn = screen.getByRole("button", { name: /Submit Response/i });
+    expect(submitBtn).toBeDisabled();
+
+    // Select Staging Environment option
+    const stagingRadio = screen.getByRole("radio", { name: /Staging Environment/i });
+    fireEvent.click(stagingRadio);
+
+    // Submit button should now be enabled
+    expect(submitBtn).not.toBeDisabled();
+
+    fireEvent.click(submitBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnAnswerQuestion",
+      "test-chat",
+      expect.arrayContaining([
+        expect.objectContaining({
+          sessionId: "sess-q",
+          messageId: "msg-q1",
+          answers: { deploy_target: ["staging"] },
+          responseText: expect.stringContaining("Staging Environment"),
+        }),
+      ])
+    );
+  });
 });
 
 

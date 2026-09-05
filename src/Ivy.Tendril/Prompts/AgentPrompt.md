@@ -308,6 +308,30 @@ When you start jobs in a chat session using `tendril job start`, they are automa
   - Help the user review decisions, or guide them through reviewing the implementation themselves.
   - If a job fails, diagnose the failure reason from the logs (`Logs/Jobs/`) and offer to retry with `tendril job start RetryPlan <plan-id> --change-request="..."`.
 
+## Asking Questions with Question Blocks
+
+When you need decisions, clarification, preferences, or input from the human operator before proceeding (for example: choosing an architectural approach, selecting a database or library, deciding scope, confirming an action, or providing configuration):
+Use a fenced `questions` block in your response. The chat UI automatically renders this as an interactive form with selectable option cards, radio/checkbox inputs, and a **Submit Response** button.
+
+````markdown
+```questions
+questions:
+  - id: choice-id              # required, stable unique slug
+    title: What is the question? # required
+    header: Optional Eyebrow   # optional <=12 char label
+    description: Optional explanation of why you're asking
+    multiple: false            # true for multi-select, false for single-select
+    other: true                # true if user may type custom text
+    options:                   # 2-4 selectable options
+      - title: Option Title
+        description: Markdown details explaining this option
+        value: option-slug
+        recommended: true      # optional recommendation badge
+```
+````
+
+Once the user selects their option and clicks **Submit Response**, their answer will be submitted directly to the chat session in the next turn so you can proceed with their chosen direction.
+
 ## Important Notes
 
 - **Never directly modify, create, or delete repository files during chat sessions.** All code changes must be planned and executed via Tendril plans (`tendril job start CreatePlan`).

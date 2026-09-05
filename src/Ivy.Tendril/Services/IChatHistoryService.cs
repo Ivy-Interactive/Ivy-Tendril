@@ -58,4 +58,5 @@ public interface IChatHistoryService
     void ClearQueuedMessages(string sessionId);
     void AddSpawnedJob(string sessionId, string jobId);
     IReadOnlyList<string> GetSpawnedJobs(string sessionId);
+    bool ApplyQuestionAnswers(string sessionId, string messageId, IReadOnlyDictionary<string, string[]> answers);
 }

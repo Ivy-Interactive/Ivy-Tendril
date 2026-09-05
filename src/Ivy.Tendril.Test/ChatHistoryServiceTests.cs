@@ -375,4 +375,68 @@ public class ChatHistoryServiceTests
                 Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void ApplyQuestionAnswers_UpdatesMessageContentWithAnswers()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus");
+            var initialContent = "Here are questions:\n\n```questions\n- id: target_env\n  title: Which env?\n  options:\n    - title: Staging\n      value: staging\n    - title: Production\n      value: prod\n```\n";
+            var msg = service.AddMessage(session.Id, "assistant", initialContent);
+
+            var answers = new Dictionary<string, string[]>
+            {
+                ["target_env"] = ["staging"]
+            };
+
+            var success = service.ApplyQuestionAnswers(session.Id, msg.Id, answers);
+            Assert.True(success);
+
+            var updatedSession = service.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            var updatedMsg = Assert.Single(updatedSession.Messages);
+            Assert.Contains("answer: staging", updatedMsg.Content);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ApplyQuestionAnswers_UpdatesRawStreamWhenPresent()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus");
+            var initialContent = "Which env?\n\n```questions\n- id: target_env\n  title: Which env?\n  options:\n    - title: Staging\n      value: staging\n```\n";
+            var rawStreamLine = "{\"kind\":\"text\",\"text\":\"Which env?\\n\\n```questions\\n- id: target_env\\n  title: Which env?\\n  options:\\n    - title: Staging\\n      value: staging\\n```\\n\",\"delta\":false}";
+            var msg = service.AddMessage(session.Id, "assistant", initialContent, rawStream: rawStreamLine);
+
+            var answers = new Dictionary<string, string[]>
+            {
+                ["target_env"] = ["staging"]
+            };
+
+            var success = service.ApplyQuestionAnswers(session.Id, msg.Id, answers);
+            Assert.True(success);
+
+            var updatedSession = service.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            var updatedMsg = Assert.Single(updatedSession.Messages);
+            Assert.Contains("answer: staging", updatedMsg.Content);
+            Assert.NotNull(updatedMsg.RawStream);
+            Assert.Contains("answer: staging", updatedMsg.RawStream);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
 }
+

@@ -429,6 +429,119 @@ public class ChatHistoryService : IChatHistoryService
         return session?.SpawnedJobIds ?? (IReadOnlyList<string>)Array.Empty<string>();
     }
 
+    public bool ApplyQuestionAnswers(string sessionId, string messageId, IReadOnlyDictionary<string, string[]> answers)
+    {
+        if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(messageId) || answers == null || answers.Count == 0)
+            return false;
+
+        ChatSessionModel? updatedSession = null;
+        lock (_sessionLock)
+        {
+            var session = GetSession(sessionId);
+            if (session == null) return false;
+
+            var msgIndex = session.Messages.FindIndex(m => string.Equals(m.Id, messageId, StringComparison.OrdinalIgnoreCase));
+            if (msgIndex < 0) return false;
+
+            var targetMsg = session.Messages[msgIndex];
+            var content = targetMsg.Content;
+            bool modified = false;
+
+            foreach (var (qId, ansValues) in answers)
+            {
+                var qa = new QuestionAnswer(qId, ansValues);
+                if (QuestionAnswers.TryApply(content, qa, out var updatedContent))
+                {
+                    content = updatedContent;
+                    modified = true;
+                }
+            }
+
+            if (!modified) return false;
+
+            string? rawStream = targetMsg.RawStream;
+            if (!string.IsNullOrEmpty(rawStream))
+            {
+                var lines = rawStream.Split('\n');
+                bool rawModified = false;
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    var line = lines[i].Trim();
+                    if (string.IsNullOrEmpty(line)) continue;
+                    try
+                    {
+                        var node = System.Text.Json.Nodes.JsonNode.Parse(line);
+                        if (node is System.Text.Json.Nodes.JsonObject obj)
+                        {
+                            bool lineChanged = false;
+                            if (obj.TryGetPropertyValue("text", out var textNode) && textNode != null)
+                            {
+                                var textVal = textNode.GetValue<string>();
+                                foreach (var (qId, ansValues) in answers)
+                                {
+                                    var qa = new QuestionAnswer(qId, ansValues);
+                                    if (QuestionAnswers.TryApply(textVal, qa, out var updatedTextVal))
+                                    {
+                                        textVal = updatedTextVal;
+                                        lineChanged = true;
+                                    }
+                                }
+                                if (lineChanged) obj["text"] = textVal;
+                            }
+                            if (obj.TryGetPropertyValue("response", out var respNode) && respNode != null)
+                            {
+                                var respVal = respNode.GetValue<string>();
+                                foreach (var (qId, ansValues) in answers)
+                                {
+                                    var qa = new QuestionAnswer(qId, ansValues);
+                                    if (QuestionAnswers.TryApply(respVal, qa, out var updatedRespVal))
+                                    {
+                                        respVal = updatedRespVal;
+                                        lineChanged = true;
+                                    }
+                                }
+                                if (lineChanged) obj["response"] = respVal;
+                            }
+                            if (lineChanged)
+                            {
+                                lines[i] = obj.ToJsonString();
+                                rawModified = true;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // ignore malformed lines
+                    }
+                }
+                if (rawModified)
+                {
+                    rawStream = string.Join("\n", lines);
+                }
+            }
+
+            var updatedMsg = targetMsg with { Content = content, RawStream = rawStream };
+            var updatedMessages = new List<ChatMessageModel>(session.Messages);
+            updatedMessages[msgIndex] = updatedMsg;
+
+            updatedSession = session with
+            {
+                UpdatedAt = DateTimeOffset.UtcNow,
+                Messages = updatedMessages
+            };
+            _sessions[session.Id] = updatedSession;
+        }
+
+        if (updatedSession != null)
+        {
+            PersistSessionToDisk(updatedSession);
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
+            return true;
+        }
+
+        return false;
+    }
+
     private void PersistSessionToDisk(ChatSessionModel session)
     {
         try
