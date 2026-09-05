@@ -11,12 +11,28 @@ namespace Ivy.Tendril.Services.Plans;
 
 internal class DependencyChecker
 {
+    private const int PrLookupTimeoutMs = 10000;
+
     private readonly IPlanReaderService? _planReaderService;
 
     internal DependencyChecker(IPlanReaderService? planReaderService)
     {
         _planReaderService = planReaderService;
     }
+
+    /// <summary>
+    ///     Outcome of one `gh pr view` lookup. The exit code has to travel with the state: gh writes
+    ///     its GraphQL error to stderr and nothing to stdout, so a deleted PR, an expired token and a
+    ///     rate limit all arrive as an empty state, which the gate used to report as "is '', not
+    ///     MERGED".
+    /// </summary>
+    internal record PrLookup(int ExitCode, string State, string Error);
+
+    /// <summary>
+    ///     Seam for the `gh pr view` call, so a test can assert the block reasons without shelling out
+    ///     to a real gh and a real network.
+    /// </summary>
+    internal Func<string, PrLookup> PrStateResolver { get; set; } = RunGhPrView;
 
     internal (bool Ok, string? BlockReason) CheckDependencies(string planFolder)
     {
@@ -43,7 +59,7 @@ internal class DependencyChecker
         }
     }
 
-    private static (bool Ok, string? BlockReason) CheckSingleDependency(string dep, string plansDir)
+    private (bool Ok, string? BlockReason) CheckSingleDependency(string dep, string plansDir)
     {
         var depFolder = Path.Combine(plansDir, dep);
         var depPlan = PlanYamlHelper.ReadPlanYaml(depFolder);
@@ -56,15 +72,41 @@ internal class DependencyChecker
 
         foreach (var prUrl in depPlan.Prs.Where(PullRequestApp.IsValidUrl))
         {
-            var prState = GetPrState(prUrl);
-            if (prState != null && !prState.Equals("MERGED", StringComparison.OrdinalIgnoreCase))
-                return (false, $"Dependency '{dep}' PR {prUrl} is '{prState}', not MERGED");
+            var lookup = PrStateResolver(prUrl);
+
+            // A state gh never reported is not an unmerged PR, it is a lookup that failed. Stay
+            // blocked either way (a dependency whose merge cannot be confirmed is not satisfied) but
+            // say which of the two it is, so a bad token is not read as an open PR.
+            if (lookup.ExitCode != 0 || lookup.State.Length == 0)
+                return (false, $"Dependency '{dep}' PR {prUrl} could not be resolved ({DescribeLookupFailure(lookup)})");
+
+            if (!lookup.State.Equals("MERGED", StringComparison.OrdinalIgnoreCase))
+                return (false, $"Dependency '{dep}' PR {prUrl} is '{lookup.State}', not MERGED");
         }
 
         return (true, null);
     }
 
-    private static string? GetPrState(string prUrl)
+    /// <summary>
+    ///     First line of gh's stderr, which is where it puts the one sentence that explains the
+    ///     failure. Truncated because the whole thing has to fit a job StatusMessage.
+    /// </summary>
+    private static string DescribeLookupFailure(PrLookup lookup)
+    {
+        var firstLine = lookup.Error
+            .Split('\n')
+            .Select(l => l.Trim())
+            .FirstOrDefault(l => l.Length > 0);
+
+        if (string.IsNullOrEmpty(firstLine))
+            return $"gh exited {lookup.ExitCode} with no output";
+
+        const int maxLength = 200;
+        var message = firstLine.Length > maxLength ? firstLine[..maxLength] + "..." : firstLine;
+        return $"gh: {message}";
+    }
+
+    private static PrLookup RunGhPrView(string prUrl)
     {
         try
         {
@@ -78,9 +120,22 @@ internal class DependencyChecker
                 CreateNoWindow = true
             };
             using var proc = Process.Start(psi);
-            var output = proc?.StandardOutput.ReadToEnd().Trim() ?? "";
-            proc.WaitForExitOrKill(10000);
-            return output;
+            if (proc == null) return new PrLookup(-1, "", "gh could not be started");
+
+            // Drain both pipes concurrently: the error path writes to stderr only, and reading one
+            // stream to the end while the other fills its buffer is how this deadlocks.
+            var stdout = proc.StandardOutput.ReadToEndAsync();
+            var stderr = proc.StandardError.ReadToEndAsync();
+            var exited = proc.WaitForExitOrKill(PrLookupTimeoutMs);
+
+            if (!exited)
+                return new PrLookup(-1, "", $"gh pr view did not finish within {PrLookupTimeoutMs / 1000}s");
+
+            var drained = Task.WaitAll([stdout, stderr], PrLookupTimeoutMs);
+            if (!drained)
+                return new PrLookup(-1, "", "gh pr view output could not be read");
+
+            return new PrLookup(proc.ExitCode, stdout.Result.Trim(), stderr.Result.Trim());
         }
         catch (Exception ex)
         {
