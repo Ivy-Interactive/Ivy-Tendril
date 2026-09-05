@@ -13,7 +13,7 @@ public record ShellAgentButton : WidgetBase<ShellAgentButton>
     /// <summary>Icon name from AgentBranding.IconFor (e.g. "ClaudeCode"); mapped to a brand SVG client-side.</summary>
     [Prop] public string? Icon { get; init; }
 
-    /// <summary>Key combined with the platform command key (Cmd/Ctrl), handled client-side.</summary>
+    /// <summary>Single letter combined with Cmd+Opt (macOS) or Ctrl+Alt (Windows/Linux), handled client-side.</summary>
     [Prop] public string ShortcutKey { get; init; } = "A";
 
     /// <summary>Highlights the row while an agent session is the visible pane.</summary>

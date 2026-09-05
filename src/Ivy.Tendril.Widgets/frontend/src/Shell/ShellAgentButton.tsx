@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect } from "react";
 import { BrandIcon } from "./brandIcons";
-import { ShellWidgetProps, isEditableTarget, isModKey, modKeyLabel } from "./types";
+import { ShellWidgetProps, isEditableTarget, isModKey, isMac } from "./types";
 import "./shell.css";
 
 interface ShellAgentButtonProps extends ShellWidgetProps {
@@ -12,8 +12,8 @@ interface ShellAgentButtonProps extends ShellWidgetProps {
 
 /**
  * The coding-agent row: clicking it opens the latest agent session, and
- * Cmd/Ctrl+shortcutKey starts a new one. The shortcut is ignored while typing
- * so it never fights select-all in inputs.
+ * Cmd+Opt+shortcutKey (macOS) / Ctrl+Alt+shortcutKey (Windows/Linux) starts a
+ * new one. The shortcut is ignored while typing.
  */
 export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
   id,
@@ -34,11 +34,13 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // shortcutKey is a single letter, so the Key prefix composes correctly
       if (
         isModKey(e) &&
+        e.altKey &&
         !e.shiftKey &&
-        !e.altKey &&
-        e.key.toLowerCase() === shortcutKey.toLowerCase() &&
+        (e.code === `Key${shortcutKey.toUpperCase()}` ||
+          e.key.toLowerCase() === shortcutKey.toLowerCase()) &&
         !isEditableTarget(e)
       ) {
         e.preventDefault();
@@ -49,13 +51,15 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [fireNewChat, shortcutKey]);
 
+  const hintKeys = isMac() ? ["⌘", "⌥", shortcutKey] : ["Ctrl", "Alt", shortcutKey];
+
   return (
     <div className="tsh-agent-wrap">
       <button
         className="tsh-agent"
         data-active={isActive}
         onClick={fireOpen}
-        title={label}
+        title={`${label} (${hintKeys.join("+")})`}
       >
         <span className="tsh-agent-brand">
           <span className="tsh-agent-icon">
@@ -65,8 +69,9 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
         </span>
         <span className="tsh-agent-actions">
           <span className="tsh-kbd">
-            <span>{modKeyLabel()}</span>
-            <span>{shortcutKey}</span>
+            {hintKeys.map((k) => (
+              <span key={k}>{k}</span>
+            ))}
           </span>
         </span>
       </button>
