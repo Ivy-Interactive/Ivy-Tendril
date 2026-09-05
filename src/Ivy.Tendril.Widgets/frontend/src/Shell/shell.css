@@ -641,9 +641,9 @@
 .tsh-root[data-collapsed="true"] .tsh-nav-badge {
   position: absolute;
   top: 3px;
-  /* Anchored on the icon's top-right corner so it leaves >60% of the icon visible
-     while keeping the badge well clear of the right sidebar boundary. */
-  left: calc(50% + 1px);
+  /* Anchored just past the 16px icon's right edge so the number never covers
+     it, and left-aligned so longer counts stretch rightward. */
+  left: calc(50% + 8px);
   right: auto;
   min-width: 15px;
   padding: 1px 3.5px;
