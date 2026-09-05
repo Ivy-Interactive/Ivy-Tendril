@@ -1,9 +1,11 @@
 using Ivy.Tendril.Commands;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Infrastructure;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Vault;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Spectre.Console;
 using Spectre.Console.Cli;
 using Spectre.Console.Testing;
 using Xunit;
@@ -178,11 +180,56 @@ public class VaultCommandSettingsValidationTests
     }
 }
 
-public class VaultCommandsExecutionTests
+[Collection("TendrilHome")]
+public class VaultCommandsExecutionTests : IDisposable
 {
-    private static (CommandApp App, FakeVaultService VaultService, TestConsole Console) CreateTestApp()
+    public void Dispose()
     {
-        var console = new TestConsole();
+        CliOutput.PlainOverride = null;
+    }
+
+    // Mirrors CliOutputTests.CaptureAnsiConsoleOutput: the commands write through the static
+    // AnsiConsole and, for tables, through Console.Out, so the console handed to
+    // ConfigureCliCommands captures nothing on its own.
+    private static string CaptureCommandOutput(Action<CommandApp, FakeVaultService> action)
+    {
+        lock (TestLocks.ConsoleLock)
+        {
+            var writer = new StringWriter();
+            var ansiConsole = AnsiConsole.Create(new AnsiConsoleSettings
+            {
+                Ansi = AnsiSupport.No,
+                ColorSystem = ColorSystemSupport.NoColors,
+                Out = new AnsiConsoleOutput(writer)
+            });
+            ansiConsole.Profile.Width = 240;
+
+            var originalAnsiConsole = AnsiConsole.Console;
+            var originalOut = Console.Out;
+            var originalPlainOverride = CliOutput.PlainOverride;
+
+            AnsiConsole.Console = ansiConsole;
+            Console.SetOut(writer);
+            CliOutput.PlainOverride = true;
+
+            try
+            {
+                var (app, fakeVault) = CreateTestApp(ansiConsole);
+                action(app, fakeVault);
+            }
+            finally
+            {
+                CliOutput.PlainOverride = originalPlainOverride;
+                Console.SetOut(originalOut);
+                AnsiConsole.Console = originalAnsiConsole;
+            }
+
+            return writer.ToString();
+        }
+    }
+
+    private static (CommandApp App, FakeVaultService VaultService) CreateTestApp(IAnsiConsole console)
+    {
         var fakeVault = new FakeVaultService();
         var services = new ServiceCollection();
         services.AddSingleton<IVaultService>(fakeVault);
@@ -191,31 +238,32 @@ public class VaultCommandsExecutionTests
         services.AddSingleton<ConfigService>(configService);
 
         var app = Program.ConfigureCliCommands(services, console);
-        return (app, fakeVault, console);
+        return (app, fakeVault);
     }
 
     [Fact]
     public void VaultListCommand_WithoutJson_RendersTable()
     {
-        var (app, fakeVault, console) = CreateTestApp();
-        fakeVault.VaultsToReturn =
-        [
-            new VaultStatus
-            {
-                Id = "vault-alpha",
-                Name = "Alpha Vault",
-                RepoUrl = "https://github.com/team/alpha-vault.git",
-                CurrentBranch = "main",
-                CommitsAhead = 0,
-                CommitsBehind = 3,
-                AlwaysUpToDate = true
-            }
-        ];
-
-        var exit = app.Run(["vault", "list"]);
+        var exit = -1;
+        var output = CaptureCommandOutput((app, fakeVault) =>
+        {
+            fakeVault.VaultsToReturn =
+            [
+                new VaultStatus
+                {
+                    Id = "vault-alpha",
+                    Name = "Alpha Vault",
+                    RepoUrl = "https://github.com/team/alpha-vault.git",
+                    CurrentBranch = "main",
+                    CommitsAhead = 0,
+                    CommitsBehind = 3,
+                    AlwaysUpToDate = true
+                }
+            ];
+            exit = app.Run(["vault", "list"]);
+        });
 
         Assert.Equal(0, exit);
-        var output = console.Output;
         Assert.Contains("Alpha Vault", output);
         Assert.Contains("vault-alpha", output);
     }
@@ -223,57 +271,50 @@ public class VaultCommandsExecutionTests
     [Fact]
     public void VaultListCommand_WithJson_OutputsJson()
     {
-        var (app, fakeVault, _) = CreateTestApp();
-        fakeVault.VaultsToReturn =
-        [
-            new VaultStatus
-            {
-                Id = "vault-beta",
-                Name = "Beta Vault",
-                RepoUrl = "https://github.com/team/beta-vault.git",
-                CurrentBranch = "main"
-            }
-        ];
+        var exit = -1;
+        var output = CaptureCommandOutput((app, fakeVault) =>
+        {
+            fakeVault.VaultsToReturn =
+            [
+                new VaultStatus
+                {
+                    Id = "vault-beta",
+                    Name = "Beta Vault",
+                    RepoUrl = "https://github.com/team/beta-vault.git",
+                    CurrentBranch = "main"
+                }
+            ];
+            exit = app.Run(["vault", "list", "--json"]);
+        });
 
-        using var sw = new StringWriter();
-        var prevOut = Console.Out;
-        Console.SetOut(sw);
-        try
-        {
-            var exit = app.Run(["vault", "list", "--json"]);
-            Assert.Equal(0, exit);
-            var output = sw.ToString();
-            Assert.Contains("vault-beta", output);
-            Assert.Contains("Beta Vault", output);
-        }
-        finally
-        {
-            Console.SetOut(prevOut);
-        }
+        Assert.Equal(0, exit);
+        Assert.Contains("vault-beta", output);
+        Assert.Contains("Beta Vault", output);
     }
 
     [Fact]
     public void VaultStatusCommand_ValidStatusResponse_RendersDetails()
     {
-        var (app, fakeVault, console) = CreateTestApp();
-        fakeVault.StatusToReturn = new VaultStatus
+        var exit = -1;
+        var output = CaptureCommandOutput((app, fakeVault) =>
         {
-            Id = "vault-prod",
-            Name = "Production Vault",
-            IsConfigured = true,
-            RepoUrl = "https://github.com/team/prod-vault.git",
-            LocalPath = "C:/vaults/prod",
-            CurrentBranch = "main",
-            LatestCommit = "deadbeef123",
-            CommitsAhead = 2,
-            CommitsBehind = 0,
-            AlwaysUpToDate = true
-        };
-
-        var exit = app.Run(["vault", "status", "vault-prod"]);
+            fakeVault.StatusToReturn = new VaultStatus
+            {
+                Id = "vault-prod",
+                Name = "Production Vault",
+                IsConfigured = true,
+                RepoUrl = "https://github.com/team/prod-vault.git",
+                LocalPath = "C:/vaults/prod",
+                CurrentBranch = "main",
+                LatestCommit = "deadbeef123",
+                CommitsAhead = 2,
+                CommitsBehind = 0,
+                AlwaysUpToDate = true
+            };
+            exit = app.Run(["vault", "status", "vault-prod"]);
+        });
 
         Assert.Equal(0, exit);
-        var output = console.Output;
         Assert.Contains("Production Vault", output);
         Assert.Contains("vault-prod", output);
         Assert.Contains("deadbeef123", output);
@@ -282,17 +323,18 @@ public class VaultCommandsExecutionTests
     [Fact]
     public void VaultDiscoverCommand_RendersDiscoveredRepositories()
     {
-        var (app, fakeVault, console) = CreateTestApp();
-        fakeVault.DiscoveredVaultsToReturn =
-        [
-            new DiscoveredVaultRepo("team/team-vault", "https://github.com/team/team-vault", "team", "team-vault", IsPrivate: true, "Organization"),
-            new DiscoveredVaultRepo("pavel/personal-vault", "https://github.com/pavel/personal-vault", "pavel", "personal-vault", IsPrivate: false, "User")
-        ];
-
-        var exit = app.Run(["vault", "discover"]);
+        var exit = -1;
+        var output = CaptureCommandOutput((app, fakeVault) =>
+        {
+            fakeVault.DiscoveredVaultsToReturn =
+            [
+                new DiscoveredVaultRepo("team/team-vault", "https://github.com/team/team-vault", "team", "team-vault", IsPrivate: true, "Organization"),
+                new DiscoveredVaultRepo("pavel/personal-vault", "https://github.com/pavel/personal-vault", "pavel", "personal-vault", IsPrivate: false, "User")
+            ];
+            exit = app.Run(["vault", "discover"]);
+        });
 
         Assert.Equal(0, exit);
-        var output = console.Output;
         Assert.Contains("team/team-vault", output);
         Assert.Contains("pavel/personal-vault", output);
         Assert.Contains("Private", output);
@@ -302,13 +344,14 @@ public class VaultCommandsExecutionTests
     [Fact]
     public void VaultConnectCommand_ServiceReturnsFalse_ReturnsExitCodeOne()
     {
-        var (app, fakeVault, console) = CreateTestApp();
-        fakeVault.ConnectResultToReturn = new VaultResult(false, "Connection failed", "Authentication required");
-
-        var exit = app.Run(["vault", "connect", "https://github.com/org/vault.git"]);
+        var exit = -1;
+        var output = CaptureCommandOutput((app, fakeVault) =>
+        {
+            fakeVault.ConnectResultToReturn = new VaultResult(false, "Connection failed", "Authentication required");
+            exit = app.Run(["vault", "connect", "https://github.com/org/vault.git"]);
+        });
 
         Assert.Equal(1, exit);
-        var output = console.Output;
         Assert.Contains("Error:", output);
         Assert.Contains("Authentication required", output);
     }
@@ -316,13 +359,14 @@ public class VaultCommandsExecutionTests
     [Fact]
     public void VaultCreateCommand_ServiceReturnsFalse_ReturnsExitCodeOne()
     {
-        var (app, fakeVault, console) = CreateTestApp();
-        fakeVault.CreateResultToReturn = new VaultResult(false, "Failed to create repository", "Repository name already exists");
-
-        var exit = app.Run(["vault", "create", "existing-repo"]);
+        var exit = -1;
+        var output = CaptureCommandOutput((app, fakeVault) =>
+        {
+            fakeVault.CreateResultToReturn = new VaultResult(false, "Failed to create repository", "Repository name already exists");
+            exit = app.Run(["vault", "create", "existing-repo"]);
+        });
 
         Assert.Equal(1, exit);
-        var output = console.Output;
         Assert.Contains("Error:", output);
         Assert.Contains("Repository name already exists", output);
     }

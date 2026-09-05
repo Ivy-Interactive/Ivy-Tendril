@@ -23,7 +23,7 @@ public partial class JobsApp
                 Id = j.Id,
                 Status = JobsApp.FormatStatusBadge(j.Status),
                 PlanId = planId,
-                Plan = JobsApp.GetPromptDisplay(j, planService),
+                Prompt = JobsApp.GetPromptDisplay(j, planService),
                 Type = j.Type,
                 Project = string.Join(", ", ProjectHelper.ParseProjects(j.Project)),
                 Timer = JobsApp.FormatTimer(j),
@@ -100,7 +100,7 @@ public partial class JobsApp
             lastSent.Remove(staleKey);
 
         var candidates = currentJobs
-            .Where(j => j.Status == JobStatus.Running ||
+            .Where(j => j.Status is JobStatus.Running or JobStatus.Blocked ||
                         ((j.Status is JobStatus.Stopped or JobStatus.Failed or JobStatus.Timeout or JobStatus.Completed)
                          && j.CompletedAt.HasValue
                          && DateTime.UtcNow - j.CompletedAt.Value < TimeSpan.FromMinutes(1)))

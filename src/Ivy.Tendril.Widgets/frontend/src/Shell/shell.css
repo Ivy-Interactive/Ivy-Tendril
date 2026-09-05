@@ -22,8 +22,6 @@
   --tsh-row-active-fg: var(--foreground, #000000);
   --tsh-badge-bg: var(--muted, #f0f0f0);
   --tsh-badge-bg-active: color-mix(in srgb, var(--accent, #e6e6e6) 45%, var(--background, #ffffff));
-  --tsh-rail-badge-bg: var(--primary, #000000);
-  --tsh-rail-badge-fg: var(--primary-foreground, #ffffff);
   --tsh-cta-bg: var(--primary, #000000);
   --tsh-cta-fg: var(--primary-foreground, #f8f8f8);
   /* Status chips are pale fills with the status color as text: themes pair
@@ -63,8 +61,6 @@
   --tsh-row-active-fg: var(--foreground, #f8f8f8);
   --tsh-badge-bg: var(--muted, #27272a);
   --tsh-badge-bg-active: color-mix(in srgb, var(--accent, #18181b) 55%, var(--background, #000000));
-  --tsh-rail-badge-bg: var(--primary, #ffffff);
-  --tsh-rail-badge-fg: var(--primary-foreground, #000000);
   --tsh-cta-bg: var(--primary, #f8f8f8);
   --tsh-cta-fg: var(--primary-foreground, #000000);
   --tsh-badge-project-bg: color-mix(in srgb, var(--info, #1e3a6d) 28%, var(--card, #000000));
@@ -573,7 +569,7 @@
   align-items: center;
   justify-content: center;
   min-width: 17px;
-  padding: 2px 5px;
+  padding: 2px 4px;
   border-radius: 4px;
   background: var(--tsh-badge-bg);
   font-size: 10px;
@@ -636,26 +632,22 @@
   opacity: 0;
 }
 
-/* Collapsed rail: the label is gone, so the count rides the icon's top-right
-   corner — same look as the expanded badge, inverted colors. */
+/* Collapsed rail: the label is hidden, so the count rides the top-right
+   corner of the icon, leaving most of the icon visible while avoiding clipping. */
 .tsh-root[data-collapsed="true"] .tsh-nav-item {
   position: relative;
 }
 
-.tsh-root[data-collapsed="true"] .tsh-nav-badge,
-.tsh-root[data-collapsed="true"] .tsh-nav-item[data-active="true"] .tsh-nav-badge {
+.tsh-root[data-collapsed="true"] .tsh-nav-badge {
   position: absolute;
   top: 3px;
   /* Anchored just past the 16px icon's right edge so the number never covers
-     it, and left-aligned so longer counts stretch rightward. Padding is a
-     touch tighter than the expanded badge: the rail leaves only ~20px beside
-     the icon, and this keeps a two-digit count inside it (ShellNav caps the
-     rail text at two digits for the same reason). */
+     it, and left-aligned so longer counts stretch rightward. */
   left: calc(50% + 8px);
   right: auto;
-  padding: 2px 4px;
-  background: var(--tsh-rail-badge-bg);
-  color: var(--tsh-rail-badge-fg);
+  min-width: 15px;
+  padding: 1px 3.5px;
+  z-index: 1;
 }
 
 /* ---------- Sidebar section (plan list) ---------- */

@@ -42,13 +42,13 @@ public class ActionBarView(
         var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
         var (agentLabel, agentIcon) = AgentBranding.For(config.Settings.CodingAgent, agentRunner, config);
 
-        void HandleShareDraft()
+        void HandleSharePlan()
         {
             if (shareTunnelService.IsConnected && !string.IsNullOrEmpty(shareTunnelService.TunnelUrl))
             {
                 var link = shareTunnelService.GetShareUrlForPlan(selectedPlan.FolderName, isReview: false);
                 copyToClipboard(link);
-                client.Toast("Draft share link copied to clipboard", "Link Copied");
+                client.Toast("Plan share link copied to clipboard", "Link Copied");
             }
             else
             {
@@ -60,7 +60,7 @@ public class ActionBarView(
         {
             // Share / Read-only mode: only Share and Copy Plan buttons
             return Layout.Horizontal().AlignContent(Align.Left).Gap(2)
-                | new Button("Share Draft").Icon(Icons.Share2).Outline().OnClick(HandleShareDraft)
+                | new Button("Share Plan").Icon(Icons.Share2).Outline().OnClick(HandleSharePlan)
                 | new Button("Copy Plan").Icon(Icons.ClipboardCopy).Ghost().OnClick(() =>
                 {
                     var exported = PlanExportHelper.ExportToClipboard(selectedPlan);
@@ -201,7 +201,7 @@ public class ActionBarView(
         if (isBeta)
         {
             minimalDropdownItems.Add(new MenuItem("Share", Icon: Icons.Share2, Tag: "Share")
-                .OnSelect(HandleShareDraft));
+                .OnSelect(HandleSharePlan));
         }
         minimalDropdownItems.AddRange(new[]
         {
@@ -223,7 +223,7 @@ public class ActionBarView(
         if (isBeta)
         {
             actionBar |= new Button("Share").Icon(Icons.Share2).Outline()
-                .OnClick(HandleShareDraft).CompactUp();
+                .OnClick(HandleSharePlan).CompactUp();
         }
 
         actionBar = actionBar
