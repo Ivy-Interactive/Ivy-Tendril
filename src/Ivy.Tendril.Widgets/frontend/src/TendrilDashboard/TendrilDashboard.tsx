@@ -145,6 +145,7 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                         </span>
                       )}
                     </div>
+                    {kpi.hint && <div className="tdb-kpi-hint">{kpi.hint}</div>}
                   </div>
                 ))}
               </div>

@@ -202,6 +202,10 @@ public class DashboardApp : ViewBase
         var (lastCost, prevCost) = LastTwo(completeMonths, m => m.Cost);
         kpis.Add(Kpi("Avg Cost/Month", FormatCost(avgMonthCost), lastCost, prevCost));
 
+        // Next to the retrospective average on purpose: what the month has cost so far and what it is
+        // heading for are read together.
+        kpis.Add(BuildForecastKpi(activity.DailyCosts, today));
+
         var tokenMonths = completeMonths.TakeLast(6).Where(m => m.Tokens > 0).ToList();
         var avgMonthTokens = tokenMonths.Count > 0
             ? (long)tokenMonths.Average(m => m.Tokens)
@@ -213,6 +217,25 @@ public class DashboardApp : ViewBase
             stats.AvgCostPerPlan, activity.PrevWeekAvgCostPerPlan));
 
         return kpis;
+    }
+
+    /// <summary>
+    ///     What this month is heading for. Both projection bases are reported in the hint rather than
+    ///     one being picked: the calendar rate assumes the idle days keep coming, the activity rate
+    ///     assumes every day is a working day, and for bursty usage the gap between them is the honest
+    ///     uncertainty. No delta, because there is nothing prior to compare a projection against.
+    /// </summary>
+    internal static DashboardKpiDto BuildForecastKpi(List<DashboardDailyCost>? dailyCosts, DateTime today)
+    {
+        const string label = "Forecast This Month";
+
+        var forecast = CostForecastCalculator.Project(dailyCosts ?? [], today);
+        if (forecast.CalendarProjection is not { } projection)
+            return new DashboardKpiDto(label, "-", Hint: "No cost data in the last 30 days");
+
+        var hint = string.Create(CultureInfo.InvariantCulture,
+            $"Based on {forecast.CalendarDays} days, up to {FormatCost(forecast.ActivityProjection ?? projection)} at activity rate ({forecast.ActivityDays} active days)");
+        return new DashboardKpiDto(label, FormatCost(projection), Hint: hint);
     }
 
     private static (decimal Last, decimal Previous) LastTwo(

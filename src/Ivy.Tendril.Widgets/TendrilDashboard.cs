@@ -1,6 +1,15 @@
 namespace Ivy.Tendril.Widgets;
 
-public record DashboardKpiDto(string Label, string Value, string? Delta = null, string? Direction = null);
+/// <param name="Hint">
+///     A second line under the value, for a figure that is not actionable without its basis (the cost
+///     forecast states the day counts it projected from here). Null on the cards that need none.
+/// </param>
+public record DashboardKpiDto(
+    string Label,
+    string Value,
+    string? Delta = null,
+    string? Direction = null,
+    string? Hint = null);
 
 public record DashboardMonthValueDto(string Label, double Value);
 

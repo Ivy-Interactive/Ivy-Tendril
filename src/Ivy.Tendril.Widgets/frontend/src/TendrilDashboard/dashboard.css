@@ -207,9 +207,11 @@
 
 /* ---------- KPI cards ---------- */
 
+/* auto-fit rather than a fixed count: the card list grew to five and will grow
+   again, and a hard count leaves the extras squeezed or orphaned. */
 .tdb-kpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 24px;
 }
 
@@ -255,6 +257,15 @@
 .tdb-kpi-delta svg {
   width: 14px;
   height: 14px;
+}
+
+/* The basis behind a value, muted so it reads as a footnote to the number
+   rather than competing with it. */
+.tdb-kpi-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 15px;
+  opacity: 0.7;
 }
 
 /* ---------- Trend chart block ---------- */
@@ -688,7 +699,7 @@
   }
 
   .tdb-kpis {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -718,7 +729,7 @@
 
 @container tdb (max-width: 860px) {
   .tdb-kpis {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .tdb-status-sep {

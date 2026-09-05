@@ -5,6 +5,7 @@ export interface DashboardKpiDto {
   value: string;
   delta?: string | null;
   direction?: "up" | "down" | null;
+  hint?: string | null;
 }
 
 export interface DashboardMonthValueDto {

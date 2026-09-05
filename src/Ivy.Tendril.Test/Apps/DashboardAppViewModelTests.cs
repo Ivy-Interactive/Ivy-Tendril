@@ -197,12 +197,56 @@ public class DashboardAppViewModelTests
 
         var kpis = DashboardApp.BuildKpis(stats, activity, prDays, today);
 
-        Assert.Equal(4, kpis.Count);
+        Assert.Equal(5, kpis.Count);
         Assert.Equal("Avg Daily PR count", kpis[0].Label);
         Assert.Equal("1", kpis[0].Value);
         Assert.Equal("+100%", kpis[0].Delta);
         Assert.Equal("Avg Cost/Month", kpis[1].Label);
-        Assert.Equal("Avg Tokens/Month", kpis[2].Label);
-        Assert.Equal("Avg Cost/Plan", kpis[3].Label);
+        // The projection sits next to the retrospective average it is read against.
+        Assert.Equal("Forecast This Month", kpis[2].Label);
+        Assert.Equal("Avg Tokens/Month", kpis[3].Label);
+        Assert.Equal("Avg Cost/Plan", kpis[4].Label);
+    }
+
+    [Fact]
+    public void BuildKpis_ForecastHintStatesBothDayCounts()
+    {
+        // August 2026 has 31 days. Ten days of history, three of which cost anything: the calendar
+        // basis divides by 10, the activity basis by 3, and the hint has to name both.
+        var today = new DateTime(2026, 8, 31);
+        var dailyCosts = new List<DashboardDailyCost>
+        {
+            new(DateOnly.FromDateTime(today.AddDays(-9)), 10m, 1000),
+            new(DateOnly.FromDateTime(today.AddDays(-5)), 20m, 2000),
+            new(DateOnly.FromDateTime(today), 30m, 3000)
+        };
+        var stats = new DashboardModels(1, 0, 0, 0, 1, 0, 0m, [], []);
+        var activity = new DashboardActivityStats([], 0, dailyCosts);
+
+        var forecast = DashboardApp.BuildKpis(stats, activity, [], today)
+            .Single(k => k.Label == "Forecast This Month");
+
+        // 60 over 10 days times 31, rounded by FormatCost above 100.
+        Assert.Equal("$186", forecast.Value);
+        Assert.NotNull(forecast.Hint);
+        Assert.Contains("10 days", forecast.Hint);
+        Assert.Contains("3 active days", forecast.Hint);
+        Assert.Contains("$620", forecast.Hint);
+    }
+
+    [Fact]
+    public void BuildKpis_ForecastWithoutDailyCosts_RendersNoDataState()
+    {
+        // Null DailyCosts is what every fake supplies, and what GetActivityStats returned before this
+        // series existed. It has to read as "nothing to project from", not as a confident $0.00.
+        var stats = new DashboardModels(1, 0, 0, 0, 1, 0, 0m, [], []);
+        var activity = new DashboardActivityStats([], 0);
+
+        var forecast = DashboardApp.BuildKpis(stats, activity, [], new DateTime(2026, 8, 31))
+            .Single(k => k.Label == "Forecast This Month");
+
+        Assert.Equal("-", forecast.Value);
+        Assert.Equal("No cost data in the last 30 days", forecast.Hint);
+        Assert.Null(forecast.Delta);
     }
 }
