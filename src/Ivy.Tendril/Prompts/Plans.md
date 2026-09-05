@@ -98,6 +98,10 @@ tendril plan remove-repo <plan-id> <repo-path>
 
 # Track PRs and commits
 tendril plan add-pr <plan-id> <pr-url>
+tendril plan remove-pr <plan-id> <pr-url>
+# Matches on owner/repo#number, so a URL recorded with a /files suffix can be removed by its base
+# form. Use it to unpick a PR that was recorded against the wrong plan; `tendril plan doctor --prs`
+# finds those and prints the command for each one.
 tendril plan add-commit <plan-id> <sha>
 
 # Verifications

@@ -637,18 +637,50 @@ internal class JobCompletionHandler
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>
+    ///     <see cref="GitHubPrUrlPattern" /> anchored to a whole line, so it only matches a PR URL that
+    ///     stands alone: what `gh pr create` prints, and never a URL cited inside prose, a markdown
+    ///     link or a heredoc. A trailing slash and a trailing `#fragment` are tolerated in the
+    ///     lookahead so the match value stays the canonical base URL.
+    /// </summary>
+    internal static readonly Regex BarePrUrlPattern = new(
+        @"^https?://github\.com/(?<owner>[^/\s]+)/(?<repo>[^/\s]+)/pull/(?<number>\d+)(?=/?(?:#\S*)?$)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
     ///     Safety net for CreatePr. The agent is supposed to record each PR URL via
     ///     `tendril plan add-pr` and set the plan to Completed (Program.md step 6), but a rushed or
-    ///     weak provider can stop after opening the PR and skip that closeout — leaving the PR
+    ///     weak provider can stop after opening the PR and skip that closeout, leaving the PR
     ///     invisible in the Pull Requests app (which filters on Prs.Count > 0) and the plan stuck in
     ///     Drafts. Here we parse PR URLs from the job output, record the ones missing from plan.yaml,
     ///     and mark the plan Completed. A plan that has a PR is Completed regardless of PrMerge; merge
     ///     is tracked separately as PR status.
     ///
-    ///     Only PR URLs whose repo matches one of this plan's repos are trusted — a foreign or
-    ///     SourceUrl PR merely echoed in the transcript must not be recorded or force-complete the
-    ///     plan. Plans with no repos (e.g. direct-to-main scaffolding, which opens no PR) are left
-    ///     untouched. No-ops cleanly when the agent already did the closeout.
+    ///     A URL is only trusted when all of these hold, because <c>OutputLines</c> is the whole
+    ///     eventwire (thinking, prose and tool inputs included), not command output:
+    ///     <list type="number">
+    ///         <item>
+    ///             It arrived in a <see cref="ToolResultEvent" /> and occupies a line of that output on
+    ///             its own (<see cref="BarePrUrlPattern" />). Agents routinely cite a sibling plan's PR
+    ///             in the PR body they build, and issue #2336 is 12 plans that had a cited URL recorded
+    ///             as their own because the old scan read every event kind as if it were output.
+    ///         </item>
+    ///         <item>
+    ///             The plan has no PR recorded yet for that repo. The net exists for an agent that
+    ///             recorded nothing, so it has no business appending a second PR to a repo that already
+    ///             has one. Scoping per repo keeps multi-repo plans reconcilable.
+    ///         </item>
+    ///         <item>
+    ///             The repo segment matches one of this plan's repos, and the canonical
+    ///             owner/repo#number is not already recorded in another form.
+    ///         </item>
+    ///     </list>
+    ///     Plans with no repos (e.g. direct-to-main scaffolding, which opens no PR) are left untouched.
+    ///     No-ops cleanly when the agent already did the closeout.
+    ///
+    ///     The regression risk is narrower reconciliation: if a future prompt captures the URL into a
+    ///     variable instead of letting `gh pr create` print it, the net misses it and the plan stays in
+    ///     Review for a human to complete. That is the behaviour from before the net existed, and it is
+    ///     strictly better than writing a foreign PR into a plan's history.
     /// </summary>
     internal void ReconcileCreatePrResult(JobItem job)
     {
@@ -674,19 +706,39 @@ internal class JobCompletionHandler
                 .Select(CanonicalPrKey)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            // Scan the output line-by-line (no whole-transcript allocation), keeping the canonical
-            // base URL for each in-scope, not-yet-recorded PR.
+            // Repos that already have a PR recorded, so the net stays out of their way.
+            var reposWithPr = plan.Prs
+                .Select(p => GitHubPrUrlPattern.Match(p))
+                .Where(m => m.Success)
+                .Select(m => m.Groups["repo"].Value)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Scan the eventwire entry by entry (no whole-transcript allocation), keeping the
+            // canonical base URL for each in-scope, not-yet-recorded PR.
             var added = new List<string>();
             if (planRepoNames.Count > 0)
             {
                 var seen = new HashSet<string>(recordedKeys, StringComparer.OrdinalIgnoreCase);
-                foreach (var line in job.OutputLines)
-                    foreach (Match m in GitHubPrUrlPattern.Matches(line))
+                var serializer = new JsonEventSerializer();
+                foreach (var entry in job.OutputLines)
+                {
+                    // Only a tool result is command output. Newlines live as escapes inside the
+                    // serialized entry, so the split has to happen after deserialization.
+                    if (serializer.Deserialize(entry) is not ToolResultEvent { Output: { } output }) continue;
+
+                    foreach (var outputLine in output.Replace("\r", "").Split('\n'))
                     {
-                        if (!planRepoNames.Contains(m.Groups["repo"].Value)) continue;
+                        var m = BarePrUrlPattern.Match(outputLine.Trim());
+                        if (!m.Success) continue;
+
+                        var repo = m.Groups["repo"].Value;
+                        if (!planRepoNames.Contains(repo)) continue;
+                        if (reposWithPr.Contains(repo)) continue;
                         if (!seen.Add(CanonicalPrKey(m))) continue;
+
                         added.Add(m.Value);
                     }
+                }
             }
 
             // Nothing to record and no PR on the plan → leave state to whatever the agent set.

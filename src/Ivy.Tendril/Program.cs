@@ -722,6 +722,8 @@ public class Program
                     .WithDescription("Remove a repository");
                 plan.AddCommand<PlanAddPrCommand>("add-pr")
                     .WithDescription("Add a PR URL");
+                plan.AddCommand<PlanRemovePrCommand>("remove-pr")
+                    .WithDescription("Remove a PR URL");
                 plan.AddCommand<PlanAddCommitCommand>("add-commit")
                     .WithDescription("Add a commit hash");
                 plan.AddCommand<PlanAddRelatedPlanCommand>("add-related-plan")
