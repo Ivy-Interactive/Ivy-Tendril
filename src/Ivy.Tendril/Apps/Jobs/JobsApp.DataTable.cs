@@ -1,5 +1,6 @@
 using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Apps.Jobs.Dialogs;
+using Ivy.Tendril.Apps.Jobs.Helpers;
 using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
@@ -187,21 +188,45 @@ public partial class JobsApp
                     showCost(id);
                 return ValueTask.CompletedTask;
             })
-            /*
             .OnCellAction(t => t.StatusMessage, e =>
             {
                 var id = e.Value.RowId?.ToString();
                 if (!string.IsNullOrEmpty(id))
                 {
                     var job = jobs.FirstOrDefault(j => j.Id == id);
-                    if (job?.Status is JobStatus.Failed or JobStatus.Timeout)
+                    if (job?.Status == JobStatus.Blocked)
                     {
-                        showOutput.Set(id);
+                        var blockingDeps = JobDependencyHelper.GetBlockingDependencies(job, jobService, planService);
+                        var firstJob = blockingDeps.FirstOrDefault(d => !string.IsNullOrEmpty(d.JobId));
+                        if (firstJob != null)
+                        {
+                            showOutput(firstJob.JobId!);
+                        }
+                        else
+                        {
+                            var firstPlan = blockingDeps.FirstOrDefault(d => !string.IsNullOrEmpty(d.PlanFolder) || !string.IsNullOrEmpty(d.PlanId));
+                            if (firstPlan != null)
+                            {
+                                var folderOrId = firstPlan.PlanFolder ?? firstPlan.PlanId!;
+                                var fullPath = Path.Combine(planService.PlansDirectory, folderOrId);
+                                if (Directory.Exists(fullPath))
+                                {
+                                    showPlan(fullPath);
+                                }
+                                else
+                                {
+                                    nav.Navigate<PlansApp>(new PlansAppArgs(folderOrId));
+                                }
+                            }
+                        }
+                    }
+                    else if (job?.Status is JobStatus.Failed or JobStatus.Timeout)
+                    {
+                        showOutput(id);
                     }
                 }
                 return ValueTask.CompletedTask;
             })
-            */
             .OnCellAction(t => t.Plan, e =>
             {
                 var id = e.Value.RowId?.ToString();
@@ -236,6 +261,24 @@ public partial class JobsApp
 
                 if (job?.Status is JobStatus.Blocked)
                 {
+                    var blockingDeps = JobDependencyHelper.GetBlockingDependencies(job, jobService, planService);
+                    var firstJob = blockingDeps.FirstOrDefault(d => !string.IsNullOrEmpty(d.JobId));
+                    if (firstJob != null)
+                    {
+                        actions.Add(new MenuItem("View Blocking Job", Icon: Icons.ArrowRight, Tag: $"view-blocking-job:{firstJob.JobId}")
+                            .Tooltip($"Navigate to blocking job {firstJob.JobId}"));
+                    }
+                    else
+                    {
+                        var firstPlan = blockingDeps.FirstOrDefault(d => !string.IsNullOrEmpty(d.PlanFolder) || !string.IsNullOrEmpty(d.PlanId));
+                        if (firstPlan != null)
+                        {
+                            var folderOrId = firstPlan.PlanFolder ?? firstPlan.PlanId!;
+                            actions.Add(new MenuItem("View Blocking Plan", Icon: Icons.ArrowRight, Tag: $"view-blocking-plan:{folderOrId}")
+                                .Tooltip($"Navigate to blocking plan {firstPlan.PlanId ?? folderOrId}"));
+                        }
+                    }
+
                     actions.Add(new MenuItem("Force Start", Icon: Icons.Zap, Tag: "force-start-job")
                         .Tooltip("Force start this blocked job"));
                 }
@@ -292,6 +335,30 @@ public partial class JobsApp
                     else if (tag == "debug-job")
                     {
                         showDebug?.Invoke(job.Id);
+                    }
+                    else if (tag?.StartsWith("view-blocking-job:") == true)
+                    {
+                        var blockingJobId = tag["view-blocking-job:".Length..];
+                        if (!string.IsNullOrEmpty(blockingJobId))
+                        {
+                            showOutput(blockingJobId);
+                        }
+                    }
+                    else if (tag?.StartsWith("view-blocking-plan:") == true)
+                    {
+                        var folderOrId = tag["view-blocking-plan:".Length..];
+                        if (!string.IsNullOrEmpty(folderOrId))
+                        {
+                            var fullPath = Path.Combine(planService.PlansDirectory, folderOrId);
+                            if (Directory.Exists(fullPath))
+                            {
+                                showPlan(fullPath);
+                            }
+                            else
+                            {
+                                nav.Navigate<PlansApp>(new PlansAppArgs(folderOrId));
+                            }
+                        }
                     }
                     else if (tag == "delete-job")
                     {

@@ -17,6 +17,7 @@ public partial class JobsApp : ViewBase
         var client = UseService<IClientProvider>();
         var config = UseService<IConfigService>();
         var nav = UseNavigation();
+        var args = UseArgs<JobsAppArgs>();
         var refreshToken = UseRefreshToken();
         var openFile = UseState<string?>(null);
         var confirmDeleteOpen = UseState(false);
@@ -46,6 +47,17 @@ public partial class JobsApp : ViewBase
                 new OutputSheet(jobId, jobService),
                 title
             ).Width(UxHelper.SheetWidth).Resizable();
+        });
+
+        var handledJobId = UseRef<string?>(null);
+        UseEffect(() =>
+        {
+            if (!string.IsNullOrEmpty(args?.JobId) && handledJobId.Value != args.JobId)
+            {
+                handledJobId.Value = args.JobId;
+                showOutput(args.JobId);
+            }
+            return (IDisposable?)null;
         });
 
         var (promptSheet, showPrompt) = UseTrigger<string>((isOpen, promptText) =>

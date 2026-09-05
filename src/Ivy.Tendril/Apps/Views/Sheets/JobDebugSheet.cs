@@ -3,6 +3,8 @@ using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Jobs.Dialogs;
+using Ivy.Tendril.Apps.Jobs.Helpers;
+using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
@@ -117,6 +119,36 @@ public class JobDebugSheet(
         header |= new Button($"Debug with {agentBranding.Label}").Icon(agentBranding.Icon).Outline()
             .OnClick(() => showDebugAgentDialog());
 #endif
+
+        if (job.Status == JobStatus.Blocked)
+        {
+            var blockingDeps = JobDependencyHelper.GetBlockingDependencies(job, jobService, planService);
+            var firstJob = blockingDeps.FirstOrDefault(d => !string.IsNullOrEmpty(d.JobId));
+            if (firstJob != null)
+            {
+                header |= new Button($"View Blocking Job ({firstJob.JobId})").Icon(Icons.ArrowRight).Primary()
+                    .OnClick(() =>
+                    {
+                        nav.Navigate<JobsApp>(new JobsAppArgs(firstJob.JobId));
+                        closeSheet();
+                    });
+            }
+            else
+            {
+                var firstPlan = blockingDeps.FirstOrDefault(d => !string.IsNullOrEmpty(d.PlanFolder) || !string.IsNullOrEmpty(d.PlanId));
+                if (firstPlan != null)
+                {
+                    var planTarget = firstPlan.PlanFolder ?? firstPlan.PlanId!;
+                    var planDisplay = firstPlan.PlanId ?? firstPlan.PlanFolder;
+                    header |= new Button($"View Blocking Plan ({planDisplay})").Icon(Icons.ArrowRight).Outline()
+                        .OnClick(() =>
+                        {
+                            nav.Navigate<PlansApp>(new PlansAppArgs(planTarget));
+                            closeSheet();
+                        });
+                }
+            }
+        }
 
         return new Fragment(
             new HeaderLayout(header, detailsView).Size(Size.Full()),
