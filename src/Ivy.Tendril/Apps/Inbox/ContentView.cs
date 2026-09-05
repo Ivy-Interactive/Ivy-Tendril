@@ -93,7 +93,6 @@ public class ContentView(
 
             var sheetContent = Layout.Vertical().Width(Size.Full()).Scroll(Scroll.Auto)
                 | sheetHeader
-                | new Separator()
                 | sheetBody;
 
             var sheet = new Sheet(
@@ -130,7 +129,6 @@ public class ContentView(
 
             var sheetContent = Layout.Vertical().Width(Size.Full()).Scroll(Scroll.Auto)
                 | sheetHeader
-                | new Separator()
                 | sheetBody;
 
             var sheet = new Sheet(
@@ -152,7 +150,6 @@ public class ContentView(
         {
             mainView = BuildIssuesView(
                 title: "My Issues",
-                subtitle: "Issues assigned to you across GitHub repositories",
                 allIssues: myIssues,
                 showRepoBadge: true,
                 client: client,
@@ -167,7 +164,6 @@ public class ContentView(
 
             mainView = BuildIssuesView(
                 title: $"{projName} Issues",
-                subtitle: $"Browse and fire off issues for {projName}",
                 allIssues: projectIssues,
                 showRepoBadge: false,
                 client: client,
@@ -187,39 +183,33 @@ public class ContentView(
             .Loading(isFetching)
             .OnClick(async () => await onRefresh());
 
-        var headerToolbar = Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full())
-            | (Layout.Vertical().AlignContent(Align.Left)
-                | Text.H3("Reviews").Bold()
-                | Text.Muted("Pull requests requesting your review on GitHub"))
-            | (Layout.Horizontal().AlignContent(Align.Right)
-                | refreshButton);
+        var header = Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full())
+            | Text.H3("Reviews").Bold()
+            | refreshButton;
 
         if (isFetching && reviewRequests.Count == 0)
         {
-            return new HeaderLayout(
-                headerToolbar,
-                Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
+            return Layout.Vertical().Height(Size.Full())
+                | header
+                | (Layout.Vertical().AlignContent(Align.Center).Height(Size.Grow())
                     | new Loading()
-                    | Text.Muted("Fetching review requests from GitHub...")
-            );
+                    | Text.Muted("Fetching review requests from GitHub..."));
         }
 
         if (errorMessage != null)
         {
-            return new HeaderLayout(
-                headerToolbar,
-                Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
+            return Layout.Vertical().Height(Size.Full())
+                | header
+                | (Layout.Vertical().AlignContent(Align.Center).Height(Size.Grow())
                     | Text.Danger(errorMessage)
-                    | new Button("Retry").Outline().OnClick(async () => await onRefresh())
-            );
+                    | new Button("Retry").Outline().OnClick(async () => await onRefresh()));
         }
 
         if (reviewRequests.Count == 0)
         {
-            return new HeaderLayout(
-                headerToolbar,
-                new NoContentView("All Caught Up!", "No pull requests currently require your review.")
-            );
+            return Layout.Vertical().Height(Size.Full())
+                | header
+                | new NoContentView("All Caught Up!", "No pull requests currently require your review.");
         }
 
         var rows = reviewRequests.Select(pr => new ReviewRow
@@ -295,12 +285,13 @@ public class ContentView(
                 return ValueTask.CompletedTask;
             });
 
-        return new HeaderLayout(headerToolbar, dataTable).Scroll(Scroll.None);
+        return Layout.Vertical().Height(Size.Full())
+            | header
+            | dataTable;
     }
 
     private object BuildIssuesView(
         string title,
-        string subtitle,
         IReadOnlyList<GitHubIssue> allIssues,
         bool showRepoBadge,
         IClientProvider client,
@@ -312,52 +303,6 @@ public class ContentView(
             .Tooltip("Refresh")
             .Loading(isFetching)
             .OnClick(async () => await onRefresh());
-
-        var headerTop = Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full())
-            | (Layout.Vertical().AlignContent(Align.Left)
-                | Text.H3(title).Bold()
-                | Text.Muted(subtitle))
-            | (Layout.Horizontal().AlignContent(Align.Right)
-                | refreshButton);
-
-        if (isFetching && allIssues.Count == 0)
-        {
-            return new HeaderLayout(
-                headerTop,
-                Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
-                    | new Loading()
-                    | Text.Muted("Loading issues from GitHub...")
-            );
-        }
-
-        if (errorMessage != null)
-        {
-            return new HeaderLayout(
-                headerTop,
-                Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
-                    | Text.Danger(errorMessage)
-                    | new Button("Retry").Outline().OnClick(async () => await onRefresh())
-            );
-        }
-
-        if (allIssues.Count == 0)
-        {
-            return new HeaderLayout(
-                headerTop,
-                new NoContentView("No Issues Found", "No issues match the selected view.")
-            );
-        }
-
-        var rows = allIssues.Select(issue => new IssueRow
-        {
-            Id = issue.Number.ToString(),
-            Selected = selectedIssueNumbers.Value.Contains(issue.Number),
-            Number = issue.Number,
-            Issue = $"#{issue.Number} {issue.Title}",
-            Repository = issue.Repository ?? "",
-            Labels = issue.Labels,
-            Assignees = string.Join(", ", issue.Assignees.Where(a => !string.IsNullOrWhiteSpace(a)))
-        }).ToList();
 
         var selectedCount = selectedIssueNumbers.Value.Count;
         var selectedIssuesList = allIssues
@@ -380,22 +325,56 @@ public class ContentView(
             refreshToken.Refresh();
         }
 
-        var batchBar = Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full())
+        var header = Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full()).Wrap()
             | (Layout.Horizontal().AlignContent(Align.Left)
+                | Text.H3(title).Bold()
+                | refreshButton)
+            | (Layout.Horizontal().AlignContent(Align.Right)
                 | new Button("Select All").Ghost().Small().OnClick(SelectAll)
                 | new Button("Deselect All").Ghost().Small().Disabled(selectedCount == 0).OnClick(DeselectAll)
-                | Text.Muted($"{selectedCount} of {rows.Count} selected").Small())
-            | new Button(selectedCount > 0 ? $"Fire off in Tendril ({selectedCount})" : "Fire off in Tendril")
-                .Icon(Icons.Zap)
-                .Primary()
-                .Disabled(selectedCount == 0 || isImporting.Value)
-                .Loading(isImporting.Value)
-                .OnClick(async () => await onFireOffIssues(selectedIssuesList));
+                | Text.Muted($"{selectedCount} of {allIssues.Count} selected").Small()
+                | new Button(selectedCount > 0 ? $"Fire off in Tendril ({selectedCount})" : "Fire off in Tendril")
+                    .Icon(Icons.Zap)
+                    .Primary().Small()
+                    .Disabled(selectedCount == 0 || isImporting.Value)
+                    .Loading(isImporting.Value)
+                    .OnClick(async () => await onFireOffIssues(selectedIssuesList)));
 
-        var fullHeader = Layout.Vertical().Width(Size.Full())
-            | headerTop
-            | new Separator()
-            | batchBar;
+        if (isFetching && allIssues.Count == 0)
+        {
+            return Layout.Vertical().Height(Size.Full())
+                | header
+                | (Layout.Vertical().AlignContent(Align.Center).Height(Size.Grow())
+                    | new Loading()
+                    | Text.Muted("Loading issues from GitHub..."));
+        }
+
+        if (errorMessage != null)
+        {
+            return Layout.Vertical().Height(Size.Full())
+                | header
+                | (Layout.Vertical().AlignContent(Align.Center).Height(Size.Grow())
+                    | Text.Danger(errorMessage)
+                    | new Button("Retry").Outline().OnClick(async () => await onRefresh()));
+        }
+
+        if (allIssues.Count == 0)
+        {
+            return Layout.Vertical().Height(Size.Full())
+                | header
+                | new NoContentView("No Issues Found", "No issues match the selected view.");
+        }
+
+        var rows = allIssues.Select(issue => new IssueRow
+        {
+            Id = issue.Number.ToString(),
+            Selected = selectedIssueNumbers.Value.Contains(issue.Number),
+            Number = issue.Number,
+            Issue = $"#{issue.Number} {issue.Title}",
+            Repository = issue.Repository ?? "",
+            Labels = issue.Labels,
+            Assignees = string.Join(", ", issue.Assignees.Where(a => !string.IsNullOrWhiteSpace(a)))
+        }).ToList();
 
         var dataTable = rows.AsQueryable()
             .ToDataTable(t => t.Id)
@@ -489,6 +468,8 @@ public class ContentView(
                 }
             });
 
-        return new HeaderLayout(fullHeader, dataTable).Scroll(Scroll.None);
+        return Layout.Vertical().Height(Size.Full())
+            | header
+            | dataTable;
     }
 }
