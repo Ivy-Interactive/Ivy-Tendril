@@ -730,6 +730,70 @@ public class PlanCliCommandTests : IDisposable
         Assert.Equal(2, result.Prs.Count);
     }
 
+    // ==================== PlanRemovePr ====================
+
+    [Fact]
+    public void RemovePr_RemovesTheUrl()
+    {
+        CreatePlanFolder("20055", "RemovePrTest");
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20055");
+        var plan = PlanCommandHelpers.ReadPlan(folder);
+        plan.Prs.Add("https://github.com/org/repo/pull/19");
+        plan.Prs.Add("https://github.com/org/repo/pull/61");
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        PlanRemovePrCommand.RemovePr(folder, "https://github.com/org/repo/pull/61");
+
+        var result = ReadPlan("20055");
+        Assert.Equal(["https://github.com/org/repo/pull/19"], result.Prs);
+    }
+
+    [Fact]
+    public void RemovePr_MatchesADifferentlyFormattedUrl()
+    {
+        // A URL reaches plan.yaml in whatever form the agent had it in, so the repair has to accept
+        // the base form for a PR recorded with a /files suffix.
+        CreatePlanFolder("20056", "RemovePrSuffixTest");
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20056");
+        var plan = PlanCommandHelpers.ReadPlan(folder);
+        plan.Prs.Add("https://github.com/org/repo/pull/61/files");
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        PlanRemovePrCommand.RemovePr(folder, "https://github.com/org/repo/pull/61");
+
+        Assert.Empty(ReadPlan("20056").Prs);
+    }
+
+    [Fact]
+    public void RemovePr_ThrowsWhenNotPresent()
+    {
+        CreatePlanFolder("20057", "RemovePrMissingTest");
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20057");
+        var plan = PlanCommandHelpers.ReadPlan(folder);
+        plan.Prs.Add("https://github.com/org/repo/pull/19");
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            PlanRemovePrCommand.RemovePr(folder, "https://github.com/org/repo/pull/61"));
+        Assert.Contains("PR not found", ex.Message);
+
+        // Nothing else was touched: a miss must not rewrite the plan.
+        Assert.Equal(["https://github.com/org/repo/pull/19"], ReadPlan("20057").Prs);
+    }
+
+    [Fact]
+    public void RemovePr_DoesNotMatchADifferentPrOnTheSameRepo()
+    {
+        CreatePlanFolder("20058", "RemovePrNeighbourTest");
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20058");
+        var plan = PlanCommandHelpers.ReadPlan(folder);
+        plan.Prs.Add("https://github.com/org/repo/pull/6");
+        PlanCommandHelpers.WritePlan(folder, plan);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            PlanRemovePrCommand.RemovePr(folder, "https://github.com/org/repo/pull/61"));
+    }
+
     // ==================== PlanAddCommit ====================
 
     [Fact]
