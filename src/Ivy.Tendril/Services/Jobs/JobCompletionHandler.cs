@@ -71,7 +71,7 @@ internal class JobCompletionHandler
         HandleWaitForJobsDependents(job, jobs, raiseNotification, startJobSkipDepCheck, persistJob, deleteJob);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
-            _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck, deleteJob);
+            _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck, deleteJob, persistJob);
 
         if (isSuccess && job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs or CreateIssueArgs)
         {
@@ -983,7 +983,24 @@ internal class JobCompletionHandler
                                dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked);
 
                 if (stillPending)
+                {
+                    var remaining = waitingJob.WaitForJobIds!
+                        .Where(id => jobs.TryGetValue(id, out var dep) &&
+                                     dep.Status is JobStatus.Running or JobStatus.Queued or JobStatus.Pending or JobStatus.Blocked)
+                        .Select(id => jobs[id])
+                        .ToList();
+                    if (remaining.Count > 0)
+                    {
+                        var waitingFor = string.Join(", ", remaining.Select(JobService.DescribeWaitDependency));
+                        var newStatus = $"Waiting for {waitingFor}";
+                        if (waitingJob.StatusMessage != newStatus)
+                        {
+                            waitingJob.StatusMessage = newStatus;
+                            persistJob?.Invoke(waitingJob);
+                        }
+                    }
                     continue;
+                }
 
                 jobs.TryRemove(waitingJob.Id, out _);
                 deleteJob?.Invoke(waitingJob.Id);
@@ -1017,8 +1034,9 @@ internal class JobCompletionHandler
         ConcurrentDictionary<string, JobItem> jobs,
         Action<JobNotification> raiseNotification,
         Func<JobArgsBase, string> startJobSkipDepCheck,
-        Action<string>? deleteJob = null)
-        => _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck, deleteJob);
+        Action<string>? deleteJob = null,
+        Action<JobItem>? persistJob = null)
+        => _dependencyChecker.RetryBlockedJobs(jobs, raiseNotification, startJobSkipDepCheck, deleteJob, persistJob);
 
     internal void WriteJobLog(JobItem job)
     {

@@ -86,7 +86,7 @@ public partial class JobsApp
             lastSent.Remove(staleKey);
 
         var candidates = currentJobs
-            .Where(j => j.Status == JobStatus.Running ||
+            .Where(j => j.Status is JobStatus.Running or JobStatus.Blocked ||
                         ((j.Status is JobStatus.Stopped or JobStatus.Failed or JobStatus.Timeout or JobStatus.Completed)
                          && j.CompletedAt.HasValue
                          && DateTime.UtcNow - j.CompletedAt.Value < TimeSpan.FromMinutes(1)))
