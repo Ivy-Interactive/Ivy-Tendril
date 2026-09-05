@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Hooks;
@@ -111,11 +111,19 @@ public class JobCostSheet(JobCostModel? model) : ViewBase
     /// <summary>
     /// The table's total: what the rates come to for a job with a breakdown, and the charge itself
     /// for one that predates the per-bucket columns and has nothing to compute from.
+    /// <para>
+    /// Prefixed "~" when the charge itself is this arithmetic rather than a figure anyone quoted, so
+    /// a subscription run's total reads as an estimate. The details list stays truthful either way:
+    /// the agent reported nothing, and the price list the estimate came from is named there.
+    /// </para>
     /// </summary>
     private static string TotalCost(JobCostModel model)
     {
         var total = model.HasBreakdown ? model.ComputedCost : model.TotalsOnlyCost;
-        return total.HasValue ? Usd(total.Value) : NoValue;
+        if (total is not { } value)
+            return NoValue;
+
+        return model.EstimatedCost.HasValue ? "~" + Usd(value) : Usd(value);
     }
 
     private sealed record UsageRow

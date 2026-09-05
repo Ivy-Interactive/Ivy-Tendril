@@ -1,6 +1,7 @@
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Jobs;
 
 namespace Ivy.Tendril.Apps.Jobs;
 
@@ -26,7 +27,7 @@ public partial class JobsApp
                 Type = j.Type,
                 Project = string.Join(", ", ProjectHelper.ParseProjects(j.Project)),
                 Timer = JobsApp.FormatTimer(j),
-                Cost = j.Cost.HasValue ? FormatHelper.FormatCost(j.Cost.Value) : "",
+                Cost = FormatJobCost(j),
                 Tokens = j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : "",
                 AgentOutput = JobsApp.FormatAgentOutput(j),
                 LastOutputTimestamp = j.LastOutputAt,
@@ -38,6 +39,19 @@ public partial class JobsApp
         })
             .OrderByDescending(r => ExtractJobNumber(r.Id))
             .ToList();
+    }
+
+    /// <summary>
+    ///     The Cost cell. An estimate derived from tokens times the price list is prefixed with "~" so
+    ///     the column never presents a figure nobody was actually charged as a charge; see
+    ///     <see cref="JobCostSources.Estimated" />.
+    /// </summary>
+    internal static string FormatJobCost(JobItem job)
+    {
+        if (job.Cost is not { } cost) return "";
+
+        var formatted = FormatHelper.FormatCost(cost);
+        return job.CostSource == JobCostSources.Estimated ? "~" + formatted : formatted;
     }
 
     internal static int ExtractJobNumber(string jobId)
@@ -93,7 +107,7 @@ public partial class JobsApp
             .SelectMany(j => new[]
             {
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.Timer), JobsApp.FormatTimer(j)),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Cost), j.Cost.HasValue ? FormatHelper.FormatCost(j.Cost.Value) : ""),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Cost), FormatJobCost(j)),
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.Tokens), j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : ""),
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.AgentOutput), JobsApp.FormatAgentOutput(j)),
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.Status), JobsApp.FormatStatusBadge(j.Status)),
