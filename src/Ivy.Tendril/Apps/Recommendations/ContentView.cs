@@ -224,7 +224,7 @@ public class ContentView(
         return new Fragment(mainLayout, planSheet, notesDialog, new FileSheet(openFile, config));
     }
 
-    public static Layout BuildControlsLayout(
+    public static object BuildControlsLayout(
         string? project,
         int currentIndex,
         int totalCount,

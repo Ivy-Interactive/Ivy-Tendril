@@ -72,7 +72,6 @@ public class RecommendationsContentViewTests
             isMobile: false);
 
         Assert.NotNull(layout);
-        Assert.IsType<Layout>(layout);
 
         // Verify that the layout contains a Badge widget
         var badges = FindWidgetsOfType<Badge>(layout);
