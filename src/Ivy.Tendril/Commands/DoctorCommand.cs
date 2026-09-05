@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using Ivy.Helpers;
 using Ivy.Tendril.Agents;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Models;
@@ -158,6 +160,7 @@ public static class DoctorCommand
         var prune = args.Contains("--prune");
         var stateFilter = GetArgValue(args, "--state");
         var worktreesOnly = args.Contains("--worktrees");
+        var checkPrs = args.Contains("--prs");
 
         var tendrilHome = Environment.GetEnvironmentVariable("TENDRIL_HOME")?.Trim();
         if (string.IsNullOrEmpty(tendrilHome))
@@ -196,6 +199,7 @@ public static class DoctorCommand
 
         PrintPlansTable(results);
         PrintPartialDeliveryCandidates(FindPartialDeliveryCandidates(allResults));
+        if (checkPrs) SweepMisattributedPrs(allResults);
         PrintLaunderedCompletedPlans(allResults);
         PrintPlansSummary(allResults);
 
@@ -767,5 +771,200 @@ public static class DoctorCommand
         AnsiConsole.WriteLine("Review each one, then flag the ones that really were partial:");
         AnsiConsole.WriteLine();
         AnsiConsole.WriteLine("  tendril plan set <id> state Completed --allow-failed-verifications");
+    }
+
+    private const int PrHeadLookupTimeoutMs = 15000;
+
+    /// <summary>
+    ///     Head branch of one PR, or the reason gh could not say. "Not resolved" covers a deleted PR, a
+    ///     repo the token cannot read and a rate limit alike: none of them proves anything about
+    ///     ownership, so they are reported apart from the PRs that are provably someone else's.
+    /// </summary>
+    internal record PrHeadLookup(bool Resolved, string HeadBranch, string Error);
+
+    internal record MisattributedPr(string PlanId, string Title, string Url, string HeadBranch, string NamedPlanId);
+
+    internal record UnresolvedPr(string PlanId, string Title, string Url, string Reason);
+
+    internal record MisattributedPrReport(
+        int UrlsChecked,
+        List<MisattributedPr> Misattributed,
+        List<UnresolvedPr> Unresolved);
+
+    /// <summary>
+    ///     Recorded PRs that belong to a different plan. Tendril opens a PR from a
+    ///     <c>tendril/&lt;plan-folder&gt;</c> head branch, so the head branch is the ownership record: a
+    ///     PR whose head names another plan folder was cited by the plan recording it, not opened by it
+    ///     (issue #2336, plan 00216). A PR with a non-Tendril head branch was opened by hand and has no
+    ///     plan to compare, so it is left alone. Reported, never mutated: every plan this finds is
+    ///     Completed history, and which entry to unpick is the user's call.
+    /// </summary>
+    /// <remarks>
+    ///     Each URL is resolved on its own. It must not be answered from
+    ///     <c>GithubService.GetPrStatusesAsync</c>, whose <c>gh pr list --limit 100</c> window omits most
+    ///     PRs of a busy repo and would report hundreds of healthy PRs as phantom.
+    /// </remarks>
+    /// <param name="headBranchResolver">Seam for gh, so the check is testable without a network.</param>
+    /// <param name="onBegin">Called with the number of URLs about to be resolved, before the first call.</param>
+    internal static MisattributedPrReport FindMisattributedPrCandidates(
+        List<PlanHealthResult> allResults,
+        Func<string, PrHeadLookup>? headBranchResolver = null,
+        Action<int>? onBegin = null)
+    {
+        var resolve = headBranchResolver ?? RunGhHeadRefLookup;
+
+        var recorded = new List<(PlanHealthResult Plan, string Url)>();
+        foreach (var result in allResults)
+        {
+            if (result.FolderPath == null) continue;
+
+            var plan = PlanYamlHelper.ReadPlanYaml(result.FolderPath);
+            if (plan?.Prs == null) continue;
+
+            recorded.AddRange(plan.Prs
+                .Where(url => PrUrlHelper.CanonicalKey(url) != null)
+                .Select(url => (result, url.Trim())));
+        }
+
+        onBegin?.Invoke(recorded.Count);
+
+        var report = new MisattributedPrReport(recorded.Count, [], []);
+
+        foreach (var (plan, url) in recorded)
+        {
+            var lookup = resolve(url);
+            if (!lookup.Resolved)
+            {
+                report.Unresolved.Add(new UnresolvedPr(plan.Id, plan.Title, url, lookup.Error));
+                continue;
+            }
+
+            var namedPlanId = TendrilPlanIdFromBranch(lookup.HeadBranch);
+            if (namedPlanId == null || SamePlanId(namedPlanId, plan.Id)) continue;
+
+            report.Misattributed.Add(
+                new MisattributedPr(plan.Id, plan.Title, url, lookup.HeadBranch, namedPlanId));
+        }
+
+        return report;
+    }
+
+    /// <summary>
+    ///     The plan ID a <c>tendril/00123-Title</c> branch names, or null for a branch Tendril did not
+    ///     create.
+    /// </summary>
+    internal static string? TendrilPlanIdFromBranch(string? headBranch)
+    {
+        if (string.IsNullOrWhiteSpace(headBranch)) return null;
+
+        var match = System.Text.RegularExpressions.Regex.Match(
+            headBranch.Trim(), @"^tendril/(\d+)-",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    // Plan IDs are zero padded to five digits in folder names, but a branch could carry them unpadded.
+    private static bool SamePlanId(string a, string b) =>
+        a.TrimStart('0').Equals(b.TrimStart('0'), StringComparison.Ordinal);
+
+    internal static void PrintMisattributedPrCandidates(MisattributedPrReport report)
+    {
+        if (report.Misattributed.Count > 0)
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine(
+                $"[yellow]{report.Misattributed.Count} recorded {(report.Misattributed.Count == 1 ? "PR was" : "PRs were")} opened by another plan:[/]");
+            AnsiConsole.WriteLine();
+
+            foreach (var candidate in report.Misattributed)
+            {
+                AnsiConsole.MarkupLine(
+                    $"[grey]  {candidate.PlanId}-{candidate.Title.EscapeMarkup()}  {candidate.Url.EscapeMarkup()}[/]");
+                AnsiConsole.MarkupLine(
+                    $"[grey]    head: {candidate.HeadBranch.EscapeMarkup()} (plan {candidate.NamedPlanId})[/]");
+                AnsiConsole.MarkupLine(
+                    $"[grey]    remove: tendril plan remove-pr {candidate.PlanId} {candidate.Url.EscapeMarkup()}[/]");
+            }
+        }
+
+        if (report.Unresolved.Count > 0)
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.MarkupLine(
+                $"[yellow]{report.Unresolved.Count} recorded {(report.Unresolved.Count == 1 ? "PR could" : "PRs could")} not be resolved:[/]");
+            AnsiConsole.WriteLine();
+
+            foreach (var unresolved in report.Unresolved)
+            {
+                AnsiConsole.MarkupLine(
+                    $"[grey]  {unresolved.PlanId}-{unresolved.Title.EscapeMarkup()}  {unresolved.Url.EscapeMarkup()}[/]");
+                AnsiConsole.MarkupLine($"[grey]    {unresolved.Reason.EscapeMarkup()}[/]");
+            }
+
+            AnsiConsole.WriteLine();
+            AnsiConsole.WriteLine("A PR gh cannot see may be deleted, or live in a repo this token cannot read.");
+        }
+
+        if (report.Misattributed.Count == 0 && report.Unresolved.Count == 0 && report.UrlsChecked > 0)
+            AnsiConsole.WriteLine($"All {report.UrlsChecked} recorded PRs belong to the plan recording them.");
+    }
+
+    /// <summary>
+    ///     The <c>--prs</c> half of `plan doctor`: the only check here that needs the network, so it is
+    ///     opt in and skipped in silence when gh is missing, to keep `tendril plan doctor` usable offline.
+    /// </summary>
+    private static void SweepMisattributedPrs(List<PlanHealthResult> allResults)
+    {
+        if (!ProcessCheckHelper.CheckCommand("gh", "--version").GetAwaiter().GetResult()) return;
+
+        PrintMisattributedPrCandidates(FindMisattributedPrCandidates(allResults, onBegin: count =>
+        {
+            AnsiConsole.WriteLine();
+            AnsiConsole.WriteLine($"Resolving {count} recorded PR {(count == 1 ? "URL" : "URLs")} with gh...");
+        }));
+    }
+
+    private static PrHeadLookup RunGhHeadRefLookup(string prUrl)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "gh",
+                Arguments = $"pr view \"{prUrl}\" --json headRefName -q .headRefName",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WorkingDirectory = Path.GetTempPath()
+            };
+            using var proc = Process.Start(psi);
+            if (proc == null) return new PrHeadLookup(false, "", "gh could not be started");
+
+            // Drain both pipes concurrently: the failure path writes to stderr only, and reading one
+            // stream to the end while the other fills its buffer is how this deadlocks.
+            var stdout = proc.StandardOutput.ReadToEndAsync();
+            var stderr = proc.StandardError.ReadToEndAsync();
+
+            if (!proc.WaitForExitOrKill(PrHeadLookupTimeoutMs))
+                return new PrHeadLookup(false, "", $"gh pr view did not finish within {PrHeadLookupTimeoutMs / 1000}s");
+            if (!Task.WaitAll([stdout, stderr], PrHeadLookupTimeoutMs))
+                return new PrHeadLookup(false, "", "gh pr view output could not be read");
+
+            var head = stdout.Result.Trim();
+            if (proc.ExitCode == 0 && head.Length > 0)
+                return new PrHeadLookup(true, head, "");
+
+            var firstErrorLine = stderr.Result
+                .Split('\n')
+                .Select(l => l.Trim())
+                .FirstOrDefault(l => l.Length > 0);
+            return new PrHeadLookup(false, "",
+                firstErrorLine ?? $"gh exited {proc.ExitCode} with no output");
+        }
+        catch (Exception ex)
+        {
+            return new PrHeadLookup(false, "", ex.Message);
+        }
     }
 }
