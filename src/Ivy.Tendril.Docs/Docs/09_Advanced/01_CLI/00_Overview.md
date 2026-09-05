@@ -25,6 +25,7 @@ Tendril CLI gives you complete control over your workflow without touching the U
 - **Projects** — configure projects, their repos, build dependencies, and review actions
 - **Verifications** — define and manage reusable verification checks
 - **Config** — read and update top-level settings stored in `config.yaml`
+- **Vault** — connect vaults, pull updates, inspect catalog assets, import and push projects
 - **Database** — run migrations, inspect schema versions, or reset the database
 - **Agents** — run and manage promptwares and their memory
 
@@ -172,3 +173,4 @@ Refreshes the embedded promptware templates from the bundled source. Run after u
 - [Database commands](04_Database.md) — migrations, schema version, and reset
 - [Other commands](05_Other.md) — promptware, job, MCP, and utilities
 - [Config commands](06_Config.md) — read and update top-level `config.yaml` settings
+- [Vault commands](07_Vault.md) — connect vaults, sync assets, and import or publish projects
