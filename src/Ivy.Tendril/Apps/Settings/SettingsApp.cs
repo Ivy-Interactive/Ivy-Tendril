@@ -19,6 +19,7 @@ public class SettingsApp : ViewBase
     private const string TagLevels = "levels";
     private const string TagPromptwares = "promptwares";
     internal const string TagProjects = "projects";
+    private const string TagIssueTrackers = "issue-trackers";
     private const string TagVault = "vault";
     private const string TagTunnel = "tunnel";
     private const string TagAdvanced = "advanced";
@@ -77,6 +78,7 @@ public class SettingsApp : ViewBase
         sections.AddRange(new (string Label, string Tag, Icons Icon)[]
         {
             ("Promptwares", TagPromptwares, Icons.Wand),
+            ("Issue Trackers", TagIssueTrackers, Icons.SquareCheck),
             ("Levels", TagLevels, Icons.ListOrdered),
             ("Notifications", TagNotifications, Icons.Bell),
             ("Security & Tunneling", TagSecurity, Icons.Lock),
@@ -127,6 +129,7 @@ public class SettingsApp : ViewBase
         }
 
         rows.Add(SidebarListRow.Build("Promptwares", Icons.Wand, () => selected.Set(TagPromptwares), selectedTag == TagPromptwares));
+        rows.Add(SidebarListRow.Build("Issue Trackers", Icons.SquareCheck, () => selected.Set(TagIssueTrackers), selectedTag == TagIssueTrackers));
         rows.Add(SidebarListRow.Build("Levels", Icons.ListOrdered, () => selected.Set(TagLevels), selectedTag == TagLevels));
         rows.Add(SidebarListRow.Build("Notifications", Icons.Bell, () => selected.Set(TagNotifications), selectedTag == TagNotifications));
         rows.Add(SidebarListRow.Build("Security & Tunneling", Icons.Lock, () => selected.Set(TagSecurity), selectedTag == TagSecurity || selectedTag == TagTunnel));
@@ -178,6 +181,7 @@ public class SettingsApp : ViewBase
                 TagTunnel => new SecuritySetupView(),
                 TagLevels => new LevelsSetupView(),
                 TagPromptwares => new PromptwaresSetupView(),
+                TagIssueTrackers => new IssueTrackersSetupView(),
                 TagVault when isBeta => new VaultSetupView(),
                 TagProjects => projects.Count > 0
                     ? new ProjectDetailView(0, projects, config, client, refreshToken).Key($"project:{projects[0].Name}")

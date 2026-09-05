@@ -51,6 +51,14 @@ public class ProjectDetailView(
         var skills = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? new List<ProjectSkillRef>(config.Settings.Projects[projectIndex].Skills) : new List<ProjectSkillRef>());
         var memoryRefresh = UseState(0);
 
+        // Issue Trackers State
+        var issueTrackers = UseState(() => projectIndex >= 0 && projectIndex < config.Settings.Projects.Count
+            ? new List<ProjectTrackerConfig>(
+                config.Settings.Projects[projectIndex].IssueTrackers.Count > 0
+                    ? config.Settings.Projects[projectIndex].IssueTrackers
+                    : (config.Settings.Projects[projectIndex].IssueTracker != null ? [config.Settings.Projects[projectIndex].IssueTracker] : []))
+            : new List<ProjectTrackerConfig>());
+
         // Triggers
         var (reviewActionTrigger, showReviewActionTrigger) = UseTrigger((IState<bool> isOpen, int? existingIndex) =>
             new OnboardingEditReviewActionDialog(isOpen, existingIndex, reviewActions));
@@ -72,6 +80,21 @@ public class ProjectDetailView(
 
         var (importSkillsDialog, openImportSkillsDialog) = UseTrigger((IState<bool> isOpen) =>
             new ImportRepoAssetsDialog(isOpen, ImportAssetKind.Skills, projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex].Name : "", repos.Value, config, client, skills: skills));
+
+        var (projectTrackerDialog, openProjectTrackerDialog) = UseTrigger((IState<bool> isOpen, ProjectTrackerConfig? existing) =>
+            new EditProjectTrackerDialog(
+                isOpen,
+                existing,
+                config,
+                projectIndex >= 0 && projectIndex < config.Settings.Projects.Count ? config.Settings.Projects[projectIndex] : new ProjectConfig(),
+                saved =>
+                {
+                    var list = new List<ProjectTrackerConfig>(issueTrackers.Value);
+                    var idx = list.FindIndex(t => t.Id == saved.Id);
+                    if (idx >= 0) list[idx] = saved;
+                    else list.Add(saved);
+                    issueTrackers.Set(list);
+                }));
 
         var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
 
@@ -98,6 +121,11 @@ public class ProjectDetailView(
             if (!AreReposEqual(currentProj.Repos, repos.Value))
             {
                 currentProj.Repos = new List<RepoRef>(repos.Value);
+                changed = true;
+            }
+            if (!AreTrackersEqual(currentProj.IssueTrackers, issueTrackers.Value))
+            {
+                currentProj.IssueTrackers = new List<ProjectTrackerConfig>(issueTrackers.Value);
                 changed = true;
             }
             if (!AreReviewActionsEqual(currentProj.ReviewActions, reviewActions.Value))
@@ -182,7 +210,24 @@ public class ProjectDetailView(
             }
         }
 
-        UseEffect(SaveProjectChanges, [projectColor, autoImplement, repos, reviewActions, verifications, mcpServers, skills]);
+        void DeleteTracker(int idx)
+        {
+            var list = new List<ProjectTrackerConfig>(issueTrackers.Value);
+            if (idx < 0 || idx >= list.Count) return;
+
+            list.RemoveAt(idx);
+            issueTrackers.Set(list);
+
+            var activeProjects = config.Settings.Projects;
+            if (projectIndex >= 0 && projectIndex < activeProjects.Count)
+            {
+                activeProjects[projectIndex].IssueTrackers = new List<ProjectTrackerConfig>(list);
+                config.SaveSettings();
+                refreshToken.Refresh();
+            }
+        }
+
+        UseEffect(SaveProjectChanges, [projectColor, autoImplement, repos, reviewActions, verifications, mcpServers, skills, issueTrackers]);
 
         var currentProjectList = config.Settings.Projects;
         if (projectIndex < 0 || projectIndex >= currentProjectList.Count)
@@ -289,6 +334,74 @@ public class ProjectDetailView(
             return draft with { Path = destPath };
         };
 
+        // Issue Trackers list
+        var trackerList = issueTrackers.Value;
+        object trackersContent;
+        if (trackerList.Count == 0)
+        {
+            trackersContent = Text.Block("No issue trackers linked to this project. Link Jira, Linear, or GitHub to track and triage issues.")
+                .Muted().Small();
+        }
+        else
+        {
+            var trackerCards = Layout.Vertical();
+            for (var i = 0; i < trackerList.Count; i++)
+            {
+                var tracker = trackerList[i];
+                var idx = i;
+
+                var prov = tracker.Provider?.ToLowerInvariant() ?? "github";
+                var provColor = prov switch
+                {
+                    "jira" => Colors.Blue,
+                    "linear" => Colors.Purple,
+                    _ => Colors.Slate
+                };
+                var provName = prov switch
+                {
+                    "jira" => "Jira",
+                    "linear" => "Linear",
+                    _ => "GitHub"
+                };
+
+                string targetDesc;
+                if (prov == "jira")
+                    targetDesc = !string.IsNullOrWhiteSpace(tracker.ProjectKey) ? $"Project: {tracker.ProjectKey}" : "No project key specified";
+                else if (prov == "linear")
+                    targetDesc = !string.IsNullOrWhiteSpace(tracker.TeamKey) ? $"Team: {tracker.TeamKey}" : "No team key specified";
+                else
+                    targetDesc = !string.IsNullOrWhiteSpace(tracker.Repo) ? $"Repo: {tracker.Repo}" : "Repo: Auto-detect from git";
+
+                string? connLabel = null;
+                if (!string.IsNullOrEmpty(tracker.ConnectionId))
+                {
+                    var c = config.Settings.TrackerConnections.FirstOrDefault(x => x.Id == tracker.ConnectionId);
+                    if (c != null) connLabel = c.Name;
+                }
+                var displayName = !string.IsNullOrWhiteSpace(tracker.Name)
+                    ? tracker.Name
+                    : (connLabel ?? provName);
+
+                var leftGroup = Layout.Horizontal().AlignContent(Align.Left)
+                    | new Badge(provName).Color(provColor).Variant(BadgeVariant.Secondary).Small()
+                    | Text.Inline(displayName).Bold().Small()
+                    | Text.Inline($"• {targetDesc}").Muted().Small();
+
+                var rightGroup = Layout.Horizontal().AlignContent(Align.Right)
+                    | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => openProjectTrackerDialog(tracker))
+                    | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Remove").OnClick(() => DeleteTracker(idx));
+
+                var trackerCard = new Box(
+                    Layout.Horizontal().AlignContent(Align.SpaceBetween).Width(Size.Full())
+                    | leftGroup
+                    | rightGroup
+                ).BorderRadius(BorderRadius.Rounded).BorderColor(Colors.Slate, 0.2f).Width(Size.Full());
+
+                trackerCards |= trackerCard;
+            }
+            trackersContent = trackerCards;
+        }
+
         var innerContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(160)))
             // Section 1: Header (Color Picker + Name)
             | nameHeader
@@ -298,31 +411,37 @@ public class ProjectDetailView(
             | Text.H4("Repositories").Bold()
             | new ProjectRepoPickerView(repos, onAdd: cloneRemoteOnAdd, showBaseBranchPicker: true)
 
-            // Section 3: Review Actions
+            // Section 3: Issue Trackers
+            | Text.H4("Issue Trackers").Bold()
+            | trackersContent
+            | (Layout.Horizontal().AlignContent(Align.Left)
+                | new Button("Add Issue Tracker").Icon(Icons.Plus).Outline().OnClick(() => openProjectTrackerDialog(null)))
+
+            // Section 4: Review Actions
             | Text.H4("Review Actions").Bold()
             | new ReviewActionsTableView(reviewActions, idx => showReviewActionTrigger(idx), projectName: editName.Value)
             | new Button("Add Review Action").Icon(Icons.Plus).Outline().OnClick(() => showReviewActionTrigger(null))
 
-            // Section 4: Verifications
+            // Section 5: Verifications
             | Text.H4("Verifications").Bold()
             | new ProjectVerificationsTableView(verifications, name => showVerificationTrigger(name))
             | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() => showVerificationTrigger(null))
 
-            // Section 5: Agent Behavior
+            // Section 6: Agent Behavior
             | (isBeta
                 ? (object)(Layout.Vertical()
                     | Text.H4("Agent Behavior").Bold()
                     | autoImplementSelect)
                 : null!)
 
-            // Section 6: Local Permissions (MCP Tools & Servers)
+            // Section 7: Local Permissions (MCP Tools & Servers)
             | (isBeta
                 ? (object)(Layout.Vertical()
                     | Text.H4("Local Permissions").Bold()
                     | new McpServersTableView(mcpServers, repos, idx => openMcpSheet(idx), onImport: () => openImportMcpDialog(), onDelete: idx => DeleteMcpServer(idx)))
                 : null!)
 
-            // Section 7: Customizations
+            // Section 8: Customizations
             | (isBeta
                 ? (object)(Layout.Vertical()
                     | Text.H4("Customizations").Bold()
@@ -330,7 +449,7 @@ public class ProjectDetailView(
                     | new SkillsTableView(skills, repos, idx => openSkillSheet(idx), onImport: () => openImportSkillsDialog(), onDelete: idx => DeleteSkill(idx)))
                 : null!)
 
-            // Section 8: Danger Zone
+            // Section 9: Danger Zone
             | Text.H4("Danger Zone").Bold()
             | new Button("Delete Project").Destructive().OnClick(() =>
             {
@@ -347,10 +466,28 @@ public class ProjectDetailView(
             | skillSheet
             | memorySheet
             | importMcpDialog
-            | importSkillsDialog;
+            | importSkillsDialog
+            | projectTrackerDialog;
 
         return Layout.Vertical().Scroll(Scroll.Auto).Width(Size.Full()).Height(Size.Full())
             | innerContent;
+    }
+
+    private static bool AreTrackersEqual(List<ProjectTrackerConfig> a, List<ProjectTrackerConfig> b)
+    {
+        if (a.Count != b.Count) return false;
+        for (int i = 0; i < a.Count; i++)
+        {
+            if (a[i].Id != b[i].Id ||
+                a[i].ConnectionId != b[i].ConnectionId ||
+                a[i].Provider != b[i].Provider ||
+                a[i].Name != b[i].Name ||
+                a[i].ProjectKey != b[i].ProjectKey ||
+                a[i].TeamKey != b[i].TeamKey ||
+                a[i].Repo != b[i].Repo)
+                return false;
+        }
+        return true;
     }
 
     private static bool AreReposEqual(List<RepoRef> a, List<RepoRef> b)

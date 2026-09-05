@@ -73,6 +73,22 @@ public class GithubService : IGithubService, IDisposable
         return await FetchPrStatusesFromGhCliAsync(owner, repo);
     }
 
+    public async Task<(List<GitHubIssue> issues, string? error)> GetMyAssignedIssuesAsync()
+    {
+        return await ExecuteGhCliAsync(
+            "search issues --assignee=@me --state=open --limit 100 --json number,title,body,labels,assignees,repository,url,updatedAt",
+            ParseIssuesFromJson,
+            new List<GitHubIssue>());
+    }
+
+    public async Task<(List<GitHubReviewItem> prs, string? error)> GetReviewRequestsAsync()
+    {
+        return await ExecuteGhCliAsync(
+            "search prs --review-requested=@me --state=open --limit 100 --json number,title,body,labels,assignees,repository,url,updatedAt",
+            ParseReviewsFromJson,
+            new List<GitHubReviewItem>());
+    }
+
     public async Task<(List<GitHubIssue> issues, string? error)> SearchIssuesAsync(IssueSearchRequest request)
     {
         try
@@ -145,16 +161,82 @@ public class GithubService : IGithubService, IDisposable
             var number = element.GetProperty("number").GetInt32();
             var title = element.GetProperty("title").GetString() ?? "";
             var body = element.TryGetProperty("body", out var bodyProp) ? bodyProp.GetString() : null;
-            var issueLabels = element.GetProperty("labels").EnumerateArray()
-                .Select(l => l.GetProperty("name").GetString() ?? "")
-                .ToArray();
-            var issueAssignees = element.GetProperty("assignees").EnumerateArray()
-                .Select(a => a.GetProperty("login").GetString() ?? "")
-                .ToArray();
-            issues.Add(new GitHubIssue(number, title, body, issueLabels, issueAssignees));
+            var issueLabels = element.TryGetProperty("labels", out var labelsProp)
+                ? labelsProp.EnumerateArray()
+                    .Select(l => l.GetProperty("name").GetString() ?? "")
+                    .ToArray()
+                : [];
+            var issueAssignees = element.TryGetProperty("assignees", out var assigneesProp)
+                ? assigneesProp.EnumerateArray()
+                    .Select(a => a.GetProperty("login").GetString() ?? "")
+                    .ToArray()
+                : [];
+
+            string? repoName = null;
+            if (element.TryGetProperty("repository", out var repoProp))
+            {
+                if (repoProp.TryGetProperty("nameWithOwner", out var nowProp))
+                    repoName = nowProp.GetString();
+                else if (repoProp.TryGetProperty("name", out var nProp))
+                    repoName = nProp.GetString();
+            }
+
+            var url = element.TryGetProperty("url", out var urlProp) ? urlProp.GetString() : null;
+            DateTimeOffset? updatedAt = null;
+            if (element.TryGetProperty("updatedAt", out var updatedProp) &&
+                DateTimeOffset.TryParse(updatedProp.GetString(), out var parsedDate))
+            {
+                updatedAt = parsedDate;
+            }
+
+            issues.Add(new GitHubIssue(number, title, body, issueLabels, issueAssignees, repoName, url, updatedAt));
         }
 
         return issues;
+    }
+
+    internal static List<GitHubReviewItem> ParseReviewsFromJson(string json)
+    {
+        var reviews = new List<GitHubReviewItem>();
+        using var doc = JsonDocument.Parse(json);
+        foreach (var element in doc.RootElement.EnumerateArray())
+        {
+            var number = element.GetProperty("number").GetInt32();
+            var title = element.GetProperty("title").GetString() ?? "";
+            var body = element.TryGetProperty("body", out var bodyProp) ? bodyProp.GetString() : null;
+            var issueLabels = element.TryGetProperty("labels", out var labelsProp)
+                ? labelsProp.EnumerateArray()
+                    .Select(l => l.GetProperty("name").GetString() ?? "")
+                    .ToArray()
+                : [];
+            var issueAssignees = element.TryGetProperty("assignees", out var assigneesProp)
+                ? assigneesProp.EnumerateArray()
+                    .Select(a => a.GetProperty("login").GetString() ?? "")
+                    .ToArray()
+                : [];
+
+            string repoName = "";
+            if (element.TryGetProperty("repository", out var repoProp))
+            {
+                if (repoProp.TryGetProperty("nameWithOwner", out var nowProp))
+                    repoName = nowProp.GetString() ?? "";
+                else if (repoProp.TryGetProperty("name", out var nProp))
+                    repoName = nProp.GetString() ?? "";
+            }
+
+            var url = element.TryGetProperty("url", out var urlProp) ? urlProp.GetString() ?? "" : "";
+            var branch = element.TryGetProperty("headRefName", out var headProp) ? headProp.GetString() : null;
+            DateTimeOffset? updatedAt = null;
+            if (element.TryGetProperty("updatedAt", out var updatedProp) &&
+                DateTimeOffset.TryParse(updatedProp.GetString(), out var parsedDate))
+            {
+                updatedAt = parsedDate;
+            }
+
+            reviews.Add(new GitHubReviewItem(number, title, body, issueLabels, issueAssignees, repoName, url, branch, updatedAt));
+        }
+
+        return reviews;
     }
 
     public RepoConfig? GetRepoConfigFromPathCached(string repoPath)
