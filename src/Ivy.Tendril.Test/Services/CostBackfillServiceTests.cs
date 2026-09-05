@@ -207,16 +207,17 @@ public class CostBackfillServiceTests : IDisposable
     [Fact]
     public void Run_NotMaster_TouchesNothing()
     {
+        // Through the seam, not by setting TENDRIL_NOT_MASTER: the environment is process wide, and
+        // JobService.ReconcileRestoredJob reads the same variable, so flipping it here changed what
+        // JobServiceStartupTests saw on another thread.
         _db.UpsertJob(Job());
-        Environment.SetEnvironmentVariable("TENDRIL_NOT_MASTER", "1");
-        try
+
+        var service = new CostBackfillService(
+            _db, new ModelPricingProvider([ClaudePricing]), NullLogger<CostBackfillService>.Instance)
         {
-            Service().Run();
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("TENDRIL_NOT_MASTER", null);
-        }
+            IsNotMaster = () => true,
+        };
+        service.Run();
 
         Assert.Null(Reload("j1").Cost);
     }

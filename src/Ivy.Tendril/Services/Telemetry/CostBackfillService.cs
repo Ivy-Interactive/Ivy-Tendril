@@ -36,6 +36,15 @@ public sealed class CostBackfillService(
 
     private Timer? _timer;
 
+    /// <summary>
+    ///     How <see cref="Run" /> decides it is not the master. A seam rather than a direct read
+    ///     because the environment is process wide: a test flipping <c>TENDRIL_NOT_MASTER</c> to
+    ///     exercise the guard also flips it for whatever <c>JobService</c> is reconciling restored
+    ///     jobs on another thread at that moment, which is a real, observed flake.
+    /// </summary>
+    internal Func<bool> IsNotMaster { get; init; } =
+        static () => Environment.GetEnvironmentVariable("TENDRIL_NOT_MASTER") == "1";
+
     public void Start()
     {
         // A single pass: after it, every candidate has either been filled or is unfillable, so
@@ -51,7 +60,7 @@ public sealed class CostBackfillService(
     {
         // Only the master writes. A second instance filling the same rows would be harmless (the
         // arithmetic is deterministic) but it would also rewrite the same costs.csv concurrently.
-        if (Environment.GetEnvironmentVariable("TENDRIL_NOT_MASTER") == "1")
+        if (IsNotMaster())
         {
             logger.LogDebug("Skipping cost backfill (TENDRIL_NOT_MASTER=1)");
             return;
