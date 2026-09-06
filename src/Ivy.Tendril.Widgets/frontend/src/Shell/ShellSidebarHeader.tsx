@@ -1,7 +1,8 @@
 import React from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useShell } from "./ShellContext";
-import { ShellWidgetProps } from "./types";
+import { ShellWidgetProps, modKeyLabel } from "./types";
+import { ShellTooltip } from "./ShellTooltip";
 import "./shell.css";
 
 interface ShellSidebarHeaderProps extends ShellWidgetProps {
@@ -22,17 +23,14 @@ export const ShellSidebarHeader: React.FC<ShellSidebarHeaderProps> = ({
     // logo out and reveals the panel icon in its place.
     return (
       <div className="tsh-header">
-        <button
-          className="tsh-logo-toggle"
-          onClick={toggle}
-          aria-label="Open sidebar"
-          title="Open sidebar (Ctrl+B)"
-        >
-          {logoUrl && <img className="tsh-header-logo" src={logoUrl} alt="" />}
-          <span className="tsh-logo-toggle-icon">
-            <PanelLeftOpen size={16} />
-          </span>
-        </button>
+        <ShellTooltip content="Open sidebar" shortcut={`${modKeyLabel()}+B`} side="right">
+          <button className="tsh-logo-toggle" onClick={toggle} aria-label="Open sidebar">
+            {logoUrl && <img className="tsh-header-logo" src={logoUrl} alt="" />}
+            <span className="tsh-logo-toggle-icon">
+              <PanelLeftOpen size={16} />
+            </span>
+          </button>
+        </ShellTooltip>
       </div>
     );
   }
@@ -46,14 +44,11 @@ export const ShellSidebarHeader: React.FC<ShellSidebarHeaderProps> = ({
           {version && <span className="tsh-header-version">{version}</span>}
         </div>
       </div>
-      <button
-        className="tsh-header-toggle"
-        onClick={toggle}
-        aria-label="Close sidebar"
-        title="Close sidebar (Ctrl+B)"
-      >
-        <PanelLeftClose size={16} />
-      </button>
+      <ShellTooltip content="Close sidebar" shortcut={`${modKeyLabel()}+B`} side="right">
+        <button className="tsh-header-toggle" onClick={toggle} aria-label="Close sidebar">
+          <PanelLeftClose size={16} />
+        </button>
+      </ShellTooltip>
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
+import "@testing-library/jest-dom";
 import { ShellAgentButton } from "./ShellAgentButton";
 
 describe("ShellAgentButton", () => {
@@ -11,7 +12,7 @@ describe("ShellAgentButton", () => {
         events={["OnNewChat"]}
         eventHandler={handler}
         label="Claude Code"
-      />
+      />,
     );
 
     fireEvent.keyDown(document.body, {
@@ -32,7 +33,7 @@ describe("ShellAgentButton", () => {
         events={["OnNewChat"]}
         eventHandler={handler}
         label="Claude Code"
-      />
+      />,
     );
 
     const notPrevented = fireEvent.keyDown(document.body, {
@@ -56,7 +57,7 @@ describe("ShellAgentButton", () => {
           eventHandler={handler}
           label="Claude Code"
         />
-      </div>
+      </div>,
     );
 
     const input = container.querySelector('input[aria-label="field"]')!;
@@ -70,18 +71,19 @@ describe("ShellAgentButton", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it("renders three-segment hint and tooltip", () => {
+  it("renders three-segment hint and does not use native title attribute", () => {
     const { container } = render(
       <ShellAgentButton
         id="agent"
         events={["OnNewChat"]}
         eventHandler={vi.fn()}
         label="Claude Code"
-      />
+      />,
     );
 
     const button = container.querySelector("button.tsh-agent") as HTMLButtonElement;
-    expect(button.title).toBe("Claude Code (Ctrl+Alt+A)");
+    expect(button.getAttribute("title")).toBeNull();
+    expect(button).toHaveAttribute("aria-label", "Claude Code");
 
     const kbd = container.querySelector(".tsh-kbd")!;
     const spans = kbd.querySelectorAll("span");

@@ -1,7 +1,14 @@
 import React, { useCallback, useEffect } from "react";
 import { Search } from "lucide-react";
 import { useShell } from "./ShellContext";
-import { ShellSectionItemDto, ShellWidgetProps, isEditableTarget, isModKey, modKeyLabel } from "./types";
+import {
+  ShellSectionItemDto,
+  ShellWidgetProps,
+  isEditableTarget,
+  isModKey,
+  modKeyLabel,
+} from "./types";
+import { ShellTooltip } from "./ShellTooltip";
 import "./shell.css";
 
 const SEARCH_SHORTCUT_KEY = "K";
@@ -15,7 +22,7 @@ interface ShellSidebarSectionProps extends ShellWidgetProps {
 }
 
 /**
- * The contextual list under the nav — plans for Review/Drafts, recommendations,
+ * The contextual list under the nav: plans for Review/Drafts, recommendations,
  * etc. Published by the active app. In the collapsed rail the list shrinks to
  * narrow ID chips (the row tags, e.g. "#40") with the search button above.
  * Without a list (other apps, or an app whose list is empty) the header slot
@@ -60,15 +67,6 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
 
   const { collapsed } = useShell();
   const shortcutHint = `${modKeyLabel()}+${SEARCH_SHORTCUT_KEY}`;
-  const searchTitle = `Search plans (${shortcutHint})`;
-
-  // Rail chips get a hover flyout (title + badges) since the chip itself only
-  // shows the ID. Fixed-position and portaled so the rail cannot clip it.
-  const [flyout, setFlyout] = React.useState<{
-    item: ShellSectionItemDto;
-    top: number;
-    left: number;
-  } | null>(null);
 
   const hasHeader = !!title || searchable;
   const showSearchButton = searchable && (!title || items.length === 0);
@@ -77,52 +75,47 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
     return (
       <div className="tsh-section tsh-section-rail">
         {searchable && (
-          <button
-            className="tsh-rail-search"
-            onClick={openSearch}
-            aria-label="Search plans"
-            title={searchTitle}
-          >
-            <Search size={16} />
-          </button>
+          <ShellTooltip content="Search plans" shortcut={shortcutHint} side="right">
+            <button className="tsh-rail-search" onClick={openSearch} aria-label="Search plans">
+              <Search size={16} />
+            </button>
+          </ShellTooltip>
         )}
-        <div className="tsh-rail-list" onScroll={() => setFlyout(null)}>
+        <div className="tsh-rail-list">
           {items.map(
             (item) =>
               item.tag && (
-                <button
+                <ShellTooltip
                   key={item.id}
-                  className="tsh-rail-item"
-                  data-selected={item.id === selectedId}
-                  onClick={() => select(item.id)}
-                  onMouseEnter={(e) => {
-                    const r = e.currentTarget.getBoundingClientRect();
-                    setFlyout({ item, top: r.top + r.height / 2, left: r.right + 10 });
-                  }}
-                  onMouseLeave={() => setFlyout(null)}
+                  side="right"
+                  className="tsh-rail-tooltip"
+                  content={
+                    <div>
+                      <div className="tsh-rail-tooltip-title">{item.title}</div>
+                      {item.badges && item.badges.length > 0 && (
+                        <div className="tsh-rail-tooltip-badges">
+                          {item.badges.map((badge, i) => (
+                            <span key={i} className="tsh-badge" data-kind={badge.kind}>
+                              {badge.label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  }
                 >
-                  <span className="tsh-rail-item-text">{item.tag}</span>
-                </button>
-              )
+                  <button
+                    className="tsh-rail-item"
+                    data-selected={item.id === selectedId}
+                    onClick={() => select(item.id)}
+                    aria-label={item.title}
+                  >
+                    <span className="tsh-rail-item-text">{item.tag}</span>
+                  </button>
+                </ShellTooltip>
+              ),
           )}
         </div>
-        {flyout && (
-          <div
-            className="tsh-rail-tooltip"
-            style={{ top: flyout.top, left: flyout.left }}
-          >
-            <div className="tsh-rail-tooltip-title">{flyout.item.title}</div>
-            {flyout.item.badges && flyout.item.badges.length > 0 && (
-              <div className="tsh-rail-tooltip-badges">
-                {flyout.item.badges.map((badge, i) => (
-                  <span key={i} className="tsh-badge" data-kind={badge.kind}>
-                    {badge.label}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </div>
     );
   }
@@ -131,35 +124,33 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
     <div className="tsh-section" data-headerless={!hasHeader}>
       {hasHeader && showSearchButton && (
         <div className="tsh-section-header" data-search-button="true">
-          <button
-            className="tsh-section-search-button"
-            onClick={openSearch}
-            aria-label="Search plans"
-            title={searchTitle}
-          >
-            <span className="tsh-section-search-button-main">
-              <Search size={16} />
-              <span className="tsh-section-search-button-label">Search</span>
-            </span>
-            <span className="tsh-kbd">
-              <span>{modKeyLabel()}</span>
-              <span>{SEARCH_SHORTCUT_KEY}</span>
-            </span>
-          </button>
+          <ShellTooltip content="Search plans" shortcut={shortcutHint} side="right">
+            <button
+              className="tsh-section-search-button"
+              onClick={openSearch}
+              aria-label="Search plans"
+            >
+              <span className="tsh-section-search-button-main">
+                <Search size={16} />
+                <span className="tsh-section-search-button-label">Search</span>
+              </span>
+              <span className="tsh-kbd">
+                <span>{modKeyLabel()}</span>
+                <span>{SEARCH_SHORTCUT_KEY}</span>
+              </span>
+            </button>
+          </ShellTooltip>
         </div>
       )}
       {hasHeader && !showSearchButton && (
         <div className="tsh-section-header">
           <span className="tsh-section-title">{title}</span>
           {searchable && (
-            <button
-              className="tsh-section-search"
-              onClick={openSearch}
-              aria-label="Search plans"
-              title={searchTitle}
-            >
-              <Search size={16} />
-            </button>
+            <ShellTooltip content="Search plans" shortcut={shortcutHint} side="right">
+              <button className="tsh-section-search" onClick={openSearch} aria-label="Search plans">
+                <Search size={16} />
+              </button>
+            </ShellTooltip>
           )}
         </div>
       )}
