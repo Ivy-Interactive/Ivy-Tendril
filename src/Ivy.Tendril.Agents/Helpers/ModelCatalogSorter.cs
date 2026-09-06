@@ -126,7 +126,7 @@ public static class ModelCatalogSorter
 
         var id = model.Id.ToLowerInvariant();
         if (id.Contains("claude") || id.Contains("fable") || id.Contains("opus") || id.Contains("sonnet") || id.Contains("haiku")) return "anthropic";
-        if (id.Contains("gpt") || id.StartsWith("o1") || id.StartsWith("o3") || id.StartsWith("o4") || id.Contains("codex")) return "openai";
+        if (id.Contains("gpt") || id.StartsWith("o1") || id.StartsWith("o3") || id.StartsWith("o4") || id.Contains("codex") || id.Contains("astra")) return "openai";
         if (id.Contains("gemini")) return "google";
         if (id.Contains("kimi") || id.Contains("moonshot")) return "moonshot";
         if (id.Contains("deepseek")) return "deepseek";
@@ -209,7 +209,7 @@ public static class ModelCatalogSorter
     private static ModelRank GetOpenAiRank(string id, string name, string combined)
     {
         // OpenAI Tiers:
-        // Tier 0: GPT-5 Flagships (Sol, Terra, Luna)
+        // Tier 0: GPT-6 / GPT-5 Flagships (Astra, Sol, Terra, Luna)
         // Tier 1: GPT-5.x
         // Tier 2: GPT-4.x
         // Tier 3: O-series (o4, o3, o1)
@@ -219,7 +219,13 @@ public static class ModelCatalogSorter
         int variant = 0;
         Version version;
 
-        if (combined.Contains("sol"))
+        if (combined.Contains("astra"))
+        {
+            tier = 0;
+            subTier = 0;
+            version = ParseOpenAiVersion(id, name, fallbackMajor: 6, fallbackMinor: 0);
+        }
+        else if (combined.Contains("sol"))
         {
             tier = 0;
             subTier = 0;

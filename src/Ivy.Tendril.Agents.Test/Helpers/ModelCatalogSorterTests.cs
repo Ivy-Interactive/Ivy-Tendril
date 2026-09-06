@@ -85,6 +85,7 @@ public class ModelCatalogSorterTests
             new() { Id = "gpt-4.1", DisplayName = "GPT-4.1", Provider = "openai" },
             new() { Id = "gpt-5.4", DisplayName = "GPT-5.4", Provider = "openai" },
             new() { Id = "o1", DisplayName = "O1", Provider = "openai" },
+            new() { Id = "gpt-6-astra", DisplayName = "GPT-6 Astra", Provider = "openai" },
             new() { Id = "gpt-5.6-terra", DisplayName = "GPT-5.6-Terra", Provider = "openai" },
             new() { Id = "o4-mini", DisplayName = "O4 Mini", Provider = "openai" },
             new() { Id = "gpt-5.6-sol", DisplayName = "GPT-5.6-Sol", Provider = "openai" },
@@ -97,6 +98,7 @@ public class ModelCatalogSorterTests
 
         var expectedIds = new[]
         {
+            "gpt-6-astra",
             "gpt-5.6-sol",
             "gpt-5.6-terra",
             "gpt-5.6-luna",
@@ -109,6 +111,20 @@ public class ModelCatalogSorterTests
         };
 
         Assert.Equal(expectedIds, sorted.Select(m => m.Id).ToArray());
+    }
+
+    [Fact]
+    public void Sort_AstraModel_ResolvesProviderAndSortsAtTop()
+    {
+        var models = new List<ModelInfo>
+        {
+            new() { Id = "gpt-5.6-sol", DisplayName = "GPT-5.6-Sol", Provider = "openai" },
+            new() { Id = "gpt-6-astra", DisplayName = "GPT-6 Astra" },
+        };
+
+        var sorted = ModelCatalogSorter.Sort(models);
+
+        Assert.Equal(new[] { "gpt-6-astra", "gpt-5.6-sol" }, sorted.Select(m => m.Id).ToArray());
     }
 
     [Fact]
