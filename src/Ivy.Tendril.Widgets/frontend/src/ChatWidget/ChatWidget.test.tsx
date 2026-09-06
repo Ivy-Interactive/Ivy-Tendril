@@ -907,7 +907,7 @@ describe("ChatWidget File Uploads and Attachments", () => {
     expect(screen.getByRole("button", { name: /Send/i })).toBeInTheDocument();
   });
 
-  it("displays spawned jobs banner and emits OnSendMessage when reviewing outcomes", () => {
+  it("displays spawned jobs in header badge and emits OnSendMessage when reviewing outcomes from dropdown", () => {
     const handleEvent = vi.fn();
     const session: ChatSessionDto = {
       id: "sess-jobs",
@@ -937,7 +937,18 @@ describe("ChatWidget File Uploads and Attachments", () => {
       />
     );
 
-    expect(screen.getByText(/Spawned Jobs \(1\)/i)).toBeInTheDocument();
+    // Banner directly above chat is removed
+    expect(screen.queryByText(/Spawned Jobs \(/i)).not.toBeInTheDocument();
+
+    // Header badge is displayed
+    const badgeBtn = screen.getByRole("button", { name: /View running jobs/i });
+    expect(badgeBtn).toBeInTheDocument();
+    expect(within(badgeBtn).getByText(/1 jobs/i)).toBeInTheDocument();
+
+    // Open dropdown by clicking badge
+    fireEvent.click(badgeBtn);
+
+    expect(screen.getByText(/Spawned Jobs/i)).toBeInTheDocument();
     expect(screen.getByText(/1 completed/i)).toBeInTheDocument();
     expect(screen.getByText("Add OAuth2 authentication")).toBeInTheDocument();
 
