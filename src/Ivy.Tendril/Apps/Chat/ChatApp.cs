@@ -252,13 +252,26 @@ public class ChatApp : ViewBase
                 SelectSession(targetSessionId);
             }
 
-            _ = executionService.SendMessageAsync(
-                targetSessionId,
-                userPrompt,
-                attachments,
-                selectedAgent.Value,
-                effectiveModel,
-                effectiveEffort);
+            if (dto.ForceSend)
+            {
+                _ = executionService.ForceSendMessageAsync(
+                    targetSessionId,
+                    userPrompt,
+                    attachments,
+                    selectedAgent.Value,
+                    effectiveModel,
+                    effectiveEffort);
+            }
+            else
+            {
+                _ = executionService.SendMessageAsync(
+                    targetSessionId,
+                    userPrompt,
+                    attachments,
+                    selectedAgent.Value,
+                    effectiveModel,
+                    effectiveEffort);
+            }
 
             sessionVersion.Set(v => v + 1);
             streamVersion.Set(v => v + 1);

@@ -176,6 +176,15 @@ describe("ChatWidget Queued Messages UI", () => {
       <ChatWidget
         id="test-chat"
         activeSessionId="sess-1"
+        sessions={[{
+          id: "sess-1",
+          title: "Session 1",
+          agentId: "claude",
+          modelId: "sonnet",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          messages: [],
+        }]}
         isStreaming={true}
         queuedMessages={queuedItems}
         events={["OnDeleteQueuedMessage", "OnUpdateQueuedMessage", "OnSendQueuedNow"]}
@@ -216,6 +225,7 @@ describe("ChatWidget Queued Messages UI", () => {
       "test-chat",
       ["q-send"]
     );
+    expect(screen.getByText("to be sent now")).toBeInTheDocument();
   });
 
   it("preserves optimistically queued message when in-flight queuedMessages prop is empty", () => {

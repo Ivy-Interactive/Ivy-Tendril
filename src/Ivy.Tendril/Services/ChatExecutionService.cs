@@ -395,7 +395,7 @@ public sealed class ChatExecutionService : IChatExecutionService
         var fullAgentPrompt = agentPromptBuilder.ToString();
 
         // Launch background agent execution
-        _ = Task.Run(async () =>
+        var executionTask = Task.Run(async () =>
         {
             var rawLock = new object();
             var rawLines = new List<string>();
@@ -524,22 +524,26 @@ public sealed class ChatExecutionService : IChatExecutionService
                 SessionGeneratingChanged?.Invoke(sessionId);
                 StreamUpdated?.Invoke(sessionId);
 
-                // Process pending internal system event first, if any
-                if (_pendingSystemEvents.TryGetValue(sessionId, out var sysQueue) && sysQueue.TryDequeue(out var pendingSysEvent))
+                if (!activeExec.IsInterrupted)
                 {
-                    _ = Task.Run(async () =>
+                    // Process pending internal system event first, if any
+                    if (_pendingSystemEvents.TryGetValue(sessionId, out var sysQueue) && sysQueue.TryDequeue(out var pendingSysEvent))
                     {
-                        await Task.Delay(200, CancellationToken.None);
-                        await SendMessageAsync(sessionId, pendingSysEvent, role: "system");
-                    });
-                }
-                // Otherwise process next queued user message if one exists
-                else if (_chatService.TryDequeueMessage(sessionId, out var nextQueuedItem) && nextQueuedItem != null)
-                {
-                    _ = SendMessageAsync(sessionId, nextQueuedItem.Prompt, nextQueuedItem.Attachments, targetAgent, targetModel, targetEffort);
+                        _ = Task.Run(async () =>
+                        {
+                            await Task.Delay(200, CancellationToken.None);
+                            await SendMessageAsync(sessionId, pendingSysEvent, role: "system");
+                        });
+                    }
+                    // Otherwise process next queued user message if one exists
+                    else if (_chatService.TryDequeueMessage(sessionId, out var nextQueuedItem) && nextQueuedItem != null)
+                    {
+                        _ = SendMessageAsync(sessionId, nextQueuedItem.Prompt, nextQueuedItem.Attachments, targetAgent, targetModel, targetEffort);
+                    }
                 }
             }
         });
+        activeExec.ExecutionTask = executionTask;
     }
 
     public async Task CancelAsync(string sessionId)
@@ -548,6 +552,7 @@ public sealed class ChatExecutionService : IChatExecutionService
 
         if (_activeExecutions.TryRemove(sessionId, out var exec))
         {
+            exec.IsInterrupted = true;
             try
             {
                 await exec.Cts.CancelAsync();
@@ -555,12 +560,23 @@ public sealed class ChatExecutionService : IChatExecutionService
                 {
                     await exec.Session.StopAsync();
                 }
-                exec.Dispose();
             }
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "Exception stopping session {SessionId}", sessionId);
             }
+
+            if (exec.ExecutionTask != null)
+            {
+                try
+                {
+                    using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                    await exec.ExecutionTask.WaitAsync(timeoutCts.Token);
+                }
+                catch { }
+            }
+
+            exec.Dispose();
         }
 
         _chatService.ClearQueuedMessages(sessionId);
@@ -568,6 +584,79 @@ public sealed class ChatExecutionService : IChatExecutionService
         _chatService.SetSessionGenerating(sessionId, false);
         SessionGeneratingChanged?.Invoke(sessionId);
         StreamUpdated?.Invoke(sessionId);
+    }
+
+    public async Task InterruptAsync(string sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return;
+
+        if (_activeExecutions.TryRemove(sessionId, out var exec))
+        {
+            exec.IsInterrupted = true;
+            try
+            {
+                await exec.Cts.CancelAsync();
+                if (exec.Session != null)
+                {
+                    await exec.Session.StopAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Exception stopping session {SessionId}", sessionId);
+            }
+
+            if (exec.ExecutionTask != null)
+            {
+                try
+                {
+                    using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                    await exec.ExecutionTask.WaitAsync(timeoutCts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    if (exec.Session != null)
+                    {
+                        try { await exec.Session.KillAsync(); } catch { }
+                    }
+                }
+                catch
+                {
+                    // Ignore exceptions from cancelled task
+                }
+            }
+
+            exec.Dispose();
+            _chatService.SetSessionGenerating(sessionId, false);
+            SessionGeneratingChanged?.Invoke(sessionId);
+            StreamUpdated?.Invoke(sessionId);
+        }
+    }
+
+    public async Task ForceSendMessageAsync(
+        string sessionId,
+        string prompt,
+        IReadOnlyList<ChatAttachmentDto>? attachments = null,
+        string? agentId = null,
+        string? modelId = null,
+        string? effort = null,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return;
+
+        // Interrupt currently running execution if any, allowing it to cancel cleanly
+        await InterruptAsync(sessionId);
+
+        // Send the new message immediately
+        await SendMessageAsync(
+            sessionId,
+            prompt,
+            attachments,
+            agentId,
+            modelId,
+            effort,
+            role: "user",
+            ct: ct);
     }
 
     public void Dispose()
@@ -623,6 +712,8 @@ public sealed class ChatExecutionService : IChatExecutionService
         public List<string> RawLines { get; } = [];
         public object Lock { get; } = new();
         public long LastStreamUpdateTicks { get; set; }
+        public Task? ExecutionTask { get; set; }
+        public bool IsInterrupted { get; set; }
 
         public ActiveChatExecution(CancellationTokenSource cts)
         {

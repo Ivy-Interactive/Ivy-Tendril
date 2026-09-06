@@ -60,7 +60,8 @@ public record ChatQueuedMessageDto(
 public record ChatSendMessageDto(
     string Prompt,
     List<ChatAttachmentDto>? Attachments = null,
-    string? SessionId = null
+    string? SessionId = null,
+    bool ForceSend = false
 );
 
 public record ChatQuestionAnswerDto(

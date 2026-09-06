@@ -618,10 +618,27 @@ export function ChatWidget({
     const item = queuedMessages.find((q) => q.id === queueId);
     if (!item) return;
 
+    if (activeSessionId && item.prompt) {
+      const optMsg: ChatMessageDto = {
+        id: `opt-${Date.now()}-${Math.random()}`,
+        role: "user",
+        content: item.prompt,
+        timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+        agentId: selectedAgent,
+        modelId: selectedModel,
+      };
+      setOptimisticMessages((prev) => ({
+        ...prev,
+        [activeSessionId]: [...(prev[activeSessionId] || []), optMsg],
+      }));
+    }
+
+    setOptimisticStreaming(activeSessionId || "__active__");
+
     if (events.includes("OnSendQueuedNow")) {
       emit("OnSendQueuedNow", queueId);
     } else {
-      const payload = { prompt: item.prompt, attachments: item.attachments, sessionId: activeSessionId };
+      const payload = { prompt: item.prompt, attachments: item.attachments, sessionId: activeSessionId, forceSend: true };
       emit("OnSendMessage", payload);
     }
     setQueuedMessages((prev) => prev.filter((q) => q.id !== queueId));

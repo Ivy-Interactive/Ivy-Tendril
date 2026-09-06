@@ -209,7 +209,7 @@ public class ContentView(
                     if (item != null)
                     {
                         chatService.RemoveQueuedMessage(activeSessionId.Value, e.Value);
-                        sendMessage(new ChatSendMessageDto(item.Prompt, item.Attachments, activeSessionId.Value));
+                        sendMessage(new ChatSendMessageDto(item.Prompt, item.Attachments, activeSessionId.Value, ForceSend: true));
                     }
                 }
                 return ValueTask.CompletedTask;

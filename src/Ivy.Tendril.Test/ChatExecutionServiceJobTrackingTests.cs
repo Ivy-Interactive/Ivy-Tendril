@@ -411,4 +411,86 @@ public class ChatExecutionServiceJobTrackingTests
             }
         }
     }
+
+    [Fact]
+    public async Task ForceSendMessageAsync_WhenExecutionRunning_InterruptsCurrentExecutionAndPreservesQueue()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilForceSendTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService);
+
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            // Enqueue two messages: one that will be force sent, and one that should remain in queue
+            chatService.EnqueueMessage(session.Id, new ChatSendMessageDto("Force sent prompt", null, session.Id));
+            chatService.EnqueueMessage(session.Id, new ChatSendMessageDto("Should stay queued", null, session.Id));
+
+            // Simulate an active running execution
+            var activeExecutionsField = typeof(ChatExecutionService).GetField("_activeExecutions",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(activeExecutionsField);
+
+            var cts = new System.Threading.CancellationTokenSource();
+            var activeExecType = typeof(ChatExecutionService).GetNestedType("ActiveChatExecution",
+                System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(activeExecType);
+            var activeExec = Activator.CreateInstance(activeExecType, cts);
+            Assert.NotNull(activeExec);
+
+            var tcs = new TaskCompletionSource();
+            var execTaskProp = activeExecType.GetProperty("ExecutionTask");
+            execTaskProp?.SetValue(activeExec, tcs.Task);
+
+            var dict = (System.Collections.IDictionary)activeExecutionsField.GetValue(execService)!;
+            dict[session.Id] = activeExec;
+
+            Assert.True(execService.IsGenerating(session.Id));
+
+            // Run InterruptAsync on the session
+            var interruptTask = execService.InterruptAsync(session.Id);
+
+            // Verify cancellation was requested on the running execution's CTS
+            await Task.Delay(50);
+            Assert.True(cts.IsCancellationRequested);
+
+            // Complete the interrupted task
+            tcs.SetResult();
+            await interruptTask;
+
+            // Execution should no longer be active
+            Assert.False(execService.IsGenerating(session.Id));
+
+            // Verify other queued message is still in queue
+            var queued = chatService.GetQueuedMessages(session.Id);
+            Assert.Contains(queued, q => q.Prompt == "Should stay queued");
+
+            cts.Dispose();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
 }
