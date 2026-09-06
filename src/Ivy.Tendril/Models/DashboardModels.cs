@@ -32,7 +32,8 @@ public record DashboardActivityStats(
     List<DashboardMonthStats> Months,
     decimal PrevWeekAvgCostPerPlan,
     List<DashboardDailyCost>? DailyCosts = null,
-    List<DashboardWeekStats>? Weeks = null
+    List<DashboardWeekStats>? Weeks = null,
+    Dictionary<DateOnly, int>? DailyPlans = null
 );
 
 public record DashboardWeekStats(

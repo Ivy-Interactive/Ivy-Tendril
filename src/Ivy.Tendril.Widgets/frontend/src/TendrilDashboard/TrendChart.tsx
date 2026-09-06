@@ -28,8 +28,11 @@ const smoothPath = (points: Point[], maxY?: number): string => {
     const p3 = points[i + 2] ?? p2;
     let c1x = p1.x + (p2.x - p0.x) / 6;
     let c1y = p1.y + (p2.y - p0.y) / 6;
-    let c2x = p2.x + (p3.x - p1.x) / 6;
-    let c2y = p2.y + (p3.y - p1.y) / 6;
+    let c2x = p2.x - (p3.x - p1.x) / 6;
+    let c2y = p2.y - (p3.y - p1.y) / 6;
+    // Enforce monotonicity on x to prevent any backward loops
+    c1x = Math.max(p1.x, Math.min(p2.x, c1x));
+    c2x = Math.max(p1.x, Math.min(p2.x, c2x));
     if (maxY != null) {
       c1y = Math.min(c1y, maxY);
       c2y = Math.min(c2y, maxY);
@@ -163,17 +166,23 @@ export const TrendChart: React.FC<TrendChartProps> = ({
               </text>
             );
           })}
-          {labels.map((label, i) => (
-            <text
-              key={label + i}
-              className="tdb-axis-text"
-              x={plotLeft + (n <= 1 ? plotWidth / 2 : (i / (n - 1)) * plotWidth)}
-              y={height - 6}
-              textAnchor="middle"
-            >
-              {label}
-            </text>
-          ))}
+          {labels.map((label, i) => {
+            const maxVisible = Math.max(4, Math.floor(plotWidth / 60));
+            const step = n > maxVisible ? Math.ceil((n - 1) / maxVisible) : 1;
+            const isVisible = i === 0 || i === n - 1 || i % step === 0;
+            if (!isVisible) return null;
+            return (
+              <text
+                key={label + i}
+                className="tdb-axis-text"
+                x={plotLeft + (n <= 1 ? plotWidth / 2 : (i / (n - 1)) * plotWidth)}
+                y={height - 6}
+                textAnchor="middle"
+              >
+                {label}
+              </text>
+            );
+          })}
           {areaPath && <path d={areaPath} fill={`url(#${gradientId})`} style={{ color: "var(--tdb-fg)" }} />}
           {previousPoints.length > 1 && <path className="tdb-trend-compare" d={smoothPath(previousPoints, zeroY)} />}
           {points.length > 1 && <path className="tdb-trend-line" d={smoothPath(points, zeroY)} />}

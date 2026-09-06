@@ -272,4 +272,63 @@ public class DashboardAppViewModelTests
         // Compared to 4 weeks earlier (index 19, which had i = 4, cost 50m)
         Assert.Equal(50.0, trend.PrevCost[^1]);
     }
+
+    [Fact]
+    public void BuildWeeklyTrend_Projects28DaysWithComparison_WhenDailyStatsAvailable()
+    {
+        var today = new DateTime(2026, 9, 6);
+        var dailyCosts = new List<DashboardDailyCost>
+        {
+            new(new DateOnly(2026, 9, 6), 28.31m, 2500),
+            new(new DateOnly(2026, 9, 5), 18.69m, 1700),
+            new(new DateOnly(2026, 9, 3), 7.53m, 700),
+            // 28 days before Sept 6 is Aug 9
+            new(new DateOnly(2026, 8, 9), 12.50m, 1200)
+        };
+        var dailyPlans = new Dictionary<DateOnly, int>
+        {
+            [new DateOnly(2026, 9, 6)] = 5,
+            [new DateOnly(2026, 8, 9)] = 2
+        };
+
+        var activity = new DashboardActivityStats([], 0m, dailyCosts, null, dailyPlans);
+        var trend = DashboardApp.BuildWeeklyTrend(activity, today);
+
+        Assert.Equal(28, trend.Months.Count);
+        Assert.Equal(28, trend.Cost.Count);
+        Assert.Equal(28, trend.Plans.Count);
+        Assert.Equal(28, trend.PrevCost.Count);
+        Assert.Equal(28, trend.PrevPlans.Count);
+
+        // First label is 27 days before today: Aug 10
+        Assert.Equal("Aug 10", trend.Months[0]);
+        // Last label is today: Sep 6
+        Assert.Equal("Sep 6", trend.Months[^1]);
+
+        // Sept 6 cost
+        Assert.Equal(28.31, trend.Cost[^1]);
+        // Sept 6 plans
+        Assert.Equal(5.0, trend.Plans[^1]);
+        // Sept 6 compared to 28 days earlier (Aug 9)
+        Assert.Equal(12.50, trend.PrevCost[^1]);
+        Assert.Equal(2.0, trend.PrevPlans[^1]);
+    }
+
+    [Fact]
+    public void BuildActivityMonths_IncludesDailyBreakdown()
+    {
+        var firstMonth = new DateTime(2026, 9, 1);
+        var prDays = new List<(DateOnly Date, int Count)>
+        {
+            (new DateOnly(2026, 9, 6), 3)
+        };
+
+        var months = DashboardApp.BuildActivityMonths(prDays, firstMonth);
+        var sep = months[0];
+
+        Assert.NotNull(sep.Days);
+        Assert.Equal(30, sep.Days!.Count);
+        var day6 = sep.Days.First(d => d.Date == "2026-09-06");
+        Assert.Equal(3, day6.Count);
+    }
 }

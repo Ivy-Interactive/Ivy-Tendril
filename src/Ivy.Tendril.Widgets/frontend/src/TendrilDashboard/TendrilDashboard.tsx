@@ -231,67 +231,43 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
 
           <div className="tdb-col tdb-col-side">
             <div className="tdb-update-slot">{slots?.UpdateNotice}</div>
-            {hasSlotContent(slots?.TunnelQr) ? (
-              <>
-                {/* With the tunnel card present, Git Activity and Pull Requests
-                    merge into one tabbed card so the column keeps the same
-                    number of rows as without a tunnel. */}
-                <div className="tdb-block tdb-side-block">
-                  <div className="tdb-side-head">
-                    <div className="tdb-tabs">
-                      <button
-                        type="button"
-                        className="tdb-tab"
-                        data-active={sideTab === "git"}
-                        onClick={() => setSideTab("git")}
-                      >
-                        Git Activity
-                      </button>
-                      <button
-                        type="button"
-                        className="tdb-tab"
-                        data-active={sideTab === "prs"}
-                        onClick={() => setSideTab("prs")}
-                      >
-                        Pull Requests
-                      </button>
-                    </div>
-                  </div>
-                  <div className="tdb-side-body">
-                    {sideTab === "git" ? (
-                      <ActivityGrid months={activity} />
-                    ) : (
-                      <PillBars items={pullRequests} />
-                    )}
-                  </div>
+            <div className="tdb-block tdb-side-block">
+              <div className="tdb-side-head">
+                <div className="tdb-tabs">
+                  <button
+                    type="button"
+                    className="tdb-tab"
+                    data-active={sideTab === "git"}
+                    onClick={() => setSideTab("git")}
+                  >
+                    Git Activity
+                  </button>
+                  <button
+                    type="button"
+                    className="tdb-tab"
+                    data-active={sideTab === "prs"}
+                    onClick={() => setSideTab("prs")}
+                  >
+                    Pull Requests
+                  </button>
                 </div>
-                <div className="tdb-block tdb-side-block tdb-tunnel">
-                  <div className="tdb-side-head">
-                    <div className="tdb-block-title">Tunnel</div>
-                    {slots?.TunnelMenu}
-                  </div>
-                  <div className="tdb-tunnel-body">{slots?.TunnelQr}</div>
+              </div>
+              <div className="tdb-side-body">
+                {sideTab === "git" ? (
+                  <ActivityGrid months={activity} />
+                ) : (
+                  <PillBars items={pullRequests} />
+                )}
+              </div>
+            </div>
+            {hasSlotContent(slots?.TunnelQr) && (
+              <div className="tdb-block tdb-side-block tdb-tunnel">
+                <div className="tdb-side-head">
+                  <div className="tdb-block-title">Tunnel</div>
+                  {slots?.TunnelMenu}
                 </div>
-              </>
-            ) : (
-              <>
-                <div className="tdb-block tdb-side-block">
-                  <div className="tdb-side-head">
-                    <div className="tdb-block-title">Git Activity</div>
-                  </div>
-                  <div className="tdb-side-body">
-                    <ActivityGrid months={activity} />
-                  </div>
-                </div>
-                <div className="tdb-block tdb-side-block">
-                  <div className="tdb-side-head">
-                    <div className="tdb-block-title">Pull Requests</div>
-                  </div>
-                  <div className="tdb-side-body">
-                    <PillBars items={pullRequests} />
-                  </div>
-                </div>
-              </>
+                <div className="tdb-tunnel-body">{slots?.TunnelQr}</div>
+              </div>
             )}
           </div>
 

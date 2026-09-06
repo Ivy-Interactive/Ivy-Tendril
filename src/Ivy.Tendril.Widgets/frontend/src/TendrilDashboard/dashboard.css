@@ -494,56 +494,119 @@
   min-height: 0;
 }
 
-/* ---------- Activity grid ---------- */
+/* ---------- Activity grid (GitHub-style daily contribution heatmap) ---------- */
+
+.tdb-activity-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
 
 .tdb-activity-scroll {
   overflow-x: auto;
   scrollbar-width: none;
-  padding-right: 16px;
+  padding-bottom: 4px;
 }
 
-.tdb-activity {
+.tdb-activity-layout {
   display: flex;
-  align-items: flex-end;
   gap: 6px;
-  min-height: 166px;
 }
 
-.tdb-activity-col {
+.tdb-activity-weekdays {
   display: flex;
-  flex-direction: column-reverse;
-  align-items: center;
-  gap: 8px;
-  flex: 1 0 12px;
-  min-width: 12px;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 18px; /* offset for month headers */
+}
+
+.tdb-activity-weekday {
+  height: 10px;
+  font-size: 9px;
+  line-height: 10px;
+  color: var(--tdb-muted);
+  width: 22px;
+  text-align: right;
+  padding-right: 4px;
+  user-select: none;
+}
+
+.tdb-activity-grid-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tdb-activity-months-row {
+  display: flex;
+  gap: 3px;
+  height: 14px;
+}
+
+.tdb-activity-month-col {
+  width: 10px;
+  position: relative;
+}
+
+.tdb-activity-month-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--tdb-muted);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.tdb-activity-weeks {
+  display: flex;
+  gap: 3px;
+}
+
+.tdb-activity-week {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .tdb-activity-cell {
-  width: 100%;
-  max-width: 18px;
-  aspect-ratio: 1;
+  width: 10px;
+  height: 10px;
   border-radius: 2px;
+  flex-shrink: 0;
 }
 
-.tdb-activity-cell[data-level="0"] { background: color-mix(in srgb, var(--tdb-fg) 5%, transparent); }
+.tdb-activity-cell.tdb-cell-empty {
+  visibility: hidden;
+}
+
+.tdb-activity-cell[data-level="0"] { background: color-mix(in srgb, var(--tdb-fg) 6%, transparent); }
 .tdb-activity-cell[data-level="1"] { background: var(--tdb-ramp-1); }
 .tdb-activity-cell[data-level="2"] { background: var(--tdb-ramp-2); }
 .tdb-activity-cell[data-level="3"] { background: var(--tdb-ramp-3); }
 .tdb-activity-cell[data-level="4"] { background: var(--tdb-ramp-4); }
 
-.tdb-activity-labels {
+.tdb-activity-footer {
   display: flex;
-  gap: 6px;
-  margin-top: 16px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--tdb-muted);
+  margin-top: 4px;
 }
 
-.tdb-activity-label {
-  flex: 1 0 12px;
-  min-width: 12px;
-  font-size: 12px;
-  color: var(--tdb-muted);
-  text-align: center;
-  white-space: nowrap;
+.tdb-activity-legend {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tdb-activity-legend .tdb-activity-cell {
+  width: 9px;
+  height: 9px;
 }
 
 .tdb-empty-note {
