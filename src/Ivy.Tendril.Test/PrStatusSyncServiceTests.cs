@@ -351,7 +351,9 @@ public class PrStatusSyncServiceTests : IDisposable
 
         public string PlansDirectory => throw new NotImplementedException();
         public bool IsDatabaseReady => throw new NotImplementedException();
+#pragma warning disable CS0067
         public event Action? CountsInvalidated;
+#pragma warning restore CS0067
 
         public List<PlanFile> GetPlans(PlanStatus? statusFilter = null) => _plans;
         public PlanFile? GetPlanByFolder(string folderPath) => throw new NotImplementedException();
