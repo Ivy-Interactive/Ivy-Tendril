@@ -111,7 +111,7 @@ public class PrStatusSyncService : IStartable, IDisposable
                         {
                             _concurrencySemaphore.Release();
                         }
-                    });
+                    }).ToList();
 
                     await Task.WhenAll(tasks);
 
