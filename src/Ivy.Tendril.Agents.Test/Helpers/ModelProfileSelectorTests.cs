@@ -105,6 +105,45 @@ public sealed class ModelProfileSelectorTests
     }
 
     [Fact]
+    public void SelectDefaults_OpenAiOnly_WithGpt6Astra_PicksSolDeepByDefault()
+    {
+        var models = new List<ModelInfo>
+        {
+            new() { Id = "gpt-4o", DisplayName = "GPT-4o" },
+            new() { Id = "gpt-4o-mini", DisplayName = "GPT-4o mini" },
+            new() { Id = "gpt-6-astra", DisplayName = "GPT-6 Astra" },
+            new() { Id = "gpt-5.6-sol", DisplayName = "GPT-5.6 Sol" },
+            new() { Id = "gpt-5.6-terra", DisplayName = "GPT-5.6 Terra" },
+            new() { Id = "gpt-5.6-luna", DisplayName = "GPT-5.6 Luna" },
+        };
+
+        var (deep, balanced, quick) = ModelProfileSelector.SelectDefaults(models, isOpenAi: true);
+
+        Assert.Equal("gpt-5.6-sol", deep);
+        Assert.Equal("gpt-5.6-terra", balanced);
+        Assert.Equal("gpt-5.6-luna", quick);
+    }
+
+    [Fact]
+    public void SelectDefaults_OpenAiOnly_WhenSolMissing_ResolvesGpt6AstraForDeep()
+    {
+        var models = new List<ModelInfo>
+        {
+            new() { Id = "gpt-4o", DisplayName = "GPT-4o" },
+            new() { Id = "gpt-4o-mini", DisplayName = "GPT-4o mini" },
+            new() { Id = "gpt-6-astra", DisplayName = "GPT-6 Astra" },
+            new() { Id = "gpt-5.6-terra", DisplayName = "GPT-5.6 Terra" },
+            new() { Id = "gpt-5.6-luna", DisplayName = "GPT-5.6 Luna" },
+        };
+
+        var (deep, balanced, quick) = ModelProfileSelector.SelectDefaults(models, isOpenAi: true);
+
+        Assert.Equal("gpt-6-astra", deep);
+        Assert.Equal("gpt-5.6-terra", balanced);
+        Assert.Equal("gpt-5.6-luna", quick);
+    }
+
+    [Fact]
     public void SelectDefaults_GeminiCatalog_PicksFlashDeep_FlashBalanced_FlashQuick()
     {
         var models = new List<ModelInfo>

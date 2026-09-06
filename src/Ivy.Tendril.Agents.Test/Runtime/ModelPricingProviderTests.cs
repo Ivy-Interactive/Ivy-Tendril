@@ -47,6 +47,19 @@ public class ModelPricingProviderTests
     }
 
     [Fact]
+    public void GetPricing_Gpt6Astra_ReturnsPricingAndCacheRates()
+    {
+        var pricing = _provider.GetPricing("gpt-6-astra");
+
+        Assert.NotNull(pricing);
+        Assert.Equal("gpt-6-astra", pricing.Model);
+        Assert.Equal(10.00m, pricing.InputPerMillion);
+        Assert.Equal(40.00m, pricing.OutputPerMillion);
+        Assert.Equal(2.50m, pricing.CacheReadPerMillion);
+        Assert.Equal(12.50m, pricing.CacheWritePerMillion);
+    }
+
+    [Fact]
     public void GetPricing_KnownModel_ReturnsPricing()
     {
         var pricing = _provider.GetPricing("opus");
