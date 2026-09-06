@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import { CodeBlock } from "../CodeBlock";
 import { answerEntries, otherEntry, parseQuestions } from "./questionsSchema";
 import type { PlanQuestion, QuestionOption } from "./questionsSchema";
-import type { AnswerCallback } from "./questionsContext";
+import type { AnswerCallback, QuestionSubmitCallback } from "./questionsContext";
 
 /**
  * Question and option descriptions are full block markdown — paragraphs, lists, tables and fenced
@@ -279,15 +279,125 @@ const AnsweredQuestion: React.FC<{ question: PlanQuestion }> = ({ question }) =>
   );
 };
 
+interface ChatQuestionsBlockProps {
+  questions: PlanQuestion[];
+  blockIndex: number;
+  onSubmit: QuestionSubmitCallback;
+}
+
+const ChatQuestionsBlock: React.FC<ChatQuestionsBlockProps> = ({ questions, blockIndex, onSubmit }) => {
+  const [localAnswers, setLocalAnswers] = useState<Record<string, string[]>>(() => {
+    const initial: Record<string, string[]> = {};
+    for (const q of questions) {
+      if (q.answerPresent) {
+        initial[q.id] = answerEntries(q);
+      }
+    }
+    return initial;
+  });
+
+  const handleLocalAnswer = (questionId: string, answer: string | string[] | null | undefined) => {
+    setLocalAnswers((prev) => {
+      const next = { ...prev };
+      if (answer === undefined || answer === null || answer === "" || (Array.isArray(answer) && answer.length === 0)) {
+        delete next[questionId];
+      } else if (Array.isArray(answer)) {
+        next[questionId] = answer;
+      } else {
+        next[questionId] = [answer];
+      }
+      return next;
+    });
+  };
+
+  const hasAnyAnswers = Object.keys(localAnswers).length > 0;
+  const clearAll = () => {
+    setLocalAnswers({});
+  };
+
+  const canSubmit = questions.every((q) => {
+    if (q.optional) return true;
+    const ans = localAnswers[q.id];
+    return (ans && ans.length > 0) || q.answerPresent;
+  });
+
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+
+    const summaryLines: string[] = ["Answers:"];
+    for (const q of questions) {
+      const ans = localAnswers[q.id] ?? (q.answerPresent ? answerEntries(q) : []);
+      if (ans.length > 0) {
+        const displayVals = ans.map((val) => {
+          const opt = q.options?.find((o) => o.value === val);
+          return opt ? opt.title : val;
+        });
+        summaryLines.push(`- **${q.title || q.id}**: ${displayVals.join(", ")}`);
+      } else if (q.optional) {
+        summaryLines.push(`- **${q.title || q.id}**: *(skipped)*`);
+      }
+    }
+
+    onSubmit(localAnswers, summaryLines.join("\n"));
+  };
+
+  return (
+    <Shell>
+      {hasAnyAnswers && (
+        <div className="pmv-questions-actions">
+          <button
+            type="button"
+            className="pmv-question-clear"
+            onClick={clearAll}
+            aria-label={questions.length > 1 ? "Clear all answers in this block" : "Clear answer"}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      {questions.map((question) => {
+        const effectiveQuestion: PlanQuestion = {
+          ...question,
+          answer: localAnswers[question.id] ?? question.answer,
+          answerPresent: (localAnswers[question.id] && localAnswers[question.id].length > 0) || question.answerPresent,
+        };
+
+        return (
+          <QuestionView
+            key={question.id}
+            question={effectiveQuestion}
+            blockIndex={blockIndex}
+            onAnswer={handleLocalAnswer}
+          />
+        );
+      })}
+
+      <div className="pmv-questions-footer">
+        <button
+          type="button"
+          className="pmv-questions-submit"
+          disabled={!canSubmit}
+          onClick={handleSubmit}
+        >
+          Submit Response
+        </button>
+      </div>
+    </Shell>
+  );
+};
+
 export interface QuestionsCalloutProps {
   content: string;
   /** Which `questions` fence this is, 0-based. Keeps radio groups distinct across blocks. */
   blockIndex?: number;
   /** Absent when the host did not subscribe to `OnAnswersChange`, which means read-only. */
   onAnswer?: AnswerCallback;
+  /** Present when rendered inside chat to enable interactive answers and submission. */
+  onSubmit?: QuestionSubmitCallback;
 }
 
-export const QuestionsCallout: React.FC<QuestionsCalloutProps> = ({ content, blockIndex = 0, onAnswer }) => {
+export const QuestionsCallout: React.FC<QuestionsCalloutProps> = ({ content, blockIndex = 0, onAnswer, onSubmit }) => {
   const parsed = useMemo(() => parseQuestions(content), [content]);
 
   // A block that does not parse is the pre-schema plain-text form, and there is nothing to render
@@ -297,6 +407,27 @@ export const QuestionsCallout: React.FC<QuestionsCalloutProps> = ({ content, blo
   }
 
   const questions = parsed.questions;
+
+  // If rendered in chat with submit handler:
+  if (!onAnswer && onSubmit) {
+    if (questions.every((q) => q.answerPresent)) {
+      return (
+        <Shell>
+          {questions.map((question) => (
+            <AnsweredQuestion key={question.id} question={question} />
+          ))}
+        </Shell>
+      );
+    }
+
+    return (
+      <ChatQuestionsBlock
+        questions={questions}
+        blockIndex={blockIndex}
+        onSubmit={onSubmit}
+      />
+    );
+  }
 
   // No subscriber means the host is showing a plan rather than working through it — the Review
   // stage, or any other read-only view. Present the decisions.

@@ -10,6 +10,7 @@ using Ivy.Tendril.Agents.Providers;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Jobs;
 using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Chat;
@@ -24,6 +25,7 @@ public class ChatApp : ViewBase
         var chatService = UseService<IChatHistoryService>();
         var executionService = UseService<IChatExecutionService>();
         var agentRunner = UseService<IAgentRunner>();
+        Context.TryUseService<IJobService>(out var jobService);
 
         var activeSessionId = UseState<string?>(() =>
         {
@@ -78,10 +80,13 @@ public class ChatApp : ViewBase
                 }
             }
 
+            void OnJobsChanged() => sessionVersion.Set(v => v + 1);
+
             chatService.SessionsChanged += OnSessionsChanged;
             chatService.GeneratingSessionsChanged += OnGeneratingChanged;
             executionService.StreamUpdated += OnStreamUpdated;
             executionService.SessionGeneratingChanged += OnSessionGeneratingChanged;
+            if (jobService != null) jobService.JobsChanged += OnJobsChanged;
 
             if (!string.IsNullOrEmpty(activeSessionId.Value))
             {
@@ -94,6 +99,7 @@ public class ChatApp : ViewBase
                 chatService.GeneratingSessionsChanged -= OnGeneratingChanged;
                 executionService.StreamUpdated -= OnStreamUpdated;
                 executionService.SessionGeneratingChanged -= OnSessionGeneratingChanged;
+                if (jobService != null) jobService.JobsChanged -= OnJobsChanged;
             });
         });
 
@@ -150,6 +156,63 @@ public class ChatApp : ViewBase
             var status = isGenerating ? "generating" : "done";
             var isActive = s.Id == currentSessionId;
 
+            List<ChatJobDto>? spawnedJobs = null;
+            if (jobService != null)
+            {
+                var combinedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                var matchingJobs = jobService.GetJobs().Where(j => string.Equals(j.ChatSessionId, s.Id, StringComparison.OrdinalIgnoreCase)).ToList();
+                foreach (var mj in matchingJobs)
+                {
+                    if (combinedIds.Add(mj.Id))
+                    {
+                        chatService.AddSpawnedJob(s.Id, mj.Id);
+                    }
+                }
+
+                if (s.SpawnedJobIds is { Count: > 0 } jIds)
+                {
+                    var staleIds = new List<string>();
+                    foreach (var id in jIds)
+                    {
+                        var job = jobService.GetJob(id);
+                        if (job != null)
+                        {
+                            if (string.Equals(job.ChatSessionId, s.Id, StringComparison.OrdinalIgnoreCase))
+                            {
+                                combinedIds.Add(id);
+                            }
+                            else
+                            {
+                                staleIds.Add(id);
+                            }
+                        }
+                    }
+
+                    if (staleIds.Count > 0)
+                    {
+                        chatService.RemoveSpawnedJobs(s.Id, staleIds);
+                    }
+                }
+
+                if (combinedIds.Count > 0)
+                {
+                    spawnedJobs = combinedIds.Select(jId =>
+                    {
+                        var job = jobService.GetJob(jId);
+                        if (job == null) return new ChatJobDto(jId, "Job", "Unknown");
+                        return new ChatJobDto(
+                            job.Id,
+                            job.Type,
+                            job.Status.ToString(),
+                            job.ReportedPlanId,
+                            job.ReportedPlanTitle,
+                            job.StatusMessage
+                        );
+                    }).ToList();
+                }
+            }
+
             return new ChatSessionDto(
                 s.Id,
                 s.Title,
@@ -170,7 +233,8 @@ public class ChatApp : ViewBase
                     )).ToList()
                     : [],
                 status,
-                s.Effort
+                s.Effort,
+                spawnedJobs
             );
         }).ToList();
 
@@ -188,13 +252,26 @@ public class ChatApp : ViewBase
                 SelectSession(targetSessionId);
             }
 
-            _ = executionService.SendMessageAsync(
-                targetSessionId,
-                userPrompt,
-                attachments,
-                selectedAgent.Value,
-                effectiveModel,
-                effectiveEffort);
+            if (dto.ForceSend)
+            {
+                _ = executionService.ForceSendMessageAsync(
+                    targetSessionId,
+                    userPrompt,
+                    attachments,
+                    selectedAgent.Value,
+                    effectiveModel,
+                    effectiveEffort);
+            }
+            else
+            {
+                _ = executionService.SendMessageAsync(
+                    targetSessionId,
+                    userPrompt,
+                    attachments,
+                    selectedAgent.Value,
+                    effectiveModel,
+                    effectiveEffort);
+            }
 
             sessionVersion.Set(v => v + 1);
             streamVersion.Set(v => v + 1);

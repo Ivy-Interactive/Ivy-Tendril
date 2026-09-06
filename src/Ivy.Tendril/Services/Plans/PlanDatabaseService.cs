@@ -766,6 +766,7 @@ public class PlanDatabaseService : IPlanDatabaseService
 
     private JobItem MapJobRow(SqliteDataReader reader)
     {
+        var typedArgs = ReadTypedArgs(reader);
         return new JobItem
         {
             Id = reader.GetString(reader.GetOrdinal("Id")),
@@ -797,7 +798,8 @@ public class PlanDatabaseService : IPlanDatabaseService
             StatusMessage = reader.IsDBNull(reader.GetOrdinal("StatusMessage"))
                 ? null
                 : reader.GetString(reader.GetOrdinal("StatusMessage")),
-            TypedArgs = ReadTypedArgs(reader),
+            TypedArgs = typedArgs,
+            ChatSessionId = typedArgs?.ChatSessionId,
             WorkingDirectory = reader.IsDBNull(reader.GetOrdinal("WorkingDirectory"))
                 ? null
                 : reader.GetString(reader.GetOrdinal("WorkingDirectory")),

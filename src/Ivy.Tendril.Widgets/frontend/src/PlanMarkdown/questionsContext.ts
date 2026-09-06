@@ -6,6 +6,12 @@ export type AnswerCallback = (
   answer: string | string[] | null | undefined,
 ) => void;
 
+/** Reports submitted answers for an interactive questions block in chat. */
+export type QuestionSubmitCallback = (
+  answers: Record<string, string[]>,
+  summaryText: string,
+) => void;
+
 /**
  * Carries the answer callback from `DraftMarkdown` down to a `QuestionsCallout`.
  *
@@ -17,3 +23,8 @@ export type AnswerCallback = (
  * `DraftMarkdown.tsx`, which imports `BlockHandler` in turn.
  */
 export const QuestionsAnswerContext = createContext<AnswerCallback | undefined>(undefined);
+
+/**
+ * Carries the submit callback down to a `QuestionsCallout` when rendered inside a chat message.
+ */
+export const QuestionsSubmitContext = createContext<QuestionSubmitCallback | undefined>(undefined);

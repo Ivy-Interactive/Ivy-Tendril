@@ -78,6 +78,7 @@ public class ChatHistoryService : IChatHistoryService
         {
             if (_queuedMessages.TryGetValue(sessionId, out var list))
             {
+                list.RemoveAll(q => q.Prompt != null && q.Prompt.StartsWith("[System Event]", StringComparison.OrdinalIgnoreCase));
                 return list.ToList();
             }
             return Array.Empty<ChatQueuedItem>();
@@ -86,6 +87,11 @@ public class ChatHistoryService : IChatHistoryService
 
     public ChatQueuedItem EnqueueMessage(string sessionId, ChatSendMessageDto dto)
     {
+        if (dto.Prompt != null && dto.Prompt.StartsWith("[System Event]", StringComparison.OrdinalIgnoreCase))
+        {
+            return new ChatQueuedItem(Guid.NewGuid().ToString("N"), dto.Prompt, dto.Attachments != null ? new List<ChatAttachmentDto>(dto.Attachments) : null, DateTimeOffset.UtcNow);
+        }
+
         var item = new ChatQueuedItem(
             Id: Guid.NewGuid().ToString("N"),
             Prompt: dto.Prompt,
@@ -392,6 +398,234 @@ public class ChatHistoryService : IChatHistoryService
         PersistSessionToDisk(updatedSession);
         SessionsChanged?.Invoke(this, EventArgs.Empty);
         return msg;
+    }
+
+    public void AddSpawnedJob(string sessionId, string jobId)
+    {
+        if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(jobId)) return;
+        ChatSessionModel? updated = null;
+        lock (_sessionLock)
+        {
+            var session = GetSession(sessionId);
+            if (session == null) return;
+            var currentJobs = session.SpawnedJobIds != null ? new List<string>(session.SpawnedJobIds) : new List<string>();
+            if (!currentJobs.Contains(jobId, StringComparer.OrdinalIgnoreCase))
+            {
+                currentJobs.Add(jobId);
+                updated = session with
+                {
+                    UpdatedAt = DateTimeOffset.UtcNow,
+                    SpawnedJobIds = currentJobs
+                };
+                _sessions[sessionId] = updated;
+            }
+        }
+
+        if (updated != null)
+        {
+            PersistSessionToDisk(updated);
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public void RemoveSpawnedJobs(string sessionId, IEnumerable<string> jobIds)
+    {
+        if (string.IsNullOrEmpty(sessionId) || jobIds == null) return;
+        ChatSessionModel? updated = null;
+        lock (_sessionLock)
+        {
+            var session = GetSession(sessionId);
+            if (session == null || session.SpawnedJobIds == null || session.SpawnedJobIds.Count == 0) return;
+            var toRemove = new HashSet<string>(jobIds, StringComparer.OrdinalIgnoreCase);
+            var remaining = session.SpawnedJobIds.Where(id => !toRemove.Contains(id)).ToList();
+            if (remaining.Count != session.SpawnedJobIds.Count)
+            {
+                updated = session with
+                {
+                    UpdatedAt = DateTimeOffset.UtcNow,
+                    SpawnedJobIds = remaining.Count > 0 ? remaining : null
+                };
+                _sessions[sessionId] = updated;
+            }
+        }
+
+        if (updated != null)
+        {
+            PersistSessionToDisk(updated);
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public IReadOnlyList<string> GetSpawnedJobs(string sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return Array.Empty<string>();
+        var session = GetSession(sessionId);
+        return session?.SpawnedJobIds ?? (IReadOnlyList<string>)Array.Empty<string>();
+    }
+
+    public bool ApplyQuestionAnswers(string sessionId, string messageId, IReadOnlyDictionary<string, string[]> answers)
+    {
+        if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(messageId) || answers == null || answers.Count == 0)
+            return false;
+
+        ChatSessionModel? updatedSession = null;
+        lock (_sessionLock)
+        {
+            var session = GetSession(sessionId);
+            if (session == null) return false;
+
+            var msgIndex = session.Messages.FindIndex(m => string.Equals(m.Id, messageId, StringComparison.OrdinalIgnoreCase));
+            if (msgIndex < 0) return false;
+
+            var targetMsg = session.Messages[msgIndex];
+            var content = targetMsg.Content;
+            bool modified = false;
+
+            foreach (var (qId, ansValues) in answers)
+            {
+                var qa = new QuestionAnswer(qId, ansValues);
+                if (QuestionAnswers.TryApply(content, qa, out var updatedContent))
+                {
+                    content = updatedContent;
+                    modified = true;
+                }
+            }
+
+            if (!modified) return false;
+
+            string? rawStream = targetMsg.RawStream;
+            if (!string.IsNullOrEmpty(rawStream))
+            {
+                var lines = rawStream.Split('\n');
+                bool rawModified = false;
+                bool anyTextApplied = false;
+                bool hasDeltaText = false;
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    var line = lines[i].Trim();
+                    if (string.IsNullOrEmpty(line)) continue;
+                    try
+                    {
+                        var node = System.Text.Json.Nodes.JsonNode.Parse(line);
+                        if (node is System.Text.Json.Nodes.JsonObject obj)
+                        {
+                            bool lineChanged = false;
+                            if (obj.TryGetPropertyValue("delta", out var deltaNode) && deltaNode != null && deltaNode.GetValue<bool>())
+                            {
+                                hasDeltaText = true;
+                            }
+                            if (obj.TryGetPropertyValue("text", out var textNode) && textNode != null)
+                            {
+                                var textVal = textNode.GetValue<string>();
+                                foreach (var (qId, ansValues) in answers)
+                                {
+                                    var qa = new QuestionAnswer(qId, ansValues);
+                                    if (QuestionAnswers.TryApply(textVal, qa, out var updatedTextVal))
+                                    {
+                                        textVal = updatedTextVal;
+                                        lineChanged = true;
+                                        anyTextApplied = true;
+                                    }
+                                }
+                                if (lineChanged) obj["text"] = textVal;
+                            }
+                            if (obj.TryGetPropertyValue("response", out var respNode) && respNode != null)
+                            {
+                                var respVal = respNode.GetValue<string>();
+                                foreach (var (qId, ansValues) in answers)
+                                {
+                                    var qa = new QuestionAnswer(qId, ansValues);
+                                    if (QuestionAnswers.TryApply(respVal, qa, out var updatedRespVal))
+                                    {
+                                        respVal = updatedRespVal;
+                                        lineChanged = true;
+                                    }
+                                }
+                                if (lineChanged) obj["response"] = respVal;
+                            }
+                            if (lineChanged)
+                            {
+                                lines[i] = obj.ToJsonString();
+                                rawModified = true;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // ignore malformed lines
+                    }
+                }
+
+                if (hasDeltaText && !anyTextApplied && modified)
+                {
+                    var newLines = new List<string>();
+                    bool consolidatedInserted = false;
+                    foreach (var line in lines)
+                    {
+                        var trimmed = line.Trim();
+                        if (string.IsNullOrEmpty(trimmed)) continue;
+                        bool isDeltaText = false;
+                        try
+                        {
+                            var node = System.Text.Json.Nodes.JsonNode.Parse(trimmed);
+                            if (node is System.Text.Json.Nodes.JsonObject obj &&
+                                obj.TryGetPropertyValue("kind", out var kind) && kind?.GetValue<string>() == "text" &&
+                                obj.TryGetPropertyValue("delta", out var delta) && delta != null && delta.GetValue<bool>())
+                            {
+                                isDeltaText = true;
+                            }
+                        }
+                        catch { }
+
+                        if (isDeltaText)
+                        {
+                            if (!consolidatedInserted)
+                            {
+                                var consolidated = new System.Text.Json.Nodes.JsonObject
+                                {
+                                    ["kind"] = "text",
+                                    ["text"] = content,
+                                    ["delta"] = false
+                                };
+                                newLines.Add(consolidated.ToJsonString());
+                                consolidatedInserted = true;
+                                rawModified = true;
+                            }
+                        }
+                        else
+                        {
+                            newLines.Add(trimmed);
+                        }
+                    }
+                    lines = newLines.ToArray();
+                }
+
+                if (rawModified)
+                {
+                    rawStream = string.Join("\n", lines);
+                }
+            }
+
+            var updatedMsg = targetMsg with { Content = content, RawStream = rawStream };
+            var updatedMessages = new List<ChatMessageModel>(session.Messages);
+            updatedMessages[msgIndex] = updatedMsg;
+
+            updatedSession = session with
+            {
+                UpdatedAt = DateTimeOffset.UtcNow,
+                Messages = updatedMessages
+            };
+            _sessions[session.Id] = updatedSession;
+        }
+
+        if (updatedSession != null)
+        {
+            PersistSessionToDisk(updatedSession);
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
+            return true;
+        }
+
+        return false;
     }
 
     private void PersistSessionToDisk(ChatSessionModel session)

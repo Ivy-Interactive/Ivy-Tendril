@@ -140,6 +140,10 @@ public class InboxControllerTests
             return false;
         }
 
+        public void SetChatSessionId(string id, string chatSessionId)
+        {
+        }
+
         public bool ReportJobFailure(string id, string message)
         {
             return false;
@@ -159,6 +163,7 @@ public class InboxControllerTests
         public event Action? JobsStructureChanged;
         public event Action? JobPropertyChanged;
         public event Action<JobNotification>? NotificationReady;
+        public event Action<JobItem>? JobFinished;
 #pragma warning restore CS0067
     }
 }
