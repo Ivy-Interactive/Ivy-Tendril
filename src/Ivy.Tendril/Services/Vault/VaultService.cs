@@ -4,9 +4,11 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Themes;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Vault;
@@ -22,6 +24,14 @@ public class VaultService : IVaultService
     {
         _config = config;
         _logger = logger;
+        try
+        {
+            LoadThemesIntoRegistry();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to initialize vault themes into registry");
+        }
     }
 
     public string GenerateVersionTimestamp()
@@ -480,6 +490,15 @@ public class VaultService : IVaultService
                     SourceVaultId = vault?.Id,
                     SourceVaultName = vault?.Name
                 });
+            }
+        }
+
+        catalog.Themes = ReadVaultThemes(vaultDir);
+        if (vault != null)
+        {
+            foreach (var t in catalog.Themes)
+            {
+                TendrilThemes.RegisterVaultTheme(t, vault.Id, vault.Name);
             }
         }
 
@@ -1716,6 +1735,7 @@ public class VaultService : IVaultService
             }
         }
 
+        LoadThemesIntoRegistry();
         _config.SaveSettings();
         VaultChanged?.Invoke();
 
@@ -2024,5 +2044,184 @@ public class VaultService : IVaultService
     public Task<ProjectAssets> CollectProjectAssetsAsync(string projectName)
     {
         return Task.FromResult(CollectProjectAssets(projectName));
+    }
+
+    public Task<List<VaultThemeManifest>> GetThemesAsync(string? vaultId = null)
+    {
+        EnsureVaultsInitialized();
+        var vault = GetVaultSettings(vaultId);
+        if (vault == null) return Task.FromResult(new List<VaultThemeManifest>());
+
+        var vaultDir = GetVaultDirectory(vault);
+        var themes = ReadVaultThemes(vaultDir);
+        foreach (var theme in themes)
+        {
+            TendrilThemes.RegisterVaultTheme(theme, vault.Id, vault.Name);
+        }
+        return Task.FromResult(themes);
+    }
+
+    public async Task<VaultResult> SaveThemeToVaultAsync(VaultThemeManifest theme, string? vaultId = null)
+    {
+        if (theme == null)
+        {
+            return new VaultResult(false, "Theme cannot be null.", "Theme payload was null.");
+        }
+
+        if (string.IsNullOrWhiteSpace(theme.Name))
+        {
+            return new VaultResult(false, "Theme name is required.", "Theme name cannot be empty.");
+        }
+
+        EnsureVaultsInitialized();
+        var targetVault = GetVaultSettings(vaultId);
+        if (targetVault == null)
+        {
+            return new VaultResult(false, "No vault configured to save custom theme.", "No target vault found.");
+        }
+
+        var vaultDir = GetVaultDirectory(targetVault);
+        if (!Directory.Exists(Path.Combine(vaultDir, ".git")))
+        {
+            return new VaultResult(false, "Vault repository is not initialized locally.", "Git repository not found in vault directory.");
+        }
+
+        // Generate clean ID if missing
+        if (string.IsNullOrWhiteSpace(theme.Id))
+        {
+            theme.Id = Regex.Replace(theme.Name.ToLowerInvariant(), @"[^a-z0-9_-]", "-").Trim('-');
+            if (string.IsNullOrWhiteSpace(theme.Id))
+            {
+                theme.Id = "custom-theme-" + Guid.NewGuid().ToString("N")[..6];
+            }
+        }
+        else
+        {
+            theme.Id = Regex.Replace(theme.Id.ToLowerInvariant(), @"[^a-z0-9_-]", "-").Trim('-');
+        }
+
+        theme.UpdatedAt = DateTimeOffset.UtcNow;
+        if (theme.PreviewColors == null || theme.PreviewColors.Length == 0)
+        {
+            theme.PreviewColors = TendrilThemes.ExtractPreviewColors(theme.IvyTheme);
+        }
+
+        var themesDir = Path.Combine(vaultDir, "themes");
+        Directory.CreateDirectory(themesDir);
+
+        var filePath = Path.Combine(themesDir, $"{theme.Id}.json");
+        var jsonOptions = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        var json = JsonSerializer.Serialize(theme, jsonOptions);
+        File.WriteAllText(filePath, json);
+
+        var baseBranch = await EnsureBaseBranchExistsAsync(vaultDir, targetVault);
+        await RunGitCommandAsync(vaultDir, $"checkout {baseBranch}");
+        await RunGitCommandAsync(vaultDir, $"pull origin {baseBranch}");
+        await RunGitCommandAsync(vaultDir, "add themes/");
+
+        var commitMsg = $"feat(theme): save {theme.Name} custom theme";
+        await RunGitCommandAsync(vaultDir, $"commit -m \"{commitMsg.Replace("\"", "\\\"")}\"");
+
+        var (pushOut, pushErr) = await RunGitCommandAsync(vaultDir, $"push origin {baseBranch}");
+        if (pushErr != null && (pushErr.Contains("protected", StringComparison.OrdinalIgnoreCase) || pushErr.Contains("hook declined", StringComparison.OrdinalIgnoreCase)))
+        {
+            var branchName = $"theme/{theme.Id}-{DateTime.UtcNow:yyyyMMddHHmmss}";
+            await RunGitCommandAsync(vaultDir, $"checkout -B {branchName}");
+            await RunGitCommandAsync(vaultDir, $"push -u origin {branchName}");
+            await RunGhCliAsync($"pr create --title \"Add {theme.Name} theme\" --body \"Custom theme added via Tendril Vault Shared Settings\" --base {baseBranch} --head \"{branchName}\"", vaultDir);
+        }
+
+        TendrilThemes.RegisterVaultTheme(theme, targetVault.Id, targetVault.Name);
+        VaultChanged?.Invoke();
+
+        return new VaultResult(true, $"Theme '{theme.Name}' successfully uploaded to {targetVault.Name}.");
+    }
+
+    public async Task<VaultResult> DeleteThemeFromVaultAsync(string themeId, string? vaultId = null)
+    {
+        if (string.IsNullOrWhiteSpace(themeId))
+        {
+            return new VaultResult(false, "Theme ID is required.", "Theme ID cannot be empty.");
+        }
+
+        EnsureVaultsInitialized();
+        var targetVault = GetVaultSettings(vaultId);
+        if (targetVault == null)
+        {
+            return new VaultResult(false, "No vault configured.", "No target vault found.");
+        }
+
+        var vaultDir = GetVaultDirectory(targetVault);
+        if (!Directory.Exists(Path.Combine(vaultDir, ".git")))
+        {
+            return new VaultResult(false, "Vault repository is not initialized locally.", "Git repository not found.");
+        }
+
+        var filePath = Path.Combine(vaultDir, "themes", $"{themeId}.json");
+        if (File.Exists(filePath))
+        {
+            File.Delete(filePath);
+            var baseBranch = await EnsureBaseBranchExistsAsync(vaultDir, targetVault);
+            await RunGitCommandAsync(vaultDir, $"checkout {baseBranch}");
+            await RunGitCommandAsync(vaultDir, $"pull origin {baseBranch}");
+            await RunGitCommandAsync(vaultDir, "add themes/");
+            await RunGitCommandAsync(vaultDir, $"commit -m \"chore(theme): remove {themeId} custom theme\"");
+            await RunGitCommandAsync(vaultDir, $"push origin {baseBranch}");
+        }
+
+        TendrilThemes.RemoveVaultTheme(themeId);
+        VaultChanged?.Invoke();
+
+        return new VaultResult(true, $"Theme '{themeId}' deleted from vault.");
+    }
+
+    private List<VaultThemeManifest> ReadVaultThemes(string vaultDir)
+    {
+        var themes = new List<VaultThemeManifest>();
+        var themesDir = Path.Combine(vaultDir, "themes");
+        if (!Directory.Exists(themesDir)) return themes;
+
+        foreach (var file in Directory.GetFiles(themesDir, "*.json"))
+        {
+            try
+            {
+                var json = File.ReadAllText(file);
+                var theme = JsonSerializer.Deserialize<VaultThemeManifest>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+                if (theme != null && !string.IsNullOrWhiteSpace(theme.Id))
+                {
+                    themes.Add(theme);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse vault theme file {File}", file);
+            }
+        }
+
+        return themes;
+    }
+
+    public void LoadThemesIntoRegistry()
+    {
+        EnsureVaultsInitialized();
+        var vaults = _config.Settings.Vaults ?? new List<VaultSettings>();
+        if (vaults.Count == 0 && _config.Settings.Vault != null)
+        {
+            vaults = [_config.Settings.Vault];
+        }
+
+        foreach (var vault in vaults)
+        {
+            if (string.IsNullOrEmpty(vault.RepoUrl)) continue;
+            var vaultDir = GetVaultDirectory(vault);
+            var themes = ReadVaultThemes(vaultDir);
+            foreach (var theme in themes)
+            {
+                TendrilThemes.RegisterVaultTheme(theme, vault.Id, vault.Name);
+            }
+        }
     }
 }

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Ivy;
 using Ivy.Core.Hooks;
 using Ivy.Tendril.Apps.Settings.Dialogs;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Vault;
 
@@ -24,6 +25,7 @@ public class VaultSetupView : ViewBase
         var openConnectDialog = UseState(false);
         var openPushDialog = UseState(false);
         var openImportDialog = UseState(false);
+        var openThemesDialog = UseState(false);
         var selectedImportItem = UseState<VaultCatalogItem?>(null);
         var selectedPushProject = UseState<string?>(null);
         var isSyncing = UseState(false);
@@ -157,6 +159,15 @@ public class VaultSetupView : ViewBase
             },
             isMergeMode: isMergeMode);
 
+        var themesDialog = new VaultThemesDialog(
+            openThemesDialog, vaultService, client, config, selectedVaultId.Value,
+            onThemesUpdated: () =>
+            {
+                vaultsQuery.Mutator.Revalidate();
+                statusQuery.Mutator.Revalidate();
+                catalogQuery.Mutator.Revalidate();
+            });
+
         var confirmDeleteDialog = (openDeleteConfirm.Value && !string.IsNullOrEmpty(projectToDelete.Value))
             ? new Dialog(
                 _ => openDeleteConfirm.Set(false),
@@ -238,6 +249,18 @@ public class VaultSetupView : ViewBase
             || status.CommitsAhead > 0
             || config.Settings.Projects.Count > 0;
 
+        var isBeta = BetaHelper.IsBeta(null, config);
+
+        var sharedSettingsMenu = isBeta
+            ? new Button("Shared Settings")
+                .Icon(Icons.Settings)
+                .Outline()
+                .Small()
+                .WithDropDown(
+                    new MenuItem("Custom Themes", Icon: Icons.Palette).OnSelect(() => openThemesDialog.Set(true))
+                )
+            : null;
+
         var headerToolbar = Layout.Horizontal().AlignContent(Align.Right)
             | new Button("Sync")
                 .Icon(Icons.RefreshCw)
@@ -245,6 +268,7 @@ public class VaultSetupView : ViewBase
                 .Small()
                 .Loading(isSyncing.Value)
                 .OnClick(async () => await HandleSync())
+            | sharedSettingsMenu
             | (hasChangesToPublish
                 ? new Button("Open a PR")
                     .Icon(Icons.GitPullRequest)
@@ -316,18 +340,28 @@ public class VaultSetupView : ViewBase
 
         var vaultActionsRow = Layout.Horizontal().AlignContent(Align.SpaceBetween)
             | autoSyncState.ToBoolInput("Always in sync")
-            | new Button("Disconnect Vault")
-                .Icon(Icons.Unlink)
-                .Destructive()
-                .Ghost()
-                .Small()
-                .OnClick(async () =>
-                {
-                    await vaultService.DisconnectVaultAsync(selectedVaultId.Value);
-                    vaultsQuery.Mutator.Revalidate();
-                    statusQuery.Mutator.Revalidate();
-                    catalogQuery.Mutator.Revalidate();
-                });
+            | (Layout.Horizontal().AlignContent(Align.Right)
+                | (isBeta
+                    ? new Button("Shared Settings")
+                        .Icon(Icons.Settings)
+                        .Outline()
+                        .Small()
+                        .WithDropDown(
+                            new MenuItem("Custom Themes", Icon: Icons.Palette).OnSelect(() => openThemesDialog.Set(true))
+                        )
+                    : null)
+                | new Button("Disconnect Vault")
+                    .Icon(Icons.Unlink)
+                    .Destructive()
+                    .Ghost()
+                    .Small()
+                    .OnClick(async () =>
+                    {
+                        await vaultService.DisconnectVaultAsync(selectedVaultId.Value);
+                        vaultsQuery.Mutator.Revalidate();
+                        statusQuery.Mutator.Revalidate();
+                        catalogQuery.Mutator.Revalidate();
+                    }));
 
         var tableRows = catalog.Projects.Select((p, i) =>
         {
@@ -542,7 +576,8 @@ public class VaultSetupView : ViewBase
             connectDialog,
             pushDialog,
             importDialog,
-            confirmDeleteDialog
+            confirmDeleteDialog,
+            themesDialog
         );
     }
 

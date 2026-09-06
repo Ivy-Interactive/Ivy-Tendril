@@ -428,6 +428,10 @@ public class ConfigService : IConfigService, IDisposable
         {
             Environment.SetEnvironmentVariable("TENDRIL_BETA", "1");
         }
+        else
+        {
+            Environment.SetEnvironmentVariable("TENDRIL_BETA", null);
+        }
     }
 
     /// <summary>
@@ -673,6 +677,7 @@ public class ConfigService : IConfigService, IDisposable
         _suppressNextReload = true;
         FileHelper.WriteAllText(ConfigPath, yaml);
         CreateConfigBackup();
+        SyncBetaFromSettings();
     }
 
     public void ReloadSettings()

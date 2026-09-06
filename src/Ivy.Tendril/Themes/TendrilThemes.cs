@@ -1,3 +1,9 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using Ivy.Tendril.Services.Vault;
+
 namespace Ivy.Tendril.Themes;
 
 public class TendrilThemeDescriptor
@@ -8,6 +14,9 @@ public class TendrilThemeDescriptor
     public bool IsDark { get; init; }
     public string[] PreviewColors { get; init; } = [];
     public Theme IvyTheme { get; init; } = Theme.Default;
+    public string? VaultId { get; init; }
+    public string? VaultName { get; init; }
+    public bool IsVaultTheme { get; init; }
 }
 
 public static class TendrilThemes
@@ -1177,7 +1186,7 @@ public static class TendrilThemes
         }
     };
 
-    public static readonly IReadOnlyList<TendrilThemeDescriptor> All =
+    public static readonly IReadOnlyList<TendrilThemeDescriptor> BuiltInThemes =
     [
         Default,
         Cupcake,
@@ -1197,13 +1206,113 @@ public static class TendrilThemes
         HelloKitty
     ];
 
-    private static readonly Dictionary<string, TendrilThemeDescriptor> ThemesById =
-        All.ToDictionary(t => t.Id, t => t, StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, TendrilThemeDescriptor> BuiltInThemesById =
+        BuiltInThemes.ToDictionary(t => t.Id, t => t, StringComparer.OrdinalIgnoreCase);
+
+    private static readonly ConcurrentDictionary<string, TendrilThemeDescriptor> CustomThemesById =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public static IReadOnlyList<TendrilThemeDescriptor> All
+    {
+        get
+        {
+            var list = new List<TendrilThemeDescriptor>(BuiltInThemes);
+            list.AddRange(CustomThemesById.Values);
+            return list;
+        }
+    }
+
+    public static void RegisterVaultTheme(VaultThemeManifest manifest, string vaultId, string vaultName)
+    {
+        if (manifest == null || string.IsNullOrWhiteSpace(manifest.Id)) return;
+
+        var descriptor = new TendrilThemeDescriptor
+        {
+            Id = manifest.Id.Trim(),
+            Name = manifest.Name,
+            Description = !string.IsNullOrWhiteSpace(manifest.Description)
+                ? manifest.Description
+                : $"Theme from vault {vaultName}",
+            IsDark = manifest.IsDark,
+            PreviewColors = manifest.PreviewColors != null && manifest.PreviewColors.Length > 0
+                ? manifest.PreviewColors
+                : ExtractPreviewColors(manifest.IvyTheme, manifest.IsDark),
+            IvyTheme = manifest.IvyTheme ?? Theme.Default,
+            VaultId = vaultId,
+            VaultName = vaultName,
+            IsVaultTheme = true
+        };
+
+        CustomThemesById[descriptor.Id] = descriptor;
+    }
+
+    public static void RegisterCustomTheme(TendrilThemeDescriptor descriptor)
+    {
+        if (descriptor == null || string.IsNullOrWhiteSpace(descriptor.Id)) return;
+        CustomThemesById[descriptor.Id.Trim()] = descriptor;
+    }
+
+    public static bool RemoveVaultTheme(string themeId)
+    {
+        if (string.IsNullOrWhiteSpace(themeId)) return false;
+        return CustomThemesById.TryRemove(themeId.Trim(), out _);
+    }
+
+    public static void ClearVaultThemes(string? vaultId = null)
+    {
+        if (string.IsNullOrEmpty(vaultId))
+        {
+            CustomThemesById.Clear();
+            return;
+        }
+
+        foreach (var kvp in CustomThemesById)
+        {
+            if (string.Equals(kvp.Value.VaultId, vaultId, StringComparison.OrdinalIgnoreCase))
+            {
+                CustomThemesById.TryRemove(kvp.Key, out _);
+            }
+        }
+    }
+
+    public static string[] ExtractPreviewColors(Theme? theme, bool isDark = false)
+    {
+        if (theme?.Colors == null)
+            return ["#18181b", "#71717a", "#27272a", "#ffffff"];
+
+        var dark = theme.Colors.Dark;
+        var light = theme.Colors.Light;
+        var hasDark = !string.IsNullOrWhiteSpace(dark?.Primary);
+        var hasLight = !string.IsNullOrWhiteSpace(light?.Primary);
+
+        ThemeColors? colors;
+        if (isDark)
+        {
+            colors = hasDark ? dark : (hasLight ? light : dark);
+        }
+        else
+        {
+            colors = hasLight ? light : (hasDark ? dark : light);
+        }
+
+        return [
+            colors?.Primary ?? "#000000",
+            colors?.Secondary ?? "#888888",
+            colors?.Accent ?? "#555555",
+            colors?.Background ?? "#ffffff"
+        ];
+    }
 
     public static TendrilThemeDescriptor GetTheme(string? id)
     {
-        if (!string.IsNullOrWhiteSpace(id) && ThemesById.TryGetValue(id.Trim(), out var theme))
-            return theme;
+        if (!string.IsNullOrWhiteSpace(id))
+        {
+            var trimmed = id.Trim();
+            if (CustomThemesById.TryGetValue(trimmed, out var customTheme))
+                return customTheme;
+            if (BuiltInThemesById.TryGetValue(trimmed, out var theme))
+                return theme;
+        }
         return Default;
     }
 

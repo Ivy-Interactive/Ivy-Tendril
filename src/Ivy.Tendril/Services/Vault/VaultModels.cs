@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Ivy;
 
 namespace Ivy.Tendril.Services.Vault;
 
@@ -117,6 +118,19 @@ public record VaultCatalog
     public List<VaultCatalogItem> Projects { get; set; } = new();
     public List<string> GlobalSkills { get; set; } = new();
     public List<string> GlobalMcps { get; set; } = new();
+    public List<VaultThemeManifest> Themes { get; set; } = new();
+}
+
+public record VaultThemeManifest
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
+    public string Description { get; set; } = "";
+    public bool IsDark { get; set; }
+    public string[] PreviewColors { get; set; } = [];
+    public Theme IvyTheme { get; set; } = new();
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public string? UpdatedBy { get; set; }
 }
 
 public record VaultStatus
