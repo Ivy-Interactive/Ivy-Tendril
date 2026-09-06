@@ -23,7 +23,24 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<ConfigService>(configService);
         server.Services.AddSingleton<IChatHistoryService, ChatHistoryService>();
         server.Services.AddSingleton<IChatSessionNamingService, ChatSessionNamingService>();
-        server.Services.AddSingleton<IChatExecutionService, ChatExecutionService>();
+        server.Services.AddSingleton<ChatExecutionService>();
+        server.Services.AddSingleton<IChatExecutionService>(sp =>
+        {
+            var execService = sp.GetRequiredService<ChatExecutionService>();
+            Program.SetChatExecutionServiceForCleanup(execService);
+
+            var appLifetime = sp.GetService<Microsoft.Extensions.Hosting.IHostApplicationLifetime>();
+            appLifetime?.ApplicationStopping.Register(() =>
+            {
+                try
+                {
+                    execService.Dispose();
+                }
+                catch { }
+            });
+
+            return execService;
+        });
         server.Services.AddSingleton<ICreatePlanPreferences, CreatePlanPreferences>();
 
         Program.SetConfigServiceForCleanup(configService);
