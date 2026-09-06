@@ -78,6 +78,7 @@ public class ChatHistoryService : IChatHistoryService
         {
             if (_queuedMessages.TryGetValue(sessionId, out var list))
             {
+                list.RemoveAll(q => q.Prompt != null && q.Prompt.StartsWith("[System Event]", StringComparison.OrdinalIgnoreCase));
                 return list.ToList();
             }
             return Array.Empty<ChatQueuedItem>();
@@ -86,6 +87,11 @@ public class ChatHistoryService : IChatHistoryService
 
     public ChatQueuedItem EnqueueMessage(string sessionId, ChatSendMessageDto dto)
     {
+        if (dto.Prompt != null && dto.Prompt.StartsWith("[System Event]", StringComparison.OrdinalIgnoreCase))
+        {
+            return new ChatQueuedItem(Guid.NewGuid().ToString("N"), dto.Prompt, dto.Attachments != null ? new List<ChatAttachmentDto>(dto.Attachments) : null, DateTimeOffset.UtcNow);
+        }
+
         var item = new ChatQueuedItem(
             Id: Guid.NewGuid().ToString("N"),
             Prompt: dto.Prompt,

@@ -59,6 +59,7 @@ public sealed class ChatExecutionService : IChatExecutionService
     }
 
     private readonly ConcurrentDictionary<string, ActiveChatExecution> _activeExecutions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, ConcurrentQueue<string>> _pendingSystemEvents = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly Regex JobStartedRegex = new(
         @"(?:Job started:\s*|\*\*Job ID\*\*:\s*`?|Job ID:\s*`?)([0-9a-zA-Z_-]+)`?",
@@ -175,6 +176,15 @@ public sealed class ChatExecutionService : IChatExecutionService
         // If this session is already running an execution, enqueue this message.
         if (_activeExecutions.ContainsKey(sessionId))
         {
+            if (role.Equals("system", StringComparison.OrdinalIgnoreCase))
+            {
+                // Internal system events must NEVER be placed in the user's interactive prompt queue!
+                // Instead, queue in _pendingSystemEvents to be processed after the active execution finishes.
+                var queue = _pendingSystemEvents.GetOrAdd(sessionId, _ => new ConcurrentQueue<string>());
+                queue.Enqueue(userPrompt);
+                return;
+            }
+
             _chatService.EnqueueMessage(sessionId, new ChatSendMessageDto(userPrompt, attList.ToList(), sessionId));
             return;
         }
@@ -519,8 +529,17 @@ public sealed class ChatExecutionService : IChatExecutionService
                 SessionGeneratingChanged?.Invoke(sessionId);
                 StreamUpdated?.Invoke(sessionId);
 
-                // Process next queued message if one exists
-                if (_chatService.TryDequeueMessage(sessionId, out var nextQueuedItem) && nextQueuedItem != null)
+                // Process pending internal system event first, if any
+                if (_pendingSystemEvents.TryGetValue(sessionId, out var sysQueue) && sysQueue.TryDequeue(out var pendingSysEvent))
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(200, CancellationToken.None);
+                        await SendMessageAsync(sessionId, pendingSysEvent, role: "system");
+                    });
+                }
+                // Otherwise process next queued user message if one exists
+                else if (_chatService.TryDequeueMessage(sessionId, out var nextQueuedItem) && nextQueuedItem != null)
                 {
                     _ = SendMessageAsync(sessionId, nextQueuedItem.Prompt, nextQueuedItem.Attachments, targetAgent, targetModel, targetEffort);
                 }
@@ -550,6 +569,7 @@ public sealed class ChatExecutionService : IChatExecutionService
         }
 
         _chatService.ClearQueuedMessages(sessionId);
+        _pendingSystemEvents.TryRemove(sessionId, out _);
         _chatService.SetSessionGenerating(sessionId, false);
         SessionGeneratingChanged?.Invoke(sessionId);
         StreamUpdated?.Invoke(sessionId);
@@ -572,6 +592,7 @@ public sealed class ChatExecutionService : IChatExecutionService
             catch { }
         }
         _activeExecutions.Clear();
+        _pendingSystemEvents.Clear();
     }
 
     private void OnJobFinished(JobItem job)

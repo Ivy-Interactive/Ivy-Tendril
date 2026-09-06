@@ -8,6 +8,7 @@ using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Jobs;
+using Ivy.Tendril.Widgets;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -270,6 +271,100 @@ public class ChatExecutionServiceJobTrackingTests
             var sess = chatService.GetSession(session.Id);
             Assert.NotNull(sess);
             Assert.DoesNotContain(sess.Messages, m => m.Role == "system");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task SystemEvent_WhenExecutionRunning_NeverEnqueuesIntoUserQueuedMessages()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilNoQueueTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService);
+
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            // Simulate that the session is currently generating / executing
+            var activeExecutionsField = typeof(ChatExecutionService).GetField("_activeExecutions",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.NotNull(activeExecutionsField);
+
+            var cts = new System.Threading.CancellationTokenSource();
+            var activeExecType = typeof(ChatExecutionService).GetNestedType("ActiveChatExecution",
+                System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(activeExecType);
+            var activeExec = Activator.CreateInstance(activeExecType, cts);
+            Assert.NotNull(activeExec);
+
+            var dict = (System.Collections.IDictionary)activeExecutionsField.GetValue(execService)!;
+            dict[session.Id] = activeExec;
+
+            // Send a system event while session is active
+            await execService.SendMessageAsync(session.Id, "[System Event] Job 00151 finished with status: Stopped", role: "system");
+
+            // Verify user queue in chat history has ZERO items
+            var queued = chatService.GetQueuedMessages(session.Id);
+            Assert.Empty(queued);
+
+            // Clean up
+            dict.Remove(session.Id);
+            cts.Dispose();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public void GetQueuedMessages_PurgesAnySystemEventMessages()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilPurgeQueueTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            // Manually enqueue a user message and a rogue system event
+            chatService.EnqueueMessage(session.Id, new ChatSendMessageDto("User prompt", null, session.Id));
+            chatService.EnqueueMessage(session.Id, new ChatSendMessageDto("[System Event] Job 00151 finished", null, session.Id));
+
+            var queued = chatService.GetQueuedMessages(session.Id);
+            Assert.Single(queued);
+            Assert.Equal("User prompt", queued[0].Prompt);
         }
         finally
         {

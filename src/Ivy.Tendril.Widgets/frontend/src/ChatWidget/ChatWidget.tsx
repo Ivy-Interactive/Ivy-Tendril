@@ -494,7 +494,7 @@ export function ChatWidget({
   const otherRunningJobs = (runningJobs || []).filter(
     (rj) => !sessionSpawnedJobs.some((sj) => sj.id === rj.id)
   );
-  const headerJobs = sessionSpawnedJobs.length > 0 ? sessionSpawnedJobs : otherRunningJobs;
+  const headerJobs = [...sessionSpawnedJobs, ...otherRunningJobs];
   const headerRunningCount = headerJobs.filter((j) => j.status === "Running" || j.status === "Pending").length;
   const headerCompletedCount = headerJobs.filter((j) => j.status === "Completed").length;
   const headerFailedCount = headerJobs.filter((j) => j.status === "Failed" || j.status === "Timeout").length;

@@ -90,16 +90,27 @@ public class ContentView(
             q.Attachments
         )).ToList();
 
-        var runningJobs = jobService?.GetJobs()
-            .Where(j => j.Status == JobStatus.Running || j.Status == JobStatus.Pending || j.Status == JobStatus.Queued)
-            .Select(j => new ChatJobDto(
-                j.Id,
-                j.Type,
-                j.Status.ToString(),
-                j.ReportedPlanId,
-                j.ReportedPlanTitle,
-                j.StatusMessage
-            )).ToList();
+        var activeSessionModel = activeSessionId.Value != null
+            ? chatService.GetSession(activeSessionId.Value)
+            : null;
+        var activeSpawnedIds = activeSessionModel?.SpawnedJobIds != null
+            ? new HashSet<string>(activeSessionModel.SpawnedJobIds, StringComparer.OrdinalIgnoreCase)
+            : null;
+
+        var runningJobs = (activeSessionId.Value != null && jobService != null)
+            ? jobService.GetJobs()
+                .Where(j => (string.Equals(j.ChatSessionId, activeSessionId.Value, StringComparison.OrdinalIgnoreCase) ||
+                             (activeSpawnedIds != null && activeSpawnedIds.Contains(j.Id)))
+                         && (j.Status == JobStatus.Running || j.Status == JobStatus.Pending || j.Status == JobStatus.Queued))
+                .Select(j => new ChatJobDto(
+                    j.Id,
+                    j.Type,
+                    j.Status.ToString(),
+                    j.ReportedPlanId,
+                    j.ReportedPlanTitle,
+                    j.StatusMessage
+                )).ToList()
+            : new List<ChatJobDto>();
 
         var chatWidget = new ChatWidget
         {
