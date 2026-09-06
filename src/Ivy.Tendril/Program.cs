@@ -71,6 +71,9 @@ public class Program
     // ConfigService reference for cleanup on exit
     private static ConfigService? _configService;
 
+    // ChatExecutionService reference for flush on exit
+    private static IChatExecutionService? _chatExecutionService;
+
     [STAThread]
     public static async Task<int> Main(string[] args)
     {
@@ -940,6 +943,16 @@ public class Program
             {
                 CrashLog.Write($"[{DateTime.UtcNow:O}] Failed to dispose ConfigService: {ex}");
             }
+
+            // Flush active chat executions
+            try
+            {
+                _chatExecutionService?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                CrashLog.Write($"[{DateTime.UtcNow:O}] Failed to dispose ChatExecutionService: {ex}");
+            }
         };
     }
 
@@ -965,6 +978,11 @@ public class Program
     internal static void SetConfigServiceForCleanup(ConfigService configService)
     {
         _configService = configService;
+    }
+
+    internal static void SetChatExecutionServiceForCleanup(IChatExecutionService chatExecutionService)
+    {
+        _chatExecutionService = chatExecutionService;
     }
 
     private static string GetMemoryStats()

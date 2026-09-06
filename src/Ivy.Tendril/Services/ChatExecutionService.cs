@@ -91,6 +91,38 @@ public sealed class ChatExecutionService : IChatExecutionService
             lock (exec.Lock)
             {
                 exec.RawLines.Add(wireJson);
+                if (wireJson.Contains("\"kind\":\"text\"") || wireJson.Contains("\"text\":"))
+                {
+                    try
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(wireJson);
+                        if (doc.RootElement.TryGetProperty("text", out var textProp))
+                        {
+                            var text = textProp.GetString();
+                            if (!string.IsNullOrWhiteSpace(text))
+                            {
+                                exec.LastText = text;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+
+            if (Stopwatch.GetElapsedTime(exec.LastPersistTicks).TotalSeconds >= 1.0)
+            {
+                exec.LastPersistTicks = Stopwatch.GetTimestamp();
+                string? currentText;
+                string? currentRaw;
+                lock (exec.Lock)
+                {
+                    currentText = exec.LastText;
+                    currentRaw = exec.RawLines.Count > 0 ? string.Join("\n", exec.RawLines) : null;
+                }
+                if (!string.IsNullOrEmpty(exec.AssistantMessageId))
+                {
+                    _chatService.UpdateMessage(sessionId, exec.AssistantMessageId, currentText ?? string.Empty, currentRaw, flushImmediately: false);
+                }
             }
         }
         StreamLineEmitted?.Invoke(sessionId, wireJson);
@@ -394,6 +426,11 @@ public sealed class ChatExecutionService : IChatExecutionService
         }
         var fullAgentPrompt = agentPromptBuilder.ToString();
 
+        // Initialize assistant message record in chat history so an in-progress response exists immediately on disk
+        var assistantMsg = _chatService.AddMessage(sessionId, "assistant", string.Empty, targetAgent, targetModel, effort: targetEffort);
+        var assistantMessageId = assistantMsg.Id;
+        activeExec.AssistantMessageId = assistantMessageId;
+
         // Launch background agent execution
         var executionTask = Task.Run(async () =>
         {
@@ -459,6 +496,10 @@ public sealed class ChatExecutionService : IChatExecutionService
                                     lastTextEvent = textEvt.Text;
                                 }
                             }
+                            lock (activeExec.Lock)
+                            {
+                                activeExec.LastText = textEvt.Text;
+                            }
                         }
 
                         var wireJson = _serializer.Serialize(evt);
@@ -470,6 +511,19 @@ public sealed class ChatExecutionService : IChatExecutionService
                             }
                             StreamLineEmitted?.Invoke(sessionId, wireJson);
                             StreamUpdated?.Invoke(sessionId);
+
+                            if (Stopwatch.GetElapsedTime(activeExec.LastPersistTicks).TotalSeconds >= 1.0)
+                            {
+                                activeExec.LastPersistTicks = Stopwatch.GetTimestamp();
+                                string? currentText;
+                                string? currentRaw;
+                                lock (activeExec.Lock)
+                                {
+                                    currentText = activeExec.LastText;
+                                    currentRaw = activeExec.RawLines.Count > 0 ? string.Join("\n", activeExec.RawLines) : null;
+                                }
+                                _chatService.UpdateMessage(sessionId, assistantMessageId, currentText ?? string.Empty, currentRaw, flushImmediately: false);
+                            }
                         }
                     }
                     catch (Exception ex)
@@ -484,7 +538,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                 string? fullRawStream = null;
                 lock (activeExec.Lock)
                 {
-                    collectedText = lastTextEvent;
+                    collectedText = lastTextEvent ?? activeExec.LastText;
                     if (activeExec.RawLines.Count > 0)
                         fullRawStream = string.Join("\n", activeExec.RawLines);
                 }
@@ -497,7 +551,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                             ? "Task completed successfully."
                             : "Agent execution completed with status code " + (result.ExitCode?.ToString() ?? "unknown")));
 
-                _chatService.AddMessage(sessionId, "assistant", responseContent, targetAgent, targetModel, rawStream: fullRawStream, effort: targetEffort);
+                _chatService.UpdateMessage(sessionId, assistantMessageId, responseContent, rawStream: fullRawStream, flushImmediately: true);
 
                 // Auto-generate title on first exchange
                 var updatedSession = _chatService.GetSession(sessionId);
@@ -533,7 +587,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                 string? collectedText = null;
                 lock (activeExec.Lock)
                 {
-                    collectedText = lastTextEvent;
+                    collectedText = lastTextEvent ?? activeExec.LastText;
 
                     foreach (var toolUseId in openToolCalls)
                     {
@@ -578,7 +632,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                     ? $"{collectedText}\n\nExecution was cancelled."
                     : "Execution was cancelled.";
 
-                _chatService.AddMessage(sessionId, "assistant", responseContent, targetAgent, targetModel, rawStream: fullRawStream, effort: targetEffort);
+                _chatService.UpdateMessage(sessionId, assistantMessageId, responseContent, rawStream: fullRawStream, flushImmediately: true);
             }
             catch (Exception ex)
             {
@@ -587,7 +641,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                 string? collectedText = null;
                 lock (activeExec.Lock)
                 {
-                    collectedText = lastTextEvent;
+                    collectedText = lastTextEvent ?? activeExec.LastText;
 
                     foreach (var toolUseId in openToolCalls)
                     {
@@ -631,7 +685,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                     ? $"{collectedText}\n\nError executing request: {ex.Message}"
                     : $"Error executing request: {ex.Message}";
 
-                _chatService.AddMessage(sessionId, "assistant", responseContent, targetAgent, targetModel, rawStream: fullRawStream, effort: targetEffort);
+                _chatService.UpdateMessage(sessionId, assistantMessageId, responseContent, rawStream: fullRawStream, flushImmediately: true);
             }
             finally
             {
@@ -675,6 +729,7 @@ public sealed class ChatExecutionService : IChatExecutionService
             exec.IsInterrupted = true;
             try
             {
+                FlushExecution(sessionId, exec, "Execution was cancelled.");
                 await exec.Cts.CancelAsync();
                 if (exec.Session != null)
                 {
@@ -786,10 +841,11 @@ public sealed class ChatExecutionService : IChatExecutionService
             ResolvedJobService.JobFinished -= OnJobFinished;
         }
 
-        foreach (var (_, exec) in _activeExecutions)
+        foreach (var (sessionId, exec) in _activeExecutions)
         {
             try
             {
+                FlushExecution(sessionId, exec);
                 exec.Cts.Cancel();
                 exec.Dispose();
             }
@@ -825,6 +881,32 @@ public sealed class ChatExecutionService : IChatExecutionService
         _ = SendMessageAsync(targetSessionId, eventMessage, role: "system");
     }
 
+    private void FlushExecution(string sessionId, ActiveChatExecution exec, string? fallbackMessage = null)
+    {
+        if (string.IsNullOrEmpty(exec.AssistantMessageId)) return;
+        try
+        {
+            string? collectedText;
+            string? fullRawStream = null;
+            lock (exec.Lock)
+            {
+                collectedText = exec.LastText;
+                if (exec.RawLines.Count > 0)
+                    fullRawStream = string.Join("\n", exec.RawLines);
+            }
+
+            var content = !string.IsNullOrWhiteSpace(collectedText)
+                ? collectedText
+                : (fallbackMessage ?? string.Empty);
+
+            _chatService.UpdateMessage(sessionId, exec.AssistantMessageId, content, rawStream: fullRawStream, flushImmediately: true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to flush execution for session {SessionId}", sessionId);
+        }
+    }
+
     private sealed class ActiveChatExecution : IDisposable
     {
         public IAgentSession? Session { get; set; }
@@ -832,12 +914,16 @@ public sealed class ChatExecutionService : IChatExecutionService
         public List<string> RawLines { get; } = [];
         public object Lock { get; } = new();
         public long LastStreamUpdateTicks { get; set; }
+        public long LastPersistTicks { get; set; }
+        public string? AssistantMessageId { get; set; }
+        public string? LastText { get; set; }
         public Task? ExecutionTask { get; set; }
         public bool IsInterrupted { get; set; }
 
         public ActiveChatExecution(CancellationTokenSource cts)
         {
             Cts = cts;
+            LastPersistTicks = Stopwatch.GetTimestamp();
         }
 
         public void Dispose()

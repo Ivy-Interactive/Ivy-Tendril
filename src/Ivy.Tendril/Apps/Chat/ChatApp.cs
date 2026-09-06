@@ -156,6 +156,13 @@ public class ChatApp : ViewBase
             var status = isGenerating ? "generating" : "done";
             var isActive = s.Id == currentSessionId;
 
+            var messages = s.Messages;
+            if (isGenerating && messages.Count > 0 && messages[^1].Role.Equals("assistant", StringComparison.OrdinalIgnoreCase))
+            {
+                // Omit in-progress assistant message while generating to prevent duplicate rendering with live stream
+                messages = messages.Take(messages.Count - 1).ToList();
+            }
+
             List<ChatJobDto>? spawnedJobs = null;
             if (jobService != null)
             {
@@ -221,7 +228,7 @@ public class ChatApp : ViewBase
                 s.CreatedAt.ToString("o"),
                 s.UpdatedAt.ToString("o"),
                 isActive
-                    ? s.Messages.Select(m => new ChatMessageDto(
+                    ? messages.Select(m => new ChatMessageDto(
                         m.Id,
                         m.Role,
                         m.Content,

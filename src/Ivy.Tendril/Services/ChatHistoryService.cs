@@ -4,17 +4,22 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using Ivy.Tendril.Widgets;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;
 
 public class ChatHistoryService : IChatHistoryService
 {
     private readonly IConfigService _configService;
+    private readonly ILogger<ChatHistoryService>? _logger;
     private readonly ConcurrentDictionary<string, ChatSessionModel> _sessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _generatingSessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _completedSessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, List<ChatQueuedItem>> _queuedMessages = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _lastPersistTimes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, Timer> _debounceTimers = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _sessionLock = new();
     private readonly object _queueLock = new();
 
@@ -205,9 +210,10 @@ public class ChatHistoryService : IChatHistoryService
         PropertyNameCaseInsensitive = true,
     };
 
-    public ChatHistoryService(IConfigService configService)
+    public ChatHistoryService(IConfigService configService, ILogger<ChatHistoryService>? logger = null)
     {
         _configService = configService;
+        _logger = logger;
         LoadSessionsFromDisk();
     }
 
@@ -257,15 +263,15 @@ public class ChatHistoryService : IChatHistoryService
                         _sessions[session.Id] = session;
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Ignore corrupted single session files gracefully
+                    _logger?.LogError(ex, "Failed to load chat session from file {File}", file);
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore directory creation / read issues on startup
+            _logger?.LogError(ex, "Failed to load chat sessions from disk");
         }
     }
 
@@ -310,6 +316,8 @@ public class ChatHistoryService : IChatHistoryService
     {
         if (session == null || string.IsNullOrEmpty(session.Id)) return;
         _sessions[session.Id] = session;
+        CancelPendingPersist(session.Id);
+        _lastPersistTimes[session.Id] = DateTimeOffset.UtcNow;
         PersistSessionToDisk(session);
         SessionsChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -317,6 +325,8 @@ public class ChatHistoryService : IChatHistoryService
     public void DeleteSession(string id)
     {
         if (string.IsNullOrEmpty(id)) return;
+        CancelPendingPersist(id);
+        _lastPersistTimes.TryRemove(id, out _);
         _sessions.TryRemove(id, out _);
         _queuedMessages.TryRemove(id, out _);
 
@@ -328,9 +338,9 @@ public class ChatHistoryService : IChatHistoryService
                 File.Delete(filePath);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Best effort file deletion
+            _logger?.LogError(ex, "Failed to delete chat session file for {SessionId}", id);
         }
         SessionsChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -353,6 +363,8 @@ public class ChatHistoryService : IChatHistoryService
 
         if (updated != null)
         {
+            CancelPendingPersist(id);
+            _lastPersistTimes[id] = DateTimeOffset.UtcNow;
             PersistSessionToDisk(updated);
             SessionsChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -395,6 +407,8 @@ public class ChatHistoryService : IChatHistoryService
             _sessions[session.Id] = updatedSession;
         }
 
+        CancelPendingPersist(updatedSession.Id);
+        _lastPersistTimes[updatedSession.Id] = DateTimeOffset.UtcNow;
         PersistSessionToDisk(updatedSession);
         SessionsChanged?.Invoke(this, EventArgs.Empty);
         return msg;
@@ -628,6 +642,123 @@ public class ChatHistoryService : IChatHistoryService
         return false;
     }
 
+    public ChatMessageModel? UpdateMessage(string sessionId, string messageId, string content, string? rawStream = null, bool flushImmediately = true)
+    {
+        if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(messageId)) return null;
+
+        ChatMessageModel? updatedMsg = null;
+        ChatSessionModel? updatedSession = null;
+
+        lock (_sessionLock)
+        {
+            var session = GetSession(sessionId);
+            if (session == null) return null;
+
+            var msgIndex = session.Messages.FindIndex(m => m.Id == messageId);
+            if (msgIndex < 0) return null;
+
+            var existingMsg = session.Messages[msgIndex];
+            updatedMsg = existingMsg with
+            {
+                Content = content,
+                RawStream = rawStream ?? existingMsg.RawStream
+            };
+
+            var newMessages = new List<ChatMessageModel>(session.Messages);
+            newMessages[msgIndex] = updatedMsg;
+
+            updatedSession = session with
+            {
+                UpdatedAt = DateTimeOffset.UtcNow,
+                Messages = newMessages
+            };
+
+            _sessions[session.Id] = updatedSession;
+        }
+
+        if (updatedSession != null)
+        {
+            if (flushImmediately)
+            {
+                CancelPendingPersist(sessionId);
+                _lastPersistTimes[sessionId] = DateTimeOffset.UtcNow;
+                PersistSessionToDisk(updatedSession);
+            }
+            else
+            {
+                ScheduleThrottledPersist(updatedSession);
+            }
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        return updatedMsg;
+    }
+
+    public void FlushSession(string sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return;
+        CancelPendingPersist(sessionId);
+        var session = GetSession(sessionId);
+        if (session != null)
+        {
+            _lastPersistTimes[sessionId] = DateTimeOffset.UtcNow;
+            PersistSessionToDisk(session);
+        }
+    }
+
+    private void CancelPendingPersist(string sessionId)
+    {
+        if (_debounceTimers.TryRemove(sessionId, out var timer))
+        {
+            try
+            {
+                timer.Dispose();
+            }
+            catch { }
+        }
+    }
+
+    private void ScheduleThrottledPersist(ChatSessionModel session)
+    {
+        var sessionId = session.Id;
+        var now = DateTimeOffset.UtcNow;
+        if (!_lastPersistTimes.TryGetValue(sessionId, out var lastTime))
+        {
+            lastTime = DateTimeOffset.MinValue;
+        }
+
+        var elapsed = now - lastTime;
+        if (elapsed >= TimeSpan.FromSeconds(1))
+        {
+            CancelPendingPersist(sessionId);
+            _lastPersistTimes[sessionId] = now;
+            PersistSessionToDisk(session);
+            return;
+        }
+
+        var delay = TimeSpan.FromSeconds(1) - elapsed;
+        if (delay < TimeSpan.FromMilliseconds(50))
+        {
+            delay = TimeSpan.FromMilliseconds(50);
+        }
+
+        _debounceTimers.AddOrUpdate(
+            sessionId,
+            id => new Timer(_ => OnDebounceTimerFired(id), null, delay, Timeout.InfiniteTimeSpan),
+            (id, existingTimer) => existingTimer);
+    }
+
+    private void OnDebounceTimerFired(string sessionId)
+    {
+        CancelPendingPersist(sessionId);
+        var session = GetSession(sessionId);
+        if (session != null)
+        {
+            _lastPersistTimes[sessionId] = DateTimeOffset.UtcNow;
+            PersistSessionToDisk(session);
+        }
+    }
+
     private void PersistSessionToDisk(ChatSessionModel session)
     {
         try
@@ -636,9 +767,9 @@ public class ChatHistoryService : IChatHistoryService
             var json = JsonSerializer.Serialize(session, JsonOptions);
             Ivy.Tendril.Helpers.FileHelper.WriteAllText(filePath, json);
         }
-        catch
+        catch (Exception ex)
         {
-            // Best effort write
+            _logger?.LogError(ex, "Failed to persist chat session {SessionId} to disk", session.Id);
         }
     }
 }

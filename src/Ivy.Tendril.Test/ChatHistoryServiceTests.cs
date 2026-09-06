@@ -346,6 +346,44 @@ public class ChatHistoryServiceTests
     }
 
     [Fact]
+    public void UpdateMessage_UpdatesContentAndRawStreamAndPersists()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "sonnet");
+            var initialMsg = service.AddMessage(session.Id, "assistant", "initial content", "claude", "sonnet");
+            Assert.NotNull(initialMsg);
+
+            var updatedMsg = service.UpdateMessage(session.Id, initialMsg.Id, "updated response", rawStream: "{\"kind\":\"text\",\"text\":\"updated response\"}");
+            Assert.NotNull(updatedMsg);
+            Assert.Equal("updated response", updatedMsg.Content);
+            Assert.Equal("{\"kind\":\"text\",\"text\":\"updated response\"}", updatedMsg.RawStream);
+
+            // In-memory verification
+            var inMemorySession = service.GetSession(session.Id);
+            Assert.NotNull(inMemorySession);
+            Assert.Single(inMemorySession.Messages);
+            Assert.Equal("updated response", inMemorySession.Messages[0].Content);
+            Assert.Equal("{\"kind\":\"text\",\"text\":\"updated response\"}", inMemorySession.Messages[0].RawStream);
+
+            // Disk persistence verification by reloading from disk in a separate service instance
+            var configService = new ConfigService(new TendrilSettings(), tempDir);
+            var reloadedService = new ChatHistoryService(configService);
+            var reloadedSession = reloadedService.GetSession(session.Id);
+            Assert.NotNull(reloadedSession);
+            Assert.Single(reloadedSession.Messages);
+            Assert.Equal("updated response", reloadedSession.Messages[0].Content);
+            Assert.Equal("{\"kind\":\"text\",\"text\":\"updated response\"}", reloadedSession.Messages[0].RawStream);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
     public void AddSpawnedJob_And_GetSpawnedJobs_TracksAndPersistsJobIds()
     {
         var (service, tempDir) = CreateTestService();
@@ -480,4 +518,3 @@ public class ChatHistoryServiceTests
         }
     }
 }
-
