@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useShell } from "./ShellContext";
 import { ShellNavItemDto, ShellWidgetProps } from "./types";
+import { ShellTooltip } from "./ShellTooltip";
 import "./shell.css";
 
 interface ShellNavProps extends ShellWidgetProps {
@@ -62,7 +63,7 @@ const writeStoredHeight = (height: number | null) => {
     if (height == null) window.localStorage.removeItem(NAV_HEIGHT_STORAGE_KEY);
     else window.localStorage.setItem(NAV_HEIGHT_STORAGE_KEY, String(Math.round(height)));
   } catch {
-    /* storage unavailable (private mode, sandboxed host) — the size just doesn't persist */
+    /* storage unavailable (private mode, sandboxed host): the size just doesn't persist */
   }
 };
 
@@ -109,7 +110,7 @@ export const ShellNav: React.FC<ShellNavProps> = ({
       e.currentTarget.setPointerCapture?.(e.pointerId);
       setDragging(true);
     },
-    [resizable]
+    [resizable],
   );
 
   const onDividerPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
@@ -149,27 +150,28 @@ export const ShellNav: React.FC<ShellNavProps> = ({
         style={showDivider && navHeight != null ? { maxHeight: navHeight } : undefined}
       >
         {items.map((item) => (
-          <button
-            key={item.id}
-            className="tsh-nav-item"
-            data-active={item.isActive === true}
-            data-menu-item={item.id}
-            onClick={() => select(item.id)}
-            title={item.label}
-          >
-            <span className="tsh-nav-item-main">
-              <span className="tsh-nav-icon">
-                <NavIcon icon={item.icon} label={item.label} />
+          <ShellTooltip key={item.id} content={item.label} enabled={collapsed} side="right">
+            <button
+              className="tsh-nav-item"
+              data-active={item.isActive === true}
+              data-menu-item={item.id}
+              onClick={() => select(item.id)}
+              aria-label={item.label}
+            >
+              <span className="tsh-nav-item-main">
+                <span className="tsh-nav-icon">
+                  <NavIcon icon={item.icon} label={item.label} />
+                </span>
+                <span className="tsh-nav-label">{item.label}</span>
               </span>
-              <span className="tsh-nav-label">{item.label}</span>
-            </span>
-            {item.badge && (
-              <span className="tsh-nav-badge">
-                {/* The rail fits two digits beside the icon; larger counts cap at 99. */}
-                {collapsed && item.badge.length > 2 ? "99" : item.badge}
-              </span>
-            )}
-          </button>
+              {item.badge && (
+                <span className="tsh-nav-badge">
+                  {/* The rail fits two digits beside the icon; larger counts cap at 99. */}
+                  {collapsed && item.badge.length > 2 ? "99" : item.badge}
+                </span>
+              )}
+            </button>
+          </ShellTooltip>
         ))}
       </div>
       {showDivider && (

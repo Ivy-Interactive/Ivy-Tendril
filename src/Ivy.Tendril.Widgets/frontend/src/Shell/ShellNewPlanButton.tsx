@@ -1,6 +1,8 @@
 import React from "react";
 import { Plus } from "lucide-react";
+import { useShell } from "./ShellContext";
 import { ShellWidgetProps, isMac } from "./types";
+import { ShellTooltip } from "./ShellTooltip";
 import "./shell.css";
 
 interface ShellNewPlanButtonProps extends ShellWidgetProps {
@@ -9,7 +11,7 @@ interface ShellNewPlanButtonProps extends ShellWidgetProps {
 
 /**
  * The primary New Plan CTA. The keyboard shortcut (Ctrl+Alt+N) is bound by
- * the server through the framework's ShortcutKey mechanism — this widget only
+ * the server through the framework's ShortcutKey mechanism: this widget only
  * displays the hint and fires OnClick.
  */
 export const ShellNewPlanButton: React.FC<ShellNewPlanButtonProps> = ({
@@ -18,6 +20,7 @@ export const ShellNewPlanButton: React.FC<ShellNewPlanButtonProps> = ({
   eventHandler,
   label = "New Plan",
 }) => {
+  const { collapsed } = useShell();
   const hintKeys = isMac() ? ["⌘", "⌥", "N"] : ["Ctrl", "Alt", "N"];
 
   const fire = () => {
@@ -26,21 +29,19 @@ export const ShellNewPlanButton: React.FC<ShellNewPlanButtonProps> = ({
 
   return (
     <div className="tsh-newplan-wrap">
-      <button
-        className="tsh-newplan"
-        onClick={fire}
-        title={`${label} (${hintKeys.join("+")})`}
-      >
-        <span className="tsh-newplan-label-group">
-          <Plus size={16} />
-          <span className="tsh-newplan-label">{label}</span>
-        </span>
-        <span className="tsh-kbd">
-          {hintKeys.map((key) => (
-            <span key={key}>{key}</span>
-          ))}
-        </span>
-      </button>
+      <ShellTooltip content={label} shortcut={hintKeys} enabled={collapsed} side="right">
+        <button className="tsh-newplan" onClick={fire} aria-label={label}>
+          <span className="tsh-newplan-label-group">
+            <Plus size={16} />
+            <span className="tsh-newplan-label">{label}</span>
+          </span>
+          <span className="tsh-kbd">
+            {hintKeys.map((key) => (
+              <span key={key}>{key}</span>
+            ))}
+          </span>
+        </button>
+      </ShellTooltip>
     </div>
   );
 };

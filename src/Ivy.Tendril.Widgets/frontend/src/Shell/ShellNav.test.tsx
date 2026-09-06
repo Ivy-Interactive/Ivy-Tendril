@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
 import { ShellNav, NAV_HEIGHT_STORAGE_KEY } from "./ShellNav";
@@ -117,7 +117,7 @@ describe("ShellNav badges", () => {
     const { container } = render(
       <ShellContext.Provider value={{ collapsed: false, toggle: () => {} }}>
         <ShellNav id="nav-1" items={badgeItems} events={[]} eventHandler={vi.fn()} />
-      </ShellContext.Provider>
+      </ShellContext.Provider>,
     );
 
     const badges = container.querySelectorAll(".tsh-nav-badge");
@@ -131,7 +131,7 @@ describe("ShellNav badges", () => {
     const { container } = render(
       <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
         <ShellNav id="nav-1" items={badgeItems} events={[]} eventHandler={vi.fn()} />
-      </ShellContext.Provider>
+      </ShellContext.Provider>,
     );
 
     const badges = container.querySelectorAll(".tsh-nav-badge");
@@ -145,7 +145,7 @@ describe("ShellNav badges", () => {
     const { container } = render(
       <ShellContext.Provider value={{ collapsed: false, toggle: () => {} }}>
         <ShellNav id="nav-1" items={badgeItems} events={[]} eventHandler={vi.fn()} />
-      </ShellContext.Provider>
+      </ShellContext.Provider>,
     );
 
     const activeItem = container.querySelector('.tsh-nav-item[data-active="true"]');
@@ -192,5 +192,66 @@ describe("ShellNav badges", () => {
     const badge = activeItem?.querySelector(".tsh-nav-badge");
     expect(badge).toBeInTheDocument();
     expect(badge).toHaveTextContent("21");
+  });
+});
+
+describe("ShellNav tooltips", () => {
+  const navItems: ShellNavItemDto[] = [
+    { id: "plans", label: "Plans", icon: "Feather" },
+    { id: "review", label: "Review", icon: "ThumbsUp" },
+  ];
+
+  it("does not render native title attributes on navigation item buttons", () => {
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: false, toggle: () => {} }}>
+        <ShellNav id="nav-1" items={navItems} events={[]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>,
+    );
+
+    const buttons = container.querySelectorAll("button.tsh-nav-item");
+    buttons.forEach((btn) => {
+      expect(btn.getAttribute("title")).toBeNull();
+    });
+  });
+
+  it("displays framework-styled tooltip with item.label on hover in collapsed rail mode", () => {
+    vi.useFakeTimers();
+    render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellNav id="nav-1" items={navItems} events={[]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>,
+    );
+
+    const buttons = screen.getAllByRole("button");
+    fireEvent.pointerMove(buttons[0]);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toBeInTheDocument();
+    expect(tooltip).toHaveTextContent("Plans");
+    expect(document.querySelector(".tsh-tooltip-content")).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("displays framework-styled tooltip with item.label on focus in collapsed rail mode", () => {
+    vi.useFakeTimers();
+    render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellNav id="nav-1" items={navItems} events={[]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>,
+    );
+
+    const buttons = screen.getAllByRole("button");
+    fireEvent.focus(buttons[1]);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toBeInTheDocument();
+    expect(tooltip).toHaveTextContent("Review");
+    vi.useRealTimers();
   });
 });

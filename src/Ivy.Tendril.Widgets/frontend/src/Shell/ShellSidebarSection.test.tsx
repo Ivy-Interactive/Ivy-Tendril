@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
 import { ShellSidebarSection } from "./ShellSidebarSection";
@@ -65,9 +65,7 @@ describe("ShellSidebarSection", () => {
     expect(screen.getByRole("button", { name: /search plans/i })).toBeInTheDocument();
     expect(screen.getByText("Plans")).toBeInTheDocument();
 
-    const reviewItems: ShellSectionItemDto[] = [
-      { id: "00003-PlanC", title: "Plan C", tag: "#3" },
-    ];
+    const reviewItems: ShellSectionItemDto[] = [{ id: "00003-PlanC", title: "Plan C", tag: "#3" }];
 
     rerender(
       <ShellSidebarSection
@@ -215,5 +213,71 @@ describe("ShellSidebarSection", () => {
     );
 
     expect(screen.getByRole("button", { name: /search plans/i })).toHaveClass("tsh-rail-search");
+  });
+
+  it("search button does not have native title attribute and displays custom tooltip on hover", () => {
+    vi.useFakeTimers();
+    render(
+      <ShellSidebarSection
+        id="sec-1"
+        title="Plans"
+        items={mockItems}
+        searchable={true}
+        events={["OnSearch"]}
+        eventHandler={vi.fn()}
+      />,
+    );
+
+    const searchBtn = screen.getByRole("button", { name: /search plans/i });
+    expect(searchBtn.getAttribute("title")).toBeNull();
+
+    fireEvent.pointerMove(searchBtn);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toBeInTheDocument();
+    expect(tooltip).toHaveTextContent("Search plans");
+    vi.useRealTimers();
+  });
+
+  it("displays custom tooltip with plan title and badges when hovering collapsed rail plan item", () => {
+    vi.useFakeTimers();
+    const itemsWithBadges: ShellSectionItemDto[] = [
+      {
+        id: "00001-PlanA",
+        title: "Plan A",
+        tag: "#1",
+        badges: [{ label: "Draft", kind: "neutral" }],
+      },
+    ];
+
+    render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellSidebarSection
+          id="sec-1"
+          title="Plans"
+          items={itemsWithBadges}
+          events={["OnSelectItem"]}
+          eventHandler={vi.fn()}
+        />
+      </ShellContext.Provider>,
+    );
+
+    const railItemBtn = screen.getByRole("button", { name: "Plan A" });
+    expect(railItemBtn.getAttribute("title")).toBeNull();
+
+    fireEvent.pointerMove(railItemBtn);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toBeInTheDocument();
+    expect(tooltip).toHaveTextContent("Plan A");
+    expect(tooltip).toHaveTextContent("Draft");
+    expect(document.querySelector(".tsh-rail-tooltip")).toBeInTheDocument();
+    vi.useRealTimers();
   });
 });

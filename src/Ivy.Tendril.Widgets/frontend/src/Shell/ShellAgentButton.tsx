@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect } from "react";
 import { BrandIcon } from "./brandIcons";
 import { ShellWidgetProps, isEditableTarget, isModKey, isMac } from "./types";
+import { ShellTooltip } from "./ShellTooltip";
 import "./shell.css";
 
 interface ShellAgentButtonProps extends ShellWidgetProps {
@@ -52,29 +53,27 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
   }, [fireNewChat, shortcutKey]);
 
   const hintKeys = isMac() ? ["⌘", "⌥", shortcutKey] : ["Ctrl", "Alt", shortcutKey];
+  const shortcutBadge = isMac() ? `⌘+${shortcutKey}` : `Ctrl+${shortcutKey}`;
 
   return (
     <div className="tsh-agent-wrap">
-      <button
-        className="tsh-agent"
-        data-active={isActive}
-        onClick={fireOpen}
-        title={`${label} (${hintKeys.join("+")})`}
-      >
-        <span className="tsh-agent-brand">
-          <span className="tsh-agent-icon">
-            <BrandIcon name={icon} size={16} />
+      <ShellTooltip content={label} shortcut={shortcutBadge} side="right">
+        <button className="tsh-agent" data-active={isActive} onClick={fireOpen} aria-label={label}>
+          <span className="tsh-agent-brand">
+            <span className="tsh-agent-icon">
+              <BrandIcon name={icon} size={16} />
+            </span>
+            <span className="tsh-agent-label">{label}</span>
           </span>
-          <span className="tsh-agent-label">{label}</span>
-        </span>
-        <span className="tsh-agent-actions">
-          <span className="tsh-kbd">
-            {hintKeys.map((k) => (
-              <span key={k}>{k}</span>
-            ))}
+          <span className="tsh-agent-actions">
+            <span className="tsh-kbd">
+              {hintKeys.map((k) => (
+                <span key={k}>{k}</span>
+              ))}
+            </span>
           </span>
-        </span>
-      </button>
+        </button>
+      </ShellTooltip>
     </div>
   );
 };
