@@ -68,9 +68,30 @@ public class GithubService : IGithubService, IDisposable
     public async Task<(List<string> labels, string? error)> GetLabelsAsync(string owner, string repo)
         => await GetCachedListAsync(_labelCache, owner, repo, FetchLabelsFromGhCliAsync);
 
-    public async Task<(Dictionary<string, PrInfo> statuses, string? error)> GetPrStatusesAsync(string owner, string repo)
+    public async Task<(PrInfo? info, string? error)> GetPrStatusAsync(string prUrl)
     {
-        return await FetchPrStatusesFromGhCliAsync(owner, repo);
+        var (prInfo, error) = await ExecuteGhCliAsync(
+            $"pr view \"{prUrl}\" --json state,headRefName",
+            json =>
+            {
+                using var doc = JsonDocument.Parse(json);
+                var state = doc.RootElement.GetProperty("state").GetString();
+                if (state is null) return null;
+
+                var status = MapGitHubStateToStatus(state);
+                var branch = doc.RootElement.TryGetProperty("headRefName", out var headRefProp) &&
+                             headRefProp.ValueKind == JsonValueKind.String
+                    ? headRefProp.GetString() ?? ""
+                    : "";
+
+                return new PrInfo(status, branch);
+            },
+            (PrInfo?)null);
+
+        if (error is not null)
+            _logger.LogWarning("gh pr view failed for {PrUrl}: {Error}", prUrl, error);
+
+        return (prInfo, error);
     }
 
     public async Task<(List<GitHubIssue> issues, string? error)> SearchIssuesAsync(IssueSearchRequest request)
@@ -330,36 +351,15 @@ public class GithubService : IGithubService, IDisposable
         return (items, error);
     }
 
-    internal static Dictionary<string, PrInfo> ParsePrStatuses(string json)
+    private static string MapGitHubStateToStatus(string state)
     {
-        var result = new Dictionary<string, PrInfo>(StringComparer.OrdinalIgnoreCase);
-        using var doc = JsonDocument.Parse(json);
-
-        foreach (var element in doc.RootElement.EnumerateArray())
+        return state switch
         {
-            var url = element.GetProperty("url").GetString();
-            var state = element.GetProperty("state").GetString();
-
-            if (url is not null && state is not null)
-            {
-                var status = state switch
-                {
-                    "OPEN" => "Open",
-                    "CLOSED" => "Closed",
-                    "MERGED" => "Merged",
-                    _ => state
-                };
-
-                var branch = element.TryGetProperty("headRefName", out var headRefProp) &&
-                             headRefProp.ValueKind == JsonValueKind.String
-                    ? headRefProp.GetString() ?? ""
-                    : "";
-
-                result[url] = new PrInfo(status, branch);
-            }
-        }
-
-        return result;
+            "OPEN" => "Open",
+            "CLOSED" => "Closed",
+            "MERGED" => "Merged",
+            _ => state
+        };
     }
 
     private async Task<(List<string> labels, string? error)> FetchLabelsFromGhCliAsync(string owner, string repo)
@@ -376,19 +376,6 @@ public class GithubService : IGithubService, IDisposable
             _logger.LogWarning("gh api labels failed for {Owner}/{Repo}", owner, repo);
 
         return (labels, error);
-    }
-
-    private async Task<(Dictionary<string, PrInfo> statuses, string? error)> FetchPrStatusesFromGhCliAsync(string owner, string repo)
-    {
-        var (statuses, error) = await ExecuteGhCliAsync(
-            $"pr list --repo {owner}/{repo} --limit 100 --state all --json url,state,headRefName",
-            ParsePrStatuses,
-            new Dictionary<string, PrInfo>(StringComparer.OrdinalIgnoreCase));
-
-        if (error is not null)
-            _logger.LogWarning("gh pr list failed for {Owner}/{Repo}", owner, repo);
-
-        return (statuses, error);
     }
 
     private async Task<(List<string> assignees, string? error)> FetchAssigneesFromGhCliAsync(string owner, string repo)

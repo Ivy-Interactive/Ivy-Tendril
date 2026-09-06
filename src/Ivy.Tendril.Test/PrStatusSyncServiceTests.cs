@@ -1,6 +1,7 @@
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.PullRequest;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Git;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -167,5 +168,237 @@ public class PrStatusSyncServiceTests : IDisposable
         Assert.Equal(2, grouped["owner1/repo1"].Count);
         Assert.Single(grouped["owner2/repo2"]);
         Assert.Single(grouped["owner1/repo3"]);
+    }
+
+    [Fact]
+    public async Task RunSyncAsync_StoresMerged_ForUrlARecentWindowWouldMiss()
+    {
+        var url = "https://github.com/owner/repo/pull/1";
+        var fakePlans = new FakePlanReaderService(new List<PlanFile>
+        {
+            CreatePlanWithPrs(new[] { url })
+        });
+
+        var fakeGithub = new FakeGithubService(new Dictionary<string, PrInfo>
+        {
+            [url] = new PrInfo("Merged", "main")
+        });
+
+        var service = new PrStatusSyncService(_db, fakeGithub, fakePlans, NullLogger<PrStatusSyncService>.Instance);
+        await service.RunSyncAsync();
+
+        var statuses = _db.GetAllPrStatuses();
+        Assert.Single(statuses);
+        Assert.Equal("Merged", statuses[url].Status);
+    }
+
+    [Fact]
+    public async Task RunSyncAsync_LeavesExistingRowUntouched_WhenLookupFails()
+    {
+        var url = "https://github.com/owner/repo/pull/1";
+        var seededTime = DateTime.UtcNow.AddHours(-1);
+        _db.UpsertPrStatus(url, "owner", "repo", "Closed", "old-branch", seededTime);
+
+        var fakePlans = new FakePlanReaderService(new List<PlanFile>
+        {
+            CreatePlanWithPrs(new[] { url })
+        });
+
+        var fakeGithub = new FakeGithubService(new Dictionary<string, PrInfo>());
+        fakeGithub.SetError(url, "gh failed");
+
+        var service = new PrStatusSyncService(_db, fakeGithub, fakePlans, NullLogger<PrStatusSyncService>.Instance);
+        await service.RunSyncAsync();
+
+        var statuses = _db.GetAllPrStatuses();
+        Assert.Single(statuses);
+        Assert.Equal("Closed", statuses[url].Status);
+        Assert.Equal("old-branch", statuses[url].Branch);
+    }
+
+    [Fact]
+    public async Task RunSyncAsync_DoesNotResolveUrlsAlreadyMerged()
+    {
+        var url1 = "https://github.com/owner/repo/pull/1";
+        var url2 = "https://github.com/owner/repo/pull/2";
+        _db.UpsertPrStatus(url1, "owner", "repo", "Merged", "main", DateTime.UtcNow);
+
+        var fakePlans = new FakePlanReaderService(new List<PlanFile>
+        {
+            CreatePlanWithPrs(new[] { url1, url2 })
+        });
+
+        var fakeGithub = new FakeGithubService(new Dictionary<string, PrInfo>
+        {
+            [url2] = new PrInfo("Open", "feature")
+        });
+
+        var service = new PrStatusSyncService(_db, fakeGithub, fakePlans, NullLogger<PrStatusSyncService>.Instance);
+        await service.RunSyncAsync();
+
+        Assert.Single(fakeGithub.ResolvedUrls);
+        Assert.Equal(url2, fakeGithub.ResolvedUrls[0]);
+    }
+
+    [Fact]
+    public async Task RunSyncAsync_KeysRowByRecordedUrl_WithFilesSuffix()
+    {
+        var urlWithSuffix = "https://github.com/owner/repo/pull/7/files";
+        var fakePlans = new FakePlanReaderService(new List<PlanFile>
+        {
+            CreatePlanWithPrs(new[] { urlWithSuffix })
+        });
+
+        var fakeGithub = new FakeGithubService(new Dictionary<string, PrInfo>
+        {
+            [urlWithSuffix] = new PrInfo("Open", "feature")
+        });
+
+        var service = new PrStatusSyncService(_db, fakeGithub, fakePlans, NullLogger<PrStatusSyncService>.Instance);
+        await service.RunSyncAsync();
+
+        var statuses = _db.GetAllPrStatuses();
+        Assert.Single(statuses);
+        Assert.True(statuses.ContainsKey(urlWithSuffix));
+    }
+
+    [Fact]
+    public async Task RunSyncAsync_SecondConcurrentRun_PerformsNoLookups()
+    {
+        var url = "https://github.com/owner/repo/pull/1";
+        var fakePlans = new FakePlanReaderService(new List<PlanFile>
+        {
+            CreatePlanWithPrs(new[] { url })
+        });
+
+        var gate = new TaskCompletionSource<bool>();
+        var fakeGithub = new FakeGithubService(new Dictionary<string, PrInfo>
+        {
+            [url] = new PrInfo("Open", "main")
+        });
+        fakeGithub.SetGate(gate.Task);
+
+        var service = new PrStatusSyncService(_db, fakeGithub, fakePlans, NullLogger<PrStatusSyncService>.Instance);
+
+        var task1 = service.RunSyncAsync();
+        await Task.Delay(50);
+        var task2 = service.RunSyncAsync();
+
+        gate.SetResult(true);
+        await Task.WhenAll(task1, task2);
+
+        Assert.Single(fakeGithub.ResolvedUrls);
+    }
+
+    [Fact]
+    public async Task SyncPrAsync_ResolvesOnlyThatUrl()
+    {
+        var url1 = "https://github.com/owner/repo/pull/1";
+        var url2 = "https://github.com/owner/repo/pull/2";
+
+        _db.UpsertPrStatus(url2, "owner", "repo", "Open", "", DateTime.UtcNow);
+
+        var fakeGithub = new FakeGithubService(new Dictionary<string, PrInfo>
+        {
+            [url1] = new PrInfo("Merged", "main")
+        });
+
+        var service = new PrStatusSyncService(_db, fakeGithub, new FakePlanReaderService(new List<PlanFile>()),
+            NullLogger<PrStatusSyncService>.Instance);
+        var result = await service.SyncPrAsync(url1);
+
+        Assert.True(result);
+        Assert.Single(fakeGithub.ResolvedUrls);
+        Assert.Equal(url1, fakeGithub.ResolvedUrls[0]);
+
+        var statuses = _db.GetAllPrStatuses();
+        Assert.Equal(2, statuses.Count);
+        Assert.Equal("Merged", statuses[url1].Status);
+    }
+
+    private static PlanFile CreatePlanWithPrs(string[] prs)
+    {
+        return new PlanFile
+        {
+            FolderPath = "/fake/path",
+            Title = "Test Plan",
+            State = "Draft",
+            Project = "test-project",
+            Level = "Feature",
+            Created = DateTime.UtcNow,
+            Updated = DateTime.UtcNow,
+            Prs = prs.ToList(),
+            Repos = new List<string>(),
+            Verifications = new List<VerificationEntry>(),
+            RelatedPlans = new List<string>(),
+            DependsOn = new List<string>(),
+            Recommendations = new List<RecommendationEntry>()
+        };
+    }
+
+    private class FakePlanReaderService : IPlanReaderService
+    {
+        private readonly List<PlanFile> _plans;
+
+        public FakePlanReaderService(List<PlanFile> plans)
+        {
+            _plans = plans;
+        }
+
+        public List<PlanFile> GetPlans() => _plans;
+        public PlanFile? GetPlanByFolder(string folderPath) => throw new NotImplementedException();
+    }
+
+    private class FakeGithubService : IGithubService
+    {
+        private readonly Dictionary<string, PrInfo> _responses;
+        private readonly Dictionary<string, string> _errors = new();
+        private Task? _gate;
+
+        public List<string> ResolvedUrls { get; } = new();
+
+        public FakeGithubService(Dictionary<string, PrInfo> responses)
+        {
+            _responses = responses;
+        }
+
+        public void SetError(string url, string error)
+        {
+            _errors[url] = error;
+        }
+
+        public void SetGate(Task gate)
+        {
+            _gate = gate;
+        }
+
+        public async Task<(PrInfo? info, string? error)> GetPrStatusAsync(string prUrl)
+        {
+            if (_gate is not null)
+                await _gate;
+
+            ResolvedUrls.Add(prUrl);
+
+            if (_errors.TryGetValue(prUrl, out var error))
+                return (null, error);
+
+            if (_responses.TryGetValue(prUrl, out var info))
+                return (info, null);
+
+            return (null, "Not found");
+        }
+
+        public List<RepoConfig> GetRepos() => throw new NotImplementedException();
+        public RepoConfig? GetRepoConfigFromPathCached(string repoPath) => throw new NotImplementedException();
+        public ProjectConfig? FindProjectForGithubRepo(string ownerRepo) => throw new NotImplementedException();
+        public IReadOnlyList<string> GetResolvedGithubRepos(ProjectConfig project) => throw new NotImplementedException();
+        public Task<(List<string> assignees, string? error)> GetAssigneesAsync(string owner, string repo) =>
+            throw new NotImplementedException();
+        public Task<(List<string> labels, string? error)> GetLabelsAsync(string owner, string repo) =>
+            throw new NotImplementedException();
+        public Task<(Dictionary<string, PrInfo> statuses, string? error)> GetPrStatusesAsync(string owner, string repo) =>
+            throw new NotImplementedException();
+        public Task<(List<GitHubIssue> issues, string? error)> SearchIssuesAsync(IssueSearchRequest request) =>
+            throw new NotImplementedException();
     }
 }

@@ -8,12 +8,15 @@ namespace Ivy.Tendril.Services.Git;
 public class PrStatusSyncService : IStartable, IDisposable
 {
     private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(10);
+    private const int MaxConcurrentRequests = 4;
 
     private readonly IPlanDatabaseService _database;
     private readonly IGithubService _githubService;
     private readonly IPlanReaderService _planReader;
     private readonly ILogger<PrStatusSyncService> _logger;
+    private readonly SemaphoreSlim _concurrencySemaphore = new(MaxConcurrentRequests);
     private Timer? _timer;
+    private int _isRunning;
 
     public PrStatusSyncService(
         IPlanDatabaseService database,
@@ -35,10 +38,17 @@ public class PrStatusSyncService : IStartable, IDisposable
     public void Dispose()
     {
         _timer?.Dispose();
+        _concurrencySemaphore.Dispose();
     }
 
     public async Task RunSyncAsync()
     {
+        if (Interlocked.CompareExchange(ref _isRunning, 1, 0) != 0)
+        {
+            _logger.LogDebug("PR status sync already running, skipping this cycle");
+            return;
+        }
+
         try
         {
             var prUrls = CollectPrUrlsFromPlans();
@@ -79,21 +89,31 @@ public class PrStatusSyncService : IStartable, IDisposable
 
                 try
                 {
-                    var (statuses, error) = await _githubService.GetPrStatusesAsync(parts[0], parts[1]);
-
-                    if (error is not null)
+                    var tasks = urls.Select(async url =>
                     {
-                        _logger.LogWarning("Failed to fetch PR statuses for {Repo}: {Error}", ownerRepo, error);
-                        continue;
-                    }
+                        await _concurrencySemaphore.WaitAsync();
+                        try
+                        {
+                            var (info, error) = await _githubService.GetPrStatusAsync(url);
 
-                    foreach (var url in urls)
-                    {
-                        if (statuses.TryGetValue(url, out var info))
-                            _database.UpsertPrStatus(url, parts[0], parts[1], info.Status, info.Branch, now);
-                        else
-                            _database.UpsertPrStatus(url, parts[0], parts[1], "Open", "", now);
-                    }
+                            if (error is not null)
+                            {
+                                _logger.LogWarning("Failed to fetch PR status for {Url}: {Error}", url, error);
+                                return;
+                            }
+
+                            if (info is not null)
+                            {
+                                _database.UpsertPrStatus(url, parts[0], parts[1], info.Status, info.Branch, now);
+                            }
+                        }
+                        finally
+                        {
+                            _concurrencySemaphore.Release();
+                        }
+                    });
+
+                    await Task.WhenAll(tasks);
 
                     _logger.LogDebug("Synced {Count} PR statuses for {Repo}", urls.Count, ownerRepo);
                 }
@@ -106,6 +126,45 @@ public class PrStatusSyncService : IStartable, IDisposable
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "PR status sync failed");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _isRunning, 0);
+        }
+    }
+
+    public async Task<bool> SyncPrAsync(string prUrl)
+    {
+        try
+        {
+            var repoConfig = GithubService.ParseRepoConfigFromIssueOrPrUrl(prUrl);
+            if (repoConfig is null)
+            {
+                _logger.LogWarning("Could not parse owner/repo from PR URL: {Url}", prUrl);
+                return false;
+            }
+
+            var (info, error) = await _githubService.GetPrStatusAsync(prUrl);
+
+            if (error is not null)
+            {
+                _logger.LogWarning("Failed to fetch PR status for {Url}: {Error}", prUrl, error);
+                return false;
+            }
+
+            if (info is not null)
+            {
+                var now = DateTime.UtcNow;
+                _database.UpsertPrStatus(prUrl, repoConfig.Owner, repoConfig.Name, info.Status, info.Branch, now);
+                return true;
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to sync PR status for {Url}", prUrl);
+            return false;
         }
     }
 

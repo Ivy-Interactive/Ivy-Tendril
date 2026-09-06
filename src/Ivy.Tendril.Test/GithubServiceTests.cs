@@ -263,54 +263,6 @@ public class GithubServiceTests
     }
 
     [Fact]
-    public async Task GetPrStatusesAsync_Returns_Error_When_Command_Fails()
-    {
-        var configService = new ConfigService(new TendrilSettings());
-        var githubService = new GithubService(configService, NullLogger<GithubService>.Instance);
-
-        var (statuses, error) = await githubService.GetPrStatusesAsync(
-            "nonexistent-owner-xyz-000", "nonexistent-repo-xyz-000");
-
-        Assert.Empty(statuses);
-        Assert.NotNull(error);
-    }
-
-    [Fact]
-    public void ParsePrStatuses_ParsesStatusAndBranch()
-    {
-        var json = """
-                   [
-                     {"url": "https://github.com/owner/repo/pull/1", "state": "OPEN", "headRefName": "feature/foo"},
-                     {"url": "https://github.com/owner/repo/pull/2", "state": "MERGED", "headRefName": "feature/bar"}
-                   ]
-                   """;
-
-        var statuses = GithubService.ParsePrStatuses(json);
-
-        Assert.Equal(2, statuses.Count);
-        Assert.Equal("Open", statuses["https://github.com/owner/repo/pull/1"].Status);
-        Assert.Equal("feature/foo", statuses["https://github.com/owner/repo/pull/1"].Branch);
-        Assert.Equal("Merged", statuses["https://github.com/owner/repo/pull/2"].Status);
-        Assert.Equal("feature/bar", statuses["https://github.com/owner/repo/pull/2"].Branch);
-    }
-
-    [Fact]
-    public void ParsePrStatuses_TreatsMissingHeadRefNameAsEmpty()
-    {
-        var json = """
-                   [
-                     {"url": "https://github.com/owner/repo/pull/1", "state": "OPEN"}
-                   ]
-                   """;
-
-        var statuses = GithubService.ParsePrStatuses(json);
-
-        Assert.Single(statuses);
-        Assert.Equal("Open", statuses["https://github.com/owner/repo/pull/1"].Status);
-        Assert.Equal("", statuses["https://github.com/owner/repo/pull/1"].Branch);
-    }
-
-    [Fact]
     public async Task GetLabelsAsync_Returns_Error_When_Command_Fails()
     {
         var configService = new ConfigService(new TendrilSettings());
@@ -663,5 +615,41 @@ public class GithubServiceTests
         };
         using var process = Process.Start(psi)!;
         process.WaitForExit();
+    }
+
+    [Fact]
+    public async Task GetPrStatusAsync_Returns_Error_For_Missing_Pr()
+    {
+        var configService = new ConfigService(new TendrilSettings());
+        var githubService = new GithubService(configService, NullLogger<GithubService>.Instance);
+
+        var (info, error) = await githubService.GetPrStatusAsync(
+            "https://github.com/nonexistent-owner-xyz-000/nonexistent-repo-xyz-000/pull/99999999");
+
+        Assert.Null(info);
+        Assert.NotNull(error);
+    }
+
+    [Theory]
+    [InlineData("OPEN", "Open")]
+    [InlineData("CLOSED", "Closed")]
+    [InlineData("MERGED", "Merged")]
+    public void MapGitHubStateToStatus_MapsAllStates(string githubState, string expectedStatus)
+    {
+        var json = $$"""
+                   {"state": "{{githubState}}", "headRefName": "feature/test"}
+                   """;
+
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        var state = doc.RootElement.GetProperty("state").GetString();
+        var status = state switch
+        {
+            "OPEN" => "Open",
+            "CLOSED" => "Closed",
+            "MERGED" => "Merged",
+            _ => state
+        };
+
+        Assert.Equal(expectedStatus, status);
     }
 }

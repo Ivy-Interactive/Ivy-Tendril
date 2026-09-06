@@ -33,6 +33,13 @@ public interface IGithubService
     IReadOnlyList<string> GetResolvedGithubRepos(ProjectConfig project);
     Task<(List<string> assignees, string? error)> GetAssigneesAsync(string owner, string repo);
     Task<(List<string> labels, string? error)> GetLabelsAsync(string owner, string repo);
-    Task<(Dictionary<string, PrInfo> statuses, string? error)> GetPrStatusesAsync(string owner, string repo);
+
+    /// <summary>
+    ///     One PR resolved on its own, for the callers that must not depend on a recent PR window. Returns
+    ///     (null, error) when gh could not answer: a deleted PR, a repo the token cannot read and a rate
+    ///     limit all arrive this way, and none of them is a status.
+    /// </summary>
+    Task<(PrInfo? info, string? error)> GetPrStatusAsync(string prUrl);
+
     Task<(List<GitHubIssue> issues, string? error)> SearchIssuesAsync(IssueSearchRequest request);
 }
