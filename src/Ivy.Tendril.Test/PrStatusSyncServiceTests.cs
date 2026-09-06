@@ -1,7 +1,9 @@
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.PullRequest;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Git;
+using Ivy.Tendril.Services.Plans;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -345,8 +347,45 @@ public class PrStatusSyncServiceTests : IDisposable
             _plans = plans;
         }
 
-        public List<PlanFile> GetPlans() => _plans;
+        public string PlansDirectory => throw new NotImplementedException();
+        public bool IsDatabaseReady => throw new NotImplementedException();
+        public event Action? CountsInvalidated;
+
+        public List<PlanFile> GetPlans(PlanStatus? statusFilter = null) => _plans;
         public PlanFile? GetPlanByFolder(string folderPath) => throw new NotImplementedException();
+        public void MigratePlans() => throw new NotImplementedException();
+        public void RecoverStuckPlans() => throw new NotImplementedException();
+        public List<PlanFile> GetIceboxPlans() => throw new NotImplementedException();
+        public void TransitionState(string folderName, PlanStatus newState) => throw new NotImplementedException();
+        public IReadOnlyList<string> GetFailedVerifications(string folderName) => throw new NotImplementedException();
+        public void CompleteWithPartialDelivery(string folderName) => throw new NotImplementedException();
+        public void ResetToDraft(string folderName) => throw new NotImplementedException();
+        public void ResetVerificationsForRetry(string folderName) => throw new NotImplementedException();
+        public void SetVerificationStatus(string folderName, string name, VerificationStatus status) => throw new NotImplementedException();
+        public void SaveRevision(string folderName, string content) => throw new NotImplementedException();
+        public void RevertRevision(string folderName) => throw new NotImplementedException();
+        public string ReadLatestRevision(string folderName) => throw new NotImplementedException();
+        public List<(int Number, string Content, DateTime Modified)> GetRevisions(string folderName) => throw new NotImplementedException();
+        public void DeletePlan(string folderName) => throw new NotImplementedException();
+        public string ReadRawPlan(string folderName) => throw new NotImplementedException();
+        public void SavePlan(string folderName, string fullContent) => throw new NotImplementedException();
+        public void UpdateLatestRevision(string folderName, string content) => throw new NotImplementedException();
+        public DashboardModels GetDashboardData(string? projectFilter) => throw new NotImplementedException();
+        public DashboardActivityStats GetDashboardActivity(int monthsBack = 24) => throw new NotImplementedException();
+        public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days) => throw new NotImplementedException();
+        public decimal GetPlanTotalCost(string folderPath) => throw new NotImplementedException();
+        public int GetPlanTotalTokens(string folderPath) => throw new NotImplementedException();
+        public List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null) => throw new NotImplementedException();
+        public List<Recommendation> GetRecommendations() => throw new NotImplementedException();
+        public int GetPendingRecommendationsCount() => throw new NotImplementedException();
+        public PlanReaderService.PlanCountSnapshot ComputePlanCounts() => throw new NotImplementedException();
+        public void UpdateRecommendationState(string planFolderName, string recommendationTitle, string newState, string? declineReason = null) => throw new NotImplementedException();
+        public List<RecommendationYaml> GetRecommendationsForPlan(string folderName) => throw new NotImplementedException();
+        public void AcceptRecommendationAndRetry(string folderName, string recommendationTitle) => throw new NotImplementedException();
+        public void AcceptRecommendationsAndRetry(string folderName, IReadOnlyCollection<string> titles) => throw new NotImplementedException();
+        public void SyncPlanArtifacts(string planFolder) => throw new NotImplementedException();
+        public void InvalidateCaches() => throw new NotImplementedException();
+        public Task FlushPendingWritesAsync() => throw new NotImplementedException();
     }
 
     private class FakeGithubService : IGithubService
