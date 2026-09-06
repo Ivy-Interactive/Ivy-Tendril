@@ -428,6 +428,34 @@ public class ChatHistoryService : IChatHistoryService
         }
     }
 
+    public void RemoveSpawnedJobs(string sessionId, IEnumerable<string> jobIds)
+    {
+        if (string.IsNullOrEmpty(sessionId) || jobIds == null) return;
+        ChatSessionModel? updated = null;
+        lock (_sessionLock)
+        {
+            var session = GetSession(sessionId);
+            if (session == null || session.SpawnedJobIds == null || session.SpawnedJobIds.Count == 0) return;
+            var toRemove = new HashSet<string>(jobIds, StringComparer.OrdinalIgnoreCase);
+            var remaining = session.SpawnedJobIds.Where(id => !toRemove.Contains(id)).ToList();
+            if (remaining.Count != session.SpawnedJobIds.Count)
+            {
+                updated = session with
+                {
+                    UpdatedAt = DateTimeOffset.UtcNow,
+                    SpawnedJobIds = remaining.Count > 0 ? remaining : null
+                };
+                _sessions[sessionId] = updated;
+            }
+        }
+
+        if (updated != null)
+        {
+            PersistSessionToDisk(updated);
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
     public IReadOnlyList<string> GetSpawnedJobs(string sessionId)
     {
         if (string.IsNullOrEmpty(sessionId)) return Array.Empty<string>();

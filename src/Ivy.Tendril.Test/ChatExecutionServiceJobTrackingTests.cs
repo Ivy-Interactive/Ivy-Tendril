@@ -106,7 +106,7 @@ public class ChatExecutionServiceJobTrackingTests
     }
 
     [Fact]
-    public void ToolResultEvent_WithJobIdPattern_TracksSpawnedJob()
+    public void ToolResultEvent_WithJobIdDiscussion_DoesNotTrackSpawnedJob()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), "TendrilTrackJobIdTest_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(tempDir);
@@ -133,13 +133,50 @@ public class ChatExecutionServiceJobTrackingTests
 
             var session = chatService.CreateSession("codex", "gpt-5.6-sol");
 
-            execService.TryTrackSpawnedJob(session.Id, "Created new background execution. Job ID: test-job-999");
+            // Discussions and listings mentioning Job ID: should NOT track as newly spawned jobs
+            execService.TryTrackSpawnedJob(session.Id, "Here are the jobs:\n- **Job ID**: test-job-999\n- Job ID: 00151");
 
             var updatedSession = chatService.GetSession(session.Id);
             Assert.NotNull(updatedSession);
-            Assert.NotNull(updatedSession.SpawnedJobIds);
-            Assert.Contains("test-job-999", updatedSession.SpawnedJobIds);
-            Assert.Equal(session.Id, fakeJobService.JobChatSessions["test-job-999"]);
+            Assert.Null(updatedSession.SpawnedJobIds);
+            Assert.Empty(fakeJobService.JobChatSessions);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public void RemoveSpawnedJobs_PrunesStaleJobsFromSession()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilRemoveSpawnedTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+            chatService.AddSpawnedJob(session.Id, "00151");
+            chatService.AddSpawnedJob(session.Id, "00152");
+            chatService.AddSpawnedJob(session.Id, "00153");
+
+            var sess = chatService.GetSession(session.Id);
+            Assert.NotNull(sess?.SpawnedJobIds);
+            Assert.Equal(3, sess.SpawnedJobIds.Count);
+
+            chatService.RemoveSpawnedJobs(session.Id, new[] { "00151", "00152" });
+
+            var updated = chatService.GetSession(session.Id);
+            Assert.NotNull(updated?.SpawnedJobIds);
+            Assert.Single(updated.SpawnedJobIds);
+            Assert.Equal("00153", updated.SpawnedJobIds[0]);
         }
         finally
         {

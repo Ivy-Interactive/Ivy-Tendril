@@ -160,17 +160,38 @@ public class ChatApp : ViewBase
             if (jobService != null)
             {
                 var combinedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                if (s.SpawnedJobIds is { Count: > 0 } jIds)
-                {
-                    foreach (var id in jIds) combinedIds.Add(id);
-                }
 
-                var matchingJobs = jobService.GetJobs().Where(j => string.Equals(j.ChatSessionId, s.Id, StringComparison.OrdinalIgnoreCase));
+                var matchingJobs = jobService.GetJobs().Where(j => string.Equals(j.ChatSessionId, s.Id, StringComparison.OrdinalIgnoreCase)).ToList();
                 foreach (var mj in matchingJobs)
                 {
                     if (combinedIds.Add(mj.Id))
                     {
                         chatService.AddSpawnedJob(s.Id, mj.Id);
+                    }
+                }
+
+                if (s.SpawnedJobIds is { Count: > 0 } jIds)
+                {
+                    var staleIds = new List<string>();
+                    foreach (var id in jIds)
+                    {
+                        var job = jobService.GetJob(id);
+                        if (job != null)
+                        {
+                            if (string.Equals(job.ChatSessionId, s.Id, StringComparison.OrdinalIgnoreCase))
+                            {
+                                combinedIds.Add(id);
+                            }
+                            else
+                            {
+                                staleIds.Add(id);
+                            }
+                        }
+                    }
+
+                    if (staleIds.Count > 0)
+                    {
+                        chatService.RemoveSpawnedJobs(s.Id, staleIds);
                     }
                 }
 

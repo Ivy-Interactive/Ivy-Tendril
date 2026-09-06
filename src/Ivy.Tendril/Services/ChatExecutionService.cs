@@ -62,7 +62,7 @@ public sealed class ChatExecutionService : IChatExecutionService
     private readonly ConcurrentDictionary<string, ConcurrentQueue<string>> _pendingSystemEvents = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly Regex JobStartedRegex = new(
-        @"(?:Job started:\s*|\*\*Job ID\*\*:\s*`?|Job ID:\s*`?)([0-9a-zA-Z_-]+)`?",
+        @"\bJob started:\s*([0-9a-zA-Z_-]+)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     internal void TryTrackSpawnedJob(string sessionId, string? text)
@@ -299,7 +299,7 @@ public sealed class ChatExecutionService : IChatExecutionService
             foreach (var jId in spawnedIds)
             {
                 var j = jobService.GetJob(jId);
-                if (j != null)
+                if (j != null && string.Equals(j.ChatSessionId, sessionId, StringComparison.OrdinalIgnoreCase))
                 {
                     spawnedJobs.Add((j.Id, j.Type, j.Status, j.ReportedPlanId, j.ReportedPlanTitle, j.StatusMessage));
                 }
@@ -436,8 +436,6 @@ public sealed class ChatExecutionService : IChatExecutionService
                             {
                                 lastTextEvent = textEvt.Text;
                             }
-
-                            TryTrackSpawnedJob(sessionId, textEvt.Text);
                         }
 
                         var wireJson = _serializer.Serialize(evt);
@@ -475,9 +473,6 @@ public sealed class ChatExecutionService : IChatExecutionService
                         : (result.IsSuccess
                             ? "Task completed successfully."
                             : "Agent execution completed with status code " + (result.ExitCode?.ToString() ?? "unknown")));
-
-                // Detect any job IDs mentioned in final response
-                TryTrackSpawnedJob(sessionId, responseContent);
 
                 _chatService.AddMessage(sessionId, "assistant", responseContent, targetAgent, targetModel, rawStream: fullRawStream, effort: targetEffort);
 
@@ -600,13 +595,6 @@ public sealed class ChatExecutionService : IChatExecutionService
         if (job == null) return;
 
         string? targetSessionId = job.ChatSessionId;
-        if (string.IsNullOrEmpty(targetSessionId))
-        {
-            var allSessions = _chatService.GetSessions();
-            var matchingSession = allSessions.FirstOrDefault(s => s.SpawnedJobIds != null && s.SpawnedJobIds.Contains(job.Id));
-            targetSessionId = matchingSession?.Id;
-        }
-
         if (string.IsNullOrEmpty(targetSessionId)) return;
 
         var sess = _chatService.GetSession(targetSessionId);
