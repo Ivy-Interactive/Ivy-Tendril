@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Mic, Bot, Cpu, Zap, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square, ArrowRight, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -351,10 +351,35 @@ export function ChatWidget({
   const [optimisticStreaming, setOptimisticStreaming] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const initialPromptRef = useRef<string>("");
+
+  const SCROLL_THRESHOLD = 50;
+
+  const checkIsAtBottom = useCallback((element: HTMLElement) => {
+    const { scrollTop, scrollHeight, clientHeight } = element;
+    return scrollHeight - scrollTop - clientHeight <= SCROLL_THRESHOLD;
+  }, []);
+
+  const scrollToBottom = useCallback((behavior: "auto" | "smooth" = "auto") => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const targetTop = Math.max(0, container.scrollHeight - container.clientHeight);
+
+    if (behavior === "auto" || typeof container.scrollTo !== "function") {
+      container.scrollTop = targetTop;
+    } else {
+      container.scrollTo({
+        top: targetTop,
+        behavior: "smooth",
+      });
+    }
+  }, []);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
   const currentOptimistic = (activeSessionId && optimisticMessages[activeSessionId]) || [];
@@ -423,6 +448,8 @@ export function ChatWidget({
   useEffect(() => {
     setOptimisticStreaming(null);
     setQueuedMessages(queuedMessagesProp || []);
+    isAtBottomRef.current = true;
+    scrollToBottom("auto");
   }, [activeSessionId]);
 
   useEffect(() => {
@@ -444,8 +471,75 @@ export function ChatWidget({
   }, [optimisticStreaming]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeSession?.messages, displayMessages.length, effectiveIsStreaming, streamingText, queuedMessages]);
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      isAtBottomRef.current = checkIsAtBottom(container);
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+    };
+  }, [checkIsAtBottom]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    let resizeObserver: ResizeObserver | null = null;
+    let mutationObserver: MutationObserver | null = null;
+
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        if (isAtBottomRef.current) {
+          scrollToBottom("auto");
+        }
+      });
+
+      resizeObserver.observe(container);
+
+      const observed = new WeakSet<Element>();
+      const observeChildren = (root: Element) => {
+        for (const child of Array.from(root.children)) {
+          if (!observed.has(child)) {
+            resizeObserver?.observe(child);
+            observed.add(child);
+          }
+          observeChildren(child);
+        }
+      };
+      observeChildren(container);
+
+      if (typeof MutationObserver !== "undefined") {
+        mutationObserver = new MutationObserver((mutations) => {
+          for (const m of mutations) {
+            m.addedNodes.forEach((n) => {
+              if (n.nodeType === Node.ELEMENT_NODE) {
+                observeChildren(n as Element);
+              }
+            });
+          }
+          if (isAtBottomRef.current) {
+            scrollToBottom("auto");
+          }
+        });
+        mutationObserver.observe(container, { childList: true, subtree: true });
+      }
+    }
+
+    return () => {
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+    };
+  }, [scrollToBottom]);
+
+  useEffect(() => {
+    if (isAtBottomRef.current) {
+      scrollToBottom("auto");
+    }
+  }, [displayMessages.length, effectiveIsStreaming, streamingText, queuedMessages, scrollToBottom]);
 
   useEffect(() => {
     if (activeSessionId && sessions.length > 0) {
@@ -555,6 +649,10 @@ export function ChatWidget({
     emit("OnSendMessage", payload);
     setPromptText("");
     setAttachments([]);
+    isAtBottomRef.current = true;
+    requestAnimationFrame(() => {
+      scrollToBottom("smooth");
+    });
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
@@ -1014,7 +1112,7 @@ export function ChatWidget({
         </div>
 
         {/* Message List Container */}
-        <div className="chat-messages-container">
+        <div ref={messagesContainerRef} className="chat-messages-container">
           {activeSession && displayMessages.length > 0 ? (
             displayMessages.map((msg) => (
               <div key={msg.id} className={`chat-message-row ${msg.role}`}>
@@ -1100,7 +1198,7 @@ export function ChatWidget({
                 <AgentViewer
                   id={`live-chat-${activeSessionId}`}
                   jsonStream={streamingText}
-                  autoScroll={true}
+                  autoScroll={false}
                   showThinking={true}
                   showSystemEvents={false}
                   showStatusLabel={true}
@@ -1112,7 +1210,7 @@ export function ChatWidget({
           )}
 
 
-          <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} className="chat-messages-bottom-anchor" />
         </div>
 
         {/* Footer & Resizable Input Toolbar */}
