@@ -465,11 +465,32 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             var wasOnSession = selectedIndex.Value != null;
             var effectiveNavigateArgs = navigateArgs with { AppId = effectiveAppId };
 
+            if (effectiveNavigateArgs.AppArgs == null &&
+                string.Equals(previousApp, effectiveAppId, StringComparison.OrdinalIgnoreCase))
+            {
+                if (currentApp.Value?.AppArgs != null)
+                {
+                    effectiveNavigateArgs = effectiveNavigateArgs with { AppArgs = currentApp.Value.AppArgs };
+                }
+                else if (sidebarList.Value is { } currentSidebar &&
+                         string.Equals(currentSidebar.AppId, effectiveAppId, StringComparison.OrdinalIgnoreCase) &&
+                         !string.IsNullOrEmpty(currentSidebar.SelectedId))
+                {
+                    effectiveNavigateArgs = effectiveNavigateArgs with { AppArgs = currentSidebar.BuildSelectArgs(currentSidebar.SelectedId) };
+                }
+            }
+
             var appHost = effectiveAppId != null
                 ? effectiveNavigateArgs.ToAppHost(args.ConnectionId)
                 : null;
 
-            currentApp.Set(appHost);
+            if (currentApp.Value == null ||
+                !string.Equals(previousApp, effectiveAppId, StringComparison.OrdinalIgnoreCase) ||
+                !Equals(currentApp.Value.AppArgs, effectiveNavigateArgs.AppArgs))
+            {
+                currentApp.Set(appHost);
+            }
+
             selectedIndex.Set((int?)null);
 
             // The sidebar section belongs to the page app; drop it when the page changes to an
@@ -583,7 +604,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             {
                 // The page is still open behind the sessions; reveal it again.
                 SetAppTitle(page.AppId);
-                RedirectToAppIfNotError(new NavigateArgs(page.AppId));
+                RedirectToAppIfNotError(new NavigateArgs(page.AppId, page.AppArgs));
             }
             else
             {
