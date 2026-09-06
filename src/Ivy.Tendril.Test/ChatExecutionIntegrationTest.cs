@@ -675,4 +675,124 @@ public class ChatExecutionIntegrationTest
     }
 }
 
+public class ChatExecutionServiceTests
+{
+    [Fact]
+    public async Task SendMessageAsync_WhenProcessKilledOrCancelled_PreservesPartialStreamOnDisk()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatExecCancelTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+
+            var execService = new ChatExecutionService(configService, chatService, agentRunner, namingService, serializer);
+
+            var sess = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            // Start sending message
+            _ = execService.SendMessageAsync(sess.Id, "Hello test message");
+
+            // Verify session is marked generating
+            Assert.True(execService.IsGenerating(sess.Id));
+
+            // Emit live stream lines
+            execService.EmitStreamLine(sess.Id, "{\"kind\":\"thinking\",\"content\":\"planning response\"}");
+            execService.EmitStreamLine(sess.Id, "{\"kind\":\"text\",\"text\":\"partial answer\"}");
+
+            // Cancel execution (simulates user stop, cancellation, or process interruption)
+            await execService.CancelAsync(sess.Id);
+            Assert.False(execService.IsGenerating(sess.Id));
+
+            // Verify in-memory session contains assistant message with the partial stream
+            var inMemorySession = chatService.GetSession(sess.Id);
+            Assert.NotNull(inMemorySession);
+            Assert.True(inMemorySession.Messages.Count >= 2);
+            var assistantMsg = inMemorySession.Messages.Last();
+            Assert.Equal("assistant", assistantMsg.Role);
+            Assert.NotNull(assistantMsg.RawStream);
+            Assert.Contains("planning response", assistantMsg.RawStream);
+            Assert.Contains("partial answer", assistantMsg.RawStream);
+
+            // Verify disk persistence by loading in a fresh ChatHistoryService instance (simulating restart)
+            var restartConfigService = new ConfigService(config, tempDir);
+            var restartedChatService = new ChatHistoryService(restartConfigService);
+            var persistedSession = restartedChatService.GetSession(sess.Id);
+            Assert.NotNull(persistedSession);
+            Assert.True(persistedSession.Messages.Count >= 2);
+            var persistedAssistantMsg = persistedSession.Messages.Last();
+            Assert.Equal("assistant", persistedAssistantMsg.Role);
+            Assert.NotNull(persistedAssistantMsg.RawStream);
+            Assert.Contains("planning response", persistedAssistantMsg.RawStream);
+            Assert.Contains("partial answer", persistedAssistantMsg.RawStream);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ActiveStream_FlushesIncrementally()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatIncrementalFlushTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+
+            var execService = new ChatExecutionService(configService, chatService, agentRunner, namingService, serializer);
+
+            var sess = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            _ = execService.SendMessageAsync(sess.Id, "Hello streaming test");
+            Assert.True(execService.IsGenerating(sess.Id));
+
+            // Emit first line
+            execService.EmitStreamLine(sess.Id, "{\"kind\":\"thinking\",\"content\":\"first thought\"}");
+
+            // Wait 1.1s so the throttle window elapses
+            await Task.Delay(1100);
+
+            // Emit second line which triggers the throttled persist
+            execService.EmitStreamLine(sess.Id, "{\"kind\":\"text\",\"text\":\"second thought\"}");
+
+            // Wait briefly for timer/write
+            await Task.Delay(200);
+
+            // Verify file on disk before completion or cancellation
+            var sessionFile = Path.Combine(tempDir, "Chats", $"{sess.Id}.json");
+            Assert.True(File.Exists(sessionFile));
+
+            var json = File.ReadAllText(sessionFile);
+            Assert.Contains("first thought", json);
+
+            // Clean up
+            await execService.CancelAsync(sess.Id);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+}
+
 
