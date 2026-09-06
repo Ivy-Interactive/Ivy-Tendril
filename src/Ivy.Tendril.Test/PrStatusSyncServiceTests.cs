@@ -320,22 +320,24 @@ public class PrStatusSyncServiceTests : IDisposable
 
     private static PlanFile CreatePlanWithPrs(string[] prs)
     {
-        return new PlanFile
-        {
-            FolderPath = "/fake/path",
-            Title = "Test Plan",
-            State = "Draft",
-            Project = "test-project",
-            Level = "Feature",
-            Created = DateTime.UtcNow,
-            Updated = DateTime.UtcNow,
-            Prs = prs.ToList(),
-            Repos = new List<string>(),
-            Verifications = new List<VerificationEntry>(),
-            RelatedPlans = new List<string>(),
-            DependsOn = new List<string>(),
-            Recommendations = new List<RecommendationEntry>()
-        };
+        var metadata = new PlanMetadata(
+            1,
+            "test-project",
+            "Feature",
+            "Test Plan",
+            PlanStatus.Draft,
+            [],
+            prs.ToList(),
+            [],
+            [],
+            [],
+            [],
+            DateTime.UtcNow,
+            DateTime.UtcNow,
+            null,
+            null
+        );
+        return new PlanFile(metadata, "", "/fake/path", "");
     }
 
     private class FakePlanReaderService : IPlanReaderService
