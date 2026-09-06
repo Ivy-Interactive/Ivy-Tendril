@@ -464,6 +464,8 @@ public class ChatHistoryService : IChatHistoryService
             {
                 var lines = rawStream.Split('\n');
                 bool rawModified = false;
+                bool anyTextApplied = false;
+                bool hasDeltaText = false;
                 for (int i = 0; i < lines.Length; i++)
                 {
                     var line = lines[i].Trim();
@@ -474,6 +476,10 @@ public class ChatHistoryService : IChatHistoryService
                         if (node is System.Text.Json.Nodes.JsonObject obj)
                         {
                             bool lineChanged = false;
+                            if (obj.TryGetPropertyValue("delta", out var deltaNode) && deltaNode != null && deltaNode.GetValue<bool>())
+                            {
+                                hasDeltaText = true;
+                            }
                             if (obj.TryGetPropertyValue("text", out var textNode) && textNode != null)
                             {
                                 var textVal = textNode.GetValue<string>();
@@ -484,6 +490,7 @@ public class ChatHistoryService : IChatHistoryService
                                     {
                                         textVal = updatedTextVal;
                                         lineChanged = true;
+                                        anyTextApplied = true;
                                     }
                                 }
                                 if (lineChanged) obj["text"] = textVal;
@@ -514,6 +521,51 @@ public class ChatHistoryService : IChatHistoryService
                         // ignore malformed lines
                     }
                 }
+
+                if (hasDeltaText && !anyTextApplied && modified)
+                {
+                    var newLines = new List<string>();
+                    bool consolidatedInserted = false;
+                    foreach (var line in lines)
+                    {
+                        var trimmed = line.Trim();
+                        if (string.IsNullOrEmpty(trimmed)) continue;
+                        bool isDeltaText = false;
+                        try
+                        {
+                            var node = System.Text.Json.Nodes.JsonNode.Parse(trimmed);
+                            if (node is System.Text.Json.Nodes.JsonObject obj &&
+                                obj.TryGetPropertyValue("kind", out var kind) && kind?.GetValue<string>() == "text" &&
+                                obj.TryGetPropertyValue("delta", out var delta) && delta != null && delta.GetValue<bool>())
+                            {
+                                isDeltaText = true;
+                            }
+                        }
+                        catch { }
+
+                        if (isDeltaText)
+                        {
+                            if (!consolidatedInserted)
+                            {
+                                var consolidated = new System.Text.Json.Nodes.JsonObject
+                                {
+                                    ["kind"] = "text",
+                                    ["text"] = content,
+                                    ["delta"] = false
+                                };
+                                newLines.Add(consolidated.ToJsonString());
+                                consolidatedInserted = true;
+                                rawModified = true;
+                            }
+                        }
+                        else
+                        {
+                            newLines.Add(trimmed);
+                        }
+                    }
+                    lines = newLines.ToArray();
+                }
+
                 if (rawModified)
                 {
                     rawStream = string.Join("\n", lines);

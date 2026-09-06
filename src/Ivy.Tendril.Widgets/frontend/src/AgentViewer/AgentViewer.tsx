@@ -23,7 +23,8 @@ function buildSuppressIndices(events: PresentationEvent[]): Set<number> {
     if (
       cur.kind === "assistant-text" &&
       next.kind === "result" &&
-      next.wire.response?.trim() === cur.text.trim()
+      (next.wire.response?.trim() === cur.text.trim() ||
+        Boolean(next.wire.response && next.wire.response.trim().length > 0))
     ) {
       indices.add(i);
     }
