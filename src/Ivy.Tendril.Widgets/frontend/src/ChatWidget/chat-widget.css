@@ -353,6 +353,12 @@
 .chat-message-row {
   display: flex;
   width: 100%;
+  overflow-anchor: none;
+}
+
+.chat-messages-bottom-anchor {
+  overflow-anchor: auto;
+  height: 1px;
 }
 
 .chat-message-row.user {
@@ -369,6 +375,7 @@
   border-radius: var(--radius, 8px);
   font-size: 0.875rem;
   line-height: 1.5;
+  overflow-wrap: break-word;
 }
 
 .chat-message-row.user .chat-message-bubble {
@@ -427,6 +434,9 @@
   color: var(--foreground);
   font-size: 0.875rem;
   line-height: 1.6;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 .chat-markdown-body p {
@@ -509,12 +519,15 @@
   padding: 0.125rem 0.375rem;
   border-radius: var(--radius, 4px);
   border: 1px solid var(--border);
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 
 .chat-markdown-body pre {
   margin: 0.75rem 0;
   border-radius: var(--radius, 6px);
-  overflow: hidden;
+  overflow-x: auto;
+  max-width: 100%;
 }
 
 .chat-markdown-body blockquote {
@@ -531,6 +544,9 @@
   border-collapse: collapse;
   margin: 0.75rem 0;
   font-size: 0.8125rem;
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
 }
 
 .chat-markdown-body th,
@@ -1306,5 +1322,341 @@ button[class*="bg-primary"] .text-muted {
   background-color: color-mix(in srgb, var(--destructive) 15%, transparent);
 }
 
+/* Job Status Chips */
+
+.chat-job-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.45rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+
+.chat-job-chip.chip-running {
+  background-color: color-mix(in srgb, #0ea5e9 15%, transparent);
+  color: #0284c7;
+  border: 1px solid color-mix(in srgb, #0ea5e9 30%, transparent);
+}
+
+.chat-job-chip.chip-completed {
+  background-color: color-mix(in srgb, #10b981 15%, transparent);
+  color: #059669;
+  border: 1px solid color-mix(in srgb, #10b981 30%, transparent);
+}
+
+.chat-job-chip.chip-failed {
+  background-color: color-mix(in srgb, #ef4444 15%, transparent);
+  color: #dc2626;
+  border: 1px solid color-mix(in srgb, #ef4444 30%, transparent);
+}
 
 
+.chat-job-status-indicator {
+  margin-top: 0.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.chat-job-status-indicator .spin {
+  animation: spin 1s linear infinite;
+  color: #0284c7;
+}
+
+.chat-job-status-indicator svg:not(.spin) {
+  color: #059669;
+}
+
+.chat-jobs-dropdown-item.failed .chat-job-status-indicator svg {
+  color: #dc2626;
+}
+
+.chat-job-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--muted-foreground);
+}
+
+.chat-job-details {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.chat-job-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.chat-job-type {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.625rem;
+  letter-spacing: 0.03em;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  background-color: var(--muted);
+  color: var(--foreground);
+}
+
+.chat-job-id {
+  font-family: var(--font-mono, monospace);
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+}
+
+.chat-job-plan-title {
+  font-weight: 500;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+.chat-job-message {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+
+.chat-spawned-jobs-review-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--radius, 4px);
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+}
+
+.chat-spawned-jobs-review-btn:hover {
+  opacity: 0.9;
+}
+
+/* Header Jobs Badge & Dropdown */
+.chat-jobs-badge-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.chat-jobs-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background-color: var(--secondary);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.chat-jobs-badge:hover {
+  background-color: var(--accent);
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+}
+
+.chat-jobs-badge.running {
+  background-color: color-mix(in srgb, #3b82f6 12%, transparent);
+  border-color: color-mix(in srgb, #3b82f6 40%, transparent);
+  color: #3b82f6;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.15);
+}
+
+.chat-jobs-badge.has-failed {
+  background-color: color-mix(in srgb, var(--destructive, #ef4444) 10%, transparent);
+  border-color: color-mix(in srgb, var(--destructive, #ef4444) 30%, transparent);
+  color: var(--destructive, #ef4444);
+}
+
+.chat-jobs-badge.all-completed {
+  background-color: color-mix(in srgb, #10b981 10%, transparent);
+  border-color: color-mix(in srgb, #10b981 30%, transparent);
+  color: #10b981;
+}
+
+.chat-jobs-badge-text {
+  white-space: nowrap;
+}
+
+.chat-jobs-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #3b82f6;
+  box-shadow: 0 0 6px #3b82f6;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.chat-jobs-badge-chevron {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  color: var(--muted-foreground);
+}
+
+.chat-jobs-badge-chevron.open {
+  transform: rotate(180deg);
+}
+
+.chat-jobs-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 360px;
+  max-width: calc(100vw - 2rem);
+  background-color: var(--popover, var(--background));
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.2), 0 4px 12px -2px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: chatDropdownIn 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(12px);
+}
+
+@keyframes chatDropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.chat-jobs-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.85rem;
+  background-color: color-mix(in srgb, var(--muted) 40%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+
+.chat-jobs-dropdown-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.chat-jobs-dropdown-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.chat-jobs-dropdown-list {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.chat-jobs-dropdown-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--radius, 6px);
+  background-color: var(--secondary);
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.chat-jobs-dropdown-item:hover {
+  background-color: var(--accent);
+  border-color: var(--border);
+}
+
+.chat-jobs-dropdown-item.running {
+  border-color: color-mix(in srgb, #3b82f6 30%, transparent);
+  background-color: color-mix(in srgb, #3b82f6 6%, var(--secondary));
+}
+
+.chat-jobs-dropdown-item.completed {
+  border-color: color-mix(in srgb, #10b981 25%, transparent);
+}
+
+.chat-jobs-dropdown-item.failed {
+  border-color: color-mix(in srgb, var(--destructive, #ef4444) 30%, transparent);
+}
+
+.chat-jobs-dropdown-footer {
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--border);
+  background-color: color-mix(in srgb, var(--muted) 25%, transparent);
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* System Event Timeline Messages */
+.chat-system-event-row {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin: 0.75rem 0;
+}
+
+.chat-system-event-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 9999px;
+  background-color: color-mix(in srgb, var(--muted) 70%, transparent);
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--foreground);
+  max-width: 85%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.chat-system-event-icon {
+  flex-shrink: 0;
+  color: var(--primary);
+}
+
+.chat-system-event-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.chat-system-event-time {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--muted-foreground);
+  margin-left: 0.25rem;
+}

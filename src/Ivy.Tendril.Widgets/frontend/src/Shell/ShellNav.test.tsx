@@ -155,4 +155,42 @@ describe("ShellNav badges", () => {
     expect(badge).toBeInTheDocument();
     expect(badge).toHaveTextContent("7");
   });
+
+  it("renders two-digit badges in collapsed mode without capping and preserves exact count", () => {
+    const twoDigitItems: ShellNavItemDto[] = [
+      { id: "drafts", label: "Drafts", icon: "Feather", badge: "21", isActive: true },
+      { id: "review", label: "Review", icon: "ThumbsUp", badge: "99" },
+    ];
+
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellNav id="nav-1" items={twoDigitItems} events={[]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>
+    );
+
+    const badges = container.querySelectorAll(".tsh-nav-badge");
+    expect(badges).toHaveLength(2);
+    expect(badges[0]).toHaveTextContent("21");
+    expect(badges[1]).toHaveTextContent("99");
+  });
+
+  it("retains active item styling and badge in collapsed mode", () => {
+    const twoDigitItems: ShellNavItemDto[] = [
+      { id: "drafts", label: "Drafts", icon: "Feather", badge: "21", isActive: true },
+      { id: "review", label: "Review", icon: "ThumbsUp", badge: "2" },
+    ];
+
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellNav id="nav-1" items={twoDigitItems} events={[]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>
+    );
+
+    const activeItem = container.querySelector('.tsh-nav-item[data-active="true"]');
+    expect(activeItem).toBeInTheDocument();
+    expect(activeItem).toHaveAttribute("data-menu-item", "drafts");
+    const badge = activeItem?.querySelector(".tsh-nav-badge");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent("21");
+  });
 });

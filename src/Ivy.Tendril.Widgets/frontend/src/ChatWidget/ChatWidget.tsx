@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect, useLayoutEffect } from "react";
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Mic, Bot, Cpu, Zap, MessageSquare, ChevronDown, Check, Pencil, Paperclip, X, Square, ArrowRight, Trash2 } from "lucide-react";
+import { Mic, Bot, Cpu, Zap, MessageSquare, ChevronDown, Check, CheckCircle2, XCircle, Pencil, Paperclip, X, Square, ArrowRight, Trash2, Loader2, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
@@ -8,6 +8,7 @@ import { AgentViewer } from "../AgentViewer";
 import { getMarkdownPlugins } from "../math";
 import { BlockHandler } from "../BlockHandler";
 import { AlertBlockquote } from "../PlanMarkdown/AlertBlockquote";
+import { QuestionsSubmitContext } from "../PlanMarkdown/questionsContext";
 import { isImageFile, processImageFile } from "../imageUtils";
 import "./chat-widget.css";
 
@@ -128,13 +129,22 @@ const parseUserMessageContent = (content: string) => {
 
 export interface ChatMessageDto {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   timestamp: string;
   agentId?: string;
   modelId?: string;
   rawStream?: string;
   effort?: string;
+}
+
+export interface ChatJobDto {
+  id: string;
+  type: string;
+  status: string;
+  planId?: string;
+  planTitle?: string;
+  statusMessage?: string;
 }
 
 export interface ChatSessionDto {
@@ -147,6 +157,7 @@ export interface ChatSessionDto {
   messages: ChatMessageDto[];
   status?: "generating" | "waiting" | "done";
   effort?: string;
+  spawnedJobs?: ChatJobDto[];
 }
 
 export interface AgentOptionDto {
@@ -202,6 +213,7 @@ export interface ChatWidgetProps {
   isStreaming?: boolean;
   streamingText?: string;
   queuedMessages?: ChatQueuedMessageDto[];
+  runningJobs?: ChatJobDto[];
   events?: string[];
   eventHandler?: IvyEventHandler;
 }
@@ -318,6 +330,7 @@ export function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+
 export function ChatWidget({
   id,
   activeSessionId,
@@ -334,6 +347,7 @@ export function ChatWidget({
   isStreaming = false,
   streamingText = "",
   queuedMessages: queuedMessagesProp,
+  runningJobs = [],
   events = [],
   eventHandler,
 }: ChatWidgetProps) {
@@ -349,14 +363,63 @@ export function ChatWidget({
   const [pendingRenames, setPendingRenames] = useState<Record<string, string>>({});
   const [optimisticMessages, setOptimisticMessages] = useState<Record<string, ChatMessageDto[]>>({});
   const [optimisticStreaming, setOptimisticStreaming] = useState<string | null>(null);
+  const [jobsDropdownOpen, setJobsDropdownOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const initialPromptRef = useRef<string>("");
+  const jobsDropdownRef = useRef<HTMLDivElement>(null);
+
+  const SCROLL_THRESHOLD = 50;
+
+  const checkIsAtBottom = useCallback((element: HTMLElement) => {
+    const { scrollTop, scrollHeight, clientHeight } = element;
+    return scrollHeight - scrollTop - clientHeight <= SCROLL_THRESHOLD;
+  }, []);
+
+  const scrollToBottom = useCallback((behavior: "auto" | "smooth" = "auto") => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const targetTop = Math.max(0, container.scrollHeight - container.clientHeight);
+
+    if (behavior === "auto" || typeof container.scrollTo !== "function") {
+      container.scrollTop = targetTop;
+    } else {
+      container.scrollTo({
+        top: targetTop,
+        behavior: "smooth",
+      });
+    }
+  }, []);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (jobsDropdownRef.current && !jobsDropdownRef.current.contains(e.target as Node)) {
+        setJobsDropdownOpen(false);
+      }
+    };
+    if (jobsDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [jobsDropdownOpen]);
+
+  const sessionSpawnedJobs = activeSession?.spawnedJobs || [];
+  const otherRunningJobs = (runningJobs || []).filter(
+    (rj) => !sessionSpawnedJobs.some((sj) => sj.id === rj.id)
+  );
+  const headerJobs = [...sessionSpawnedJobs, ...otherRunningJobs];
+  const headerRunningCount = headerJobs.filter((j) => j.status === "Running" || j.status === "Pending").length;
+  const headerCompletedCount = headerJobs.filter((j) => j.status === "Completed").length;
+  const headerFailedCount = headerJobs.filter((j) => j.status === "Failed" || j.status === "Timeout").length;
+  const headerAllFinished = headerRunningCount === 0 && headerJobs.length > 0;
   const currentOptimistic = (activeSessionId && optimisticMessages[activeSessionId]) || [];
   const displayMessages = [...(activeSession?.messages || []), ...currentOptimistic];
   const totalAttachmentSize = attachments.reduce((sum, att) => sum + (att.size || 0), 0);
@@ -423,6 +486,8 @@ export function ChatWidget({
   useEffect(() => {
     setOptimisticStreaming(null);
     setQueuedMessages(queuedMessagesProp || []);
+    isAtBottomRef.current = true;
+    scrollToBottom("auto");
   }, [activeSessionId]);
 
   useEffect(() => {
@@ -444,8 +509,75 @@ export function ChatWidget({
   }, [optimisticStreaming]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeSession?.messages, displayMessages.length, effectiveIsStreaming, streamingText, queuedMessages]);
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      isAtBottomRef.current = checkIsAtBottom(container);
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+    };
+  }, [checkIsAtBottom]);
+
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    let resizeObserver: ResizeObserver | null = null;
+    let mutationObserver: MutationObserver | null = null;
+
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        if (isAtBottomRef.current) {
+          scrollToBottom("auto");
+        }
+      });
+
+      resizeObserver.observe(container);
+
+      const observed = new WeakSet<Element>();
+      const observeChildren = (root: Element) => {
+        for (const child of Array.from(root.children)) {
+          if (!observed.has(child)) {
+            resizeObserver?.observe(child);
+            observed.add(child);
+          }
+          observeChildren(child);
+        }
+      };
+      observeChildren(container);
+
+      if (typeof MutationObserver !== "undefined") {
+        mutationObserver = new MutationObserver((mutations) => {
+          for (const m of mutations) {
+            m.addedNodes.forEach((n) => {
+              if (n.nodeType === Node.ELEMENT_NODE) {
+                observeChildren(n as Element);
+              }
+            });
+          }
+          if (isAtBottomRef.current) {
+            scrollToBottom("auto");
+          }
+        });
+        mutationObserver.observe(container, { childList: true, subtree: true });
+      }
+    }
+
+    return () => {
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+    };
+  }, [scrollToBottom]);
+
+  useEffect(() => {
+    if (isAtBottomRef.current) {
+      scrollToBottom("auto");
+    }
+  }, [displayMessages.length, effectiveIsStreaming, streamingText, queuedMessages, scrollToBottom]);
 
   useEffect(() => {
     if (activeSessionId && sessions.length > 0) {
@@ -477,6 +609,16 @@ export function ChatWidget({
     if (eventHandler && events.includes(eventName)) {
       eventHandler(eventName, id, args);
     }
+  };
+
+  const handleQuestionSubmit = (messageId: string, answers: Record<string, string[]>, responseText: string) => {
+    if (!activeSession) return;
+    emit("OnAnswerQuestion", {
+      sessionId: activeSession.id,
+      messageId,
+      answers,
+      responseText,
+    });
   };
 
   const startHeaderTitleEdit = () => {
@@ -555,6 +697,10 @@ export function ChatWidget({
     emit("OnSendMessage", payload);
     setPromptText("");
     setAttachments([]);
+    isAtBottomRef.current = true;
+    requestAnimationFrame(() => {
+      scrollToBottom("smooth");
+    });
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
@@ -570,10 +716,27 @@ export function ChatWidget({
     const item = queuedMessages.find((q) => q.id === queueId);
     if (!item) return;
 
+    if (activeSessionId && item.prompt) {
+      const optMsg: ChatMessageDto = {
+        id: `opt-${Date.now()}-${Math.random()}`,
+        role: "user",
+        content: item.prompt,
+        timestamp: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+        agentId: selectedAgent,
+        modelId: selectedModel,
+      };
+      setOptimisticMessages((prev) => ({
+        ...prev,
+        [activeSessionId]: [...(prev[activeSessionId] || []), optMsg],
+      }));
+    }
+
+    setOptimisticStreaming(activeSessionId || "__active__");
+
     if (events.includes("OnSendQueuedNow")) {
       emit("OnSendQueuedNow", queueId);
     } else {
-      const payload = { prompt: item.prompt, attachments: item.attachments, sessionId: activeSessionId };
+      const payload = { prompt: item.prompt, attachments: item.attachments, sessionId: activeSessionId, forceSend: true };
       emit("OnSendMessage", payload);
     }
     setQueuedMessages((prev) => prev.filter((q) => q.id !== queueId));
@@ -1000,6 +1163,123 @@ export function ChatWidget({
           </div>
           {activeSession && (
             <div className="chat-header-actions">
+              {headerJobs.length > 0 && (
+                <div className="chat-jobs-badge-container" ref={jobsDropdownRef}>
+                  <button
+                    type="button"
+                    className={`chat-jobs-badge ${headerRunningCount > 0 ? "running" : headerFailedCount > 0 ? "has-failed" : "all-completed"}`}
+                    onClick={() => setJobsDropdownOpen(!jobsDropdownOpen)}
+                    title={headerRunningCount > 0 ? `${headerRunningCount} job(s) running` : "View jobs"}
+                    aria-label="View running jobs"
+                  >
+                    {headerRunningCount > 0 ? (
+                      <>
+                        <Loader2 size={13} className="spin text-blue-400" />
+                        <span className="chat-jobs-badge-text">{headerRunningCount} running</span>
+                        <span className="chat-jobs-pulse-dot" />
+                      </>
+                    ) : headerFailedCount > 0 ? (
+                      <>
+                        <XCircle size={13} className="text-destructive" />
+                        <span className="chat-jobs-badge-text">{headerJobs.length} jobs ({headerFailedCount} failed)</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={13} className="text-emerald-500" />
+                        <span className="chat-jobs-badge-text">{headerJobs.length} jobs</span>
+                      </>
+                    )}
+                    <ChevronDown size={12} className={`chat-jobs-badge-chevron ${jobsDropdownOpen ? "open" : ""}`} />
+                  </button>
+
+                  {jobsDropdownOpen && (
+                    <div className="chat-jobs-dropdown-menu">
+                      <div className="chat-jobs-dropdown-header">
+                        <div className="chat-jobs-dropdown-title">
+                          <Cpu size={14} />
+                          <span>{sessionSpawnedJobs.length > 0 ? "Spawned Jobs" : "Running Jobs"} ({headerJobs.length})</span>
+                        </div>
+                        <div className="chat-jobs-dropdown-chips">
+                          {headerRunningCount > 0 && (
+                            <span className="chat-job-chip chip-running">
+                              <Loader2 size={10} className="spin" />
+                              {headerRunningCount} running
+                            </span>
+                          )}
+                          {headerCompletedCount > 0 && (
+                            <span className="chat-job-chip chip-completed">
+                              <Check size={10} />
+                              {headerCompletedCount} completed
+                            </span>
+                          )}
+                          {headerFailedCount > 0 && (
+                            <span className="chat-job-chip chip-failed">
+                              <X size={10} />
+                              {headerFailedCount} failed
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="chat-jobs-dropdown-list">
+                        {headerJobs.map((job) => {
+                          const isRunning = job.status === "Running" || job.status === "Pending";
+                          const isCompleted = job.status === "Completed";
+                          const isFailed = job.status === "Failed" || job.status === "Timeout";
+
+                          return (
+                            <div key={job.id} className={`chat-jobs-dropdown-item ${job.status.toLowerCase()}`}>
+                              <div className="chat-job-status-indicator">
+                                {isRunning && <Loader2 size={13} className="spin" />}
+                                {isCompleted && <CheckCircle2 size={13} />}
+                                {isFailed && <XCircle size={13} />}
+                                {!isRunning && !isCompleted && !isFailed && <span className="chat-job-dot" />}
+                              </div>
+                              <div className="chat-job-details">
+                                <div className="chat-job-meta">
+                                  <span className="chat-job-type">{job.type}</span>
+                                  <span className="chat-job-id">{job.id}</span>
+                                  {job.planTitle && (
+                                    <span className="chat-job-plan-title" title={job.planTitle}>
+                                      {job.planTitle}
+                                    </span>
+                                  )}
+                                </div>
+                                {job.statusMessage && (
+                                  <div className="chat-job-message" title={job.statusMessage}>
+                                    {job.statusMessage}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {headerAllFinished && (
+                        <div className="chat-jobs-dropdown-footer">
+                          <button
+                            type="button"
+                            className="chat-spawned-jobs-review-btn"
+                            onClick={() => {
+                              setJobsDropdownOpen(false);
+                              emit("OnSendMessage", {
+                                prompt: "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
+                                attachments: [],
+                                sessionId: activeSession.id,
+                              });
+                            }}
+                          >
+                            <Sparkles size={13} />
+                            Ask agent to review outcomes
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <button
                 type="button"
                 className="chat-header-delete-btn"
@@ -1013,19 +1293,33 @@ export function ChatWidget({
           )}
         </div>
 
+
         {/* Message List Container */}
-        <div className="chat-messages-container">
+        <div ref={messagesContainerRef} className="chat-messages-container">
           {activeSession && displayMessages.length > 0 ? (
-            displayMessages.map((msg) => (
-              <div key={msg.id} className={`chat-message-row ${msg.role}`}>
-                <div className="chat-message-bubble" style={msg.role === "assistant" && msg.rawStream ? { width: "85%", maxWidth: "85%" } : undefined}>
-                  {msg.role === "assistant" && (
-                    <div className="chat-message-header">
-                      <Bot size={13} className="chat-message-author" />
-                      <span className="chat-message-author">{msg.agentId || selectedAgent}</span>
-                      <span className="chat-message-time">{msg.timestamp}</span>
+            displayMessages.map((msg) => {
+              if (msg.role === "system") {
+                return (
+                  <div key={msg.id} className="chat-system-event-row">
+                    <div className="chat-system-event-pill">
+                      <Sparkles size={13} className="chat-system-event-icon" />
+                      <span className="chat-system-event-text">{msg.content}</span>
+                      <span className="chat-system-event-time">{msg.timestamp}</span>
                     </div>
-                  )}
+                  </div>
+                );
+              }
+
+              return (
+                <div key={msg.id} className={`chat-message-row ${msg.role}`}>
+                  <div className="chat-message-bubble" style={msg.role === "assistant" && msg.rawStream ? { width: "85%", maxWidth: "85%" } : undefined}>
+                    {msg.role === "assistant" && (
+                      <div className="chat-message-header">
+                        <Bot size={13} className="chat-message-author" />
+                        <span className="chat-message-author">{msg.agentId || selectedAgent}</span>
+                        <span className="chat-message-time">{msg.timestamp}</span>
+                      </div>
+                    )}
                   {msg.role === "user" ? (
                     (() => {
                       const { prompt, attachedPaths } = parseUserMessageContent(msg.content);
@@ -1055,31 +1349,40 @@ export function ChatWidget({
                       );
                     })()
                   ) : msg.rawStream ? (
-                    <AgentViewer
-                      id={`msg-${msg.id}`}
-                      jsonStream={msg.rawStream}
-                      autoScroll={false}
-                      showThinking={true}
-                      showSystemEvents={false}
-                      showStatusLabel={false}
-                      groupToolCalls={true}
-                      eventHandler={noopEventHandler}
-                    />
+                    <QuestionsSubmitContext.Provider
+                      value={(answers, summaryText) => handleQuestionSubmit(msg.id, answers, summaryText)}
+                    >
+                      <AgentViewer
+                        id={`msg-${msg.id}`}
+                        jsonStream={msg.rawStream}
+                        autoScroll={false}
+                        showThinking={true}
+                        showSystemEvents={false}
+                        showStatusLabel={false}
+                        groupToolCalls={true}
+                        eventHandler={noopEventHandler}
+                      />
+                    </QuestionsSubmitContext.Provider>
                   ) : (
                     msg.content && (
-                      <div className="chat-markdown-body">
-                        <ReactMarkdown
-                          {...getMarkdownPlugins(msg.content)}
-                          components={{ code: BlockHandler, blockquote: AlertBlockquote, pre: ({ children }) => <>{children}</> }}
-                        >
-                          {msg.content}
-                        </ReactMarkdown>
-                      </div>
+                      <QuestionsSubmitContext.Provider
+                        value={(answers, summaryText) => handleQuestionSubmit(msg.id, answers, summaryText)}
+                      >
+                        <div className="chat-markdown-body">
+                          <ReactMarkdown
+                            {...getMarkdownPlugins(msg.content)}
+                            components={{ code: BlockHandler, blockquote: AlertBlockquote, pre: ({ children }) => <>{children}</> }}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
+                        </div>
+                      </QuestionsSubmitContext.Provider>
                     )
                   )}
                 </div>
               </div>
-            ))
+              );
+            })
           ) : (
             <div className="chat-empty-state">
               <MessageSquare size={44} strokeWidth={1.5} />
@@ -1100,7 +1403,7 @@ export function ChatWidget({
                 <AgentViewer
                   id={`live-chat-${activeSessionId}`}
                   jsonStream={streamingText}
-                  autoScroll={true}
+                  autoScroll={false}
                   showThinking={true}
                   showSystemEvents={false}
                   showStatusLabel={true}
@@ -1112,7 +1415,7 @@ export function ChatWidget({
           )}
 
 
-          <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} className="chat-messages-bottom-anchor" />
         </div>
 
         {/* Footer & Resizable Input Toolbar */}

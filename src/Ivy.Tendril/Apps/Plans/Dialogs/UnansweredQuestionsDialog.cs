@@ -31,7 +31,7 @@ public class UnansweredQuestionsDialog(
             new DialogFooter(
                 Layout.Wrap().Gap(4, 2)
                     | new Button("Cancel").Outline().OnClick(() => dialogOpen.Set(false))
-                    | new Button("Execute Anyway").Primary().OnClick(() =>
+                    | new Button("Execute Anyway").Primary().ShortcutKey("Ctrl+Enter").OnClick(() =>
                     {
                         dialogOpen.Set(false);
                         onContinue();

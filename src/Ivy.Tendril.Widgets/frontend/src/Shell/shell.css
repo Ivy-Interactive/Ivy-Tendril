@@ -622,9 +622,16 @@
   transition: none;
 }
 
+/* Collapsed rail: the label is hidden, so the count rides the top-right
+   corner of the icon, leaving most of the icon visible while avoiding clipping. */
+.tsh-root[data-collapsed="true"] .tsh-nav-items {
+  overflow: visible;
+}
+
 .tsh-root[data-collapsed="true"] .tsh-nav-item {
   justify-content: center;
   padding: 10px 0;
+  position: relative;
 }
 
 .tsh-root[data-collapsed="true"] .tsh-nav-label {
@@ -632,21 +639,15 @@
   opacity: 0;
 }
 
-/* Collapsed rail: the label is hidden, so the count rides the top-right
-   corner of the icon, leaving most of the icon visible while avoiding clipping. */
-.tsh-root[data-collapsed="true"] .tsh-nav-item {
-  position: relative;
-}
-
 .tsh-root[data-collapsed="true"] .tsh-nav-badge {
   position: absolute;
   top: 3px;
-  /* Anchored just past the 16px icon's right edge so the number never covers
-     it, and left-aligned so longer counts stretch rightward. */
-  left: calc(50% + 8px);
+  /* Anchored on the upper-right quadrant of the 16px icon so most of the icon
+     remains visible and the count does not clip against the sidebar edge. */
+  left: calc(50% + 4px);
   right: auto;
-  min-width: 15px;
-  padding: 1px 3.5px;
+  min-width: 14px;
+  padding: 1px 3px;
   z-index: 1;
 }
 

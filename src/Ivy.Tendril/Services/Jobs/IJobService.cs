@@ -9,6 +9,7 @@ public interface IJobService : IDisposable
     event Action? JobsStructureChanged;  // Jobs added/removed or status changed
     event Action? JobPropertyChanged;    // Only properties changed (cost, tokens)
     event Action<JobNotification>? NotificationReady;
+    event Action<JobItem>? JobFinished;
 
     string StartJob(JobArgsBase args, string? inboxFilePath = null);
     void ForceStartJob(string id);
@@ -28,6 +29,7 @@ public interface IJobService : IDisposable
     List<JobItem> GetJobsForPlan(string planFile);
     JobItem? GetJob(string id);
     bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null);
+    void SetChatSessionId(string id, string chatSessionId);
     bool ReportJobFailure(string id, string message);
     bool IsInboxFileTracked(string filePath);
 }

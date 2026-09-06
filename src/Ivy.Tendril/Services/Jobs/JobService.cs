@@ -31,6 +31,7 @@ public class JobService : IJobService
     private readonly JobLauncher _jobLauncher;
     private readonly JobCompletionHandler _completionHandler;
     private readonly IAgentRunner? _agentRunner;
+    private readonly IChatHistoryService? _chatHistoryService;
     private Timer? _blockedJobCheckTimer;
     public JobService(
         IConfigService configService,
@@ -41,7 +42,8 @@ public class JobService : IJobService
         IPlanWatcherService? planWatcherService = null,
         IPlanDatabaseService? database = null,
         IAgentRunner? agentRunner = null,
-        IModelPricingProvider? pricingProvider = null)
+        IModelPricingProvider? pricingProvider = null,
+        IChatHistoryService? chatHistoryService = null)
     {
         _syncContext = SynchronizationContext.Current;
         _configService = configService;
@@ -52,6 +54,7 @@ public class JobService : IJobService
         _planWatcherService = planWatcherService;
         _database = database;
         _agentRunner = agentRunner;
+        _chatHistoryService = chatHistoryService;
         _jobTimeout = TimeSpan.FromMinutes(configService.Settings.JobTimeout);
         _staleOutputTimeout = TimeSpan.FromMinutes(configService.Settings.StaleOutputTimeout);
         _maxConcurrentJobs = configService.Settings.MaxConcurrentJobs;
@@ -79,7 +82,8 @@ public class JobService : IJobService
         ITelemetryService? telemetryService = null,
         IPlanDatabaseService? database = null,
         ILogger<JobService>? logger = null,
-        IAgentRunner? agentRunner = null)
+        IAgentRunner? agentRunner = null,
+        IChatHistoryService? chatHistoryService = null)
     {
         _syncContext = SynchronizationContext.Current;
         _logger = logger ?? NullLogger<JobService>.Instance;
@@ -94,6 +98,7 @@ public class JobService : IJobService
         _telemetryService = telemetryService;
         _database = database;
         _agentRunner = agentRunner;
+        _chatHistoryService = chatHistoryService;
         var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot();
         _jobLauncher = new JobLauncher(null, agentRunner!, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
@@ -107,6 +112,7 @@ public class JobService : IJobService
     public event Action? JobsStructureChanged;
     public event Action? JobPropertyChanged;
     public event Action<JobNotification>? NotificationReady;
+    public event Action<JobItem>? JobFinished;
 
     public string StartJob(JobArgsBase args, string? inboxFilePath = null)
     {
@@ -148,6 +154,7 @@ public class JobService : IJobService
         PersistJob(job);
         EvictStaleJobs();
         RaiseJobsStructureChanged();
+        JobFinished?.Invoke(job);
         ProcessJobQueue();
     }
 
@@ -296,6 +303,7 @@ public class JobService : IJobService
         _completionHandler.HandleWaitForJobsDependents(job, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob, DeleteJobFromDatabase);
 
         RaiseJobsStructureChanged();
+        JobFinished?.Invoke(job);
 
         // Try to start queued jobs now that a slot is free
         if (heldSlot)
@@ -614,6 +622,17 @@ public class JobService : IJobService
         PersistJob(job);
         RaiseJobsPropertyChanged();
         return true;
+    }
+
+    public void SetChatSessionId(string id, string chatSessionId)
+    {
+        if (_jobs.TryGetValue(id, out var job))
+        {
+            job.ChatSessionId = chatSessionId;
+            _chatHistoryService?.AddSpawnedJob(chatSessionId, id);
+            PersistJob(job);
+            RaiseJobsPropertyChanged();
+        }
     }
 
     public bool ReportJobFailure(string id, string message)
@@ -1034,6 +1053,11 @@ public class JobService : IJobService
 
         _jobs[id] = job;
 
+        if (!string.IsNullOrEmpty(job.ChatSessionId))
+        {
+            _chatHistoryService?.AddSpawnedJob(job.ChatSessionId, id);
+        }
+
         // Persist while in flight, not just on completion: the agent reports status over HTTP and
         // must still be resolvable if the master restarts mid-job (#1759).
         PersistJob(job);
@@ -1128,7 +1152,8 @@ public class JobService : IJobService
             TypedArgs = args,
             Provider = _configService?.Settings.CodingAgent ?? "claude",
             Priority = priority,
-            WaitForJobIds = args.WaitForJobs
+            WaitForJobIds = args.WaitForJobs,
+            ChatSessionId = args.ChatSessionId
         };
 
         if (args is CreatePlanArgs)
@@ -1318,8 +1343,13 @@ public class JobService : IJobService
             Status = JobStatus.Running,
             StartedAt = DateTime.UtcNow,
             TypedArgs = args,
-            TimeoutCts = new CancellationTokenSource()
+            TimeoutCts = new CancellationTokenSource(),
+            ChatSessionId = args.ChatSessionId
         };
+        if (!string.IsNullOrEmpty(job.ChatSessionId) && _chatHistoryService != null)
+        {
+            _chatHistoryService.AddSpawnedJob(job.ChatSessionId, id);
+        }
         // Mirror StartJob (including its CreatePlanArgs guard) so inbox-recovery behaviour can be
         // exercised without a launchable agent.
         if (args is CreatePlanArgs)

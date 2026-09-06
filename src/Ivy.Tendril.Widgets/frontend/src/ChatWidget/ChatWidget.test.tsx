@@ -1,11 +1,11 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import "@testing-library/jest-dom";
 
 vi.mock("pdfjs-dist", () => ({ GlobalWorkerOptions: {}, getDocument: vi.fn() }));
 vi.mock("pdfjs-dist/build/pdf.worker.mjs?url", () => ({ default: "" }));
 
-import { ChatWidget } from "./ChatWidget";
+import { ChatWidget, type ChatSessionDto } from "./ChatWidget";
 
 describe("ChatWidget Queued Messages UI", () => {
   beforeEach(() => {
@@ -176,6 +176,15 @@ describe("ChatWidget Queued Messages UI", () => {
       <ChatWidget
         id="test-chat"
         activeSessionId="sess-1"
+        sessions={[{
+          id: "sess-1",
+          title: "Session 1",
+          agentId: "claude",
+          modelId: "sonnet",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          messages: [],
+        }]}
         isStreaming={true}
         queuedMessages={queuedItems}
         events={["OnDeleteQueuedMessage", "OnUpdateQueuedMessage", "OnSendQueuedNow"]}
@@ -216,6 +225,7 @@ describe("ChatWidget Queued Messages UI", () => {
       "test-chat",
       ["q-send"]
     );
+    expect(screen.getByText("to be sent now")).toBeInTheDocument();
   });
 
   it("preserves optimistically queued message when in-flight queuedMessages prop is empty", () => {
@@ -905,6 +915,386 @@ describe("ChatWidget File Uploads and Attachments", () => {
     expect(handleEvent).toHaveBeenCalledWith("OnCancelStream", "test-chat", []);
     expect(screen.queryByRole("button", { name: /Stop/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Send/i })).toBeInTheDocument();
+  });
+
+  it("displays spawned jobs in header badge and emits OnSendMessage when reviewing outcomes from dropdown", () => {
+    const handleEvent = vi.fn();
+    const session: ChatSessionDto = {
+      id: "sess-jobs",
+      title: "Jobs Chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+      spawnedJobs: [
+        {
+          id: "job-101",
+          type: "plan",
+          status: "Completed",
+          planTitle: "Add OAuth2 authentication",
+        },
+      ],
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-jobs"
+        sessions={[session]}
+        eventHandler={handleEvent}
+        events={["OnSendMessage"]}
+      />
+    );
+
+    // Banner directly above chat is removed
+    expect(screen.queryByText(/Spawned Jobs \(/i)).not.toBeInTheDocument();
+
+    // Header badge is displayed
+    const badgeBtn = screen.getByRole("button", { name: /View running jobs/i });
+    expect(badgeBtn).toBeInTheDocument();
+    expect(within(badgeBtn).getByText(/1 jobs/i)).toBeInTheDocument();
+
+    // Open dropdown by clicking badge
+    fireEvent.click(badgeBtn);
+
+    expect(screen.getByText(/Spawned Jobs/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 completed/i)).toBeInTheDocument();
+    expect(screen.getByText("Add OAuth2 authentication")).toBeInTheDocument();
+
+    const reviewBtn = screen.getByRole("button", { name: /Ask agent to review outcomes/i });
+    expect(reviewBtn).toBeInTheDocument();
+
+    fireEvent.click(reviewBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnSendMessage",
+      "test-chat",
+      expect.arrayContaining([
+        expect.objectContaining({
+          prompt: expect.stringContaining("All spawned jobs have completed"),
+          sessionId: "sess-jobs",
+        }),
+      ])
+    );
+  });
+
+  it("renders interactive questions in chat message and emits OnAnswerQuestion when user submits response", async () => {
+    const handleEvent = vi.fn();
+    const session: ChatSessionDto = {
+      id: "sess-q",
+      title: "Questions Chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [
+        {
+          id: "msg-q1",
+          role: "assistant",
+          content: [
+            "Please confirm your choices below:",
+            "```questions",
+            "- id: deploy_target",
+            "  title: Which environment should we deploy to?",
+            "  options:",
+            "    - title: Staging Environment",
+            "      value: staging",
+            "    - title: Production Environment",
+            "      value: prod",
+            "```",
+          ].join("\n"),
+          timestamp: "12:00 PM",
+        },
+      ],
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-q"
+        sessions={[session]}
+        eventHandler={handleEvent}
+        events={["OnAnswerQuestion"]}
+      />
+    );
+
+    expect(screen.getByText("Which environment should we deploy to?")).toBeInTheDocument();
+    expect(screen.getByText("Staging Environment")).toBeInTheDocument();
+    expect(screen.getByText("Production Environment")).toBeInTheDocument();
+
+    const submitBtn = screen.getByRole("button", { name: /Submit Response/i });
+    expect(submitBtn).toBeDisabled();
+
+    // Select Staging Environment option
+    const stagingRadio = screen.getByRole("radio", { name: /Staging Environment/i });
+    fireEvent.click(stagingRadio);
+
+    // Submit button should now be enabled
+    expect(submitBtn).not.toBeDisabled();
+
+    fireEvent.click(submitBtn);
+
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnAnswerQuestion",
+      "test-chat",
+      expect.arrayContaining([
+        expect.objectContaining({
+          sessionId: "sess-q",
+          messageId: "msg-q1",
+          answers: { deploy_target: ["staging"] },
+          responseText: expect.stringContaining("Staging Environment"),
+        }),
+      ])
+    );
+  });
+
+  it("renders running jobs header badge and toggles dropdown on click", async () => {
+    const session: ChatSessionDto = {
+      id: "sess-running",
+      title: "Active Job Session",
+      agentId: "antigravity",
+      modelId: "gemini-3.8-flash",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+      spawnedJobs: [
+        {
+          id: "00148",
+          type: "CreatePlan",
+          status: "Running",
+          planTitle: "Test job tracking",
+          statusMessage: "Researching architecture...",
+        },
+      ],
+    };
+
+    const { container } = render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-running"
+        sessions={[session]}
+      />
+    );
+
+    // Header badge displays running count
+    const badgeBtn = screen.getByRole("button", { name: /View running jobs/i });
+    expect(badgeBtn).toBeInTheDocument();
+    expect(within(badgeBtn).getByText(/1 running/i)).toBeInTheDocument();
+
+    // Click badge to open dropdown
+    fireEvent.click(badgeBtn);
+
+    // Dropdown is open and displays job item details
+    const dropdown = container.querySelector(".chat-jobs-dropdown-menu") as HTMLElement;
+    expect(dropdown).toBeInTheDocument();
+    expect(within(dropdown).getByText("00148")).toBeInTheDocument();
+    expect(within(dropdown).getByText("CreatePlan")).toBeInTheDocument();
+    expect(within(dropdown).getByText("Researching architecture...")).toBeInTheDocument();
+  });
+
+  it("renders system event messages in chat timeline", async () => {
+    const session: ChatSessionDto = {
+      id: "sess-sys",
+      title: "System Notification Session",
+      agentId: "antigravity",
+      modelId: "gemini-3.8-flash",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [
+        {
+          id: "msg-sys-1",
+          role: "system",
+          content: "Job 00148 (CreatePlan) has completed successfully.",
+          timestamp: "10:00 AM",
+        },
+        {
+          id: "msg-ast-1",
+          role: "assistant",
+          content: "I reviewed the plan and it looks great!",
+          timestamp: "10:01 AM",
+        },
+      ],
+    };
+
+    const { container } = render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-sys"
+        sessions={[session]}
+      />
+    );
+
+    const systemRow = container.querySelector(".chat-system-event-row");
+    expect(systemRow).toBeInTheDocument();
+    expect(screen.getByText("Job 00148 (CreatePlan) has completed successfully.")).toBeInTheDocument();
+    expect(screen.getByText("I reviewed the plan and it looks great!")).toBeInTheDocument();
+  });
+});
+
+describe("ChatWidget Streaming Scroll Behavior", () => {
+  const session = {
+    id: "sess-scroll",
+    title: "Scroll Test Chat",
+    agentId: "codex",
+    modelId: "gpt-5",
+    createdAt: "2026-09-03T10:00:00Z",
+    updatedAt: "2026-09-03T10:00:00Z",
+    messages: [
+      {
+        id: "m-1",
+        role: "user" as const,
+        content: "Explain markdown streaming",
+        timestamp: "10:00 AM",
+      },
+    ],
+  };
+
+  it("scrolls to bottom without triggering continuous smooth scroll calls when container is at bottom", () => {
+    const scrollIntoViewMock = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = scrollIntoViewMock;
+
+    const { rerender } = render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-scroll"
+        sessions={[session]}
+        isStreaming={true}
+        streamingText='{"type":"text_delta","content":"First chunk"}'
+      />
+    );
+
+    const container = document.querySelector(".chat-messages-container") as HTMLDivElement;
+    expect(container).toBeInTheDocument();
+
+    let currentScrollTop = 600;
+    Object.defineProperty(container, "scrollHeight", { value: 1000, configurable: true, writable: true });
+    Object.defineProperty(container, "clientHeight", { value: 400, configurable: true, writable: true });
+    Object.defineProperty(container, "scrollTop", {
+      get: () => currentScrollTop,
+      set: (v: number) => { currentScrollTop = v; },
+      configurable: true,
+    });
+
+    // Reset any initial scrollIntoView calls from mount
+    scrollIntoViewMock.mockClear();
+
+    // Stream next chunk
+    rerender(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-scroll"
+        sessions={[session]}
+        isStreaming={true}
+        streamingText='{"type":"text_delta","content":"First chunk and second chunk"}'
+      />
+    );
+
+    // Should update scrollTop to bottom (1000 - 400 = 600) instantly without calling scrollIntoView smooth
+    expect(scrollIntoViewMock).not.toHaveBeenCalled();
+    expect(currentScrollTop).toBe(600);
+  });
+
+  it("does not force scroll down when user is scrolled up", () => {
+    const { rerender } = render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-scroll"
+        sessions={[session]}
+        isStreaming={true}
+        streamingText='{"type":"text_delta","content":"Initial streaming"}'
+      />
+    );
+
+    const container = document.querySelector(".chat-messages-container") as HTMLDivElement;
+    let currentScrollTop = 600;
+    Object.defineProperty(container, "scrollHeight", { value: 1000, configurable: true, writable: true });
+    Object.defineProperty(container, "clientHeight", { value: 400, configurable: true, writable: true });
+    Object.defineProperty(container, "scrollTop", {
+      get: () => currentScrollTop,
+      set: (v: number) => { currentScrollTop = v; },
+      configurable: true,
+    });
+
+    // User scrolls up to 200px (distance to bottom is 1000 - 200 - 400 = 400px > 50px threshold)
+    currentScrollTop = 200;
+    fireEvent.scroll(container);
+
+    // New stream chunk arrives
+    rerender(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-scroll"
+        sessions={[session]}
+        isStreaming={true}
+        streamingText='{"type":"text_delta","content":"Initial streaming with more tokens"}'
+      />
+    );
+
+    // Container should remain at user scroll offset (200px) and not be forced down
+    expect(currentScrollTop).toBe(200);
+  });
+
+  it("re-enables auto-scroll when user scrolls back to bottom", () => {
+    const { rerender } = render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-scroll"
+        sessions={[session]}
+        isStreaming={true}
+        streamingText='{"type":"text_delta","content":"Starting stream"}'
+      />
+    );
+
+    const container = document.querySelector(".chat-messages-container") as HTMLDivElement;
+    let currentScrollTop = 600;
+    let height = 1000;
+    Object.defineProperty(container, "scrollHeight", {
+      get: () => height,
+      set: (v: number) => { height = v; },
+      configurable: true,
+    });
+    Object.defineProperty(container, "clientHeight", { value: 400, configurable: true, writable: true });
+    Object.defineProperty(container, "scrollTop", {
+      get: () => currentScrollTop,
+      set: (v: number) => { currentScrollTop = v; },
+      configurable: true,
+    });
+
+    // User scrolls up
+    currentScrollTop = 150;
+    fireEvent.scroll(container);
+
+    // New chunk while scrolled up: stays at 150
+    rerender(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-scroll"
+        sessions={[session]}
+        isStreaming={true}
+        streamingText='{"type":"text_delta","content":"Starting stream..."}'
+      />
+    );
+    expect(currentScrollTop).toBe(150);
+
+    // User scrolls back near bottom: 580px (1000 - 580 - 400 = 20px <= 50px threshold)
+    currentScrollTop = 580;
+    fireEvent.scroll(container);
+
+    // Height increases with new tokens
+    height = 1200;
+    rerender(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-scroll"
+        sessions={[session]}
+        isStreaming={true}
+        streamingText='{"type":"text_delta","content":"Starting stream... more tokens generated"}'
+      />
+    );
+
+    // Auto-scroll is re-enabled and pins to bottom (1200 - 400 = 800)
+    expect(currentScrollTop).toBe(800);
   });
 });
 

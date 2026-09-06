@@ -382,4 +382,139 @@ public class ChatHistoryServiceTests
                 Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void AddSpawnedJob_And_GetSpawnedJobs_TracksAndPersistsJobIds()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus");
+            Assert.Empty(service.GetSpawnedJobs(session.Id));
+
+            service.AddSpawnedJob(session.Id, "job-101");
+            service.AddSpawnedJob(session.Id, "job-102");
+            // Should not duplicate
+            service.AddSpawnedJob(session.Id, "job-101");
+
+            var jobs = service.GetSpawnedJobs(session.Id);
+            Assert.Equal(2, jobs.Count);
+            Assert.Equal("job-101", jobs[0]);
+            Assert.Equal("job-102", jobs[1]);
+
+            var storedSession = service.GetSession(session.Id);
+            Assert.NotNull(storedSession);
+            Assert.NotNull(storedSession.SpawnedJobIds);
+            Assert.Equal(new[] { "job-101", "job-102" }, storedSession.SpawnedJobIds);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ApplyQuestionAnswers_UpdatesMessageContentWithAnswers()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus");
+            var initialContent = "Here are questions:\n\n```questions\n- id: target_env\n  title: Which env?\n  options:\n    - title: Staging\n      value: staging\n    - title: Production\n      value: prod\n```\n";
+            var msg = service.AddMessage(session.Id, "assistant", initialContent);
+
+            var answers = new Dictionary<string, string[]>
+            {
+                ["target_env"] = ["staging"]
+            };
+
+            var success = service.ApplyQuestionAnswers(session.Id, msg.Id, answers);
+            Assert.True(success);
+
+            var updatedSession = service.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            var updatedMsg = Assert.Single(updatedSession.Messages);
+            Assert.Contains("answer: staging", updatedMsg.Content);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ApplyQuestionAnswers_UpdatesRawStreamWhenPresent()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus");
+            var initialContent = "Which env?\n\n```questions\n- id: target_env\n  title: Which env?\n  options:\n    - title: Staging\n      value: staging\n```\n";
+            var rawStreamLine = "{\"kind\":\"text\",\"text\":\"Which env?\\n\\n```questions\\n- id: target_env\\n  title: Which env?\\n  options:\\n    - title: Staging\\n      value: staging\\n```\\n\",\"delta\":false}";
+            var msg = service.AddMessage(session.Id, "assistant", initialContent, rawStream: rawStreamLine);
+
+            var answers = new Dictionary<string, string[]>
+            {
+                ["target_env"] = ["staging"]
+            };
+
+            var success = service.ApplyQuestionAnswers(session.Id, msg.Id, answers);
+            Assert.True(success);
+
+            var updatedSession = service.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            var updatedMsg = Assert.Single(updatedSession.Messages);
+            Assert.Contains("answer: staging", updatedMsg.Content);
+            Assert.NotNull(updatedMsg.RawStream);
+            Assert.Contains("answer: staging", updatedMsg.RawStream);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ApplyQuestionAnswers_ConsolidatesDeltaTextChunksWhenPresent()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus");
+            var initialContent = "Which env?\n\n```questions\n- id: target_env\n  title: Which env?\n  options:\n    - title: Staging\n      value: staging\n```\n";
+            // Chunks split so no single chunk has the whole YAML block
+            var rawStreamLines = string.Join("\n", new[]
+            {
+                "{\"kind\":\"text\",\"text\":\"Which env?\\n\\n```questions\\n- id: \",\"delta\":true}",
+                "{\"kind\":\"text\",\"text\":\"target_env\\n  title: Which env?\\n  options:\\n    - title: Staging\\n      value: staging\\n```\\n\",\"delta\":true}",
+                "{\"kind\":\"result\",\"response\":\"Which env?\\n\\n```questions\\n- id: target_env\\n  title: Which env?\\n  options:\\n    - title: Staging\\n      value: staging\\n```\\n\",\"is_success\":true}"
+            });
+            var msg = service.AddMessage(session.Id, "assistant", initialContent, rawStream: rawStreamLines);
+
+            var answers = new Dictionary<string, string[]>
+            {
+                ["target_env"] = ["staging"]
+            };
+
+            var success = service.ApplyQuestionAnswers(session.Id, msg.Id, answers);
+            Assert.True(success);
+
+            var updatedSession = service.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            var updatedMsg = Assert.Single(updatedSession.Messages);
+            Assert.Contains("answer: staging", updatedMsg.Content);
+            Assert.NotNull(updatedMsg.RawStream);
+            Assert.Contains("answer: staging", updatedMsg.RawStream);
+            // Verify delta chunks were consolidated to a non-delta text chunk with the updated content
+            Assert.Contains("\"delta\":false", updatedMsg.RawStream);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
 }
