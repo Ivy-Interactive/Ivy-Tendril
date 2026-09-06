@@ -36,6 +36,7 @@ public class ContentView(
     public override object Build()
     {
         var configService = UseService<IConfigService>();
+        Context.TryUseService<IJobService>(out var jobService);
         var deletingSessionId = UseState<string?>(null);
 
         var upload = UseUpload(async (fileUpload, stream, ct) =>
@@ -89,6 +90,20 @@ public class ContentView(
             q.Attachments
         )).ToList();
 
+        var runningJobs = (activeSessionId.Value != null && jobService != null)
+            ? jobService.GetJobs()
+                .Where(j => string.Equals(j.ChatSessionId, activeSessionId.Value, StringComparison.OrdinalIgnoreCase)
+                         && (j.Status == JobStatus.Running || j.Status == JobStatus.Pending || j.Status == JobStatus.Queued))
+                .Select(j => new ChatJobDto(
+                    j.Id,
+                    j.Type,
+                    j.Status.ToString(),
+                    j.ReportedPlanId,
+                    j.ReportedPlanTitle,
+                    j.StatusMessage
+                )).ToList()
+            : new List<ChatJobDto>();
+
         var chatWidget = new ChatWidget
         {
             ActiveSessionId = activeSessionId.Value,
@@ -104,6 +119,7 @@ public class ContentView(
             IsStreaming = isStreaming,
             StreamingText = streamingText,
             QueuedMessages = queuedMessageDtos,
+            RunningJobs = runningJobs,
 
             OnSelectSession = e =>
             {
@@ -193,7 +209,20 @@ public class ContentView(
                     if (item != null)
                     {
                         chatService.RemoveQueuedMessage(activeSessionId.Value, e.Value);
-                        sendMessage(new ChatSendMessageDto(item.Prompt, item.Attachments, activeSessionId.Value));
+                        sendMessage(new ChatSendMessageDto(item.Prompt, item.Attachments, activeSessionId.Value, ForceSend: true));
+                    }
+                }
+                return ValueTask.CompletedTask;
+            },
+            OnAnswerQuestion = e =>
+            {
+                if (e.Value != null)
+                {
+                    chatService.ApplyQuestionAnswers(e.Value.SessionId, e.Value.MessageId, e.Value.Answers);
+                    sessionVersion.Set(v => v + 1);
+                    if (!string.IsNullOrWhiteSpace(e.Value.ResponseText))
+                    {
+                        sendMessage(new ChatSendMessageDto(e.Value.ResponseText, SessionId: e.Value.SessionId));
                     }
                 }
                 return ValueTask.CompletedTask;

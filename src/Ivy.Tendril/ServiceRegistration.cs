@@ -202,7 +202,8 @@ internal static class ServiceRegistration
                 sp.GetRequiredService<IPlanWatcherService>(),
                 string.IsNullOrEmpty(cfg.TendrilHome) ? null : sp.GetRequiredService<IPlanDatabaseService>(),
                 sp.GetRequiredService<IAgentRunner>(),
-                sp.GetRequiredService<IModelPricingProvider>());
+                sp.GetRequiredService<IModelPricingProvider>(),
+                sp.GetService<IChatHistoryService>());
         });
         server.Services.AddSingleton<IJobService>(sp => sp.GetRequiredService<JobService>());
         server.Services.AddSingleton<PlanWatcherService>(sp =>
