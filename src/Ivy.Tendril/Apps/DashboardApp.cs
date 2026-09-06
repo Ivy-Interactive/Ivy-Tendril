@@ -119,7 +119,7 @@ public class DashboardApp : ViewBase
             .FailedCount(jobs.Count(j => j.Status == JobStatus.Failed))
             .Kpis(BuildKpis(stats, activity, prDays, today))
             .Trend(BuildTrend(activity))
-            .TrendWeekly(BuildWeeklyTrend(activity))
+            .TrendWeekly(BuildWeeklyTrend(activity, today))
             .PullRequests(activity.Months
                 .TakeLast(6)
                 .Select(m => new DashboardMonthValueDto(MonthLabel(m.Month), m.PrsMerged))
@@ -278,6 +278,8 @@ public class DashboardApp : ViewBase
             prevPlans);
     }
 
+    internal const int TrendDailyWindowDays = 28;
+
     internal static List<DashboardActivityMonthDto> BuildActivityMonths(
         List<(DateOnly Date, int Count)> prDays, DateTime firstMonth)
     {
@@ -290,42 +292,78 @@ public class DashboardApp : ViewBase
             var daysInMonth = DateTime.DaysInMonth(monthStart.Year, monthStart.Month);
             var offset = ((int)monthStart.DayOfWeek + 6) % 7;
             var weeks = new int[(offset + daysInMonth + 6) / 7];
+            var days = new List<DashboardActivityDayDto>(daysInMonth);
 
             for (var day = 1; day <= daysInMonth; day++)
             {
                 var date = new DateOnly(monthStart.Year, monthStart.Month, day);
-                if (byDay.TryGetValue(date, out var count))
-                    weeks[(offset + day - 1) / 7] += count;
+                var count = byDay.GetValueOrDefault(date, 0);
+                weeks[(offset + day - 1) / 7] += count;
+                days.Add(new DashboardActivityDayDto(date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), count));
             }
 
-            months.Add(new DashboardActivityMonthDto(MonthLabel(monthStart.Month), weeks.ToList()));
+            months.Add(new DashboardActivityMonthDto(MonthLabel(monthStart.Month), weeks.ToList(), days));
         }
 
         return months;
     }
 
-    internal static DashboardTrendDto BuildWeeklyTrend(DashboardActivityStats activity)
+    internal static DashboardTrendDto BuildWeeklyTrend(DashboardActivityStats activity, DateTime? todayOverride = null)
     {
+        // If daily costs or daily plans are provided, build 28 daily points for the last 4 weeks (ending today)
+        // compared to the 28 days before that.
+        if (activity.DailyCosts != null || activity.DailyPlans != null)
+        {
+            var today = (todayOverride ?? DateTime.UtcNow).Date;
+            var costsByDay = activity.DailyCosts?.ToDictionary(d => d.Date, d => (double)d.Cost) ?? [];
+            var plansByDay = activity.DailyPlans ?? [];
+
+            var labels = new List<string>(TrendDailyWindowDays);
+            var costs = new List<double>(TrendDailyWindowDays);
+            var plans = new List<double>(TrendDailyWindowDays);
+            var prevCost = new List<double?>(TrendDailyWindowDays);
+            var prevPlans = new List<double?>(TrendDailyWindowDays);
+
+            for (var i = 0; i < TrendDailyWindowDays; i++)
+            {
+                var curDate = DateOnly.FromDateTime(today.AddDays(-TrendDailyWindowDays + 1 + i));
+                var prevDate = curDate.AddDays(-TrendDailyWindowDays);
+
+                labels.Add(FormatDayLabel(curDate));
+                costs.Add(costsByDay.GetValueOrDefault(curDate, 0.0));
+                plans.Add(plansByDay.GetValueOrDefault(curDate, 0));
+
+                prevCost.Add(activity.DailyCosts != null ? costsByDay.GetValueOrDefault(prevDate, 0.0) : null);
+                prevPlans.Add(activity.DailyPlans != null ? plansByDay.GetValueOrDefault(prevDate, 0) : null);
+            }
+
+            return new DashboardTrendDto(labels, costs, plans, prevCost, prevPlans);
+        }
+
+        // Fallback for tests or mocks providing only weekly aggregation
         var all = activity.Weeks ?? [];
         var start = Math.Max(0, all.Count - TrendWeeksShown);
         var window = all.Skip(start).ToList();
 
-        var prevCost = new List<double?>(window.Count);
-        var prevPlans = new List<double?>(window.Count);
+        var fallbackPrevCost = new List<double?>(window.Count);
+        var fallbackPrevPlans = new List<double?>(window.Count);
         for (var i = 0; i < window.Count; i++)
         {
             var prevIndex = start + i - TrendWeeksShown;
-            prevCost.Add(prevIndex >= 0 && prevIndex < all.Count ? (double)all[prevIndex].Cost : null);
-            prevPlans.Add(prevIndex >= 0 && prevIndex < all.Count ? all[prevIndex].PlansCreated : null);
+            fallbackPrevCost.Add(prevIndex >= 0 && prevIndex < all.Count ? (double)all[prevIndex].Cost : null);
+            fallbackPrevPlans.Add(prevIndex >= 0 && prevIndex < all.Count ? all[prevIndex].PlansCreated : null);
         }
 
         return new DashboardTrendDto(
             window.Select(w => FormatWeekLabel(w.WeekStart)).ToList(),
             window.Select(w => (double)w.Cost).ToList(),
             window.Select(w => (double)w.PlansCreated).ToList(),
-            prevCost,
-            prevPlans);
+            fallbackPrevCost,
+            fallbackPrevPlans);
     }
+
+    private static string FormatDayLabel(DateOnly date) =>
+        $"{MonthLabel(date.Month)} {date.Day}";
 
     private static string FormatWeekLabel(DateOnly weekStart) =>
         $"{MonthLabel(weekStart.Month)} {weekStart.Day}";

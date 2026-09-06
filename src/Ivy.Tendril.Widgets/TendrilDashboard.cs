@@ -13,7 +13,9 @@ public record DashboardKpiDto(
 
 public record DashboardMonthValueDto(string Label, double Value);
 
-public record DashboardActivityMonthDto(string Label, List<int> Weeks);
+public record DashboardActivityDayDto(string Date, int Count);
+
+public record DashboardActivityMonthDto(string Label, List<int> Weeks, List<DashboardActivityDayDto>? Days = null);
 
 /// <summary>Row in the Active Jobs card. Status is lowercased; "running" spins the row's loader.</summary>
 public record DashboardJobDto(string Id, string PlanId, string Title, string Status);

@@ -10,7 +10,7 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
     ///     How far back the daily spend series goes. Long enough to project a month from, short enough
     ///     that the COALESCE in its WHERE clause (which rules out an index only scan) stays cheap.
     /// </summary>
-    internal const int DailyCostWindowDays = 30;
+    internal const int DailyCostWindowDays = 60;
 
     private sealed class ReadLockHandle : IDisposable
     {
@@ -287,6 +287,25 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                 }
             }
 
+            var dailyPlans = new Dictionary<DateOnly, int>();
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT DATE(Created) AS d, COUNT(*)
+                    FROM Plans
+                    WHERE Created >= @cutoff
+                    GROUP BY d
+                    """;
+                cmd.Parameters.AddWithValue("@cutoff",
+                    today.AddDays(-(DailyCostWindowDays - 1)).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    if (DateOnly.TryParse(r.GetString(0), CultureInfo.InvariantCulture, out var day))
+                        dailyPlans[day] = r.GetInt32(1);
+                }
+            }
+
             var months = new List<DashboardMonthStats>(monthsBack);
             for (var i = 0; i < monthsBack; i++)
             {
@@ -382,7 +401,7 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                 ));
             }
 
-            return new DashboardActivityStats(months, prevWeekAvgCost, dailyCosts, weeks);
+            return new DashboardActivityStats(months, prevWeekAvgCost, dailyCosts, weeks, dailyPlans);
         }
     }
 }

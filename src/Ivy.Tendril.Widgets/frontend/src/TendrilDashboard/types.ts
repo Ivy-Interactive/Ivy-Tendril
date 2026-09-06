@@ -13,9 +13,15 @@ export interface DashboardMonthValueDto {
   value: number;
 }
 
+export interface DashboardActivityDayDto {
+  date: string;
+  count: number;
+}
+
 export interface DashboardActivityMonthDto {
   label: string;
   weeks: number[];
+  days?: DashboardActivityDayDto[];
 }
 
 export interface DashboardJobDto {
