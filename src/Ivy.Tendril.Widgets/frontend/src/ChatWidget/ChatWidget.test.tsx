@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import "@testing-library/jest-dom";
 
@@ -1026,6 +1026,88 @@ describe("ChatWidget File Uploads and Attachments", () => {
         }),
       ])
     );
+  });
+
+  it("renders running jobs header badge and toggles dropdown on click", async () => {
+    const session: ChatSessionDto = {
+      id: "sess-running",
+      title: "Active Job Session",
+      agentId: "antigravity",
+      modelId: "gemini-3.8-flash",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+      spawnedJobs: [
+        {
+          id: "00148",
+          type: "CreatePlan",
+          status: "Running",
+          planTitle: "Test job tracking",
+          statusMessage: "Researching architecture...",
+        },
+      ],
+    };
+
+    const { container } = render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-running"
+        sessions={[session]}
+      />
+    );
+
+    // Header badge displays running count
+    const badgeBtn = screen.getByRole("button", { name: /View running jobs/i });
+    expect(badgeBtn).toBeInTheDocument();
+    expect(within(badgeBtn).getByText(/1 running/i)).toBeInTheDocument();
+
+    // Click badge to open dropdown
+    fireEvent.click(badgeBtn);
+
+    // Dropdown is open and displays job item details
+    const dropdown = container.querySelector(".chat-jobs-dropdown-menu") as HTMLElement;
+    expect(dropdown).toBeInTheDocument();
+    expect(within(dropdown).getByText("00148")).toBeInTheDocument();
+    expect(within(dropdown).getByText("CreatePlan")).toBeInTheDocument();
+    expect(within(dropdown).getByText("Researching architecture...")).toBeInTheDocument();
+  });
+
+  it("renders system event messages in chat timeline", async () => {
+    const session: ChatSessionDto = {
+      id: "sess-sys",
+      title: "System Notification Session",
+      agentId: "antigravity",
+      modelId: "gemini-3.8-flash",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [
+        {
+          id: "msg-sys-1",
+          role: "system",
+          content: "Job 00148 (CreatePlan) has completed successfully.",
+          timestamp: "10:00 AM",
+        },
+        {
+          id: "msg-ast-1",
+          role: "assistant",
+          content: "I reviewed the plan and it looks great!",
+          timestamp: "10:01 AM",
+        },
+      ],
+    };
+
+    const { container } = render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-sys"
+        sessions={[session]}
+      />
+    );
+
+    const systemRow = container.querySelector(".chat-system-event-row");
+    expect(systemRow).toBeInTheDocument();
+    expect(screen.getByText("Job 00148 (CreatePlan) has completed successfully.")).toBeInTheDocument();
+    expect(screen.getByText("I reviewed the plan and it looks great!")).toBeInTheDocument();
   });
 });
 

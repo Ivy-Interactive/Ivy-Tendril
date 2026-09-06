@@ -8,6 +8,7 @@ using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Ivy.Tendril.Agents.Abstractions;
@@ -33,9 +34,50 @@ public sealed class ChatExecutionService : IChatExecutionService
     private readonly IServiceProvider? _serviceProvider;
     private readonly IJobService? _jobService;
 
-    private IJobService? ResolvedJobService => _jobService ?? _serviceProvider?.GetService<IJobService>();
+    private readonly ConcurrentDictionary<string, byte> _notifiedJobCompletions = new(StringComparer.OrdinalIgnoreCase);
+    private bool _jobServiceSubscribed;
+    private readonly object _jobSubLock = new();
+
+    private IJobService? ResolvedJobService
+    {
+        get
+        {
+            var js = _jobService ?? _serviceProvider?.GetService<IJobService>();
+            if (js != null && !_jobServiceSubscribed)
+            {
+                lock (_jobSubLock)
+                {
+                    if (!_jobServiceSubscribed)
+                    {
+                        js.JobFinished += OnJobFinished;
+                        _jobServiceSubscribed = true;
+                    }
+                }
+            }
+            return js;
+        }
+    }
 
     private readonly ConcurrentDictionary<string, ActiveChatExecution> _activeExecutions = new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly Regex JobStartedRegex = new(
+        @"(?:Job started:\s*|\*\*Job ID\*\*:\s*`?|Job ID:\s*`?)([0-9a-zA-Z_-]+)`?",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    internal void TryTrackSpawnedJob(string sessionId, string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        var match = JobStartedRegex.Match(text);
+        if (match.Success)
+        {
+            var jobId = match.Groups[1].Value.Trim();
+            if (!string.IsNullOrEmpty(jobId))
+            {
+                _chatService.AddSpawnedJob(sessionId, jobId);
+                ResolvedJobService?.SetChatSessionId(jobId, sessionId);
+            }
+        }
+    }
 
     public event Action<string>? SessionGeneratingChanged;
     public event Action<string>? StreamUpdated;
@@ -73,6 +115,11 @@ public sealed class ChatExecutionService : IChatExecutionService
         _serviceProvider = serviceProvider;
         _jobService = jobService;
         _chatService.ClearAllGeneratingSessions();
+        if (_jobService != null)
+        {
+            _jobService.JobFinished += OnJobFinished;
+            _jobServiceSubscribed = true;
+        }
     }
 
     public bool IsGenerating(string sessionId) =>
@@ -117,6 +164,7 @@ public sealed class ChatExecutionService : IChatExecutionService
         string? agentId = null,
         string? modelId = null,
         string? effort = null,
+        string role = "user",
         CancellationToken ct = default)
     {
         var userPrompt = prompt?.Trim() ?? string.Empty;
@@ -226,8 +274,8 @@ public sealed class ChatExecutionService : IChatExecutionService
             _chatService.AddMessage(sessionId, "assistant", warning, targetAgent, targetModel, effort: targetEffort);
         }
 
-        // Add user message to history
-        _chatService.AddMessage(sessionId, "user", promptWithAttachments, targetAgent, targetModel, effort: targetEffort);
+        // Add user or system message to history
+        _chatService.AddMessage(sessionId, role, promptWithAttachments, targetAgent, targetModel, effort: targetEffort);
 
         // Build prompt with conversation history and spawned jobs status
         var currentSess = _chatService.GetSession(sessionId);
@@ -304,7 +352,9 @@ public sealed class ChatExecutionService : IChatExecutionService
             // Exclude the last message which is the current user request
             foreach (var prevMsg in history.Take(history.Count - 1))
             {
-                var roleLabel = prevMsg.Role.Equals("user", StringComparison.OrdinalIgnoreCase) ? "User" : "Assistant";
+                var roleLabel = prevMsg.Role.Equals("user", StringComparison.OrdinalIgnoreCase)
+                    ? "User"
+                    : (prevMsg.Role.Equals("system", StringComparison.OrdinalIgnoreCase) ? "System Event" : "Assistant");
                 agentPromptBuilder.AppendLine($"### {roleLabel}");
                 agentPromptBuilder.AppendLine(prevMsg.Content);
                 agentPromptBuilder.AppendLine();
@@ -314,8 +364,24 @@ public sealed class ChatExecutionService : IChatExecutionService
             agentPromptBuilder.AppendLine();
         }
 
-        agentPromptBuilder.AppendLine("# Current User Request");
-        agentPromptBuilder.AppendLine(promptWithAttachments);
+        agentPromptBuilder.AppendLine("# Current Chat Session");
+        agentPromptBuilder.AppendLine($"Chat Session ID: {sessionId}");
+        agentPromptBuilder.AppendLine($"When starting jobs using `tendril job start`, always include `--chat-session {sessionId}` so the job is tracked in this chat session.");
+        agentPromptBuilder.AppendLine("---");
+        agentPromptBuilder.AppendLine();
+
+        if (role.Equals("system", StringComparison.OrdinalIgnoreCase))
+        {
+            agentPromptBuilder.AppendLine("# Current Event Notification");
+            agentPromptBuilder.AppendLine(promptWithAttachments);
+            agentPromptBuilder.AppendLine();
+            agentPromptBuilder.AppendLine("Evaluate this completed job event. Proactively inspect the job outcomes/artifacts if needed, determine whether any action is needed, and advise the user with a concise summary and suggested next steps.");
+        }
+        else
+        {
+            agentPromptBuilder.AppendLine("# Current User Request");
+            agentPromptBuilder.AppendLine(promptWithAttachments);
+        }
         var fullAgentPrompt = agentPromptBuilder.ToString();
 
         // Launch background agent execution
@@ -350,12 +416,18 @@ public sealed class ChatExecutionService : IChatExecutionService
                 {
                     try
                     {
-                        if (evt is TextEvent textEvt && !string.IsNullOrWhiteSpace(textEvt.Text))
+                        if (evt is ToolResultEvent toolResult && !string.IsNullOrWhiteSpace(toolResult.Output))
+                        {
+                            TryTrackSpawnedJob(sessionId, toolResult.Output);
+                        }
+                        else if (evt is TextEvent textEvt && !string.IsNullOrWhiteSpace(textEvt.Text))
                         {
                             lock (rawLock)
                             {
                                 lastTextEvent = textEvt.Text;
                             }
+
+                            TryTrackSpawnedJob(sessionId, textEvt.Text);
                         }
 
                         var wireJson = _serializer.Serialize(evt);
@@ -393,6 +465,9 @@ public sealed class ChatExecutionService : IChatExecutionService
                         : (result.IsSuccess
                             ? "Task completed successfully."
                             : "Agent execution completed with status code " + (result.ExitCode?.ToString() ?? "unknown")));
+
+                // Detect any job IDs mentioned in final response
+                TryTrackSpawnedJob(sessionId, responseContent);
 
                 _chatService.AddMessage(sessionId, "assistant", responseContent, targetAgent, targetModel, rawStream: fullRawStream, effort: targetEffort);
 
@@ -482,6 +557,11 @@ public sealed class ChatExecutionService : IChatExecutionService
 
     public void Dispose()
     {
+        if (_jobServiceSubscribed && ResolvedJobService != null)
+        {
+            ResolvedJobService.JobFinished -= OnJobFinished;
+        }
+
         foreach (var (_, exec) in _activeExecutions)
         {
             try
@@ -492,6 +572,39 @@ public sealed class ChatExecutionService : IChatExecutionService
             catch { }
         }
         _activeExecutions.Clear();
+    }
+
+    private void OnJobFinished(JobItem job)
+    {
+        if (job == null) return;
+
+        string? targetSessionId = job.ChatSessionId;
+        if (string.IsNullOrEmpty(targetSessionId))
+        {
+            var allSessions = _chatService.GetSessions();
+            var matchingSession = allSessions.FirstOrDefault(s => s.SpawnedJobIds != null && s.SpawnedJobIds.Contains(job.Id));
+            targetSessionId = matchingSession?.Id;
+        }
+
+        if (string.IsNullOrEmpty(targetSessionId)) return;
+
+        var sess = _chatService.GetSession(targetSessionId);
+        if (sess == null) return;
+
+        var notifKey = $"{targetSessionId}:{job.Id}:{job.Status}";
+        if (!_notifiedJobCompletions.TryAdd(notifKey, 0)) return;
+
+        var outcomeSummary = !string.IsNullOrEmpty(job.StatusMessage)
+            ? job.StatusMessage
+            : (job.Status == JobStatus.Completed ? "Completed successfully" : job.Status.ToString());
+        var planInfo = !string.IsNullOrEmpty(job.ReportedPlanTitle)
+            ? $"{job.ReportedPlanId}: {job.ReportedPlanTitle}"
+            : (!string.IsNullOrEmpty(job.PlanFile) ? Path.GetFileNameWithoutExtension(job.PlanFile) : job.Type);
+
+        var eventMessage = $"[System Event] Job {job.Id} ({job.Type}) for '{planInfo}' has finished with status: {job.Status} ({outcomeSummary}). " +
+            "Please inspect the outcome, determine whether any action is needed or if any issues occurred, and proactively guide the user on the results and next steps.";
+
+        _ = SendMessageAsync(targetSessionId, eventMessage, role: "system");
     }
 
     private sealed class ActiveChatExecution : IDisposable

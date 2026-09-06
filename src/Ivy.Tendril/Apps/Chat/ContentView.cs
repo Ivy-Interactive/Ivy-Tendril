@@ -36,6 +36,7 @@ public class ContentView(
     public override object Build()
     {
         var configService = UseService<IConfigService>();
+        Context.TryUseService<IJobService>(out var jobService);
         var deletingSessionId = UseState<string?>(null);
 
         var upload = UseUpload(async (fileUpload, stream, ct) =>
@@ -89,6 +90,17 @@ public class ContentView(
             q.Attachments
         )).ToList();
 
+        var runningJobs = jobService?.GetJobs()
+            .Where(j => j.Status == JobStatus.Running || j.Status == JobStatus.Pending || j.Status == JobStatus.Queued)
+            .Select(j => new ChatJobDto(
+                j.Id,
+                j.Type,
+                j.Status.ToString(),
+                j.ReportedPlanId,
+                j.ReportedPlanTitle,
+                j.StatusMessage
+            )).ToList();
+
         var chatWidget = new ChatWidget
         {
             ActiveSessionId = activeSessionId.Value,
@@ -104,6 +116,7 @@ public class ContentView(
             IsStreaming = isStreaming,
             StreamingText = streamingText,
             QueuedMessages = queuedMessageDtos,
+            RunningJobs = runningJobs,
 
             OnSelectSession = e =>
             {

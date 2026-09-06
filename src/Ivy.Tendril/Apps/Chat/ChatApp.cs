@@ -157,21 +157,39 @@ public class ChatApp : ViewBase
             var isActive = s.Id == currentSessionId;
 
             List<ChatJobDto>? spawnedJobs = null;
-            if (jobService != null && s.SpawnedJobIds is { Count: > 0 } jIds)
+            if (jobService != null)
             {
-                spawnedJobs = jIds.Select(jId =>
+                var combinedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                if (s.SpawnedJobIds is { Count: > 0 } jIds)
                 {
-                    var job = jobService.GetJob(jId);
-                    if (job == null) return new ChatJobDto(jId, "Job", "Unknown");
-                    return new ChatJobDto(
-                        job.Id,
-                        job.Type,
-                        job.Status.ToString(),
-                        job.ReportedPlanId,
-                        job.ReportedPlanTitle,
-                        job.StatusMessage
-                    );
-                }).ToList();
+                    foreach (var id in jIds) combinedIds.Add(id);
+                }
+
+                var matchingJobs = jobService.GetJobs().Where(j => string.Equals(j.ChatSessionId, s.Id, StringComparison.OrdinalIgnoreCase));
+                foreach (var mj in matchingJobs)
+                {
+                    if (combinedIds.Add(mj.Id))
+                    {
+                        chatService.AddSpawnedJob(s.Id, mj.Id);
+                    }
+                }
+
+                if (combinedIds.Count > 0)
+                {
+                    spawnedJobs = combinedIds.Select(jId =>
+                    {
+                        var job = jobService.GetJob(jId);
+                        if (job == null) return new ChatJobDto(jId, "Job", "Unknown");
+                        return new ChatJobDto(
+                            job.Id,
+                            job.Type,
+                            job.Status.ToString(),
+                            job.ReportedPlanId,
+                            job.ReportedPlanTitle,
+                            job.StatusMessage
+                        );
+                    }).ToList();
+                }
             }
 
             return new ChatSessionDto(

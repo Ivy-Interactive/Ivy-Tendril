@@ -112,6 +112,7 @@ public class JobService : IJobService
     public event Action? JobsStructureChanged;
     public event Action? JobPropertyChanged;
     public event Action<JobNotification>? NotificationReady;
+    public event Action<JobItem>? JobFinished;
 
     public string StartJob(JobArgsBase args, string? inboxFilePath = null)
     {
@@ -153,6 +154,7 @@ public class JobService : IJobService
         PersistJob(job);
         EvictStaleJobs();
         RaiseJobsStructureChanged();
+        JobFinished?.Invoke(job);
         ProcessJobQueue();
     }
 
@@ -301,6 +303,7 @@ public class JobService : IJobService
         _completionHandler.HandleWaitForJobsDependents(job, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob, DeleteJobFromDatabase);
 
         RaiseJobsStructureChanged();
+        JobFinished?.Invoke(job);
 
         // Try to start queued jobs now that a slot is free
         if (heldSlot)
@@ -619,6 +622,17 @@ public class JobService : IJobService
         PersistJob(job);
         RaiseJobsPropertyChanged();
         return true;
+    }
+
+    public void SetChatSessionId(string id, string chatSessionId)
+    {
+        if (_jobs.TryGetValue(id, out var job))
+        {
+            job.ChatSessionId = chatSessionId;
+            _chatHistoryService?.AddSpawnedJob(chatSessionId, id);
+            PersistJob(job);
+            RaiseJobsPropertyChanged();
+        }
     }
 
     public bool ReportJobFailure(string id, string message)

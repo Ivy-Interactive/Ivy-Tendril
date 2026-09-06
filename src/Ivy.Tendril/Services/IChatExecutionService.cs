@@ -20,6 +20,7 @@ public interface IChatExecutionService : IDisposable
         string? agentId = null,
         string? modelId = null,
         string? effort = null,
+        string role = "user",
         CancellationToken ct = default);
     Task CancelAsync(string sessionId);
 }
