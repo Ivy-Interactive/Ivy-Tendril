@@ -176,10 +176,14 @@ public class PrStatusSyncServiceTests : IDisposable
     public async Task RunSyncAsync_StoresMerged_ForUrlARecentWindowWouldMiss()
     {
         var url = "https://github.com/owner/repo/pull/1";
-        var fakePlans = new FakePlanReaderService(new List<PlanFile>
-        {
-            CreatePlanWithPrs(new[] { url })
-        });
+        var plan = CreatePlanWithPrs(new[] { url });
+
+        // Verify plan structure
+        Assert.NotNull(plan);
+        Assert.Equal(1, plan.Prs.Count);
+        Assert.Equal(url, plan.Prs[0]);
+
+        var fakePlans = new FakePlanReaderService(new List<PlanFile> { plan });
 
         var fakeGithub = new FakeGithubService(new Dictionary<string, PrInfo>
         {
@@ -321,21 +325,21 @@ public class PrStatusSyncServiceTests : IDisposable
     private static PlanFile CreatePlanWithPrs(string[] prs)
     {
         var metadata = new PlanMetadata(
-            1,
-            "test-project",
-            "Feature",
-            "Test Plan",
-            PlanStatus.Draft,
-            [],
-            prs.ToList(),
-            [],
-            [],
-            [],
-            [],
-            DateTime.UtcNow,
-            DateTime.UtcNow,
-            null,
-            null
+            1,                    // Id
+            "test-project",       // Project
+            "Feature",            // Level
+            "Test Plan",          // Title
+            PlanStatus.Draft,     // State
+            [],                   // Repos
+            [],                   // Commits
+            prs.ToList(),         // Prs
+            [],                   // Verifications
+            [],                   // RelatedPlans
+            [],                   // DependsOn
+            DateTime.UtcNow,      // Created
+            DateTime.UtcNow,      // Updated
+            null,                 // InitialPrompt
+            null                  // SourceUrl
         );
         return new PlanFile(metadata, "", "/fake/path", "");
     }
