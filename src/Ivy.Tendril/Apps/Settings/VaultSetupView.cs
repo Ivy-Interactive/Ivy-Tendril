@@ -46,11 +46,13 @@ public class VaultSetupView : ViewBase
 
         var vaultsQuery = UseQuery<List<VaultStatus>, string>(
             "vaults_list",
-            async (_, _) => await vaultService.GetVaultsAsync());
+            async (_, _) => await vaultService.GetVaultsAsync(),
+            initialValue: GetInitialVaultStatuses(config.Settings));
 
         var statusQuery = UseQuery<VaultStatus, string>(
             $"vault_status_{selectedVaultId.Value}",
-            async (_, _) => await vaultService.GetStatusAsync(selectedVaultId.Value));
+            async (_, _) => await vaultService.GetStatusAsync(selectedVaultId.Value),
+            initialValue: GetInitialVaultStatus(config.Settings, selectedVaultId.Value));
 
         var catalogQuery = UseQuery<VaultCatalog, string>(
             $"vault_catalog_{selectedVaultId.Value}",
@@ -192,7 +194,7 @@ public class VaultSetupView : ViewBase
             )
             : null;
 
-        if (vaultsList.Count == 0 && !status.IsConfigured)
+        if (!HasConfiguredVaults(config.Settings) && vaultsList.Count == 0 && !status.IsConfigured)
         {
             var notConfiguredLayout = Layout.Vertical().Width(Size.Auto().Max(Size.Units(200)))
                 | Text.Block("Team Configuration Vault").Bold()
@@ -490,7 +492,12 @@ public class VaultSetupView : ViewBase
         }
 
         object projectsSection;
-        if (tableRows.Count == 0)
+        if (catalogQuery.Loading && tableRows.Count == 0)
+        {
+            projectsSection = Layout.Vertical().AlignContent(Align.Left)
+                | Text.Muted("Loading shared projects...");
+        }
+        else if (tableRows.Count == 0)
         {
             projectsSection = Layout.Vertical().AlignContent(Align.Left)
                 | Text.Block("No Shared Projects").Bold()
@@ -537,6 +544,57 @@ public class VaultSetupView : ViewBase
             importDialog,
             confirmDeleteDialog
         );
+    }
+
+    public static bool HasConfiguredVaults(TendrilSettings? settings)
+    {
+        if (settings == null) return false;
+
+        if (settings.Vaults != null && settings.Vaults.Any(v => v.Enabled && !string.IsNullOrWhiteSpace(v.RepoUrl)))
+        {
+            return true;
+        }
+
+        return settings.Vault != null && settings.Vault.Enabled && !string.IsNullOrWhiteSpace(settings.Vault.RepoUrl);
+    }
+
+    public static List<VaultStatus> GetInitialVaultStatuses(TendrilSettings? settings)
+    {
+        var statuses = new List<VaultStatus>();
+        if (settings == null) return statuses;
+
+        var configuredVaults = settings.Vaults?
+            .Where(v => v.Enabled && !string.IsNullOrWhiteSpace(v.RepoUrl))
+            .ToList() ?? new List<VaultSettings>();
+
+        if (configuredVaults.Count == 0 && settings.Vault != null && settings.Vault.Enabled && !string.IsNullOrWhiteSpace(settings.Vault.RepoUrl))
+        {
+            configuredVaults.Add(settings.Vault);
+        }
+
+        foreach (var vault in configuredVaults)
+        {
+            statuses.Add(new VaultStatus
+            {
+                Id = vault.Id,
+                Name = !string.IsNullOrWhiteSpace(vault.Name) ? vault.Name : VaultService.ExtractRepoName(vault.RepoUrl),
+                IsConfigured = true,
+                RepoUrl = vault.RepoUrl,
+                LocalPath = vault.LocalPath,
+                AlwaysUpToDate = vault.AlwaysUpToDate,
+                LastSyncedAt = vault.LastSyncedAt
+            });
+        }
+
+        return statuses;
+    }
+
+    public static VaultStatus GetInitialVaultStatus(TendrilSettings? settings, string? selectedVaultId)
+    {
+        var statuses = GetInitialVaultStatuses(settings);
+        return statuses.FirstOrDefault(v => v.Id == selectedVaultId)
+            ?? statuses.FirstOrDefault()
+            ?? new VaultStatus();
     }
 
     private record VaultDetailsData(
