@@ -397,9 +397,8 @@ public sealed class ChatExecutionService : IChatExecutionService
         // Launch background agent execution
         var executionTask = Task.Run(async () =>
         {
-            var rawLock = new object();
-            var rawLines = new List<string>();
             string? lastTextEvent = null;
+            var openToolCalls = new HashSet<string>();
 
             try
             {
@@ -426,15 +425,39 @@ public sealed class ChatExecutionService : IChatExecutionService
                 {
                     try
                     {
-                        if (evt is ToolResultEvent toolResult && !string.IsNullOrWhiteSpace(toolResult.Output))
+                        if (evt is ToolCallEvent toolCall && !string.IsNullOrEmpty(toolCall.ToolUseId))
                         {
-                            TryTrackSpawnedJob(sessionId, toolResult.Output);
+                            lock (activeExec.Lock)
+                            {
+                                openToolCalls.Add(toolCall.ToolUseId);
+                            }
+                        }
+                        else if (evt is ToolResultEvent toolResult)
+                        {
+                            if (!string.IsNullOrEmpty(toolResult.ToolUseId))
+                            {
+                                lock (activeExec.Lock)
+                                {
+                                    openToolCalls.Remove(toolResult.ToolUseId);
+                                }
+                            }
+                            if (!string.IsNullOrWhiteSpace(toolResult.Output))
+                            {
+                                TryTrackSpawnedJob(sessionId, toolResult.Output);
+                            }
                         }
                         else if (evt is TextEvent textEvt && !string.IsNullOrWhiteSpace(textEvt.Text))
                         {
-                            lock (rawLock)
+                            lock (activeExec.Lock)
                             {
-                                lastTextEvent = textEvt.Text;
+                                if (textEvt.IsDelta)
+                                {
+                                    lastTextEvent = (lastTextEvent ?? "") + textEvt.Text;
+                                }
+                                else
+                                {
+                                    lastTextEvent = textEvt.Text;
+                                }
                             }
                         }
 
@@ -506,12 +529,109 @@ public sealed class ChatExecutionService : IChatExecutionService
             }
             catch (OperationCanceledException)
             {
-                _chatService.AddMessage(sessionId, "assistant", "Execution was cancelled.", targetAgent, targetModel, effort: targetEffort);
+                string? fullRawStream = null;
+                string? collectedText = null;
+                lock (activeExec.Lock)
+                {
+                    collectedText = lastTextEvent;
+
+                    foreach (var toolUseId in openToolCalls)
+                    {
+                        var cancelToolResult = new ToolResultEvent
+                        {
+                            Kind = AgentEventKind.ToolResult,
+                            Timestamp = DateTimeOffset.UtcNow,
+                            ToolUseId = toolUseId,
+                            Output = "[Cancelled]",
+                            IsError = true
+                        };
+                        var cancelToolJson = _serializer.Serialize(cancelToolResult);
+                        if (!string.IsNullOrEmpty(cancelToolJson))
+                        {
+                            activeExec.RawLines.Add(cancelToolJson);
+                            StreamLineEmitted?.Invoke(sessionId, cancelToolJson);
+                        }
+                    }
+                    openToolCalls.Clear();
+
+                    var cancelEvt = new TextEvent
+                    {
+                        Kind = AgentEventKind.Text,
+                        Timestamp = DateTimeOffset.UtcNow,
+                        Text = "Execution was cancelled.",
+                        IsDelta = false
+                    };
+                    var cancelJson = _serializer.Serialize(cancelEvt);
+                    if (!string.IsNullOrEmpty(cancelJson))
+                    {
+                        activeExec.RawLines.Add(cancelJson);
+                        StreamLineEmitted?.Invoke(sessionId, cancelJson);
+                    }
+
+                    if (activeExec.RawLines.Count > 0)
+                    {
+                        fullRawStream = string.Join("\n", activeExec.RawLines);
+                    }
+                }
+
+                var responseContent = !string.IsNullOrWhiteSpace(collectedText)
+                    ? $"{collectedText}\n\nExecution was cancelled."
+                    : "Execution was cancelled.";
+
+                _chatService.AddMessage(sessionId, "assistant", responseContent, targetAgent, targetModel, rawStream: fullRawStream, effort: targetEffort);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error executing request for session {SessionId}", sessionId);
-                _chatService.AddMessage(sessionId, "assistant", $"Error executing request: {ex.Message}", targetAgent, targetModel, effort: targetEffort);
+                string? fullRawStream = null;
+                string? collectedText = null;
+                lock (activeExec.Lock)
+                {
+                    collectedText = lastTextEvent;
+
+                    foreach (var toolUseId in openToolCalls)
+                    {
+                        var errToolResult = new ToolResultEvent
+                        {
+                            Kind = AgentEventKind.ToolResult,
+                            Timestamp = DateTimeOffset.UtcNow,
+                            ToolUseId = toolUseId,
+                            Output = $"[Error: {ex.Message}]",
+                            IsError = true
+                        };
+                        var errToolJson = _serializer.Serialize(errToolResult);
+                        if (!string.IsNullOrEmpty(errToolJson))
+                        {
+                            activeExec.RawLines.Add(errToolJson);
+                            StreamLineEmitted?.Invoke(sessionId, errToolJson);
+                        }
+                    }
+                    openToolCalls.Clear();
+
+                    var errorEvt = new ErrorEvent
+                    {
+                        Kind = AgentEventKind.Error,
+                        Timestamp = DateTimeOffset.UtcNow,
+                        Message = $"Error executing request: {ex.Message}"
+                    };
+                    var errorJson = _serializer.Serialize(errorEvt);
+                    if (!string.IsNullOrEmpty(errorJson))
+                    {
+                        activeExec.RawLines.Add(errorJson);
+                        StreamLineEmitted?.Invoke(sessionId, errorJson);
+                    }
+
+                    if (activeExec.RawLines.Count > 0)
+                    {
+                        fullRawStream = string.Join("\n", activeExec.RawLines);
+                    }
+                }
+
+                var responseContent = !string.IsNullOrWhiteSpace(collectedText)
+                    ? $"{collectedText}\n\nError executing request: {ex.Message}"
+                    : $"Error executing request: {ex.Message}";
+
+                _chatService.AddMessage(sessionId, "assistant", responseContent, targetAgent, targetModel, rawStream: fullRawStream, effort: targetEffort);
             }
             finally
             {
