@@ -412,10 +412,13 @@ public class ProjectDetailView(
             | new ProjectRepoPickerView(repos, onAdd: cloneRemoteOnAdd, showBaseBranchPicker: true)
 
             // Section 3: Issue Trackers
-            | Text.H4("Issue Trackers").Bold()
-            | trackersContent
-            | (Layout.Horizontal().AlignContent(Align.Left)
-                | new Button("Add Issue Tracker").Icon(Icons.Plus).Outline().OnClick(() => openProjectTrackerDialog(null)))
+            | (isBeta
+                ? (object)(Layout.Vertical()
+                    | Text.H4("Issue Trackers").Bold()
+                    | trackersContent
+                    | (Layout.Horizontal().AlignContent(Align.Left)
+                        | new Button("Add Issue Tracker").Icon(Icons.Plus).Outline().OnClick(() => openProjectTrackerDialog(null))))
+                : null!)
 
             // Section 4: Review Actions
             | Text.H4("Review Actions").Bold()

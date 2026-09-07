@@ -19,8 +19,8 @@ public class SettingsApp : ViewBase
     private const string TagLevels = "levels";
     private const string TagPromptwares = "promptwares";
     internal const string TagProjects = "projects";
-    private const string TagIssueTrackers = "issue-trackers";
-    private const string TagVault = "vault";
+    internal const string TagIssueTrackers = "issue-trackers";
+    internal const string TagVault = "vault";
     private const string TagTunnel = "tunnel";
     private const string TagAdvanced = "advanced";
     private const string TagNewsletter = "newsletter";
@@ -62,29 +62,7 @@ public class SettingsApp : ViewBase
         var projects = config.Settings.Projects;
         var selectedTag = selected.Value;
 
-        var sections = new List<(string Label, string Tag, Icons Icon)>
-        {
-            ("Coding Agent", TagCodingAgent, Icons.Bot),
-            ("Plans", TagPlans, Icons.Feather),
-            ("Appearance", TagAppearance, Icons.Sun),
-            ("Projects", TagProjects, Icons.Folder),
-        };
-
-        if (isBeta)
-        {
-            sections.Add(("Team Vault", TagVault, Icons.FolderGit2));
-        }
-
-        sections.AddRange(new (string Label, string Tag, Icons Icon)[]
-        {
-            ("Promptwares", TagPromptwares, Icons.Wand),
-            ("Issue Trackers", TagIssueTrackers, Icons.SquareCheck),
-            ("Levels", TagLevels, Icons.ListOrdered),
-            ("Notifications", TagNotifications, Icons.Bell),
-            ("Security & Tunneling", TagSecurity, Icons.Lock),
-            ("Advanced", TagAdvanced, Icons.Cog),
-            ("Newsletter", TagNewsletter, Icons.Mail),
-        });
+        var sections = BuildSections(isBeta);
 
         var rows = new List<object>
         {
@@ -129,7 +107,12 @@ public class SettingsApp : ViewBase
         }
 
         rows.Add(SidebarListRow.Build("Promptwares", Icons.Wand, () => selected.Set(TagPromptwares), selectedTag == TagPromptwares));
-        rows.Add(SidebarListRow.Build("Issue Trackers", Icons.SquareCheck, () => selected.Set(TagIssueTrackers), selectedTag == TagIssueTrackers));
+
+        if (isBeta)
+        {
+            rows.Add(SidebarListRow.Build("Issue Trackers", Icons.SquareCheck, () => selected.Set(TagIssueTrackers), selectedTag == TagIssueTrackers));
+        }
+
         rows.Add(SidebarListRow.Build("Levels", Icons.ListOrdered, () => selected.Set(TagLevels), selectedTag == TagLevels));
         rows.Add(SidebarListRow.Build("Notifications", Icons.Bell, () => selected.Set(TagNotifications), selectedTag == TagNotifications));
         rows.Add(SidebarListRow.Build("Security & Tunneling", Icons.Lock, () => selected.Set(TagSecurity), selectedTag == TagSecurity || selectedTag == TagTunnel));
@@ -171,25 +154,11 @@ public class SettingsApp : ViewBase
         }
         else
         {
-            content = selectedTag switch
-            {
-                TagCodingAgent => new CodingAgentSetupView(),
-                TagPlans => new PlansSetupView(),
-                TagAppearance => new AppearanceSetupView(),
-                TagNotifications => new NotificationsSetupView(),
-                TagSecurity => new SecuritySetupView(),
-                TagTunnel => new SecuritySetupView(),
-                TagLevels => new LevelsSetupView(),
-                TagPromptwares => new PromptwaresSetupView(),
-                TagIssueTrackers => new IssueTrackersSetupView(),
-                TagVault when isBeta => new VaultSetupView(),
-                TagProjects => projects.Count > 0
+            content = selectedTag == TagProjects
+                ? (projects.Count > 0
                     ? new ProjectDetailView(0, projects, config, client, refreshToken).Key($"project:{projects[0].Name}")
-                    : new CodingAgentSetupView(),
-                TagAdvanced => new AdvancedSetupView(),
-                TagNewsletter => new NewsletterSetupView(),
-                _ => new CodingAgentSetupView()
-            };
+                    : new CodingAgentSetupView())
+                : ResolveTagContent(selectedTag, isBeta);
         }
 
         var currentLabel = sections.FirstOrDefault(s => s.Tag == selected.Value).Label ?? "Configuration";
@@ -209,4 +178,55 @@ public class SettingsApp : ViewBase
 
         return new SidebarLayout(contentWithMobileHeader, sidebar);
     }
+
+    internal static List<(string Label, string Tag, Icons Icon)> BuildSections(bool isBeta)
+    {
+        var sections = new List<(string Label, string Tag, Icons Icon)>
+        {
+            ("Coding Agent", TagCodingAgent, Icons.Bot),
+            ("Plans", TagPlans, Icons.Feather),
+            ("Appearance", TagAppearance, Icons.Sun),
+            ("Projects", TagProjects, Icons.Folder),
+        };
+
+        if (isBeta)
+        {
+            sections.Add(("Team Vault", TagVault, Icons.FolderGit2));
+        }
+
+        sections.Add(("Promptwares", TagPromptwares, Icons.Wand));
+
+        if (isBeta)
+        {
+            sections.Add(("Issue Trackers", TagIssueTrackers, Icons.SquareCheck));
+        }
+
+        sections.AddRange(new (string Label, string Tag, Icons Icon)[]
+        {
+            ("Levels", TagLevels, Icons.ListOrdered),
+            ("Notifications", TagNotifications, Icons.Bell),
+            ("Security & Tunneling", TagSecurity, Icons.Lock),
+            ("Advanced", TagAdvanced, Icons.Cog),
+            ("Newsletter", TagNewsletter, Icons.Mail),
+        });
+
+        return sections;
+    }
+
+    internal static object ResolveTagContent(string selectedTag, bool isBeta) => selectedTag switch
+    {
+        TagCodingAgent => new CodingAgentSetupView(),
+        TagPlans => new PlansSetupView(),
+        TagAppearance => new AppearanceSetupView(),
+        TagNotifications => new NotificationsSetupView(),
+        TagSecurity => new SecuritySetupView(),
+        TagTunnel => new SecuritySetupView(),
+        TagLevels => new LevelsSetupView(),
+        TagPromptwares => new PromptwaresSetupView(),
+        TagIssueTrackers when isBeta => new IssueTrackersSetupView(),
+        TagVault when isBeta => new VaultSetupView(),
+        TagAdvanced => new AdvancedSetupView(),
+        TagNewsletter => new NewsletterSetupView(),
+        _ => new CodingAgentSetupView()
+    };
 }
