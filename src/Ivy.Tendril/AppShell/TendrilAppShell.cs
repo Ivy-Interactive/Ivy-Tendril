@@ -311,7 +311,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             void OnSettingsReloaded(object? sender, EventArgs e)
             {
                 menuItems.Set(BuildMenuItems(appRepository, status.Value, agentRunner, shareContext.IsShareMode));
-                sidebarOpen.Set(config.Settings.SidebarOpen);
                 TendrilThemes.ApplyTheme(client, config.Settings.Theme);
                 TendrilThemes.ApplyThemeMode(client, config.Settings.ThemeMode);
             }
@@ -842,8 +841,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             .OnCollapsedChanged(collapsed =>
             {
                 sidebarOpen.Set(!collapsed);
-                config.Settings.SidebarOpen = !collapsed;
-                config.SaveSettings();
             });
 
         return new Fragment(
