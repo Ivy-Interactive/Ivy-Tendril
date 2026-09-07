@@ -103,3 +103,22 @@ export const formatCountTick = (value: number): string => {
   if (value >= 1000) return `${Math.round(value / 1000)}K`;
   return String(Math.round(value));
 };
+
+export interface DashboardActivityMetrics {
+  totalPrs: number;
+  activeWeeks: number;
+}
+
+export const computeActivityMetrics = (
+  months: DashboardActivityMonthDto[],
+): DashboardActivityMetrics => {
+  const totalPrs = months.reduce(
+    (acc, m) => acc + (m.weeks ?? []).reduce((wAcc, c) => wAcc + c, 0),
+    0,
+  );
+  const activeWeeks = months.reduce(
+    (acc, m) => acc + (m.weeks ?? []).filter((c) => c > 0).length,
+    0,
+  );
+  return { totalPrs, activeWeeks };
+};

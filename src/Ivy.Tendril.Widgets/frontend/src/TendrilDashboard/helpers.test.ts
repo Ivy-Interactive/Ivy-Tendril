@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeActivityMetrics,
   formatCountTick,
   formatCurrencyTick,
   niceTicks,
@@ -45,3 +46,26 @@ describe("tick formatters", () => {
     expect(formatCountTick(150)).toBe("150");
   });
 });
+
+describe("computeActivityMetrics", () => {
+  it("returns 0 for empty months or months without weeks", () => {
+    expect(computeActivityMetrics([])).toEqual({ totalPrs: 0, activeWeeks: 0 });
+    expect(computeActivityMetrics([{ label: "Jan", weeks: [] }])).toEqual({
+      totalPrs: 0,
+      activeWeeks: 0,
+    });
+  });
+
+  it("sums total merged PRs and counts weeks with merged PRs", () => {
+    const months = [
+      { label: "Jan", weeks: [0, 2, 0, 1] },
+      { label: "Feb", weeks: [3, 0, 0, 0] },
+      { label: "Mar", weeks: [0, 0, 0, 0] },
+    ];
+    expect(computeActivityMetrics(months)).toEqual({
+      totalPrs: 6,
+      activeWeeks: 3,
+    });
+  });
+});
+

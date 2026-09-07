@@ -1,5 +1,9 @@
 import React, { useLayoutEffect, useMemo, useRef } from "react";
-import { DashboardActivityMonthDto, rampLevel } from "./types";
+import {
+  computeActivityMetrics,
+  DashboardActivityMonthDto,
+  rampLevel,
+} from "./types";
 import { HoverTip, useHoverTip } from "./HoverTip";
 
 interface ActivityGridProps {
@@ -24,6 +28,11 @@ const WEEKDAYS = ["Mon", "", "Wed", "", "Fri", "", ""];
 export const ActivityGrid: React.FC<ActivityGridProps> = ({ months }) => {
   const { wrapRef, tip, showTip, hideTip } = useHoverTip();
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const { totalPrs, activeWeeks } = useMemo(
+    () => computeActivityMetrics(months),
+    [months],
+  );
 
   // Extract all daily records across the months
   const allDays = useMemo(() => {
@@ -201,6 +210,16 @@ export const ActivityGrid: React.FC<ActivityGridProps> = ({ months }) => {
             <div className="tdb-activity-cell" data-level={3} />
             <div className="tdb-activity-cell" data-level={4} />
             <span>More</span>
+          </div>
+        </div>
+        <div className="tdb-activity-metrics">
+          <div className="tdb-activity-metric">
+            <span className="tdb-activity-metric-value">{totalPrs}</span>
+            <span className="tdb-activity-metric-label">PRs merged</span>
+          </div>
+          <div className="tdb-activity-metric">
+            <span className="tdb-activity-metric-value">{activeWeeks}</span>
+            <span className="tdb-activity-metric-label">Active weeks</span>
           </div>
         </div>
       </div>
