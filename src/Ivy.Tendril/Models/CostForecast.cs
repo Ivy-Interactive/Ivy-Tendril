@@ -32,7 +32,10 @@ public record CostForecast(
 /// </summary>
 public static class CostForecastCalculator
 {
-    /// <summary>Matches <c>DashboardRepository.DailyCostWindowDays</c>, and caps a longer history.</summary>
+    /// <summary>
+    ///     The month this projects, at most. Caps a longer history: the series the dashboard supplies
+    ///     reaches back a good deal further than this, for the trend chart's benefit.
+    /// </summary>
     private const int WindowDays = 30;
 
     /// <summary>

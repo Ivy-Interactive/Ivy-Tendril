@@ -208,6 +208,42 @@ public class DashboardActivityStatsTests : IDisposable
     }
 
     [Fact]
+    public void GetActivityStats_DailyDataStart_IsTheEarliestRecordedDay()
+    {
+        // What separates "a day that cost nothing" from "a day we have no records for". Without it every
+        // rolling average would silently divide over days that never existed.
+        var oldest = DateTime.UtcNow.Date.AddDays(-200);
+        _db.UpsertPlan(CreateTestPlan(1500, PlanStatus.Completed, oldest, oldest));
+        _db.UpsertPlan(CreateTestPlan(1501, PlanStatus.Completed, DateTime.UtcNow, DateTime.UtcNow));
+        _db.UpsertCosts(1501, [new CostEntry("ExecutePlan", 100, 3m, DateTime.UtcNow)]);
+
+        Assert.Equal(DateOnly.FromDateTime(oldest), _db.GetActivityStats().DailyDataStart);
+    }
+
+    [Fact]
+    public void GetActivityStats_DailyDataStart_IsNullOnAnEmptyDatabase()
+    {
+        Assert.Null(_db.GetActivityStats().DailyDataStart);
+    }
+
+    [Fact]
+    public void GetActivityStats_DailySeries_ReachBackPastTheOldSixtyDayWindow()
+    {
+        // The trend chart plots a year of days and compares against the year before it, so a two hundred
+        // day old row has to survive the cutoff the forecast used to set.
+        var longAgo = DateTime.UtcNow.Date.AddDays(-200);
+        _db.UpsertPlan(CreateTestPlan(1500, PlanStatus.Completed, longAgo, longAgo));
+        _db.UpsertCosts(1500, [new CostEntry("ExecutePlan", 900, 6m, longAgo)]);
+
+        var stats = _db.GetActivityStats();
+
+        Assert.NotNull(stats.DailyCosts);
+        Assert.Equal(6m, Assert.Single(stats.DailyCosts, d => d.Date == DateOnly.FromDateTime(longAgo)).Cost);
+        Assert.NotNull(stats.DailyPlans);
+        Assert.Equal(1, stats.DailyPlans[DateOnly.FromDateTime(longAgo)]);
+    }
+
+    [Fact]
     public void GetActivityStats_AggregatesByWeek()
     {
         var now = DateTime.UtcNow;

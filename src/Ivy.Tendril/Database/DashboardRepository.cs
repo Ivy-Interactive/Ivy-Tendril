@@ -7,10 +7,11 @@ namespace Ivy.Tendril.Database;
 public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSlim lockSlim)
 {
     /// <summary>
-    ///     How far back the daily spend series goes. Long enough to project a month from, short enough
-    ///     that the COALESCE in its WHERE clause (which rules out an index only scan) stays cheap.
+    ///     How far back the daily series go: 365 days the trend chart plots, six leading days so its
+    ///     first plotted point has a full 7 day rolling window, and 365 more for the prior-year
+    ///     comparison the long range draws against.
     /// </summary>
-    internal const int DailyCostWindowDays = 60;
+    internal const int DailyTrendWindowDays = 736;
 
     private sealed class ReadLockHandle : IDisposable
     {
@@ -274,7 +275,7 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                     GROUP BY d ORDER BY d
                     """;
                 cmd.Parameters.AddWithValue("@cutoff",
-                    today.AddDays(-(DailyCostWindowDays - 1)).ToString("O", CultureInfo.InvariantCulture));
+                    today.AddDays(-(DailyTrendWindowDays - 1)).ToString("O", CultureInfo.InvariantCulture));
                 using var r = cmd.ExecuteReader();
                 while (r.Read())
                 {
@@ -297,13 +298,32 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                     GROUP BY d
                     """;
                 cmd.Parameters.AddWithValue("@cutoff",
-                    today.AddDays(-(DailyCostWindowDays - 1)).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+                    today.AddDays(-(DailyTrendWindowDays - 1)).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
                 using var r = cmd.ExecuteReader();
                 while (r.Read())
                 {
                     if (DateOnly.TryParse(r.GetString(0), CultureInfo.InvariantCulture, out var day))
                         dailyPlans[day] = r.GetInt32(1);
                 }
+            }
+
+            // Where the daily series stop being silent about a gap and start meaning it. Clamped up to
+            // the retrieval window, because a record older than the window is not in the series either.
+            var windowStart = DateOnly.FromDateTime(today.AddDays(-(DailyTrendWindowDays - 1)));
+            DateOnly? dailyDataStart = null;
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT MIN(d) FROM (
+                        SELECT DATE(Created) AS d FROM Plans
+                        UNION ALL
+                        SELECT DATE(COALESCE(c.LogTimestamp, p.Updated)) AS d
+                        FROM Costs c JOIN Plans p ON p.Id = c.PlanId
+                    )
+                    """;
+                if (cmd.ExecuteScalar() is string earliestText
+                    && DateOnly.TryParse(earliestText, CultureInfo.InvariantCulture, out var earliest))
+                    dailyDataStart = earliest > windowStart ? earliest : windowStart;
             }
 
             var months = new List<DashboardMonthStats>(monthsBack);
@@ -401,7 +421,8 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                 ));
             }
 
-            return new DashboardActivityStats(months, prevWeekAvgCost, dailyCosts, weeks, dailyPlans);
+            return new DashboardActivityStats(
+                months, prevWeekAvgCost, dailyCosts, weeks, dailyPlans, dailyDataStart);
         }
     }
 }
