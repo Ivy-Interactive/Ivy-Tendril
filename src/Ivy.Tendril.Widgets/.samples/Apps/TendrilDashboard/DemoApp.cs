@@ -1,3 +1,4 @@
+using System.Globalization;
 using Ivy;
 using Ivy.Tendril.Widgets;
 using TendrilDashboardWidget = Ivy.Tendril.Widgets.TendrilDashboard;
@@ -27,10 +28,28 @@ class DemoApp : ViewBase
             .OnReview(() => client.Toast("Review clicked", "OnReview").Info())
             .OnJobs(() => client.Toast("Jobs clicked", "OnJobs").Info());
 
-        var months = new List<string>
+        // A deterministic daily series ending on the date in the header. Weekdays cost noticeably more
+        // than weekends, which is the day-to-day noise the rolling curve is there to smooth.
+        const int trendDays = 365;
+        var trendEnd = new DateOnly(2026, 8, 20);
+        var trendRandom = new Random(11);
+        var trendDates = new List<string>(trendDays);
+        var trendCost = new List<double>(trendDays);
+        var trendPlans = new List<double>(trendDays);
+        for (var i = 0; i < trendDays; i++)
         {
-            "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"
-        };
+            var date = trendEnd.AddDays(-(trendDays - 1) + i);
+            var weekend = date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+            trendDates.Add(date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            trendCost.Add(weekend ? trendRandom.Next(0, 120) : trendRandom.Next(200, 1400));
+            trendPlans.Add(weekend ? trendRandom.Next(0, 2) : trendRandom.Next(2, 12));
+        }
+
+        // Nulls at the start stand for days the comparison period has no records for.
+        var trendPrevCost = trendCost
+            .Select((v, i) => i < 30 ? (double?)null : Math.Round(v * 0.62)).ToList();
+        var trendPrevPlans = trendPlans
+            .Select((v, i) => i < 30 ? (double?)null : Math.Round(v * 0.7)).ToList();
 
         // Mirrors UpdateNoticeView's compact layout: alert + actions, filling
         // the dashboard's fixed 120px update slot.
@@ -92,11 +111,23 @@ class DemoApp : ViewBase
                 new DashboardKpiDto("Avg Cost/Plan", "$0.98", "-0.01%", "down")
             ])
             .Trend(new DashboardTrendDto(
-                months,
-                [12400, 5100, 0, 12800, 24500, 28900, 19600, 23800, 21200, 26500, 24100, 29400],
-                [42, 18, 0, 45, 88, 102, 71, 85, 64, 91, 78, 96],
-                [null, null, 6200, 7900, 11400, 13600, 10800, 14700, 15900, 17200, 18800, 20100],
-                [null, null, 21, 27, 39, 47, 36, 51, 55, 60, 66, 71]))
+                trendDates,
+                trendCost,
+                trendPlans,
+                trendPrevCost,
+                trendPrevPlans,
+                Rolling(trendCost),
+                Rolling(trendPlans)))
+            // The short range is the tail of the same series, so its rolling curve starts six days in
+            // and the gap that leaves is visible in the demo.
+            .TrendWeekly(new DashboardTrendDto(
+                trendDates.TakeLast(28).ToList(),
+                trendCost.TakeLast(28).ToList(),
+                trendPlans.TakeLast(28).ToList(),
+                trendPrevCost.TakeLast(28).ToList(),
+                trendPrevPlans.TakeLast(28).ToList(),
+                Rolling(trendCost.TakeLast(28).ToList()),
+                Rolling(trendPlans.TakeLast(28).ToList())))
             .OnDrafts(() => client.Toast("Drafts clicked", "OnDrafts").Info())
             .OnReview(() => client.Toast("Review clicked", "OnReview").Info())
             .OnJobs(() => client.Toast("Jobs clicked", "OnJobs").Info())
@@ -124,4 +155,15 @@ class DemoApp : ViewBase
 
         return new Fragment(dashboard, toggles);
     }
+
+    /// <summary>
+    ///     Mirrors the server's rolling mean for demo data: null until a full window of days exists, so
+    ///     the curve starts where the history does.
+    /// </summary>
+    private static List<double?> Rolling(List<double> values, int window = 7) =>
+        values
+            .Select((_, i) => i < window - 1
+                ? (double?)null
+                : values.Skip(i - window + 1).Take(window).Average())
+            .ToList();
 }

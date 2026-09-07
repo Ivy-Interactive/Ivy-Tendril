@@ -20,12 +20,26 @@ public record DashboardActivityMonthDto(string Label, List<int> Weeks, List<Dash
 /// <summary>Row in the Active Jobs card. Status is lowercased; "running" spins the row's loader.</summary>
 public record DashboardJobDto(string Id, string PlanId, string Title, string Status);
 
+/// <param name="Dates">
+///     One <c>yyyy-MM-dd</c> per plotted day, ascending and contiguous. The frontend formats the axis
+///     and the tooltip from these, so the series carries no pre-rendered labels.
+/// </param>
+/// <param name="PrevCost">
+///     The comparison period's raw value for the same calendar day, or null where that day predates the
+///     records and comparing against it would invent a zero.
+/// </param>
+/// <param name="RollingCost">
+///     A 7 day trailing mean aligned to <paramref name="Dates" />, null where the window reaches back
+///     past the earliest record. A gap here is drawn as a gap in the curve.
+/// </param>
 public record DashboardTrendDto(
-    List<string> Months,
+    List<string> Dates,
     List<double> Cost,
     List<double> Plans,
     List<double?> PrevCost,
-    List<double?> PrevPlans);
+    List<double?> PrevPlans,
+    List<double?> RollingCost,
+    List<double?> RollingPlans);
 
 [ExternalWidget(
     "frontend/dist/ivy-tendril-widgets.js",
