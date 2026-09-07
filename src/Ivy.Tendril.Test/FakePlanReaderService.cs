@@ -19,9 +19,10 @@ internal class FakePlanReaderService : IPlanReaderService
     {
     }
 
+    public List<PlanFile> Plans { get; set; } = [];
     public List<PlanFile> GetPlans(PlanStatus? statusFilter = null)
     {
-        return [];
+        return Plans;
     }
 
     public PlanFile? GetPlanByFolder(string folderPath)
