@@ -1,6 +1,7 @@
 import type { IvyEventHandler } from "../TendrilProcessViewer/types";
 
 export interface DashboardKpiDto {
+  id?: string | null;
   label: string;
   value: string;
   delta?: string | null;

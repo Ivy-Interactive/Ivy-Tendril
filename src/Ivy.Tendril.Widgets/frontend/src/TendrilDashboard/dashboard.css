@@ -219,6 +219,18 @@
   padding: 22px 24px;
   min-height: 110px;
   color: var(--tdb-fg);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.tdb-kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.tdb-kpi:focus-visible {
+  outline: 2px solid var(--tdb-focus, var(--tdb-muted));
+  outline-offset: 2px;
 }
 
 .tdb-kpi[data-tone="0"] { background: var(--tdb-kpi-1); }

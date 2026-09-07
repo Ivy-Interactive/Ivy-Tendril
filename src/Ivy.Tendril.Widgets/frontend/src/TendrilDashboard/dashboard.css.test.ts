@@ -30,6 +30,13 @@ describe("dashboard.css KPI grid", () => {
     expect(css).toContain(".tdb-kpi-hint {");
     expect(css).toMatch(/\.tdb-kpi-hint\s*\{[^}]*opacity: 0\.7;/);
   });
+
+  it("defines cursor pointer, transition, hover, and focus-visible on .tdb-kpi", () => {
+    expect(css).toMatch(/\.tdb-kpi\s*\{[^}]*cursor:\s*pointer;/);
+    expect(css).toMatch(/\.tdb-kpi\s*\{[^}]*transition:\s*[^;]*transform/);
+    expect(css).toContain(".tdb-kpi:hover");
+    expect(css).toContain(".tdb-kpi:focus-visible");
+  });
 });
 
 describe("dashboard.css side block and git activity layout", () => {

@@ -9,7 +9,8 @@ public record DashboardKpiDto(
     string Value,
     string? Delta = null,
     string? Direction = null,
-    string? Hint = null);
+    string? Hint = null,
+    string? Id = null);
 
 public record DashboardMonthValueDto(string Label, double Value);
 
@@ -100,6 +101,7 @@ public record TendrilDashboard : WidgetBase<TendrilDashboard>
     [Event] public EventHandler<Event<TendrilDashboard>>? OnReview { get; init; }
     [Event] public EventHandler<Event<TendrilDashboard>>? OnJobs { get; init; }
     [Event] public EventHandler<Event<TendrilDashboard, string>>? OnJob { get; init; }
+    [Event] public EventHandler<Event<TendrilDashboard, string>>? OnSelectKpi { get; init; }
 }
 
 public static class TendrilDashboardExtensions
@@ -157,4 +159,7 @@ public static class TendrilDashboardExtensions
 
     public static TendrilDashboard OnJob(this TendrilDashboard w, Action<string> handler) =>
         w with { OnJob = new(e => { handler(e.Value); return ValueTask.CompletedTask; }) };
+
+    public static TendrilDashboard OnSelectKpi(this TendrilDashboard w, Action<string> handler) =>
+        w with { OnSelectKpi = new(e => { handler(e.Value); return ValueTask.CompletedTask; }) };
 }
