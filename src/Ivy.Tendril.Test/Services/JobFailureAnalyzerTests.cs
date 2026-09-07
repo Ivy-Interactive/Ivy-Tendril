@@ -66,4 +66,19 @@ public class JobFailureAnalyzerTests
         Assert.DoesNotContain("Claude API", reason);
         Assert.Contains("Could not resolve host", reason);
     }
+
+    [Fact]
+    public void SkillsBudgetWarningEvent_DoesNotMaskStderrCause()
+    {
+        var output = new List<string>
+        {
+            """{"kind":"error","timestamp":"2026-09-07T12:00:00Z","message":"Skill descriptions were shortened to fit the 2% skills context budget.","is_retryable":false,"is_auth_error":false}""",
+            "[stderr] fatal: unable to access 'https://github.com/acme/repo.git/': Could not resolve host: github.com",
+        };
+
+        var reason = JobFailureAnalyzer.ExtractFailureReason(output, "CreatePr");
+
+        Assert.Contains("fatal:", reason);
+        Assert.DoesNotContain("skill", reason, StringComparison.OrdinalIgnoreCase);
+    }
 }
