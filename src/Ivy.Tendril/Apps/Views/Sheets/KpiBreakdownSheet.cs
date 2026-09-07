@@ -72,13 +72,22 @@ public class KpiBreakdownSheet(
                     MergedDate = p.MergedDate.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
                     Url = p.PrUrl
                 })
-                .ToTable()
+                .AsQueryable()
+                .ToDataTable(x => x.Url)
                 .Header(x => x.PlanId, "Plan")
                 .Header(x => x.Title, "Title")
                 .Header(x => x.Repository, "Repo")
                 .Header(x => x.MergedDate, "Merged")
                 .Header(x => x.Url, "PR URL")
-                .Width(Size.Full());
+                .Width(Size.Full())
+                .Height(Size.Px(360))
+                .Config(c =>
+                {
+                    c.AllowSorting = true;
+                    c.SelectionMode = SelectionModes.None;
+                    c.ShowIndexColumn = false;
+                    c.ShowSearch = false;
+                });
 
         return Layout.Vertical().Gap(4)
                | Callout.Info("Average Daily PRs measures pull request delivery throughput across a rolling 30-day window. Total merged pull requests from the last 30 calendar days are divided by 30.", "Throughput Metric")
@@ -144,14 +153,23 @@ public class KpiBreakdownSheet(
             .ToList();
 
         var table = monthRows
-            .ToTable()
+            .AsQueryable()
+            .ToDataTable(x => x.Month)
             .Header(x => x.Month, "Month")
             .Header(x => x.Spend, "Spend")
             .Header(x => x.Tokens, "Tokens")
             .Header(x => x.PlansCreated, "Plans")
             .Header(x => x.PrsMerged, "PRs Merged")
             .Header(x => x.Status, "Divisor Status")
-            .Width(Size.Full());
+            .Width(Size.Full())
+            .Height(Size.Px(360))
+            .Config(c =>
+            {
+                c.AllowSorting = true;
+                c.SelectionMode = SelectionModes.None;
+                c.ShowIndexColumn = false;
+                c.ShowSearch = false;
+            });
 
         return Layout.Vertical().Gap(4)
                | Callout.Info("Average Cost/Month shows retrospective monthly spend across complete historical calendar months, strictly excluding the currently in-flight month to prevent partial-month bias.", "Retrospective Spend")
@@ -208,11 +226,20 @@ public class KpiBreakdownSheet(
         object tableContent = daily.Count == 0
             ? Callout.Info("No daily spend records found in the 30-day window.", "No Data")
             : daily
-                .ToTable()
+                .AsQueryable()
+                .ToDataTable(x => x.Date)
                 .Header(x => x.Date, "Date")
                 .Header(x => x.Spend, "Daily Spend")
                 .Header(x => x.Tokens, "Tokens")
-                .Width(Size.Full());
+                .Width(Size.Full())
+                .Height(Size.Px(360))
+                .Config(c =>
+                {
+                    c.AllowSorting = true;
+                    c.SelectionMode = SelectionModes.None;
+                    c.ShowIndexColumn = false;
+                    c.ShowSearch = false;
+                });
 
         return Layout.Vertical().Gap(4)
                | Callout.Info("Forecast This Month projects month-end spend using daily activity over the last 30 days. Dual projections indicate uncertainty: Calendar Basis assumes idle days continue at the observed rate, while Activity Basis projects from active spend days only.", "Dual Projections")
@@ -258,14 +285,23 @@ public class KpiBreakdownSheet(
                     Tokens = FormatHelper.FormatCount(p.Tokens),
                     Cost = p.Cost.HasValue ? FormatHelper.FormatCost(p.Cost.Value) : "Unpriced"
                 })
-                .ToTable()
+                .AsQueryable()
+                .ToDataTable(x => x.PlanId)
                 .Header(x => x.PlanId, "Plan")
                 .Header(x => x.Title, "Title")
                 .Header(x => x.State, "State")
                 .Header(x => x.CreatedDate, "Created")
                 .Header(x => x.Tokens, "Tokens")
                 .Header(x => x.Cost, "Total Cost")
-                .Width(Size.Full());
+                .Width(Size.Full())
+                .Height(Size.Px(360))
+                .Config(c =>
+                {
+                    c.AllowSorting = true;
+                    c.SelectionMode = SelectionModes.None;
+                    c.ShowIndexColumn = false;
+                    c.ShowSearch = false;
+                });
 
         return Layout.Vertical().Gap(4)
                | Callout.Info("Average Cost per Plan calculates the mean execution and promptware spend for plans created in the last 7 days that reached Completed, Failed, or Review state. Unpriced plans (e.g. subscription runs where cost is null) are excluded from the divisor so they do not artificially deflate the average.", "7-Day Rolling Average")

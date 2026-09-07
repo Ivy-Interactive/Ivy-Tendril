@@ -1,3 +1,5 @@
+using Ivy;
+using Ivy.Core;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Models;
 
@@ -117,5 +119,60 @@ public class KpiBreakdownSheetTests
         Assert.NotNull(avgCostMonthSheet.Build());
         Assert.NotNull(forecastSheet.Build());
         Assert.NotNull(avgCostPlanSheet.Build());
+    }
+
+    [Fact]
+    public void KpiBreakdownSheet_PopulatedData_BuildsDataTables()
+    {
+        var dailyPrsSheet = new KpiBreakdownSheet("dailyPrs", _stats, _activity, _prDays, _today, _fakeService);
+        var avgCostMonthSheet = new KpiBreakdownSheet("avgCostMonth", _stats, _activity, _prDays, _today, _fakeService);
+        var forecastSheet = new KpiBreakdownSheet("forecastMonth", _stats, _activity, _prDays, _today, _fakeService);
+        var avgCostPlanSheet = new KpiBreakdownSheet("avgCostPlan", _stats, _activity, _prDays, _today, _fakeService);
+
+        var dailyPrsTable = ExtractTableContent(dailyPrsSheet.Build());
+        var avgCostMonthTable = ExtractTableContent(avgCostMonthSheet.Build());
+        var forecastTable = ExtractTableContent(forecastSheet.Build());
+        var avgCostPlanTable = ExtractTableContent(avgCostPlanSheet.Build());
+
+        Assert.NotNull(dailyPrsTable);
+        Assert.StartsWith("DataTableBuilder", dailyPrsTable.GetType().Name);
+
+        Assert.NotNull(avgCostMonthTable);
+        Assert.StartsWith("DataTableBuilder", avgCostMonthTable.GetType().Name);
+
+        Assert.NotNull(forecastTable);
+        Assert.StartsWith("DataTableBuilder", forecastTable.GetType().Name);
+
+        Assert.NotNull(avgCostPlanTable);
+        Assert.StartsWith("DataTableBuilder", avgCostPlanTable.GetType().Name);
+    }
+
+    [Fact]
+    public void KpiBreakdownSheet_EmptyData_ProducesCalloutPlaceholders()
+    {
+        var emptyStats = new DashboardModels(0, 0, 0, 0, 0, 0, 0m, [], []);
+        var emptyActivity = new DashboardActivityStats([], 0m);
+        var emptyService = new FakePlanReaderService();
+
+        var dailyPrsSheet = new KpiBreakdownSheet("dailyPrs", emptyStats, emptyActivity, [], _today, emptyService);
+        var forecastSheet = new KpiBreakdownSheet("forecastMonth", emptyStats, emptyActivity, [], _today, emptyService);
+        var avgCostPlanSheet = new KpiBreakdownSheet("avgCostPlan", emptyStats, emptyActivity, [], _today, emptyService);
+
+        var dailyPrsContent = ExtractTableContent(dailyPrsSheet.Build());
+        var forecastContent = ExtractTableContent(forecastSheet.Build());
+        var avgCostPlanContent = ExtractTableContent(avgCostPlanSheet.Build());
+
+        Assert.IsType<Callout>(dailyPrsContent);
+        Assert.IsType<Callout>(forecastContent);
+        Assert.IsType<Callout>(avgCostPlanContent);
+    }
+
+    private static object ExtractTableContent(object buildResult)
+    {
+        var layout = Assert.IsAssignableFrom<LayoutView>(buildResult);
+        var stack = Assert.IsAssignableFrom<IWidget>(layout.Build());
+        var innerLayout = Assert.IsAssignableFrom<LayoutView>(stack.Children[2]);
+        var innerStack = Assert.IsAssignableFrom<IWidget>(innerLayout.Build());
+        return innerStack.Children[1];
     }
 }
