@@ -76,7 +76,7 @@ public class GithubService : IGithubService, IDisposable
     public async Task<(List<GitHubIssue> issues, string? error)> GetMyAssignedIssuesAsync()
     {
         return await ExecuteGhCliAsync(
-            "search issues --assignee=@me --state=open --limit 100 --json number,title,body,labels,assignees,repository,url,updatedAt",
+            BuildMyAssignedIssuesArgs(),
             ParseIssuesFromJson,
             new List<GitHubIssue>());
     }
@@ -150,6 +150,12 @@ public class GithubService : IGithubService, IDisposable
         if (request.Labels is { Length: > 0 })
             args += $" --label \"{string.Join(",", request.Labels)}\"";
         return args;
+    }
+
+    internal static string BuildMyAssignedIssuesArgs(int limit = DefaultIssueLimit)
+    {
+        var effectiveLimit = limit <= 0 ? DefaultIssueLimit : Math.Min(limit, MaxIssueLimit);
+        return $"search issues --assignee=@me --state=open --limit {effectiveLimit} --json number,title,body,labels,assignees,repository,url,updatedAt";
     }
 
     internal static List<GitHubIssue> ParseIssuesFromJson(string json)
