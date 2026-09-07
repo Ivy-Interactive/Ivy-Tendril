@@ -565,6 +565,94 @@ describe("DraftMarkdown interactive questions", () => {
     expect(scrollTo).toHaveBeenCalledTimes(2);
   });
 
+  it("scrolls to the enclosing block for the first question and directly to the question for subsequent questions", () => {
+    const scrollTo = vi.fn();
+    Element.prototype.scrollTo = scrollTo as unknown as Element["scrollTo"];
+
+    const { container, rerender } = render(
+      <DraftMarkdown id="w1" content={TWO_QUESTIONS} events={["OnAnswersChange"]} eventHandler={vi.fn()} />,
+    );
+
+    const shell = container.querySelector(".pmv-shell");
+    const block = container.querySelector(".pmv-questions");
+    const q1 = container.querySelector('[data-question-id="naming"]');
+    const q2 = container.querySelector('[data-question-id="owner"]');
+
+    expect(shell).not.toBeNull();
+    expect(block).not.toBeNull();
+    expect(q1).not.toBeNull();
+    expect(q2).not.toBeNull();
+
+    vi.spyOn(shell!, "getBoundingClientRect").mockReturnValue({
+      top: 50,
+      bottom: 500,
+      left: 0,
+      right: 500,
+      width: 500,
+      height: 450,
+      x: 0,
+      y: 50,
+      toJSON: () => {},
+    });
+
+    vi.spyOn(block!, "getBoundingClientRect").mockReturnValue({
+      top: 100,
+      bottom: 400,
+      left: 0,
+      right: 500,
+      width: 500,
+      height: 300,
+      x: 0,
+      y: 100,
+      toJSON: () => {},
+    });
+
+    vi.spyOn(q1!, "getBoundingClientRect").mockReturnValue({
+      top: 130,
+      bottom: 230,
+      left: 0,
+      right: 500,
+      width: 500,
+      height: 100,
+      x: 0,
+      y: 130,
+      toJSON: () => {},
+    });
+
+    vi.spyOn(q2!, "getBoundingClientRect").mockReturnValue({
+      top: 250,
+      bottom: 350,
+      left: 0,
+      right: 500,
+      width: 500,
+      height: 100,
+      x: 0,
+      y: 250,
+      toJSON: () => {},
+    });
+
+    const draw = (target: { questionId: string; token: number } | null) =>
+      rerender(
+        <DraftMarkdown
+          id="w1"
+          content={TWO_QUESTIONS}
+          events={["OnAnswersChange"]}
+          eventHandler={vi.fn()}
+          scrollTo={target}
+        />,
+      );
+
+    // Navigating to the first question targets the block:
+    // delta = block.top (100) - shell.top (50) - 16 = 34
+    draw({ questionId: "naming", token: 1 });
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 34, behavior: "smooth" });
+
+    // Navigating to the second question targets q2 directly:
+    // delta = q2.top (250) - shell.top (50) - 16 = 184
+    draw({ questionId: "owner", token: 2 });
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 184, behavior: "smooth" });
+  });
+
   it("still wraps an ordinary fence in its code block after the pre override", () => {
     const { container } = renderInteractive("```js\nconst x = 1;\n```");
 
