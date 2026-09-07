@@ -73,18 +73,27 @@ public class RollingAverageCalculatorTests
     }
 
     [Fact]
-    public void Compute_IsNullUntilTheWindowClearsTheDataStart()
+    public void Compute_CalculatesExpandingAverageForHistoryUnderSevenDays()
     {
-        // Records begin on day 4, so day 10 is the first date whose window (days 4..10) sits entirely
-        // inside recorded history.
+        // Records begin on day 4 (index 3). Days 1..3 before dataStart are null.
+        // Days 4..9 (indices 3..8) have 1 to 6 days of history and compute an expanding average.
+        // Day 10 (index 9) is the first full 7-day window.
         var dataStart = Day1.AddDays(3);
 
         var rolling = RollingAverageCalculator.Compute(Days(12), Ramp, dataStart);
 
-        Assert.All(rolling.Take(9), value => Assert.Null(value));
-        Assert.NotNull(rolling[9]);
+        Assert.Null(rolling[0]);
+        Assert.Null(rolling[1]);
+        Assert.Null(rolling[2]);
+
+        Assert.Equal(4d, rolling[3]);
+        Assert.Equal(4.5d, rolling[4]);
+        Assert.Equal(5d, rolling[5]);
+        Assert.Equal(5.5d, rolling[6]);
+        Assert.Equal(6d, rolling[7]);
+        Assert.Equal(6.5d, rolling[8]);
+
         Assert.Equal(7d, rolling[9]);
-        Assert.NotNull(rolling[11]);
     }
 
     [Fact]
@@ -109,6 +118,6 @@ public class RollingAverageCalculatorTests
         // different and worse claim.
         var rolling = RollingAverageCalculator.Compute(Days(10), _ => 0d, Day1);
 
-        Assert.All(rolling.Skip(RollingAverageCalculator.WindowDays - 1), value => Assert.Equal(0d, value));
+        Assert.All(rolling, value => Assert.Equal(0d, value));
     }
 }

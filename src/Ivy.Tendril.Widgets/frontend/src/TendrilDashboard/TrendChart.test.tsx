@@ -25,8 +25,8 @@ const renderChart = (props: Partial<React.ComponentProps<typeof TrendChart>> = {
       values={props.values ?? dates.map((_, i) => 100 + i * 10)}
       previous={props.previous}
       rolling={props.rolling}
-      currentName={props.currentName ?? "Last 12 months"}
-      previousName={props.previousName ?? "Previous year"}
+      currentName={props.currentName ?? "Last 4 weeks"}
+      previousName={props.previousName ?? "Previous 4 weeks"}
       formatTick={props.formatTick ?? ((v) => `$${v}`)}
       formatValue={props.formatValue ?? formatCurrencyValue}
     />,
@@ -56,6 +56,15 @@ describe("TrendChart rolling average curve", () => {
 
     expect(container.querySelectorAll(".tdb-trend-avg-curve")).toHaveLength(1);
     expect(container.querySelectorAll(".tdb-trend-avg-line")).toHaveLength(0);
+  });
+
+  it("draws an expanding average curve when rolling series is omitted", () => {
+    const dates = days(14);
+    const values = dates.map((_, i) => 100 + i * 10);
+
+    const { container } = renderChart({ dates, values, rolling: undefined });
+
+    expect(container.querySelectorAll(".tdb-trend-avg-curve")).toHaveLength(1);
   });
 
   it("breaks the curve into a segment per contiguous run of history", () => {

@@ -137,9 +137,9 @@ export const computeAverage = (values: number[]): number | null => {
 export const ROLLING_WINDOW_DAYS = 7;
 
 /**
- * Trailing mean of each entry and the `window - 1` before it, null for the leading entries that have
- * no full window. Only a fallback: the server sends a rolling series that also sees the days before
- * the displayed range, and this one cannot.
+ * Trailing mean of each entry and up to `window - 1` before it, calculating an expanding
+ * average for leading entries with fewer days than `window`. Only a fallback: the server sends
+ * a rolling series that also sees the days before the displayed range, and this one cannot.
  */
 export const computeRollingAverage = (
   values: number[],
@@ -147,7 +147,7 @@ export const computeRollingAverage = (
 ): (number | null)[] =>
   values.map((_, index) =>
     index < window - 1
-      ? null
+      ? values.slice(0, index + 1).reduce((acc, v) => acc + v, 0) / (index + 1)
       : values
           .slice(index - window + 1, index + 1)
           .reduce((acc, value) => acc + value, 0) / window,

@@ -358,9 +358,11 @@ public class DashboardAppViewModelTests
         Assert.Equal(12.50, trend.PrevCost[^1]);
         Assert.Equal(2.0, trend.PrevPlans[^1]);
 
-        // Records begin Aug 9 (the fallback for a mock with no DailyDataStart), so the window clears it
-        // on Aug 15 and every day after that has a mean.
-        Assert.Null(trend.RollingCost[trend.Dates.IndexOf("2026-08-14")]);
+        // Records begin Aug 9 (the fallback for a mock with no DailyDataStart).
+        // Leading dates have expanding averages rather than null.
+        Assert.NotNull(trend.RollingCost[trend.Dates.IndexOf("2026-08-10")]);
+        Assert.Equal(6.25d, trend.RollingCost[trend.Dates.IndexOf("2026-08-10")]!.Value);
+        Assert.NotNull(trend.RollingCost[trend.Dates.IndexOf("2026-08-14")]);
         Assert.NotNull(trend.RollingCost[trend.Dates.IndexOf("2026-08-15")]);
         Assert.True(trend.RollingCost.Distinct().Count() > 1, "the rolling series is flat");
     }

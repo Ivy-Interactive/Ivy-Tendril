@@ -69,23 +69,15 @@ describe("TendrilDashboard trend legend", () => {
     renderDashboard(trendOf(30, 100, 4));
 
     expect(screen.getByText("7-day average")).toBeInTheDocument();
-    expect(screen.getByText("Last 12 months")).toBeInTheDocument();
-    expect(screen.getByText("Previous year")).toBeInTheDocument();
+    expect(screen.getByText("Last 4 weeks")).toBeInTheDocument();
+    expect(screen.getByText("Previous 4 weeks")).toBeInTheDocument();
     expect(screen.queryByText(/^Avg /)).not.toBeInTheDocument();
   });
 
-  it("explains the missing curve when no day has a full window yet", () => {
-    const { container } = renderDashboard(trendOf(4, 100, 4, false));
-
-    expect(screen.getByText("7-day average (needs 7 days of history)")).toBeInTheDocument();
-    expect(container.querySelector(".tdb-legend-item-empty")).toBeInTheDocument();
-    expect(container.querySelectorAll(".tdb-trend-avg-curve")).toHaveLength(0);
-  });
-
-  it("keeps the item unmuted once the curve can be drawn", () => {
+  it("renders the 7-day average legend item and curve", () => {
     const { container } = renderDashboard(trendOf(30, 100, 4));
 
-    expect(container.querySelector(".tdb-legend-item-empty")).not.toBeInTheDocument();
+    expect(screen.getByText("7-day average")).toBeInTheDocument();
     expect(container.querySelectorAll(".tdb-trend-avg-curve")).toHaveLength(1);
   });
 });
@@ -102,35 +94,13 @@ describe("TendrilDashboard range and metric combinations", () => {
     } as unknown as typeof ResizeObserver;
   });
 
-  // Month and week carry different figures so a toggle that read the wrong payload would show it.
+  // Monthly and weekly carry different figures: activeTrend standardizes on weekly when available, or trend.
   const monthly = trendOf(365, 120, 6);
   const weekly = trendOf(28, 45, 4);
 
-  it("shows the yearly cost series in dollars", () => {
+  it("shows the 4 week cost series in dollars by default", () => {
     const { container } = renderDashboard(monthly, weekly);
 
-    hoverLastPoint(container);
-
-    expect(screen.getByText("Last 12 months: $120.00")).toBeInTheDocument();
-    expect(screen.getByText("7-day average: $120.00")).toBeInTheDocument();
-    expect(screen.getByText("Previous year: $60.00")).toBeInTheDocument();
-  });
-
-  it("shows the yearly plan series counted in plans", () => {
-    const { container } = renderDashboard(monthly, weekly);
-
-    fireEvent.click(screen.getByText("Total Plans"));
-    hoverLastPoint(container);
-
-    expect(screen.getByText("Last 12 months: 6 plans")).toBeInTheDocument();
-    expect(screen.getByText("7-day average: 6 plans")).toBeInTheDocument();
-    expect(screen.getByText("Previous year: 3 plans")).toBeInTheDocument();
-  });
-
-  it("shows the 4 week cost series in dollars", () => {
-    const { container } = renderDashboard(monthly, weekly);
-
-    fireEvent.click(screen.getByText("Week"));
     hoverLastPoint(container);
 
     expect(screen.getByText("Last 4 weeks: $45.00")).toBeInTheDocument();
@@ -141,13 +111,22 @@ describe("TendrilDashboard range and metric combinations", () => {
   it("shows the 4 week plan series counted in plans", () => {
     const { container } = renderDashboard(monthly, weekly);
 
-    fireEvent.click(screen.getByText("Week"));
     fireEvent.click(screen.getByText("Total Plans"));
     hoverLastPoint(container);
 
     expect(screen.getByText("Last 4 weeks: 4 plans")).toBeInTheDocument();
     expect(screen.getByText("7-day average: 4 plans")).toBeInTheDocument();
     expect(screen.getByText("Previous 4 weeks: 2 plans")).toBeInTheDocument();
+  });
+
+  it("falls back to monthly trend if weekly trend is not provided", () => {
+    const { container } = renderDashboard(monthly, null);
+
+    hoverLastPoint(container);
+
+    expect(screen.getByText("Last 4 weeks: $120.00")).toBeInTheDocument();
+    expect(screen.getByText("7-day average: $120.00")).toBeInTheDocument();
+    expect(screen.getByText("Previous 4 weeks: $60.00")).toBeInTheDocument();
   });
 
   it("hides the trend card entirely when there is no series", () => {
