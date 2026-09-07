@@ -1,4 +1,4 @@
-﻿using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Telemetry;
 using Ivy.Tendril.Services.Jobs;

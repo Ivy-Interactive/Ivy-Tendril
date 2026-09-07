@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Apps.Jobs;

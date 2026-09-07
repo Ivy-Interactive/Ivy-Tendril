@@ -1,4 +1,4 @@
-﻿using Ivy.Tendril.Apps.Views.Sheets;
+using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Jobs;
