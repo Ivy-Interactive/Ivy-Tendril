@@ -260,12 +260,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
         Context.TryUseService<TendrilArgs>(out var tendrilArgs);
 
-        var (importIssuesDialog, showImportIssuesDialog) = UseTrigger((isOpen) =>
-        {
-            if (!isOpen.Value) return null;
-            return new ImportIssuesDialog(isOpen, config);
-        });
-
         var (updateDialog, showUpdateDialog) = UseTrigger<VersionInfo>((isOpen, info) =>
         {
             if (!isOpen.Value || info == null) return null;
@@ -628,10 +622,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Tag("$icebox")
                 .Icon(Icons.Snowflake)
                 .OnSelect(() => navigator.Navigate<IceboxApp>()),
-            MenuItem.Default("Import Issues from GitHub")
-                .Tag("$import-issues")
-                .Icon(Icons.Download)
-                .OnSelect(showImportIssuesDialog),
             MenuItem.Default("Check for Updates")
                 .Tag("$check-updates")
                 .Icon(Icons.CircleArrowUp)
@@ -830,7 +820,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             return new Fragment(
                 selectInputWarmup,
                 selectedApp ?? null!,
-                importIssuesDialog,
                 updateDialog,
                 planSearchDialog,
                 closeTabShortcut
@@ -859,7 +848,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         return new Fragment(
             shell,
-            importIssuesDialog,
             updateDialog,
             planSearchDialog
         );

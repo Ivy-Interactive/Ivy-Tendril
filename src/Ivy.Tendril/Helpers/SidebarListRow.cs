@@ -16,11 +16,17 @@ public static class SidebarListRow
         return BuildButton(Text.Literal(title), onClick, isSelected, BorderRadius.None);
     }
 
-    public static object Build(string title, Icons icon, Action onClick, bool isSelected = false)
+    public static object Build(string title, Icons icon, Action onClick, bool isSelected = false, int? count = null)
     {
         var row = Layout.Horizontal().AlignContent(Align.Left).Width(Size.Full())
             | icon.ToIcon()
             | Text.Literal(title);
+
+        if (count is > 0)
+        {
+            row |= new Spacer();
+            row |= new Badge(count.Value.ToString()).Variant(BadgeVariant.Secondary).Small();
+        }
 
         return BuildButton(row, onClick, isSelected, BorderRadius.Rounded);
     }
