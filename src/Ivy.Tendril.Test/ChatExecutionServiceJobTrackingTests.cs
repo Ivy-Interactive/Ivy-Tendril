@@ -3,11 +3,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Ivy.Core;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Runtime;
+using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Jobs;
+using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Widgets;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -39,7 +42,19 @@ public class ChatExecutionServiceJobTrackingTests
             JobFinished?.Invoke(job);
         }
 
-        public string StartJob(JobArgsBase args, string? inboxFilePath = null) => "job-001";
+        public string StartJob(JobArgsBase args, string? inboxFilePath = null)
+        {
+            var id = $"job-{Jobs.Count + 1:D3}";
+            var job = new JobItem
+            {
+                Id = id,
+                Type = args.GetType().Name.Replace("Args", ""),
+                PlanFile = (args as ExecutePlanArgs)?.PlanFolder ?? "",
+                ChatSessionId = args.ChatSessionId
+            };
+            Jobs.Add(job);
+            return id;
+        }
         public void ForceStartJob(string id) { }
         public bool IsInboxFileTracked(string filePath) => false;
         public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
@@ -753,5 +768,243 @@ public class ChatExecutionServiceJobTrackingTests
                 try { Directory.Delete(tempDir, true); } catch { }
             }
         }
+    }
+
+    [Fact]
+    public async Task JobFinished_WhenJobHasNoChatSessionId_ResolvesFromLinkedPlanAndDispatches()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilJobFinishedFallbackTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            var dbPath = Path.Combine(tempDir, "test.db");
+            using var db = new PlanDatabaseService(dbPath, NullLogger<PlanDatabaseService>.Instance);
+            var plan = new PlanFile(
+                new PlanMetadata(42, "Tendril", "NiceToHave", "Test Plan", PlanStatus.Draft,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: session.Id),
+                "# Test",
+                Path.Combine(tempDir, "00042-TestPlan"),
+                "state: Draft"
+            );
+            db.UpsertPlan(plan);
+
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService,
+                planReaderService: null,
+                database: db);
+
+            var job = new JobItem
+            {
+                Id = "00200",
+                Type = "ExecutePlan",
+                PlanFile = plan.FolderName,
+                Project = "Tendril",
+                Status = JobStatus.Completed,
+                StatusMessage = "Plan execution finished"
+            };
+
+            fakeJobService.FireJobFinished(job);
+
+            Assert.Equal(session.Id, job.ChatSessionId);
+
+            var deadline = DateTime.UtcNow.AddSeconds(3);
+            ChatSessionModel? updatedSession = null;
+            while (DateTime.UtcNow < deadline)
+            {
+                updatedSession = chatService.GetSession(session.Id);
+                if (updatedSession?.Messages.Any(m => m.Role == "system" && m.Content.Contains("Job 00200")) == true)
+                    break;
+                await Task.Delay(20);
+            }
+
+            Assert.NotNull(updatedSession);
+            var systemMsg = updatedSession.Messages.FirstOrDefault(m => m.Role == "system" && m.Content.Contains("Job 00200"));
+            Assert.NotNull(systemMsg);
+            Assert.Contains("ExecutePlan", systemMsg.Content);
+            Assert.Contains("Completed", systemMsg.Content);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public void StartJob_InheritsPlanLinkedChatSessionId_AndTracksInChatSession()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilInheritChatJobTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            var dbPath = Path.Combine(tempDir, "test.db");
+            using var db = new PlanDatabaseService(dbPath, NullLogger<PlanDatabaseService>.Instance);
+            var plan = new PlanFile(
+                new PlanMetadata(43, "Tendril", "NiceToHave", "Inherit Plan", PlanStatus.Draft,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: session.Id),
+                "# Inherit Test",
+                Path.Combine(tempDir, "00043-InheritPlan"),
+                "state: Draft"
+            );
+            db.UpsertPlan(plan);
+
+            var jobService = new JobService(
+                TimeSpan.FromMinutes(30),
+                TimeSpan.FromMinutes(10),
+                inboxPath: null,
+                maxConcurrentJobs: 0,
+                planReaderService: null,
+                telemetryService: null,
+                database: db,
+                agentRunner: TestAgentRunner.Create(),
+                chatHistoryService: chatService);
+
+            var jobId = jobService.StartJob(new ExecutePlanArgs(plan.FolderPath));
+            var job = jobService.GetJob(jobId);
+            Assert.NotNull(job);
+            Assert.Equal(session.Id, job.ChatSessionId);
+
+            var updatedSession = chatService.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            Assert.NotNull(updatedSession.SpawnedJobIds);
+            Assert.Contains(jobId, updatedSession.SpawnedJobIds);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ManualExecution_EmitsSystemEventToLinkedChat()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilManualExecTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            var dbPath = Path.Combine(tempDir, "test.db");
+            using var db = new PlanDatabaseService(dbPath, NullLogger<PlanDatabaseService>.Instance);
+            var plan = new PlanFile(
+                new PlanMetadata(44, "Tendril", "NiceToHave", "Manual Exec Plan", PlanStatus.Draft,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: session.Id),
+                "# Manual Exec Test",
+                Path.Combine(tempDir, "00044-ManualExecPlan"),
+                "state: Draft"
+            );
+            db.UpsertPlan(plan);
+
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService,
+                planReaderService: null,
+                database: db);
+
+            var fakeGitService = new GitTabDataBuilderTests.StubGitService();
+            var fakePlanReader = new FakePlanReaderService { PlanToReturn = plan };
+            var selectedPlanState = new TestState<PlanFile?>(plan);
+
+            var contentView = new ContentView(
+                plan,
+                [plan],
+                selectedPlanState,
+                fakePlanReader,
+                fakeJobService,
+                () => { },
+                configService,
+                fakeGitService,
+                execService);
+
+            contentView.LaunchExecute();
+
+            var deadline = DateTime.UtcNow.AddSeconds(3);
+            ChatSessionModel? updatedSession = null;
+            while (DateTime.UtcNow < deadline)
+            {
+                updatedSession = chatService.GetSession(session.Id);
+                if (updatedSession?.Messages.Any(m => m.Role == "system" && m.Content.Contains("Manual approval granted")) == true)
+                    break;
+                await Task.Delay(20);
+            }
+
+            Assert.NotNull(updatedSession);
+            var systemMsg = updatedSession.Messages.FirstOrDefault(m => m.Role == "system" && m.Content.Contains("Manual approval granted"));
+            Assert.NotNull(systemMsg);
+            Assert.Contains(plan.Title, systemMsg.Content);
+            Assert.Contains("Job job-001", systemMsg.Content);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    private class TestState<T> : IState<T>
+    {
+        private readonly T _initial;
+
+        public TestState(T initial)
+        {
+            _initial = initial;
+            Value = initial;
+        }
+
+        public T Value { get; set; }
+
+        public IDisposable Subscribe(IObserver<T> observer) => throw new NotImplementedException();
+        public void Dispose() { }
+        public T Set(T value) => Value = value;
+        public T Set(Func<T, T> setter) => Value = setter(Value);
+        public T Reset() => Value = _initial;
+        public IDisposable SubscribeAny(Action action) => throw new NotImplementedException();
+        public IDisposable SubscribeAny(Action<object?> action) => throw new NotImplementedException();
+        public Type GetStateType() => typeof(T);
+        public object? GetValueAsObject() => Value;
+        public IEffectTrigger ToTrigger() => throw new NotImplementedException();
     }
 }

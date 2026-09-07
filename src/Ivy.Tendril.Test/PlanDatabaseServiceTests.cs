@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.Data.Sqlite;
@@ -1643,5 +1643,59 @@ public class PlanDatabaseServiceTests : IDisposable
             Assert.Equal("DotnetBuild", plan.Verifications[0].Name);
             Assert.Equal(VerificationStatus.Pass, plan.Verifications[0].Status);
         }
+    }
+
+    [Fact]
+    public void ChatSessionId_PersistedAndRetrieved_InPlansTable()
+    {
+        var plan = CreateTestPlan(9500, "Linked Chat Plan");
+        var linkedPlan = plan with
+        {
+            Metadata = plan.Metadata with { ChatSessionId = "chat-session-xyz" }
+        };
+        _db.UpsertPlan(linkedPlan);
+
+        var byId = _db.GetPlanById(9500);
+        Assert.NotNull(byId);
+        Assert.Equal("chat-session-xyz", byId.ChatSessionId);
+
+        var byFolder = _db.GetPlanByFolder(plan.FolderName);
+        Assert.NotNull(byFolder);
+        Assert.Equal("chat-session-xyz", byFolder.ChatSessionId);
+
+        var all = _db.GetPlans();
+        var found = all.FirstOrDefault(p => p.Id == 9500);
+        Assert.NotNull(found);
+        Assert.Equal("chat-session-xyz", found.ChatSessionId);
+    }
+
+    [Fact]
+    public void ChatSessionId_FallsBackToJobsTable_WhenPlanChatSessionIdNull()
+    {
+        var plan = CreateTestPlan(9501, "Fallback Plan");
+        _db.UpsertPlan(plan);
+
+        var job = new JobItem
+        {
+            Id = "09501",
+            Type = "CreatePlan",
+            PlanFile = plan.FolderName,
+            Project = "Tendril",
+            Status = JobStatus.Completed,
+            StartedAt = DateTime.UtcNow.AddMinutes(-5),
+            TypedArgs = new CreatePlanArgs("task description", "Tendril")
+            {
+                ChatSessionId = "session-from-jobs-table"
+            }
+        };
+        _db.UpsertJob(job);
+
+        var retrievedById = _db.GetPlanById(9501);
+        Assert.NotNull(retrievedById);
+        Assert.Equal("session-from-jobs-table", retrievedById.ChatSessionId);
+
+        var retrievedByFolder = _db.GetPlanByFolder(plan.FolderName);
+        Assert.NotNull(retrievedByFolder);
+        Assert.Equal("session-from-jobs-table", retrievedByFolder.ChatSessionId);
     }
 }

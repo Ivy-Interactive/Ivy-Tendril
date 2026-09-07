@@ -215,7 +215,7 @@ public class GitTabDataBuilderTests : IDisposable
     private static List<PlanContentHelpers.CommitRow> CommitRows(params string[] hashes) =>
         hashes.Select(h => new PlanContentHelpers.CommitRow(h, h[..7], $"Commit {h}", 1)).ToList();
 
-    private class StubGitService : IGitService
+    internal class StubGitService : IGitService
     {
         public List<WorktreeInfo> Worktrees { get; set; } = [];
         public WorktreeBaseInfo? WorktreeBase { get; set; }

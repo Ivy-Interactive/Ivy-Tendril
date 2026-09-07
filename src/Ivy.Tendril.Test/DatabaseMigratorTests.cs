@@ -590,6 +590,7 @@ public class DatabaseMigratorTests : IDisposable
         }
 
         Assert.Contains("Model", columns);
+
         Assert.Contains("InputTokens", columns);
         Assert.Contains("OutputTokens", columns);
         Assert.Contains("CacheReadTokens", columns);
@@ -778,6 +779,17 @@ public class DatabaseMigratorTests : IDisposable
         }
 
         Assert.Contains("Model", columns);
+
+        var planColumns = new List<string>();
+        using (var pragmaCmd = _connection.CreateCommand())
+        {
+            pragmaCmd.CommandText = "PRAGMA table_info(Plans);";
+            using var reader = pragmaCmd.ExecuteReader();
+            while (reader.Read())
+                planColumns.Add(reader.GetString(reader.GetOrdinal("name")));
+        }
+
+        Assert.Contains("ChatSessionId", planColumns);
 
         // DROP TABLE takes the table's indexes with it. Migration_006 left this as the only one.
         Assert.True(IndexExists("idx_costs_plan_logtimestamp"));

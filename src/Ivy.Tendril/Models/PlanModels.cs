@@ -35,7 +35,8 @@ public record PlanMetadata(
     DateTime Updated,
     string? InitialPrompt,
     string? SourceUrl,
-    bool PartialDelivery = false);
+    bool PartialDelivery = false,
+    string? ChatSessionId = null);
 
 public record PlanFile(
     PlanMetadata Metadata,
@@ -60,6 +61,7 @@ public record PlanFile(
     public DateTime Updated => Metadata.Updated;
     public string? InitialPrompt => Metadata.InitialPrompt;
     public string? SourceUrl => Metadata.SourceUrl;
+    public string? ChatSessionId => Metadata.ChatSessionId;
 
     /// <summary>
     ///     True when the plan reached Completed over a failed verification. See
@@ -197,5 +199,6 @@ public class PlanYaml
     public string? ExecutionProfile { get; set; }
     public string? InitialPrompt { get; set; }
     public string? SourceUrl { get; set; }
+    public string? ChatSessionId { get; set; }
     public List<RecommendationYaml>? Recommendations { get; set; }
 }
