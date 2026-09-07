@@ -1298,3 +1298,84 @@ describe("ChatWidget Streaming Scroll Behavior", () => {
   });
 });
 
+describe("ChatWidget Running Jobs Badge and Spinner", () => {
+  beforeEach(() => {
+    window.ResizeObserver = class {
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = vi.fn();
+    } as any;
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+  });
+
+  it("renders running jobs badge indicator, .spin loader, and .chat-jobs-pulse-dot when runningJobs has active jobs", () => {
+    const session: ChatSessionDto = {
+      id: "sess-0",
+      title: "Session 0",
+      agentId: "agent-1",
+      modelId: "model-1",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+    };
+    const runningJobs = [
+      { id: "job-1", type: "CreatePlan", status: "Running", planTitle: "Test Plan" },
+    ];
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-0"
+        sessions={[session]}
+        runningJobs={runningJobs}
+      />
+    );
+
+    const badge = screen.getByRole("button", { name: /View running jobs/i });
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveClass("chat-jobs-badge", "running");
+    expect(within(badge).getByText(/1 running/i)).toBeInTheDocument();
+
+    const spinLoader = badge.querySelector(".spin");
+    expect(spinLoader).toBeInTheDocument();
+
+    const pulseDot = badge.querySelector(".chat-jobs-pulse-dot");
+    expect(pulseDot).toBeInTheDocument();
+  });
+
+  it("renders running jobs badge indicator when active session has spawned running jobs", () => {
+    const session: ChatSessionDto = {
+      id: "sess-1",
+      title: "Session 1",
+      agentId: "agent-1",
+      modelId: "model-1",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+      spawnedJobs: [
+        { id: "job-2", type: "ExecutePlan", status: "Running", planTitle: "Execution Plan" },
+      ],
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-1"
+        sessions={[session]}
+      />
+    );
+
+    const badge = screen.getByRole("button", { name: /View running jobs/i });
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveClass("chat-jobs-badge", "running");
+    expect(within(badge).getByText(/1 running/i)).toBeInTheDocument();
+
+    const spinLoader = badge.querySelector(".spin");
+    expect(spinLoader).toBeInTheDocument();
+
+    const pulseDot = badge.querySelector(".chat-jobs-pulse-dot");
+    expect(pulseDot).toBeInTheDocument();
+  });
+});
+
+

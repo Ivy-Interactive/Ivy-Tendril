@@ -191,7 +191,17 @@
   }
 }
 
-.chat-spin {
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.chat-spin,
+.spin {
   animation: chat-spin 1.2s linear infinite;
 }
 
@@ -1362,7 +1372,7 @@ button[class*="bg-primary"] .text-muted {
 }
 
 .chat-job-status-indicator .spin {
-  animation: spin 1s linear infinite;
+  animation: chat-spin 1s linear infinite;
   color: #0284c7;
 }
 
@@ -1502,13 +1512,26 @@ button[class*="bg-primary"] .text-muted {
   white-space: nowrap;
 }
 
+@keyframes chat-pulse-dot {
+  0%, 100% {
+    transform: scale(0.9);
+    opacity: 0.4;
+    box-shadow: 0 0 2px rgba(59, 130, 246, 0.4);
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 1;
+    box-shadow: 0 0 8px 2px rgba(59, 130, 246, 0.8);
+  }
+}
+
 .chat-jobs-pulse-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background-color: #3b82f6;
   box-shadow: 0 0 6px #3b82f6;
-  animation: pulse 1.6s ease-in-out infinite;
+  animation: chat-pulse-dot 1.6s ease-in-out infinite;
 }
 
 .chat-jobs-badge-chevron {
