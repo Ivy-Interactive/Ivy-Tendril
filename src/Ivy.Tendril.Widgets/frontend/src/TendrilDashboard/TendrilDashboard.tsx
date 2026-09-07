@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import {
   TendrilDashboardProps,
-  computeAverage,
   formatCountTick,
   formatCurrencyTick,
   hasSlotContent,
@@ -99,17 +98,20 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
         ? {
             values: activeTrend.cost,
             previous: activeTrend.prevCost,
+            rolling: activeTrend.rollingCost,
             formatTick: formatCurrencyTick,
             formatValue: formatCurrencyValue,
           }
         : {
             values: activeTrend.plans,
             previous: activeTrend.prevPlans,
+            rolling: activeTrend.rollingPlans,
             formatTick: formatCountTick,
             formatValue: formatPlansValue,
           };
 
-  const average = trendData ? computeAverage(trendData.values) : null;
+  const rolling = trendData?.rolling ?? [];
+  const hasRolling = rolling.some((value) => value != null);
 
   return (
     <div className="tdb-root remove-parent-padding">
@@ -214,24 +216,28 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                       <span className="tdb-legend-dash" />
                       {previousTrendName}
                     </span>
-                    {average != null && (
-                      <span className="tdb-legend-item tdb-legend-avg">
-                        <span className="tdb-legend-dash tdb-legend-dash-avg" />
-                        Avg {trendData.formatValue(average)}
-                      </span>
-                    )}
+                    {/* Named even when it cannot be drawn: a fresh install should read why the curve
+                        is missing rather than not know it was meant to be there. */}
+                    <span
+                      className={
+                        "tdb-legend-item" + (hasRolling ? "" : " tdb-legend-item-empty")
+                      }
+                    >
+                      <span className="tdb-legend-line-avg" />
+                      {hasRolling ? "7-day average" : "7-day average (needs 7 days of history)"}
+                    </span>
                   </div>
                 </div>
                 <div className="tdb-trend-chart">
                   <TrendChart
-                    labels={activeTrend!.months}
+                    dates={activeTrend!.dates}
                     values={trendData.values}
                     previous={trendData.previous}
+                    rolling={trendData.rolling}
                     currentName={currentTrendName}
                     previousName={previousTrendName}
                     formatTick={trendData.formatTick}
                     formatValue={trendData.formatValue}
-                    average={average}
                   />
                 </div>
               </div>

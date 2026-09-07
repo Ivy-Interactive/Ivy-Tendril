@@ -54,14 +54,22 @@ describe("dashboard.css side block and git activity layout", () => {
   });
 });
 
-describe("dashboard.css trend chart average line and legend", () => {
-  it("defines the dashed average legend indicator", () => {
-    expect(css).toContain(".tdb-legend-dash-avg {");
-    expect(css).toMatch(/\.tdb-legend-dash-avg\s*\{[^}]*border-top:\s*1\.5px dashed/);
+describe("dashboard.css rolling average curve and legend", () => {
+  it("defines the solid muted average legend indicator", () => {
+    expect(css).toContain(".tdb-legend-line-avg {");
+    expect(css).toMatch(/\.tdb-legend-line-avg\s*\{[^}]*border-top:\s*1\.5px solid var\(--tdb-muted\)/);
   });
 
-  it("defines the subtle dashed horizontal reference line", () => {
-    expect(css).toContain(".tdb-trend-avg-line {");
-    expect(css).toMatch(/\.tdb-trend-avg-line\s*\{[^}]*stroke-dasharray:\s*4 4/);
+  it("strokes the rolling curve without filling it", () => {
+    expect(css).toContain(".tdb-trend-avg-curve {");
+    expect(css).toMatch(/\.tdb-trend-avg-curve\s*\{[^}]*fill:\s*none;/);
+    expect(css).toMatch(/\.tdb-trend-avg-curve\s*\{[^}]*stroke:\s*var\(--tdb-muted\);/);
+    // A dash pattern here would put it back in the comparison line's visual language.
+    expect(css).not.toMatch(/\.tdb-trend-avg-curve\s*\{[^}]*stroke-dasharray/);
+  });
+
+  it("no longer carries the constant horizontal reference line", () => {
+    expect(css).not.toContain(".tdb-trend-avg-line");
+    expect(css).not.toContain(".tdb-legend-dash-avg");
   });
 });
