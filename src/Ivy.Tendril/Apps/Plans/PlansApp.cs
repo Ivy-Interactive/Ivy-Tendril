@@ -39,6 +39,7 @@ public class PlansApp : ViewBase
         var configService = UseService<IConfigService>();
         var gitService = UseService<IGitService>();
         Context.TryUseService<IChatExecutionService>(out var chatExecutionService);
+        Context.TryUseService<IChatHistoryService>(out var chatHistoryService);
         var args = UseArgs<PlansAppArgs>();
         var previousPlans = UseRef(new List<PlanFile>());
         var selectedFolderRef = UseRef<string?>(() =>
@@ -132,7 +133,7 @@ public class PlansApp : ViewBase
         _ = sidebarListSignal.Send(BuildSidebarList(plans, selectedPlanState.Value));
 
         return new ContentView(selectedPlanState.Value, plans, selectedPlanState, planService, jobService,
-            RefreshPlans, configService, gitService, chatExecutionService);
+            RefreshPlans, configService, gitService, chatExecutionService, chatHistoryService);
 
         void RefreshPlans()
         {

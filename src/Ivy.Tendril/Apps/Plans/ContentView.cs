@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.Reactive.Disposables;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using Ivy.Core;
 using Ivy.Tendril.Apps.Plans.Dialogs;
 using Ivy.Tendril.Apps.Jobs;
@@ -26,9 +27,11 @@ public class ContentView(
     Action refreshPlans,
     IConfigService config,
     IGitService gitService,
-    IChatExecutionService? chatExecutionService = null) : ViewBase
+    IChatExecutionService? chatExecutionService = null,
+    IChatHistoryService? chatHistoryService = null) : ViewBase
 {
     private IChatExecutionService? _chatExecutionService = chatExecutionService;
+    private IChatHistoryService? _chatHistoryService = chatHistoryService;
 
     public override object Build()
     {
@@ -635,7 +638,11 @@ public class ContentView(
         if (!hasWaits)
             TransitionPlanOptimistically(PlanStatus.Creating);
 
-        var jobId = jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = hasWaits ? waitJobIds : null });
+        var jobId = jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath)
+        {
+            WaitForJobs = hasWaits ? waitJobIds : null,
+            ChatSessionId = selectedPlan.ChatSessionId
+        });
         EmitManualExecutionEvent(jobId);
         refreshPlans();
     }
@@ -658,7 +665,11 @@ public class ContentView(
         if (!hasWaits)
             TransitionPlanOptimistically(PlanStatus.Creating);
 
-        var executeJobId = jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = allWaitIds });
+        var executeJobId = jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath)
+        {
+            WaitForJobs = allWaitIds,
+            ChatSessionId = selectedPlan.ChatSessionId
+        });
         EmitManualExecutionEvent(executeJobId);
         refreshPlans();
     }
@@ -673,11 +684,93 @@ public class ContentView(
         }
         if (string.IsNullOrEmpty(chatSessionId)) return;
 
+        var chatService = _chatHistoryService;
+
+        if (chatService != null)
+        {
+            try
+            {
+                var session = chatService.GetSession(chatSessionId);
+                if (session?.Messages != null)
+                {
+                    foreach (var msg in session.Messages)
+                    {
+                        if (string.IsNullOrWhiteSpace(msg.Content)) continue;
+
+                        var summaries = QuestionAnswers.Read(msg.Content);
+                        var unanswered = summaries.Where(q => !q.HasAnswer).ToList();
+                        if (unanswered.Count == 0) continue;
+
+                        var parsedBlocks = QuestionBlockParser.Parse(msg.Content);
+                        var answersToApply = new Dictionary<string, string[]>();
+
+                        foreach (var qSummary in unanswered)
+                        {
+                            var isApprovalQuestion =
+                                qSummary.Id.Contains("approv", StringComparison.OrdinalIgnoreCase) ||
+                                qSummary.Id.Contains("execut", StringComparison.OrdinalIgnoreCase) ||
+                                qSummary.Id.Contains("proceed", StringComparison.OrdinalIgnoreCase) ||
+                                qSummary.Title.Contains("approv", StringComparison.OrdinalIgnoreCase) ||
+                                qSummary.Title.Contains("execut", StringComparison.OrdinalIgnoreCase) ||
+                                qSummary.Title.Contains("proceed", StringComparison.OrdinalIgnoreCase);
+
+                            if (!isApprovalQuestion) continue;
+
+                            PlanQuestion? matchedQuestion = null;
+                            foreach (var pb in parsedBlocks)
+                            {
+                                if (pb.Block?.Questions != null)
+                                {
+                                    matchedQuestion = pb.Block.Questions.FirstOrDefault(q => q.Id == qSummary.Id);
+                                    if (matchedQuestion != null) break;
+                                }
+                            }
+
+                            if (matchedQuestion?.Options is { Count: > 0 } options)
+                            {
+                                var recommendedOption = options.FirstOrDefault(o => o.Recommended);
+                                var approvalOption = recommendedOption ?? options.FirstOrDefault(o =>
+                                    o.Value.Contains("approv", StringComparison.OrdinalIgnoreCase) ||
+                                    o.Value.Contains("execut", StringComparison.OrdinalIgnoreCase) ||
+                                    o.Value.Contains("proceed", StringComparison.OrdinalIgnoreCase) ||
+                                    o.Value.Contains("yes", StringComparison.OrdinalIgnoreCase) ||
+                                    o.Title.Contains("approv", StringComparison.OrdinalIgnoreCase) ||
+                                    o.Title.Contains("execut", StringComparison.OrdinalIgnoreCase) ||
+                                    o.Title.Contains("proceed", StringComparison.OrdinalIgnoreCase) ||
+                                    o.Title.Contains("yes", StringComparison.OrdinalIgnoreCase)) ?? options[0];
+
+                                answersToApply[qSummary.Id] = [approvalOption.Value];
+                            }
+                        }
+
+                        if (answersToApply.Count > 0)
+                        {
+                            chatService.ApplyQuestionAnswers(chatSessionId, msg.Id, answersToApply);
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Gracefully handle question resolution errors
+            }
+        }
+
         var chatExec = _chatExecutionService;
         if (chatExec is null) return;
 
         var message = $"[System Event] Manual approval granted and execution started for plan '{selectedPlan.Title}' (Job {jobId}).";
-        _ = chatExec.SendMessageAsync(chatSessionId, message, role: "system");
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await chatExec.SendMessageAsync(chatSessionId, message, role: "system");
+            }
+            catch
+            {
+                // Gracefully handle dispatch errors
+            }
+        });
     }
 
     // Optimistically update UI state; the authoritative plan transition (and pre-state
