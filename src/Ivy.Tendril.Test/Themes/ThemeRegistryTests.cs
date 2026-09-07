@@ -176,6 +176,74 @@ public class ThemeRegistryTests
         Assert.Equal("#fff0f5", dark.Foreground, ignoreCase: true);
         Assert.NotEqual(dark.Background, dark.Foreground, StringComparer.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void AllThemes_DestructiveColors_MeetWcagContrastRatio()
+    {
+        foreach (var theme in TendrilThemes.All.Where(t => t.Id != TendrilThemes.Default.Id))
+        {
+            var light = theme.IvyTheme?.Colors?.Light;
+            Assert.NotNull(light);
+            Assert.False(string.IsNullOrWhiteSpace(light.Destructive), $"Theme {theme.Id} Light Destructive cannot be empty");
+            Assert.False(string.IsNullOrWhiteSpace(light.DestructiveForeground), $"Theme {theme.Id} Light DestructiveForeground cannot be empty");
+
+            var lightRatio = CalculateContrastRatio(light.Destructive, light.DestructiveForeground);
+            Assert.True(lightRatio >= 4.5,
+                $"Theme '{theme.Id}' Light mode destructive contrast ratio is {lightRatio:F2}:1 ({light.Destructive} vs {light.DestructiveForeground}), expected at least 4.5:1 (WCAG AA).");
+
+            var dark = theme.IvyTheme?.Colors?.Dark;
+            Assert.NotNull(dark);
+            Assert.False(string.IsNullOrWhiteSpace(dark.Destructive), $"Theme {theme.Id} Dark Destructive cannot be empty");
+            Assert.False(string.IsNullOrWhiteSpace(dark.DestructiveForeground), $"Theme {theme.Id} Dark DestructiveForeground cannot be empty");
+
+            var darkRatio = CalculateContrastRatio(dark.Destructive, dark.DestructiveForeground);
+            Assert.True(darkRatio >= 4.5,
+                $"Theme '{theme.Id}' Dark mode destructive contrast ratio is {darkRatio:F2}:1 ({dark.Destructive} vs {dark.DestructiveForeground}), expected at least 4.5:1 (WCAG AA).");
+        }
+    }
+
+    private static double CalculateContrastRatio(string hex1, string hex2)
+    {
+        var l1 = CalculateRelativeLuminance(hex1);
+        var l2 = CalculateRelativeLuminance(hex2);
+        return (Math.Max(l1, l2) + 0.05) / (Math.Min(l1, l2) + 0.05);
+    }
+
+    private static double CalculateRelativeLuminance(string hex)
+    {
+        var (r, g, b) = ParseHexColor(hex);
+        var rLinear = ToLinear(r / 255.0);
+        var gLinear = ToLinear(g / 255.0);
+        var bLinear = ToLinear(b / 255.0);
+
+        return 0.2126 * rLinear + 0.7152 * gLinear + 0.0722 * bLinear;
+    }
+
+    private static double ToLinear(double channel)
+    {
+        return channel <= 0.04045
+            ? channel / 12.92
+            : Math.Pow((channel + 0.055) / 1.055, 2.4);
+    }
+
+    private static (byte R, byte G, byte B) ParseHexColor(string hex)
+    {
+        var cleanHex = hex.Trim().TrimStart('#');
+        if (cleanHex.Length == 3)
+        {
+            cleanHex = string.Concat(cleanHex[0], cleanHex[0], cleanHex[1], cleanHex[1], cleanHex[2], cleanHex[2]);
+        }
+
+        if (cleanHex.Length >= 6 &&
+            byte.TryParse(cleanHex[..2], System.Globalization.NumberStyles.HexNumber, null, out var r) &&
+            byte.TryParse(cleanHex[2..4], System.Globalization.NumberStyles.HexNumber, null, out var g) &&
+            byte.TryParse(cleanHex[4..6], System.Globalization.NumberStyles.HexNumber, null, out var b))
+        {
+            return (r, g, b);
+        }
+
+        throw new ArgumentException($"Invalid hex color: {hex}", nameof(hex));
+    }
 }
 
 
