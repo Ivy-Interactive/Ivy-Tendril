@@ -11,9 +11,9 @@ public static class RollingAverageCalculator
     public const int WindowDays = 7;
 
     /// <summary>
-    ///     Mean of each date and the six calendar days before it. Null where the window reaches before
-    ///     <paramref name="dataStart" />, so an incomplete window is a gap in the curve rather than a
-    ///     value dragged down by days we never recorded.
+    ///     Mean of each date and up to six calendar days before it. For history under seven days,
+    ///     computes an expanding average from dataStart. Null where date is before dataStart or
+    ///     when dataStart is null.
     /// </summary>
     /// <param name="dates">The displayed days. One entry out per entry in.</param>
     /// <param name="valueAt">
@@ -32,20 +32,21 @@ public static class RollingAverageCalculator
 
         foreach (var date in dates)
         {
-            var windowStart = date.AddDays(-(WindowDays - 1));
-            if (dataStart is null || windowStart < dataStart.Value)
+            if (dataStart is null || date < dataStart.Value)
             {
                 result.Add(null);
                 continue;
             }
 
-            var sum = 0d;
-            for (var offset = 0; offset < WindowDays; offset++)
-                sum += valueAt(windowStart.AddDays(offset));
+            var windowStart = date.AddDays(-(WindowDays - 1));
+            var effectiveStart = windowStart < dataStart.Value ? dataStart.Value : windowStart;
+            var dayCount = date.DayNumber - effectiveStart.DayNumber + 1;
 
-            // Divided by the window, never by "the days that had data": that is what makes a recorded
-            // day with no activity pull the mean down, which is the honest reading of a quiet week.
-            result.Add(sum / WindowDays);
+            var sum = 0d;
+            for (var offset = 0; offset < dayCount; offset++)
+                sum += valueAt(effectiveStart.AddDays(offset));
+
+            result.Add(sum / dayCount);
         }
 
         return result;
