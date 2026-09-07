@@ -38,7 +38,7 @@ public class DeleteSessionDialogTests
         {
             return new ChatMessageModel(Guid.NewGuid().ToString(), role, content, DateTimeOffset.UtcNow, agentId, modelId, rawStream, effort);
         }
-        public ChatMessageModel? UpdateMessage(string sessionId, string messageId, string content, string? rawStream = null, bool flushImmediately = true) => null;
+        public ChatMessageModel? UpdateMessage(string sessionId, string messageId, string content, string? rawStream = null, bool flushImmediately = true, bool touchUpdatedAt = true) => null;
         public void FlushSession(string sessionId) { }
         public void SetSessionGenerating(string sessionId, bool isGenerating)
         {
