@@ -1,7 +1,4 @@
-using System.Diagnostics;
-using System.Reactive.Disposables;
 using Ivy.Hooks.Pty;
-using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
@@ -25,38 +22,6 @@ public class ReviewActionApp : ViewBase
         var configService = UseService<IConfigService>();
         var planService = UseService<IPlanReaderService>();
         var args = UseArgs<ReviewActionAppArgs>();
-        // var ptyHandleRef = UseRef<PtyHandle?>(); // Commented out - not used until PtyHandle.GetProcessId is available
-
-        // TODO: Explicit process tree kill disabled - PtyHandle does not expose GetProcessId.
-        // UsePty's cleanup (pty.Kill/Dispose) should handle process termination, though Windows
-        // job-object teardown may not reliably reach every grandchild. Requires PtyHandle update
-        // to expose process ID if this backstop is needed.
-        //
-        // Windows job-object teardown (which UsePty relies on to kill the whole process tree on
-        // disposal) does not reliably reach every grandchild - verified by spawning a pwsh -> a
-        // long-running grandchild and observing the grandchild survive a plain pty.Kill(). So this
-        // app also kills the process tree by pid explicitly when the tab closes, as a backstop.
-        //
-        // This effect is registered BEFORE Context.UsePty() below so its cleanup runs first when
-        // the tab closes (effect cleanups run in registration order): by the time UsePty's own
-        // cleanup calls pty.Kill()/Dispose(), the tree is already gone, instead of the reverse -
-        // where UsePty kills the parent first and Process.GetProcessById(pid) below would throw
-        // because the pid no longer exists, silently skipping the grandchild kill entirely.
-        // ptyHandleRef bridges the value across, since the handle itself doesn't exist yet at
-        // this point in Build() (Ivy hooks must come first, IVYHOOK005, so it can't be resolved
-        // via a preceding non-hook statement either).
-        // UseEffect(() => Disposable.Create(() =>
-        // {
-        //     if (ptyHandleRef.Value?.GetProcessId?.Invoke() is not { } pid) return;
-        //     try
-        //     {
-        //         ProcessRunner.KillProcessTree(Process.GetProcessById(pid));
-        //     }
-        //     catch (ArgumentException)
-        //     {
-        //         // Process already exited.
-        //     }
-        // }), EffectTrigger.OnMount());
 
         // The plan/project/action lookup happens once via UseMemo (itself a hook, so this still satisfies
         // IVYHOOK005's "hooks must come first" rule - it can't be a plain statement preceding
@@ -95,7 +60,6 @@ public class ReviewActionApp : ViewBase
             {
                 Environment = BuildEnvironment(plan, project)
             });
-        // ptyHandleRef.Value = ptyHandle; // Commented out - ptyHandleRef not used
 
         if (!string.IsNullOrEmpty(args?.PlanId))
         {
