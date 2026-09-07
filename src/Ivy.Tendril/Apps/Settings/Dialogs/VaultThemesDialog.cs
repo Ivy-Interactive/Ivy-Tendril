@@ -24,10 +24,15 @@ public class VaultThemesDialog(
 {
     public override object? Build()
     {
-        var activeTab = UseState(() => requestedTab?.Value ?? "themes");
+        var selectedTabIndex = UseState(() => requestedTab?.Value == "themes" ? 1 : 0);
         var isSaving = UseState(false);
         var isDeleting = UseState<string?>(null);
         var isExportOpen = UseState(false);
+
+        // Mock interactive component preview states
+        var mockInputText = UseState("Ivy Tendril");
+        var mockSelectValue = UseState("main");
+        var mockSwitchValue = UseState(true);
 
         // Initial theme tracking so closing reverts changes unless saved
         var initialThemeId = UseState(() => config.Settings.Theme);
@@ -120,7 +125,7 @@ public class VaultThemesDialog(
         {
             if (requestedTab != null && !string.IsNullOrEmpty(requestedTab.Value))
             {
-                activeTab.Set(requestedTab.Value);
+                selectedTabIndex.Set(requestedTab.Value == "themes" ? 1 : 0);
             }
         }, requestedTab);
 
@@ -141,7 +146,7 @@ public class VaultThemesDialog(
                         fontSizeState.Set(t.IvyTheme.FontSize);
                 }
                 selectedMode.Set(t.IsDark ? "dark" : "light");
-                activeTab.Set("generator");
+                selectedTabIndex.Set(0);
                 themeToEdit.Set(null);
             }
         }, themeToEdit);
@@ -232,7 +237,10 @@ public class VaultThemesDialog(
 
                 themesQuery.Mutator.Revalidate();
                 onThemesUpdated();
-                activeTab.Set("themes");
+                if (themesList.Count > 0)
+                {
+                    selectedTabIndex.Set(1);
+                }
             }
             else
             {
@@ -274,7 +282,7 @@ public class VaultThemesDialog(
                     fontSizeState.Set(t.IvyTheme.FontSize);
             }
             selectedMode.Set(t.IsDark ? "dark" : "light");
-            activeTab.Set("generator");
+            selectedTabIndex.Set(0);
         }
 
         // ==========================================
@@ -297,7 +305,7 @@ public class VaultThemesDialog(
                     .OnClick(() =>
                     {
                         editingThemeManifestId.Set(null);
-                        activeTab.Set("generator");
+                        selectedTabIndex.Set(0);
                     });
         }
         else
@@ -361,7 +369,9 @@ public class VaultThemesDialog(
                         .OnClick(() =>
                         {
                             editingThemeManifestId.Set(null);
-                            activeTab.Set("generator");
+                            themeName.Set("Team Brand");
+                            themeDesc.Set("Custom team vault theme");
+                            selectedTabIndex.Set(0);
                         }))
                 | new Separator()
                 | rows;
@@ -385,16 +395,53 @@ public class VaultThemesDialog(
                         .Height(Size.Px(20))
                 ).ToArray();
 
-        var liveSampleCard = Layout.Vertical().AlignContent(Align.Left)
-            | Text.Block("Live Theme Preview").Bold().Small()
-            | (Layout.Horizontal().AlignContent(Align.Left)
-                | livePreviewSwatches
-                | (selectedMode.Value == "dark" ? new Badge("Dark Mode").Variant(BadgeVariant.Secondary).Small() : new Badge("Light Mode").Variant(BadgeVariant.Secondary).Small()))
-            | (Layout.Horizontal().AlignContent(Align.Left)
-                | new Button("Primary Button").Primary().Small()
-                | new Button("Outline Button").Outline().Small()
-                | new Button("Destructive").Destructive().Small()
-                | new Badge("Accent Badge").Variant(BadgeVariant.Secondary).Small());
+        var mockComponentPreview = new Card(
+            Layout.Vertical().AlignContent(Align.Left)
+                | (Layout.Horizontal().AlignContent(Align.SpaceBetween)
+                    | (Layout.Vertical().AlignContent(Align.Left)
+                        | Text.Block("Interactive Preview").Bold().Small()
+                        | Text.P("Live preview responding to colors, typography, and border-radius").Small().Muted())
+                    | (selectedMode.Value == "dark"
+                        ? new Badge("Dark Mode").Variant(BadgeVariant.Secondary).Small()
+                        : new Badge("Light Mode").Variant(BadgeVariant.Secondary).Small()))
+                | new Separator()
+                | Text.Block("Buttons").Small().Bold()
+                | (Layout.Horizontal().AlignContent(Align.Left)
+                    | new Button("Primary").Primary().Small().Icon(Icons.Sparkles)
+                    | new Button("Secondary").Secondary().Small()
+                    | new Button("Outline").Outline().Small()
+                    | new Button("Destructive").Destructive().Small().Icon(Icons.Trash2)
+                    | new Button("Ghost").Ghost().Small())
+                | Text.Block("Badges").Small().Bold()
+                | (Layout.Horizontal().AlignContent(Align.Left)
+                    | new Badge("Primary").Variant(BadgeVariant.Primary).Small()
+                    | new Badge("Secondary").Variant(BadgeVariant.Secondary).Small()
+                    | new Badge("Outline").Variant(BadgeVariant.Outline).Small()
+                    | new Badge("Destructive").Variant(BadgeVariant.Destructive).Small()
+                    | new Badge("Active (Success)").Variant(BadgeVariant.Info).Small())
+                | Text.Block("Form Fields & Selectors").Small().Bold()
+                | (Layout.Horizontal().AlignContent(Align.Left)
+                    | mockInputText.ToTextInput().Placeholder("Text input...").WithField().Label("Text Field").Width(Size.Units(65))
+                    | mockSelectValue.ToSelectInput(options: [
+                        new Option<string>("main", "main branch"),
+                        new Option<string>("dev", "dev branch"),
+                        new Option<string>("staging", "staging branch")
+                      ]).WithField().Label("Dropdown").Width(Size.Units(55))
+                    | (Layout.Vertical().AlignContent(Align.Left).Width(Size.Units(45))
+                        | Text.Block("Toggle Switch").Small()
+                        | mockSwitchValue.ToSwitchInput()))
+                | (Layout.Horizontal().AlignContent(Align.Left)
+                    | Callout.Info("Boxes, fields, and selectors inherit your border-radius and color variables.").Width(Size.Fraction(0.6f))
+                    | (Layout.Vertical().AlignContent(Align.Left).Width(Size.Fraction(0.4f))
+                        | new Card(
+                            Layout.Vertical().AlignContent(Align.Left)
+                                | (Layout.Horizontal().AlignContent(Align.SpaceBetween)
+                                    | Text.Block("Sample Metric").Small().Muted()
+                                    | new Icon(Icons.Activity))
+                                | Text.Block("99.9%").Bold()
+                                | new Badge("Healthy").Variant(BadgeVariant.Secondary).Small()
+                        )))
+        );
 
         // Export code dialog
         var exportDialog = isExportOpen.Value
@@ -475,7 +522,12 @@ public class VaultThemesDialog(
                             })
                             .Width(Size.Full()))))
             | new Separator()
-            | liveSampleCard
+            | new Expandable(
+                header: (Layout.Horizontal().AlignContent(Align.SpaceBetween)
+                    | Text.Block("Mock Components Preview").Bold()
+                    | livePreviewSwatches),
+                content: mockComponentPreview
+            ).Height(Size.Fit()).Open()
             | new Separator()
             | new Expandable(
                 header: Text.Block("Colors").Bold(),
@@ -534,24 +586,51 @@ public class VaultThemesDialog(
                 .Width(Size.Full())
             | exportDialog;
 
-        var tabs = Layout.Tabs(
-            new Tab("Vault Themes", themesTabContent).Icon(Icons.Palette),
-            new Tab("Theme Generator", generatorTabContent).Icon(Icons.SlidersHorizontal)
-        );
+        object dialogBody;
+        string dialogTitle;
+
+        if (themesList.Count == 0)
+        {
+            dialogTitle = editingThemeManifestId.Value != null ? "Edit Custom Theme" : "Create Custom Theme";
+            dialogBody = generatorTabContent;
+        }
+        else
+        {
+            dialogTitle = "Team Vault Themes";
+            dialogBody = Layout.Tabs(
+                new Tab("Theme Generator", generatorTabContent).Icon(Icons.SlidersHorizontal),
+                new Tab($"Vault Themes ({themesList.Count})", themesTabContent).Icon(Icons.Palette)
+            )
+            .SelectedIndex(selectedTabIndex.Value)
+            .OnSelect(i => selectedTabIndex.Set(i));
+        }
+
+        var isGeneratorActive = themesList.Count == 0 || selectedTabIndex.Value == 0;
 
         var dialogActions = Layout.Horizontal().AlignContent(Align.Right)
             | new Button("Close").Outline().OnClick(HandleClose)
-            | new Button("Upload to Team Vault")
-                .Icon(Icons.Upload)
-                .Primary()
-                .Loading(isSaving.Value)
-                .Disabled(isSaving.Value || string.IsNullOrWhiteSpace(themeName.Value))
-                .OnClick(async () => await HandleSaveToVault());
+            | (isGeneratorActive
+                ? new Button("Upload to Team Vault")
+                    .Icon(Icons.Upload)
+                    .Primary()
+                    .Loading(isSaving.Value)
+                    .Disabled(isSaving.Value || string.IsNullOrWhiteSpace(themeName.Value))
+                    .OnClick(async () => await HandleSaveToVault())
+                : new Button("New Custom Theme")
+                    .Icon(Icons.Plus)
+                    .Primary()
+                    .OnClick(() =>
+                    {
+                        editingThemeManifestId.Set(null);
+                        themeName.Set("Team Brand");
+                        themeDesc.Set("Custom team vault theme");
+                        selectedTabIndex.Set(0);
+                    }));
 
         return new Dialog(
             _ => HandleClose(),
-            new DialogHeader("Team Vault Themes"),
-            new DialogBody(tabs),
+            new DialogHeader(dialogTitle),
+            new DialogBody(dialogBody),
             new DialogFooter(dialogActions)
         ).Width(Size.Units(190));
     }
