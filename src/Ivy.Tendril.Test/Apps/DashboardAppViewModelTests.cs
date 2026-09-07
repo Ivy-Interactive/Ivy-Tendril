@@ -68,7 +68,7 @@ public class DashboardAppViewModelTests
         var today = new DateTime(2026, 9, 6);
         var dataStart = new DateOnly(2024, 9, 1);
         var activity = new DashboardActivityStats(
-            [], 0m, DailyCosts(dataStart, new DateOnly(2026, 9, 6), Sawtooth), null, null, dataStart);
+            [], 0m, DailyCosts(dataStart, new DateOnly(2026, 9, 6), Sawtooth), null, dataStart);
 
         var trend = DashboardApp.BuildTrend(activity, today);
 
@@ -97,7 +97,7 @@ public class DashboardAppViewModelTests
         var today = new DateTime(2026, 9, 6);
         var dataStart = new DateOnly(2025, 1, 1);
         var activity = new DashboardActivityStats(
-            [], 0m, DailyCosts(dataStart, new DateOnly(2026, 9, 6), Unique), null, null, dataStart);
+            [], 0m, DailyCosts(dataStart, new DateOnly(2026, 9, 6), Unique), null, dataStart);
 
         var trend = DashboardApp.BuildTrend(activity, today);
 
@@ -122,7 +122,7 @@ public class DashboardAppViewModelTests
         var today = new DateTime(2028, 3, 1);
         var dataStart = new DateOnly(2026, 1, 1);
         var activity = new DashboardActivityStats(
-            [], 0m, DailyCosts(dataStart, new DateOnly(2028, 3, 1), Unique), null, null, dataStart);
+            [], 0m, DailyCosts(dataStart, new DateOnly(2028, 3, 1), Unique), null, dataStart);
 
         var trend = DashboardApp.BuildTrend(activity, today);
 
@@ -151,7 +151,7 @@ public class DashboardAppViewModelTests
     {
         // A fresh install: the series exists but holds nothing, so every day reads 0 and the curve has
         // nothing to draw rather than a confident flat line at zero.
-        var activity = new DashboardActivityStats([], 0m, [], null, new Dictionary<DateOnly, int>());
+        var activity = new DashboardActivityStats([], 0m, [], new Dictionary<DateOnly, int>());
 
         var trend = DashboardApp.BuildTrend(activity, new DateTime(2026, 9, 6));
 
@@ -334,7 +334,7 @@ public class DashboardAppViewModelTests
             [new DateOnly(2026, 8, 9)] = 2
         };
 
-        var activity = new DashboardActivityStats([], 0m, dailyCosts, null, dailyPlans);
+        var activity = new DashboardActivityStats([], 0m, dailyCosts, dailyPlans);
         var trend = DashboardApp.BuildWeeklyTrend(activity, today);
 
         Assert.NotNull(trend);
@@ -368,14 +368,10 @@ public class DashboardAppViewModelTests
     [Fact]
     public void BuildWeeklyTrend_WithoutADailySeries_IsAbsent()
     {
-        // The weekly-bucket fallback is gone: four weekly buckets cannot make a 7 day average.
-        var monday = new DateOnly(2026, 8, 31);
-        var weeks = Enumerable.Range(0, 24)
-            .Select(i => new DashboardWeekStats(monday.AddDays(-7 * (23 - i)), i + 1, 0, (i + 1) * 10m, 0))
-            .ToList();
-
+        // Weekly buckets are gone from the model entirely: with no daily series there is nothing to
+        // fall back to, so the card is absent rather than plotted from coarser data.
         Assert.Null(DashboardApp.BuildWeeklyTrend(
-            new DashboardActivityStats([], 0m, null, weeks), new DateTime(2026, 9, 6)));
+            new DashboardActivityStats([], 0m), new DateTime(2026, 9, 6)));
     }
 
     [Fact]
