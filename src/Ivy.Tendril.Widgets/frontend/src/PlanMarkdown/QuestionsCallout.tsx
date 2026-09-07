@@ -1,4 +1,4 @@
-import React, { useContext, useMemo, useState } from "react";
+import React, { useContext, useId, useMemo, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CodeBlock } from "../CodeBlock";
@@ -95,7 +95,8 @@ const QuestionView: React.FC<QuestionViewProps> = ({
     setOtherOpen(typed !== undefined);
   }
 
-  const groupName = `pmv-q-${blockIndex}-${question.id}`;
+  const reactId = useId();
+  const groupName = `pmv-q-${reactId}-${blockIndex}-${question.id}`;
   const otherActive = typed !== undefined;
 
   /**
@@ -195,6 +196,11 @@ const QuestionView: React.FC<QuestionViewProps> = ({
             <div
               key={option.value}
               className={`pmv-question-option${selected ? " pmv-question-option--selected" : ""}`}
+              onClick={(e) => {
+                if ((e.target as HTMLElement).closest("label, input, textarea, button, a")) return;
+                if (window.getSelection()?.toString()) return;
+                selectOption(option);
+              }}
             >
               <label className="pmv-question-option-main">
                 <input
@@ -223,6 +229,11 @@ const QuestionView: React.FC<QuestionViewProps> = ({
         {hasOptions && question.other && (
           <div
             className={`pmv-question-option pmv-question-option--other${otherActive ? " pmv-question-option--selected" : ""}`}
+            onClick={(e) => {
+              if ((e.target as HTMLElement).closest("label, input, textarea, button, a")) return;
+              if (window.getSelection()?.toString()) return;
+              toggleOther();
+            }}
           >
             <label className="pmv-question-other-label">
               <input
@@ -324,30 +335,37 @@ const ChatQuestionsBlock: React.FC<ChatQuestionsBlockProps> = ({ questions, bloc
   );
   const localAnswers = draftState.answers;
 
-  const writeDraft = (next: QuestionsDraftState) => {
-    setDraftState(next);
-    store?.write(blockKey, next);
-  };
-
   const handleLocalAnswer = (questionId: string, answer: string | string[] | null | undefined) => {
-    const next = { ...localAnswers };
-    if (answer === undefined || answer === null || answer === "" || (Array.isArray(answer) && answer.length === 0)) {
-      delete next[questionId];
-    } else if (Array.isArray(answer)) {
-      next[questionId] = answer;
-    } else {
-      next[questionId] = [answer];
-    }
-    writeDraft({ ...draftState, answers: next });
+    setDraftState((prev) => {
+      const nextAnswers = { ...prev.answers };
+      if (answer === undefined || answer === null || answer === "" || (Array.isArray(answer) && answer.length === 0)) {
+        delete nextAnswers[questionId];
+      } else if (Array.isArray(answer)) {
+        nextAnswers[questionId] = answer;
+      } else {
+        nextAnswers[questionId] = [answer];
+      }
+      const nextState = { ...prev, answers: nextAnswers };
+      store?.write(blockKey, nextState);
+      return nextState;
+    });
   };
 
   const handleOtherOpenChange = (questionId: string, open: boolean) => {
-    writeDraft({ ...draftState, otherOpen: { ...draftState.otherOpen, [questionId]: open } });
+    setDraftState((prev) => {
+      const nextState = { ...prev, otherOpen: { ...prev.otherOpen, [questionId]: open } };
+      store?.write(blockKey, nextState);
+      return nextState;
+    });
   };
 
   const hasAnyAnswers = Object.keys(localAnswers).length > 0;
   const clearAll = () => {
-    writeDraft({ answers: {}, otherOpen: {} });
+    setDraftState(() => {
+      const nextState = { answers: {}, otherOpen: {} };
+      store?.write(blockKey, nextState);
+      return nextState;
+    });
   };
 
   const canSubmit = questions.every((q) => {
