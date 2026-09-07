@@ -800,9 +800,8 @@ public static class DoctorCommand
     ///     Completed history, and which entry to unpick is the user's call.
     /// </summary>
     /// <remarks>
-    ///     Each URL is resolved on its own. It must not be answered from
-    ///     <c>GithubService.GetPrStatusesAsync</c>, whose <c>gh pr list --limit 100</c> window omits most
-    ///     PRs of a busy repo and would report hundreds of healthy PRs as phantom.
+    ///     Each URL is resolved on its own via <c>GithubService.GetPrStatusAsync</c>, which calls
+    ///     <c>gh pr view</c> per URL. This is exact for a repo of any size, unlike a list API with a cap.
     /// </remarks>
     /// <param name="headBranchResolver">Seam for gh, so the check is testable without a network.</param>
     /// <param name="onBegin">Called with the number of URLs about to be resolved, before the first call.</param>
