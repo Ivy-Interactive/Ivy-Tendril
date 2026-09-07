@@ -112,7 +112,7 @@ public class AppearanceSetupView : ViewBase
                | Text.Muted("Choose a color scheme preset for Tendril.").Small()
                | themeSelector
                | Text.Block("Main Sidebar").Bold()
-               | Text.Muted("Choose the default state for the main sidebar on startup.").Small()
+               | Text.Muted("Choose the default state for the main sidebar for new client sessions.").Small()
                | (Layout.Horizontal()
                   | new Button("Expanded")
                       .Variant(isSidebarOpen ? ButtonVariant.Primary : ButtonVariant.Outline)
