@@ -65,7 +65,6 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
 }) => {
   const [tab, setTab] = useState<"cost" | "plans">("cost");
   const [sideTab, setSideTab] = useState<"git" | "prs">("git");
-  const [trendPeriod, setTrendPeriod] = useState<"month" | "week">("month");
 
   const fireEvent = (eventName: string) => {
     if (events.includes(eventName)) {
@@ -87,9 +86,9 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
     { icon: <MessageSquareWarning size={16} />, count: failedCount, label: "Failed", event: "OnJobs" },
   ];
 
-  const activeTrend = trendPeriod === "week" && trendWeekly ? trendWeekly : trend;
-  const currentTrendName = trendPeriod === "week" ? "Last 4 weeks" : "Last 12 months";
-  const previousTrendName = trendPeriod === "week" ? "Previous 4 weeks" : "Previous year";
+  const activeTrend = trendWeekly ?? trend;
+  const currentTrendName = "Last 4 weeks";
+  const previousTrendName = "Previous 4 weeks";
 
   const trendData =
     activeTrend == null
@@ -109,9 +108,6 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
             formatTick: formatCountTick,
             formatValue: formatPlansValue,
           };
-
-  const rolling = trendData?.rolling ?? [];
-  const hasRolling = rolling.some((value) => value != null);
 
   return (
     <div className="tdb-root remove-parent-padding">
@@ -183,29 +179,6 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                       Total Plans
                     </button>
                   </div>
-                  {trendWeekly && (
-                    <>
-                      <div className="tdb-trend-sep" />
-                      <div className="tdb-granularity-toggle">
-                        <button
-                          type="button"
-                          className="tdb-granularity-btn"
-                          data-active={trendPeriod === "month"}
-                          onClick={() => setTrendPeriod("month")}
-                        >
-                          Month
-                        </button>
-                        <button
-                          type="button"
-                          className="tdb-granularity-btn"
-                          data-active={trendPeriod === "week"}
-                          onClick={() => setTrendPeriod("week")}
-                        >
-                          Week
-                        </button>
-                      </div>
-                    </>
-                  )}
                   <div className="tdb-trend-sep" />
                   <div className="tdb-legend">
                     <span className="tdb-legend-item">
@@ -216,15 +189,9 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                       <span className="tdb-legend-dash" />
                       {previousTrendName}
                     </span>
-                    {/* Named even when it cannot be drawn: a fresh install should read why the curve
-                        is missing rather than not know it was meant to be there. */}
-                    <span
-                      className={
-                        "tdb-legend-item" + (hasRolling ? "" : " tdb-legend-item-empty")
-                      }
-                    >
+                    <span className="tdb-legend-item">
                       <span className="tdb-legend-line-avg" />
-                      {hasRolling ? "7-day average" : "7-day average (needs 7 days of history)"}
+                      7-day average
                     </span>
                   </div>
                 </div>

@@ -104,11 +104,12 @@ describe("computeRollingAverage", () => {
     expect(new Set(rolling).size).toBeGreaterThan(1);
   });
 
-  it("leaves the first six entries null, having no full window", () => {
+  it("computes expanding average for the first six entries", () => {
     const rolling = computeRollingAverage([1, 2, 3, 4, 5, 6, 7, 8]);
 
-    expect(rolling.slice(0, 6)).toEqual([null, null, null, null, null, null]);
-    expect(rolling[6]).not.toBeNull();
+    expect(rolling.slice(0, 6)).toEqual([1, 1.5, 2, 2.5, 3, 3.5]);
+    expect(rolling[6]).toBe(4);
+    expect(rolling[7]).toBe(5);
   });
 
   it("averages each entry with the six before it", () => {

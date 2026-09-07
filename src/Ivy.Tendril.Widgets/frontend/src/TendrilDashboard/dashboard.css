@@ -312,39 +312,6 @@
   background: var(--tdb-divider);
 }
 
-.tdb-granularity-toggle {
-  display: inline-flex;
-  align-items: center;
-  background: var(--tdb-pill-bg);
-  border-radius: 6px;
-  padding: 2px;
-  gap: 2px;
-}
-
-.tdb-granularity-btn {
-  border: none;
-  background: transparent;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--tdb-muted);
-  padding: 3px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  line-height: 14px;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.tdb-granularity-btn:hover {
-  color: var(--tdb-fg);
-}
-
-.tdb-granularity-btn[data-active="true"] {
-  background: var(--tdb-bg);
-  color: var(--tdb-fg);
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--tdb-fg) 8%, transparent);
-}
-
 .tdb-legend {
   display: flex;
   align-items: center;
@@ -377,14 +344,9 @@
 .tdb-legend-line-avg {
   width: 10px;
   height: 0;
-  border-top: 1.5px solid var(--tdb-muted);
+  border-top: 1.5px dashed var(--tdb-muted);
   opacity: 0.8;
   flex-shrink: 0;
-}
-
-/* The 7-day average legend item when there is not enough history to draw its curve. */
-.tdb-legend-item-empty {
-  opacity: 0.6;
 }
 
 .tdb-trend-chart {
@@ -436,11 +398,12 @@
   stroke-linejoin: round;
 }
 
-/* Solid, so the three series read apart: current solid dark, comparison dashed, this one solid muted. */
+/* Dashed curve for 7-day average to distinguish from solid current usage. */
 .tdb-trend-avg-curve {
   fill: none;
   stroke: var(--tdb-muted);
   stroke-width: 1.5;
+  stroke-dasharray: 4 4;
   stroke-linecap: round;
   stroke-linejoin: round;
   opacity: 0.8;
