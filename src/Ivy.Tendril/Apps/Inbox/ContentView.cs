@@ -193,8 +193,7 @@ public class ContentView(
             return Layout.Vertical().Height(Size.Full())
                 | header
                 | (Layout.Vertical().AlignContent(Align.Center).Height(Size.Grow())
-                    | new Loading()
-                    | Text.Muted("Fetching review requests from GitHub..."));
+                    | new Loading());
         }
 
         if (errorMessage != null)
@@ -351,8 +350,7 @@ public class ContentView(
             return Layout.Vertical().Height(Size.Full())
                 | header
                 | (Layout.Vertical().AlignContent(Align.Center).Height(Size.Grow())
-                    | new Loading()
-                    | Text.Muted("Loading issues from GitHub..."));
+                    | new Loading());
         }
 
         if (errorMessage != null)
