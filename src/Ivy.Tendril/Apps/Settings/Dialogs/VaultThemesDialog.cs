@@ -1137,58 +1137,9 @@ var server = new Server()
         }
     };
 
-    private static Theme CloneTheme(Theme source)
-    {
-        return new Theme
-        {
-            Name = source.Name,
-            FontFamily = source.FontFamily,
-            FontSize = source.FontSize,
-            BorderRadiusBoxes = source.BorderRadiusBoxes,
-            BorderRadiusFields = source.BorderRadiusFields,
-            BorderRadiusSelectors = source.BorderRadiusSelectors,
-            ShadowBoxes = source.ShadowBoxes,
-            ShadowFields = source.ShadowFields,
-            ShadowSelectors = source.ShadowSelectors,
-            Colors = new ThemeColorScheme
-            {
-                Light = CloneThemeColors(source.Colors?.Light ?? ThemeColors.DefaultLight),
-                Dark = CloneThemeColors(source.Colors?.Dark ?? ThemeColors.DefaultDark)
-            }
-        };
-    }
+    private static Theme CloneTheme(Theme source) => TendrilThemes.CloneTheme(source);
 
-    private static ThemeColors CloneThemeColors(ThemeColors source)
-    {
-        return new ThemeColors
-        {
-            Primary = source.Primary,
-            PrimaryForeground = source.PrimaryForeground,
-            Secondary = source.Secondary,
-            SecondaryForeground = source.SecondaryForeground,
-            Background = source.Background,
-            Foreground = source.Foreground,
-            Destructive = source.Destructive,
-            DestructiveForeground = source.DestructiveForeground,
-            Success = source.Success,
-            SuccessForeground = source.SuccessForeground,
-            Warning = source.Warning,
-            WarningForeground = source.WarningForeground,
-            Info = source.Info,
-            InfoForeground = source.InfoForeground,
-            Border = source.Border,
-            Input = source.Input,
-            Ring = source.Ring,
-            Muted = source.Muted,
-            MutedForeground = source.MutedForeground,
-            Accent = source.Accent,
-            AccentForeground = source.AccentForeground,
-            Card = source.Card,
-            CardForeground = source.CardForeground,
-            Popover = source.Popover,
-            PopoverForeground = source.PopoverForeground
-        };
-    }
+    private static ThemeColors CloneThemeColors(ThemeColors source) => TendrilThemes.CloneThemeColors(source);
 
     public static bool TryImportTheme(string raw, out Theme importedTheme, out string? errorMessage)
     {
