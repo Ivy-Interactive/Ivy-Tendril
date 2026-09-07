@@ -421,6 +421,86 @@ public class ReviewActionsTableView(
     private record ReviewActionRow(string Name, int Index);
 }
 
+/// <summary>
+///     The project's named service ports. Each row's default port is what a plan worktree tries first;
+///     the port actually assigned to a plan is shown on its review actions bar.
+/// </summary>
+public class ProjectPortsTableView(
+    IState<Dictionary<string, ProjectPortConfig>> ports,
+    Action<string?> onEdit) : ViewBase
+{
+    public override object? Build()
+    {
+        var current = ports.Value;
+        if (current.Count == 0) return null;
+
+        var rows = current.Select((p, i) => new PortRow(p.Key, p.Value.DefaultPort, p.Value.Description, i)).ToList();
+
+        return new TableBuilder<PortRow>(rows)
+            .Header(t => t.Name, "Name")
+            .Builder(t => t.Name, f => f.Func<PortRow, string>(name =>
+                Text.Block(name).Bold()
+            ))
+            .Header(t => t.DefaultPort, "Default Port")
+            .Header(t => t.Description, "Description")
+            .Header(t => t.Index, "")
+            .Builder(t => t.Index, f => f.Func<PortRow, int>(idx =>
+                Layout.Horizontal().Gap(1)
+                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(rows[idx].Name))
+                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
+                {
+                    var updated = new Dictionary<string, ProjectPortConfig>(ports.Value);
+                    updated.Remove(rows[idx].Name);
+                    ports.Set(updated);
+                })
+            ))
+            .Width(Size.Fit());
+    }
+
+    private record PortRow(string Name, int DefaultPort, string Description, int Index);
+}
+
+/// <summary>
+///     The environment files recreated inside every plan worktree, since a fresh worktree has none of
+///     the untracked <c>.env</c> files the original checkout relies on.
+/// </summary>
+public class ProjectEnvFilesTableView(
+    IState<List<ProjectEnvFileConfig>> envFiles,
+    Action<int?> onEdit) : ViewBase
+{
+    public override object? Build()
+    {
+        var list = envFiles.Value;
+        if (list.Count == 0) return null;
+
+        var rows = list
+            .Select((f, i) => new EnvFileRow(f.Path, f.Template ?? "", string.Join(", ", f.Overrides.Keys), i))
+            .ToList();
+
+        return new TableBuilder<EnvFileRow>(rows)
+            .Header(t => t.Path, "Path")
+            .Builder(t => t.Path, f => f.Func<EnvFileRow, string>(path =>
+                Text.Block(path).Bold()
+            ))
+            .Header(t => t.Template, "Template")
+            .Header(t => t.Overrides, "Overrides")
+            .Header(t => t.Index, "")
+            .Builder(t => t.Index, f => f.Func<EnvFileRow, int>(idx =>
+                Layout.Horizontal().Gap(1)
+                | new Button().Icon(Icons.Pencil).Outline().Small().Tooltip("Edit").OnClick(() => onEdit(idx))
+                | new Button().Icon(Icons.Trash).Outline().Small().Tooltip("Delete").OnClick(() =>
+                {
+                    var updated = new List<ProjectEnvFileConfig>(envFiles.Value);
+                    updated.RemoveAt(idx);
+                    envFiles.Set(updated);
+                })
+            ))
+            .Width(Size.Fit());
+    }
+
+    private record EnvFileRow(string Path, string Template, string Overrides, int Index);
+}
+
 public class ProjectVerificationsTableView(
     IState<List<ProjectVerificationRef>> verifications,
     Action<string?> onEdit) : ViewBase
