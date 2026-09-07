@@ -3,6 +3,7 @@ using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Git;
+using Ivy.Tendril.Services.Inbox;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Apps.Inbox;
@@ -16,6 +17,7 @@ public class InboxApp : ViewBase
         var config = UseService<IConfigService>();
         var client = UseService<IClientProvider>();
         var logger = UseService<ILogger<InboxApp>>();
+        var autoImportService = UseService<AssignedIssuesAutoImportService>();
 
         var selectedCategory = UseState(InboxCategory.MyIssues);
         var selectedProject = UseState<string?>(() => config.Settings.Projects.FirstOrDefault()?.Name);
@@ -281,7 +283,8 @@ public class InboxApp : ViewBase
             githubService,
             refreshToken,
             onRefresh: FetchCurrentDataAsync,
-            onFireOffIssues: FireOffIssues
+            onFireOffIssues: FireOffIssues,
+            autoImportService: autoImportService
         );
 
         return new SidebarLayout(

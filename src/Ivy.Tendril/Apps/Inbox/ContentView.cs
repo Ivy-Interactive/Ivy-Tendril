@@ -1,9 +1,11 @@
+using Ivy.Tendril.Apps.Inbox.Dialogs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Git;
+using Ivy.Tendril.Services.Inbox;
 
 namespace Ivy.Tendril.Apps.Inbox;
 
@@ -43,12 +45,14 @@ public class ContentView(
     IGithubService githubService,
     RefreshToken refreshToken,
     Func<Task> onRefresh,
-    Func<IReadOnlyList<GitHubIssue>, Task> onFireOffIssues) : ViewBase
+    Func<IReadOnlyList<GitHubIssue>, Task> onFireOffIssues,
+    AssignedIssuesAutoImportService? autoImportService = null) : ViewBase
 {
     public override object Build()
     {
         var client = UseService<IClientProvider>();
         var openFile = UseState<string?>(null);
+        var isAutoAcceptSettingsOpen = UseState(false);
 
         var (issueSheet, showIssueSheet) = UseTrigger<GitHubIssue>((isOpen, issue) =>
         {
@@ -153,7 +157,9 @@ public class ContentView(
                 allIssues: myIssues,
                 showRepoBadge: true,
                 client: client,
-                showIssueSheet: showIssueSheet
+                showIssueSheet: showIssueSheet,
+                isMyIssues: true,
+                openAutoAcceptSettings: () => isAutoAcceptSettingsOpen.Set(true)
             );
         }
         else // Project
@@ -167,11 +173,19 @@ public class ContentView(
                 allIssues: projectIssues,
                 showRepoBadge: false,
                 client: client,
-                showIssueSheet: showIssueSheet
+                showIssueSheet: showIssueSheet,
+                isMyIssues: false
             );
         }
 
-        return new Fragment(mainView, issueSheet, reviewSheet, new FileSheet(openFile, config));
+        var autoAcceptDialog = new AutoAcceptSettingsDialog(
+            isAutoAcceptSettingsOpen,
+            config,
+            autoImportService,
+            refreshToken,
+            onRefresh);
+
+        return new Fragment(mainView, issueSheet, reviewSheet, new FileSheet(openFile, config), autoAcceptDialog);
     }
 
     private object BuildReviewsView(IClientProvider client, Action<GitHubReviewItem> showReviewSheet)
@@ -300,7 +314,9 @@ public class ContentView(
         IReadOnlyList<GitHubIssue> allIssues,
         bool showRepoBadge,
         IClientProvider client,
-        Action<GitHubIssue> showIssueSheet)
+        Action<GitHubIssue> showIssueSheet,
+        bool isMyIssues = false,
+        Action? openAutoAcceptSettings = null)
     {
         var refreshButton = new Button()
             .Icon(Icons.RefreshCw)
@@ -330,10 +346,28 @@ public class ContentView(
             refreshToken.Refresh();
         }
 
+        var isAutoAcceptOn = config.Settings.Inbox.AutoAcceptAssignedIssues;
+
+        var autoAcceptControls = isMyIssues
+            ? (Layout.Horizontal().Height(Size.Auto()).Width(Size.Auto()).AlignContent(Align.Left)
+                | new Badge(isAutoAcceptOn ? "Auto-Accept: On" : "Auto-Accept: Off")
+                    .Variant(isAutoAcceptOn ? BadgeVariant.Primary : BadgeVariant.Secondary)
+                    .Small()
+                | (openAutoAcceptSettings != null
+                    ? new Button()
+                        .Icon(Icons.Settings)
+                        .Ghost()
+                        .Small()
+                        .Tooltip("Auto-Accept Settings")
+                        .OnClick(openAutoAcceptSettings)
+                    : null))
+            : null;
+
         var header = Layout.Horizontal().Height(Size.Auto()).AlignContent(Align.SpaceBetween).Width(Size.Full())
             | (Layout.Horizontal().Height(Size.Auto()).Width(Size.Auto()).AlignContent(Align.Left)
                 | Text.H3(title).Bold()
-                | refreshButton)
+                | refreshButton
+                | autoAcceptControls)
             | (Layout.Horizontal().Height(Size.Auto()).Width(Size.Auto()).AlignContent(Align.Right)
                 | new Button("Select All").Ghost().Small().OnClick(SelectAll)
                 | new Button("Deselect All").Ghost().Small().Disabled(selectedCount == 0).OnClick(DeselectAll)
