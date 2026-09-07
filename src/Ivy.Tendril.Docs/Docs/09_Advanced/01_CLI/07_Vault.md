@@ -8,6 +8,7 @@ searchHints:
   - discover
   - connect
   - auto-sync
+  - theme
 ---
 
 # vault
@@ -32,6 +33,13 @@ Manage team configuration vaults, discover and connect shared repositories on Gi
 >tendril vault import <project-name> [options]
 >tendril vault push <projects...> [options]
 >tendril vault delete <project-name> [--vault <vault-id>]
+>tendril vault theme list [--vault <vault-id>] [--json]
+>tendril vault theme get <theme-id> [--vault <vault-id>] [--json]
+>tendril vault theme add [--file <path>] [--stdin] [--id <id>] [--name <name>] [--vault <vault-id>]
+>tendril vault theme create <id> --name <name> [options]
+>tendril vault theme set <id> <field> <value> [--vault <vault-id>]
+>tendril vault theme delete <theme-id> [--vault <vault-id>]
+>tendril vault theme apply <theme-id>
 ```
 
 ## Vault Management
@@ -167,6 +175,91 @@ Collects project configuration, custom skills, MCP servers, memories, review act
 
 Deletes a project from the vault repository and creates a pull request on GitHub to apply the deletion.
 
+## Vault Themes
+
+#### theme list
+
+```terminal
+>tendril vault theme list
+>tendril vault theme list --json
+```
+
+Lists all themes saved in the vault with their ID, name, mode, description, preview colors, updated timestamp, and author.
+
+#### theme get
+
+```terminal
+>tendril vault theme get <theme-id>
+>tendril vault theme get <theme-id> --json
+```
+
+Shows full details for a vault theme including font, font size, border radii, shadows, and a complete table of color token values for light and dark modes.
+
+#### theme add
+
+```terminal
+>tendril vault theme add --file theme.json
+>cat theme.json | tendril vault theme add --stdin
+>tendril vault theme add --file theme.json --id my-theme --name "My Theme"
+```
+
+Imports a theme manifest or theme configuration JSON file into the vault repository. Accepts standard vault theme manifests as well as Ivy theme definitions.
+
+#### theme create
+
+```terminal
+>tendril vault theme create <id> --name <name> [options]
+>tendril vault theme create cyber --name "Cyber" --base dracula --dark --primary "#00ffcc"
+```
+
+Creates a new theme optionally based on an existing preset, applies custom styles or color token overrides, and saves the theme to the vault.
+
+| Option | Description |
+|--------|-------------|
+| `-n, --name <name>` | Display name for the theme (required) |
+| `-d, --description <text>` | Theme description |
+| `-b, --base <preset>` | Base preset theme ID |
+| `--dark / --light` | Mode flag for the theme |
+| `--primary <hex>` | Primary color override |
+| `--secondary <hex>` | Secondary color override |
+| `--accent <hex>` | Accent color override |
+| `--background <hex>` | Background color override |
+| `--foreground <hex>` | Foreground color override |
+| `--color <token=hex>` | Override any specific color token (repeatable) |
+| `--font <family>` | Font family |
+| `--font-size <size>` | Font size (e.g. 14px) |
+| `--radius <value>` | Border radius for boxes, fields, and selectors |
+| `--apply-to <mode>` | Target mode for overrides: light, dark, or both |
+| `--force` | Allow creating even if ID matches a built-in preset |
+| `--vault <vault-id>` | Target vault ID |
+
+#### theme set
+
+```terminal
+>tendril vault theme set <id> <field> <value>
+>tendril vault theme set cyber description "Updated theme description"
+>tendril vault theme set cyber primary "#ff007f"
+>tendril vault theme set cyber light.primary "#3b82f6"
+```
+
+Updates a single metadata property, font, radius, shadow setting, preview colors, or color token on an existing vault theme.
+
+#### theme delete
+
+```terminal
+>tendril vault theme delete <theme-id>
+```
+
+Deletes a theme from the vault repository.
+
+#### theme apply
+
+```terminal
+>tendril vault theme apply <theme-id>
+```
+
+Loads all vault themes into the active theme registry, resolves the theme ID across all built-in and vault themes, and sets it as the active Tendril theme in configuration.
+
 ## Examples
 
 **Connect and sync a team vault:**
@@ -197,4 +290,14 @@ Deletes a project from the vault repository and creates a pull request on GitHub
 ```terminal
 ># Push changes and open a pull request
 >tendril vault push BackendService --changelog "Added Playwright E2E verification"
+```
+
+**Create and apply a team vault theme:**
+
+```terminal
+># Create a custom theme based on the Dracula preset
+>tendril vault theme create team-neon --name "Team Neon" --base dracula --dark --primary "#00ffcc" --accent "#ff007f"
+
+># Apply the theme as active
+>tendril vault theme apply team-neon
 ```

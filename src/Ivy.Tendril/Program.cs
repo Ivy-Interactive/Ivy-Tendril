@@ -889,6 +889,24 @@ public class Program
                     .WithDescription("Export project(s) and create a pull request to the vault repository");
                 vault.AddCommand<VaultDeleteCommand>("delete")
                     .WithDescription("Delete a project from the vault repository and create a pull request");
+
+                vault.AddBranch("theme", theme =>
+                {
+                    theme.AddCommand<VaultThemeListCommand>("list")
+                        .WithDescription("List team themes available in the vault");
+                    theme.AddCommand<VaultThemeGetCommand>("get")
+                        .WithDescription("Get details of a vault theme");
+                    theme.AddCommand<VaultThemeAddCommand>("add")
+                        .WithDescription("Add or import a theme into the vault");
+                    theme.AddCommand<VaultThemeCreateCommand>("create")
+                        .WithDescription("Create a new theme and save it to the vault");
+                    theme.AddCommand<VaultThemeSetCommand>("set")
+                        .WithDescription("Update a property or color token on a vault theme");
+                    theme.AddCommand<VaultThemeDeleteCommand>("delete")
+                        .WithDescription("Delete a theme from the vault");
+                    theme.AddCommand<VaultThemeApplyCommand>("apply")
+                        .WithDescription("Apply a theme as the active Tendril theme");
+                });
             });
         });
         return app;
