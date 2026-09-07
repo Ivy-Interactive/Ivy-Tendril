@@ -314,7 +314,6 @@ public class VaultSetupView : ViewBase
             {
                 var url = !string.IsNullOrEmpty(status.RepoUrl) ? status.RepoUrl : $"https://github.com/{repo}";
                 return Layout.Horizontal().AlignContent(Align.Left)
-                    | Icons.FolderGit2.ToIcon()
                     | new Button(repo).Link().Small().OnClick(() => client.OpenUrl(url))
                     | new Button().Icon(Icons.ExternalLink).Ghost().Small().Tooltip("Open on GitHub").OnClick(() => client.OpenUrl(url));
             }))
