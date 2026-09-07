@@ -28,6 +28,9 @@ public class VaultThemesDialog(
         var isSaving = UseState(false);
         var isDeleting = UseState<string?>(null);
         var isExportOpen = UseState(false);
+        var isImportOpen = UseState(false);
+        var importCodeState = UseState("");
+        var importErrorState = UseState<string?>(null);
 
         // Mock interactive component preview states
         var mockInputText = UseState("Ivy Tendril");
@@ -285,6 +288,33 @@ public class VaultThemesDialog(
             selectedTabIndex.Set(0);
         }
 
+        void HandleImport(string raw)
+        {
+            if (TryImportTheme(raw, out var imported, out var err))
+            {
+                editingTheme.Set(CloneTheme(imported));
+                if (!string.IsNullOrWhiteSpace(imported.Name))
+                {
+                    themeName.Set(imported.Name);
+                }
+                if (!string.IsNullOrWhiteSpace(imported.FontFamily))
+                {
+                    fontFamilyState.Set(imported.FontFamily);
+                }
+                if (!string.IsNullOrWhiteSpace(imported.FontSize))
+                {
+                    fontSizeState.Set(imported.FontSize);
+                }
+                importErrorState.Set(null);
+                isImportOpen.Set(false);
+                client.Toast($"Imported theme configuration '{(string.IsNullOrWhiteSpace(imported.Name) ? "Custom" : imported.Name)}'", "Theme Imported");
+            }
+            else
+            {
+                importErrorState.Set(err ?? "Invalid theme format.");
+            }
+        }
+
         // ==========================================
         // TAB 1: Existing Vault Themes
         // ==========================================
@@ -492,6 +522,29 @@ public class VaultThemesDialog(
             ).Width(Size.Units(160))
             : null;
 
+        // Import code dialog
+        var importDialog = isImportOpen.Value
+            ? new Dialog(
+                _ => isImportOpen.Set(false),
+                new DialogHeader("Import Theme Configuration"),
+                new DialogBody(
+                    Layout.Vertical().AlignContent(Align.Left)
+                        | Text.P("Paste a JSON or C# theme configuration below to import its colors, typography, and border radius settings.").Small().Muted()
+                        | (importErrorState.Value != null ? Callout.Destructive(importErrorState.Value) : null!)
+                        | importCodeState.ToTextareaInput().Placeholder("{\n  \"Name\": \"Ocean\",\n  \"Colors\": {\n    \"Light\": { ... },\n    \"Dark\": { ... }\n  }\n}").Height(Size.Units(55))
+                ),
+                new DialogFooter(
+                    Layout.Horizontal().AlignContent(Align.Right)
+                        | new Button("Cancel").Outline().OnClick(() => isImportOpen.Set(false))
+                        | new Button("Import Theme")
+                            .Primary()
+                            .Icon(Icons.FileDown)
+                            .Disabled(string.IsNullOrWhiteSpace(importCodeState.Value))
+                            .OnClick(() => HandleImport(importCodeState.Value))
+                )
+            ).Width(Size.Units(160))
+            : null;
+
         var generatorTabContent = Layout.Vertical()
             | (Layout.Horizontal().AlignContent(Align.Left)
                 | themeName.ToTextInput("Theme Name").WithField().Label("Theme Name").Width(Size.Units(70))
@@ -579,12 +632,24 @@ public class VaultThemesDialog(
                     | new BorderRadiusSelector(editingTheme, UpdateThemeProperty)
             )
             | new Separator()
-            | new Button("Copy Configuration")
-                .Outline()
-                .Icon(Icons.Copy)
-                .OnClick(() => isExportOpen.Set(true))
-                .Width(Size.Full())
-            | exportDialog;
+            | (Layout.Horizontal().AlignContent(Align.Left)
+                | new Button("Copy Configuration")
+                    .Outline()
+                    .Icon(Icons.Copy)
+                    .OnClick(() => isExportOpen.Set(true))
+                    .Width(Size.Fraction(0.5f))
+                | new Button("Import Configuration")
+                    .Outline()
+                    .Icon(Icons.FileDown)
+                    .OnClick(() =>
+                    {
+                        importCodeState.Set("");
+                        importErrorState.Set(null);
+                        isImportOpen.Set(true);
+                    })
+                    .Width(Size.Fraction(0.5f)))
+            | exportDialog
+            | importDialog;
 
         object dialogBody;
         string dialogTitle;
@@ -1123,5 +1188,200 @@ var server = new Server()
             Popover = source.Popover,
             PopoverForeground = source.PopoverForeground
         };
+    }
+
+    public static bool TryImportTheme(string raw, out Theme importedTheme, out string? errorMessage)
+    {
+        importedTheme = CloneTheme(Theme.Default);
+        errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            errorMessage = "Please enter or paste a theme configuration.";
+            return false;
+        }
+
+        var trimmed = raw.Trim();
+
+        // 1. Try JSON parsing
+        if (trimmed.StartsWith('{') || trimmed.EndsWith('}'))
+        {
+            try
+            {
+                var options = new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    ReadCommentHandling = System.Text.Json.JsonCommentHandling.Skip,
+                    AllowTrailingCommas = true
+                };
+
+                // Try direct Theme deserialization
+                var parsedTheme = System.Text.Json.JsonSerializer.Deserialize<Theme>(trimmed, options);
+                if (parsedTheme?.Colors != null && (parsedTheme.Colors.Light != null || parsedTheme.Colors.Dark != null))
+                {
+                    importedTheme = CloneTheme(parsedTheme);
+                    return true;
+                }
+
+                // Try VaultThemeManifest deserialization
+                var parsedManifest = System.Text.Json.JsonSerializer.Deserialize<VaultThemeManifest>(trimmed, options);
+                if (parsedManifest?.IvyTheme != null)
+                {
+                    importedTheme = CloneTheme(parsedManifest.IvyTheme);
+                    if (!string.IsNullOrWhiteSpace(parsedManifest.Name))
+                        importedTheme.Name = parsedManifest.Name;
+                    return true;
+                }
+
+                // Try ThemeColorScheme deserialization
+                var parsedScheme = System.Text.Json.JsonSerializer.Deserialize<ThemeColorScheme>(trimmed, options);
+                if (parsedScheme?.Light != null || parsedScheme?.Dark != null)
+                {
+                    importedTheme = new Theme
+                    {
+                        Name = "Imported Theme",
+                        Colors = new ThemeColorScheme
+                        {
+                            Light = CloneThemeColors(parsedScheme.Light ?? ThemeColors.DefaultLight),
+                            Dark = CloneThemeColors(parsedScheme.Dark ?? ThemeColors.DefaultDark)
+                        }
+                    };
+                    return true;
+                }
+            }
+            catch
+            {
+                // Fall through to C# or regex parsing
+            }
+        }
+
+        // 2. Try C# configuration code parsing
+        try
+        {
+            var parsed = CloneTheme(Theme.Default);
+            var foundAny = false;
+
+            var nameMatch = Regex.Match(trimmed, @"theme\.Name\s*=\s*""([^""]+)""");
+            if (nameMatch.Success)
+            {
+                parsed.Name = nameMatch.Groups[1].Value;
+                foundAny = true;
+            }
+
+            var fontMatch = Regex.Match(trimmed, @"theme\.FontFamily\s*=\s*""([^""]+)""");
+            if (fontMatch.Success)
+            {
+                parsed.FontFamily = fontMatch.Groups[1].Value;
+                foundAny = true;
+            }
+
+            var sizeMatch = Regex.Match(trimmed, @"theme\.FontSize\s*=\s*""([^""]+)""");
+            if (sizeMatch.Success)
+            {
+                parsed.FontSize = sizeMatch.Groups[1].Value;
+                foundAny = true;
+            }
+
+            var boxesMatch = Regex.Match(trimmed, @"theme\.BorderRadiusBoxes\s*=\s*""([^""]+)""");
+            if (boxesMatch.Success)
+            {
+                parsed.BorderRadiusBoxes = boxesMatch.Groups[1].Value;
+                foundAny = true;
+            }
+
+            var fieldsMatch = Regex.Match(trimmed, @"theme\.BorderRadiusFields\s*=\s*""([^""]+)""");
+            if (fieldsMatch.Success)
+            {
+                parsed.BorderRadiusFields = fieldsMatch.Groups[1].Value;
+                foundAny = true;
+            }
+
+            var selectorsMatch = Regex.Match(trimmed, @"theme\.BorderRadiusSelectors\s*=\s*""([^""]+)""");
+            if (selectorsMatch.Success)
+            {
+                parsed.BorderRadiusSelectors = selectorsMatch.Groups[1].Value;
+                foundAny = true;
+            }
+
+            // Extract Light and Dark blocks
+            var lightBlockMatch = Regex.Match(trimmed, @"Light\s*=\s*new\s*ThemeColors\s*\{(?<content>[^\}]+)\}", RegexOptions.Singleline);
+            var darkBlockMatch = Regex.Match(trimmed, @"Dark\s*=\s*new\s*ThemeColors\s*\{(?<content>[^\}]+)\}", RegexOptions.Singleline);
+
+            if (lightBlockMatch.Success)
+            {
+                ApplyColorsFromBlock(lightBlockMatch.Groups["content"].Value, parsed.Colors.Light);
+                foundAny = true;
+            }
+
+            if (darkBlockMatch.Success)
+            {
+                ApplyColorsFromBlock(darkBlockMatch.Groups["content"].Value, parsed.Colors.Dark);
+                foundAny = true;
+            }
+
+            // If neither Light nor Dark block explicitly matched, try extracting color assignments anywhere
+            if (!lightBlockMatch.Success && !darkBlockMatch.Success)
+            {
+                var colorMatches = Regex.Matches(trimmed, @"(?<key>Primary|Secondary|Accent|Background|Foreground|Destructive|Success|Warning|Info|Border|Input|Ring|Muted|Card|Popover)(?<fg>Foreground)?\s*=\s*""(?<val>#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|[a-zA-Z]+)""");
+                if (colorMatches.Count > 0)
+                {
+                    foundAny = true;
+                    ApplyColorsFromBlock(trimmed, parsed.Colors.Light);
+                    ApplyColorsFromBlock(trimmed, parsed.Colors.Dark);
+                }
+            }
+
+            if (foundAny)
+            {
+                importedTheme = parsed;
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Import parsing error: {ex.Message}";
+            return false;
+        }
+
+        errorMessage = "Could not parse theme configuration. Please paste a valid JSON or C# theme configuration.";
+        return false;
+    }
+
+    private static void ApplyColorsFromBlock(string block, ThemeColors target)
+    {
+        var matches = Regex.Matches(block, @"(?<prop>\w+)\s*=\s*""(?<val>[^""]+)""");
+        foreach (Match m in matches)
+        {
+            var prop = m.Groups["prop"].Value;
+            var val = m.Groups["val"].Value;
+            switch (prop)
+            {
+                case "Primary": target.Primary = val; break;
+                case "PrimaryForeground": target.PrimaryForeground = val; break;
+                case "Secondary": target.Secondary = val; break;
+                case "SecondaryForeground": target.SecondaryForeground = val; break;
+                case "Background": target.Background = val; break;
+                case "Foreground": target.Foreground = val; break;
+                case "Destructive": target.Destructive = val; break;
+                case "DestructiveForeground": target.DestructiveForeground = val; break;
+                case "Success": target.Success = val; break;
+                case "SuccessForeground": target.SuccessForeground = val; break;
+                case "Warning": target.Warning = val; break;
+                case "WarningForeground": target.WarningForeground = val; break;
+                case "Info": target.Info = val; break;
+                case "InfoForeground": target.InfoForeground = val; break;
+                case "Border": target.Border = val; break;
+                case "Input": target.Input = val; break;
+                case "Ring": target.Ring = val; break;
+                case "Muted": target.Muted = val; break;
+                case "MutedForeground": target.MutedForeground = val; break;
+                case "Accent": target.Accent = val; break;
+                case "AccentForeground": target.AccentForeground = val; break;
+                case "Card": target.Card = val; break;
+                case "CardForeground": target.CardForeground = val; break;
+                case "Popover": target.Popover = val; break;
+                case "PopoverForeground": target.PopoverForeground = val; break;
+            }
+        }
     }
 }

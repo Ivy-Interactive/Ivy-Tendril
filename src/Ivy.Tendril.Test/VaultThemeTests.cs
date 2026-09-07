@@ -7,6 +7,7 @@ using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Vault;
 using Ivy.Tendril.Themes;
 using Microsoft.Extensions.Logging.Abstractions;
+using Ivy.Tendril.Apps.Settings.Dialogs;
 using Xunit;
 
 namespace Ivy.Tendril.Test;
@@ -317,5 +318,99 @@ verifications: []
             Environment.SetEnvironmentVariable("TENDRIL_BETA", origTendril);
             Environment.SetEnvironmentVariable("IVY_BETA", origIvy);
         }
+    }
+
+    [Fact]
+    public void TryImportTheme_WithValidJson_ImportsThemeSuccessfully()
+    {
+        var json = @"{
+  ""Name"": ""Emerald Glow"",
+  ""FontFamily"": ""Fira Code"",
+  ""FontSize"": ""15px"",
+  ""BorderRadiusBoxes"": ""0.75rem"",
+  ""BorderRadiusFields"": ""0.5rem"",
+  ""BorderRadiusSelectors"": ""1rem"",
+  ""Colors"": {
+    ""Light"": {
+      ""Primary"": ""#059669"",
+      ""PrimaryForeground"": ""#ffffff"",
+      ""Background"": ""#f0fdf4"",
+      ""Foreground"": ""#064e3b""
+    },
+    ""Dark"": {
+      ""Primary"": ""#34d399"",
+      ""PrimaryForeground"": ""#064e3b"",
+      ""Background"": ""#064e3b"",
+      ""Foreground"": ""#ecfdf5""
+    }
+  }
+}";
+
+        var success = VaultThemesDialog.TryImportTheme(json, out var theme, out var error);
+
+        Assert.True(success);
+        Assert.Null(error);
+        Assert.Equal("Emerald Glow", theme.Name);
+        Assert.Equal("Fira Code", theme.FontFamily);
+        Assert.Equal("15px", theme.FontSize);
+        Assert.Equal("0.75rem", theme.BorderRadiusBoxes);
+        Assert.Equal("#059669", theme.Colors.Light.Primary);
+        Assert.Equal("#34d399", theme.Colors.Dark.Primary);
+    }
+
+    [Fact]
+    public void TryImportTheme_WithValidCSharpCode_ImportsThemeSuccessfully()
+    {
+        var csharpCode = @"// Add this to your server configuration:
+var server = new Server()
+    .UseTheme(theme => {
+        theme.Name = ""Nordic Frost"";
+        theme.Colors = new ThemeColorScheme
+        {
+            Light = new ThemeColors
+            {
+                Primary = ""#5E81AC"",
+                PrimaryForeground = ""#ECEFF4"",
+                Background = ""#ECEFF4"",
+                Foreground = ""#2E3440""
+            },
+            Dark = new ThemeColors
+            {
+                Primary = ""#88C0D0"",
+                PrimaryForeground = ""#2E3440"",
+                Background = ""#2E3440"",
+                Foreground = ""#ECEFF4""
+            }
+        };
+        theme.FontFamily = ""Inter"";
+        theme.FontSize = ""14px"";
+        theme.BorderRadiusBoxes = ""0.5rem"";
+        theme.BorderRadiusFields = ""0.25rem"";
+        theme.BorderRadiusSelectors = ""0.75rem""; 
+    });";
+
+        var success = VaultThemesDialog.TryImportTheme(csharpCode, out var theme, out var error);
+
+        Assert.True(success);
+        Assert.Null(error);
+        Assert.Equal("Nordic Frost", theme.Name);
+        Assert.Equal("Inter", theme.FontFamily);
+        Assert.Equal("14px", theme.FontSize);
+        Assert.Equal("0.5rem", theme.BorderRadiusBoxes);
+        Assert.Equal("#5E81AC", theme.Colors.Light.Primary);
+        Assert.Equal("#88C0D0", theme.Colors.Dark.Primary);
+        Assert.Equal("#2E3440", theme.Colors.Dark.Background);
+    }
+
+    [Fact]
+    public void TryImportTheme_WithEmptyOrInvalidString_FailsWithErrorMessage()
+    {
+        var successEmpty = VaultThemesDialog.TryImportTheme("", out _, out var errorEmpty);
+        Assert.False(successEmpty);
+        Assert.NotNull(errorEmpty);
+
+        var successInvalid = VaultThemesDialog.TryImportTheme("random non-theme string", out _, out var errorInvalid);
+        Assert.False(successInvalid);
+        Assert.NotNull(errorInvalid);
     }
 }
