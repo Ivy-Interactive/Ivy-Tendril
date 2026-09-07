@@ -10,6 +10,7 @@ using Ivy.Tendril.Infrastructure;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Git;
 using Ivy.Tendril.Services.Vault;
+using Ivy.Tendril.Themes;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -277,6 +278,7 @@ public class Program
             cliServices.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
 
             cliServices.AddSingleton<IVaultService, VaultService>();
+            cliServices.AddSingleton<IThemeSerializationService, ThemeSerializationService>();
 
             var app = ConfigureCliCommands(cliServices);
 

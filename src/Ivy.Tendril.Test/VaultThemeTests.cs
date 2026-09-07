@@ -320,6 +320,7 @@ verifications: []
         }
     }
 
+#pragma warning disable CS0618 // Type or member is obsolete - testing backward compatibility
     [Fact]
     public void TryImportTheme_WithValidJson_ImportsThemeSuccessfully()
     {
@@ -413,4 +414,5 @@ var server = new Server()
         Assert.False(successInvalid);
         Assert.NotNull(errorInvalid);
     }
+#pragma warning restore CS0618
 }

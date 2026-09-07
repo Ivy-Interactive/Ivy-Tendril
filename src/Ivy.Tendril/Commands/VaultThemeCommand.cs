@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Ivy.Tendril.Apps.Settings.Dialogs;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Vault;
@@ -459,10 +458,11 @@ public class VaultThemeGetCommand(IVaultService vaultService) : AsyncCommand<Vau
     }
 }
 
-public class VaultThemeAddCommand(IVaultService vaultService) : AsyncCommand<VaultThemeAddSettings>
+public class VaultThemeAddCommand(IVaultService vaultService, IThemeSerializationService? themeSerializationService = null) : AsyncCommand<VaultThemeAddSettings>
 {
     protected override async Task<int> ExecuteAsync(CommandContext context, VaultThemeAddSettings settings, CancellationToken cancellationToken)
     {
+        var serializer = themeSerializationService ?? ThemeSerializationService.Default;
         var content = ConsoleHelper.ResolveInput(settings.Stdin, settings.FilePath, "");
         if (string.IsNullOrWhiteSpace(content))
         {
@@ -489,7 +489,7 @@ public class VaultThemeAddCommand(IVaultService vaultService) : AsyncCommand<Vau
 
         if (manifest?.IvyTheme?.Colors == null || (manifest.IvyTheme.Colors.Light == null && manifest.IvyTheme.Colors.Dark == null))
         {
-            if (VaultThemesDialog.TryImportTheme(content, out var importedTheme, out var importError))
+            if (serializer.TryImportTheme(content, out var importedTheme, out var importError))
             {
                 manifest = new VaultThemeManifest
                 {
