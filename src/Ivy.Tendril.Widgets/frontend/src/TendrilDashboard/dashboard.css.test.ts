@@ -32,6 +32,28 @@ describe("dashboard.css KPI grid", () => {
   });
 });
 
+describe("dashboard.css side block and git activity layout", () => {
+  it("top-aligns side body and tip wrap by omitting justify-content: flex-end", () => {
+    const sideBodyBlocks = [...css.matchAll(/\.tdb-side-body\s*\{([^}]*)\}/g)].map((m) => m[1]);
+    expect(sideBodyBlocks.length).toBeGreaterThanOrEqual(1);
+    for (const block of sideBodyBlocks) {
+      expect(block).not.toContain("justify-content: flex-end;");
+    }
+
+    const tipWrapBlocks = [...css.matchAll(/\.tdb-tip-wrap\s*\{([^}]*)\}/g)].map((m) => m[1]);
+    expect(tipWrapBlocks.length).toBeGreaterThanOrEqual(1);
+    for (const block of tipWrapBlocks) {
+      expect(block).not.toContain("justify-content: flex-end;");
+    }
+  });
+
+  it("defines activity metrics styles", () => {
+    expect(css).toContain(".tdb-activity-metrics {");
+    expect(css).toMatch(/\.tdb-activity-metrics\s*\{[^}]*display:\s*flex;/);
+    expect(css).toMatch(/\.tdb-activity-metrics\s*\{[^}]*border-top:\s*1px solid var\(--tdb-divider\);/);
+  });
+});
+
 describe("dashboard.css trend chart average line and legend", () => {
   it("defines the dashed average legend indicator", () => {
     expect(css).toContain(".tdb-legend-dash-avg {");
