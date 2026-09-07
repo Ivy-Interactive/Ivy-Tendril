@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Immutable;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -196,7 +195,7 @@ public class VaultThemesDialog(
                 }
             }
 
-            var currentColors = selectedMode.Value == "light"
+            var curColors = selectedMode.Value == "light"
                 ? editingTheme.Value.Colors.Light
                 : editingTheme.Value.Colors.Dark;
 
@@ -208,10 +207,10 @@ public class VaultThemesDialog(
                 IsDark = selectedMode.Value == "dark",
                 PreviewColors =
                 [
-                    currentColors.Primary ?? "#18181b",
-                    currentColors.Secondary ?? "#71717a",
-                    currentColors.Accent ?? "#27272a",
-                    currentColors.Background ?? "#ffffff"
+                    curColors.Primary ?? "#18181b",
+                    curColors.Secondary ?? "#71717a",
+                    curColors.Accent ?? "#27272a",
+                    curColors.Background ?? "#ffffff"
                 ],
                 IvyTheme = CloneTheme(editingTheme.Value)
             };
@@ -369,7 +368,7 @@ public class VaultThemesDialog(
         }
 
         // ==========================================
-        // TAB 2: Theme Designer (exactly like in Ivy samples ThemeCustomizer)
+        // TAB 2: Theme Generator (Matching ThemeCustomizer from Ivy Samples)
         // ==========================================
         var currentColors = selectedMode.Value == "light"
             ? editingTheme.Value.Colors.Light
@@ -377,34 +376,106 @@ public class VaultThemesDialog(
 
         var presetOptions = presets.Select(kv => new Option<string>(kv.Key, kv.Key)).ToArray();
 
-        // Left editor sidebar content
-        var editorContent = Layout.Vertical()
+        // Live Swatches & Preview Row
+        var livePreviewSwatches = Layout.Horizontal()
+            | new[] { currentColors.Primary, currentColors.Secondary, currentColors.Accent, currentColors.Background, currentColors.Foreground }
+                .Select(c =>
+                    new Svg($"<svg width='20' height='20' viewBox='0 0 20 20'><circle cx='10' cy='10' r='9' fill='{c ?? "#888888"}' stroke='rgba(128,128,128,0.3)' stroke-width='1.5'/></svg>")
+                        .Width(Size.Px(20))
+                        .Height(Size.Px(20))
+                ).ToArray();
+
+        var liveSampleCard = Layout.Vertical().AlignContent(Align.Left)
+            | Text.Block("Live Theme Preview").Bold().Small()
             | (Layout.Horizontal().AlignContent(Align.Left)
-                | themeName.ToTextInput("Theme Name").WithField().Label("Name").Width(Size.Units(45))
-                | themeDesc.ToTextInput("Description").WithField().Label("Description").Width(Size.Units(50)))
-            | Text.H3("Theme Preset").Small()
-            | selectedPreset.ToSelectInput(options: presetOptions)
+                | livePreviewSwatches
+                | (selectedMode.Value == "dark" ? new Badge("Dark Mode").Variant(BadgeVariant.Secondary).Small() : new Badge("Light Mode").Variant(BadgeVariant.Secondary).Small()))
+            | (Layout.Horizontal().AlignContent(Align.Left)
+                | new Button("Primary Button").Primary().Small()
+                | new Button("Outline Button").Outline().Small()
+                | new Button("Destructive").Destructive().Small()
+                | new Badge("Accent Badge").Variant(BadgeVariant.Secondary).Small());
+
+        // Export code dialog
+        var exportDialog = isExportOpen.Value
+            ? new Dialog(
+                _ => isExportOpen.Set(false),
+                new DialogHeader("Export Theme Configuration"),
+                new DialogBody(
+                    Layout.Tabs(
+                        new Tab(
+                            "C#",
+                            Layout.Vertical()
+                                | Text.P("Copy this C# configuration into your server setup.").Small()
+                                | new CodeBlock(GenerateCSharpCode(editingTheme.Value), Languages.Csharp)
+                                | new Button("Copy C# Code")
+                                    .Primary()
+                                    .Icon(Icons.ClipboardCopy, Align.Right)
+                                    .OnClick(() =>
+                                    {
+                                        client.CopyToClipboard(GenerateCSharpCode(editingTheme.Value));
+                                        client.Toast("C# theme configuration copied to clipboard!", "Export");
+                                    })
+                        ).Icon(Icons.Code),
+                        new Tab(
+                            "JSON",
+                            Layout.Vertical()
+                                | Text.P("Use this JSON to persist or share the theme.").Small()
+                                | new CodeBlock(System.Text.Json.JsonSerializer.Serialize(
+                                        editingTheme.Value,
+                                        new System.Text.Json.JsonSerializerOptions { WriteIndented = true }),
+                                    Languages.Json)
+                                | new Button("Copy JSON")
+                                    .Primary()
+                                    .Icon(Icons.ClipboardCopy, Align.Right)
+                                    .OnClick(() =>
+                                    {
+                                        var json = System.Text.Json.JsonSerializer.Serialize(
+                                            editingTheme.Value,
+                                            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                                        client.CopyToClipboard(json);
+                                        client.Toast("JSON theme configuration copied to clipboard!", "Export");
+                                    })
+                        ).Icon(Icons.FileBraces)
+                    )
+                ),
+                new DialogFooter(
+                    new Button("Close", _ => isExportOpen.Set(false), variant: ButtonVariant.Secondary)
+                )
+            ).Width(Size.Units(160))
+            : null;
+
+        var generatorTabContent = Layout.Vertical()
+            | (Layout.Horizontal().AlignContent(Align.Left)
+                | themeName.ToTextInput("Theme Name").WithField().Label("Theme Name").Width(Size.Units(70))
+                | themeDesc.ToTextInput("Description").WithField().Label("Description").Width(Size.Units(110)))
+            | (Layout.Horizontal().AlignContent(Align.SpaceBetween)
+                | (Layout.Vertical().AlignContent(Align.Left).Width(Size.Units(90))
+                    | Text.H3("Theme Preset").Small()
+                    | selectedPreset.ToSelectInput(options: presetOptions))
+                | (Layout.Vertical().AlignContent(Align.Left).Width(Size.Units(90))
+                    | Text.H3("Theme Mode").Small()
+                    | (Layout.Horizontal()
+                        | new Button("Light")
+                            .Variant(selectedMode.Value == "light" ? ButtonVariant.Primary : ButtonVariant.Outline)
+                            .Icon(Icons.Sun)
+                            .OnClick(() =>
+                            {
+                                selectedMode.Set("light");
+                                client.SetThemeMode(ThemeMode.Light);
+                            })
+                            .Width(Size.Full())
+                        | new Button("Dark")
+                            .Variant(selectedMode.Value == "dark" ? ButtonVariant.Primary : ButtonVariant.Outline)
+                            .Icon(Icons.Moon)
+                            .OnClick(() =>
+                            {
+                                selectedMode.Set("dark");
+                                client.SetThemeMode(ThemeMode.Dark);
+                            })
+                            .Width(Size.Full()))))
             | new Separator()
-            | Text.H3("Theme Mode").Small()
-            | (Layout.Horizontal()
-                | new Button("Light")
-                    .Variant(selectedMode.Value == "light" ? ButtonVariant.Primary : ButtonVariant.Outline)
-                    .Icon(Icons.Sun)
-                    .OnClick(() =>
-                    {
-                        selectedMode.Set("light");
-                        client.SetThemeMode(ThemeMode.Light);
-                    })
-                    .Width(Size.Full())
-                | new Button("Dark")
-                    .Variant(selectedMode.Value == "dark" ? ButtonVariant.Primary : ButtonVariant.Outline)
-                    .Icon(Icons.Moon)
-                    .OnClick(() =>
-                    {
-                        selectedMode.Set("dark");
-                        client.SetThemeMode(ThemeMode.Dark);
-                    })
-                    .Width(Size.Full()))
+            | liveSampleCard
             | new Separator()
             | new Expandable(
                 header: Text.Block("Colors").Bold(),
@@ -460,72 +531,7 @@ public class VaultThemesDialog(
                 .Outline()
                 .Icon(Icons.Copy)
                 .OnClick(() => isExportOpen.Set(true))
-                .Width(Size.Full());
-
-        // Right live preview panel
-        var previewPanel = Layout.Vertical().Width(Size.Full())
-            | Text.H2("Live Preview")
-            | Text.P("See your theme changes in real-time").Small().Muted()
-            | Layout.Tabs(
-                new Tab("Components", new InteractiveThemePreview(editingTheme.Value)).Icon(Icons.LayoutPanelLeft),
-                new Tab("Dashboard", new DashboardPreview()).Icon(Icons.LayoutDashboard)
-            );
-
-        // Export code dialog
-        var exportDialog = isExportOpen.Value
-            ? new Dialog(
-                _ => isExportOpen.Set(false),
-                new DialogHeader("Export Theme Configuration"),
-                new DialogBody(
-                    Layout.Tabs(
-                        new Tab(
-                            "C#",
-                            Layout.Vertical()
-                                | Text.P("Copy this C# configuration into your server setup.").Small()
-                                | new CodeBlock(GenerateCSharpCode(editingTheme.Value), Languages.Csharp)
-                                | new Button("Copy C# Code")
-                                    .Primary()
-                                    .Icon(Icons.ClipboardCopy, Align.Right)
-                                    .OnClick(() =>
-                                    {
-                                        client.CopyToClipboard(GenerateCSharpCode(editingTheme.Value));
-                                        client.Toast("C# theme configuration copied to clipboard!", "Export");
-                                    })
-                        ).Icon(Icons.Code),
-                        new Tab(
-                            "JSON",
-                            Layout.Vertical()
-                                | Text.P("Use this JSON to persist or share the theme.").Small()
-                                | new CodeBlock(System.Text.Json.JsonSerializer.Serialize(
-                                        editingTheme.Value,
-                                        new System.Text.Json.JsonSerializerOptions { WriteIndented = true }),
-                                    Languages.Json)
-                                | new Button("Copy JSON")
-                                    .Primary()
-                                    .Icon(Icons.ClipboardCopy, Align.Right)
-                                    .OnClick(() =>
-                                    {
-                                        var json = System.Text.Json.JsonSerializer.Serialize(
-                                            editingTheme.Value,
-                                            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-                                        client.CopyToClipboard(json);
-                                        client.Toast("JSON theme configuration copied to clipboard!", "Export");
-                                    })
-                        ).Icon(Icons.FileBraces)
-                    )
-                ),
-                new DialogFooter(
-                    new Button("Close", _ => isExportOpen.Set(false), variant: ButtonVariant.Secondary)
-                )
-            ).Width(Size.Units(160))
-            : null;
-
-        var generatorTabContent = Layout.Vertical()
-            | (Layout.Horizontal().AlignContent(Align.Left)
-                | Layout.Vertical().Width(Size.Px(380))
-                    | editorContent
-                | Layout.Vertical().Width(Size.Full())
-                    | previewPanel)
+                .Width(Size.Full())
             | exportDialog;
 
         var tabs = Layout.Tabs(
@@ -547,317 +553,11 @@ public class VaultThemesDialog(
             new DialogHeader("Team Vault Themes"),
             new DialogBody(tabs),
             new DialogFooter(dialogActions)
-        ).Width(Size.Units(350));
+        ).Width(Size.Units(190));
     }
 
     // ==========================================
-    // Interactive Components Preview
-    // ==========================================
-    private class InteractiveThemePreview(Theme theme) : ViewBase
-    {
-        public override object Build()
-        {
-            var client = UseService<IClientProvider>();
-
-            var payment = UseState(() => new PaymentModel(
-                NameOnCard: "John Doe",
-                CardNumber: "1234 5678 9012 3456",
-                Cvv: "123",
-                Month: "MM",
-                Year: "YYYY",
-                BillingAddress: "",
-                SameAsShipping: true,
-                Comments: string.Empty
-            ));
-
-            var price = UseState(500);
-            var agreeTerms = UseState(true);
-            var themeSatisfaction = UseState(4);
-            var uxSatisfaction = UseState((int?)null);
-
-            var paginationPage = UseState(1);
-            var searchText = UseState("");
-            var domain = UseState("ivy.app");
-            var email = UseState("");
-            var selectedCategory = UseState<string?>("Primary");
-            var badgeVariant = UseState(new[] { "Success", "Warning", "Info" });
-            var disableButtons = UseState(false);
-            var disableInputs = UseState(false);
-            var dateTimeState = UseState(DateTime.Now);
-            var dateRangeState = UseState(() => (from: DateTime.Today.AddDays(-7), to: DateTime.Today));
-
-            var chatMessages = UseState(ImmutableArray.Create(
-                new ChatMessage(ChatSender.Assistant,
-                    $"You're previewing the '{theme.Name}' theme. Type a message to see how chat looks in this theme.")
-            ));
-
-            UseEffect(() =>
-            {
-                if (!string.IsNullOrWhiteSpace(payment.Value.NameOnCard) &&
-                    !string.IsNullOrWhiteSpace(payment.Value.CardNumber))
-                {
-                    client.Toast($"Payment form submitted for {payment.Value.NameOnCard}", "Form");
-                }
-            }, payment);
-
-            const int totalPages = 5;
-            var themeIcon = GetThemeIcon(theme.Name);
-            var statusVariant = GetStatusVariant(theme.Name);
-
-            ValueTask OnChatSend(Event<Ivy.Chat, string> e)
-            {
-                var trimmed = e.Value.Trim();
-                if (string.IsNullOrEmpty(trimmed))
-                {
-                    return ValueTask.CompletedTask;
-                }
-
-                var withUser = chatMessages.Value.Add(new ChatMessage(ChatSender.User, trimmed));
-                var withAssistant = withUser.Add(
-                    new ChatMessage(ChatSender.Assistant, $"You said: {trimmed}")
-                );
-                chatMessages.Set(withAssistant);
-                return ValueTask.CompletedTask;
-            }
-
-            var paymentForm = payment.ToForm("Submit payment")
-                .SubmitBuilder(isLoading => new Button("Submit payment").Loading(isLoading).Disabled(isLoading || disableButtons.Value))
-                .Clear()
-                .Place(m => m.NameOnCard)
-                .Place(m => m.CardNumber)
-                .Place(m => m.Cvv)
-                .PlaceHorizontal(m => m.Month, m => m.Year)
-                .Place(m => m.BillingAddress)
-                .Place(m => m.SameAsShipping)
-                .Place(m => m.Comments)
-                .Label(m => m.NameOnCard, "Name on card")
-                .Label(m => m.CardNumber, "Card number")
-                .Label(m => m.Cvv, "CVV")
-                .Label(m => m.Month, "Month")
-                .Label(m => m.Year, "Year")
-                .Label(m => m.BillingAddress, "Billing address")
-                .Label(m => m.SameAsShipping, "Same as shipping address")
-                .Label(m => m.Comments, "Comments")
-                .Builder(m => m.NameOnCard, s => s.ToTextInput().Disabled(disableInputs.Value))
-                .Builder(m => m.CardNumber, s => s.ToTextInput().Disabled(disableInputs.Value))
-                .Builder(m => m.Cvv, s => s.ToPasswordInput().Placeholder("CVV").Disabled(disableInputs.Value))
-                .Builder(m => m.Comments, s => s.ToTextareaInput().Placeholder("Add any additional comments").Disabled(disableInputs.Value))
-                .Builder(m => m.Month, s => s.ToTextInput().Disabled(disableInputs.Value))
-                .Builder(m => m.Year, s => s.ToTextInput().Disabled(disableInputs.Value))
-                .Builder(m => m.BillingAddress, s => s.ToTextInput().Disabled(disableInputs.Value))
-                .Builder(m => m.SameAsShipping, s => s.ToBoolInput().Disabled(disableInputs.Value))
-                .Required(m => m.NameOnCard, m => m.CardNumber, m => m.Cvv);
-
-            QueryResult<Option<string>[]> QueryCategories(IViewContext context, string query)
-            {
-                var categories = new[] { "Primary", "Secondary", "Outline", "Destructive", "Success", "Warning", "Info" };
-                return context.UseQuery<Option<string>[], (string, string)>(
-                    key: (nameof(QueryCategories), query),
-                    fetcher: ct => Task.FromResult(categories
-                        .Where(c => c.Contains(query, StringComparison.OrdinalIgnoreCase))
-                        .Select(c => new Option<string>(c))
-                        .ToArray()));
-            }
-
-            QueryResult<Option<string>?> LookupCategory(IViewContext context, string? category)
-            {
-                return context.UseQuery<Option<string>?, (string, string?)>(
-                    key: (nameof(LookupCategory), category),
-                    fetcher: ct => Task.FromResult(category != null ? new Option<string>(category) : null));
-            }
-
-            Button CreateLoadingButton(string name, ButtonVariant variant) =>
-                new Button(name, variant: variant)
-                {
-                    OnClick = new(_ =>
-                    {
-                        client.Toast($"{name} button clicked", "Action");
-                        return ValueTask.CompletedTask;
-                    })
-                }.Width(Size.Full()).Disabled(disableButtons.Value);
-
-            static object GetPaginationContent(int page, int total) =>
-                new Card(
-                    Layout.Vertical().AlignContent(Align.Center)
-                        | Text.Block("Theme insight").Small()
-                        | Text.P(page switch
-                        {
-                            1 => "Discover how primary and accent colors shape the whole experience.",
-                            2 => "Badges, borders and subtle shadows adapt instantly to your theme.",
-                            3 => "Form controls, switches and sliders stay readable in every palette.",
-                            4 => "Try a different theme and see how this card transforms.",
-                            _ => "You've reached the end of the tour - tweak settings and explore freely."
-                        }).Small()
-                ).Height(Size.Fit());
-
-            var firstCol = Layout.Vertical()
-                | new Card(Layout.Vertical() | paymentForm).Height(Size.Fit())
-                | new Card(Layout.Vertical()
-                    | Text.Block("Category Selector").Bold()
-                    | Text.P("Select a category to see the corresponding action button.").Small()
-                    | selectedCategory.ToAsyncSelectInput(QueryCategories, LookupCategory, placeholder: "Select Category").Disabled(disableInputs.Value)
-                    | (selectedCategory.Value switch
-                    {
-                        "Primary" => CreateLoadingButton("Primary", ButtonVariant.Primary),
-                        "Secondary" => CreateLoadingButton("Secondary", ButtonVariant.Secondary),
-                        "Outline" => CreateLoadingButton("Outline", ButtonVariant.Outline),
-                        "Destructive" => CreateLoadingButton("Destructive", ButtonVariant.Destructive),
-                        "Success" => CreateLoadingButton("Success", ButtonVariant.Success),
-                        "Warning" => CreateLoadingButton("Warning", ButtonVariant.Warning),
-                        "Info" => CreateLoadingButton("Info", ButtonVariant.Info),
-                        _ => CreateLoadingButton("Primary", ButtonVariant.Primary)
-                    }));
-
-            var secondCol = Layout.Vertical()
-                | new Card(
-                    Layout.Vertical()
-                        | Text.Block("Badge Variant Selector").Bold()
-                        | Text.P("Select badge variants to display.").Small()
-                        | badgeVariant.ToSelectInput(new[]
-                        {
-                            new Option<string>("Primary", "Primary"),
-                            new Option<string>("Destructive", "Destructive"),
-                            new Option<string>("Secondary", "Secondary"),
-                            new Option<string>("Outline", "Outline"),
-                            new Option<string>("Success", "Success"),
-                            new Option<string>("Warning", "Warning"),
-                            new Option<string>("Info", "Info")
-                        }).Variant(SelectInputVariant.Toggle).Disabled(disableInputs.Value)
-                        | Text.Block("Selected badges:").Small()
-                        | (Layout.Horizontal().AlignContent(Align.Center)
-                            | badgeVariant.Value.Select(variant => variant switch
-                            {
-                                "Primary" => new Badge("Primary").Primary(),
-                                "Destructive" => new Badge("Destructive").Destructive(),
-                                "Secondary" => new Badge("Secondary").Secondary(),
-                                "Outline" => new Badge("Outline").Outline(),
-                                "Success" => new Badge("Success").Success(),
-                                "Warning" => new Badge("Warning").Warning(),
-                                "Info" => new Badge("Info").Info(),
-                                _ => new Badge("Primary").Primary()
-                            }).ToArray())).Height(Size.Fit())
-                | new Box(
-                    Layout.Vertical().AlignContent(Align.Center)
-                        | Text.Block("Pagination demo").Bold()
-                        | GetPaginationContent(paginationPage.Value, totalPages)
-                        | new Pagination(paginationPage.Value, totalPages, e =>
-                        {
-                            paginationPage.Set(e.Value);
-                            return ValueTask.CompletedTask;
-                        }).Disabled(disableInputs.Value))
-                | new Card(Layout.Vertical()
-                    | Text.Block("Buttons & Actions").Bold()
-                    | (Layout.Horizontal().Height(Size.Fit())
-                        | CreateLoadingButton("Primary", ButtonVariant.Primary).Loading()
-                        | CreateLoadingButton("Secondary", ButtonVariant.Secondary).Loading()
-                        | CreateLoadingButton("Outline", ButtonVariant.Outline).Loading())
-                    | (Layout.Horizontal().Width(Size.Full())
-                        | (Layout.Vertical().AlignContent(Align.Left)
-                            | themeSatisfaction.ToFeedbackInput().Stars().Disabled(disableInputs.Value))
-                        | (Layout.Vertical().AlignContent(Align.Right)
-                            | uxSatisfaction.ToFeedbackInput().Thumbs().Disabled(disableInputs.Value)))
-                    | new Box(Layout.Horizontal().Height(Size.Fit())
-                        | agreeTerms.ToBoolInput().Disabled(disableInputs.Value)
-                        | Text.Block("I agree to the terms and conditions"))
-                    | new Embed("https://github.com/Ivy-Interactive/Ivy-Framework")
-                    | (Layout.Horizontal().Height(Size.Fit())
-                        | (Layout.Vertical() | new Box(Layout.Horizontal()
-                            | (Layout.Vertical().AlignContent(Align.Left) | Text.Block("Disable all buttons"))
-                            | disableButtons.ToSwitchInput()))
-                        | (Layout.Vertical() | new Box(Layout.Horizontal()
-                            | (Layout.Vertical().AlignContent(Align.Left) | Text.Block("Disable all inputs"))
-                            | disableInputs.ToSwitchInput())))
-                    | (Layout.Vertical().AlignContent(Align.Center) | new Badge($"{theme.Name} theme active", statusVariant, themeIcon).Primary()));
-
-            var thirdCol = Layout.Vertical()
-                | new Card(Layout.Vertical() | new Ivy.Chat(chatMessages.Value.ToArray(), OnChatSend).Height(Size.Px(330))).Height(Size.Fit())
-                | new Card(Layout.Vertical()
-                    | Text.Block("Fields").Bold()
-                    | searchText.ToSearchInput().Placeholder("Search in settings").Disabled(disableInputs.Value)
-                    | dateRangeState.ToDateRangeInput()
-                        .Disabled(disableInputs.Value)
-                        .WithField()
-                        .Label($"Date Range ({(dateRangeState.Value.to - dateRangeState.Value.from).Days} days)")
-                        .Height(Size.Fit())
-                    | dateTimeState.ToDateTimeInput()
-                        .Format("dd/MM/yyyy HH:mm:ss")
-                        .Disabled(disableInputs.Value)
-                        .WithField()
-                        .Label("DateTime")
-                        .Height(Size.Fit())
-                    | domain.ToTextInput().Prefix("https://").Disabled(disableInputs.Value)
-                    | email.ToTextInput()
-                        .Placeholder("Email (Ctrl+E)")
-                        .ShortcutKey("Ctrl+E")
-                        .Variant(TextInputVariant.Email)
-                        .Disabled(disableInputs.Value)
-                    | Text.Block("Price range").Bold()
-                    | Text.P($"Estimated monthly budget: ${price.Value}").Small()
-                    | price.ToSliderInput().Min(0).Max(2000).Step(50).Disabled(disableInputs.Value));
-
-            return Layout.Grid().Columns(3)
-                | firstCol
-                | secondCol
-                | thirdCol;
-        }
-
-        private record PaymentModel(
-            string NameOnCard,
-            string CardNumber,
-            string Cvv,
-            string Month,
-            string Year,
-            string BillingAddress,
-            bool SameAsShipping,
-            string Comments
-        );
-    }
-
-    // ==========================================
-    // Dashboard Preview (tab 2 of preview panel)
-    // ==========================================
-    private class DashboardPreview : ViewBase
-    {
-        public override object Build()
-        {
-            var trendData = new[]
-            {
-                new { Month = "Jan", Desktop = 186, Mobile = 100 },
-                new { Month = "Feb", Desktop = 305, Mobile = 200 },
-                new { Month = "Mar", Desktop = 237, Mobile = 300 },
-                new { Month = "Apr", Desktop = 73, Mobile = 400 },
-                new { Month = "May", Desktop = 209, Mobile = 30 },
-                new { Month = "Jun", Desktop = 214, Mobile = 45 },
-            };
-
-            return Layout.Vertical()
-                | (Layout.Grid().Columns(4)
-                    | new MetricView("Total Sales", Icons.DollarSign, ctx => ctx.UseQuery(key: "metric_sales", fetcher: () => Task.FromResult(new MetricRecord("$84,250", 0.21, 0.21, "$800,000"))))
-                    | new MetricView("User Engagement", Icons.Users, ctx => ctx.UseQuery(key: "metric_users", fetcher: () => Task.FromResult(new MetricRecord("1,247", 0.125, 0.75, "1,500 users"))))
-                    | new MetricView("Task Progress", Icons.Check, ctx => ctx.UseQuery(key: "metric_progress", fetcher: () => Task.FromResult(new MetricRecord("87%", null, 0.87, "100% completion"))))
-                    | new MetricView("System Health", Icons.Activity, ctx => ctx.UseQuery(key: "metric_health", fetcher: () => Task.FromResult(new MetricRecord("99.9%", null, 0.99, "100% uptime")))))
-                | (Layout.Grid().Columns(2)
-                    | new Card(
-                        Layout.Vertical()
-                            | Text.Block("Monthly Revenue Trend").Bold()
-                            | trendData.ToLineChart(style: LineChartStyles.Dashboard)
-                                .Dimension("Month", e => e.Month)
-                                .Measure("Total", e => e.Sum(f => f.Desktop + f.Mobile))
-                      ).Height(Size.Fraction(1))
-                    | new Card(
-                        Layout.Vertical()
-                            | Text.Block("Monthly Revenue Distribution").Bold()
-                            | trendData.ToAreaChart(style: AreaChartStyles.Dashboard)
-                                .Dimension("Month", e => e.Month)
-                                .Measure("Desktop", e => e.Sum(f => f.Desktop))
-                                .Measure("Mobile", e => e.Sum(f => f.Mobile))
-                      ).Height(Size.Fraction(1))
-                );
-        }
-    }
-
-    // ==========================================
-    // Border Radius Selector
+    // Border Radius Selector (from ThemeCustomizer)
     // ==========================================
     private class BorderRadiusSelector(IState<Theme> editingTheme, Action<Action<Theme>> updateThemeProperty) : ViewBase
     {
@@ -940,32 +640,8 @@ public class VaultThemesDialog(
     }
 
     // ==========================================
-    // Helpers & Presets
+    // Helpers & Presets (from ThemeCustomizer)
     // ==========================================
-    private static Icons GetThemeIcon(string themeName)
-    {
-        return themeName.ToLowerInvariant() switch
-        {
-            "ocean" => Icons.Waves,
-            "forest" => Icons.TreePine,
-            "sunset" => Icons.Sunset,
-            "midnight" => Icons.Moon,
-            _ => Icons.Palette
-        };
-    }
-
-    private static BadgeVariant GetStatusVariant(string themeName)
-    {
-        return themeName.ToLowerInvariant() switch
-        {
-            "ocean" => BadgeVariant.Info,
-            "forest" => BadgeVariant.Success,
-            "sunset" => BadgeVariant.Warning,
-            "midnight" => BadgeVariant.Secondary,
-            _ => BadgeVariant.Primary
-        };
-    }
-
     private static string GenerateCSharpCode(Theme theme)
     {
         var lightColors = theme.Colors.Light;
