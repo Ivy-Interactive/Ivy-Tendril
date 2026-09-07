@@ -330,13 +330,11 @@ public class ProjectDetailView(
 
             // Section 5: Ports
             | Text.H4("Ports").Bold()
-            | Text.Muted("Named service ports. A plan's worktree takes the default port when it is free and falls back to a free one otherwise, so concurrent reviews do not collide.")
             | new ProjectPortsTableView(ports, name => showPortTrigger(name))
             | new Button("Add Port").Icon(Icons.Plus).Outline().OnClick(() => showPortTrigger(null))
 
             // Section 6: Environment Files
             | Text.H4("Environment Files").Bold()
-            | Text.Muted("Recreated inside every plan worktree, which starts without the untracked .env files the original checkout relies on. Values support ${ports.<name>}, ${env.<VAR>} and %VAR%.")
             | new ProjectEnvFilesTableView(envFiles, idx => showEnvFileTrigger(idx))
             | new Button("Add Environment File").Icon(Icons.Plus).Outline().OnClick(() => showEnvFileTrigger(null))
 
