@@ -279,3 +279,107 @@ describe("parseQuestions wrapper-less shapes", () => {
     ).toEqual({ kind: "invalid" });
   });
 });
+
+describe("resilience to unquoted colons and formatting", () => {
+  it("parses questions with unquoted colons in question title", () => {
+    const parsed = parseQuestions(
+      body(
+        "questions:",
+        "  - id: db",
+        "    title: Which database: SQLite or Postgres?",
+        "    options:",
+        "      - title: SQLite",
+        "        value: sqlite",
+        "      - title: Postgres",
+        "        value: postgres",
+      ),
+    );
+    expect(parsed.kind).toBe("questions");
+    if (parsed.kind !== "questions") return;
+    expect(parsed.questions[0].title).toBe("Which database: SQLite or Postgres?");
+  });
+
+  it("parses options with unquoted colons in option title", () => {
+    const parsed = parseQuestions(
+      body(
+        "questions:",
+        "  - id: db",
+        "    title: Choose database",
+        "    options:",
+        "      - title: Option 1: SQLite",
+        "        value: sqlite",
+        "      - title: Option 2: Postgres",
+        "        value: postgres",
+      ),
+    );
+    expect(parsed.kind).toBe("questions");
+    if (parsed.kind !== "questions") return;
+    expect(parsed.questions[0].options?.[0].title).toBe("Option 1: SQLite");
+  });
+
+  it("parses options with unquoted colons in description", () => {
+    const parsed = parseQuestions(
+      body(
+        "questions:",
+        "  - id: db",
+        "    title: Choose database",
+        "    options:",
+        "      - title: SQLite",
+        "        description: Fast embedded database: zero configuration, high performance.",
+        "        value: sqlite",
+        "      - title: Postgres",
+        "        value: postgres",
+      ),
+    );
+    expect(parsed.kind).toBe("questions");
+    if (parsed.kind !== "questions") return;
+    expect(parsed.questions[0].options?.[0].description).toBe(
+      "Fast embedded database: zero configuration, high performance.",
+    );
+  });
+
+  it("parses with inline code containing colons and formatting in description", () => {
+    const parsed = parseQuestions(
+      body(
+        "questions:",
+        "  - id: test-command",
+        "    title: Test runner",
+        "    description: Runs `npm test:watch` to verify changes.",
+        "    options:",
+        "      - title: Watch mode",
+        "        description: Configure with `app.Use: true`.",
+        "        value: watch",
+        "      - title: Single run",
+        "        value: single",
+      ),
+    );
+    expect(parsed.kind).toBe("questions");
+    if (parsed.kind !== "questions") return;
+    expect(parsed.questions[0].description).toBe("Runs `npm test:watch` to verify changes.");
+    expect(parsed.questions[0].options?.[0].description).toBe("Configure with `app.Use: true`.");
+  });
+
+  it("preserves multiline block scalars with colons intact", () => {
+    const parsed = parseQuestions(
+      body(
+        "questions:",
+        "  - id: snippet",
+        "    title: Choose implementation",
+        "    options:",
+        "      - title: Implementation A",
+        "        description: |",
+        "          Here is code with colons:",
+        "          key: value",
+        "          title: not a real title",
+        "        value: a",
+        "      - title: Implementation B",
+        "        value: b",
+      ),
+    );
+    expect(parsed.kind).toBe("questions");
+    if (parsed.kind !== "questions") return;
+    expect(parsed.questions[0].options?.[0].description).toContain("Here is code with colons:");
+    expect(parsed.questions[0].options?.[0].description).toContain("key: value");
+    expect(parsed.questions[0].options?.[0].description).toContain("title: not a real title");
+  });
+});

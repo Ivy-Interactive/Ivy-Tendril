@@ -116,6 +116,124 @@ function readOptions(raw: unknown): QuestionOption[] | undefined {
   }));
 }
 
+function isAlreadyQuoted(val: string): boolean {
+  const trimmed = val.trim();
+  if (trimmed.length < 2) return false;
+
+  if (trimmed.startsWith('"')) {
+    let escaped = false;
+    for (let i = 1; i < trimmed.length; i++) {
+      const c = trimmed[i];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (c === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (c === '"') {
+        const rest = trimmed.slice(i + 1).trim();
+        return rest.length === 0 || rest.startsWith("#");
+      }
+    }
+    return false;
+  }
+
+  if (trimmed.startsWith("'")) {
+    for (let i = 1; i < trimmed.length; i++) {
+      const c = trimmed[i];
+      if (c === "'") {
+        if (i + 1 < trimmed.length && trimmed[i + 1] === "'") {
+          i++;
+          continue;
+        }
+        const rest = trimmed.slice(i + 1).trim();
+        return rest.length === 0 || rest.startsWith("#");
+      }
+    }
+    return false;
+  }
+
+  return false;
+}
+
+function getIndent(line: string): number {
+  let count = 0;
+  while (count < line.length && line[count] === " ") {
+    count++;
+  }
+  return count;
+}
+
+const FIELD_REGEX = /^(\s*(?:-\s+)?)(title|header|description):[ \t]*(.*)$/;
+const BLOCK_SCALAR_REGEX = /^[|>][\-+]?\d*(?:\s+.*)?$/;
+
+/**
+ * Sanitizes YAML text in a questions block by wrapping unquoted strings in text fields
+ * (`title`, `header`, `description`) in double quotes, making them resilient to colons,
+ * code snippets, and formatting. Preserves block scalars (| and >) intact.
+ */
+export function sanitizeQuestionYaml(body: string): string {
+  const lines = body.replace(/\r\n/g, "\n").split("\n");
+  const result: string[] = [];
+
+  let inBlockScalar = false;
+  let blockScalarIndent = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (inBlockScalar) {
+      if (line.trim().length === 0) {
+        result.push(line);
+        continue;
+      }
+
+      const indent = getIndent(line);
+      if (indent > blockScalarIndent) {
+        result.push(line);
+        continue;
+      }
+
+      inBlockScalar = false;
+    }
+
+    const match = line.match(FIELD_REGEX);
+    if (!match) {
+      result.push(line);
+      continue;
+    }
+
+    const prefix = match[1];
+    const key = match[2];
+    const val = match[3];
+    const trimmedVal = val.trim();
+
+    if (trimmedVal.length === 0) {
+      result.push(line);
+      continue;
+    }
+
+    if (BLOCK_SCALAR_REGEX.test(trimmedVal)) {
+      inBlockScalar = true;
+      blockScalarIndent = prefix.length;
+      result.push(line);
+      continue;
+    }
+
+    if (isAlreadyQuoted(trimmedVal)) {
+      result.push(line);
+      continue;
+    }
+
+    const escaped = trimmedVal.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    result.push(`${prefix}${key}: "${escaped}"`);
+  }
+
+  return result.join("\n");
+}
+
 /**
  * Reads one fence body. Never throws: malformed YAML, prose, and a mapping that is none of the
  * shapes `questionList` knows all come back as `kind: "invalid"`.
@@ -126,13 +244,30 @@ function readOptions(raw: unknown): QuestionOption[] | undefined {
  */
 export function parseQuestions(body: string): ParsedQuestions {
   let raw: unknown;
+  let usedSanitization = false;
   try {
     raw = parse(body);
   } catch {
-    return { kind: "invalid" };
+    try {
+      raw = parse(sanitizeQuestionYaml(body));
+      usedSanitization = true;
+    } catch {
+      return { kind: "invalid" };
+    }
   }
 
-  const list = questionList(raw);
+  let list = questionList(raw);
+  if (list === undefined && !usedSanitization) {
+    try {
+      const sanitized = sanitizeQuestionYaml(body);
+      if (sanitized !== body) {
+        raw = parse(sanitized);
+        list = questionList(raw);
+      }
+    } catch {
+      // ignore
+    }
+  }
   if (list === undefined) return { kind: "invalid" };
 
   const seen = new Set<string>();

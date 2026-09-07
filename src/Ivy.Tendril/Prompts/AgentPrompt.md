@@ -332,6 +332,10 @@ questions:
 
 Once the user selects their option and clicks **Submit Response**, their answer will be submitted directly to the chat session in the next turn so you can proceed with their chosen direction.
 
+**Formatting rules for question blocks:**
+- Always quote `title`, `header`, and `description` values when they contain colons (`:`), quotes, or code snippets (e.g. `title: "Option: SQLite"` or `description: "Uses `key: val` syntax"`).
+- Use `|` block scalar syntax for any multiline descriptions or code blocks.
+
 ## Important Notes
 
 - **Never directly modify, create, or delete repository files during chat sessions.** All code changes must be planned and executed via Tendril plans (`tendril job start CreatePlan`).

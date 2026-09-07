@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using YamlDotNet.Core;
 using YamlDotNet.Core.Events;
 using YamlDotNet.RepresentationModel;
@@ -192,11 +193,167 @@ public static class QuestionAnswers
     // Editing one block body
     // ---------------------------------------------------------------------------------------------
 
+    private static readonly Regex FieldRegex = new(@"^(\s*(?:-\s+)?)(title|header|description):[ \t]*(.*)$", RegexOptions.Compiled);
+    private static readonly Regex BlockScalarRegex = new(@"^[|>][\-+]?\d*(?:\s+.*)?$", RegexOptions.Compiled);
+
+    /// <summary>
+    ///     Sanitizes YAML text in a questions block by wrapping unquoted strings in text fields
+    ///     (<c>title</c>, <c>header</c>, <c>description</c>) in double quotes, making them resilient to colons,
+    ///     code snippets, and formatting. Preserves block scalars (| and &gt;) intact.
+    /// </summary>
+    public static string SanitizeQuestionYaml(string body)
+    {
+        if (string.IsNullOrEmpty(body))
+            return body;
+
+        var newline = DetectNewline(body);
+        var lines = body.Replace("\r\n", "\n").Split('\n');
+        var result = new List<string>(lines.Length);
+
+        var inBlockScalar = false;
+        var blockScalarIndent = 0;
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+
+            if (inBlockScalar)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    result.Add(line);
+                    continue;
+                }
+
+                var indent = IndentOfLine(line);
+                if (indent > blockScalarIndent)
+                {
+                    result.Add(line);
+                    continue;
+                }
+
+                inBlockScalar = false;
+            }
+
+            var match = FieldRegex.Match(line);
+            if (!match.Success)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var prefix = match.Groups[1].Value;
+            var key = match.Groups[2].Value;
+            var val = match.Groups[3].Value;
+            var trimmedVal = val.Trim();
+
+            if (trimmedVal.Length == 0)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            if (BlockScalarRegex.IsMatch(trimmedVal))
+            {
+                inBlockScalar = true;
+                blockScalarIndent = prefix.Length;
+                result.Add(line);
+                continue;
+            }
+
+            if (IsAlreadyQuoted(trimmedVal))
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var escaped = trimmedVal.Replace("\\", "\\\\").Replace("\"", "\\\"");
+            result.Add($"{prefix}{key}: \"{escaped}\"");
+        }
+
+        return string.Join(newline, result);
+    }
+
+    private static bool IsAlreadyQuoted(string val)
+    {
+        if (val.Length < 2)
+            return false;
+
+        if (val.StartsWith('"'))
+        {
+            var escaped = false;
+            for (var i = 1; i < val.Length; i++)
+            {
+                var c = val[i];
+                if (escaped)
+                {
+                    escaped = false;
+                    continue;
+                }
+                if (c == '\\')
+                {
+                    escaped = true;
+                    continue;
+                }
+                if (c == '"')
+                {
+                    var rest = val[(i + 1)..].Trim();
+                    return rest.Length == 0 || rest.StartsWith('#');
+                }
+            }
+            return false;
+        }
+
+        if (val.StartsWith('\''))
+        {
+            for (var i = 1; i < val.Length; i++)
+            {
+                var c = val[i];
+                if (c == '\'')
+                {
+                    if (i + 1 < val.Length && val[i + 1] == '\'')
+                    {
+                        i++;
+                        continue;
+                    }
+                    var rest = val[(i + 1)..].Trim();
+                    return rest.Length == 0 || rest.StartsWith('#');
+                }
+            }
+            return false;
+        }
+
+        return false;
+    }
+
+    private static int IndentOfLine(string line)
+    {
+        var count = 0;
+        while (count < line.Length && line[count] == ' ')
+            count++;
+        return count;
+    }
+
     private static bool TryEditBody(string body, QuestionAnswer answer, out string edited)
     {
         edited = body;
 
-        if (QuestionNodes(body) is not { } questions)
+        var targetBody = body;
+        var questions = QuestionNodesRaw(body);
+        if (questions is null)
+        {
+            var sanitized = SanitizeQuestionYaml(body);
+            if (sanitized != body)
+            {
+                questions = QuestionNodesRaw(sanitized);
+                if (questions is not null)
+                {
+                    targetBody = sanitized;
+                }
+            }
+        }
+
+        if (questions is null)
             return false;
 
         foreach (var child in questions)
@@ -205,8 +362,8 @@ public static class QuestionAnswers
                 continue;
 
             edited = entry.Style == MappingStyle.Flow
-                ? EditFlowEntry(body, entry, answer.Answer)
-                : EditBlockEntry(body, entry, answer.Answer);
+                ? EditFlowEntry(targetBody, entry, answer.Answer)
+                : EditBlockEntry(targetBody, entry, answer.Answer);
             return true;
         }
 
@@ -215,7 +372,7 @@ public static class QuestionAnswers
 
     /// <summary>
     ///     The question nodes of one block body, in document order, or null when the body is not a
-    ///     questions block this reader can address — the pre-schema plain-text form, or YAML that
+    ///     questions block this reader can address: the pre-schema plain-text form, or YAML that
     ///     does not parse at all.
     ///     <para>
     ///         Three shapes say the same thing, and agents write all three: the canonical
@@ -230,6 +387,16 @@ public static class QuestionAnswers
     ///     </para>
     /// </summary>
     private static List<YamlNode>? QuestionNodes(string body)
+    {
+        var nodes = QuestionNodesRaw(body);
+        if (nodes is not null)
+            return nodes;
+
+        var sanitized = SanitizeQuestionYaml(body);
+        return sanitized != body ? QuestionNodesRaw(sanitized) : null;
+    }
+
+    private static List<YamlNode>? QuestionNodesRaw(string body)
     {
         YamlNode? root;
         try
