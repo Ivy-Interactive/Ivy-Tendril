@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Providers.Codex;
 using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Helpers;
 
@@ -186,7 +187,9 @@ internal static class JobFailureAnalyzer
         foreach (var line in outputLines.Reverse())
         {
             var evt = serializer.Deserialize(line);
-            if (evt is ErrorEvent { Message.Length: > 0 } e)
+            // A Codex skills context budget notice is a warning, not a failure. Skip it and keep looking for a
+            // real terminal event further back in the stream.
+            if (evt is ErrorEvent { Message.Length: > 0 } e && !CodexEventParser.IsSkillsBudgetWarning(e.Message))
                 return SanitizeForDisplay(e.Message);
             if (evt is ResultEvent { IsSuccess: false } r)
             {

@@ -351,4 +351,67 @@ public class CodexEventParserTests
         Assert.NotNull(result.Usage);
         Assert.Equal(10, result.Usage.InputTokens);
     }
+
+    [Fact]
+    public void ParseLine_Error_SkillsBudgetWarning_ReturnsEmpty()
+    {
+        var json = """{"type":"error","message":"Skill descriptions were shortened to fit the 2% skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."}""";
+        var events = _parser.ParseLine(json);
+        Assert.Empty(events);
+    }
+
+    [Fact]
+    public void ParseLine_Error_ExceededSkillsBudgetWarning_ReturnsEmpty()
+    {
+        var json = """{"type":"error","message":"Warning: Exceeded skills context budget of 2%. Loaded skill descriptions were truncated..."}""";
+        var events = _parser.ParseLine(json);
+        Assert.Empty(events);
+    }
+
+    [Fact]
+    public void ParseLine_Error_NestedJsonSkillsBudgetWarning_ReturnsEmpty()
+    {
+        var json = """{"type":"error","message":"{\"error\":{\"message\":\"Skill descriptions were shortened to fit the 2% skills context budget.\"}}"}""";
+        var events = _parser.ParseLine(json);
+        Assert.Empty(events);
+    }
+
+    [Fact]
+    public void ParseLine_ItemCompleted_Error_SkillsBudgetWarning_ReturnsEmpty()
+    {
+        var json = """{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Skill descriptions were shortened to fit the 2% skills context budget. Codex can still see every skill, but some descriptions are shorter."}}""";
+        var events = _parser.ParseLine(json);
+        Assert.Empty(events);
+    }
+
+    [Fact]
+    public void ParseLine_TurnFailed_SkillsBudgetWarning_ReturnsEmpty()
+    {
+        var json = """{"type":"turn.failed","error":{"message":"Warning: Exceeded skills context budget of 2%. Loaded skill descriptions were truncated..."}}""";
+        var events = _parser.ParseLine(json);
+        Assert.Empty(events);
+    }
+
+    [Fact]
+    public void ParseLine_TurnFailed_EmptyMessage_ReturnsDefaultMessage()
+    {
+        var json = """{"type":"turn.failed","error":{"message":""}}""";
+        var events = _parser.ParseLine(json);
+
+        Assert.Single(events);
+        var err = Assert.IsType<ErrorEvent>(events[0]);
+        Assert.Equal("Turn failed", err.Message);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("You've hit your usage limit. To continue using Codex and get access to GPT-5.3-Codex, start a free trial of Plus today.")]
+    [InlineData("The 'gpt-5.6-sol' model is not supported when using Codex with a ChatGPT account.")]
+    [InlineData("The request timed out.")]
+    [InlineData("Model metadata not found.")]
+    public void IsSkillsBudgetWarning_GenuineErrorsAndBlanks_ReturnFalse(string? message)
+    {
+        Assert.False(CodexEventParser.IsSkillsBudgetWarning(message));
+    }
 }
