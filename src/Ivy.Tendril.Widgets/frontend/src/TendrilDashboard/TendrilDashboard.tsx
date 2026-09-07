@@ -78,6 +78,12 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
     }
   };
 
+  const fireKpiEvent = (kpiKey: string) => {
+    if (events.includes("OnSelectKpi")) {
+      eventHandler("OnSelectKpi", id, [kpiKey]);
+    }
+  };
+
   const statusItems = [
     { icon: <Feather size={16} />, count: draftCount, label: "Plans", event: "OnDrafts" },
     { icon: <Sprout size={16} />, count: inProgressCount, label: "In Progress", event: "OnJobs" },
@@ -136,25 +142,45 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
 
             {kpis.length > 0 && (
               <div className="tdb-kpis">
-                {kpis.map((kpi, index) => (
-                  <div className="tdb-kpi" data-tone={index % 4} key={kpi.label}>
-                    <div className="tdb-kpi-label">{kpi.label}</div>
-                    <div className="tdb-kpi-row">
-                      <span className="tdb-kpi-value">{kpi.value}</span>
-                      {kpi.delta && (
-                        <span className="tdb-kpi-delta">
-                          {kpi.delta}
-                          {kpi.direction === "down" ? (
-                            <TrendingDown />
-                          ) : (
-                            <TrendingUp />
-                          )}
-                        </span>
-                      )}
+                {kpis.map((kpi, index) => {
+                  const fallbackId =
+                    ["dailyPrs", "avgCostMonth", "forecastMonth", "avgCostPlan"][index] ??
+                    kpi.label;
+                  const kpiKey = kpi.id ?? fallbackId;
+                  return (
+                    <div
+                      className="tdb-kpi"
+                      data-tone={index % 4}
+                      key={kpi.label}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`View calculation breakdown for ${kpi.label}`}
+                      onClick={() => fireKpiEvent(kpiKey)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          fireKpiEvent(kpiKey);
+                        }
+                      }}
+                    >
+                      <div className="tdb-kpi-label">{kpi.label}</div>
+                      <div className="tdb-kpi-row">
+                        <span className="tdb-kpi-value">{kpi.value}</span>
+                        {kpi.delta && (
+                          <span className="tdb-kpi-delta">
+                            {kpi.delta}
+                            {kpi.direction === "down" ? (
+                              <TrendingDown />
+                            ) : (
+                              <TrendingUp />
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      {kpi.hint && <div className="tdb-kpi-hint">{kpi.hint}</div>}
                     </div>
-                    {kpi.hint && <div className="tdb-kpi-hint">{kpi.hint}</div>}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

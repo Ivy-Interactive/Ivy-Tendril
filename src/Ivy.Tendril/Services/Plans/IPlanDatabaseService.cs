@@ -15,6 +15,8 @@ public interface IPlanDatabaseService : IDisposable
     DashboardModels GetDashboardData(string? projectFilter);
     DashboardActivityStats GetActivityStats(int monthsBack = 24);
     List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30);
+    List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50) => [];
+    List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7) => [];
 
     // Costs and tokens
     decimal GetPlanTotalCost(int planId);

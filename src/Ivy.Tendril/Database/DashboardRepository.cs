@@ -345,4 +345,78 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                 months, prevWeekAvgCost, dailyCosts, dailyPlans, dailyDataStart);
         }
     }
+
+    public List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50)
+    {
+        using (new ReadLockHandle(lockSlim))
+        {
+            var results = new List<RecentMergedPrDto>();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT pr.PrUrl, p.Id, p.Title,
+                       (SELECT r.RepoPath FROM Repos r WHERE r.PlanId = p.Id LIMIT 1) AS Repo,
+                       p.Updated
+                FROM PullRequests pr
+                JOIN Plans p ON p.Id = pr.PlanId
+                WHERE p.State = 'Completed'
+                ORDER BY p.Updated DESC
+                LIMIT @limit
+                """;
+            cmd.Parameters.AddWithValue("@limit", limit);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                var prUrl = r.GetString(0);
+                var planId = r.GetInt32(1);
+                var title = r.GetString(2);
+                var repo = r.IsDBNull(3) ? null : r.GetString(3);
+                var updatedStr = r.GetString(4);
+                var updated = DateTime.TryParse(updatedStr, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var dt)
+                    ? dt
+                    : DateTime.UtcNow;
+                results.Add(new RecentMergedPrDto(prUrl, planId, title, repo, updated));
+            }
+            return results;
+        }
+    }
+
+    public List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7)
+    {
+        using (new ReadLockHandle(lockSlim))
+        {
+            var cutoff = DateTime.UtcNow.Date.AddDays(-(days - 1)).ToString("yyyy-MM-dd");
+            var results = new List<RecentPlanCostDto>();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT p.Id, p.Title, p.State, p.Created,
+                       SUM(c.Cost) AS TotalCost,
+                       COUNT(CASE WHEN c.Cost IS NOT NULL THEN 1 END) AS PricedRows,
+                       COALESCE(SUM(c.Tokens), 0) AS TotalTokens
+                FROM Plans p
+                LEFT JOIN Costs c ON c.PlanId = p.Id
+                WHERE p.Created >= @cutoff AND p.State IN ('Completed', 'Failed', 'Review')
+                GROUP BY p.Id, p.Title, p.State, p.Created
+                ORDER BY p.Created DESC
+                """;
+            cmd.Parameters.AddWithValue("@cutoff", cutoff);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                var planId = r.GetInt32(0);
+                var title = r.GetString(1);
+                var state = r.GetString(2);
+                var createdStr = r.GetString(3);
+                var created = DateTime.TryParse(createdStr, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var dt)
+                    ? dt
+                    : DateTime.UtcNow;
+                var pricedRows = r.GetInt32(5);
+                decimal? cost = pricedRows > 0 && !r.IsDBNull(4)
+                    ? Convert.ToDecimal(r.GetValue(4), CultureInfo.InvariantCulture)
+                    : null;
+                var tokens = Convert.ToInt64(r.GetValue(6), CultureInfo.InvariantCulture);
+                results.Add(new RecentPlanCostDto(planId, title, state, created, cost, tokens));
+            }
+            return results;
+        }
+    }
 }

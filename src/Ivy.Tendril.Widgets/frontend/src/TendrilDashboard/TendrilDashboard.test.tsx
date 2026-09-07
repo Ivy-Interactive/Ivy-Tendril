@@ -136,3 +136,101 @@ describe("TendrilDashboard range and metric combinations", () => {
     expect(screen.queryByText("7-day average")).not.toBeInTheDocument();
   });
 });
+
+describe("TendrilDashboard KPI card interactions and accessibility", () => {
+  const kpis = [
+    { id: "dailyPrs", label: "Avg Daily PR count", value: "1.2", delta: "+10%" },
+    { id: "avgCostMonth", label: "Avg Cost/Month", value: "$450" },
+    { id: "forecastMonth", label: "Forecast This Month", value: "$600" },
+    { id: "avgCostPlan", label: "Avg Cost/Plan", value: "$24.50" },
+  ];
+
+  it("renders KPI cards with button accessibility attributes", () => {
+    render(
+      <TendrilDashboard
+        id="dash"
+        eventHandler={vi.fn()}
+        events={["OnSelectKpi"]}
+        kpis={kpis}
+      />,
+    );
+
+    const buttons = screen.getAllByRole("button");
+    const kpiButtons = buttons.filter((b) => b.classList.contains("tdb-kpi"));
+    expect(kpiButtons).toHaveLength(4);
+
+    kpiButtons.forEach((btn, idx) => {
+      expect(btn).toHaveAttribute("tabindex", "0");
+      expect(btn).toHaveAttribute(
+        "aria-label",
+        `View calculation breakdown for ${kpis[idx].label}`,
+      );
+    });
+  });
+
+  it("fires OnSelectKpi event when a KPI card is clicked", () => {
+    const eventHandler = vi.fn();
+    render(
+      <TendrilDashboard
+        id="dash"
+        eventHandler={eventHandler}
+        events={["OnSelectKpi"]}
+        kpis={kpis}
+      />,
+    );
+
+    const dailyPrsCard = screen.getByLabelText("View calculation breakdown for Avg Daily PR count");
+    fireEvent.click(dailyPrsCard);
+
+    expect(eventHandler).toHaveBeenCalledWith("OnSelectKpi", "dash", ["dailyPrs"]);
+
+    const costPlanCard = screen.getByLabelText("View calculation breakdown for Avg Cost/Plan");
+    fireEvent.click(costPlanCard);
+
+    expect(eventHandler).toHaveBeenCalledWith("OnSelectKpi", "dash", ["avgCostPlan"]);
+  });
+
+  it("fires OnSelectKpi when Enter or Space key is pressed", () => {
+    const eventHandler = vi.fn();
+    render(
+      <TendrilDashboard
+        id="dash"
+        eventHandler={eventHandler}
+        events={["OnSelectKpi"]}
+        kpis={kpis}
+      />,
+    );
+
+    const monthCostCard = screen.getByLabelText("View calculation breakdown for Avg Cost/Month");
+    fireEvent.keyDown(monthCostCard, { key: "Enter" });
+    expect(eventHandler).toHaveBeenCalledWith("OnSelectKpi", "dash", ["avgCostMonth"]);
+
+    const forecastCard = screen.getByLabelText("View calculation breakdown for Forecast This Month");
+    fireEvent.keyDown(forecastCard, { key: " " });
+    expect(eventHandler).toHaveBeenCalledWith("OnSelectKpi", "dash", ["forecastMonth"]);
+  });
+
+  it("falls back to standard identifier keys when kpi.id is not provided", () => {
+    const eventHandler = vi.fn();
+    const kpisWithoutId = [
+      { label: "Avg Daily PR count", value: "1.2" },
+      { label: "Avg Cost/Month", value: "$450" },
+      { label: "Forecast This Month", value: "$600" },
+      { label: "Avg Cost/Plan", value: "$24.50" },
+    ];
+
+    render(
+      <TendrilDashboard
+        id="dash"
+        eventHandler={eventHandler}
+        events={["OnSelectKpi"]}
+        kpis={kpisWithoutId}
+      />,
+    );
+
+    const card = screen.getByLabelText("View calculation breakdown for Avg Daily PR count");
+    fireEvent.click(card);
+
+    expect(eventHandler).toHaveBeenCalledWith("OnSelectKpi", "dash", ["dailyPrs"]);
+  });
+});
