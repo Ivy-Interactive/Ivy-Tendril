@@ -8,6 +8,7 @@ import { BlockMarkdown } from "../BlockMarkdown";
 import { QuestionsDraftContext, QuestionsSubmitContext } from "../PlanMarkdown/questionsContext";
 import type { QuestionSubmitCallback, QuestionsDraftState, QuestionsDraftStore } from "../PlanMarkdown/questionsContext";
 import { isImageFile, processImageFile } from "../imageUtils";
+import { getIvyHost } from "../PlanMarkdown/localFiles";
 import "./chat-widget.css";
 
 if (typeof window !== "undefined") {
@@ -87,6 +88,13 @@ const PdfThumbnail: React.FC<{ url: string }> = ({ url }) => {
 const isPdfFile = (nameOrType: string) => {
   const lower = nameOrType.toLowerCase();
   return lower === "application/pdf" || lower.endsWith(".pdf");
+};
+
+const getAttachmentUrl = (filePath: string): string => {
+  if (filePath.startsWith("http://") || filePath.startsWith("https://") || filePath.startsWith("data:") || filePath.startsWith("blob:")) {
+    return filePath;
+  }
+  return `${getIvyHost()}/ivy/local-file?path=${encodeURIComponent(filePath)}`;
 };
 
 const getFileExtBadge = (name: string): string => {
@@ -408,6 +416,21 @@ export function ChatWidget({
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [jobsDropdownOpen]);
+
+  const [activeLightboxImage, setActiveLightboxImage] = useState<{ url: string; title: string } | null>(null);
+
+  useEffect(() => {
+    if (!activeLightboxImage) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveLightboxImage(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeLightboxImage]);
 
   const sessionSpawnedJobs = activeSession?.spawnedJobs || [];
   const otherRunningJobs = (runningJobs || []).filter(
@@ -1374,6 +1397,61 @@ export function ChatWidget({
                               {attachedPaths.map((filePath, idx) => {
                                 const fileName = filePath.split(/[/\\]/).pop() || filePath;
                                 const ext = fileName.split(".").pop()?.toUpperCase() || "FILE";
+                                const isImage = isImageFile(filePath);
+                                const isPdf = isPdfFile(filePath);
+                                const fileUrl = getAttachmentUrl(filePath);
+
+                                if (isImage) {
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className="chat-user-attachment-card chat-user-attachment-card-clickable"
+                                      title={filePath}
+                                      onClick={() => setActiveLightboxImage({ url: fileUrl, title: fileName })}
+                                      role="button"
+                                      tabIndex={0}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === " ") {
+                                          e.preventDefault();
+                                          setActiveLightboxImage({ url: fileUrl, title: fileName });
+                                        }
+                                      }}
+                                    >
+                                      <div className="chat-user-attachment-preview-container">
+                                        <img
+                                          src={fileUrl}
+                                          alt={fileName}
+                                          className="chat-user-attachment-card-image"
+                                        />
+                                        <div className="chat-user-attachment-preview-overlay" />
+                                      </div>
+                                      <div className="chat-user-attachment-content">
+                                        <span className="chat-user-attachment-name" title={fileName}>{fileName}</span>
+                                        <span className="chat-user-attachment-ext">{ext}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+
+                                if (isPdf) {
+                                  return (
+                                    <div
+                                      key={idx}
+                                      className="chat-user-attachment-card chat-user-attachment-card-pdf"
+                                      title={filePath}
+                                    >
+                                      <div className="chat-user-attachment-preview-container">
+                                        <PdfThumbnail url={fileUrl} />
+                                        <div className="chat-user-attachment-preview-overlay" />
+                                      </div>
+                                      <div className="chat-user-attachment-content">
+                                        <span className="chat-user-attachment-name" title={fileName}>{fileName}</span>
+                                        <span className="chat-user-attachment-ext">PDF</span>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+
                                 return (
                                   <div key={idx} className="chat-user-attachment-badge" title={filePath}>
                                     <Paperclip size={12} className="chat-user-attachment-icon" />
@@ -1739,6 +1817,40 @@ export function ChatWidget({
           </div>
         </div>
       </div>
+      {activeLightboxImage && (
+        <div
+          className="chat-image-lightbox-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label={activeLightboxImage.title || "Image preview"}
+        >
+          <div
+            className="chat-image-lightbox-backdrop"
+            onClick={() => setActiveLightboxImage(null)}
+          />
+          <div className="chat-image-lightbox-container">
+            <button
+              type="button"
+              className="chat-image-lightbox-close"
+              aria-label="Close preview"
+              onClick={() => setActiveLightboxImage(null)}
+            >
+              <X size={18} />
+            </button>
+            <img
+              src={activeLightboxImage.url}
+              alt={activeLightboxImage.title || "Preview"}
+              className="chat-image-lightbox-img"
+              onClick={(e) => e.stopPropagation()}
+            />
+            {activeLightboxImage.title && (
+              <div className="chat-image-lightbox-caption">
+                {activeLightboxImage.title}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

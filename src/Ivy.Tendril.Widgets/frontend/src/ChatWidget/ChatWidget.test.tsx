@@ -557,6 +557,129 @@ describe("ChatWidget File Uploads and Attachments", () => {
     expect(screen.queryByText("[Attached Files]:")).not.toBeInTheDocument();
   });
 
+  it("renders image preview elements pointing to the /ivy/local-file endpoint for image attachments in chat history", () => {
+    const session: ChatSessionDto = {
+      id: "sess-img",
+      title: "Image Preview Test",
+      agentId: "antigravity",
+      modelId: "gemini-3.7-flash",
+      createdAt: "2026-08-15T12:00:00Z",
+      updatedAt: "2026-08-15T12:30:00Z",
+      messages: [
+        {
+          id: "m-img",
+          role: "user" as const,
+          content: "Here is a screenshot\n\n[Attached Files]:\n- /path/to/screenshot.png\n- /path/to/photo.jpg",
+          timestamp: "12:00",
+        },
+      ],
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-img"
+        sessions={[session]}
+      />
+    );
+
+    expect(screen.getByText("Here is a screenshot")).toBeInTheDocument();
+    expect(screen.getByText("screenshot.png")).toBeInTheDocument();
+    expect(screen.getByText("PNG")).toBeInTheDocument();
+    expect(screen.getByText("photo.jpg")).toBeInTheDocument();
+    expect(screen.getByText("JPG")).toBeInTheDocument();
+
+    const imgElements = screen.getAllByRole("img");
+    const previewImgs = imgElements.filter((img) =>
+      img.getAttribute("src")?.includes("/ivy/local-file?path=")
+    );
+    expect(previewImgs.length).toBe(2);
+    expect(previewImgs[0].getAttribute("src")).toContain("/ivy/local-file?path=%2Fpath%2Fto%2Fscreenshot.png");
+    expect(previewImgs[1].getAttribute("src")).toContain("/ivy/local-file?path=%2Fpath%2Fto%2Fphoto.jpg");
+  });
+
+  it("opens lightbox modal with full image view on click, and closes via Escape or close button", () => {
+    const session: ChatSessionDto = {
+      id: "sess-lightbox",
+      title: "Lightbox Test",
+      agentId: "antigravity",
+      modelId: "gemini-3.7-flash",
+      createdAt: "2026-08-15T12:00:00Z",
+      updatedAt: "2026-08-15T12:30:00Z",
+      messages: [
+        {
+          id: "m-lb",
+          role: "user" as const,
+          content: "Check this out\n\n[Attached Files]:\n- /path/to/preview.png",
+          timestamp: "12:00",
+        },
+      ],
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-lightbox"
+        sessions={[session]}
+      />
+    );
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    const thumbnailCard = screen.getByText("preview.png").closest(".chat-user-attachment-card");
+    expect(thumbnailCard).toBeInTheDocument();
+    fireEvent.click(thumbnailCard!);
+
+    const modal = screen.getByRole("dialog");
+    expect(modal).toBeInTheDocument();
+    const closeBtn = screen.getByRole("button", { name: /Close preview/i });
+    expect(closeBtn).toBeInTheDocument();
+
+    // Close via close button
+    fireEvent.click(closeBtn);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    // Reopen and close via Escape
+    fireEvent.click(thumbnailCard!);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("renders PDF preview cards with PdfThumbnail for PDF attachments in chat history", () => {
+    const session: ChatSessionDto = {
+      id: "sess-pdf",
+      title: "PDF Preview Test",
+      agentId: "antigravity",
+      modelId: "gemini-3.7-flash",
+      createdAt: "2026-08-15T12:00:00Z",
+      updatedAt: "2026-08-15T12:30:00Z",
+      messages: [
+        {
+          id: "m-pdf",
+          role: "user" as const,
+          content: "Here is the report\n\n[Attached Files]:\n- /docs/specification.pdf",
+          timestamp: "12:00",
+        },
+      ],
+    };
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-pdf"
+        sessions={[session]}
+      />
+    );
+
+    expect(screen.getByText("Here is the report")).toBeInTheDocument();
+    expect(screen.getByText("specification.pdf")).toBeInTheDocument();
+    expect(screen.getByText("PDF")).toBeInTheDocument();
+
+    const pdfCard = screen.getByText("specification.pdf").closest(".chat-user-attachment-card-pdf");
+    expect(pdfCard).toBeInTheDocument();
+  });
+
   it("submitting a message with an attached file and empty text prompt emits OnSendMessage with empty prompt", async () => {
     const handleEvent = vi.fn();
     render(

@@ -775,11 +775,103 @@
   word-break: break-word;
 }
 
+
 .chat-user-message-attachments {
   display: flex;
   flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.375rem;
+  align-items: flex-start;
+}
+
+.chat-user-attachment-card {
+  position: relative;
+  width: 140px;
+  height: 105px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 8px);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  flex-shrink: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.chat-user-attachment-card-clickable {
+  cursor: pointer;
+}
+
+.chat-user-attachment-card-clickable:hover {
+  border-color: var(--ring);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.chat-user-attachment-card-clickable:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.chat-user-attachment-preview-container {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: var(--radius, 8px);
+  overflow: hidden;
+}
+
+.chat-user-attachment-card-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.chat-user-attachment-preview-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.2) 50%, rgba(0, 0, 0, 0.75) 100%);
+  pointer-events: none;
+}
+
+.chat-user-attachment-content {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.375rem;
-  margin-top: 0.25rem;
+}
+
+.chat-user-attachment-content .chat-user-attachment-name {
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-user-attachment-content .chat-user-attachment-ext {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background-color: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  padding: 1px 4px;
+  color: #fff;
+  flex-shrink: 0;
 }
 
 .chat-user-attachment-badge {
@@ -817,6 +909,80 @@
   border-radius: 3px;
   padding: 0 4px;
   color: var(--muted-foreground);
+}
+
+/* Lightbox Modal */
+.chat-image-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-image-lightbox-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+}
+
+.chat-image-lightbox-container {
+  position: relative;
+  z-index: 100000;
+  max-width: 90vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-image-lightbox-img {
+  max-width: 90vw;
+  max-height: 85vh;
+  object-fit: contain;
+  border-radius: var(--radius, 8px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+  user-select: none;
+}
+
+.chat-image-lightbox-close {
+  position: absolute;
+  top: -40px;
+  right: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.chat-image-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
+
+.chat-image-lightbox-caption {
+  margin-top: 0.75rem;
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: center;
+  max-width: 80vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
 .chat-action-btn {
