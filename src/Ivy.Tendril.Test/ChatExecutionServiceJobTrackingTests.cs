@@ -50,7 +50,8 @@ public class ChatExecutionServiceJobTrackingTests
                 Id = id,
                 Type = args.GetType().Name.Replace("Args", ""),
                 PlanFile = (args as ExecutePlanArgs)?.PlanFolder ?? "",
-                ChatSessionId = args.ChatSessionId
+                ChatSessionId = args.ChatSessionId,
+                TypedArgs = args
             };
             Jobs.Add(job);
             return id;
@@ -984,6 +985,194 @@ public class ChatExecutionServiceJobTrackingTests
         }
     }
 
+    [Fact]
+    public void SetChatSessionId_UpdatesTypedArgs_AndPersistsToDatabase()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "JobServiceChatSessionTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var dbPath = Path.Combine(tempDir, "test.db");
+            using var db = new PlanDatabaseService(dbPath, NullLogger<PlanDatabaseService>.Instance);
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            var jobService = new JobService(
+                TimeSpan.FromMinutes(30),
+                TimeSpan.FromMinutes(10),
+                inboxPath: null,
+                maxConcurrentJobs: 0,
+                planReaderService: null,
+                telemetryService: null,
+                database: db,
+                agentRunner: TestAgentRunner.Create(),
+                chatHistoryService: chatService);
+
+            var planFolder = Path.Combine(tempDir, "00099-TestPlan");
+            var jobId = jobService.StartJob(new ExecutePlanArgs(planFolder));
+            var initialJob = jobService.GetJob(jobId);
+            Assert.NotNull(initialJob);
+
+            jobService.SetChatSessionId(jobId, session.Id);
+
+            var inMemoryJob = jobService.GetJob(jobId);
+            Assert.NotNull(inMemoryJob);
+            Assert.Equal(session.Id, inMemoryJob.ChatSessionId);
+            Assert.NotNull(inMemoryJob.TypedArgs);
+            Assert.Equal(session.Id, inMemoryJob.TypedArgs.ChatSessionId);
+
+            // Re-read from database to verify persistence through TypedArgs
+            using var dbReader = new PlanDatabaseService(dbPath, NullLogger<PlanDatabaseService>.Instance);
+            var persistedJob = dbReader.GetJobById(jobId);
+            Assert.NotNull(persistedJob);
+            Assert.Equal(session.Id, persistedJob.ChatSessionId);
+            Assert.NotNull(persistedJob.TypedArgs);
+            Assert.Equal(session.Id, persistedJob.TypedArgs.ChatSessionId);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public void LaunchExecute_PropagatesChatSessionId_ToExecutePlanArgs()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "LaunchExecutePropagateTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            var plan = new PlanFile(
+                new PlanMetadata(88, "Tendril", "NiceToHave", "Propagate Test Plan", PlanStatus.Draft,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: session.Id),
+                "# Propagate Test",
+                Path.Combine(tempDir, "00088-PropagatePlan"),
+                "state: Draft"
+            );
+
+            var fakeJobService = new FakeChatJobService();
+            var fakeGitService = new GitTabDataBuilderTests.StubGitService();
+            var fakePlanReader = new FakePlanReaderService { PlanToReturn = plan };
+            var selectedPlanState = new TestState<PlanFile?>(plan);
+
+            var contentView = new ContentView(
+                plan,
+                [plan],
+                selectedPlanState,
+                fakePlanReader,
+                fakeJobService,
+                () => { },
+                configService,
+                fakeGitService,
+                chatExecutionService: null,
+                chatHistoryService: chatService);
+
+            contentView.LaunchExecute();
+
+            var startedJob = fakeJobService.Jobs.FirstOrDefault();
+            Assert.NotNull(startedJob);
+            Assert.NotNull(startedJob.TypedArgs);
+            Assert.IsType<ExecutePlanArgs>(startedJob.TypedArgs);
+            Assert.Equal(session.Id, startedJob.TypedArgs.ChatSessionId);
+            Assert.Equal(session.Id, startedJob.ChatSessionId);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public void ManualExecution_ResolvesPendingApprovalQuestions_InLinkedChatSession()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "ManualExecQuestionsTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            var questionMarkdown = """
+                Would you like me to proceed with executing the plan?
+
+                ```questions
+                questions:
+                  - id: plan-approval
+                    title: Approve plan execution?
+                    options:
+                      - title: Approve and execute
+                        value: approve-execution
+                        recommended: true
+                      - title: Cancel
+                        value: cancel
+                ```
+                """;
+
+            var msg = chatService.AddMessage(session.Id, "assistant", questionMarkdown);
+
+            var plan = new PlanFile(
+                new PlanMetadata(90, "Tendril", "NiceToHave", "Approval Questions Plan", PlanStatus.Draft,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: session.Id),
+                "# Approval Plan",
+                Path.Combine(tempDir, "00090-ApprovalPlan"),
+                "state: Draft"
+            );
+
+            var fakeJobService = new FakeChatJobService();
+            var fakeGitService = new GitTabDataBuilderTests.StubGitService();
+            var fakePlanReader = new FakePlanReaderService { PlanToReturn = plan };
+            var selectedPlanState = new TestState<PlanFile?>(plan);
+
+            var contentView = new ContentView(
+                plan,
+                [plan],
+                selectedPlanState,
+                fakePlanReader,
+                fakeJobService,
+                () => { },
+                configService,
+                fakeGitService,
+                chatExecutionService: null,
+                chatHistoryService: chatService);
+
+            contentView.LaunchExecute();
+
+            var updatedSession = chatService.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            var updatedMsg = updatedSession.Messages.FirstOrDefault(m => m.Id == msg.Id);
+            Assert.NotNull(updatedMsg);
+
+            var summaries = QuestionAnswers.Read(updatedMsg.Content);
+            Assert.NotEmpty(summaries);
+            var approvalQ = summaries.FirstOrDefault(q => q.Id == "plan-approval");
+            Assert.NotNull(approvalQ);
+            Assert.True(approvalQ.HasAnswer);
+            Assert.Contains("answer: approve-execution", updatedMsg.Content);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
     private class TestState<T> : IState<T>
     {
         private readonly T _initial;
@@ -1006,5 +1195,15 @@ public class ChatExecutionServiceJobTrackingTests
         public Type GetStateType() => typeof(T);
         public object? GetValueAsObject() => Value;
         public IEffectTrigger ToTrigger() => throw new NotImplementedException();
+    }
+}
+
+public class JobServiceChatSessionPersistenceTests
+{
+    [Fact]
+    public void SetChatSessionId_UpdatesTypedArgs_AndPersistsToDatabase()
+    {
+        var test = new ChatExecutionServiceJobTrackingTests();
+        test.SetChatSessionId_UpdatesTypedArgs_AndPersistsToDatabase();
     }
 }
