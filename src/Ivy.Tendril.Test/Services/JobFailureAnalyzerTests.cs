@@ -73,6 +73,9 @@ public class JobFailureAnalyzerTests
         var output = new List<string>
         {
             """{"kind":"error","timestamp":"2026-09-07T12:00:00Z","message":"Skill descriptions were shortened to fit the 2% skills context budget.","is_retryable":false,"is_auth_error":false}""",
+            "[stdout] Connecting to GitHub...",
+            "[stdout] Fetching repository information...",
+            "[stdout] Cloning repository...",
             "[stderr] fatal: unable to access 'https://github.com/acme/repo.git/': Could not resolve host: github.com",
         };
 
