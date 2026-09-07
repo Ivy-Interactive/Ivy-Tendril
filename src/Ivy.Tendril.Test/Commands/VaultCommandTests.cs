@@ -43,6 +43,13 @@ public class FakeVaultService : IVaultService
     public VaultResult MergeResultToReturn { get; set; } = new(true, "Project merged successfully.");
     public VaultPrResult DeleteResultToReturn { get; set; } = new(true, PrUrl: "https://github.com/org/vault/pull/2");
     public VaultSyncResult PullResultToReturn { get; set; } = new(true, UpdatedProjectsCount: 2, Message: "Synced successfully.");
+    public List<VaultThemeManifest> ThemesToReturn { get; set; } = [];
+    public VaultResult SaveThemeResultToReturn { get; set; } = new(true, "Theme saved.");
+    public VaultResult DeleteThemeResultToReturn { get; set; } = new(true, "Theme deleted.");
+    public VaultThemeManifest? LastSavedTheme { get; set; }
+    public string? LastDeletedThemeId { get; set; }
+    public string? LastVaultId { get; set; }
+    public int LoadThemesCallCount { get; set; }
 
     public event Action? VaultChanged { add { } remove { } }
 
@@ -63,10 +70,27 @@ public class FakeVaultService : IVaultService
     public Task<VaultSyncResult> PullLatestAsync(string? vaultId = null) => Task.FromResult(PullResultToReturn);
     public ProjectAssets CollectProjectAssets(string projectName) => new() { ProjectName = projectName };
     public Task<ProjectAssets> CollectProjectAssetsAsync(string projectName) => Task.FromResult(CollectProjectAssets(projectName));
-    public Task<List<VaultThemeManifest>> GetThemesAsync(string? vaultId = null) => Task.FromResult(new List<VaultThemeManifest>());
-    public Task<VaultResult> SaveThemeToVaultAsync(VaultThemeManifest theme, string? vaultId = null) => Task.FromResult(new VaultResult(true, "Theme saved."));
-    public Task<VaultResult> DeleteThemeFromVaultAsync(string themeId, string? vaultId = null) => Task.FromResult(new VaultResult(true, "Theme deleted."));
-    public void LoadThemesIntoRegistry() { }
+    public Task<List<VaultThemeManifest>> GetThemesAsync(string? vaultId = null)
+    {
+        LastVaultId = vaultId;
+        return Task.FromResult(ThemesToReturn);
+    }
+    public Task<VaultResult> SaveThemeToVaultAsync(VaultThemeManifest theme, string? vaultId = null)
+    {
+        LastSavedTheme = theme;
+        LastVaultId = vaultId;
+        return Task.FromResult(SaveThemeResultToReturn);
+    }
+    public Task<VaultResult> DeleteThemeFromVaultAsync(string themeId, string? vaultId = null)
+    {
+        LastDeletedThemeId = themeId;
+        LastVaultId = vaultId;
+        return Task.FromResult(DeleteThemeResultToReturn);
+    }
+    public void LoadThemesIntoRegistry()
+    {
+        LoadThemesCallCount++;
+    }
 }
 
 public class VaultCommandSettingsValidationTests
