@@ -6,6 +6,7 @@ import { SortableVerificationList } from "./SortableVerificationList";
 import { ContentInput } from "./ContentInput/ContentInput";
 import { BadgeSelect } from "./BadgeSelect";
 import { PlanDiffView } from "./PlanDiffView/PlanDiffView";
+import { PlanDependencyGraph } from "./PlanDependencyGraph";
 import { ChatWidget } from "./ChatWidget/ChatWidget";
 import { WebViewer } from "./WebViewer";
 import { TendrilShell } from "./Shell/TendrilShell";
@@ -28,6 +29,7 @@ if (typeof window !== "undefined") {
     ContentInput,
     BadgeSelect,
     PlanDiffView,
+    PlanDependencyGraph,
     ChatWidget,
     WebViewer,
     TendrilShell,
@@ -51,6 +53,7 @@ export {
   ContentInput,
   BadgeSelect,
   PlanDiffView,
+  PlanDependencyGraph,
   ChatWidget,
   WebViewer,
   TendrilShell,
