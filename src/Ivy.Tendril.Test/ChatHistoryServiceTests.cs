@@ -517,4 +517,177 @@ public class ChatHistoryServiceTests
                 Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void UpdateMessage_WithTouchUpdatedAtFalse_LeavesUpdatedAtUnchangedButReplacesContent()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus");
+            var msg = service.AddMessage(session.Id, "assistant", "initial");
+            var beforeUpdate = service.GetSession(session.Id)!;
+            var frozenUpdatedAt = beforeUpdate.UpdatedAt.AddMinutes(-5);
+            service.SaveSession(beforeUpdate with { UpdatedAt = frozenUpdatedAt });
+
+            service.UpdateMessage(session.Id, msg.Id, "streamed chunk", flushImmediately: true, touchUpdatedAt: false);
+
+            var updatedSession = service.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            Assert.Equal(frozenUpdatedAt, updatedSession.UpdatedAt);
+            Assert.Equal("streamed chunk", Assert.Single(updatedSession.Messages).Content);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void UpdateMessage_WithDefaults_AdvancesUpdatedAt()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus");
+            var msg = service.AddMessage(session.Id, "assistant", "initial");
+            var beforeUpdate = service.GetSession(session.Id)!;
+            var staleUpdatedAt = beforeUpdate.UpdatedAt.AddMinutes(-5);
+            service.SaveSession(beforeUpdate with { UpdatedAt = staleUpdatedAt });
+
+            service.UpdateMessage(session.Id, msg.Id, "final content");
+
+            var updatedSession = service.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            Assert.True(updatedSession.UpdatedAt > staleUpdatedAt);
+            Assert.Equal("final content", Assert.Single(updatedSession.Messages).Content);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void GetSessions_StaysStableWhileStreamingUpdatesFreezeSortKey()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var sessionA = service.CreateSession("claude", "opus");
+            var msgA = service.AddMessage(sessionA.Id, "assistant", "initial");
+            var sessionB = service.CreateSession("claude", "sonnet");
+
+            var baseTime = DateTimeOffset.UtcNow;
+            service.SaveSession(service.GetSession(sessionA.Id)! with { UpdatedAt = baseTime });
+            service.SaveSession(service.GetSession(sessionB.Id)! with { UpdatedAt = baseTime.AddSeconds(1) });
+
+            for (var i = 0; i < 3; i++)
+            {
+                service.UpdateMessage(sessionA.Id, msgA.Id, $"streamed chunk {i}", flushImmediately: true, touchUpdatedAt: false);
+            }
+
+            var order = service.GetSessions();
+            Assert.Equal(sessionB.Id, order[0].Id);
+            Assert.Equal(sessionA.Id, order[1].Id);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void GetSessions_ReordersAfterTurnCompletion()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var sessionA = service.CreateSession("claude", "opus");
+            var msgA = service.AddMessage(sessionA.Id, "assistant", "initial");
+            var sessionB = service.CreateSession("claude", "sonnet");
+
+            var baseTime = DateTimeOffset.UtcNow.AddMinutes(-10);
+            service.SaveSession(service.GetSession(sessionA.Id)! with { UpdatedAt = baseTime });
+            service.SaveSession(service.GetSession(sessionB.Id)! with { UpdatedAt = baseTime.AddSeconds(1) });
+
+            service.UpdateMessage(sessionA.Id, msgA.Id, "final content");
+
+            var order = service.GetSessions();
+            Assert.Equal(sessionA.Id, order[0].Id);
+            Assert.Equal(sessionB.Id, order[1].Id);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void AddMessage_MovesSessionToHeadOfGetSessions()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var sessionA = service.CreateSession("claude", "opus");
+            var sessionB = service.CreateSession("claude", "sonnet");
+
+            var baseTime = DateTimeOffset.UtcNow.AddMinutes(-10);
+            service.SaveSession(service.GetSession(sessionA.Id)! with { UpdatedAt = baseTime });
+            service.SaveSession(service.GetSession(sessionB.Id)! with { UpdatedAt = baseTime.AddSeconds(1) });
+
+            service.AddMessage(sessionA.Id, "user", "new message");
+
+            var order = service.GetSessions();
+            Assert.Equal(sessionA.Id, order[0].Id);
+            Assert.Equal(sessionB.Id, order[1].Id);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void AddAndRemoveSpawnedJobs_LeaveUpdatedAtAndOrderUnchanged()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var sessionA = service.CreateSession("claude", "opus");
+            var sessionB = service.CreateSession("claude", "sonnet");
+
+            var baseTime = DateTimeOffset.UtcNow;
+            service.SaveSession(service.GetSession(sessionA.Id)! with { UpdatedAt = baseTime });
+            service.SaveSession(service.GetSession(sessionB.Id)! with { UpdatedAt = baseTime.AddSeconds(1) });
+
+            service.AddSpawnedJob(sessionA.Id, "job-1");
+            var afterAdd = service.GetSession(sessionA.Id)!;
+            Assert.Equal(baseTime, afterAdd.UpdatedAt);
+            Assert.Contains("job-1", service.GetSpawnedJobs(sessionA.Id));
+
+            var orderAfterAdd = service.GetSessions();
+            Assert.Equal(sessionB.Id, orderAfterAdd[0].Id);
+            Assert.Equal(sessionA.Id, orderAfterAdd[1].Id);
+
+            service.RemoveSpawnedJobs(sessionA.Id, new[] { "job-1" });
+            var afterRemove = service.GetSession(sessionA.Id)!;
+            Assert.Equal(baseTime, afterRemove.UpdatedAt);
+            Assert.Empty(service.GetSpawnedJobs(sessionA.Id));
+
+            var orderAfterRemove = service.GetSessions();
+            Assert.Equal(sessionB.Id, orderAfterRemove[0].Id);
+            Assert.Equal(sessionA.Id, orderAfterRemove[1].Id);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
 }

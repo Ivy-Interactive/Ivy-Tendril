@@ -130,7 +130,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                 }
                 if (!string.IsNullOrEmpty(exec.AssistantMessageId))
                 {
-                    _chatService.UpdateMessage(sessionId, exec.AssistantMessageId, currentText ?? string.Empty, currentRaw, flushImmediately: false);
+                    _chatService.UpdateMessage(sessionId, exec.AssistantMessageId, currentText ?? string.Empty, currentRaw, flushImmediately: false, touchUpdatedAt: false);
                 }
             }
         }
@@ -535,7 +535,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                                     currentText = activeExec.LastText;
                                     currentRaw = activeExec.RawLines.Count > 0 ? string.Join("\n", activeExec.RawLines) : null;
                                 }
-                                _chatService.UpdateMessage(sessionId, assistantMessageId, currentText ?? string.Empty, currentRaw, flushImmediately: false);
+                                _chatService.UpdateMessage(sessionId, assistantMessageId, currentText ?? string.Empty, currentRaw, flushImmediately: false, touchUpdatedAt: false);
                             }
                         }
                     }

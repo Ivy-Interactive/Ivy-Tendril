@@ -428,7 +428,6 @@ public class ChatHistoryService : IChatHistoryService
                 currentJobs.Add(jobId);
                 updated = session with
                 {
-                    UpdatedAt = DateTimeOffset.UtcNow,
                     SpawnedJobIds = currentJobs
                 };
                 _sessions[sessionId] = updated;
@@ -456,7 +455,6 @@ public class ChatHistoryService : IChatHistoryService
             {
                 updated = session with
                 {
-                    UpdatedAt = DateTimeOffset.UtcNow,
                     SpawnedJobIds = remaining.Count > 0 ? remaining : null
                 };
                 _sessions[sessionId] = updated;
@@ -642,7 +640,7 @@ public class ChatHistoryService : IChatHistoryService
         return false;
     }
 
-    public ChatMessageModel? UpdateMessage(string sessionId, string messageId, string content, string? rawStream = null, bool flushImmediately = true)
+    public ChatMessageModel? UpdateMessage(string sessionId, string messageId, string content, string? rawStream = null, bool flushImmediately = true, bool touchUpdatedAt = true)
     {
         if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(messageId)) return null;
 
@@ -669,7 +667,7 @@ public class ChatHistoryService : IChatHistoryService
 
             updatedSession = session with
             {
-                UpdatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = touchUpdatedAt ? DateTimeOffset.UtcNow : session.UpdatedAt,
                 Messages = newMessages
             };
 
