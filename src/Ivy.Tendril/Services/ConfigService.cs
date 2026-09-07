@@ -201,6 +201,12 @@ public record ApiSettings
     public string? ApiKey { get; set; }
 }
 
+public class InboxConfig
+{
+    public bool AutoAcceptAssignedIssues { get; set; } = false;
+    public int CheckIntervalMinutes { get; set; } = 15;
+}
+
 public class TendrilSettings
 {
     public string CodingAgent { get; set; } = "claude";
@@ -216,6 +222,12 @@ public class TendrilSettings
     public LlmConfig? Llm { get; set; }
     public AuthConfig? Auth { get; set; }
     public ApiSettings? Api { get; set; }
+    private InboxConfig _inbox = new();
+    public InboxConfig Inbox
+    {
+        get => _inbox;
+        set => _inbox = value ?? new InboxConfig();
+    }
     public Dictionary<string, PromptwareConfig> Promptwares { get; set; } = new();
     public List<AgentConfig> CodingAgents { get; set; } = new();
     public Tunnel.TunnelConfig? Tunnel { get; set; }

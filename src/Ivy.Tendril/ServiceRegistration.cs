@@ -247,6 +247,8 @@ internal static class ServiceRegistration
             return new InboxWatcherService(config, jobService, sp.GetRequiredService<ILogger<InboxWatcherService>>());
         });
         server.Services.AddSingleton<IInboxWatcherService>(sp => sp.GetRequiredService<InboxWatcherService>());
+        server.Services.AddSingleton<Services.Inbox.AssignedIssuesAutoImportService>();
+        server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<Services.Inbox.AssignedIssuesAutoImportService>());
         server.Services.AddSingleton<WorktreeCleanupService>(sp =>
         {
             var config = sp.GetRequiredService<IConfigService>();
