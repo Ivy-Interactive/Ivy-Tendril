@@ -17,11 +17,13 @@ public class VaultThemesDialog(
     IClientProvider client,
     IConfigService config,
     string? vaultId,
-    Action onThemesUpdated) : ViewBase
+    Action onThemesUpdated,
+    IState<string>? requestedTab = null,
+    IState<VaultThemeManifest?>? themeToEdit = null) : ViewBase
 {
     public override object? Build()
     {
-        var activeTab = UseState("themes");
+        var activeTab = UseState(() => requestedTab?.Value ?? "themes");
         var isSaving = UseState(false);
         var isDeleting = UseState<string?>(null);
 
@@ -58,6 +60,39 @@ public class VaultThemesDialog(
             if (!string.IsNullOrEmpty(preset.IvyTheme.BorderRadiusSelectors))
                 radiusSelectors.Set(preset.IvyTheme.BorderRadiusSelectors);
         }, selectedPreset);
+
+        UseEffect(() =>
+        {
+            if (requestedTab != null && !string.IsNullOrEmpty(requestedTab.Value))
+            {
+                activeTab.Set(requestedTab.Value);
+            }
+        }, requestedTab);
+
+        UseEffect(() =>
+        {
+            if (themeToEdit?.Value != null)
+            {
+                var t = themeToEdit.Value;
+                themeName.Set(t.Name);
+                themeDesc.Set(t.Description);
+                if (t.IvyTheme != null)
+                {
+                    editingTheme.Set(CloneTheme(t.IvyTheme));
+                    if (!string.IsNullOrEmpty(t.IvyTheme.FontFamily))
+                        fontFamily.Set(t.IvyTheme.FontFamily);
+                    if (!string.IsNullOrEmpty(t.IvyTheme.BorderRadiusBoxes))
+                        radiusBoxes.Set(t.IvyTheme.BorderRadiusBoxes);
+                    if (!string.IsNullOrEmpty(t.IvyTheme.BorderRadiusFields))
+                        radiusFields.Set(t.IvyTheme.BorderRadiusFields);
+                    if (!string.IsNullOrEmpty(t.IvyTheme.BorderRadiusSelectors))
+                        radiusSelectors.Set(t.IvyTheme.BorderRadiusSelectors);
+                }
+                selectedMode.Set(t.IsDark ? "dark" : "light");
+                activeTab.Set("generator");
+                themeToEdit.Set(null);
+            }
+        }, themeToEdit);
 
         if (!dialogOpen.Value) return null;
 

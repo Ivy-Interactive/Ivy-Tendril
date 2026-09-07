@@ -289,7 +289,7 @@ verifications: []
     }
 
     [Fact]
-    public void BetaGating_SharedSettingsMenu_OnlyActiveWhenBetaEnabled()
+    public void BetaGating_SharedOptions_OnlyActiveWhenBetaEnabled()
     {
         var origTendril = Environment.GetEnvironmentVariable("TENDRIL_BETA");
         var origIvy = Environment.GetEnvironmentVariable("IVY_BETA");
