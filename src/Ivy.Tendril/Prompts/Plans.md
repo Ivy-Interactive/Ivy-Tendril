@@ -377,7 +377,7 @@ questions:
 `````
 
 Use a `|` block scalar for any description spanning more than one line, so blank lines and
-indentation survive YAML parsing intact.
+indentation survive YAML parsing intact. Always quote `title`, `header`, and `description` values when they contain colons (`:`), quotes, or code snippets (e.g. `title: "Option: SQLite"` or `description: "Uses `key: val` syntax"`).
 
 Three shapes fall out of `multiple` / `other` / the presence of `options`:
 

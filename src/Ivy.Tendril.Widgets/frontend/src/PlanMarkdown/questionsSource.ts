@@ -1,4 +1,5 @@
 import { parseDocument } from "yaml";
+import { sanitizeQuestionYaml } from "./questionsSchema";
 
 /**
  * Locating `questions` fences in markdown source, and editing them in place.
@@ -285,8 +286,18 @@ export function setAnswer(
     throw new Error(`setAnswer: no questions block at index ${blockIndex} (found ${blocks.length})`);
   }
 
-  const doc = parseDocument(dedent(block.body, block.indent));
-  const path = answerPath(doc.toJS(), questionId);
+  const dedented = dedent(block.body, block.indent);
+  let doc = parseDocument(dedented);
+  let path = doc.errors.length === 0 ? answerPath(doc.toJS(), questionId) : null;
+  if (!path) {
+    const sanitized = sanitizeQuestionYaml(dedented);
+    const sanitizedDoc = parseDocument(sanitized);
+    const sanitizedPath = answerPath(sanitizedDoc.toJS(), questionId);
+    if (sanitizedPath) {
+      doc = sanitizedDoc;
+      path = sanitizedPath;
+    }
+  }
   if (!path) {
     throw new Error(`setAnswer: block ${blockIndex} has no question with id "${questionId}"`);
   }

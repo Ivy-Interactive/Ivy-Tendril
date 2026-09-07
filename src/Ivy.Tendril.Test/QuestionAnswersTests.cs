@@ -813,4 +813,55 @@ public class QuestionAnswersTests
         Assert.Equal(block.Body, Markdown[block.BodyStart..block.BodyEnd]);
         Assert.StartsWith("questions:", block.Body);
     }
+
+    [Fact]
+    public void Read_AcceptsQuestionsWithUnquotedColons()
+    {
+        var markdown = """
+            ```questions
+            questions:
+              - id: db-choice
+                title: Which database: SQLite or Postgres?
+                header: DB: Select
+                options:
+                  - title: Option 1: SQLite
+                    value: sqlite
+                  - title: Option 2: Postgres
+                    value: postgres
+            ```
+            """;
+
+        var questions = QuestionAnswers.Read(markdown);
+
+        var q = Assert.Single(questions);
+        Assert.Equal("db-choice", q.Id);
+        Assert.Equal("Which database: SQLite or Postgres?", q.Title);
+        Assert.Equal("DB: Select", q.Header);
+    }
+
+    [Fact]
+    public void Apply_UpdatesQuestionsWithUnquotedColons()
+    {
+        var markdown = """
+            ```questions
+            questions:
+              - id: db-choice
+                title: Which database: SQLite or Postgres?
+                header: DB: Select
+                description: Fast embedded database: zero configuration.
+                options:
+                  - title: Option 1: SQLite
+                    description: Fast embedded: zero config
+                    value: sqlite
+                  - title: Option 2: Postgres
+                    value: postgres
+            ```
+            """;
+
+        var updated = QuestionAnswers.Apply(markdown, new QuestionAnswer("db-choice", ["sqlite"]));
+
+        Assert.Contains("answer: sqlite", updated);
+        var q = Question(updated, "db-choice");
+        Assert.Equal(["sqlite"], q.AnswerValues);
+    }
 }

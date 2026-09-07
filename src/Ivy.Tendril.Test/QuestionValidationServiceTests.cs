@@ -678,4 +678,26 @@ public class QuestionValidationServiceTests
         Assert.Contains(issues, i => i.Message.Contains("duplicate option value 'jwt'"));
         Assert.Contains(issues, i => i.Message.Contains("more than one option is recommended"));
     }
+
+    [Fact]
+    public void Validate_AcceptsQuestionBlocksWithUnquotedColons()
+    {
+        var issues = Validate("""
+            questions:
+              - id: db-choice
+                title: Which database: SQLite or Postgres?
+                header: DB: Select
+                description: Database selection: fast embedded vs scalable client-server.
+                options:
+                  - title: Option 1: SQLite
+                    description: Fast embedded database: zero configuration, high performance.
+                    value: sqlite
+                    recommended: true
+                  - title: Option 2: Postgres
+                    description: Runs `npm test:watch` to verify changes.
+                    value: postgres
+            """);
+
+        Assert.Empty(issues);
+    }
 }
