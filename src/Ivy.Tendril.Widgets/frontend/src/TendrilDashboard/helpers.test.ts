@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeActivityMetrics,
+  computeAverage,
   formatCountTick,
   formatCurrencyTick,
   niceTicks,
@@ -69,3 +70,22 @@ describe("computeActivityMetrics", () => {
   });
 });
 
+describe("computeAverage", () => {
+  it("computes arithmetic mean for integer arrays", () => {
+    expect(computeAverage([10, 20, 30])).toBe(20);
+    expect(computeAverage([5])).toBe(5);
+  });
+
+  it("computes arithmetic mean for decimal arrays", () => {
+    expect(computeAverage([1.5, 2.5, 5.0])).toBe(3);
+  });
+
+  it("handles arrays with zeroes", () => {
+    expect(computeAverage([0, 0, 0])).toBe(0);
+    expect(computeAverage([0, 10])).toBe(5);
+  });
+
+  it("returns null for empty arrays", () => {
+    expect(computeAverage([])).toBeNull();
+  });
+});

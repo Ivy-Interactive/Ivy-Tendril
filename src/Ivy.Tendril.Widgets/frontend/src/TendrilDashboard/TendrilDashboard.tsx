@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import {
   TendrilDashboardProps,
+  computeAverage,
   formatCountTick,
   formatCurrencyTick,
   hasSlotContent,
@@ -107,6 +108,8 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
             formatTick: formatCountTick,
             formatValue: formatPlansValue,
           };
+
+  const average = trendData ? computeAverage(trendData.values) : null;
 
   return (
     <div className="tdb-root remove-parent-padding">
@@ -211,6 +214,12 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                       <span className="tdb-legend-dash" />
                       {previousTrendName}
                     </span>
+                    {average != null && (
+                      <span className="tdb-legend-item tdb-legend-avg">
+                        <span className="tdb-legend-dash tdb-legend-dash-avg" />
+                        Avg {trendData.formatValue(average)}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="tdb-trend-chart">
@@ -222,6 +231,7 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                     previousName={previousTrendName}
                     formatTick={trendData.formatTick}
                     formatValue={trendData.formatValue}
+                    average={average}
                   />
                 </div>
               </div>

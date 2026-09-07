@@ -53,3 +53,15 @@ describe("dashboard.css side block and git activity layout", () => {
     expect(css).toMatch(/\.tdb-activity-metrics\s*\{[^}]*border-top:\s*1px solid var\(--tdb-divider\);/);
   });
 });
+
+describe("dashboard.css trend chart average line and legend", () => {
+  it("defines the dashed average legend indicator", () => {
+    expect(css).toContain(".tdb-legend-dash-avg {");
+    expect(css).toMatch(/\.tdb-legend-dash-avg\s*\{[^}]*border-top:\s*1\.5px dashed/);
+  });
+
+  it("defines the subtle dashed horizontal reference line", () => {
+    expect(css).toContain(".tdb-trend-avg-line {");
+    expect(css).toMatch(/\.tdb-trend-avg-line\s*\{[^}]*stroke-dasharray:\s*4 4/);
+  });
+});

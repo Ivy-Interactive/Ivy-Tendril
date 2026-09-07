@@ -1,5 +1,5 @@
 import React, { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { niceTicks } from "./types";
+import { computeAverage, niceTicks } from "./types";
 
 interface TrendChartProps {
   labels: string[];
@@ -9,6 +9,7 @@ interface TrendChartProps {
   previousName: string;
   formatTick: (value: number) => string;
   formatValue: (value: number) => string;
+  average?: number | null;
 }
 
 interface Point {
@@ -58,6 +59,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
   previousName,
   formatTick,
   formatValue,
+  average,
 }) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: DEFAULT_HEIGHT });
@@ -112,6 +114,12 @@ export const TrendChart: React.FC<TrendChartProps> = ({
   }, [values, previous, n, plotLeft, plotWidth, zeroY, plotHeight]);
 
   const scaleTop = ticks[ticks.length - 1];
+
+  const avgValue = average !== undefined ? average : computeAverage(values);
+  const avgY =
+    avgValue != null && avgValue > 0 && scaleTop > 0
+      ? zeroY - (avgValue / scaleTop) * plotHeight
+      : null;
 
   const areaPath = useMemo(() => {
     if (points.length < 2) return "";
@@ -184,6 +192,15 @@ export const TrendChart: React.FC<TrendChartProps> = ({
             );
           })}
           {areaPath && <path d={areaPath} fill={`url(#${gradientId})`} style={{ color: "var(--tdb-fg)" }} />}
+          {avgY != null && (
+            <line
+              className="tdb-trend-avg-line"
+              x1={plotLeft}
+              x2={plotLeft + plotWidth}
+              y1={avgY}
+              y2={avgY}
+            />
+          )}
           {previousPoints.length > 1 && <path className="tdb-trend-compare" d={smoothPath(previousPoints, zeroY)} />}
           {points.length > 1 && <path className="tdb-trend-line" d={smoothPath(points, zeroY)} />}
           {hover && (

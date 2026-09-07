@@ -122,3 +122,10 @@ export const computeActivityMetrics = (
   );
   return { totalPrs, activeWeeks };
 };
+
+/** Arithmetic mean of non-empty number arrays, returning null when empty. */
+export const computeAverage = (values: number[]): number | null => {
+  if (!values || values.length === 0) return null;
+  const sum = values.reduce((acc, val) => acc + val, 0);
+  return sum / values.length;
+};

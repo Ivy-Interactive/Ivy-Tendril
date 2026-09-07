@@ -374,6 +374,14 @@
   flex-shrink: 0;
 }
 
+.tdb-legend-dash-avg {
+  width: 10px;
+  height: 0;
+  border-top: 1.5px dashed var(--tdb-muted);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
 .tdb-trend-chart {
   margin-top: 16px;
   flex: 1;
@@ -421,6 +429,15 @@
   stroke-dasharray: 5 4;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.tdb-trend-avg-line {
+  fill: none;
+  stroke: var(--tdb-muted);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  opacity: 0.45;
+  pointer-events: none;
 }
 
 .tdb-chart-tooltip {
