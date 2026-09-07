@@ -634,6 +634,26 @@ public class PlanReaderService(
         return [];
     }
 
+    public List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50)
+    {
+        if (_useDatabaseForReads && _database != null)
+        {
+            return _database.GetRecentMergedPrs(limit);
+        }
+
+        return [];
+    }
+
+    public List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7)
+    {
+        if (_useDatabaseForReads && _database != null)
+        {
+            return _database.GetRecentPlanCosts(days);
+        }
+
+        return [];
+    }
+
     /// <summary>
     ///     Calculates the total cost for a plan. Delegates to database when available,
     ///     otherwise parses costs.csv with a short cache to reduce file I/O.

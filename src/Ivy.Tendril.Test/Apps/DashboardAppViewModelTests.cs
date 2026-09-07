@@ -393,4 +393,78 @@ public class DashboardAppViewModelTests
         var day6 = sep.Days.First(d => d.Date == "2026-09-06");
         Assert.Equal(3, day6.Count);
     }
+
+    [Fact]
+    public void BuildKpis_AssignsExpectedKpiIds()
+    {
+        var today = new DateTime(2026, 8, 31);
+        var stats = new DashboardModels(1, 0, 0, 0, 1, 0, 15.5m, [], []);
+        var activity = new DashboardActivityStats([], 10m);
+
+        var kpis = DashboardApp.BuildKpis(stats, activity, [], today);
+
+        Assert.Equal(4, kpis.Count);
+        Assert.Equal("dailyPrs", kpis[0].Id);
+        Assert.Equal("avgCostMonth", kpis[1].Id);
+        Assert.Equal("forecastMonth", kpis[2].Id);
+        Assert.Equal("avgCostPlan", kpis[3].Id);
+    }
+
+    [Fact]
+    public void BuildKpis_ComputesCorrectMonthlyAndRollingPlanCalculations()
+    {
+        var today = new DateTime(2026, 8, 31);
+        var prDays = new List<(DateOnly Date, int Count)>
+        {
+            // 45 PRs in last 30 days => 45 / 30 = 1.5 daily PRs
+            (new DateOnly(2026, 8, 15), 45),
+            // 30 PRs in prior 30 days => 30 / 30 = 1.0 daily PRs (+50%)
+            (new DateOnly(2026, 7, 15), 30)
+        };
+
+        var months = new List<DashboardMonthStats>
+        {
+            new(2026, 2, 2, 0, 100m, 1000),
+            new(2026, 3, 3, 0, 200m, 2000),
+            new(2026, 4, 4, 0, 300m, 3000),
+            new(2026, 5, 5, 0, 400m, 4000),
+            new(2026, 6, 6, 0, 500m, 5000),
+            new(2026, 7, 7, 0, 600m, 6000), // last completed month (July): $600
+            new(2026, 8, 8, 0, 999m, 9000)  // in-flight month (August): must be excluded
+        };
+        // Mean of completed months: (100+200+300+400+500+600)/6 = 350. Last completed=600, prev=500 (+20%)
+        var stats = new DashboardModels(10, 0, 0, 0, 8, 2, 25.0m, [], []);
+        var activity = new DashboardActivityStats(months, 20.0m);
+
+        var kpis = DashboardApp.BuildKpis(stats, activity, prDays, today);
+
+        // 1. dailyPrs
+        Assert.Equal("dailyPrs", kpis[0].Id);
+        Assert.Equal("1.5", kpis[0].Value);
+        Assert.Equal("+50%", kpis[0].Delta);
+
+        // 2. avgCostMonth
+        Assert.Equal("avgCostMonth", kpis[1].Id);
+        Assert.Equal("$350", kpis[1].Value);
+        Assert.Equal("+20%", kpis[1].Delta);
+
+        // 3. forecastMonth
+        Assert.Equal("forecastMonth", kpis[2].Id);
+
+        // 4. avgCostPlan: $25.00 vs $20.00 (+25%)
+        Assert.Equal("avgCostPlan", kpis[3].Id);
+        Assert.Equal("$25.00", kpis[3].Value);
+        Assert.Equal("+25%", kpis[3].Delta);
+    }
+
+    [Theory]
+    [InlineData("dailyPrs", "Avg Daily PR Count")]
+    [InlineData("avgCostMonth", "Avg Cost/Month")]
+    [InlineData("forecastMonth", "Forecast This Month")]
+    [InlineData("avgCostPlan", "Avg Cost/Plan")]
+    [InlineData("other", "KPI Breakdown")]
+    public void GetKpiSheetTitle_ReturnsExpectedTitle(string key, string expected)
+    {
+        Assert.Equal(expected, DashboardApp.GetKpiSheetTitle(key));
+    }
 }

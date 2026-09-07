@@ -253,6 +253,12 @@ public class PlanDatabaseService : IPlanDatabaseService
     public DashboardActivityStats GetActivityStats(int monthsBack = 24) =>
         _dashboardRepository.GetActivityStats(monthsBack);
 
+    public List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50) =>
+        _dashboardRepository.GetRecentMergedPrs(limit);
+
+    public List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7) =>
+        _dashboardRepository.GetRecentPlanCosts(days);
+
     public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30)
     {
         using (new ReadLockHandle(_lock))

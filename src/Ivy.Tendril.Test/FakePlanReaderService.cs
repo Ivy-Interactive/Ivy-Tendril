@@ -103,6 +103,12 @@ internal class FakePlanReaderService : IPlanReaderService
         return [];
     }
 
+    public List<RecentMergedPrDto> RecentMergedPrsToReturn { get; set; } = [];
+    public List<RecentPlanCostDto> RecentPlanCostsToReturn { get; set; } = [];
+
+    public List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50) => RecentMergedPrsToReturn;
+    public List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7) => RecentPlanCostsToReturn;
+
     public decimal GetPlanTotalCost(string folderPath)
     {
         return 0;

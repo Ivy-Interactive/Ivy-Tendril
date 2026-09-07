@@ -45,6 +45,8 @@ public interface IPlanReaderService
     DashboardModels GetDashboardData(string? projectFilter);
     DashboardActivityStats GetDashboardActivity(int monthsBack = 24);
     List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days);
+    List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50) => [];
+    List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7) => [];
     decimal GetPlanTotalCost(string folderPath);
     int GetPlanTotalTokens(string folderPath);
     List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null);

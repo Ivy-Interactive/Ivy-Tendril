@@ -5,6 +5,7 @@ using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Apps.Jobs.Sheets;
 using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
@@ -47,6 +48,22 @@ public class DashboardApp : ViewBase
             return new Sheet(
                 () => isOpen.Set(false),
                 new OutputSheet(jobId, jobService),
+                title
+            ).Width(UxHelper.SheetWidth).Resizable();
+        });
+
+        var (kpiSheet, showKpiDetail) = UseTrigger<string>((isOpen, kpiKey) =>
+        {
+            if (!isOpen.Value) return null;
+            var currentToday = DateTime.UtcNow.Date;
+            var currentFirstActivityMonth = new DateTime(currentToday.Year, currentToday.Month, 1).AddMonths(-(ActivityMonths - 1));
+            var currentStats = planService.GetDashboardData(null);
+            var currentActivity = planService.GetDashboardActivity(TrendMonthsBack);
+            var currentPrDays = planService.GetCompletedPrsByDay((currentToday - currentFirstActivityMonth).Days + 1);
+            var title = GetKpiSheetTitle(kpiKey);
+            return new Sheet(
+                () => isOpen.Set(false),
+                new KpiBreakdownSheet(kpiKey, currentStats, currentActivity, currentPrDays, currentToday, planService),
                 title
             ).Width(UxHelper.SheetWidth).Resizable();
         });
@@ -127,10 +144,20 @@ public class DashboardApp : ViewBase
             .OnDrafts(() => navigator.Navigate<PlansApp>())
             .OnReview(() => navigator.Navigate<ReviewApp>())
             .OnJobs(() => navigator.Navigate<JobsApp>())
-            .OnJob(showOutput);
+            .OnJob(showOutput)
+            .OnSelectKpi(showKpiDetail);
 
-        return new Fragment(dashboard, outputSheet);
+        return new Fragment(dashboard, outputSheet, kpiSheet);
     }
+
+    internal static string GetKpiSheetTitle(string kpiKey) => kpiKey switch
+    {
+        "dailyPrs" => "Avg Daily PR Count",
+        "avgCostMonth" => "Avg Cost/Month",
+        "forecastMonth" => "Forecast This Month",
+        "avgCostPlan" => "Avg Cost/Plan",
+        _ => "KPI Breakdown"
+    };
 
     internal static List<DashboardJobDto> BuildActiveJobs(List<JobItem> jobs, IPlanReaderService planService)
     {
@@ -188,7 +215,7 @@ public class DashboardApp : ViewBase
         var prev30Start = DateOnly.FromDateTime(today.AddDays(-59));
         var dailyPrs = prDays.Where(p => p.Date >= last30Start).Sum(p => p.Count) / 30m;
         var prevDailyPrs = prDays.Where(p => p.Date >= prev30Start && p.Date < last30Start).Sum(p => p.Count) / 30m;
-        kpis.Add(Kpi("Avg Daily PR count", dailyPrs.ToString("0.#", CultureInfo.InvariantCulture), dailyPrs, prevDailyPrs));
+        kpis.Add(Kpi("Avg Daily PR count", dailyPrs.ToString("0.#", CultureInfo.InvariantCulture), dailyPrs, prevDailyPrs, "dailyPrs"));
 
         // Monthly cost/token averages over recent complete months with data; the delta
         // compares the two most recent complete months.
@@ -201,7 +228,7 @@ public class DashboardApp : ViewBase
             ? costMonths.Average(m => m.Cost)
             : activity.Months.Count > 0 ? activity.Months[^1].Cost : 0;
         var (lastCost, prevCost) = LastTwo(completeMonths, m => m.Cost);
-        kpis.Add(Kpi("Avg Cost/Month", FormatCost(avgMonthCost), lastCost, prevCost));
+        kpis.Add(Kpi("Avg Cost/Month", FormatCost(avgMonthCost), lastCost, prevCost, "avgCostMonth"));
 
         // Next to the retrospective average on purpose: what the month has cost so far and what it is
         // heading for are read together.
@@ -209,7 +236,7 @@ public class DashboardApp : ViewBase
 
 
         kpis.Add(Kpi("Avg Cost/Plan", FormatHelper.FormatCost(stats.AvgCostPerPlan),
-            stats.AvgCostPerPlan, activity.PrevWeekAvgCostPerPlan));
+            stats.AvgCostPerPlan, activity.PrevWeekAvgCostPerPlan, "avgCostPlan"));
 
         return kpis;
     }
@@ -223,9 +250,9 @@ public class DashboardApp : ViewBase
 
         var forecast = CostForecastCalculator.Project(dailyCosts ?? [], today);
         if (forecast.CalendarProjection is not { } projection)
-            return new DashboardKpiDto(label, "-", Hint: "No cost data in the last 30 days");
+            return new DashboardKpiDto(label, "-", Hint: "No cost data in the last 30 days", Id: "forecastMonth");
 
-        return new DashboardKpiDto(label, FormatCost(projection));
+        return new DashboardKpiDto(label, FormatCost(projection), Id: "forecastMonth");
     }
 
     private static (decimal Last, decimal Previous) LastTwo(
@@ -237,17 +264,17 @@ public class DashboardApp : ViewBase
             : (0, 0);
     }
 
-    internal static DashboardKpiDto Kpi(string label, string value, decimal current, decimal previous)
+    internal static DashboardKpiDto Kpi(string label, string value, decimal current, decimal previous, string? id = null)
     {
         if (previous <= 0 || current <= 0)
-            return new DashboardKpiDto(label, value);
+            return new DashboardKpiDto(label, value, Id: id);
 
         var pct = (current - previous) / previous * 100m;
         var magnitude = Math.Abs(pct) >= 10
             ? Math.Round(Math.Abs(pct)).ToString("0", CultureInfo.InvariantCulture)
             : Math.Abs(pct).ToString("0.##", CultureInfo.InvariantCulture);
         var delta = (pct >= 0 ? "+" : "-") + magnitude + "%";
-        return new DashboardKpiDto(label, value, delta, pct >= 0 ? "up" : "down");
+        return new DashboardKpiDto(label, value, delta, pct >= 0 ? "up" : "down", Id: id);
     }
 
     private static string FormatCost(decimal cost) =>

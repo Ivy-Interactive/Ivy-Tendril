@@ -57,3 +57,21 @@ public record DashboardMonthStats(
     decimal Cost,
     long Tokens
 );
+
+public record RecentMergedPrDto(
+    string PrUrl,
+    int PlanId,
+    string PlanTitle,
+    string? Repo,
+    DateTime MergedDate
+);
+
+public record RecentPlanCostDto(
+    int PlanId,
+    string PlanTitle,
+    string State,
+    DateTime CreatedDate,
+    decimal? Cost,
+    long Tokens
+);
+
