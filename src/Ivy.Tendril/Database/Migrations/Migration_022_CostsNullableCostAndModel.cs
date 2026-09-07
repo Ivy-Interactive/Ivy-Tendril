@@ -27,7 +27,7 @@ namespace Ivy.Tendril.Database.Migrations;
 public class Migration_022_CostsNullableCostAndModel : IMigration
 {
     public int Version => 22;
-    public string Description => "Allow NULL Costs.Cost, add Costs.Model, and add Plans.ChatSessionId";
+    public string Description => "Allow NULL Costs.Cost and add Costs.Model";
 
     public void Apply(SqliteConnection connection, ILogger? logger = null)
     {
@@ -47,7 +47,6 @@ public class Migration_022_CostsNullableCostAndModel : IMigration
                           DROP TABLE Costs;
                           ALTER TABLE Costs_new RENAME TO Costs;
                           CREATE INDEX IF NOT EXISTS idx_costs_plan_logtimestamp ON Costs(PlanId, LogTimestamp);
-                          ALTER TABLE Plans ADD COLUMN ChatSessionId TEXT;
                           PRAGMA user_version = 22;
                           """;
         cmd.ExecuteNonQuery();
