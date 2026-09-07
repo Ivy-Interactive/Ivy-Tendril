@@ -1,4 +1,4 @@
-﻿using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Abstractions;
 
 namespace Ivy.Tendril.Services;
 
