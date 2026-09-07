@@ -374,12 +374,17 @@
   flex-shrink: 0;
 }
 
-.tdb-legend-dash-avg {
+.tdb-legend-line-avg {
   width: 10px;
   height: 0;
-  border-top: 1.5px dashed var(--tdb-muted);
-  opacity: 0.6;
+  border-top: 1.5px solid var(--tdb-muted);
+  opacity: 0.8;
   flex-shrink: 0;
+}
+
+/* The 7-day average legend item when there is not enough history to draw its curve. */
+.tdb-legend-item-empty {
+  opacity: 0.6;
 }
 
 .tdb-trend-chart {
@@ -431,12 +436,14 @@
   stroke-linejoin: round;
 }
 
-.tdb-trend-avg-line {
+/* Solid, so the three series read apart: current solid dark, comparison dashed, this one solid muted. */
+.tdb-trend-avg-curve {
   fill: none;
   stroke: var(--tdb-muted);
-  stroke-width: 1;
-  stroke-dasharray: 4 4;
-  opacity: 0.45;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.8;
   pointer-events: none;
 }
 

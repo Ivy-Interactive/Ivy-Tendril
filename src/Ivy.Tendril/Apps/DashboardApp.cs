@@ -21,8 +21,6 @@ public class DashboardApp : ViewBase
 {
     private const int ActivityMonths = 16;
     private const int TrendMonthsBack = 24;
-    private const int TrendMonthsShown = 12;
-    private const int TrendWeeksShown = 4;
     private const int ActiveJobsShown = 8;
     private static readonly string[] DayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -118,7 +116,7 @@ public class DashboardApp : ViewBase
             .CompletedCount(jobs.Count(j => j.Status == JobStatus.Completed))
             .FailedCount(jobs.Count(j => j.Status == JobStatus.Failed))
             .Kpis(BuildKpis(stats, activity, prDays, today))
-            .Trend(BuildTrend(activity))
+            .Trend(BuildTrend(activity, today))
             .TrendWeekly(BuildWeeklyTrend(activity, today))
             .PullRequests(activity.Months
                 .TakeLast(6)
@@ -255,30 +253,91 @@ public class DashboardApp : ViewBase
     private static string FormatCost(decimal cost) =>
         cost >= 100 ? FormatHelper.FormatCost(Math.Round(cost), 0) : FormatHelper.FormatCost(cost);
 
-    internal static DashboardTrendDto BuildTrend(DashboardActivityStats activity)
-    {
-        var all = activity.Months;
-        var start = Math.Max(0, all.Count - TrendMonthsShown);
-        var window = all.Skip(start).ToList();
+    /// <summary>Days the long range plots. A year of them, compared against the same day a year back.</summary>
+    internal const int TrendDailyShownDays = 365;
 
-        var prevCost = new List<double?>(window.Count);
-        var prevPlans = new List<double?>(window.Count);
-        for (var i = 0; i < window.Count; i++)
+    /// <summary>Days the short range plots, and the offset it compares against.</summary>
+    internal const int TrendDailyWindowDays = 28;
+
+    /// <summary>
+    ///     The last twelve months as daily points, compared against the same calendar day a year
+    ///     earlier. Null when no daily series is available.
+    /// </summary>
+    internal static DashboardTrendDto? BuildTrend(
+        DashboardActivityStats activity, DateTime? todayOverride = null) =>
+        BuildDailyTrend(activity, TrendDailyShownDays, date => date.AddYears(-1), todayOverride);
+
+    /// <summary>
+    ///     The last four weeks as daily points, compared against the 28 days before them. Null when no
+    ///     daily series is available.
+    /// </summary>
+    internal static DashboardTrendDto? BuildWeeklyTrend(
+        DashboardActivityStats activity, DateTime? todayOverride = null) =>
+        BuildDailyTrend(activity, TrendDailyWindowDays, date => date.AddDays(-TrendDailyWindowDays), todayOverride);
+
+    /// <summary>
+    ///     One trend card's worth of contiguous daily points ending today, each with a date-aligned
+    ///     comparison and a rolling 7 day mean.
+    /// </summary>
+    /// <remarks>
+    ///     Returns null when neither daily series is present rather than falling back to weekly or
+    ///     monthly buckets. Buckets cannot carry a true 7 day average or a date axis, and plotting them
+    ///     under a "7-day average" label would be the misleading result this contract exists to avoid;
+    ///     the widget renders no trend card at all instead.
+    /// </remarks>
+    internal static DashboardTrendDto? BuildDailyTrend(
+        DashboardActivityStats activity,
+        int days,
+        Func<DateOnly, DateOnly> comparisonDate,
+        DateTime? todayOverride = null)
+    {
+        if (activity.DailyCosts == null && activity.DailyPlans == null)
+            return null;
+
+        var today = DateOnly.FromDateTime((todayOverride ?? DateTime.UtcNow).Date);
+        var costsByDay = activity.DailyCosts?.ToDictionary(d => d.Date, d => (double)d.Cost) ?? [];
+        var plansByDay = activity.DailyPlans ?? [];
+
+        // A mock or a fake supplies a daily series without saying where records begin. The earliest day
+        // it holds is the best stand-in; leaving it null would blank every rolling point.
+        var dataStart = activity.DailyDataStart ?? EarliestRecordedDay(costsByDay, plansByDay);
+
+        var dates = new List<DateOnly>(days);
+        for (var i = 0; i < days; i++)
+            dates.Add(today.AddDays(-days + 1 + i));
+
+        // Zero-filled, so a day with no rows is a plotted 0 rather than a missing point.
+        double CostAt(DateOnly date) => costsByDay.GetValueOrDefault(date, 0.0);
+        double PlansAt(DateOnly date) => plansByDay.GetValueOrDefault(date, 0);
+
+        var prevCost = new List<double?>(days);
+        var prevPlans = new List<double?>(days);
+        foreach (var date in dates)
         {
-            var prevIndex = start + i - 12;
-            prevCost.Add(prevIndex >= 0 ? (double)all[prevIndex].Cost : null);
-            prevPlans.Add(prevIndex >= 0 ? all[prevIndex].PlansCreated : null);
+            // Note that Feb 29 maps to Feb 28 a year earlier, which is the calendar behaviour wanted.
+            var prev = comparisonDate(date);
+            // Before the first recorded day the comparison is unknown, not zero.
+            var known = dataStart != null && prev >= dataStart.Value;
+            prevCost.Add(known && activity.DailyCosts != null ? CostAt(prev) : null);
+            prevPlans.Add(known && activity.DailyPlans != null ? PlansAt(prev) : null);
         }
 
         return new DashboardTrendDto(
-            window.Select(m => MonthLabel(m.Month)).ToList(),
-            window.Select(m => (double)m.Cost).ToList(),
-            window.Select(m => (double)m.PlansCreated).ToList(),
+            dates.Select(d => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).ToList(),
+            dates.Select(CostAt).ToList(),
+            dates.Select(PlansAt).ToList(),
             prevCost,
-            prevPlans);
+            prevPlans,
+            RollingAverageCalculator.Compute(dates, CostAt, dataStart),
+            RollingAverageCalculator.Compute(dates, PlansAt, dataStart));
     }
 
-    internal const int TrendDailyWindowDays = 28;
+    private static DateOnly? EarliestRecordedDay(
+        Dictionary<DateOnly, double> costsByDay, Dictionary<DateOnly, int> plansByDay)
+    {
+        var recorded = costsByDay.Keys.Concat(plansByDay.Keys).ToList();
+        return recorded.Count > 0 ? recorded.Min() : null;
+    }
 
     internal static List<DashboardActivityMonthDto> BuildActivityMonths(
         List<(DateOnly Date, int Count)> prDays, DateTime firstMonth)
@@ -308,63 +367,4 @@ public class DashboardApp : ViewBase
         return months;
     }
 
-    internal static DashboardTrendDto BuildWeeklyTrend(DashboardActivityStats activity, DateTime? todayOverride = null)
-    {
-        // If daily costs or daily plans are provided, build 28 daily points for the last 4 weeks (ending today)
-        // compared to the 28 days before that.
-        if (activity.DailyCosts != null || activity.DailyPlans != null)
-        {
-            var today = (todayOverride ?? DateTime.UtcNow).Date;
-            var costsByDay = activity.DailyCosts?.ToDictionary(d => d.Date, d => (double)d.Cost) ?? [];
-            var plansByDay = activity.DailyPlans ?? [];
-
-            var labels = new List<string>(TrendDailyWindowDays);
-            var costs = new List<double>(TrendDailyWindowDays);
-            var plans = new List<double>(TrendDailyWindowDays);
-            var prevCost = new List<double?>(TrendDailyWindowDays);
-            var prevPlans = new List<double?>(TrendDailyWindowDays);
-
-            for (var i = 0; i < TrendDailyWindowDays; i++)
-            {
-                var curDate = DateOnly.FromDateTime(today.AddDays(-TrendDailyWindowDays + 1 + i));
-                var prevDate = curDate.AddDays(-TrendDailyWindowDays);
-
-                labels.Add(FormatDayLabel(curDate));
-                costs.Add(costsByDay.GetValueOrDefault(curDate, 0.0));
-                plans.Add(plansByDay.GetValueOrDefault(curDate, 0));
-
-                prevCost.Add(activity.DailyCosts != null ? costsByDay.GetValueOrDefault(prevDate, 0.0) : null);
-                prevPlans.Add(activity.DailyPlans != null ? plansByDay.GetValueOrDefault(prevDate, 0) : null);
-            }
-
-            return new DashboardTrendDto(labels, costs, plans, prevCost, prevPlans);
-        }
-
-        // Fallback for tests or mocks providing only weekly aggregation
-        var all = activity.Weeks ?? [];
-        var start = Math.Max(0, all.Count - TrendWeeksShown);
-        var window = all.Skip(start).ToList();
-
-        var fallbackPrevCost = new List<double?>(window.Count);
-        var fallbackPrevPlans = new List<double?>(window.Count);
-        for (var i = 0; i < window.Count; i++)
-        {
-            var prevIndex = start + i - TrendWeeksShown;
-            fallbackPrevCost.Add(prevIndex >= 0 && prevIndex < all.Count ? (double)all[prevIndex].Cost : null);
-            fallbackPrevPlans.Add(prevIndex >= 0 && prevIndex < all.Count ? all[prevIndex].PlansCreated : null);
-        }
-
-        return new DashboardTrendDto(
-            window.Select(w => FormatWeekLabel(w.WeekStart)).ToList(),
-            window.Select(w => (double)w.Cost).ToList(),
-            window.Select(w => (double)w.PlansCreated).ToList(),
-            fallbackPrevCost,
-            fallbackPrevPlans);
-    }
-
-    private static string FormatDayLabel(DateOnly date) =>
-        $"{MonthLabel(date.Month)} {date.Day}";
-
-    private static string FormatWeekLabel(DateOnly weekStart) =>
-        $"{MonthLabel(weekStart.Month)} {weekStart.Day}";
 }

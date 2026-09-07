@@ -25,15 +25,23 @@ public record DashboardDayStats(
 public record ProjectCount(string Project, int Count);
 
 /// <param name="DailyCosts">
-///     A 30 day daily spend series, for projecting the month. Null when the caller did not ask for
-///     one, which is what every test fake supplies; the forecast then renders its no data state.
+///     A daily spend series, for projecting the month and plotting the trend chart. Null when the
+///     caller did not ask for one, which is what every test fake supplies; the forecast then renders
+///     its no data state and the trend card is absent.
+/// </param>
+/// <param name="DailyDataStart">
+///     The earliest day the daily series could hold a record for, clamped up to the start of the
+///     retrieval window. A day on or after it with no rows genuinely cost nothing and created nothing;
+///     a day before it is unknown, and averaging over it would report a figure nobody spent. Null when
+///     there are no records at all.
 /// </param>
 public record DashboardActivityStats(
     List<DashboardMonthStats> Months,
     decimal PrevWeekAvgCostPerPlan,
     List<DashboardDailyCost>? DailyCosts = null,
     List<DashboardWeekStats>? Weeks = null,
-    Dictionary<DateOnly, int>? DailyPlans = null
+    Dictionary<DateOnly, int>? DailyPlans = null,
+    DateOnly? DailyDataStart = null
 );
 
 public record DashboardWeekStats(

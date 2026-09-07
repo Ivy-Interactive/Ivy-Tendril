@@ -49,48 +49,118 @@ public class DashboardAppViewModelTests
         Assert.Null(kpi.Direction);
     }
 
+    /// <summary>A daily cost row per day in the inclusive range, priced by <paramref name="cost" />.</summary>
+    private static List<DashboardDailyCost> DailyCosts(DateOnly from, DateOnly to, Func<DateOnly, decimal> cost) =>
+        Enumerable.Range(0, to.DayNumber - from.DayNumber + 1)
+            .Select(i => from.AddDays(i))
+            .Select(day => new DashboardDailyCost(day, cost(day), 0))
+            .ToList();
+
+    /// <summary>Period 11 against a window of 7, so the rolling mean cannot come out flat.</summary>
+    private static decimal Sawtooth(DateOnly date) => (date.DayNumber % 11) * 10m;
+
+    /// <summary>A different value on every day, so an assertion can pin which day was read.</summary>
+    private static decimal Unique(DateOnly date) => date.DayNumber;
+
     [Fact]
-    public void BuildTrend_TakesTrailingTwelveMonths()
+    public void BuildTrend_ProjectsAYearOfDailyPoints()
     {
-        var months = new List<DashboardMonthStats>();
-        for (var month = 1; month <= 12; month++)
-            months.Add(new DashboardMonthStats(2025, month, month, 0, month * 100m, 0));
-        for (var month = 1; month <= 8; month++)
-            months.Add(new DashboardMonthStats(2026, month, month * 2, 0, month * 200m, 0));
+        var today = new DateTime(2026, 9, 6);
+        var dataStart = new DateOnly(2024, 9, 1);
+        var activity = new DashboardActivityStats(
+            [], 0m, DailyCosts(dataStart, new DateOnly(2026, 9, 6), Sawtooth), null, null, dataStart);
 
-        var trend = DashboardApp.BuildTrend(new DashboardActivityStats(months, 0));
+        var trend = DashboardApp.BuildTrend(activity, today);
 
-        Assert.Equal(12, trend.Months.Count);
-        Assert.Equal("Sep", trend.Months[0]);
-        Assert.Equal("Aug", trend.Months[^1]);
-        Assert.Equal(900, trend.Cost[0]);
-        Assert.Equal(1600, trend.Cost[^1]);
-        Assert.Equal(9, trend.Plans[0]);
-        Assert.Equal(16, trend.Plans[^1]);
-        Assert.Null(trend.PrevCost[0]);
-        Assert.Null(trend.PrevCost[3]);
-        Assert.Equal(100, trend.PrevCost[4]);
-        Assert.Equal(800, trend.PrevCost[^1]);
-        Assert.Equal(1, trend.PrevPlans[4]);
-        Assert.Equal(8, trend.PrevPlans[^1]);
+        Assert.NotNull(trend);
+        Assert.Equal(365, trend.Dates.Count);
+        Assert.Equal("2025-09-07", trend.Dates[0]);
+        Assert.Equal("2026-09-06", trend.Dates[^1]);
+        Assert.All(trend.Dates, date => Assert.Matches(@"^\d{4}-\d{2}-\d{2}$", date));
+        Assert.Equal(365, trend.Cost.Count);
+        Assert.Equal(365, trend.RollingCost.Count);
+
+        // The point of the whole exercise: a curve that moves, rather than the one constant the old
+        // reference line drew.
+        Assert.True(trend.RollingCost.Distinct().Count() > 1, "the rolling series is flat");
+
+        // Index 0's window is the six days before the displayed range plus the first day of it.
+        var leading = new DateOnly(2025, 9, 1);
+        var expected = (double)Enumerable.Range(0, 7).Select(i => Sawtooth(leading.AddDays(i))).Average();
+        Assert.NotNull(trend.RollingCost[0]);
+        Assert.Equal(expected, trend.RollingCost[0]!.Value, 6);
     }
 
     [Fact]
-    public void BuildTrend_KeepsShortHistoryAsIs()
+    public void BuildTrend_ComparesTheSameCalendarDayAYearEarlier()
     {
+        var today = new DateTime(2026, 9, 6);
+        var dataStart = new DateOnly(2025, 1, 1);
+        var activity = new DashboardActivityStats(
+            [], 0m, DailyCosts(dataStart, new DateOnly(2026, 9, 6), Unique), null, null, dataStart);
+
+        var trend = DashboardApp.BuildTrend(activity, today);
+
+        Assert.NotNull(trend);
+        // A year before the last displayed day, read by date rather than by bucket offset.
+        Assert.Equal((double)Unique(new DateOnly(2025, 9, 6)), trend.PrevCost[^1]);
+
+        // The comparison day for 2026-01-01 is exactly the first recorded day, so it is known.
+        var firstOfYear = trend.Dates.IndexOf("2026-01-01");
+        Assert.Equal((double)Unique(dataStart), trend.PrevCost[firstOfYear]);
+
+        // One day earlier the comparison falls before any record: unknown, not zero.
+        Assert.Null(trend.PrevCost[firstOfYear - 1]);
+        Assert.Null(trend.PrevCost[0]);
+    }
+
+    [Fact]
+    public void BuildTrend_MapsLeapDayOntoTheTwentyEighth()
+    {
+        // 2027 has no 29th of February. Clamping to the 28th is the calendar behaviour wanted, and the
+        // alternative (a gap in the comparison every fourth year) would read as missing data.
+        var today = new DateTime(2028, 3, 1);
+        var dataStart = new DateOnly(2026, 1, 1);
+        var activity = new DashboardActivityStats(
+            [], 0m, DailyCosts(dataStart, new DateOnly(2028, 3, 1), Unique), null, null, dataStart);
+
+        var trend = DashboardApp.BuildTrend(activity, today);
+
+        Assert.NotNull(trend);
+        var leapDay = trend.Dates.IndexOf("2028-02-29");
+        Assert.True(leapDay >= 0, "the displayed range should contain the leap day");
+        Assert.Equal((double)Unique(new DateOnly(2027, 2, 28)), trend.PrevCost[leapDay]);
+    }
+
+    [Fact]
+    public void BuildTrend_WithoutADailySeries_IsAbsent()
+    {
+        // No monthly fallback: monthly buckets cannot carry a 7 day average or a date axis, so the card
+        // is better absent than plotted from them.
         var months = new List<DashboardMonthStats>
         {
             new(2026, 7, 3, 0, 120m, 0),
             new(2026, 8, 5, 0, 250m, 0)
         };
 
-        var trend = DashboardApp.BuildTrend(new DashboardActivityStats(months, 0));
+        Assert.Null(DashboardApp.BuildTrend(new DashboardActivityStats(months, 0), new DateTime(2026, 9, 6)));
+    }
 
-        Assert.Equal(["Jul", "Aug"], trend.Months);
-        Assert.Equal([120d, 250d], trend.Cost);
-        Assert.Equal([3d, 5d], trend.Plans);
-        Assert.Equal([null, null], trend.PrevCost);
-        Assert.Equal([null, null], trend.PrevPlans);
+    [Fact]
+    public void BuildTrend_EmptyDailySeries_IsAllZerosWithNoRollingAverage()
+    {
+        // A fresh install: the series exists but holds nothing, so every day reads 0 and the curve has
+        // nothing to draw rather than a confident flat line at zero.
+        var activity = new DashboardActivityStats([], 0m, [], null, new Dictionary<DateOnly, int>());
+
+        var trend = DashboardApp.BuildTrend(activity, new DateTime(2026, 9, 6));
+
+        Assert.NotNull(trend);
+        Assert.All(trend.Cost, cost => Assert.Equal(0d, cost));
+        Assert.All(trend.Plans, plans => Assert.Equal(0d, plans));
+        Assert.All(trend.RollingCost, rolling => Assert.Null(rolling));
+        Assert.All(trend.RollingPlans, rolling => Assert.Null(rolling));
+        Assert.All(trend.PrevCost, prev => Assert.Null(prev));
     }
 
     [Fact]
@@ -247,34 +317,7 @@ public class DashboardAppViewModelTests
     }
 
     [Fact]
-    public void BuildWeeklyTrend_ProjectsLastFourWeeksWithComparison()
-    {
-        var today = new DateOnly(2026, 9, 1);
-        var monday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
-        var weeks = new List<DashboardWeekStats>();
-        for (var i = 23; i >= 0; i--)
-        {
-            var start = monday.AddDays(-7 * i);
-            weeks.Add(new DashboardWeekStats(start, i + 1, (i + 1) * 2, (i + 1) * 10m, 1000));
-        }
-
-        var activity = new DashboardActivityStats([], 0m, null, weeks);
-        var trend = DashboardApp.BuildWeeklyTrend(activity);
-
-        Assert.Equal(4, trend.Months.Count);
-        Assert.Equal(4, trend.Cost.Count);
-        Assert.Equal(4, trend.Plans.Count);
-        Assert.Equal(4, trend.PrevCost.Count);
-        Assert.Equal(4, trend.PrevPlans.Count);
-
-        // Most recent week (i = 0 in countdown, index 23 in all)
-        Assert.Equal(10.0, trend.Cost[^1]);
-        // Compared to 4 weeks earlier (index 19, which had i = 4, cost 50m)
-        Assert.Equal(50.0, trend.PrevCost[^1]);
-    }
-
-    [Fact]
-    public void BuildWeeklyTrend_Projects28DaysWithComparison_WhenDailyStatsAvailable()
+    public void BuildWeeklyTrend_Projects28DaysWithComparison()
     {
         var today = new DateTime(2026, 9, 6);
         var dailyCosts = new List<DashboardDailyCost>
@@ -294,24 +337,45 @@ public class DashboardAppViewModelTests
         var activity = new DashboardActivityStats([], 0m, dailyCosts, null, dailyPlans);
         var trend = DashboardApp.BuildWeeklyTrend(activity, today);
 
-        Assert.Equal(28, trend.Months.Count);
+        Assert.NotNull(trend);
+        Assert.Equal(28, trend.Dates.Count);
         Assert.Equal(28, trend.Cost.Count);
         Assert.Equal(28, trend.Plans.Count);
         Assert.Equal(28, trend.PrevCost.Count);
         Assert.Equal(28, trend.PrevPlans.Count);
+        Assert.Equal(28, trend.RollingCost.Count);
 
-        // First label is 27 days before today: Aug 10
-        Assert.Equal("Aug 10", trend.Months[0]);
-        // Last label is today: Sep 6
-        Assert.Equal("Sep 6", trend.Months[^1]);
+        // 27 days before today through today, as dates rather than labels.
+        Assert.Equal("2026-08-10", trend.Dates[0]);
+        Assert.Equal("2026-09-06", trend.Dates[^1]);
 
-        // Sept 6 cost
         Assert.Equal(28.31, trend.Cost[^1]);
-        // Sept 6 plans
         Assert.Equal(5.0, trend.Plans[^1]);
+        // Zero-filled: Sept 4 has no rows at all and is present as 0, not missing.
+        Assert.Equal(0d, trend.Cost[trend.Dates.IndexOf("2026-09-04")]);
+
         // Sept 6 compared to 28 days earlier (Aug 9)
         Assert.Equal(12.50, trend.PrevCost[^1]);
         Assert.Equal(2.0, trend.PrevPlans[^1]);
+
+        // Records begin Aug 9 (the fallback for a mock with no DailyDataStart), so the window clears it
+        // on Aug 15 and every day after that has a mean.
+        Assert.Null(trend.RollingCost[trend.Dates.IndexOf("2026-08-14")]);
+        Assert.NotNull(trend.RollingCost[trend.Dates.IndexOf("2026-08-15")]);
+        Assert.True(trend.RollingCost.Distinct().Count() > 1, "the rolling series is flat");
+    }
+
+    [Fact]
+    public void BuildWeeklyTrend_WithoutADailySeries_IsAbsent()
+    {
+        // The weekly-bucket fallback is gone: four weekly buckets cannot make a 7 day average.
+        var monday = new DateOnly(2026, 8, 31);
+        var weeks = Enumerable.Range(0, 24)
+            .Select(i => new DashboardWeekStats(monday.AddDays(-7 * (23 - i)), i + 1, 0, (i + 1) * 10m, 0))
+            .ToList();
+
+        Assert.Null(DashboardApp.BuildWeeklyTrend(
+            new DashboardActivityStats([], 0m, null, weeks), new DateTime(2026, 9, 6)));
     }
 
     [Fact]
