@@ -17,6 +17,7 @@ using Ivy.Tendril.Agents.Providers;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Jobs;
+using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Widgets;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -33,10 +34,18 @@ public sealed class ChatExecutionService : IChatExecutionService
     private readonly ILogger<ChatExecutionService> _logger;
     private readonly IServiceProvider? _serviceProvider;
     private readonly IJobService? _jobService;
+    private readonly IPlanReaderService? _planReaderService;
+    private readonly IPlanDatabaseService? _database;
 
     private readonly ConcurrentDictionary<string, byte> _notifiedJobCompletions = new(StringComparer.OrdinalIgnoreCase);
     private bool _jobServiceSubscribed;
     private readonly object _jobSubLock = new();
+
+    private IPlanReaderService? ResolvedPlanReaderService =>
+        _planReaderService ?? _serviceProvider?.GetService<IPlanReaderService>();
+
+    private IPlanDatabaseService? ResolvedDatabase =>
+        _database ?? _serviceProvider?.GetService<IPlanDatabaseService>();
 
     private IJobService? ResolvedJobService
     {
@@ -137,7 +146,9 @@ public sealed class ChatExecutionService : IChatExecutionService
         IEventSerializer serializer,
         ILogger<ChatExecutionService>? logger = null,
         IServiceProvider? serviceProvider = null,
-        IJobService? jobService = null)
+        IJobService? jobService = null,
+        IPlanReaderService? planReaderService = null,
+        IPlanDatabaseService? database = null)
     {
         _configService = configService;
         _chatService = chatService;
@@ -147,6 +158,8 @@ public sealed class ChatExecutionService : IChatExecutionService
         _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<ChatExecutionService>.Instance;
         _serviceProvider = serviceProvider;
         _jobService = jobService;
+        _planReaderService = planReaderService;
+        _database = database;
         _chatService.ClearAllGeneratingSessions();
         if (_jobService != null)
         {
@@ -860,6 +873,46 @@ public sealed class ChatExecutionService : IChatExecutionService
         if (job == null) return;
 
         string? targetSessionId = job.ChatSessionId;
+        if (string.IsNullOrEmpty(targetSessionId) && !string.IsNullOrEmpty(job.PlanFile))
+        {
+            var folderName = Path.GetFileName(job.PlanFile);
+            var planReader = ResolvedPlanReaderService;
+            var plan = planReader?.GetPlanByFolder(job.PlanFile) ?? (folderName != job.PlanFile ? planReader?.GetPlanByFolder(folderName) : null);
+            targetSessionId = plan?.ChatSessionId;
+
+            if (string.IsNullOrEmpty(targetSessionId))
+            {
+                var db = ResolvedDatabase;
+                var dbPlan = db?.GetPlanByFolder(job.PlanFile) ?? (folderName != job.PlanFile ? db?.GetPlanByFolder(folderName) : null);
+                targetSessionId = dbPlan?.ChatSessionId;
+
+                if (string.IsNullOrEmpty(targetSessionId) && db != null)
+                {
+                    try
+                    {
+                        var jobs = db.GetJobsForPlan(folderName);
+                        if (jobs.Count == 0 && folderName != job.PlanFile)
+                            jobs = db.GetJobsForPlan(job.PlanFile);
+
+                        targetSessionId = jobs
+                            .Where(j => !string.IsNullOrEmpty(j.ChatSessionId))
+                            .OrderByDescending(j => j.StartedAt)
+                            .ThenByDescending(j => j.Id)
+                            .FirstOrDefault()?.ChatSessionId;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Failed to resolve historical jobs for plan {PlanFile}", job.PlanFile);
+                    }
+                }
+            }
+
+            if (!string.IsNullOrEmpty(targetSessionId))
+            {
+                job.ChatSessionId = targetSessionId;
+            }
+        }
+
         if (string.IsNullOrEmpty(targetSessionId)) return;
 
         var sess = _chatService.GetSession(targetSessionId);

@@ -66,7 +66,7 @@ public class JobService : IJobService
         _jobLauncher = new JobLauncher(configService, agentRunner, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
             configService, _logger, modelPricingService, planReaderService,
-            telemetryService, planWatcherService, promptsRoot, pricingProvider);
+            telemetryService, planWatcherService, promptsRoot, pricingProvider, database);
         configService.SettingsReloaded += OnSettingsReloaded;
         JobIdAllocator.SeedIfNeeded(configService.TendrilHome);
         LoadHistoricalJobs();
@@ -103,7 +103,7 @@ public class JobService : IJobService
         _jobLauncher = new JobLauncher(null, agentRunner!, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
             null, _logger, null, planReaderService, telemetryService,
-            null, promptsRoot);
+            null, promptsRoot, database: database);
         LoadHistoricalJobs();
         _blockedJobCheckTimer = new Timer(OnBlockedJobCheckTimer, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
     }
@@ -1138,6 +1138,34 @@ public class JobService : IJobService
         _planReaderService.TransitionState(folderName, target.Value);
     }
 
+    private string? ResolvePlanChatSessionId(string planFolder)
+    {
+        if (string.IsNullOrEmpty(planFolder))
+            return null;
+
+        var plan = _planReaderService?.GetPlanByFolder(planFolder);
+        if (!string.IsNullOrEmpty(plan?.ChatSessionId))
+            return plan.ChatSessionId;
+
+        if (_database != null)
+        {
+            var dbPlan = _database.GetPlanByFolder(planFolder);
+            if (!string.IsNullOrEmpty(dbPlan?.ChatSessionId))
+                return dbPlan.ChatSessionId;
+
+            var folderName = Path.GetFileName(planFolder);
+            var jobs = _database.GetJobsForPlan(folderName);
+            if (jobs.Count == 0 && folderName != planFolder)
+                jobs = _database.GetJobsForPlan(planFolder);
+
+            var fallbackId = jobs.Select(j => j.ChatSessionId).FirstOrDefault(id => !string.IsNullOrEmpty(id));
+            if (!string.IsNullOrEmpty(fallbackId))
+                return fallbackId;
+        }
+
+        return null;
+    }
+
     private JobItem BuildJobItem(string id, JobArgsBase args, string? inboxFilePath)
     {
         var (planFile, project, priority) = ExtractJobMetadata(args);
@@ -1155,6 +1183,24 @@ public class JobService : IJobService
             WaitForJobIds = args.WaitForJobs,
             ChatSessionId = args.ChatSessionId
         };
+
+        if (string.IsNullOrEmpty(job.ChatSessionId))
+        {
+            var targetFolder = args.PlanFolder;
+            if (string.IsNullOrEmpty(targetFolder) && !string.IsNullOrEmpty(planFile) && args is not CreatePlanArgs and not AddProjectArgs)
+            {
+                targetFolder = planFile;
+            }
+
+            if (!string.IsNullOrEmpty(targetFolder))
+            {
+                var inheritedSessionId = ResolvePlanChatSessionId(targetFolder);
+                if (!string.IsNullOrEmpty(inheritedSessionId))
+                {
+                    job.ChatSessionId = inheritedSessionId;
+                }
+            }
+        }
 
         if (args is CreatePlanArgs)
             SetupInboxTracking(job, id, args, inboxFilePath);
@@ -1346,6 +1392,23 @@ public class JobService : IJobService
             TimeoutCts = new CancellationTokenSource(),
             ChatSessionId = args.ChatSessionId
         };
+        if (string.IsNullOrEmpty(job.ChatSessionId))
+        {
+            var targetFolder = args.PlanFolder;
+            if (string.IsNullOrEmpty(targetFolder) && !string.IsNullOrEmpty(planFile) && args is not CreatePlanArgs and not AddProjectArgs)
+            {
+                targetFolder = planFile;
+            }
+
+            if (!string.IsNullOrEmpty(targetFolder))
+            {
+                var inheritedSessionId = ResolvePlanChatSessionId(targetFolder);
+                if (!string.IsNullOrEmpty(inheritedSessionId))
+                {
+                    job.ChatSessionId = inheritedSessionId;
+                }
+            }
+        }
         if (!string.IsNullOrEmpty(job.ChatSessionId) && _chatHistoryService != null)
         {
             _chatHistoryService.AddSpawnedJob(job.ChatSessionId, id);

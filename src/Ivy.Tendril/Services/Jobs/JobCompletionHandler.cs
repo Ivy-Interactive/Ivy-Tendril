@@ -7,6 +7,7 @@ using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services.Plans;
 using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services.Jobs;
@@ -19,6 +20,7 @@ internal class JobCompletionHandler
     private readonly IModelPricingProvider? _pricingProvider;
     private readonly IPlanReaderService? _planReaderService;
     private readonly IPlanWatcherService? _planWatcherService;
+    private readonly IPlanDatabaseService? _database;
     private readonly ITelemetryService? _telemetryService;
     private readonly string _promptsRoot;
     private readonly PlanArtifactSyncer _artifactSyncer;
@@ -37,7 +39,8 @@ internal class JobCompletionHandler
         ITelemetryService? telemetryService,
         IPlanWatcherService? planWatcherService,
         string promptsRoot,
-        IModelPricingProvider? pricingProvider = null)
+        IModelPricingProvider? pricingProvider = null,
+        IPlanDatabaseService? database = null)
     {
         _configService = configService;
         _logger = logger;
@@ -52,6 +55,7 @@ internal class JobCompletionHandler
         _promptsRoot = promptsRoot;
         _artifactSyncer = new PlanArtifactSyncer(configService, logger, planWatcherService);
         _dependencyChecker = new DependencyChecker(planReaderService);
+        _database = database;
     }
 
     internal void HandleCompletion(
@@ -787,6 +791,29 @@ internal class JobCompletionHandler
                 TryVerifyByOutputRegex(job, plansDir) ||
                 TryVerifyByFilesystem(job, plansDir))
             {
+                if (!string.IsNullOrEmpty(job.ChatSessionId) && !string.IsNullOrEmpty(job.PlanFile))
+                {
+                    var planFolder = Path.IsPathRooted(job.PlanFile) ? job.PlanFile : Path.Combine(plansDir, job.PlanFile);
+                    PlanYamlHelper.UpdatePlanYamlFields(planFolder, ("chatSessionId", job.ChatSessionId));
+                    _planWatcherService?.NotifyChanged(planFolder);
+                    if (_planReaderService is PlanReaderService prs)
+                    {
+                        var plan = prs.ParseSinglePlanFolder(planFolder);
+                        if (plan != null)
+                        {
+                            (_database ?? prs.Database)?.UpsertPlan(plan);
+                        }
+                    }
+                    else if (_database != null)
+                    {
+                        var plan = _planReaderService?.GetPlanByFolder(planFolder);
+                        if (plan != null)
+                        {
+                            _database.UpsertPlan(plan);
+                        }
+                    }
+                }
+
                 MoveAttachmentsToPlanFolder(job);
                 return;
             }

@@ -25,11 +25,16 @@ public class ContentView(
     IJobService jobService,
     Action refreshPlans,
     IConfigService config,
-    IGitService gitService) : ViewBase
+    IGitService gitService,
+    IChatExecutionService? chatExecutionService = null) : ViewBase
 {
+    private IChatExecutionService? _chatExecutionService = chatExecutionService;
+
     public override object Build()
     {
         var client = UseService<IClientProvider>();
+        Context.TryUseService<IChatExecutionService>(out var resolvedChat);
+        _chatExecutionService ??= resolvedChat;
         var copyToClipboard = UseClipboard();
         var openFile = UseState<string?>(null);
         var selectedRepoState = UseState<string?>(null);
@@ -621,7 +626,7 @@ public class ContentView(
         return match.Success ? match.Groups[1].Value.Trim() : null;
     }
 
-    private void LaunchExecute(List<string>? waitJobIds = null)
+    internal void LaunchExecute(List<string>? waitJobIds = null)
     {
         if (selectedPlan is null) return;
 
@@ -632,7 +637,8 @@ public class ContentView(
         if (!hasWaits)
             TransitionPlanOptimistically(PlanStatus.Creating);
 
-        jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = hasWaits ? waitJobIds : null });
+        var jobId = jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = hasWaits ? waitJobIds : null });
+        EmitManualExecutionEvent(jobId);
         refreshPlans();
     }
 
@@ -654,8 +660,26 @@ public class ContentView(
         if (!hasWaits)
             TransitionPlanOptimistically(PlanStatus.Creating);
 
-        jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = allWaitIds });
+        var executeJobId = jobService.StartJob(new ExecutePlanArgs(selectedPlan.FolderPath) { WaitForJobs = allWaitIds });
+        EmitManualExecutionEvent(executeJobId);
         refreshPlans();
+    }
+
+    internal void EmitManualExecutionEvent(string jobId)
+    {
+        if (selectedPlan is null) return;
+        var chatSessionId = selectedPlan.ChatSessionId;
+        if (string.IsNullOrEmpty(chatSessionId))
+        {
+            chatSessionId = jobService.GetJob(jobId)?.ChatSessionId;
+        }
+        if (string.IsNullOrEmpty(chatSessionId)) return;
+
+        var chatExec = _chatExecutionService;
+        if (chatExec is null) return;
+
+        var message = $"[System Event] Manual approval granted and execution started for plan '{selectedPlan.Title}' (Job {jobId}).";
+        _ = chatExec.SendMessageAsync(chatSessionId, message, role: "system");
     }
 
     // Optimistically update UI state; the authoritative plan transition (and pre-state

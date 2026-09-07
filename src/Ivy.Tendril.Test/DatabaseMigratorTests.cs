@@ -812,6 +812,41 @@ public class DatabaseMigratorTests : IDisposable
         Assert.Equal(160000, sumReader.GetInt32(3));
     }
 
+    [Fact]
+    public void Migration_023_PlanChatSessionId_AddsColumnAndBumpsVersion()
+    {
+        ApplyMigrationsThrough021();
+        new Migration_022_CostsNullableCostAndModel().Apply(_connection);
+
+        Assert.Equal(22, GetUserVersion());
+
+        new Migration_023_PlanChatSessionId().Apply(_connection);
+
+        Assert.Equal(23, GetUserVersion());
+
+        var columns = new List<string>();
+        using (var pragmaCmd = _connection.CreateCommand())
+        {
+            pragmaCmd.CommandText = "PRAGMA table_info(Plans);";
+            using var reader = pragmaCmd.ExecuteReader();
+            while (reader.Read())
+                columns.Add(reader.GetString(reader.GetOrdinal("name")));
+        }
+
+        Assert.Contains("ChatSessionId", columns);
+
+        using var insertCmd = _connection.CreateCommand();
+        insertCmd.CommandText = """
+            INSERT INTO Plans (Id, Title, Project, Level, State, FolderPath, FolderName, YamlRaw, Created, Updated, ChatSessionId)
+            VALUES (1600, 'Linked Plan', 'Tendril', 'NiceToHave', 'Draft', '/p/01600', '01600-LinkedPlan', '', '2026-01-01', '2026-01-01', 'sess-123');
+            """;
+        insertCmd.ExecuteNonQuery();
+
+        using var queryCmd = _connection.CreateCommand();
+        queryCmd.CommandText = "SELECT ChatSessionId FROM Plans WHERE Id = 1600;";
+        Assert.Equal("sess-123", queryCmd.ExecuteScalar()?.ToString());
+    }
+
     private void ApplyMigrationsThrough021()
     {
         new Migration_001_InitialSchema().Apply(_connection);

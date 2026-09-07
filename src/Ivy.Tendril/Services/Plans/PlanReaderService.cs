@@ -38,6 +38,7 @@ public class PlanReaderService(
     private readonly TimeCache<List<Recommendation>> _recommendationsCache = new(TimeSpan.FromMinutes(2));
 
     private IPlanDatabaseService? _database;
+    internal IPlanDatabaseService? Database => _database;
     private volatile bool _useDatabaseForReads;
 
     public string PlansDirectory => config.PlanFolder;
@@ -1099,7 +1100,8 @@ public class PlanReaderService(
                 planYaml.Updated,
                 planYaml.InitialPrompt,
                 planYaml.SourceUrl,
-                planYaml.PartialDelivery
+                planYaml.PartialDelivery,
+                planYaml.ChatSessionId
             );
 
             var latestContent = ReadLatestRevisionFromFileSystem(folderName);
