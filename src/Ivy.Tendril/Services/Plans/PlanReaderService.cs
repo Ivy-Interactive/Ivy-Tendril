@@ -1121,7 +1121,8 @@ public class PlanReaderService(
                 planYaml.InitialPrompt,
                 planYaml.SourceUrl,
                 planYaml.PartialDelivery,
-                planYaml.ChatSessionId
+                planYaml.ChatSessionId,
+                planYaml.AllocatedPorts
             );
 
             var latestContent = ReadLatestRevisionFromFileSystem(folderName);

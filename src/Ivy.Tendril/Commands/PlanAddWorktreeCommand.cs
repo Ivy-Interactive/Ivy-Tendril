@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Services;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using Spectre.Console.Cli;
@@ -108,7 +109,44 @@ public class PlanAddWorktreeCommand : Command<PlanAddWorktreeSettings>
 
         AnsiConsole.MarkupLine($"[green]Worktree created: {worktreePath.EscapeMarkup()}[/]");
         AnsiConsole.MarkupLine($"[green]Branch: {branchName.EscapeMarkup()}[/]");
+
+        MaterializeEnvironment(planFolder, worktreePath);
         return 0;
+    }
+
+    /// <summary>
+    ///     Allocates the plan's service ports and recreates the project's environment files in the fresh
+    ///     worktree, which starts without the untracked <c>.env</c> files the original checkout relies on.
+    ///     Failures are reported but do not fail the command: the worktree itself is usable, and
+    ///     <c>tendril plan env materialize</c> can retry once the project config is fixed.
+    /// </summary>
+    private void MaterializeEnvironment(string planFolder, string worktreePath)
+    {
+        try
+        {
+            var plan = PlanCommandHelpers.ReadPlan(planFolder);
+            var project = new ConfigService().Settings.Projects
+                .FirstOrDefault(p => p.Name.Equals(plan.Project, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null || (project.Ports.Count == 0 && project.EnvFiles.Count == 0))
+                return;
+
+            var allocatedPorts = PortAllocationHelper.AllocatePorts(project, plan, planFolder);
+            foreach (var (name, port) in allocatedPorts.OrderBy(p => p.Key, StringComparer.Ordinal))
+                AnsiConsole.MarkupLine($"[green]Port {name.EscapeMarkup()}: {port}[/]");
+
+            if (project.EnvFiles.Count == 0)
+                return;
+
+            var count = EnvironmentMaterializationHelper.MaterializeEnvFiles(project, allocatedPorts, worktreePath);
+            AnsiConsole.MarkupLine($"[green]Materialized {count} environment file(s) into worktree.[/]");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to materialize environment for plan folder {PlanFolder}", planFolder);
+            AnsiConsole.MarkupLine($"[yellow]Warning: could not materialize environment files: {ex.Message.EscapeMarkup()}[/]");
+            AnsiConsole.MarkupLine("[yellow]Run 'tendril plan env materialize <plan-id>' after fixing the project config.[/]");
+        }
     }
 
     private static string DeriveBranchName(string planFolder)

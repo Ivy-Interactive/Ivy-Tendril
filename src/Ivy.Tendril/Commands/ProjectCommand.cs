@@ -402,6 +402,125 @@ public class ProjectRemoveSkillSettings : CommandSettings
     }
 }
 
+public class ProjectListPortsSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(ProjectName, "project-name");
+    }
+}
+
+public class ProjectAddPortSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    [Description("Logical port name (e.g. backend)")]
+    [CommandArgument(1, "<name>")]
+    public string Name { get; set; } = "";
+
+    [Description("Preferred port, used when free")]
+    [CommandArgument(2, "<default-port>")]
+    public int DefaultPort { get; set; }
+
+    [CommandOption("--description <description>")]
+    [Description("What listens on this port")]
+    public string? Description { get; set; }
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Name, "name"),
+            DefaultPort is > 0 and <= 65535
+                ? Spectre.Console.ValidationResult.Success()
+                : Spectre.Console.ValidationResult.Error($"default-port must be between 1 and 65535, got: {DefaultPort}"));
+    }
+}
+
+public class ProjectRemovePortSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    [Description("Logical port name")]
+    [CommandArgument(1, "<name>")]
+    public string Name { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Name, "name"));
+    }
+}
+
+public class ProjectListEnvFilesSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.RequireNonEmpty(ProjectName, "project-name");
+    }
+}
+
+public class ProjectAddEnvFileSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    [Description("Target path, relative to the worktree root (e.g. apps/web/.env)")]
+    [CommandArgument(1, "<path>")]
+    public string Path { get; set; } = "";
+
+    [CommandOption("--template <template>")]
+    [Description("Source file to copy, relative to the worktree root (e.g. .env.example)")]
+    public string? Template { get; set; }
+
+    [CommandOption("--override <key=value>")]
+    [Description("Key written on top of the template; repeat for several keys")]
+    public string[] Overrides { get; set; } = [];
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        var malformed = Overrides.FirstOrDefault(o => !o.Contains('='));
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Path, "path"),
+            malformed == null
+                ? Spectre.Console.ValidationResult.Success()
+                : Spectre.Console.ValidationResult.Error($"--override must be KEY=VALUE, got: {malformed}"));
+    }
+}
+
+public class ProjectRemoveEnvFileSettings : CommandSettings
+{
+    [Description("Project name")]
+    [CommandArgument(0, "<project-name>")]
+    public string ProjectName { get; set; } = "";
+
+    [Description("Target path of the env file to remove")]
+    [CommandArgument(1, "<path>")]
+    public string Path { get; set; } = "";
+
+    public override Spectre.Console.ValidationResult Validate()
+    {
+        return CliValidation.Combine(
+            CliValidation.RequireNonEmpty(ProjectName, "project-name"),
+            CliValidation.RequireNonEmpty(Path, "path"));
+    }
+}
+
 public class ProjectImportSettings : CommandSettings
 {
     [Description("Project name")]
@@ -1203,6 +1322,186 @@ public class ProjectRemoveSkillCommand : Command<ProjectRemoveSkillSettings>
         });
 
         Console.WriteLine($"Removed custom skill: {settings.Name}");
+        return 0;
+    }
+}
+
+public class ProjectListPortsCommand : Command<ProjectListPortsSettings>
+{
+    protected override int Execute(CommandContext context, ProjectListPortsSettings settings, CancellationToken cancellationToken)
+    {
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+        if (project == null)
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
+
+        if (project.Ports.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[dim]No ports configured for this project.[/]");
+            return 0;
+        }
+
+        CliOutput.WriteTable(
+            ["Name", "Default Port", "Description"],
+            project.Ports.Select(p => new[] { p.Key, p.Value.DefaultPort.ToString(), p.Value.Description }));
+
+        return 0;
+    }
+}
+
+public class ProjectAddPortCommand : Command<ProjectAddPortSettings>
+{
+    protected override int Execute(CommandContext context, ProjectAddPortSettings settings, CancellationToken cancellationToken)
+    {
+        var config = new ConfigService();
+        var updated = false;
+
+        config.MutateAndSave(s =>
+        {
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
+
+            updated = project.Ports.ContainsKey(settings.Name);
+            project.Ports[settings.Name] = new ProjectPortConfig
+            {
+                DefaultPort = settings.DefaultPort,
+                Description = settings.Description ?? ""
+            };
+        });
+
+        Console.WriteLine($"{(updated ? "Updated" : "Added")} port: {settings.Name} -> {settings.DefaultPort}");
+        return 0;
+    }
+}
+
+public class ProjectRemovePortCommand : Command<ProjectRemovePortSettings>
+{
+    protected override int Execute(CommandContext context, ProjectRemovePortSettings settings, CancellationToken cancellationToken)
+    {
+        var config = new ConfigService();
+
+        config.MutateAndSave(s =>
+        {
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
+
+            if (!project.Ports.Remove(settings.Name))
+                throw new InvalidOperationException($"Port not found: {settings.Name}");
+        });
+
+        Console.WriteLine($"Removed port: {settings.Name}");
+        return 0;
+    }
+}
+
+public class ProjectListEnvFilesCommand : Command<ProjectListEnvFilesSettings>
+{
+    protected override int Execute(CommandContext context, ProjectListEnvFilesSettings settings, CancellationToken cancellationToken)
+    {
+        var config = new ConfigService();
+        var project = config.Settings.Projects
+            .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+        if (project == null)
+            CliValidation.ThrowProjectNotFound(settings.ProjectName, config.Settings.Projects.Select(p => p.Name));
+
+        if (project.EnvFiles.Count == 0)
+        {
+            AnsiConsole.MarkupLine("[dim]No environment files configured for this project.[/]");
+            return 0;
+        }
+
+        CliOutput.WriteTable(
+            ["Path", "Template", "Overrides"],
+            project.EnvFiles.Select(f => new[]
+            {
+                f.Path,
+                f.Template ?? "",
+                string.Join(", ", f.Overrides.Keys)
+            }));
+
+        return 0;
+    }
+}
+
+public class ProjectAddEnvFileCommand : Command<ProjectAddEnvFileSettings>
+{
+    protected override int Execute(CommandContext context, ProjectAddEnvFileSettings settings, CancellationToken cancellationToken)
+    {
+        var config = new ConfigService();
+        var updated = false;
+
+        var overrides = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var entry in settings.Overrides)
+        {
+            var separator = entry.IndexOf('=');
+            overrides[entry[..separator].Trim()] = entry[(separator + 1)..];
+        }
+
+        config.MutateAndSave(s =>
+        {
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
+
+            var existing = project.EnvFiles
+                .FirstOrDefault(f => f.Path.Equals(settings.Path, StringComparison.OrdinalIgnoreCase));
+
+            // Re-running with the same path replaces the entry rather than adding a duplicate: two
+            // configs for one file would race, with the last one written winning silently.
+            if (existing != null)
+            {
+                updated = true;
+                project.EnvFiles.Remove(existing);
+            }
+
+            project.EnvFiles.Add(new ProjectEnvFileConfig
+            {
+                Path = settings.Path,
+                Template = string.IsNullOrWhiteSpace(settings.Template) ? null : settings.Template,
+                Overrides = overrides
+            });
+        });
+
+        Console.WriteLine($"{(updated ? "Updated" : "Added")} environment file: {settings.Path}");
+        return 0;
+    }
+}
+
+public class ProjectRemoveEnvFileCommand : Command<ProjectRemoveEnvFileSettings>
+{
+    protected override int Execute(CommandContext context, ProjectRemoveEnvFileSettings settings, CancellationToken cancellationToken)
+    {
+        var config = new ConfigService();
+
+        config.MutateAndSave(s =>
+        {
+            var project = s.Projects
+                .FirstOrDefault(p => p.Name.Equals(settings.ProjectName, StringComparison.OrdinalIgnoreCase));
+
+            if (project == null)
+                CliValidation.ThrowProjectNotFound(settings.ProjectName, s.Projects.Select(p => p.Name));
+
+            var match = project.EnvFiles
+                .FirstOrDefault(f => f.Path.Equals(settings.Path, StringComparison.OrdinalIgnoreCase));
+
+            if (match == null)
+                throw new InvalidOperationException($"Environment file not found: {settings.Path}");
+
+            project.EnvFiles.Remove(match);
+        });
+
+        Console.WriteLine($"Removed environment file: {settings.Path}");
         return 0;
     }
 }

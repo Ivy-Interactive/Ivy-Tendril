@@ -36,7 +36,8 @@ public record PlanMetadata(
     string? InitialPrompt,
     string? SourceUrl,
     bool PartialDelivery = false,
-    string? ChatSessionId = null);
+    string? ChatSessionId = null,
+    Dictionary<string, int>? AllocatedPorts = null);
 
 public record PlanFile(
     PlanMetadata Metadata,
@@ -62,6 +63,13 @@ public record PlanFile(
     public string? InitialPrompt => Metadata.InitialPrompt;
     public string? SourceUrl => Metadata.SourceUrl;
     public string? ChatSessionId => Metadata.ChatSessionId;
+
+    /// <summary>
+    ///     Ports assigned to this plan's named services, keyed by the project's port name. Empty when
+    ///     the project defines no ports or the plan has not been materialized yet. See
+    ///     <see cref="PlanYaml.AllocatedPorts" />.
+    /// </summary>
+    public Dictionary<string, int> AllocatedPorts => Metadata.AllocatedPorts ?? new();
 
     /// <summary>
     ///     True when the plan reached Completed over a failed verification. See
@@ -195,6 +203,15 @@ public class PlanYaml
     /// </summary>
     [YamlMember(DefaultValuesHandling = DefaultValuesHandling.OmitDefaults)]
     public bool PartialDelivery { get; set; }
+
+    /// <summary>
+    ///     Ports assigned to the project's named services for this plan, keyed by port name (see
+    ///     <see cref="Services.ProjectPortConfig" />). Written when a worktree is created and retained
+    ///     across re-executions so a review session keeps the same URLs. Additive and
+    ///     absent-means-none, so it needs no <see cref="CurrentSchemaVersion" /> bump.
+    /// </summary>
+    [YamlMember(DefaultValuesHandling = DefaultValuesHandling.OmitDefaults)]
+    public Dictionary<string, int>? AllocatedPorts { get; set; }
 
     public string? ExecutionProfile { get; set; }
     public string? InitialPrompt { get; set; }

@@ -783,6 +783,14 @@ public class Program
                     verification.AddCommand<PlanVerificationRemoveCommand>("remove")
                         .WithDescription("Remove a verification from a plan");
                 });
+
+                plan.AddBranch("env", env =>
+                {
+                    env.AddCommand<PlanEnvMaterializeCommand>("materialize")
+                        .WithDescription("Allocate ports and write the project's environment files into the plan's worktrees");
+                    env.AddCommand<PlanEnvGetCommand>("get")
+                        .WithDescription("Print the plan's allocated ports and resolved environment values");
+                });
             });
 
             config.AddBranch("verification", verification =>
@@ -853,6 +861,26 @@ public class Program
                     .WithDescription("Import MCP servers from a repository into a project");
                 project.AddCommand<ProjectImportSkillsCommand>("import-skills")
                     .WithDescription("Import custom skills from a repository into a project");
+
+                project.AddBranch("port", port =>
+                {
+                    port.AddCommand<ProjectListPortsCommand>("list")
+                        .WithDescription("List the project's named service ports");
+                    port.AddCommand<ProjectAddPortCommand>("add")
+                        .WithDescription("Add or update a named service port");
+                    port.AddCommand<ProjectRemovePortCommand>("remove")
+                        .WithDescription("Remove a named service port");
+                });
+
+                project.AddBranch("env-file", envFile =>
+                {
+                    envFile.AddCommand<ProjectListEnvFilesCommand>("list")
+                        .WithDescription("List the environment files materialized into plan worktrees");
+                    envFile.AddCommand<ProjectAddEnvFileCommand>("add")
+                        .WithDescription("Add or update an environment file");
+                    envFile.AddCommand<ProjectRemoveEnvFileCommand>("remove")
+                        .WithDescription("Remove an environment file");
+                });
             });
 
             config.AddBranch("config", cfg =>
