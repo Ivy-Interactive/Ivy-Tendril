@@ -33,8 +33,6 @@ public class ContentView(
     public override object Build()
     {
         var client = UseService<IClientProvider>();
-        Context.TryUseService<IChatExecutionService>(out var resolvedChat);
-        _chatExecutionService ??= resolvedChat;
         var copyToClipboard = UseClipboard();
         var openFile = UseState<string?>(null);
         var selectedRepoState = UseState<string?>(null);
