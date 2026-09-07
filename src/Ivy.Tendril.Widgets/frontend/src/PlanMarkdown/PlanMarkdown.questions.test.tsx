@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render } from "@testing-library/react";
 import { PlanMarkdown as DraftMarkdown } from "./PlanMarkdown";
 import { QuestionsCallout } from "./QuestionsCallout";
 
@@ -502,6 +502,82 @@ describe("DraftMarkdown interactive questions", () => {
     expect(copy).not.toBeNull();
     expect(copy!.closest("label")).toBeNull();
     expect(eventHandler).not.toHaveBeenCalled();
+  });
+
+  it("selects an option when clicking the card container element", () => {
+    const { container, eventHandler } = renderInteractive(SINGLE);
+
+    const card = container.querySelector<HTMLElement>(".pmv-question-option");
+    expect(card).not.toBeNull();
+    fireEvent.click(card!);
+
+    expect(eventHandler).toHaveBeenCalledTimes(1);
+    expect(eventHandler).toHaveBeenCalledWith("OnAnswersChange", "w1", [
+      { questionId: "budget", answer: ["per-request"] },
+    ]);
+  });
+
+  it("selects an option when clicking inside the option description markdown", () => {
+    const { container, eventHandler } = renderInteractive(RICH_DESCRIPTION);
+
+    const description = container.querySelector<HTMLElement>(".pmv-question-option-description");
+    expect(description).not.toBeNull();
+    const strong = description!.querySelector("strong");
+    expect(strong).not.toBeNull();
+    fireEvent.click(strong!);
+
+    expect(eventHandler).toHaveBeenCalledTimes(1);
+    expect(eventHandler).toHaveBeenCalledWith("OnAnswersChange", "w1", [
+      { questionId: "budget", answer: ["per-request"] },
+    ]);
+  });
+
+  it("ignores card click when clicking interactive elements such as code copy buttons", async () => {
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+
+    const { container, eventHandler } = renderInteractive(RICH_DESCRIPTION);
+
+    const copy = container.querySelector<HTMLButtonElement>(
+      ".pmv-question-option-description .pmv-code-copy",
+    );
+    expect(copy).not.toBeNull();
+    await act(async () => {
+      fireEvent.click(copy!);
+    });
+
+    expect(eventHandler).not.toHaveBeenCalled();
+  });
+
+  it("ignores card click when user has an active text selection", () => {
+    const { container, eventHandler } = renderInteractive(SINGLE);
+
+    const selectionSpy = vi.spyOn(window, "getSelection").mockReturnValue({
+      toString: () => "selected text",
+    } as Selection);
+
+    const card = container.querySelector<HTMLElement>(".pmv-question-option");
+    expect(card).not.toBeNull();
+    fireEvent.click(card!);
+
+    expect(eventHandler).not.toHaveBeenCalled();
+    selectionSpy.mockRestore();
+  });
+
+  it("toggles other input when clicking the Other card container", () => {
+    const { container } = renderInteractive(SINGLE);
+
+    const otherCard = container.querySelector<HTMLElement>(".pmv-question-option--other");
+    expect(otherCard).not.toBeNull();
+    expect(container.querySelector(".pmv-question-other-input")).toBeNull();
+
+    fireEvent.click(otherCard!);
+
+    const input = container.querySelector<HTMLInputElement>(".pmv-question-other-input");
+    expect(input).not.toBeNull();
   });
 
   it("renders a GFM table in a description", () => {
