@@ -20,6 +20,7 @@ public class VaultSetupView : ViewBase
         var config = UseService<IConfigService>();
         var vaultService = UseService<IVaultService>();
         var client = UseService<IClientProvider>();
+        var themeSerialization = UseService<IThemeSerializationService>();
         var refreshToken = UseRefreshToken();
 
         var openCreateDialog = UseState(false);
@@ -171,7 +172,8 @@ public class VaultSetupView : ViewBase
                 catalogQuery.Mutator.Revalidate();
             },
             requestedTab: themesDialogTab,
-            themeToEdit: editingThemeManifest);
+            themeToEdit: editingThemeManifest,
+            themeSerializationService: themeSerialization);
 
         var confirmDeleteDialog = (openDeleteConfirm.Value && !string.IsNullOrEmpty(projectToDelete.Value))
             ? new Dialog(

@@ -308,6 +308,7 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<Services.Plans.IPlanDiffCommentService, Services.Plans.PlanDiffCommentService>();
         server.Services.AddTransient<Services.Share.IShareContext, Services.Share.ShareContext>();
         server.Services.AddSingleton<Services.Vault.IVaultService, Services.Vault.VaultService>();
+        server.Services.AddSingleton<Themes.IThemeSerializationService, Themes.ThemeSerializationService>();
 
         server.Services.AddSingleton<Services.Telemetry.ModelPricingWarmupService>();
         server.Services.AddSingleton<IStartable>(sp =>
