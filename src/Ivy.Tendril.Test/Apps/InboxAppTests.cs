@@ -2,6 +2,7 @@ using Ivy.Tendril.Apps.Inbox;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Git;
+using Ivy.Tendril.Services.IssueTrackers.Models;
 
 namespace Ivy.Tendril.Test.Apps;
 
@@ -70,11 +71,23 @@ public class InboxAppTests
         Assert.Equal("Found 10 issues · 4 selected", multipleIssuesNoAssignee);
 
         var group = new FetchedIssueGroup("john", [
-            new GitHubIssue(1, "Test 1", null, [], ["john"]),
-            new GitHubIssue(2, "Test 2", null, [], ["john"])
+            new TrackerIssue("github:test#1", "#1", "Test 1", null, [], ["john"], "test", null, "github"),
+            new TrackerIssue("github:test#2", "#2", "Test 2", null, [], ["john"], "test", null, "github")
         ]);
         var groupFormatted = InboxApp.FormatGroupHeader(group, 2);
         Assert.Equal("Found 2 issues for john · 2 selected", groupFormatted);
+    }
+
+    [Theory]
+    [InlineData("#123", "123")]
+    [InlineData("123", "123")]
+    [InlineData("PROJ-456", "PROJ-456")]
+    [InlineData("ENG-789", "ENG-789")]
+    [InlineData("###issue", "issue")]
+    public void SanitizeKey_CleansKeysForFilenames(string key, string expected)
+    {
+        var sanitized = InboxApp.SanitizeKey(key);
+        Assert.Equal(expected, sanitized);
     }
 
     [Fact]
