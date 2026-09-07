@@ -82,6 +82,26 @@
     } catch(e){}
     return REAL_URL;
   }
+  // ---- give the app back its own address ----
+  //
+  // The document is served out of view-space, so location.pathname reads
+  // "/__view/@v1/http://localhost:5173/" — and a client-side router matches its routes
+  // against exactly that. React Router says "No routes matched", renders nothing, and the
+  // viewer shows an empty page; an Ivy app derives its app id from the path and finds no such
+  // app. Neither is an error we can see: the page loads, and stays blank.
+  //
+  // So rewrite the address to the path the app believes it is serving, before any of its own
+  // scripts run. Nothing that resolves URLs is harmed: the <base href> injected above governs
+  // relative URLs, and root-relative ones are placed by the service worker through the client
+  // that asked, which it remembers by id for exactly this reason. The document keeps its
+  // controller — that is fixed at navigation time, not by the address it carries afterwards.
+  try {
+    if (location.pathname.indexOf(VIEW) === 0){
+      var real = new URL(currentReal());
+      history.replaceState(history.state, '', real.pathname + real.search + real.hash);
+    }
+  } catch(e){}
+
   function send(msg){
     try { parent.postMessage(Object.assign({ __proxy: true, url: currentReal() }, msg), '*'); } catch(e){}
   }
@@ -138,6 +158,62 @@
         } catch(e){}
         return el;
       };
+    }
+  } catch(e){}
+
+  // ---- WebSockets ----
+  //
+  // A service worker cannot see a WebSocket — it is not a fetch — so a proxied page opening
+  // one against "its own" origin, which is OURS, connects to the app HOSTING the viewer
+  // instead of to the site being viewed. The host then has to answer a socket meant for
+  // someone else: an Ivy host gets a client attaching with an app id it has never heard of
+  // and logs an exception for every widget event that follows, and over HTTP/2 the upgrade
+  // arrives as an extended CONNECT that its router has no route for at all.
+  //
+  // So point them at the upstream. A WebSocket needs no preflight to cross origins, which is
+  // what makes this possible at all: a dev server's HMR channel keeps working, and one that
+  // refuses our Origin fails inside the page — where a failure of the page's own belongs.
+  try {
+    var NativeWebSocket = window.WebSocket;
+    if (typeof NativeWebSocket === 'function'){
+      var toUpstreamSocket = function(url){
+        try {
+          // A relative socket URL resolves with the DOCUMENT's scheme — "/ivy/messages"
+          // becomes https://…, not wss://, and the browser only swaps the scheme afterwards.
+          // Matching on ws: alone would let every relative socket through unrewritten.
+          var abs = new URL(String(url), location.href);
+          var scheme = abs.protocol;
+          if (scheme !== 'ws:' && scheme !== 'wss:' && scheme !== 'http:' && scheme !== 'https:') return url;
+          if (abs.host !== location.host) return url;   // already elsewhere; leave it alone
+
+          // A relative socket URL resolves against the document, so it can arrive carrying
+          // the whole view-space path. The upstream it names beats anything else we know.
+          var host = null, secure = false, path = abs.pathname;
+          if (path.indexOf(VIEW) === 0){
+            var inner = new URL(fixProto(stripViewToken(path.slice(VIEW.length))));
+            host = inner.host;
+            secure = inner.protocol === 'https:';
+            path = inner.pathname;
+          } else {
+            var real = new URL(currentReal());
+            host = real.host;
+            secure = real.protocol === 'https:';
+          }
+          return (secure ? 'wss://' : 'ws://') + host + path + abs.search;
+        } catch(e){ return url; }
+      };
+
+      var ProxiedWebSocket = function(url, protocols){
+        return protocols === undefined
+          ? new NativeWebSocket(toUpstreamSocket(url))
+          : new NativeWebSocket(toUpstreamSocket(url), protocols);
+      };
+      // Shared prototype so `instanceof WebSocket` still holds for what the page created.
+      ProxiedWebSocket.prototype = NativeWebSocket.prototype;
+      ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'].forEach(function(name){
+        try { ProxiedWebSocket[name] = NativeWebSocket[name]; } catch(e){}
+      });
+      window.WebSocket = ProxiedWebSocket;
     }
   } catch(e){}
 
@@ -598,9 +674,13 @@
       meta: describe(el),
       debug: collectDebug(el)
     });
-    stopSelect();
+    // Select mode stays on until the parent stops it. The comment box covers the page while
+    // it is open, so nothing can be picked underneath, and picking resumes the moment it
+    // closes — marking up five things in a row is one button press, not five. Escape cancels
+    // the pick rather than the mode, which also keeps this flag and the host's toolbar state
+    // from drifting apart: 'select-stop' is the only thing that clears either.
   }
-  function onKey(e){ if (e.key === 'Escape'){ stopSelect(); send({ type: 'select-cancelled' }); } }
+  function onKey(e){ if (e.key === 'Escape') send({ type: 'select-cancelled' }); }
   function startSelect(){
     if (selActive) return; selActive = true; ensureOverlay();
     document.addEventListener('mousemove', onMove, true);
@@ -669,19 +749,33 @@
 
   // Held onto until the node leaves the document, so the repositioning that runs on every
   // scroll frame is a rect read rather than an xpath evaluation per pin.
+  // Whatever an xpath or a selector resolves to still has to LOOK like the element that was
+  // picked. Both are positional — a path of sibling indices, a chain of classes — so both
+  // resolve on plenty of markup that has nothing to do with this comment, and a pin that
+  // silently re-attaches to whatever sits at that position reads as legitimate. The parent
+  // scopes pins to the page they were left on; this catches the rest, cheaply.
+  function fits(el, m){
+    if (!el || el.nodeType !== 1) return false;
+    if (!m.tag) return true;
+    return String(el.tagName || '').toLowerCase() === String(m.tag).toLowerCase();
+  }
+
   function resolveMarkerNode(m){
     if (m.el && m.el.isConnected) return m.el;
     m.el = null;
     try {
       if (m.xpath){
         var r = document.evaluate(m.xpath, document, null, 9 /* FIRST_ORDERED_NODE_TYPE */, null);
-        if (r && r.singleNodeValue && r.singleNodeValue.nodeType === 1) m.el = r.singleNodeValue;
+        if (r && fits(r.singleNodeValue, m)) m.el = r.singleNodeValue;
       }
     } catch(e){}
     // The xpath is exact but brittle across a re-render that reorders siblings; the CSS
     // path is looser and often still finds it.
     if (!m.el){
-      try { if (m.selector) m.el = document.querySelector(m.selector); } catch(e){}
+      try {
+        var hit = m.selector ? document.querySelector(m.selector) : null;
+        if (fits(hit, m)) m.el = hit;
+      } catch(e){}
     }
     return m.el;
   }
@@ -753,7 +847,7 @@
       node.style.display = 'none';   // shown by positionMarkers once it has a box
       node.addEventListener('click', onMarkerClick);
       layer.appendChild(node);
-      markers.push({ id: m.id, number: m.number, xpath: m.xpath, selector: m.selector, node: node, el: null });
+      markers.push({ id: m.id, number: m.number, xpath: m.xpath, selector: m.selector, tag: m.tag || '', node: node, el: null });
     }
     positionMarkers();
     trackLayout();

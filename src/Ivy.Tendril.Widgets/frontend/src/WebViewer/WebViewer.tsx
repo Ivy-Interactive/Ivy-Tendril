@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import "./web-viewer.css";
 import { getHeight, getWidth } from "../styles";
+import { canonicalPageUrl } from "./pageUrl";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,7 +32,7 @@ interface PendingComment {
   markerId?: string;
   xpath: string;
   selector: string;
-  meta: { tag?: string; text?: string } | null;
+  meta: { tag?: string; text?: string; attrs?: Record<string, string> } | null;
   debug: DebugPayload | null;
   resolving: boolean;
 }
@@ -47,8 +48,17 @@ interface CommentMarker {
   selector: string;
   tag: string;
   text: string | null;
+  // Attributes that identify the element in the SOURCE rather than in the rendered tree —
+  // data-testid, id, aria-label. A positional selector is a puzzle for whoever has to find this
+  // again; a testid is a grep.
+  attrs: Record<string, string> | null;
+  // Which viewport it was left at. "This is cut off" means nothing without it.
+  device: string;
   comment: string;
   debug: DebugPayload | null;
+  // The page it was left on, canonical (see pageUrl.ts). Pins are pushed to the frame filtered
+  // by this, so a comment about one screen never marks up another.
+  page: string;
 }
 
 let markerSeq = 0;
@@ -285,6 +295,11 @@ export const WebViewer: React.FC<WebViewerProps> = ({
   const codeRef = useRef<HTMLPreElement>(null);
 
   const currentUrl = index >= 0 ? history[index] : null;
+  // Derived from the history entry rather than stored, so it follows client-side route changes
+  // for free. The ref is what the mount-once frame handlers read.
+  const currentPage = currentUrl ? canonicalPageUrl(currentUrl) : null;
+  const currentPageRef = useRef<string | null>(currentPage);
+  currentPageRef.current = currentPage;
   const canGoBack = index > 0;
   const canGoForward = index < history.length - 1;
 
@@ -334,14 +349,24 @@ export const WebViewer: React.FC<WebViewerProps> = ({
     [applyNav],
   );
 
+  // Both bump the frame key as well as moving the index, and that bump is what actually
+  // navigates. A client-side route change reports its new URL without re-pointing the frame
+  // (applyNav's loadFrame: false), so frameSrc still holds whatever was last hard-loaded —
+  // usually the very first page. Setting it back to that same string is a no-op React
+  // discards, so without this, Back moved the index and the address bar while the page sat
+  // exactly where it was. reload() already needed the same trick.
   const goBack = useCallback(() => {
     const { history: h, index: i } = navRef.current;
-    if (i > 0) applyNav(h, i - 1);
+    if (i <= 0) return;
+    applyNav(h, i - 1);
+    setReloadKey((k) => k + 1);
   }, [applyNav]);
 
   const goForward = useCallback(() => {
     const { history: h, index: i } = navRef.current;
-    if (i < h.length - 1) applyNav(h, i + 1);
+    if (i >= h.length - 1) return;
+    applyNav(h, i + 1);
+    setReloadKey((k) => k + 1);
   }, [applyNav]);
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
@@ -356,22 +381,33 @@ export const WebViewer: React.FC<WebViewerProps> = ({
   const commentsRef = useRef<CommentMarker[]>([]);
   commentsRef.current = comments;
 
-  const pushMarkers = useCallback(() => {
-    postToFrame({
-      __proxyCmd: "markers-set",
-      markers: commentsRef.current.map(({ id, number, xpath, selector, comment: text }) => ({
-        id,
-        number,
-        xpath,
-        selector,
-        comment: text,
-      })),
-    });
-  }, [postToFrame]);
+  const pushMarkers = useCallback(
+    (forPage?: string | null) => {
+      const page = forPage === undefined ? currentPageRef.current : forPage;
+      postToFrame({
+        __proxyCmd: "markers-set",
+        // Only this page's pins. `tag` rides along so the page can sanity-check what it
+        // re-anchors to; see resolveMarkerNode in agent.js.
+        markers: commentsRef.current
+          .filter((m) => m.page === page)
+          .map(({ id, number, xpath, selector, tag, comment: text }) => ({
+            id,
+            number,
+            xpath,
+            selector,
+            tag,
+            comment: text,
+          })),
+      });
+    },
+    [postToFrame],
+  );
 
+  // currentPage is in here because a client-side route change fires no load event: without it
+  // nothing would re-pin, and the last page's pins would stay on screen over the new one.
   useEffect(() => {
     pushMarkers();
-  }, [comments, pushMarkers]);
+  }, [comments, currentPage, pushMarkers]);
 
   // A hydrated page can navigate itself with script — a nav button calling location.assign,
   // a router falling back to a hard navigation — to a path outside view-space. The worker is
@@ -381,10 +417,16 @@ export const WebViewer: React.FC<WebViewerProps> = ({
   // back. Costs one extra load on the rare escape, and self-heals whatever caused it.
   const healEscapedFrame = useCallback(() => {
     try {
-      const location = frameRef.current?.contentWindow?.location;
+      const frameWindow = frameRef.current?.contentWindow;
+      const location = frameWindow?.location;
       if (!location) return;
       if (location.protocol === "about:") return; // the blank frame before the first load
       if (location.pathname.startsWith(VIEW_PREFIX)) return;
+      // Out of view-space, but ours: the agent rewrites the address to the path the app
+      // thinks it is serving, so a client-side router can match its own routes. Its presence
+      // is what separates that from a page that really did navigate away — the path alone no
+      // longer can, and healing this one would bounce the app back and forth forever.
+      if ((frameWindow as unknown as { __PROXY_TARGET__?: string }).__PROXY_TARGET__) return;
 
       const { history: h, index: i } = navRef.current;
       const current = i >= 0 ? h[i] : null;
@@ -592,6 +634,10 @@ export const WebViewer: React.FC<WebViewerProps> = ({
           const newHistory = h.slice(0, i + 1).concat(reported);
           // The page is already showing this; only record it.
           applyNav(newHistory, newHistory.length - 1, false);
+          // Re-pin for the page now on screen without waiting for that state to land. The
+          // repositioning loop in the frame runs every 500ms and would otherwise re-anchor the
+          // old page's pins onto whatever the new DOM has at the same xpath.
+          pushMarkers(canonicalPageUrl(reported));
           return;
         }
         default:
@@ -600,7 +646,7 @@ export const WebViewer: React.FC<WebViewerProps> = ({
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [emit, saveCapture, applyNav]);
+  }, [emit, saveCapture, applyNav, pushMarkers]);
 
   // ---- HAR network entries broadcast by the service worker ----------------
   useEffect(() => {
@@ -628,8 +674,13 @@ export const WebViewer: React.FC<WebViewerProps> = ({
   }, [emit, viewerId]);
 
   // ---- imperative command stream (Ivy -> widget) --------------------------
-  const actionsRef = useRef({ reload, goBack, goForward, postToFrame });
-  actionsRef.current = { reload, goBack, goForward, postToFrame };
+  const clearComments = useCallback(() => {
+    setPending((prev) => (prev?.mode === "edit" ? null : prev));
+    setComments([]);
+  }, []);
+
+  const actionsRef = useRef({ reload, goBack, goForward, postToFrame, clearComments });
+  actionsRef.current = { reload, goBack, goForward, postToFrame, clearComments };
 
   useEffect(() => {
     if (!commands?.id || !subscribeToStream) return;
@@ -654,6 +705,10 @@ export const WebViewer: React.FC<WebViewerProps> = ({
           break;
         case "draw":
           a.postToFrame({ __proxyCmd: cmd.enabled ? "draw-start" : "draw-stop" });
+          break;
+        case "clear-comments":
+          // Host-initiated, so no delete events go back out: it already knows.
+          a.clearComments();
           break;
       }
     });
@@ -696,6 +751,7 @@ export const WebViewer: React.FC<WebViewerProps> = ({
     // waits for the answer, so what Ivy is handed already names the file behind the element.
     const id = nextMarkerId();
     const number = commentsRef.current.length + 1;
+    const page = currentPageRef.current || "";
     const marker: CommentMarker = {
       id,
       number,
@@ -703,8 +759,11 @@ export const WebViewer: React.FC<WebViewerProps> = ({
       selector,
       tag: meta.tag || "",
       text: meta.text ?? null,
+      attrs: meta.attrs && Object.keys(meta.attrs).length > 0 ? meta.attrs : null,
+      device: device || "Desktop",
       comment: text,
       debug,
+      page,
     };
     setComments((prev) => renumber([...prev, marker]));
 
@@ -719,6 +778,13 @@ export const WebViewer: React.FC<WebViewerProps> = ({
         xpath,
         selector,
         comment: text,
+        // Where it was left. Numbers stay global across the session, so a change request can
+        // group by this and still read 1, 2, 3 down the page.
+        url: page,
+        // The page already collects these; they were being dropped at this boundary.
+        text: marker.text,
+        attrsJson: marker.attrs ? JSON.stringify(marker.attrs) : null,
+        device: marker.device,
         debugJson: enriched ? JSON.stringify(enriched) : null,
       });
     });

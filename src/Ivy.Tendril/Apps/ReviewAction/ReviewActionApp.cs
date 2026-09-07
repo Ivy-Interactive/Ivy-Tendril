@@ -85,10 +85,28 @@ public class ReviewActionApp : ViewBase
             return ((PlanFile?)null, (ProjectConfig?)null, (ReviewActionConfig?)null, (string?)null);
         });
 
+        // CaptureOutput is what lets the URL below be found at all: the transcript is read
+        // server-side, so the app under review is picked up from its own startup banner rather
+        // than waiting for the reviewer to spot a link and click it inside the terminal.
         var ptyHandle = Context.UsePty(
             GetCommandLine(action),
-            workingDirectory);
+            workingDirectory,
+            new PtyOptions { CaptureOutput = true });
         // ptyHandleRef.Value = ptyHandle; // Commented out - ptyHandleRef not used
+
+        // Set once and then left alone. A dev server prints its banner again on every hot
+        // restart, and prints a second URL for its network address; re-pointing the viewer on
+        // either would throw away wherever the reviewer had navigated to, mid-review. Runs for a
+        // project-scoped action too, where nothing reads it — cheaper than making a hook
+        // conditional on which kind of action this is.
+        var appUrl = UseState<string?>(() => null);
+        Context.UseInterval(
+            () =>
+            {
+                if (appUrl.Value is not null) return;
+                if (AppPreview.DetectUrl(AnsiEscape.Strip(ptyHandle.Output)) is { } url) appUrl.Set(url);
+            },
+            TimeSpan.FromMilliseconds(500));
 
         if (!string.IsNullOrEmpty(args?.PlanId))
         {
@@ -117,6 +135,20 @@ public class ReviewActionApp : ViewBase
         else
         {
             return Text.Muted("Plan or project not specified.");
+        }
+
+        // The terminal is the start of a review action, not the point of one: as soon as the
+        // process says where it is serving, the tab becomes that app — framed, proxied and
+        // markable — and the terminal's job is done. The PTY keeps running underneath (this
+        // app's own hook owns it), so the app stays up until the tab closes.
+        //
+        // Only for a plan-scoped action. A project-scoped one (added alongside this on
+        // development) has no plan, and the preview's whole output is a change request against
+        // one — so it keeps the terminal rather than offering an Update button with nothing
+        // behind it.
+        if (plan is not null && appUrl.Value is { } url)
+        {
+            return new AppPreviewView(plan, url);
         }
 
         return new Xterm.Terminal()
