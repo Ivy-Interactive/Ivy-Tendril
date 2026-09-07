@@ -39,17 +39,8 @@ public record DashboardActivityStats(
     List<DashboardMonthStats> Months,
     decimal PrevWeekAvgCostPerPlan,
     List<DashboardDailyCost>? DailyCosts = null,
-    List<DashboardWeekStats>? Weeks = null,
     Dictionary<DateOnly, int>? DailyPlans = null,
     DateOnly? DailyDataStart = null
-);
-
-public record DashboardWeekStats(
-    DateOnly WeekStart,
-    int PlansCreated,
-    int PrsMerged,
-    decimal Cost,
-    long Tokens
 );
 
 /// <summary>
