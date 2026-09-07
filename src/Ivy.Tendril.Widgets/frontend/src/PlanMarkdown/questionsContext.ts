@@ -28,3 +28,25 @@ export const QuestionsAnswerContext = createContext<AnswerCallback | undefined>(
  * Carries the submit callback down to a `QuestionsCallout` when rendered inside a chat message.
  */
 export const QuestionsSubmitContext = createContext<QuestionSubmitCallback | undefined>(undefined);
+
+/** In-progress answers for one questions block, before the user submits them. */
+export interface QuestionsDraftState {
+  /** Selected option values and typed free text, by question id. */
+  answers: Record<string, string[]>;
+  /** Whether the Other field is open, by question id. Not derivable when nothing is typed yet. */
+  otherOpen: Record<string, boolean>;
+}
+
+export interface QuestionsDraftStore {
+  read(blockKey: string): QuestionsDraftState | undefined;
+  write(blockKey: string, state: QuestionsDraftState): void;
+  clear(blockKey: string): void;
+}
+
+/**
+ * Carries a per-message draft store down to `QuestionsCallout` so a block's in-progress answers
+ * outlive a remount of the message row (a streaming update, a session switch and back).
+ *
+ * Absent outside chat, which is what keeps plan views on transient state.
+ */
+export const QuestionsDraftContext = createContext<QuestionsDraftStore | undefined>(undefined);

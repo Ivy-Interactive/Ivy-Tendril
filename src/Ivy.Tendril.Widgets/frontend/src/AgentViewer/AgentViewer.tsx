@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useMemo } from "react";
-import Markdown from "react-markdown";
 import "./agent-output.css";
 import type { EventHandler, PresentationEvent } from "./types";
 import { getHeight, getWidth } from "../styles";
-import { BlockHandler } from "../BlockHandler";
+import { BlockMarkdown } from "../BlockMarkdown";
 import { useAutoScroll } from "./use-auto-scroll";
 import { parseEventWireStream } from "./parse-events";
 import { deriveStatus } from "./status";
@@ -12,8 +11,6 @@ import { ToolUseCard } from "./tool-use-card";
 import { ResultSummary } from "./result-summary";
 import { groupToolUseEvents } from "./group-events";
 import { ToolUseGroup } from "./tool-use-group";
-import { getMarkdownPlugins } from "../math";
-import { AlertBlockquote } from "../PlanMarkdown/AlertBlockquote";
 
 function buildSuppressIndices(events: PresentationEvent[]): Set<number> {
   const indices = new Set<number>();
@@ -161,12 +158,7 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
             case "assistant-text":
               return (
                 <div key={idx} className="aov-markdown aov-assistant">
-                  <Markdown
-                    {...getMarkdownPlugins(event.text)}
-                    components={{ code: BlockHandler, blockquote: AlertBlockquote, pre: ({ children }) => <>{children}</> }}
-                  >
-                    {event.text}
-                  </Markdown>
+                  <BlockMarkdown content={event.text} />
                 </div>
               );
             case "result":
