@@ -37,8 +37,20 @@ internal static class PlanYamlHelper
         foreach (var (field, value) in updates)
         {
             var pattern = $@"(?m)^{Regex.Escape(field)}:\s*.*$";
-            var replacement = $"{field}: {value}";
-            content = Regex.Replace(content, pattern, replacement);
+            if (Regex.IsMatch(content, pattern))
+            {
+                var replacement = $"{field}: {value}";
+                content = Regex.Replace(content, pattern, replacement);
+            }
+            else
+            {
+                var newline = content.Contains("\r\n") ? "\r\n" : "\n";
+                if (content.Length > 0 && !content.EndsWith('\n') && !content.EndsWith('\r'))
+                {
+                    content += newline;
+                }
+                content += $"{field}: {value}{newline}";
+            }
         }
 
         var planYamlPath = Path.Combine(planFolder, "plan.yaml");

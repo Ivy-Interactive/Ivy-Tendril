@@ -629,6 +629,10 @@ public class JobService : IJobService
         if (_jobs.TryGetValue(id, out var job))
         {
             job.ChatSessionId = chatSessionId;
+            if (job.TypedArgs != null)
+            {
+                job.TypedArgs = job.TypedArgs with { ChatSessionId = chatSessionId };
+            }
             _chatHistoryService?.AddSpawnedJob(chatSessionId, id);
             PersistJob(job);
             RaiseJobsPropertyChanged();
@@ -1198,6 +1202,10 @@ public class JobService : IJobService
                 if (!string.IsNullOrEmpty(inheritedSessionId))
                 {
                     job.ChatSessionId = inheritedSessionId;
+                    if (job.TypedArgs != null)
+                    {
+                        job.TypedArgs = job.TypedArgs with { ChatSessionId = inheritedSessionId };
+                    }
                 }
             }
         }
@@ -1406,6 +1414,10 @@ public class JobService : IJobService
                 if (!string.IsNullOrEmpty(inheritedSessionId))
                 {
                     job.ChatSessionId = inheritedSessionId;
+                    if (job.TypedArgs != null)
+                    {
+                        job.TypedArgs = job.TypedArgs with { ChatSessionId = inheritedSessionId };
+                    }
                 }
             }
         }

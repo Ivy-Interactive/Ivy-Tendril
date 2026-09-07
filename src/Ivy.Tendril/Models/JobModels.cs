@@ -51,7 +51,7 @@ public record JobItem
     public DateTime? StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public int? DurationSeconds { get; set; }
-    public JobArgsBase? TypedArgs { get; init; }
+    public JobArgsBase? TypedArgs { get; set; }
     public bool CancellationRequested { get; set; }
 
     /// <summary>
