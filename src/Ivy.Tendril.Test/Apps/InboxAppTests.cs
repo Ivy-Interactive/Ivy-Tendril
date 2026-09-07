@@ -99,6 +99,18 @@ public class InboxAppTests
     }
 
     [Fact]
+    public void CreateProjectIssueRequest_Uses_DefaultIssueLimit_Without_100_Cap()
+    {
+        var request = InboxApp.CreateProjectIssueRequest("owner", "repo");
+
+        Assert.Equal("owner", request.Owner);
+        Assert.Equal("repo", request.Repo);
+        Assert.Equal(GithubService.DefaultIssueLimit, request.Limit);
+        Assert.Equal(1000, request.Limit);
+        Assert.True(request.Limit > 100);
+    }
+
+    [Fact]
     public void ParseIssuesFromJson_ParsesRepositoryAndUrl()
     {
         var json = """

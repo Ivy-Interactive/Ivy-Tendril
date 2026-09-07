@@ -152,8 +152,8 @@ public class InboxApp : ViewBase
                         var owner = parts[0];
                         var repoName = parts[1];
 
-                        var (issues, err) = await githubService.SearchIssuesAsync(new IssueSearchRequest(
-                            owner, repoName, Limit: 100));
+                        var (issues, err) = await githubService.SearchIssuesAsync(
+                            CreateProjectIssueRequest(owner, repoName));
 
                         if (err != null && errorMessage.Value == null)
                             errorMessage.Set(err);
@@ -289,6 +289,9 @@ public class InboxApp : ViewBase
             sidebar
         );
     }
+
+    public static IssueSearchRequest CreateProjectIssueRequest(string owner, string repoName) =>
+        new(owner, repoName, Limit: GithubService.DefaultIssueLimit);
 
     public static string GetProjectForRepo(IGithubService githubService, string owner, string repo)
     {

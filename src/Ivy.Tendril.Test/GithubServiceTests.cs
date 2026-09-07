@@ -250,6 +250,31 @@ public class GithubServiceTests
     }
 
     [Fact]
+    public void BuildMyAssignedIssuesArgs_Uses_Default_Limit()
+    {
+        var args = GithubService.BuildMyAssignedIssuesArgs();
+
+        Assert.Contains("--limit 1000", args);
+        Assert.Contains("search issues --assignee=@me --state=open", args);
+    }
+
+    [Fact]
+    public void BuildMyAssignedIssuesArgs_Respects_Custom_And_Clamped_Limit()
+    {
+        var customArgs = GithubService.BuildMyAssignedIssuesArgs(limit: 250);
+        Assert.Contains("--limit 250", customArgs);
+
+        var aboveMaxArgs = GithubService.BuildMyAssignedIssuesArgs(limit: 5000);
+        Assert.Contains("--limit 1000", aboveMaxArgs);
+
+        var zeroArgs = GithubService.BuildMyAssignedIssuesArgs(limit: 0);
+        Assert.Contains("--limit 1000", zeroArgs);
+
+        var negativeArgs = GithubService.BuildMyAssignedIssuesArgs(limit: -1);
+        Assert.Contains("--limit 1000", negativeArgs);
+    }
+
+    [Fact]
     public async Task GetAssigneesAsync_Returns_Error_When_Command_Fails()
     {
         var configService = new ConfigService(new TendrilSettings());
