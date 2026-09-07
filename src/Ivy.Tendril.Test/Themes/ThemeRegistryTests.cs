@@ -180,7 +180,7 @@ public class ThemeRegistryTests
     [Fact]
     public void AllThemes_DestructiveColors_MeetWcagContrastRatio()
     {
-        foreach (var theme in TendrilThemes.All.Where(t => t.Id != TendrilThemes.Default.Id))
+        foreach (var theme in TendrilThemes.All)
         {
             var light = theme.IvyTheme?.Colors?.Light;
             Assert.NotNull(light);
@@ -200,6 +200,30 @@ public class ThemeRegistryTests
             Assert.True(darkRatio >= 4.5,
                 $"Theme '{theme.Id}' Dark mode destructive contrast ratio is {darkRatio:F2}:1 ({dark.Destructive} vs {dark.DestructiveForeground}), expected at least 4.5:1 (WCAG AA).");
         }
+    }
+
+    [Fact]
+    public void DefaultTheme_DestructiveForeground_IsAccessible()
+    {
+        var light = TendrilThemes.Default.IvyTheme.Colors!.Light!;
+        var dark = TendrilThemes.Default.IvyTheme.Colors!.Dark!;
+
+        Assert.Equal("#000000", light.DestructiveForeground, ignoreCase: true);
+        Assert.Equal("#000000", dark.DestructiveForeground, ignoreCase: true);
+
+        Assert.True(CalculateContrastRatio(light.Destructive!, light.DestructiveForeground!) >= 4.5,
+            "Default theme Light mode destructive contrast ratio is below the WCAG AA minimum of 4.5:1.");
+        Assert.True(CalculateContrastRatio(dark.Destructive!, dark.DestructiveForeground!) >= 4.5,
+            "Default theme Dark mode destructive contrast ratio is below the WCAG AA minimum of 4.5:1.");
+    }
+
+    [Fact]
+    public void CreateDefaultIvyTheme_DoesNotMutateIvyDefault()
+    {
+        TendrilThemes.CreateDefaultIvyTheme();
+
+        Assert.Equal("#ffffff", Theme.Default.Colors!.Light!.DestructiveForeground, ignoreCase: true);
+        Assert.Equal("#ffffff", Theme.Default.Colors!.Dark!.DestructiveForeground, ignoreCase: true);
     }
 
     private static double CalculateContrastRatio(string hex1, string hex2)

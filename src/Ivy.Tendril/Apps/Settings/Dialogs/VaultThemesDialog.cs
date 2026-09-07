@@ -80,7 +80,7 @@ public class VaultThemesDialog(
 
         var presets = new Dictionary<string, Theme>(StringComparer.OrdinalIgnoreCase)
         {
-            ["Default"] = Theme.Default,
+            ["Default"] = TendrilThemes.CreateDefaultIvyTheme(),
             ["Ocean"] = GetOceanTheme(),
             ["Forest"] = GetForestTheme(),
             ["Sunset"] = GetSunsetTheme(),

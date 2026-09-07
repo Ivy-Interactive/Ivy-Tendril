@@ -13,7 +13,7 @@ public class TendrilThemeDescriptor
     public string Description { get; init; } = "";
     public bool IsDark { get; init; }
     public string[] PreviewColors { get; init; } = [];
-    public Theme IvyTheme { get; init; } = Theme.Default;
+    public Theme IvyTheme { get; init; } = TendrilThemes.CreateDefaultIvyTheme();
     public string? VaultId { get; init; }
     public string? VaultName { get; init; }
     public bool IsVaultTheme { get; init; }
@@ -28,7 +28,7 @@ public static class TendrilThemes
         Description = "Standard clean Tendril theme with slate light and dark zinc",
         IsDark = false,
         PreviewColors = ["#18181b", "#71717a", "#27272a", "#ffffff"],
-        IvyTheme = Theme.Default
+        IvyTheme = CreateDefaultIvyTheme()
     };
 
     public static readonly TendrilThemeDescriptor Cupcake = new()
@@ -1237,7 +1237,7 @@ public static class TendrilThemes
             PreviewColors = manifest.PreviewColors != null && manifest.PreviewColors.Length > 0
                 ? manifest.PreviewColors
                 : ExtractPreviewColors(manifest.IvyTheme, manifest.IsDark),
-            IvyTheme = manifest.IvyTheme ?? Theme.Default,
+            IvyTheme = manifest.IvyTheme ?? CreateDefaultIvyTheme(),
             VaultId = vaultId,
             VaultName = vaultName,
             IsVaultTheme = true
@@ -1358,6 +1358,18 @@ public static class TendrilThemes
                 Dark = CloneThemeColors(source.Colors?.Dark ?? ThemeColors.DefaultDark)
             }
         };
+    }
+
+    /// <summary>
+    /// Ivy's Theme.Default pairs Destructive #ef4444 with #ffffff (3.76:1), below the WCAG 2.1 AA
+    /// minimum of 4.5:1. Black on the same red is 5.58:1.
+    /// </summary>
+    public static Theme CreateDefaultIvyTheme()
+    {
+        var theme = CloneTheme(Theme.Default);
+        theme.Colors.Light!.DestructiveForeground = "#000000";
+        theme.Colors.Dark!.DestructiveForeground = "#000000";
+        return theme;
     }
 
     public static ThemeColors CloneThemeColors(ThemeColors source)
