@@ -41,22 +41,29 @@ public class PathBudgetCheckTests
     [Fact]
     public async Task RunAsync_WithLegacyFolders_ReportsWarnButNoError()
     {
-        using var fixture = new TempDirectoryFixture();
-        var plansRoot = fixture.Path;
+        var baseDir = OperatingSystem.IsWindows() ? Path.GetTempPath() : "/tmp";
+        var plansRoot = Path.Combine(baseDir, "t-" + Guid.NewGuid().ToString("N")[..6]);
+        Directory.CreateDirectory(plansRoot);
+        try
+        {
+            var legacyFolderName = "00001-" + new string('A', 60);
+            Directory.CreateDirectory(Path.Combine(plansRoot, legacyFolderName));
 
-        var legacyFolderName = "00001-" + new string('A', 60);
-        Directory.CreateDirectory(Path.Combine(plansRoot, legacyFolderName));
+            var mockConfigService = new MockConfigService { PlanFolder = plansRoot };
+            var check = new PathBudgetCheck(mockConfigService);
 
-        var mockConfigService = new MockConfigService { PlanFolder = plansRoot };
-        var check = new PathBudgetCheck(mockConfigService);
+            var result = await check.RunAsync();
 
-        var result = await check.RunAsync();
-
-        Assert.False(result.HasErrors, "Legacy folders should not cause HasErrors to be true");
-        var legacyStatus = result.Statuses.FirstOrDefault(s => s.Label == "Legacy plan folders over budget");
-        Assert.NotNull(legacyStatus);
-        Assert.Equal(StatusKind.Warn, legacyStatus.Kind);
-        Assert.Contains("1 folder", legacyStatus.Value);
+            Assert.False(result.HasErrors, "Legacy folders should not cause HasErrors to be true");
+            var legacyStatus = result.Statuses.FirstOrDefault(s => s.Label == "Legacy plan folders over budget");
+            Assert.NotNull(legacyStatus);
+            Assert.Equal(StatusKind.Warn, legacyStatus.Kind);
+            Assert.Contains("1 folder", legacyStatus.Value);
+        }
+        finally
+        {
+            if (Directory.Exists(plansRoot)) Directory.Delete(plansRoot, true);
+        }
     }
 
     private class MockConfigService : IConfigService

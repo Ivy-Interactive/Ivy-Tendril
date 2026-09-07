@@ -42,5 +42,13 @@ public interface IVaultService
 
     Task<ProjectAssets> CollectProjectAssetsAsync(string projectName);
 
+    Task<List<VaultThemeManifest>> GetThemesAsync(string? vaultId = null);
+
+    Task<VaultResult> SaveThemeToVaultAsync(VaultThemeManifest theme, string? vaultId = null);
+
+    Task<VaultResult> DeleteThemeFromVaultAsync(string themeId, string? vaultId = null);
+
+    void LoadThemesIntoRegistry();
+
     event Action? VaultChanged;
 }

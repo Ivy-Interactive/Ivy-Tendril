@@ -63,6 +63,10 @@ public class FakeVaultService : IVaultService
     public Task<VaultSyncResult> PullLatestAsync(string? vaultId = null) => Task.FromResult(PullResultToReturn);
     public ProjectAssets CollectProjectAssets(string projectName) => new() { ProjectName = projectName };
     public Task<ProjectAssets> CollectProjectAssetsAsync(string projectName) => Task.FromResult(CollectProjectAssets(projectName));
+    public Task<List<VaultThemeManifest>> GetThemesAsync(string? vaultId = null) => Task.FromResult(new List<VaultThemeManifest>());
+    public Task<VaultResult> SaveThemeToVaultAsync(VaultThemeManifest theme, string? vaultId = null) => Task.FromResult(new VaultResult(true, "Theme saved."));
+    public Task<VaultResult> DeleteThemeFromVaultAsync(string themeId, string? vaultId = null) => Task.FromResult(new VaultResult(true, "Theme deleted."));
+    public void LoadThemesIntoRegistry() { }
 }
 
 public class VaultCommandSettingsValidationTests

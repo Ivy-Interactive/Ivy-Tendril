@@ -6,8 +6,10 @@ using System.Threading.Tasks;
 using Ivy;
 using Ivy.Core.Hooks;
 using Ivy.Tendril.Apps.Settings.Dialogs;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Vault;
+using Ivy.Tendril.Themes;
 
 namespace Ivy.Tendril.Apps.Settings;
 
@@ -24,6 +26,9 @@ public class VaultSetupView : ViewBase
         var openConnectDialog = UseState(false);
         var openPushDialog = UseState(false);
         var openImportDialog = UseState(false);
+        var openThemesDialog = UseState(false);
+        var themesDialogTab = UseState("themes");
+        var editingThemeManifest = UseState<VaultThemeManifest?>(null);
         var selectedImportItem = UseState<VaultCatalogItem?>(null);
         var selectedPushProject = UseState<string?>(null);
         var isSyncing = UseState(false);
@@ -157,6 +162,17 @@ public class VaultSetupView : ViewBase
             },
             isMergeMode: isMergeMode);
 
+        var themesDialog = new VaultThemesDialog(
+            openThemesDialog, vaultService, client, config, selectedVaultId.Value,
+            onThemesUpdated: () =>
+            {
+                vaultsQuery.Mutator.Revalidate();
+                statusQuery.Mutator.Revalidate();
+                catalogQuery.Mutator.Revalidate();
+            },
+            requestedTab: themesDialogTab,
+            themeToEdit: editingThemeManifest);
+
         var confirmDeleteDialog = (openDeleteConfirm.Value && !string.IsNullOrEmpty(projectToDelete.Value))
             ? new Dialog(
                 _ => openDeleteConfirm.Set(false),
@@ -238,6 +254,8 @@ public class VaultSetupView : ViewBase
             || status.CommitsAhead > 0
             || config.Settings.Projects.Count > 0;
 
+        var isBeta = BetaHelper.IsBeta(null, config);
+
         var headerToolbar = Layout.Horizontal().AlignContent(Align.Right)
             | new Button("Sync")
                 .Icon(Icons.RefreshCw)
@@ -316,18 +334,19 @@ public class VaultSetupView : ViewBase
 
         var vaultActionsRow = Layout.Horizontal().AlignContent(Align.SpaceBetween)
             | autoSyncState.ToBoolInput("Always in sync")
-            | new Button("Disconnect Vault")
-                .Icon(Icons.Unlink)
-                .Destructive()
-                .Ghost()
-                .Small()
-                .OnClick(async () =>
-                {
-                    await vaultService.DisconnectVaultAsync(selectedVaultId.Value);
-                    vaultsQuery.Mutator.Revalidate();
-                    statusQuery.Mutator.Revalidate();
-                    catalogQuery.Mutator.Revalidate();
-                });
+            | (Layout.Horizontal().AlignContent(Align.Right)
+                | new Button("Disconnect Vault")
+                    .Icon(Icons.Unlink)
+                    .Destructive()
+                    .Ghost()
+                    .Small()
+                    .OnClick(async () =>
+                    {
+                        await vaultService.DisconnectVaultAsync(selectedVaultId.Value);
+                        vaultsQuery.Mutator.Revalidate();
+                        statusQuery.Mutator.Revalidate();
+                        catalogQuery.Mutator.Revalidate();
+                    }));
 
         var tableRows = catalog.Projects.Select((p, i) =>
         {
@@ -529,12 +548,154 @@ public class VaultSetupView : ViewBase
                         }));
         }
 
+        object? sharedOptionsSection = null;
+        if (isBeta)
+        {
+            var vaultThemes = catalog.Themes ?? new List<VaultThemeManifest>();
+
+            object themingContent;
+            if (vaultThemes.Count == 0)
+            {
+                themingContent = Layout.Horizontal().AlignContent(Align.Left)
+                    | new Button("Create Custom Theme")
+                        .Icon(Icons.Palette)
+                        .Outline()
+                        .Small()
+                        .OnClick(() =>
+                        {
+                            editingThemeManifest.Set(null);
+                            themesDialogTab.Set("generator");
+                            openThemesDialog.Set(true);
+                        });
+            }
+            else
+            {
+                var themeRows = vaultThemes.Select((t, i) => new VaultThemeTableRow(
+                    Name: t.Name,
+                    Mode: t.IsDark ? "Dark" : "Light",
+                    Swatches: i,
+                    Action: i
+                )).ToList();
+
+                var themesTable = themeRows.ToTable()
+                    .Header(t => t.Name, "Theme")
+                    .Builder(t => t.Name, f => f.Func<VaultThemeTableRow, string>(name =>
+                    {
+                        var item = vaultThemes.Find(t => t.Name == name);
+                        return Layout.Vertical()
+                            | Text.Block(name).Bold()
+                            | (!string.IsNullOrWhiteSpace(item?.Description) ? Text.Block(item.Description).Small().Muted() : null);
+                    }))
+                    .Header(t => t.Mode, "Mode")
+                    .Builder(t => t.Mode, f => f.Func<VaultThemeTableRow, string>(mode =>
+                        new Badge(mode).Variant(mode == "Dark" ? BadgeVariant.Secondary : BadgeVariant.Outline).Small()
+                    ))
+                    .Header(t => t.Swatches, "Colors")
+                    .Builder(t => t.Swatches, f => f.Func<VaultThemeTableRow, int>(idx =>
+                    {
+                        var t = vaultThemes[idx];
+                        var swatches = Layout.Horizontal().AlignContent(Align.Left);
+                        foreach (var color in t.PreviewColors ?? [])
+                        {
+                            swatches |= new Svg($"<svg width='18' height='18' viewBox='0 0 18 18'><circle cx='9' cy='9' r='8' fill='{color}' stroke='rgba(128,128,128,0.3)' stroke-width='1'/></svg>")
+                                .Width(Size.Px(18))
+                                .Height(Size.Px(18));
+                        }
+                        return swatches;
+                    }))
+                    .Header(t => t.Action, "Actions")
+                    .Builder(t => t.Action, f => f.Func<VaultThemeTableRow, int>(idx =>
+                    {
+                        var t = vaultThemes[idx];
+                        var actions = Layout.Horizontal().AlignContent(Align.Left);
+                        var isCurrent = string.Equals(config.Settings.Theme, t.Id, StringComparison.OrdinalIgnoreCase);
+
+                        if (isCurrent)
+                        {
+                            actions |= new Badge("✓ Active").Variant(BadgeVariant.Secondary).Small();
+                        }
+                        else
+                        {
+                            actions |= new Button("Apply")
+                                .Outline()
+                                .Small()
+                                .Tooltip($"Apply '{t.Name}' theme to Tendril")
+                                .OnClick(() =>
+                                {
+                                    TendrilThemes.ApplyTheme(client, t.Id);
+                                    config.Settings.Theme = t.Id;
+                                    config.SaveSettings();
+                                    client.Toast($"Theme set to {t.Name}", "Saved");
+                                    catalogQuery.Mutator.Revalidate();
+                                });
+                        }
+
+                        actions |= new Button()
+                            .Icon(Icons.Pencil)
+                            .Outline()
+                            .Small()
+                            .Tooltip($"Edit '{t.Name}' in Theme Generator")
+                            .OnClick(() =>
+                            {
+                                editingThemeManifest.Set(t);
+                                themesDialogTab.Set("generator");
+                                openThemesDialog.Set(true);
+                            });
+
+                        actions |= new Button()
+                            .Icon(Icons.Trash2)
+                            .Outline()
+                            .Small()
+                            .Tooltip($"Delete '{t.Name}' from vault")
+                            .OnClick(async () =>
+                            {
+                                var delRes = await vaultService.DeleteThemeFromVaultAsync(t.Id, selectedVaultId.Value);
+                                if (delRes.Success)
+                                {
+                                    client.Toast(delRes.Message, "Theme Deleted");
+                                    catalogQuery.Mutator.Revalidate();
+                                }
+                                else
+                                {
+                                    client.Toast(delRes.ErrorMessage ?? delRes.Message, "Delete Failed").Destructive();
+                                }
+                            });
+
+                        return actions;
+                    }))
+                    .Width(Size.Fit());
+
+                themingContent = Layout.Vertical()
+                    | themesTable
+                    | (Layout.Horizontal().AlignContent(Align.Left)
+                        | new Button("Create Custom Theme")
+                            .Icon(Icons.Plus)
+                            .Outline()
+                            .Small()
+                            .OnClick(() =>
+                            {
+                                editingThemeManifest.Set(null);
+                                themesDialogTab.Set("generator");
+                                openThemesDialog.Set(true);
+                            }));
+            }
+
+            var themingElement = Layout.Vertical()
+                | Text.Block("Theming").Bold()
+                | themingContent;
+
+            sharedOptionsSection = Layout.Vertical()
+                | Text.H4("Shared Options").Bold()
+                | themingElement;
+        }
+
         var mainLayout = Layout.Vertical().Width(Size.Full().Max(Size.Units(240)))
             | topHeader
             | vaultDetails
             | vaultActionsRow
             | Text.H4("Shared Projects").Bold()
-            | projectsSection;
+            | projectsSection
+            | sharedOptionsSection;
 
         return new Fragment(
             mainLayout,
@@ -542,7 +703,8 @@ public class VaultSetupView : ViewBase
             connectDialog,
             pushDialog,
             importDialog,
-            confirmDeleteDialog
+            confirmDeleteDialog,
+            themesDialog
         );
     }
 
@@ -611,5 +773,12 @@ public class VaultSetupView : ViewBase
         VaultItemSyncStatus SyncStatus,
         VaultCatalogItem Contents,
         string Changelog
+    );
+
+    private record VaultThemeTableRow(
+        string Name,
+        string Mode,
+        int Swatches,
+        int Action
     );
 }
