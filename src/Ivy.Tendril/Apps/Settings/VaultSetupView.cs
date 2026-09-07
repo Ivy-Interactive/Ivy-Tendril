@@ -556,20 +556,17 @@ public class VaultSetupView : ViewBase
             object themingContent;
             if (vaultThemes.Count == 0)
             {
-                themingContent = Layout.Vertical().AlignContent(Align.Left)
-                    | Text.Block("No Custom Themes").Bold()
-                    | Text.Block("This vault does not contain any custom themes yet. Create a shared theme with your team's palette to use across Tendril.").Small().Muted()
-                    | (Layout.Horizontal().AlignContent(Align.Left)
-                        | new Button("Create Custom Theme")
-                            .Icon(Icons.Palette)
-                            .Outline()
-                            .Small()
-                            .OnClick(() =>
-                            {
-                                editingThemeManifest.Set(null);
-                                themesDialogTab.Set("generator");
-                                openThemesDialog.Set(true);
-                            }));
+                themingContent = Layout.Horizontal().AlignContent(Align.Left)
+                    | new Button("Create Custom Theme")
+                        .Icon(Icons.Palette)
+                        .Outline()
+                        .Small()
+                        .OnClick(() =>
+                        {
+                            editingThemeManifest.Set(null);
+                            themesDialogTab.Set("generator");
+                            openThemesDialog.Set(true);
+                        });
             }
             else
             {
@@ -685,13 +682,10 @@ public class VaultSetupView : ViewBase
 
             var themingElement = Layout.Vertical()
                 | Text.Block("Theming").Bold()
-                | Text.Muted("Customize and share visual themes with your team. Themes in this vault are available in Appearance settings.").Small()
                 | themingContent;
 
             sharedOptionsSection = Layout.Vertical()
-                | (Layout.Horizontal().AlignContent(Align.Left)
-                    | Text.H4("Shared Options").Bold()
-                    | new Badge("Beta").Variant(BadgeVariant.Outline).Small())
+                | Text.H4("Shared Options").Bold()
                 | themingElement;
         }
 
