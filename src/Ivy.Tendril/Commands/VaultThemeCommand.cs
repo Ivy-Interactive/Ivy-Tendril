@@ -566,7 +566,7 @@ public class VaultThemeCreateCommand(IVaultService vaultService) : AsyncCommand<
         }
         else
         {
-            theme = TendrilThemes.CloneTheme(Theme.Default);
+            theme = TendrilThemes.CreateDefaultIvyTheme();
             isDark = false;
         }
 
