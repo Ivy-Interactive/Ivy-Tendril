@@ -52,6 +52,36 @@ public record NetworkAccessRuleConfig
     public string Mode { get; set; } = "Allow"; // Allow, Deny
 }
 
+/// <summary>
+///     A named service port the project's processes listen on (e.g. <c>frontend</c>, <c>backend</c>).
+///     <see cref="DefaultPort"/> is the preferred port; plan worktrees and review sessions fall back
+///     to a free port in the ephemeral range when it is already taken, so two concurrent reviews of
+///     the same project do not collide (see <c>PortAllocationHelper</c>).
+/// </summary>
+public record ProjectPortConfig
+{
+    public int DefaultPort { get; set; }
+    public string Description { get; set; } = "";
+}
+
+/// <summary>
+///     An environment file to materialize into a plan's worktree. Git worktrees start without the
+///     untracked <c>.env</c> files that exist in the original checkout, so services and migrations
+///     cannot boot until the file is recreated from <see cref="Template"/> plus
+///     <see cref="Overrides"/> (see <c>EnvironmentMaterializationHelper</c>).
+/// </summary>
+public record ProjectEnvFileConfig
+{
+    /// <summary>Target path, relative to the worktree root (e.g. <c>apps/web/.env</c>).</summary>
+    public string Path { get; set; } = "";
+
+    /// <summary>Optional source file, relative to the worktree root (e.g. <c>.env.example</c>).</summary>
+    public string? Template { get; set; }
+
+    /// <summary>Keys written on top of the template. Values support placeholder expansion.</summary>
+    public Dictionary<string, string> Overrides { get; set; } = new();
+}
+
 public record ProjectConfig
 {
     public string Name { get; set; } = "";
@@ -66,6 +96,12 @@ public record ProjectConfig
     public List<string> BuildDependencies { get; set; } = new();
     public List<ProjectMcpServerRef> McpServers { get; set; } = new();
     public List<ProjectSkillRef> Skills { get; set; } = new();
+
+    /// <summary>Named service ports, keyed by logical service name (e.g. <c>backend</c>).</summary>
+    public Dictionary<string, ProjectPortConfig> Ports { get; set; } = new();
+
+    /// <summary>Environment files to recreate inside each plan worktree.</summary>
+    public List<ProjectEnvFileConfig> EnvFiles { get; set; } = new();
 
     public string SecurityPreset { get; set; } = "Custom";
     public string OutsideFileAccessPolicy { get; set; } = "Allow";

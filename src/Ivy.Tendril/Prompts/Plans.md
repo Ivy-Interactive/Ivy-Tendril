@@ -124,6 +124,14 @@ tendril plan rec set <plan-id> <title> <field> <value>
 tendril plan rec remove <plan-id> <title>
 tendril plan rec list <plan-id> [--state=Pending|Accepted|Declined]
 
+# Environment files and dynamic ports
+tendril plan env materialize <plan-id> [--repo=<repo>]
+# Allocates a free port for each of the project's named `ports` (retaining any already recorded in
+# `allocatedPorts`) and writes the project's configured `envFiles` into the plan's worktree. Run by
+# `tendril plan add-worktree` automatically; use it directly to refresh a worktree in place.
+tendril plan env get <plan-id>
+# Prints the plan's allocated ports and the environment variables each configured env file resolves to.
+
 # Validate plan health
 tendril plan validate <plan-id>
 ```
@@ -206,6 +214,9 @@ verifications:
 relatedPlans: []
 dependsOn: []
 priority: 0
+allocatedPorts:
+  backend: 3001
+  frontend: 3000
 ```
 
 ### Fields
@@ -230,6 +241,7 @@ priority: 0
 | `dependsOn`    | Plan folder names this plan depends on (e.g. `- 01478-WorktreeIsolation`). ExecutePlan will block until all dependencies are `Completed` and their PRs are merged. |
 | `priority`     | Integer priority (0 = normal). Higher values are executed first. Set by CreatePlan launcher, not by agents. |
 | `executionProfile` | (Optional) Recommended execution profile for ExecutePlan: `deep` or `balanced`. If set, overrides config.yaml default. CreatePlan sets this based on task complexity analysis. |
+| `allocatedPorts` | (Optional) Mapping of the project's named service ports (from the `ports` entry in `config.yaml`) to the TCP port assigned to this plan, e.g. `backend: 3001`. Written by `tendril plan add-worktree` / `tendril plan env materialize` and reused on re-execution so a review session keeps the same URLs. Managed by the CLI — do not hand-edit. |
 
 **Do NOT add fields beyond those listed above.** Unknown fields (e.g. `tags`, `category`) will be stripped by the normalizer and may cause parse errors.
 

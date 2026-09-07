@@ -1222,9 +1222,11 @@ public class PlanDatabaseService : IPlanDatabaseService
         var created = DateTime.Parse(createdStr, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal);
         var updated = DateTime.Parse(updatedStr, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal);
 
-        // partialDelivery comes from the mirrored YAML rather than a dedicated column: it is an
-        // additive flag on a rare path, so it does not warrant a schema migration.
-        var partialDelivery = PlanYamlHelper.ParsePlanYaml(yamlRaw)?.PartialDelivery ?? false;
+        // partialDelivery and allocatedPorts come from the mirrored YAML rather than dedicated
+        // columns: both are additive and read on rare paths, so neither warrants a schema migration.
+        var mirroredYaml = PlanYamlHelper.ParsePlanYaml(yamlRaw);
+        var partialDelivery = mirroredYaml?.PartialDelivery ?? false;
+        var allocatedPorts = mirroredYaml?.AllocatedPorts;
 
         if (string.IsNullOrEmpty(chatSessionId))
         {
@@ -1233,7 +1235,7 @@ public class PlanDatabaseService : IPlanDatabaseService
 
         var metadata = new PlanMetadata(planId, project, level, title, status,
             repos, commits, prs, verifications, relatedPlans, dependsOn, created, updated, initialPrompt, sourceUrl,
-            partialDelivery, chatSessionId);
+            partialDelivery, chatSessionId, allocatedPorts);
 
         return new PlanFile(metadata, latestContent, folderPath, yamlRaw, revisionCount);
     }

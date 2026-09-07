@@ -10,7 +10,7 @@ public static class PlanYamlRepairService
         "state", "project", "level", "title", "sessionId",
         "repos", "created", "updated", "initialPrompt", "sourceUrl",
         "prs", "commits", "verifications", "relatedPlans", "dependsOn",
-        "priority", "executionProfile", "recommendations"
+        "priority", "executionProfile", "recommendations", "allocatedPorts"
     };
 
     private static readonly HashSet<string> ListKeys = new(StringComparer.Ordinal)
@@ -18,6 +18,19 @@ public static class PlanYamlRepairService
         "repos", "prs", "commits", "verifications", "relatedPlans", "dependsOn",
         "recommendations"
     };
+
+    /// <summary>
+    ///     Top-level keys whose value is a nested mapping of scalars rather than a list. Without this,
+    ///     the normalizer treats each indented child (<c>backend: 3001</c>) as a stray unknown key and
+    ///     drops it, leaving the parent key with no value.
+    /// </summary>
+    private static readonly HashSet<string> MappingKeys = new(StringComparer.Ordinal)
+    {
+        "allocatedPorts"
+    };
+
+    /// <summary>Matches an <c>allocatedPorts</c> child: a name mapped to an integer port.</summary>
+    private static readonly Regex MappingEntryPattern = new(@"^[A-Za-z_][A-Za-z0-9_.-]*:\s*\d+\s*$", RegexOptions.Compiled);
 
     private static readonly Dictionary<string, (string ItemStartPattern, string SubKeyPattern)> StructuredListKeys = new()
     {
@@ -90,7 +103,10 @@ public static class PlanYamlRepairService
             return $"{prefix}'{escaped}'";
         });
 
-        repaired = Regex.Replace(repaired, @"(?m)^(\s*\w+:\s+)(.+)$", m =>
+        // Horizontal whitespace only: a plain \s+ after the colon also matches the newline, so
+        // "allocatedPorts:\n  backend: 3001" was read as one key whose value is "backend: 3001" and
+        // the port got quoted onto the parent line, losing the whole mapping.
+        repaired = Regex.Replace(repaired, @"(?m)^([ \t]*\w+:[ \t]+)(.+)$", m =>
         {
             var prefix = m.Groups[1].Value;
             var value = m.Groups[2].Value.TrimEnd();
@@ -131,6 +147,7 @@ public static class PlanYamlRepairService
         var lines = normalized.Split('\n');
         var output = new List<string>(lines.Length);
         string? currentListKey = null;
+        string? currentMappingKey = null;
         var inStructuredListItem = false;
         var inListItemBlockScalar = false;
         var inBlockScalar = false;
@@ -148,6 +165,16 @@ public static class PlanYamlRepairService
                 continue;
             }
 
+            // Children of a nested mapping are matched before top-level detection, so an indented
+            // "backend: 3001" is kept as a port rather than dropped as a stray key. Names that collide
+            // with a real top-level key are excluded: the mapping has to terminate at the next key
+            // (e.g. "priority: 0"), and losing one oddly named port beats losing the plan's title.
+            if (currentMappingKey != null && !inBlockScalar && IsMappingEntry(trimmed))
+            {
+                output.Add($"  {trimmed}");
+                continue;
+            }
+
             var detectedKey = TryExtractTopLevelKey(trimmed, out var normalizedTopLevelLine);
             if (inBlockScalar && detectedKey == null)
             {
@@ -161,6 +188,7 @@ public static class PlanYamlRepairService
                     continue;
 
                 currentListKey = ListKeys.Contains(detectedKey) ? detectedKey : null;
+                currentMappingKey = MappingKeys.Contains(detectedKey) ? detectedKey : null;
                 inStructuredListItem = false;
                 inListItemBlockScalar = false;
                 inBlockScalar = false;
@@ -195,7 +223,8 @@ public static class PlanYamlRepairService
             if (currentListKey != null)
             {
                 ProcessListContext(trimmed, line, currentListKey, ref inStructuredListItem,
-                    ref inListItemBlockScalar, ref inUnknownKey, ref currentListKey, output);
+                    ref inListItemBlockScalar, ref inUnknownKey, ref currentListKey,
+                    ref currentMappingKey, output);
                 continue;
             }
 
@@ -216,6 +245,7 @@ public static class PlanYamlRepairService
         string trimmed, string line, string currentListKey,
         ref bool inStructuredListItem, ref bool inListItemBlockScalar,
         ref bool inUnknownKey, ref string? currentListKeyRef,
+        ref string? currentMappingKeyRef,
         List<string> output)
     {
         var isStructured = StructuredListKeys.TryGetValue(currentListKey, out var patterns);
@@ -245,6 +275,7 @@ public static class PlanYamlRepairService
             {
                 var key = strayKeyMatch.Groups[1].Value;
                 currentListKeyRef = ListKeys.Contains(key) ? key : null;
+                currentMappingKeyRef = MappingKeys.Contains(key) ? key : null;
                 inStructuredListItem = false;
                 inListItemBlockScalar = false;
                 output.Add(trimmed);
@@ -252,6 +283,7 @@ public static class PlanYamlRepairService
             else if (strayKeyMatch.Success)
             {
                 currentListKeyRef = null;
+                currentMappingKeyRef = null;
                 inUnknownKey = true;
                 inListItemBlockScalar = false;
             }
@@ -396,6 +428,17 @@ public static class PlanYamlRepairService
     private static bool IsBlockScalarValue(string value)
     {
         return value is "|" or "|-" or ">" or ">-";
+    }
+
+    /// <summary>
+    ///     True when the line is a <c>name: &lt;int&gt;</c> child of a <see cref="MappingKeys" /> block
+    ///     rather than the next top-level key.
+    /// </summary>
+    private static bool IsMappingEntry(string trimmedLine)
+    {
+        if (!MappingEntryPattern.IsMatch(trimmedLine)) return false;
+        var key = trimmedLine[..trimmedLine.IndexOf(':')];
+        return !TopLevelKeys.Contains(key);
     }
 
     private static string? TryExtractTopLevelKey(string trimmedLine, out string normalizedLine)
