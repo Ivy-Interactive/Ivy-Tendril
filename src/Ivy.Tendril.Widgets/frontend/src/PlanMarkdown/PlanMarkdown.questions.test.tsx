@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import { PlanMarkdown as DraftMarkdown } from "./PlanMarkdown";
+import { QuestionsCallout } from "./QuestionsCallout";
 
 const renderContent = (content: string) => {
   const { container } = render(<DraftMarkdown id="w1" content={content} />);
@@ -658,5 +659,32 @@ describe("DraftMarkdown interactive questions", () => {
 
     expect(container.querySelector(".pmv-code-block")).not.toBeNull();
     expect(container.querySelector("pre")).not.toBeNull();
+  });
+});
+
+describe("QuestionsCallout without a draft context", () => {
+  // Chat wraps every interactive block in `QuestionsDraftContext.Provider`, but nothing forces
+  // that: `QuestionsCallout` reads the context optionally, and this proves it degrades to the
+  // pre-draft-store behaviour — selection still comes from the document — when no provider is
+  // present, so a plan view (which never provides it) is unaffected by the new context.
+  it("still derives selection from the document and submits normally when no draft store is present", () => {
+    // `QuestionsCallout.content` is the fence body only, unlike `SINGLE` above which still has its
+    // ``` `questions` ``` wrapper for `DraftMarkdown` to dispatch on.
+    const singleBody = SINGLE.split("\n").slice(1, -1).join("\n");
+    const onSubmit = vi.fn();
+    const { container } = render(<QuestionsCallout content={singleBody} onSubmit={onSubmit} />);
+
+    const radios = checks(container);
+    fireEvent.click(radios[0]);
+
+    const submitBtn = container.querySelector<HTMLButtonElement>(".pmv-questions-submit");
+    expect(submitBtn?.disabled).toBe(false);
+
+    fireEvent.click(submitBtn!);
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      { budget: ["per-request"] },
+      expect.stringContaining("Per request"),
+    );
   });
 });

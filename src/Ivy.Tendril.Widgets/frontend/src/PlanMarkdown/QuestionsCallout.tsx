@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from "react";
+import React, { useContext, useMemo, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { CodeBlock } from "../CodeBlock";
 import { answerEntries, otherEntry, parseQuestions } from "./questionsSchema";
 import type { PlanQuestion, QuestionOption } from "./questionsSchema";
-import type { AnswerCallback, QuestionSubmitCallback } from "./questionsContext";
+import { QuestionsDraftContext } from "./questionsContext";
+import type { AnswerCallback, QuestionSubmitCallback, QuestionsDraftState } from "./questionsContext";
 
 /**
  * Question and option descriptions are full block markdown — paragraphs, lists, tables and fenced
@@ -57,9 +58,18 @@ interface QuestionViewProps {
   question: PlanQuestion;
   blockIndex: number;
   onAnswer: AnswerCallback;
+  /** Controlled Other-field open state, from a draft store that outlives this component. */
+  otherOpen?: boolean;
+  onOtherOpenChange?: (open: boolean) => void;
 }
 
-const QuestionView: React.FC<QuestionViewProps> = ({ question, blockIndex, onAnswer }) => {
+const QuestionView: React.FC<QuestionViewProps> = ({
+  question,
+  blockIndex,
+  onAnswer,
+  otherOpen: otherOpenProp,
+  onOtherOpenChange,
+}) => {
   const entries = answerEntries(question);
   const options = question.options ?? [];
   const hasOptions = options.length > 0;
@@ -73,7 +83,11 @@ const QuestionView: React.FC<QuestionViewProps> = ({ question, blockIndex, onAns
   // state proper is still derived from `question` on every render.
   const [draft, setDraft] = useState(typed ?? "");
   const [seenTyped, setSeenTyped] = useState(typed);
-  const [otherOpen, setOtherOpen] = useState(typed !== undefined);
+  const [ownOtherOpen, setOwnOtherOpen] = useState(typed !== undefined);
+  // A draft store is supplied only in chat, where `onOtherOpenChange` takes over as the source of
+  // truth so the open state survives a remount; plan views keep their own transient state.
+  const otherOpen = onOtherOpenChange ? (otherOpenProp ?? false) : ownOtherOpen;
+  const setOtherOpen = onOtherOpenChange ?? setOwnOtherOpen;
   if (typed !== seenTyped) {
     // The document changed underneath us — resync the draft to it.
     setSeenTyped(typed);
@@ -285,34 +299,55 @@ interface ChatQuestionsBlockProps {
   onSubmit: QuestionSubmitCallback;
 }
 
-const ChatQuestionsBlock: React.FC<ChatQuestionsBlockProps> = ({ questions, blockIndex, onSubmit }) => {
-  const [localAnswers, setLocalAnswers] = useState<Record<string, string[]>>(() => {
-    const initial: Record<string, string[]> = {};
-    for (const q of questions) {
-      if (q.answerPresent) {
-        initial[q.id] = answerEntries(q);
-      }
+/** The draft a fresh block starts from: whatever the document already has answered, if anything. */
+const initialDraftFrom = (questions: PlanQuestion[]): QuestionsDraftState => {
+  const answers: Record<string, string[]> = {};
+  const otherOpen: Record<string, boolean> = {};
+  for (const q of questions) {
+    if (q.answerPresent) {
+      answers[q.id] = answerEntries(q);
+      if (otherEntry(q) !== undefined) otherOpen[q.id] = true;
     }
-    return initial;
-  });
+  }
+  return { answers, otherOpen };
+};
+
+const ChatQuestionsBlock: React.FC<ChatQuestionsBlockProps> = ({ questions, blockIndex, onSubmit }) => {
+  // Question ids are unique per block by schema, so this identifies the block within its message
+  // without needing `tagQuestionBlocks`, which the chat paths never run (`blockIndex` is always `0`
+  // there).
+  const blockKey = questions.map((q) => q.id).join("|");
+  const store = useContext(QuestionsDraftContext);
+
+  const [draftState, setDraftState] = useState<QuestionsDraftState>(
+    () => store?.read(blockKey) ?? initialDraftFrom(questions),
+  );
+  const localAnswers = draftState.answers;
+
+  const writeDraft = (next: QuestionsDraftState) => {
+    setDraftState(next);
+    store?.write(blockKey, next);
+  };
 
   const handleLocalAnswer = (questionId: string, answer: string | string[] | null | undefined) => {
-    setLocalAnswers((prev) => {
-      const next = { ...prev };
-      if (answer === undefined || answer === null || answer === "" || (Array.isArray(answer) && answer.length === 0)) {
-        delete next[questionId];
-      } else if (Array.isArray(answer)) {
-        next[questionId] = answer;
-      } else {
-        next[questionId] = [answer];
-      }
-      return next;
-    });
+    const next = { ...localAnswers };
+    if (answer === undefined || answer === null || answer === "" || (Array.isArray(answer) && answer.length === 0)) {
+      delete next[questionId];
+    } else if (Array.isArray(answer)) {
+      next[questionId] = answer;
+    } else {
+      next[questionId] = [answer];
+    }
+    writeDraft({ ...draftState, answers: next });
+  };
+
+  const handleOtherOpenChange = (questionId: string, open: boolean) => {
+    writeDraft({ ...draftState, otherOpen: { ...draftState.otherOpen, [questionId]: open } });
   };
 
   const hasAnyAnswers = Object.keys(localAnswers).length > 0;
   const clearAll = () => {
-    setLocalAnswers({});
+    writeDraft({ answers: {}, otherOpen: {} });
   };
 
   const canSubmit = questions.every((q) => {
@@ -339,6 +374,8 @@ const ChatQuestionsBlock: React.FC<ChatQuestionsBlockProps> = ({ questions, bloc
     }
 
     onSubmit(localAnswers, summaryLines.join("\n"));
+    // The answers now live in the message document, so nothing is left to draft for this block.
+    store?.clear(blockKey);
   };
 
   return (
@@ -369,6 +406,8 @@ const ChatQuestionsBlock: React.FC<ChatQuestionsBlockProps> = ({ questions, bloc
             question={effectiveQuestion}
             blockIndex={blockIndex}
             onAnswer={handleLocalAnswer}
+            otherOpen={draftState.otherOpen[question.id]}
+            onOtherOpenChange={(open) => handleOtherOpenChange(question.id, open)}
           />
         );
       })}

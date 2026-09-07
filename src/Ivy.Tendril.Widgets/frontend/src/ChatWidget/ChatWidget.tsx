@@ -1,14 +1,12 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Mic, Bot, Cpu, Zap, MessageSquare, ChevronDown, Check, CheckCircle2, XCircle, Pencil, Paperclip, X, Square, ArrowRight, Trash2, Loader2, Sparkles } from "lucide-react";
-import ReactMarkdown from "react-markdown";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { AgentViewer } from "../AgentViewer";
-import { getMarkdownPlugins } from "../math";
-import { BlockHandler } from "../BlockHandler";
-import { AlertBlockquote } from "../PlanMarkdown/AlertBlockquote";
-import { QuestionsSubmitContext } from "../PlanMarkdown/questionsContext";
+import { BlockMarkdown } from "../BlockMarkdown";
+import { QuestionsDraftContext, QuestionsSubmitContext } from "../PlanMarkdown/questionsContext";
+import type { QuestionSubmitCallback, QuestionsDraftState, QuestionsDraftStore } from "../PlanMarkdown/questionsContext";
 import { isImageFile, processImageFile } from "../imageUtils";
 import "./chat-widget.css";
 
@@ -619,6 +617,47 @@ export function ChatWidget({
       answers,
       responseText,
     });
+  };
+
+  // `handleQuestionSubmit` closes over `activeSession` and `emit`, both rebuilt every render. A ref
+  // to the latest closure plus a per-message-id cached callback keeps the context value identity
+  // stable across renders, so a version bump doesn't re-render every question block's consumers.
+  const handleQuestionSubmitRef = useRef(handleQuestionSubmit);
+  useEffect(() => {
+    handleQuestionSubmitRef.current = handleQuestionSubmit;
+  });
+  const submitHandlersRef = useRef(new Map<string, QuestionSubmitCallback>());
+  const submitHandlerFor = (messageId: string): QuestionSubmitCallback => {
+    let handler = submitHandlersRef.current.get(messageId);
+    if (!handler) {
+      handler = (answers, summaryText) => handleQuestionSubmitRef.current(messageId, answers, summaryText);
+      submitHandlersRef.current.set(messageId, handler);
+    }
+    return handler;
+  };
+
+  // Holds every message's in-progress question-block drafts, keyed by `${messageId}::${blockKey}`.
+  // A ref survives both re-render and remount of the message rows, which is the whole point: the
+  // draft must outlive whatever caused the remount. An entry is dropped only when its block is
+  // submitted (see `QuestionsCallout`'s `store.clear`); nothing else evicts it, so a drafted but
+  // unsubmitted answer survives session switches for as long as the widget stays mounted.
+  const questionDraftsRef = useRef(new Map<string, QuestionsDraftState>());
+  const draftStoresRef = useRef(new Map<string, QuestionsDraftStore>());
+  const draftStoreFor = (messageId: string): QuestionsDraftStore => {
+    let store = draftStoresRef.current.get(messageId);
+    if (!store) {
+      store = {
+        read: (blockKey) => questionDraftsRef.current.get(`${messageId}::${blockKey}`),
+        write: (blockKey, state) => {
+          questionDraftsRef.current.set(`${messageId}::${blockKey}`, state);
+        },
+        clear: (blockKey) => {
+          questionDraftsRef.current.delete(`${messageId}::${blockKey}`);
+        },
+      };
+      draftStoresRef.current.set(messageId, store);
+    }
+    return store;
   };
 
   const startHeaderTitleEdit = () => {
@@ -1349,34 +1388,29 @@ export function ChatWidget({
                       );
                     })()
                   ) : msg.rawStream ? (
-                    <QuestionsSubmitContext.Provider
-                      value={(answers, summaryText) => handleQuestionSubmit(msg.id, answers, summaryText)}
-                    >
-                      <AgentViewer
-                        id={`msg-${msg.id}`}
-                        jsonStream={msg.rawStream}
-                        autoScroll={false}
-                        showThinking={true}
-                        showSystemEvents={false}
-                        showStatusLabel={false}
-                        groupToolCalls={true}
-                        eventHandler={noopEventHandler}
-                      />
-                    </QuestionsSubmitContext.Provider>
+                    <QuestionsDraftContext.Provider value={draftStoreFor(msg.id)}>
+                      <QuestionsSubmitContext.Provider value={submitHandlerFor(msg.id)}>
+                        <AgentViewer
+                          id={`msg-${msg.id}`}
+                          jsonStream={msg.rawStream}
+                          autoScroll={false}
+                          showThinking={true}
+                          showSystemEvents={false}
+                          showStatusLabel={false}
+                          groupToolCalls={true}
+                          eventHandler={noopEventHandler}
+                        />
+                      </QuestionsSubmitContext.Provider>
+                    </QuestionsDraftContext.Provider>
                   ) : (
                     msg.content && (
-                      <QuestionsSubmitContext.Provider
-                        value={(answers, summaryText) => handleQuestionSubmit(msg.id, answers, summaryText)}
-                      >
-                        <div className="chat-markdown-body">
-                          <ReactMarkdown
-                            {...getMarkdownPlugins(msg.content)}
-                            components={{ code: BlockHandler, blockquote: AlertBlockquote, pre: ({ children }) => <>{children}</> }}
-                          >
-                            {msg.content}
-                          </ReactMarkdown>
-                        </div>
-                      </QuestionsSubmitContext.Provider>
+                      <QuestionsDraftContext.Provider value={draftStoreFor(msg.id)}>
+                        <QuestionsSubmitContext.Provider value={submitHandlerFor(msg.id)}>
+                          <div className="chat-markdown-body">
+                            <BlockMarkdown content={msg.content} />
+                          </div>
+                        </QuestionsSubmitContext.Provider>
+                      </QuestionsDraftContext.Provider>
                     )
                   )}
                 </div>
