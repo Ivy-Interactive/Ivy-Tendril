@@ -34,16 +34,8 @@ export const BlockHandler: React.FC<React.HTMLAttributes<HTMLElement>> = ({ clas
       );
     }
 
-    const questions = QUESTIONS_LANG.exec(lang);
-    if (questions) {
-      return (
-        <QuestionsCallout
-          content={content}
-          blockIndex={questions[1] ? Number(questions[1]) : 0}
-          onAnswer={onAnswer}
-          onSubmit={onSubmit}
-        />
-      );
+    if (QUESTIONS_LANG.test(lang)) {
+      return <QuestionsCallout content={content} onAnswer={onAnswer} onSubmit={onSubmit} />;
     }
 
     return <CodeBlock content={content} language={lang} />;

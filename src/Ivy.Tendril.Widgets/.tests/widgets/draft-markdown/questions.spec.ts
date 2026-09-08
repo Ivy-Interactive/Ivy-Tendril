@@ -32,15 +32,15 @@ test.describe("DraftMarkdown Questions", () => {
     await expect(callout).toBeVisible();
 
     // Option rows, not raw YAML.
-    await expect(callout.locator(".pmv-question-option").first()).toBeVisible();
-    await expect(callout.locator(".pmv-question-title")).toContainText("retry budget");
+    await expect(callout.locator(".tq-option").first()).toBeVisible();
+    await expect(callout.locator(".tq-question-title")).toContainText("retry budget");
 
-    const chip = callout.locator(".pmv-question-option-recommended").first();
+    const chip = callout.locator(".tq-option-recommended").first();
     await expect(chip).toBeVisible();
     await expect(chip).toHaveText("Recommended");
 
     // Option descriptions are block markdown: this one carries a snippet.
-    const snippet = callout.locator(".pmv-question-option-description .pmv-code-block").first();
+    const snippet = callout.locator(".tq-option-description .pmv-code-block").first();
     await expect(snippet).toBeVisible();
     await expect(snippet).toContainText("client.SendAsync");
 
@@ -57,7 +57,7 @@ test.describe("DraftMarkdown Questions", () => {
     await expect(card.getByText("2 of 8 answered")).toBeVisible();
     await expect(entry).not.toHaveCSS("text-decoration-line", /line-through/);
 
-    await blockFor(page, "retry-scope").locator(".pmv-question-check").first().click();
+    await blockFor(page, "retry-scope").locator(".tq-option-input").first().click();
 
     await expect(card.getByText("3 of 8 answered")).toBeVisible({ timeout: 15_000 });
     // The entries are links, so the computed value carries the underline too.
@@ -94,59 +94,59 @@ test.describe("DraftMarkdown Questions", () => {
     // This sample persists: it feeds every event through QuestionAnswers.Apply and hands the widget
     // the updated markdown, so a selection has to survive the round trip and come back rendered.
     const callout = blockFor(page, "retry-scope");
-    await expect(callout.locator(".pmv-question-option--selected")).toHaveCount(0);
+    await expect(callout.locator(".tq-option[data-selected="true"]")).toHaveCount(0);
 
-    await callout.locator(".pmv-question-check").first().click();
-    await expect(callout.locator(".pmv-question-option--selected")).toHaveCount(1, { timeout: 15_000 });
+    await callout.locator(".tq-option-input").first().click();
+    await expect(callout.locator(".tq-option[data-selected="true"]")).toHaveCount(1, { timeout: 15_000 });
 
     // Single-select, so the second choice replaces the first rather than joining it.
-    await callout.locator(".pmv-question-check").nth(1).click();
-    await expect(callout.locator(".pmv-question-option--selected")).toHaveCount(1, { timeout: 15_000 });
-    await expect(callout.locator(".pmv-question-option").nth(1)).toHaveClass(/pmv-question-option--selected/);
+    await callout.locator(".tq-option-input").nth(1).click();
+    await expect(callout.locator(".tq-option[data-selected="true"]")).toHaveCount(1, { timeout: 15_000 });
+    await expect(callout.locator(".tq-option").nth(1)).toHaveAttribute("data-selected", "true");
 
     await stepScreenshot("answer-merged");
 
     // Clear takes the answer key back out, so nothing is selected again.
-    await callout.locator(".pmv-question-clear").click();
-    await expect(callout.locator(".pmv-question-option--selected")).toHaveCount(0, { timeout: 15_000 });
+    await callout.locator(".tq-clear").click();
+    await expect(callout.locator(".tq-option[data-selected="true"]")).toHaveCount(0, { timeout: 15_000 });
   });
 
   test("a multi-select answer accumulates", async ({ page }) => {
     const callout = blockFor(page, "launch-channels");
 
-    await callout.locator(".pmv-question-check").first().click();
-    await expect(callout.locator(".pmv-question-option--selected")).toHaveCount(1, { timeout: 15_000 });
+    await callout.locator(".tq-option-input").first().click();
+    await expect(callout.locator(".tq-option[data-selected="true"]")).toHaveCount(1, { timeout: 15_000 });
 
     // multiple: true, so the second option joins the first instead of replacing it.
-    await callout.locator(".pmv-question-check").nth(1).click();
-    await expect(callout.locator(".pmv-question-option--selected")).toHaveCount(2, { timeout: 15_000 });
+    await callout.locator(".tq-option-input").nth(1).click();
+    await expect(callout.locator(".tq-option[data-selected="true"]")).toHaveCount(2, { timeout: 15_000 });
   });
 
   test("both questions of a block are on screen at once", async ({ page, stepScreenshot }) => {
     // The third block holds two free-text questions. They stack rather than tab, so both are
     // answerable without first finding the second one.
     const callout = blockFor(page, "service-name");
-    await expect(callout.locator(".pmv-question")).toHaveCount(2);
+    await expect(callout.locator(".tq-question")).toHaveCount(2);
     await expect(callout.locator(".pmv-questions-tab")).toHaveCount(0);
 
     // Each header renders as the eyebrow over its question.
-    await expect(callout.locator(".pmv-question-header")).toHaveText(["Name", "Owner"]);
+    await expect(callout.locator(".tq-question-header")).toHaveText(["Name", "Owner"]);
 
     // The second is `optional: true` — the plan is complete without it.
-    await expect(callout.locator(".pmv-question-optional")).toHaveCount(1);
+    await expect(callout.locator(".tq-question-optional")).toHaveCount(1);
 
     // Neither is answered — optional is not an answer — so there is nothing to clear yet.
-    await expect(callout.locator(".pmv-question-clear")).toHaveCount(0);
+    await expect(callout.locator(".tq-clear")).toHaveCount(0);
 
     await stepScreenshot("stacked-questions");
 
     // Answering the first leaves the second alone, and the block gains one shared Clear.
-    await callout.locator(".pmv-question-other-input").first().fill("dispatch");
+    await callout.locator(".tq-text-input").first().fill("dispatch");
     await expect(page.locator(".pmv-sticky").getByText("3 of 8 answered")).toBeVisible({
       timeout: 15_000,
     });
-    await expect(callout.locator(".pmv-question-optional")).toHaveCount(1);
-    await expect(callout.locator(".pmv-question-clear")).toHaveCount(1);
+    await expect(callout.locator(".tq-question-optional")).toHaveCount(1);
+    await expect(callout.locator(".tq-clear")).toHaveCount(1);
   });
 
   test("Clear appears only once there is an answer, and retires with it", async ({ page }) => {
@@ -154,16 +154,16 @@ test.describe("DraftMarkdown Questions", () => {
     const callout = blockFor(page, "retry-scope");
 
     // Nothing answered yet, so there is nothing to clear.
-    await expect(callout.locator(".pmv-question-clear")).toHaveCount(0);
+    await expect(callout.locator(".tq-clear")).toHaveCount(0);
 
-    await callout.locator(".pmv-question-check").first().click();
-    await expect(callout.locator(".pmv-question-clear")).toHaveCount(1, { timeout: 15_000 });
+    await callout.locator(".tq-option-input").first().click();
+    await expect(callout.locator(".tq-clear")).toHaveCount(1, { timeout: 15_000 });
     await expect(card.getByText("3 of 8 answered")).toBeVisible({ timeout: 15_000 });
 
-    await callout.locator(".pmv-question-clear").click();
+    await callout.locator(".tq-clear").click();
 
     // Back to unanswered on both sides: the button retires and the index entry un-strikes.
-    await expect(callout.locator(".pmv-question-clear")).toHaveCount(0, { timeout: 15_000 });
+    await expect(callout.locator(".tq-clear")).toHaveCount(0, { timeout: 15_000 });
     await expect(card.getByText("2 of 8 answered")).toBeVisible({ timeout: 15_000 });
   });
 
@@ -175,7 +175,7 @@ test.describe("DraftMarkdown Questions", () => {
       .filter({ hasText: "This one is an example" });
 
     await expect(documentation).toBeVisible();
-    await expect(documentation.locator(".pmv-question-option")).toHaveCount(0);
+    await expect(documentation.locator(".tq-option")).toHaveCount(0);
   });
 
   test("a seeded annotation never highlights inside a question block", async ({ page }) => {
@@ -199,13 +199,13 @@ test.describe("DraftMarkdown Questions", () => {
     await navigateToApp(page, "draft-markdown/questions-review");
     await waitForDraftMarkdown(page);
 
-    await expect(page.locator(".pmv-question-check")).toHaveCount(0);
-    await expect(page.locator(".pmv-question-other-input")).toHaveCount(0);
-    await expect(page.locator(".pmv-question-clear")).toHaveCount(0);
+    await expect(page.locator(".tq-option-input")).toHaveCount(0);
+    await expect(page.locator(".tq-text-input")).toHaveCount(0);
+    await expect(page.locator(".tq-clear")).toHaveCount(0);
 
     // The chosen option's title, not the slug the YAML carries.
     await expect(
-      questionFor(page, "delivery-scope").locator(".pmv-question-answer-value"),
+      questionFor(page, "delivery-scope").locator(".tq-answer-value"),
     ).toHaveText(["Dispatch only"]);
     // No block fell back to dumping its fence body — the static callout is what would show that.
     // Asserted this way rather than by searching for "questions:", because the sample also carries
@@ -215,12 +215,12 @@ test.describe("DraftMarkdown Questions", () => {
     // A multi-select answer lists every value. Scoped to the question rather than its block —
     // the block holds another answered question above it.
     await expect(
-      questionFor(page, "rollout-regions").locator(".pmv-question-answer-value"),
+      questionFor(page, "rollout-regions").locator(".tq-answer-value"),
     ).toHaveText(["EU", "US"]);
 
     // Unanswered questions say which kind they are — both are decisions nobody explicitly made.
     const naming = blockFor(page, "service-name");
-    await expect(naming.locator(".pmv-question-answer--none")).toHaveText([
+    await expect(naming.locator(".tq-answer--none")).toHaveText([
       "Not answered — Not required",
       "Not answered — Agent decided",
     ]);
