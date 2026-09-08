@@ -1,15 +1,16 @@
-import React, { useId, useMemo, useState } from "react";
-import { answerEntries, otherEntry, parseQuestions } from "./questionsSchema";
-import type { PlanQuestion, QuestionOption } from "./questionsSchema";
+import React, { useMemo, useState } from "react";
+import { parseQuestions } from "./questionsSchema";
 import type { AnswerCallback, QuestionSubmitCallback } from "./questionsContext";
 import { ChatQuestionsBlock } from "../TendrilQuestions/ChatQuestionsBlock";
-import { DescriptionMarkdown } from "../TendrilQuestions/DescriptionMarkdown";
 import { QuestionsForm } from "../TendrilQuestions/QuestionsForm";
-import { documentAnswers } from "../TendrilQuestions/answers";
+import { documentAnswers, documentOtherOpen } from "../TendrilQuestions/answers";
 
 /**
- * The tinted frame every questions block sits in. It carries no heading of its own — the question
- * text is the heading — so the block leads with what is actually being asked.
+ * The frame every questions block sits in. It carries no heading of its own — the question text is
+ * the heading — so the block leads with what is actually being asked.
+ *
+ * The class is load-bearing beyond styling: annotations exclude anything inside it, and a host's
+ * ScrollTo frames the whole block when it targets the block's first question.
  */
 const Shell: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="pmv-questions" role="note">
@@ -24,282 +25,39 @@ const StaticCallout: React.FC<{ content: string }> = ({ content }) => (
   </Shell>
 );
 
-interface QuestionViewProps {
-  question: PlanQuestion;
-  blockIndex: number;
-  onAnswer: AnswerCallback;
-  /** Controlled Other-field open state, from a draft store that outlives this component. */
-  otherOpen?: boolean;
-  onOtherOpenChange?: (open: boolean) => void;
-}
-
-const QuestionView: React.FC<QuestionViewProps> = ({
-  question,
-  blockIndex,
-  onAnswer,
-  otherOpen: otherOpenProp,
-  onOtherOpenChange,
-}) => {
-  const entries = answerEntries(question);
-  const options = question.options ?? [];
-  const hasOptions = options.length > 0;
-  // Not memoized: `options` is a fresh array whenever `question.options` is absent, so a memo keyed
-  // on it would never hit anyway, and a set of 2-4 slugs is cheaper to rebuild than to track.
-  const optionValues = new Set(options.map((o) => o.value));
-  const typed = otherEntry(question);
-
-  // The typed text is a draft, not answer state: the host is told only what changed and may never
-  // echo an updated document back, so the input has to hold what the user is typing. Selection
-  // state proper is still derived from `question` on every render.
-  const [draft, setDraft] = useState(typed ?? "");
-  const [seenTyped, setSeenTyped] = useState(typed);
-  const [ownOtherOpen, setOwnOtherOpen] = useState(typed !== undefined);
-  // A draft store is supplied only in chat, where `onOtherOpenChange` takes over as the source of
-  // truth so the open state survives a remount; plan views keep their own transient state.
-  const otherOpen = onOtherOpenChange ? (otherOpenProp ?? false) : ownOtherOpen;
-  const setOtherOpen = onOtherOpenChange ?? setOwnOtherOpen;
-  if (typed !== seenTyped) {
-    // The document changed underneath us — resync the draft to it.
-    setSeenTyped(typed);
-    setDraft(typed ?? "");
-    setOtherOpen(typed !== undefined);
-  }
-
-  const reactId = useId();
-  const groupName = `pmv-q-${reactId}-${blockIndex}-${question.id}`;
-  const otherActive = typed !== undefined;
-
-  /**
-   * Reports one change, mapping an emptied selection to "unanswered".
-   *
-   * An empty list would otherwise travel as "the answer is nothing in particular". Unchecking your
-   * last box means the question is simply unanswered again, so that is what gets reported.
-   */
-  const report = (answer: string | string[] | null | undefined) => {
-    // Emptying the field is not an answer of "": clearing the box means the question is unanswered
-    // again. Written literally it would stay struck through in the index and counted as answered,
-    // with nothing in it.
-    const empty =
-      answer === "" || (Array.isArray(answer) && answer.length === 0);
-
-    onAnswer(question.id, empty ? undefined : answer);
-  };
-
-  const selectOption = (option: QuestionOption) => {
-    if (!question.multiple) {
-      // Single-select: the option replaces whatever was typed, so the field goes with it.
-      setOtherOpen(false);
-      report(option.value);
-      return;
-    }
-
-    // Multi-select keeps the typed entry in the answer, so the field it was typed into has to stay
-    // open. Closing it stranded the text — visible in the document, invisible and uneditable here.
-    const next = entries.includes(option.value)
-      ? entries.filter((entry) => entry !== option.value)
-      : [...entries, option.value];
-    report(next);
-  };
-
-  const writeOther = (value: string) => {
-    setDraft(value);
-    if (!question.multiple) {
-      report(value);
-      return;
-    }
-
-    const kept = entries.filter((entry) => optionValues.has(entry));
-    report(value ? [...kept, value] : kept);
-  };
-
-  const toggleOther = () => {
-    if (question.multiple && otherActive) {
-      setOtherOpen(false);
-      report(entries.filter((entry) => optionValues.has(entry)));
-      return;
-    }
-
-    setOtherOpen(true);
-    if (draft) writeOther(draft);
-  };
-
-  // Clearing is a block-level action — see `QuestionsCallout`. Nothing to undo here: the answer
-  // leaves the document, the new content arrives, and the resync above returns `draft` to empty.
-
-  const freeTextInput = (
-    <input
-      type="text"
-      className="pmv-question-other-input"
-      value={draft}
-      placeholder="Type your answer"
-      aria-label={`Other answer for ${question.title || question.id}`}
-      onChange={(e) => writeOther(e.target.value)}
-    />
-  );
-
-  return (
-    // The anchor a host's ScrollTo addresses. Ids are unique across a revision by schema, so it
-    // needs no block qualifier.
-    <div className="pmv-question" data-question-id={question.id}>
-      {/* `header` was the tab's chip label. With the tabs gone it becomes an eyebrow, which is
-          what keeps a stack of questions scannable. */}
-      {question.header && <div className="pmv-question-header">{question.header}</div>}
-      <div className="pmv-question-title">
-        {question.title}
-        {/* Says the plan does not wait on this one. Without it the block gives no hint of what the
-            index card already knows, and the two would disagree on screen. */}
-        {question.optional && <span className="pmv-question-optional">Optional</span>}
-      </div>
-      {question.description && (
-        <div className="pmv-question-description">
-          <DescriptionMarkdown text={question.description} />
-        </div>
-      )}
-
-      <div className="pmv-question-options">
-        {options.map((option) => {
-          const selected = entries.includes(option.value);
-          return (
-            // A div rather than a label, with the label around the radio and title only: a
-            // description may hold a code block, whose copy button would otherwise toggle the
-            // option on its way through the label.
-            <div
-              key={option.value}
-              className={`pmv-question-option${selected ? " pmv-question-option--selected" : ""}`}
-              onClick={(e) => {
-                if ((e.target as HTMLElement).closest("label, input, textarea, button, a")) return;
-                if (window.getSelection()?.toString()) return;
-                selectOption(option);
-              }}
-            >
-              <label className="pmv-question-option-main">
-                <input
-                  type={question.multiple ? "checkbox" : "radio"}
-                  name={groupName}
-                  className="pmv-question-check"
-                  checked={selected}
-                  onChange={() => selectOption(option)}
-                />
-                <span className="pmv-question-option-title">
-                  {option.title}
-                  {option.recommended && (
-                    <span className="pmv-question-option-recommended">Recommended</span>
-                  )}
-                </span>
-              </label>
-              {option.description && (
-                <div className="pmv-question-option-description">
-                  <DescriptionMarkdown text={option.description} />
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {hasOptions && question.other && (
-          <div
-            className={`pmv-question-option pmv-question-option--other${otherActive ? " pmv-question-option--selected" : ""}`}
-            onClick={(e) => {
-              if ((e.target as HTMLElement).closest("label, input, textarea, button, a")) return;
-              if (window.getSelection()?.toString()) return;
-              toggleOther();
-            }}
-          >
-            <label className="pmv-question-other-label">
-              <input
-                type={question.multiple ? "checkbox" : "radio"}
-                name={groupName}
-                className="pmv-question-check"
-                checked={otherActive}
-                onChange={toggleOther}
-              />
-              <span className="pmv-question-option-title">Other</span>
-            </label>
-            {otherOpen && freeTextInput}
-          </div>
-        )}
-
-        {!hasOptions && freeTextInput}
-      </div>
-    </div>
-  );
-};
-
-/**
- * The read-only rendering: what was asked, and what was decided.
- *
- * A plan under review is no longer a form — the questions have been settled and the reader wants
- * the decisions, not the controls. Dumping the fence body as YAML (which is what a structured
- * block used to do without a subscriber) shows the data but buries the answer, so this renders the
- * question and its answer as prose instead.
- */
-const AnsweredQuestion: React.FC<{ question: PlanQuestion }> = ({ question }) => {
-  const entries = answerEntries(question);
-  const options = question.options ?? [];
-
-  // An entry naming an option shows that option's title; anything else is the user's own words.
-  const answers = entries.map(
-    (entry) => options.find((option) => option.value === entry)?.title ?? entry,
-  );
-
-  return (
-    <div className="pmv-question" data-question-id={question.id}>
-      {question.header && <div className="pmv-question-header">{question.header}</div>}
-      <div className="pmv-question-title">
-        {question.title}
-        {question.optional && <span className="pmv-question-optional">Optional</span>}
-      </div>
-      {question.description && (
-        <div className="pmv-question-description">
-          <DescriptionMarkdown text={question.description} />
-        </div>
-      )}
-
-      {answers.length > 0 ? (
-        <div className="pmv-question-answer">
-          {answers.map((answer) => (
-            <span key={answer} className="pmv-question-answer-value">
-              {answer}
-            </span>
-          ))}
-        </div>
-      ) : (
-        // Said out loud, because an unanswered question in a settled plan is itself information:
-        // it means the agent chose, using the recommended option where there was one.
-        <div className="pmv-question-answer pmv-question-answer--none">
-          {question.optional ? "Not answered — Not required" : "Not answered — Agent decided"}
-        </div>
-      )}
-    </div>
-  );
-};
-
 export interface QuestionsCalloutProps {
   content: string;
-  /** Which `questions` fence this is, 0-based. Keeps radio groups distinct across blocks. */
-  blockIndex?: number;
   /** Absent when the host did not subscribe to `OnAnswersChange`, which means read-only. */
   onAnswer?: AnswerCallback;
   /** Present when rendered inside chat to enable interactive answers and submission. */
   onSubmit?: QuestionSubmitCallback;
 }
 
-export const QuestionsCallout: React.FC<QuestionsCalloutProps> = ({ content, blockIndex = 0, onAnswer, onSubmit }) => {
+export const QuestionsCallout: React.FC<QuestionsCalloutProps> = ({ content, onAnswer, onSubmit }) => {
   const parsed = useMemo(() => parseQuestions(content), [content]);
+  const questions = parsed.kind === "invalid" ? [] : parsed.questions;
+
+  // Answers live in the document in the draft flow: the host merges each reported change into the
+  // revision and sends the new content back, so the document is the single source of truth and
+  // they are recomputed from it on every render rather than held as state.
+  const answers = useMemo(() => documentAnswers(questions), [questions]);
+  const documentOpen = useMemo(() => documentOtherOpen(questions), [questions]);
+
+  // An Other field the user just opened holds nothing yet, so the document cannot remember it.
+  // That much is local: it is what keeps the field on screen between opening it and typing in it.
+  const [opened, setOpened] = useState<Record<string, boolean>>({});
 
   // A block that does not parse is the pre-schema plain-text form, and there is nothing to render
   // but the text itself.
-  if (parsed.kind === "invalid" || parsed.questions.length === 0) {
+  if (questions.length === 0) {
     return <StaticCallout content={content} />;
   }
 
-  const questions = parsed.questions;
-
-  // Inside a chat message the block is the redesigned form (see TendrilQuestions): answers are
-  // drafted locally and submitted in one go, and a settled block presents the decisions.
+  // Inside a chat message answers are drafted locally and submitted in one go; a settled block
+  // presents the decisions.
   if (!onAnswer && onSubmit) {
     if (questions.every((q) => q.answerPresent)) {
-      return <QuestionsForm questions={questions} answers={documentAnswers(questions)} readOnly />;
+      return <QuestionsForm questions={questions} answers={answers} readOnly />;
     }
 
     return <ChatQuestionsBlock questions={questions} onSubmit={onSubmit} />;
@@ -310,52 +68,37 @@ export const QuestionsCallout: React.FC<QuestionsCalloutProps> = ({ content, blo
   if (!onAnswer) {
     return (
       <Shell>
-        {questions.map((question) => (
-          <AnsweredQuestion key={question.id} question={question} />
-        ))}
+        <QuestionsForm questions={questions} answers={answers} readOnly />
       </Shell>
     );
   }
 
   // One Clear for the whole block rather than one per question: the block is what the user is
-  // working through, and a row of identical buttons down a stack reads as clutter. It resets
-  // every answered question in the block, and stays hidden until there is one.
-  //
-  // Optional questions are included: being optional does not make an answer unretractable.
-  const answered = questions.filter((question) => question.answerPresent);
-
+  // working through, and a row of identical buttons down a stack reads as clutter. Optional
+  // questions are included — being optional does not make an answer unretractable.
   const clearAll = () => {
-    for (const question of answered) {
-      onAnswer(question.id, undefined);
+    for (const question of questions) {
+      if (question.answerPresent) onAnswer(question.id, undefined);
     }
+    setOpened({});
   };
 
-  // Every question in the block is on screen at once, stacked. A block holds at most four, and
-  // they are usually related — reading them together is how you notice that answering one settles
-  // the next. Tabs hid that, and hid how much was still open.
+  // Each change is reported the moment it is made, so the draft flow has no Submit: an emptied
+  // entry list means the question is unanswered again, not answered with nothing.
   return (
     <Shell>
-      {answered.length > 0 && (
-        <div className="pmv-questions-actions">
-          <button
-            type="button"
-            className="pmv-question-clear"
-            onClick={clearAll}
-            aria-label={questions.length > 1 ? "Clear all answers in this block" : "Clear answer"}
-          >
-            Clear
-          </button>
-        </div>
-      )}
-
-      {questions.map((question) => (
-        <QuestionView
-          key={question.id}
-          question={question}
-          blockIndex={blockIndex}
-          onAnswer={onAnswer}
-        />
-      ))}
+      <QuestionsForm
+        questions={questions}
+        answers={answers}
+        otherOpen={{ ...documentOpen, ...opened }}
+        onAnswer={(questionId, entries) =>
+          onAnswer(questionId, entries.length === 0 ? undefined : entries)
+        }
+        onOtherOpenChange={(questionId, open) =>
+          setOpened((prev) => ({ ...prev, [questionId]: open }))
+        }
+        onClear={clearAll}
+      />
     </Shell>
   );
 };
