@@ -209,7 +209,7 @@ public class JobsAppRefreshGatingTests
         public List<JobItem> GetJobsForPlan(string planFile) => throw new NotSupportedException();
         public JobItem? GetJob(string id) => Jobs.FirstOrDefault(j => j.Id == id);
         public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null) => throw new NotSupportedException();
-        public void SetChatSessionId(string id, string chatSessionId) {}
+        public void SetChatSessionId(string id, string chatSessionId) { }
         public bool ReportJobFailure(string id, string message) => throw new NotSupportedException();
         public bool IsInboxFileTracked(string filePath) => false;
         public void Dispose()
