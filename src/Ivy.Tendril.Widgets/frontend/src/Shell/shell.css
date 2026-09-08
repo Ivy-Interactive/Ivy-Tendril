@@ -147,13 +147,25 @@
 
 /* Hugs the 38px settings row (see .tsh-settings) rather than a fixed height, so
    the settings icon lines up with the session-tab icons across the content edge.
-   The top margin keeps the plan list from crowding it. */
+   The top margin keeps the plan list from crowding it. Several footer buttons
+   spread across the row; a lone one takes the full width. */
 .tsh-sidebar-footer {
   flex-shrink: 0;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
   margin-top: 8px;
+}
+
+.tsh-sidebar-footer > :only-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-sidebar-footer {
+  flex-direction: column;
+  align-items: stretch;
 }
 
 /* ---------- Content area ---------- */
@@ -1174,6 +1186,21 @@
   color: var(--tsh-row-active-fg);
 }
 
+.tsh-settings[data-active="true"] {
+  opacity: 1;
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+/* Icon-only: square, so the hover/active background is a rounded square rather
+   than a tall rectangle around the icon. */
+.tsh-settings[data-icon-only="true"] {
+  justify-content: center;
+  width: 38px;
+  padding: 6px 0;
+  flex-shrink: 0;
+}
+
 .tsh-settings-label {
   font-size: 14px;
   font-weight: 400;
@@ -1188,6 +1215,10 @@
 .tsh-root[data-collapsed="true"] .tsh-settings {
   justify-content: center;
   padding: 6px 0;
+  width: 100%;
+}
+
+.tsh-root[data-collapsed="true"] .tsh-settings[data-icon-only="true"] {
   width: 100%;
 }
 
