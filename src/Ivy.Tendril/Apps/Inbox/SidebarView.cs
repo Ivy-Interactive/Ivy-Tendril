@@ -46,7 +46,7 @@ public class SidebarView(
         {
             if (projects.Count == 0)
             {
-                rows.Add(SidebarListRow.BuildSubItem("No projects in settings", Icons.FolderClosed, () => {}, false));
+                rows.Add(SidebarListRow.BuildSubItem("No projects in settings", Icons.FolderClosed, () => { }, false));
             }
             else
             {
