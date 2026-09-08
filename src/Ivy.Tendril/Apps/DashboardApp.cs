@@ -178,7 +178,7 @@ public class DashboardApp : ViewBase
             .ToList();
     }
 
-    private static string BuildGreeting(DateTime now)
+    internal static string BuildGreeting(DateTime now)
     {
         var word = now.Hour switch
         {

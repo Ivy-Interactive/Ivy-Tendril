@@ -161,9 +161,7 @@ public class ChatExecutionIntegrationTest
 
         var sp = CreateServiceProvider(configService, chatService, agentRunner, serializer);
 
-        var app = new Ivy.Tendril.Apps.Chat.ChatApp();
-        var contentBuilder = new Ivy.ContentBuilder();
-        var tree = new Ivy.Core.WidgetTree(app, contentBuilder, sp);
+        var (_, tree) = CreateChatHost(sp);
 
         var buildTask = tree.BuildAsync();
         var completedTask = await Task.WhenAny(buildTask, Task.Delay(5000));
@@ -198,9 +196,7 @@ public class ChatExecutionIntegrationTest
 
             var sp = CreateServiceProvider(configService, chatService, agentRunner, serializer);
 
-            var app = new Ivy.Tendril.Apps.Chat.ChatApp();
-            var contentBuilder = new Ivy.ContentBuilder();
-            var tree = new Ivy.Core.WidgetTree(app, contentBuilder, sp);
+            var (_, tree) = CreateChatHost(sp);
 
             var buildTask = tree.BuildAsync();
             var completedTask = await Task.WhenAny(buildTask, Task.Delay(5000));
@@ -239,7 +235,7 @@ public class ChatExecutionIntegrationTest
             var sp = CreateServiceProvider(configService, chatService, agentRunner, serializer);
             var ctx = new Ivy.Core.Hooks.ViewContext(() => { }, null, sp);
 
-            var app = new Ivy.Tendril.Apps.Chat.ChatApp();
+            var (app, _) = CreateChatHost(sp);
             app.BeforeBuild(ctx);
             var built = app.Build();
             app.AfterBuild();
@@ -378,7 +374,7 @@ public class ChatExecutionIntegrationTest
             var sp = CreateServiceProvider(configService, chatService, agentRunner, serializer);
             var ctx = new Ivy.Core.Hooks.ViewContext(() => { }, null, sp);
 
-            var app = new Ivy.Tendril.Apps.Chat.ChatApp();
+            var (app, _) = CreateChatHost(sp);
             app.BeforeBuild(ctx);
             var built = app.Build();
             app.AfterBuild();
@@ -464,14 +460,14 @@ public class ChatExecutionIntegrationTest
             var ctxApp = new Ivy.Core.Hooks.ViewContext(() => { }, null, sp);
             var ctxContent = new Ivy.Core.Hooks.ViewContext(() => { }, null, sp);
 
-            var app = new Ivy.Tendril.Apps.Chat.ChatApp();
+            // The chat list now lives in the shell sidebar: the app builds to its content view plus
+            // the (closed) search dialog trigger.
+            var (app, _) = CreateChatHost(sp);
             app.BeforeBuild(ctxApp);
-            var built1 = app.Build() as Ivy.SidebarLayout;
+            var contentView1 = (app.Build() as Ivy.Fragment)?.Children[0] as Ivy.Tendril.Apps.Chat.ContentView;
             app.AfterBuild();
             ctxApp.Reset();
 
-            Assert.NotNull(built1);
-            var contentView1 = built1.Children.OfType<Ivy.Slot>().First(s => s.Name == "MainContent").Children.First() as Ivy.Tendril.Apps.Chat.ContentView;
             Assert.NotNull(contentView1);
 
             // Initial build: not generating, empty stream snapshot
@@ -507,11 +503,10 @@ public class ChatExecutionIntegrationTest
 
             // Re-render ChatApp
             app.BeforeBuild(ctxApp);
-            var built2 = app.Build() as Ivy.SidebarLayout;
+            var contentView2 = (app.Build() as Ivy.Fragment)?.Children[0] as Ivy.Tendril.Apps.Chat.ContentView;
             app.AfterBuild();
             ctxApp.Reset();
 
-            var contentView2 = built2!.Children.OfType<Ivy.Slot>().First(s => s.Name == "MainContent").Children.First() as Ivy.Tendril.Apps.Chat.ContentView;
             Assert.NotNull(contentView2);
 
             var ctxContent2 = new Ivy.Core.Hooks.ViewContext(() => { }, null, sp);
@@ -614,7 +609,36 @@ public class ChatExecutionIntegrationTest
         services.AddSingleton<IChatExecutionService, ChatExecutionService>();
         services.AddSingleton<IUploadService>(new Ivy.UploadService("conn1", null!));
         services.AddSingleton<IClientProvider>(new DummyClientProvider());
+        // The chat publishes its sidebar list through a shell signal and navigates on selection,
+        // both of which resolve the connection's session from the store.
+        var sessionStore = new Ivy.Core.Server.AppSessionStore();
+        services.AddSingleton(sessionStore);
+        services.AddSingleton(new Ivy.SignalRouter(sessionStore));
+        services.AddSingleton<Ivy.Core.Apps.IAppRepository>(new Ivy.Core.Apps.AppRepository());
         return services.BuildServiceProvider();
+    }
+
+    /// <summary>The chat app with a widget tree, registered as the connection's session so signals resolve.</summary>
+    private static (Ivy.Tendril.Apps.Chat.ChatApp App, Ivy.Core.WidgetTree Tree) CreateChatHost(IServiceProvider sp)
+    {
+        var app = new Ivy.Tendril.Apps.Chat.ChatApp();
+        var contentBuilder = new Ivy.ContentBuilder();
+        var tree = new Ivy.Core.WidgetTree(app, contentBuilder, sp);
+        var store = sp.GetRequiredService<Ivy.Core.Server.AppSessionStore>();
+        store.Sessions["conn1"] = new Ivy.Core.Apps.AppSession
+        {
+            ConnectionId = "conn1",
+            AppId = "chat",
+            MachineId = "mach1",
+            ParentId = null,
+            WidgetTree = tree,
+            AppDescriptor = Ivy.Core.Apps.AppHelpers.GetApp(typeof(Ivy.Tendril.Apps.Chat.ChatApp)),
+            App = app,
+            ContentBuilder = contentBuilder,
+            AppServices = sp,
+            LastInteraction = DateTime.UtcNow,
+        };
+        return (app, tree);
     }
 
     [Fact]
@@ -641,9 +665,7 @@ public class ChatExecutionIntegrationTest
 
             var sp = CreateServiceProvider(configService, chatService, agentRunner, serializer);
 
-            var app = new Ivy.Tendril.Apps.Chat.ChatApp();
-            var contentBuilder = new Ivy.ContentBuilder();
-            var tree = new Ivy.Core.WidgetTree(app, contentBuilder, sp);
+            var (_, tree) = CreateChatHost(sp);
 
             var buildTask = tree.BuildAsync();
             var completedTask = await Task.WhenAny(buildTask, Task.Delay(5000));

@@ -1,41 +1,11 @@
-import React, { useContext, useId, useMemo, useState } from "react";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { CodeBlock } from "../CodeBlock";
+import React, { useId, useMemo, useState } from "react";
 import { answerEntries, otherEntry, parseQuestions } from "./questionsSchema";
 import type { PlanQuestion, QuestionOption } from "./questionsSchema";
-import { QuestionsDraftContext } from "./questionsContext";
-import type { AnswerCallback, QuestionSubmitCallback, QuestionsDraftState } from "./questionsContext";
-
-/**
- * Question and option descriptions are full block markdown — paragraphs, lists, tables and fenced
- * code blocks all render. An option often needs to show the shape of the thing it is proposing, and
- * a snippet says that better than a sentence about it.
- *
- * Code fences are routed to `CodeBlock` directly and never to `BlockHandler`: a `questions` fence
- * written inside a description is an example, not another picker, and must stay a code block.
- */
-const descriptionComponents = {
-  code: ({ className, children }: React.HTMLAttributes<HTMLElement>) => {
-    const language = /language-(\w+)/.exec(String(className || ""))?.[1];
-    const text = String(children);
-
-    // react-markdown hands both spans and fences to `code`; only a fence is block content.
-    if (!language && !text.includes("\n")) return <code>{children}</code>;
-
-    return <CodeBlock content={text.replace(/\n$/, "")} language={language} />;
-  },
-  // DraftMarkdown overrides `pre` globally to render bare, and CodeBlock brings its own.
-  pre: ({ children }: React.HTMLAttributes<HTMLPreElement>) => <>{children}</>,
-};
-
-const remarkPlugins = [remarkGfm];
-
-const DescriptionMarkdown: React.FC<{ text: string }> = ({ text }) => (
-  <Markdown remarkPlugins={remarkPlugins} components={descriptionComponents}>
-    {text}
-  </Markdown>
-);
+import type { AnswerCallback, QuestionSubmitCallback } from "./questionsContext";
+import { ChatQuestionsBlock } from "../TendrilQuestions/ChatQuestionsBlock";
+import { DescriptionMarkdown } from "../TendrilQuestions/DescriptionMarkdown";
+import { QuestionsForm } from "../TendrilQuestions/QuestionsForm";
+import { documentAnswers } from "../TendrilQuestions/answers";
 
 /**
  * The tinted frame every questions block sits in. It carries no heading of its own — the question
@@ -304,146 +274,6 @@ const AnsweredQuestion: React.FC<{ question: PlanQuestion }> = ({ question }) =>
   );
 };
 
-interface ChatQuestionsBlockProps {
-  questions: PlanQuestion[];
-  blockIndex: number;
-  onSubmit: QuestionSubmitCallback;
-}
-
-/** The draft a fresh block starts from: whatever the document already has answered, if anything. */
-const initialDraftFrom = (questions: PlanQuestion[]): QuestionsDraftState => {
-  const answers: Record<string, string[]> = {};
-  const otherOpen: Record<string, boolean> = {};
-  for (const q of questions) {
-    if (q.answerPresent) {
-      answers[q.id] = answerEntries(q);
-      if (otherEntry(q) !== undefined) otherOpen[q.id] = true;
-    }
-  }
-  return { answers, otherOpen };
-};
-
-const ChatQuestionsBlock: React.FC<ChatQuestionsBlockProps> = ({ questions, blockIndex, onSubmit }) => {
-  // Question ids are unique per block by schema, so this identifies the block within its message
-  // without needing `tagQuestionBlocks`, which the chat paths never run (`blockIndex` is always `0`
-  // there).
-  const blockKey = questions.map((q) => q.id).join("|");
-  const store = useContext(QuestionsDraftContext);
-
-  const [draftState, setDraftState] = useState<QuestionsDraftState>(
-    () => store?.read(blockKey) ?? initialDraftFrom(questions),
-  );
-  const localAnswers = draftState.answers;
-
-  const handleLocalAnswer = (questionId: string, answer: string | string[] | null | undefined) => {
-    setDraftState((prev) => {
-      const nextAnswers = { ...prev.answers };
-      if (answer === undefined || answer === null || answer === "" || (Array.isArray(answer) && answer.length === 0)) {
-        delete nextAnswers[questionId];
-      } else if (Array.isArray(answer)) {
-        nextAnswers[questionId] = answer;
-      } else {
-        nextAnswers[questionId] = [answer];
-      }
-      const nextState = { ...prev, answers: nextAnswers };
-      store?.write(blockKey, nextState);
-      return nextState;
-    });
-  };
-
-  const handleOtherOpenChange = (questionId: string, open: boolean) => {
-    setDraftState((prev) => {
-      const nextState = { ...prev, otherOpen: { ...prev.otherOpen, [questionId]: open } };
-      store?.write(blockKey, nextState);
-      return nextState;
-    });
-  };
-
-  const hasAnyAnswers = Object.keys(localAnswers).length > 0;
-  const clearAll = () => {
-    setDraftState(() => {
-      const nextState = { answers: {}, otherOpen: {} };
-      store?.write(blockKey, nextState);
-      return nextState;
-    });
-  };
-
-  const canSubmit = questions.every((q) => {
-    if (q.optional) return true;
-    const ans = localAnswers[q.id];
-    return (ans && ans.length > 0) || q.answerPresent;
-  });
-
-  const handleSubmit = () => {
-    if (!canSubmit) return;
-
-    const summaryLines: string[] = ["Answers:"];
-    for (const q of questions) {
-      const ans = localAnswers[q.id] ?? (q.answerPresent ? answerEntries(q) : []);
-      if (ans.length > 0) {
-        const displayVals = ans.map((val) => {
-          const opt = q.options?.find((o) => o.value === val);
-          return opt ? opt.title : val;
-        });
-        summaryLines.push(`- **${q.title || q.id}**: ${displayVals.join(", ")}`);
-      } else if (q.optional) {
-        summaryLines.push(`- **${q.title || q.id}**: *(skipped)*`);
-      }
-    }
-
-    onSubmit(localAnswers, summaryLines.join("\n"));
-    // The answers now live in the message document, so nothing is left to draft for this block.
-    store?.clear(blockKey);
-  };
-
-  return (
-    <Shell>
-      {hasAnyAnswers && (
-        <div className="pmv-questions-actions">
-          <button
-            type="button"
-            className="pmv-question-clear"
-            onClick={clearAll}
-            aria-label={questions.length > 1 ? "Clear all answers in this block" : "Clear answer"}
-          >
-            Clear
-          </button>
-        </div>
-      )}
-
-      {questions.map((question) => {
-        const effectiveQuestion: PlanQuestion = {
-          ...question,
-          answer: localAnswers[question.id] ?? question.answer,
-          answerPresent: (localAnswers[question.id] && localAnswers[question.id].length > 0) || question.answerPresent,
-        };
-
-        return (
-          <QuestionView
-            key={question.id}
-            question={effectiveQuestion}
-            blockIndex={blockIndex}
-            onAnswer={handleLocalAnswer}
-            otherOpen={draftState.otherOpen[question.id]}
-            onOtherOpenChange={(open) => handleOtherOpenChange(question.id, open)}
-          />
-        );
-      })}
-
-      <div className="pmv-questions-footer">
-        <button
-          type="button"
-          className="pmv-questions-submit"
-          disabled={!canSubmit}
-          onClick={handleSubmit}
-        >
-          Submit Response
-        </button>
-      </div>
-    </Shell>
-  );
-};
-
 export interface QuestionsCalloutProps {
   content: string;
   /** Which `questions` fence this is, 0-based. Keeps radio groups distinct across blocks. */
@@ -465,25 +295,14 @@ export const QuestionsCallout: React.FC<QuestionsCalloutProps> = ({ content, blo
 
   const questions = parsed.questions;
 
-  // If rendered in chat with submit handler:
+  // Inside a chat message the block is the redesigned form (see TendrilQuestions): answers are
+  // drafted locally and submitted in one go, and a settled block presents the decisions.
   if (!onAnswer && onSubmit) {
     if (questions.every((q) => q.answerPresent)) {
-      return (
-        <Shell>
-          {questions.map((question) => (
-            <AnsweredQuestion key={question.id} question={question} />
-          ))}
-        </Shell>
-      );
+      return <QuestionsForm questions={questions} answers={documentAnswers(questions)} readOnly />;
     }
 
-    return (
-      <ChatQuestionsBlock
-        questions={questions}
-        blockIndex={blockIndex}
-        onSubmit={onSubmit}
-      />
-    );
+    return <ChatQuestionsBlock questions={questions} onSubmit={onSubmit} />;
   }
 
   // No subscriber means the host is showing a plan rather than working through it — the Review

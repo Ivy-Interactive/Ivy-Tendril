@@ -1,0 +1,311 @@
+/* Tendril questions block. Light values follow the chat design (Figma Ivy-Tendril, node
+   273:6460): flat tinted option cards, a semibold question line, muted descriptions. Every
+   token derives from the host theme so alternate themes recolor it; literals are fallbacks. */
+
+.tq-root {
+  --tq-fg: var(--foreground, #000000);
+  --tq-muted: color-mix(in srgb, var(--foreground, #000000) 60%, transparent);
+  --tq-faint: color-mix(in srgb, var(--foreground, #000000) 40%, transparent);
+  --tq-option-bg: color-mix(in srgb, var(--foreground, #000000) 4%, var(--background, #ffffff));
+  --tq-option-bg-hover: color-mix(in srgb, var(--foreground, #000000) 7%, var(--background, #ffffff));
+  --tq-option-ring: var(--foreground, #000000);
+  --tq-input-bg: var(--background, #ffffff);
+  --tq-border: var(--border, #e0e0e0);
+  --tq-cta-bg: var(--primary, #000000);
+  --tq-cta-fg: var(--primary-foreground, #ffffff);
+  --tq-chip-bg: color-mix(in srgb, var(--foreground, #000000) 6%, var(--background, #ffffff));
+  --tq-recommended-bg: color-mix(in srgb, var(--success, #b7e4b9) 22%, var(--background, #ffffff));
+  --tq-recommended-fg: color-mix(in srgb, var(--success, #1f4924) 45%, var(--foreground, #000000));
+  --tq-mono: var(--font-mono, "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace);
+
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 0;
+  font-family: var(--font-sans, "Geist", sans-serif);
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--tq-fg);
+}
+
+.dark .tq-root {
+  --tq-option-bg: color-mix(in srgb, var(--foreground, #f8f8f8) 7%, var(--background, #000000));
+  --tq-option-bg-hover: color-mix(in srgb, var(--foreground, #f8f8f8) 11%, var(--background, #000000));
+  --tq-chip-bg: color-mix(in srgb, var(--foreground, #f8f8f8) 10%, var(--background, #000000));
+  --tq-recommended-bg: color-mix(in srgb, var(--success, #1f4924) 30%, var(--background, #000000));
+  --tq-recommended-fg: color-mix(in srgb, var(--success, #b7e4b9) 45%, var(--foreground, #ffffff));
+}
+
+.tq-root * {
+  box-sizing: border-box;
+}
+
+/* ---------- Question ---------- */
+
+.tq-question {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.tq-question-header {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--tq-muted);
+}
+
+.tq-question-title {
+  font-weight: 600;
+}
+
+.tq-question-optional {
+  margin-left: 8px;
+  font-weight: 400;
+  color: var(--tq-muted);
+}
+
+.tq-question-hint {
+  margin-top: -4px;
+  font-size: 12px;
+  color: var(--tq-muted);
+}
+
+.tq-question-description,
+.tq-option-description {
+  color: var(--tq-muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.tq-question-description > * + *,
+.tq-option-description > * + * {
+  margin-top: 6px;
+}
+
+.tq-question-description ul,
+.tq-option-description ul {
+  list-style: disc outside;
+  padding-inline-start: 1.25rem;
+}
+
+.tq-question-description ol,
+.tq-option-description ol {
+  list-style: decimal outside;
+  padding-inline-start: 1.5rem;
+}
+
+.tq-question-description code,
+.tq-option-description code {
+  font-family: var(--tq-mono);
+  font-size: 0.9em;
+}
+
+/* ---------- Options ---------- */
+
+.tq-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tq-option {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--tq-option-bg);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.tq-option:hover {
+  background: var(--tq-option-bg-hover);
+}
+
+.tq-option[data-selected="true"] {
+  box-shadow: inset 0 0 0 1px var(--tq-option-ring);
+}
+
+.tq-option:has(.tq-option-input:focus-visible) {
+  outline: 2px solid var(--tq-option-ring);
+  outline-offset: 1px;
+}
+
+.tq-option-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+/* The real control stays for keyboard and screen readers; the card is its visual. */
+.tq-option-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.tq-option-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid var(--tq-faint);
+  color: var(--tq-cta-fg);
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+
+.tq-option-box svg {
+  opacity: 0;
+}
+
+.tq-option[data-selected="true"] .tq-option-box {
+  background: var(--tq-cta-bg);
+  border-color: var(--tq-cta-bg);
+}
+
+.tq-option[data-selected="true"] .tq-option-box svg {
+  opacity: 1;
+}
+
+.tq-option-title {
+  display: inline-flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tq-option-check {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--tq-fg);
+}
+
+.tq-option-recommended {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--tq-recommended-bg);
+  color: var(--tq-recommended-fg);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.tq-option--other {
+  gap: 8px;
+}
+
+/* ---------- Free text ---------- */
+
+.tq-text-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--tq-border);
+  border-radius: 8px;
+  background: var(--tq-input-bg);
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.tq-text-input:focus {
+  border-color: var(--tq-option-ring);
+}
+
+.tq-text-input::placeholder {
+  color: var(--tq-faint);
+}
+
+/* ---------- Settled answers ---------- */
+
+.tq-answer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tq-answer-value {
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--tq-chip-bg);
+  font-weight: 500;
+}
+
+.tq-answer--none {
+  color: var(--tq-muted);
+  font-style: italic;
+}
+
+/* ---------- Footer ---------- */
+
+.tq-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.tq-clear {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tq-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tq-clear:hover {
+  background: var(--tq-option-bg);
+  color: var(--tq-fg);
+}
+
+.tq-submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--tq-cta-bg);
+  color: var(--tq-cta-fg);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+
+.tq-submit:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.tq-submit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tq-static {
+  margin: 0;
+  font: inherit;
+  white-space: pre-wrap;
+  color: var(--tq-muted);
+}

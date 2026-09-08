@@ -750,10 +750,11 @@ describe("QuestionsCallout without a draft context", () => {
     const onSubmit = vi.fn();
     const { container } = render(<QuestionsCallout content={singleBody} onSubmit={onSubmit} />);
 
-    const radios = checks(container);
+    // The chat path renders the TendrilQuestions form, whose controls carry its own classes.
+    const radios = Array.from(container.querySelectorAll<HTMLInputElement>(".tq-option-input"));
     fireEvent.click(radios[0]);
 
-    const submitBtn = container.querySelector<HTMLButtonElement>(".pmv-questions-submit");
+    const submitBtn = container.querySelector<HTMLButtonElement>(".tq-submit");
     expect(submitBtn?.disabled).toBe(false);
 
     fireEvent.click(submitBtn!);

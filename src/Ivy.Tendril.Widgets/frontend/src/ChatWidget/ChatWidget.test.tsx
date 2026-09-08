@@ -203,7 +203,7 @@ describe("ChatWidget Queued Messages UI", () => {
     expect(handleEvent).toHaveBeenCalledWith(
       "OnUpdateQueuedMessage",
       "test-chat",
-      ["q-edit", "edited content"]
+      [["q-edit", "edited content"]]
     );
 
     // Delete item
@@ -319,7 +319,7 @@ describe("ChatWidget Queued Messages UI", () => {
     expect(queuedItem).toHaveTextContent("what can you do?");
   });
 
-  it("renders delete button next to chat title and directly emits OnDeleteSession upon click", () => {
+  it("offers Delete chat in the header options menu and emits OnDeleteSession upon click", () => {
     const handleEvent = vi.fn();
     const session = {
       id: "sess-123",
@@ -341,10 +341,14 @@ describe("ChatWidget Queued Messages UI", () => {
       />
     );
 
-    const deleteBtn = screen.getByRole("button", { name: /Delete chat session/i });
+    expect(screen.queryByRole("menuitem", { name: /Delete chat/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Chat options/i }));
+
+    const deleteBtn = screen.getByRole("menuitem", { name: /Delete chat/i });
     expect(deleteBtn).toBeInTheDocument();
 
     fireEvent.click(deleteBtn);
+    expect(screen.queryByRole("menuitem", { name: /Delete chat/i })).not.toBeInTheDocument();
 
     expect(handleEvent).toHaveBeenCalledTimes(1);
     expect(handleEvent).toHaveBeenCalledWith(
@@ -374,6 +378,8 @@ describe("ChatWidget Queued Messages UI", () => {
       />
     );
 
+    // The effort select lives in the agent picker's side panel for the selected agent.
+    fireEvent.click(screen.getByRole("button", { name: /^Agent:/i }));
     const effortTrigger = screen.getByTitle("Effort Level");
     expect(effortTrigger).toBeInTheDocument();
     expect(screen.getByText("High")).toBeInTheDocument();
@@ -976,7 +982,7 @@ describe("ChatWidget File Uploads and Attachments", () => {
       />
     );
 
-    expect(screen.getByText("Start a conversation")).toBeInTheDocument();
+    expect(screen.getByText("What Are We Producing Today?")).toBeInTheDocument();
 
     const textarea = screen.getByPlaceholderText(/Ask/i);
     fireEvent.change(textarea, { target: { value: "test. Alive?" } });
@@ -990,7 +996,7 @@ describe("ChatWidget File Uploads and Attachments", () => {
 
     // Optimistic message should appear immediately without waiting for props update!
     expect(screen.getByText("test. Alive?")).toBeInTheDocument();
-    expect(screen.queryByText("Start a conversation")).not.toBeInTheDocument();
+    expect(screen.queryByText("What Are We Producing Today?")).not.toBeInTheDocument();
   });
 
   it("optimistically displays assistant Starting status and switches Send button to Stop/Queue immediately upon clicking Send", async () => {
@@ -1076,7 +1082,7 @@ describe("ChatWidget File Uploads and Attachments", () => {
     // Header badge is displayed
     const badgeBtn = screen.getByRole("button", { name: /View running jobs/i });
     expect(badgeBtn).toBeInTheDocument();
-    expect(within(badgeBtn).getByText(/1 jobs/i)).toBeInTheDocument();
+    expect(within(badgeBtn).getByText(/1 job/i)).toBeInTheDocument();
 
     // Open dropdown by clicking badge
     fireEvent.click(badgeBtn);
@@ -1787,3 +1793,233 @@ describe("ChatWidget Running Jobs Badge and Spinner", () => {
 });
 
 
+
+describe("ChatWidget redesign", () => {
+  beforeEach(() => {
+    window.ResizeObserver = class {
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = vi.fn();
+    } as any;
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+  });
+
+  const baseSession = (overrides: Partial<ChatSessionDto>): ChatSessionDto => ({
+    id: "sess-redesign",
+    title: "Redesign Chat",
+    agentId: "claude",
+    modelId: "opus",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    messages: [],
+    ...overrides,
+  });
+
+  const wire = (events: object[]) => events.map((e) => JSON.stringify(e)).join("\n");
+
+  it("renames the chat through the options menu and emits OnRenameSession", () => {
+    const handleEvent = vi.fn();
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-redesign"
+        sessions={[baseSession({})]}
+        events={["OnRenameSession"]}
+        eventHandler={handleEvent}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "Redesign Chat" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Chat options/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Edit name/i }));
+
+    const input = screen.getByRole("textbox", { name: /Chat name/i });
+    fireEvent.change(input, { target: { value: "Dark mode toggle" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(handleEvent).toHaveBeenCalledWith("OnRenameSession", "test-chat", [["sess-redesign", "Dark mode toggle"]]);
+    expect(screen.getByRole("heading", { name: "Dark mode toggle" })).toBeInTheDocument();
+  });
+
+  it("emits OnCreateSession from the header's new chat button", () => {
+    const handleEvent = vi.fn();
+    render(<ChatWidget id="test-chat" events={["OnCreateSession"]} eventHandler={handleEvent} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /New chat/i }));
+    expect(handleEvent).toHaveBeenCalledWith("OnCreateSession", "test-chat", []);
+  });
+
+  it("collapses a turn's tool calls behind one line and lists them with their in/out on demand", () => {
+    const rawStream = wire([
+      { kind: "session_init", timestamp: "t0", session_id: "s1", model: "opus" },
+      { kind: "tool_call", timestamp: "t1", tool_use_id: "tu1", tool_name: "Read", input: { file_path: "/src/theme.ts" } },
+      { kind: "tool_result", timestamp: "t2", tool_use_id: "tu1", output: "export const theme = 1;", is_error: false },
+      { kind: "tool_call", timestamp: "t3", tool_use_id: "tu2", tool_name: "Bash", input: { command: "pnpm test" } },
+      { kind: "tool_result", timestamp: "t4", tool_use_id: "tu2", output: "42 passed", is_error: false },
+      { kind: "text", timestamp: "t5", text: "Plan 00059 started.", delta: false },
+      {
+        kind: "result",
+        timestamp: "t6",
+        response: "Plan 00059 started.",
+        is_success: true,
+        duration_ms: 125200,
+        usage: { input_tokens: 140284, output_tokens: 23009, cache_read_tokens: 0, cache_write_tokens: 0, reasoning_tokens: 0 },
+      },
+    ]);
+    const session = baseSession({
+      messages: [{ id: "m-turn", role: "assistant", content: "Plan 00059 started.", timestamp: "10:00", rawStream }],
+    });
+
+    const { container } = render(<ChatWidget id="test-chat" activeSessionId="sess-redesign" sessions={[session]} />);
+
+    const toggle = screen.getByRole("button", { name: /2 tool calls/i });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Bash")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Plan 00059 started.")).toHaveLength(1);
+    expect(screen.getByText("125.2s")).toBeInTheDocument();
+    expect(screen.getByText("140,284 / 23,009")).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Read")).toBeInTheDocument();
+    expect(screen.getByText("Bash")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Bash").closest(".aov-tool-header")!);
+    expect(screen.getByText("IN")).toBeInTheDocument();
+    expect(screen.getByText("OUT")).toBeInTheDocument();
+    expect(container.querySelector(".aov-tool-pre")).toHaveTextContent("pnpm test");
+  });
+
+  it("condenses a job completion system event into a plan link that emits OnOpenPlan", () => {
+    const handleEvent = vi.fn();
+    const session = baseSession({
+      messages: [
+        {
+          id: "m-sys",
+          role: "system",
+          content:
+            "[System Event] Job 00148 (ExecutePlan) for '00059: Add dark mode toggle to vault theme settings' has finished with status: Completed (Completed successfully). Please inspect the outcome and guide the user.",
+          timestamp: "10:00",
+        },
+      ],
+    });
+
+    const { container } = render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-redesign"
+        sessions={[session]}
+        events={["OnOpenPlan"]}
+        eventHandler={handleEvent}
+      />
+    );
+
+    const row = container.querySelector(".chat-system-event-row") as HTMLElement;
+    expect(row).toHaveAttribute("data-kind", "completed");
+    expect(row).toHaveTextContent("Completed plan #59 Add dark mode toggle to vault theme settings.");
+    expect(screen.queryByText(/Please inspect/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "#59 Add dark mode toggle to vault theme settings" }));
+    expect(handleEvent).toHaveBeenCalledWith("OnOpenPlan", "test-chat", ["00059"]);
+  });
+
+  it("lets the agent picker switch agent and pick a model for another agent in one motion", () => {
+    const handleEvent = vi.fn();
+    const agents = [
+      { id: "claude", label: "Claude Code", icon: "ClaudeCode", supportsEffort: true },
+      { id: "codex", label: "Codex", icon: "OpenAI", models: [{ id: "gpt-5", displayName: "GPT-5" }] },
+    ];
+    render(
+      <ChatWidget
+        id="test-chat"
+        agents={agents}
+        models={[{ id: "opus", displayName: "Opus" }]}
+        efforts={[{ id: "default", displayName: "Default" }, { id: "max", displayName: "Max" }]}
+        selectedAgent="claude"
+        selectedModel="opus"
+        selectedEffort="max"
+        events={["OnAgentChanged", "OnModelChanged", "OnEffortChanged"]}
+        eventHandler={handleEvent}
+      />
+    );
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Agent: Claude Code" }));
+
+    expect(screen.getByRole("menuitem", { name: "Claude Code" })).toHaveAttribute("data-selected", "true");
+    expect(screen.getByText("Opus")).toBeInTheDocument();
+    expect(screen.getByText("Max")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Codex" }));
+    expect(handleEvent).toHaveBeenLastCalledWith("OnAgentChanged", "test-chat", ["codex"]);
+
+    fireEvent.click(screen.getByTitle("Model").querySelector("button")!);
+    fireEvent.click(screen.getByRole("button", { name: "GPT-5" }));
+    expect(handleEvent).toHaveBeenCalledWith("OnModelChanged", "test-chat", ["gpt-5"]);
+    expect(screen.queryByTitle("Effort Level")).not.toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("scrolls a just-sent message to the top of the thread and keeps it there while the reply grows", () => {
+    const layout = { spacerTop: 360 };
+    Object.defineProperty(HTMLElement.prototype, "offsetTop", {
+      configurable: true,
+      get(this: HTMLElement) {
+        if (this.dataset.messageId) return 300;
+        if (this.classList.contains("chat-scroll-spacer")) return layout.spacerTop;
+        return 0;
+      },
+    });
+
+    try {
+      const session = baseSession({});
+      const { rerender } = render(
+        <ChatWidget id="test-chat" activeSessionId="sess-redesign" sessions={[session]} events={["OnSendMessage"]} eventHandler={vi.fn()} />
+      );
+
+      const container = document.querySelector(".chat-messages-container") as HTMLDivElement;
+      const spacer = document.querySelector(".chat-scroll-spacer") as HTMLDivElement;
+      let scrollTop = 0;
+      Object.defineProperty(container, "clientHeight", { value: 400, configurable: true });
+      // The spacer is part of the scrollable content, as it would be in a browser.
+      Object.defineProperty(container, "scrollHeight", {
+        get: () => layout.spacerTop + parseFloat(spacer.style.height || "0"),
+        configurable: true,
+      });
+      Object.defineProperty(container, "scrollTop", {
+        get: () => scrollTop,
+        set: (v: number) => {
+          scrollTop = v;
+        },
+        configurable: true,
+      });
+
+      fireEvent.change(screen.getByPlaceholderText(/Ask/i), { target: { value: "pin me" } });
+      fireEvent.click(screen.getByRole("button", { name: /Send/i }));
+
+      // 400 viewport - (360 - 300) of content below the message - 10 padding = 330 of spacer.
+      expect(spacer.style.height).toBe("330px");
+      expect(scrollTop).toBe(290);
+
+      // The reply streams in below: the spacer gives way, the scroll offset stays.
+      layout.spacerTop = 500;
+      rerender(
+        <ChatWidget
+          id="test-chat"
+          activeSessionId="sess-redesign"
+          sessions={[session]}
+          isStreaming={true}
+          streamingText={JSON.stringify({ kind: "text", timestamp: "t", text: "working", delta: false })}
+          events={["OnSendMessage"]}
+          eventHandler={vi.fn()}
+        />
+      );
+      expect(spacer.style.height).toBe("190px");
+      expect(scrollTop).toBe(290);
+    } finally {
+      delete (HTMLElement.prototype as any).offsetTop;
+    }
+  });
+});

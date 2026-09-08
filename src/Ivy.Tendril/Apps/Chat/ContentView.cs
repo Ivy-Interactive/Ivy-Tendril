@@ -5,10 +5,12 @@ using System.Linq;
 using System.Threading.Tasks;
 using Ivy;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps.Chat.Dialogs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Chat;
@@ -27,16 +29,30 @@ public class ContentView(
     bool supportsEffort,
     bool isStreaming,
     string streamingText,
+    string greeting,
+    string headline,
     IChatHistoryService chatService,
     IChatExecutionService executionService,
     IAgentRunner agentRunner,
     Action<ChatSendMessageDto> sendMessage,
     Action<string> selectSession) : ViewBase
 {
+    /// <summary>The plan a job event names, by folder, numeric id or zero-padded id.</summary>
+    internal static PlanFile? FindPlan(IPlanReaderService planService, string planId)
+    {
+        var trimmed = planId.TrimStart('0');
+        return planService.GetPlans().FirstOrDefault(p =>
+            p.FolderName.Equals(planId, StringComparison.OrdinalIgnoreCase) ||
+            (trimmed.Length > 0 && p.Id.ToString() == trimmed) ||
+            p.FolderName.StartsWith(planId + "-", StringComparison.OrdinalIgnoreCase));
+    }
+
     public override object Build()
     {
         var configService = UseService<IConfigService>();
         Context.TryUseService<IJobService>(out var jobService);
+        Context.TryUseService<IPlanReaderService>(out var planService);
+        var navigator = UseNavigation();
         var deletingSessionId = UseState<string?>(null);
 
         var upload = UseUpload(async (fileUpload, stream, ct) =>
@@ -55,24 +71,6 @@ public class ContentView(
         });
 
         _ = sessionVersion.Value;
-
-        if (activeSession == null)
-        {
-            var newChatBtn = new Button("Start New Chat")
-                .Icon(Icons.Plus)
-                .Primary()
-                .OnClick(() =>
-                {
-                    var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
-                    selectSession(newSess.Id);
-                });
-
-            return Layout.Vertical().AlignContent(Align.Center).Width(Size.Full()).Height(Size.Full())
-                | Icons.MessageSquare.ToIcon().Size(Size.Px(48)).Color(Colors.Muted)
-                | Text.H3("No Chat Selected")
-                | Text.Muted("Select an existing chat session from history or start a new chat.")
-                | newChatBtn;
-        }
 
         var sessionToDelete = deletingSessionId.Value != null
             ? chatService.GetSession(deletingSessionId.Value) ?? activeSession
@@ -120,6 +118,8 @@ public class ContentView(
             StreamingText = streamingText,
             QueuedMessages = queuedMessageDtos,
             RunningJobs = runningJobs,
+            Greeting = greeting,
+            Headline = headline,
 
             OnSelectSession = e =>
             {
@@ -224,6 +224,17 @@ public class ContentView(
                     {
                         sendMessage(new ChatSendMessageDto(e.Value.ResponseText, SessionId: e.Value.SessionId));
                     }
+                }
+                return ValueTask.CompletedTask;
+            },
+            OnOpenPlan = e =>
+            {
+                if (planService == null || string.IsNullOrEmpty(e.Value)) return ValueTask.CompletedTask;
+                var plan = FindPlan(planService, e.Value);
+                if (plan != null)
+                {
+                    var (app, appArgs) = PlanSearchDialog.ResolveTarget(plan);
+                    navigator.Navigate(app, appArgs);
                 }
                 return ValueTask.CompletedTask;
             }

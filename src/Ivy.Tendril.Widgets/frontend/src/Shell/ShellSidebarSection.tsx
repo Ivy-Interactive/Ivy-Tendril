@@ -18,6 +18,8 @@ interface ShellSidebarSectionProps extends ShellWidgetProps {
   items?: ShellSectionItemDto[];
   selectedId?: string;
   searchable?: boolean;
+  /** The search icon's tooltip and accessible name; the section defaults to plans. */
+  searchLabel?: string;
   emptyText?: string;
 }
 
@@ -37,6 +39,7 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
   items = [],
   selectedId,
   searchable = false,
+  searchLabel = "Search plans",
   emptyText,
 }) => {
   const select = (itemId: string) => {
@@ -75,8 +78,8 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
     return (
       <div className="tsh-section tsh-section-rail">
         {searchable && (
-          <ShellTooltip content="Search plans" shortcut={shortcutHint} side="right">
-            <button className="tsh-rail-search" onClick={openSearch} aria-label="Search plans">
+          <ShellTooltip content={searchLabel} shortcut={shortcutHint} side="right">
+            <button className="tsh-rail-search" onClick={openSearch} aria-label={searchLabel}>
               <Search size={16} />
             </button>
           </ShellTooltip>
@@ -124,11 +127,11 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
     <div className="tsh-section" data-headerless={!hasHeader}>
       {hasHeader && showSearchButton && (
         <div className="tsh-section-header" data-search-button="true">
-          <ShellTooltip content="Search plans" shortcut={shortcutHint} side="right">
+          <ShellTooltip content={searchLabel} shortcut={shortcutHint} side="right">
             <button
               className="tsh-section-search-button"
               onClick={openSearch}
-              aria-label="Search plans"
+              aria-label={searchLabel}
             >
               <span className="tsh-section-search-button-main">
                 <Search size={16} />
@@ -146,8 +149,8 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
         <div className="tsh-section-header">
           <span className="tsh-section-title">{title}</span>
           {searchable && (
-            <ShellTooltip content="Search plans" shortcut={shortcutHint} side="right">
-              <button className="tsh-section-search" onClick={openSearch} aria-label="Search plans">
+            <ShellTooltip content={searchLabel} shortcut={shortcutHint} side="right">
+              <button className="tsh-section-search" onClick={openSearch} aria-label={searchLabel}>
                 <Search size={16} />
               </button>
             </ShellTooltip>
