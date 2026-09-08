@@ -119,6 +119,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
     // The Agent app id (and its menu-item Tag) collapses to "agent" via AppHelpers.GetApp.
     private const string AgentAppId = "agent";
+    private const string InboxAppId = "inbox";
 
     private static readonly HashSet<string> SidebarSectionAppIds = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -200,15 +201,18 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
     /// <summary>
     ///     Flattens the app menu into the sidebar nav rows. The agent entry is excluded — it is
-    ///     rendered as the dedicated agent button above the nav instead.
+    ///     rendered as the dedicated agent button above the nav instead — as are the apps in
+    ///     <paramref name="footerAppIds"/>, which get their own button in the sidebar footer.
     /// </summary>
-    internal static List<ShellNavItemDto> BuildNavItems(MenuItem[] menuItems, string? activeAppId)
+    internal static List<ShellNavItemDto> BuildNavItems(MenuItem[] menuItems, string? activeAppId,
+        IReadOnlyCollection<string>? footerAppIds = null)
     {
         var result = new List<ShellNavItemDto>();
 
         void AddLeaf(MenuItem item)
         {
             if (item.Tag is not string tag || tag == AgentAppId) return;
+            if (footerAppIds?.Contains(tag, StringComparer.OrdinalIgnoreCase) == true) return;
             result.Add(new ShellNavItemDto(
                 tag,
                 item.Label ?? tag,
@@ -742,16 +746,27 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .OnSearch(showPlanSearchDialog);
         }
 
+        // Beta: the inbox moves out of the nav into the footer, beside an icon-only settings button.
+        var inboxInFooter = isBeta && !isShareMode;
+        string[] footerAppIds = inboxInFooter ? [InboxAppId] : [];
+
         var nav = new ShellNav()
-            .Items(BuildNavItems(menuItems.Value, activeNavAppId))
+            .Items(BuildNavItems(menuItems.Value, activeNavAppId, footerAppIds))
             .ShowDivider(true)
             .OnSelect(appId => OpenApp(new NavigateArgs(appId)));
 
         var settingsMenu = new DropDownMenu(
                 DropDownMenu.DefaultSelectHandler(),
-                new ShellSettingsButton())
+                new ShellSettingsButton().ShowLabel(!inboxInFooter))
             .Top()
             .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
+
+        var inboxButton = new ShellSettingsButton()
+            .Icon(Icons.Inbox.ToString())
+            .Label("Inbox")
+            .ShowLabel(false)
+            .IsActive(string.Equals(activeNavAppId, InboxAppId, StringComparison.OrdinalIgnoreCase))
+            .OnClick(() => OpenApp(new NavigateArgs(InboxAppId)));
 
         // ----- Content + session tabs -----
 
@@ -801,11 +816,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var reviewerPersona = shareContext.Persona;
         var reviewerInitials = GetInitials(reviewerPersona);
 
-        object sidebarFooter = isShareMode
-            ? Layout.Horizontal().AlignContent(Align.Left).Height(Size.Auto()).Width(Size.Full())
+        object?[] sidebarFooter = isShareMode
+            ?
+            [
+                Layout.Horizontal().AlignContent(Align.Left).Height(Size.Auto()).Width(Size.Full())
                 | new Avatar(reviewerInitials).Small()
                 | Text.Block(reviewerPersona).Small().Bold().Overflow(Overflow.Ellipsis)
-            : settingsMenu;
+            ]
+            : inboxInFooter ? [settingsMenu, inboxButton] : [settingsMenu];
 
         // A shared link that points straight at one plan renders that plan alone, with no shell
         // chrome around it.
