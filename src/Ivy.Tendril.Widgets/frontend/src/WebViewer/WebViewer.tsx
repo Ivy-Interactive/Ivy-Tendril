@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import "./web-viewer.css";
 import { getHeight, getWidth } from "../styles";
 import { canonicalPageUrl } from "./pageUrl";
+import { Toolbar, type ToolbarAction } from "./Toolbar";
+import { DEVICE_LABELS, DEVICE_VIEWPORTS, toDeviceKey, type DeviceKey } from "./devices";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -18,6 +20,8 @@ interface WebViewerProps {
   height?: string;
   url?: string;
   device?: string; // "Desktop" | "Mobile" | "Tablet" (omitted when Desktop)
+  toolbar?: boolean;
+  actions?: ToolbarAction[];
   commands?: { id: string };
   subscribeToStream?: StreamSubscriber;
   eventHandler?: EventHandler;
@@ -91,12 +95,6 @@ function sourceLabel(debug: DebugPayload | null | undefined): string | null {
 
 // ---------------------------------------------------------------------------
 // Helpers (ported from the original WebViewer2 App.jsx)
-
-const DEVICES: Record<string, { w: number | null; h: number | null }> = {
-  desktop: { w: null, h: null },
-  mobile: { w: 390, h: 844 },
-  tablet: { w: 820, h: 1180 },
-};
 
 function normalizeUrl(input: string): string {
   const trimmed = (input || "").trim();
@@ -262,13 +260,19 @@ export const WebViewer: React.FC<WebViewerProps> = ({
   height,
   url,
   device,
+  toolbar = false,
+  actions = [],
   commands,
   subscribeToStream,
   eventHandler,
   events = [],
 }) => {
-  const devKey = (device || "desktop").toLowerCase();
-  const dev = DEVICES[devKey] || DEVICES.desktop;
+  const propDevice = toDeviceKey(device);
+  const [devKey, setDevKey] = useState<DeviceKey>(propDevice);
+  useEffect(() => {
+    setDevKey(propDevice);
+  }, [propDevice]);
+  const dev = DEVICE_VIEWPORTS[devKey];
 
   const initialUrl = url ? normalizeUrl(url) : null;
   const [history, setHistory] = useState<string[]>(initialUrl ? [initialUrl] : []);
@@ -283,6 +287,8 @@ export const WebViewer: React.FC<WebViewerProps> = ({
   const [pending, setPending] = useState<PendingComment | null>(null);
   const [comment, setComment] = useState("");
   const [comments, setComments] = useState<CommentMarker[]>([]);
+  const [selecting, setSelecting] = useState(false);
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
 
   // Fixed for the life of this mount, and part of every URL this viewer's frame loads.
   const viewerIdRef = useRef("");
@@ -319,7 +325,7 @@ export const WebViewer: React.FC<WebViewerProps> = ({
   const emit = useCallback((kind: string, fields: Record<string, unknown>) => {
     const { eventHandler: eh, events: ev, id: wid } = cbRef.current;
     if (!eh) return;
-    if (ev.length && !ev.includes("OnEvent")) return;
+    if (!ev.includes("OnEvent")) return;
     // `kind` first so System.Text.Json reads the polymorphic discriminator before
     // materializing the derived type.
     eh("OnEvent", wid, [{ kind, ...fields }]);
@@ -371,9 +377,38 @@ export const WebViewer: React.FC<WebViewerProps> = ({
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
+  const navigateFromBar = useCallback(
+    (raw: string) => {
+      const { history: h, index: i } = navRef.current;
+      const cur = i >= 0 ? h[i] : null;
+      if (sameUrl(normalizeUrl(raw), cur)) reload();
+      else navigate(raw);
+    },
+    [navigate, reload],
+  );
+
+  const chooseDevice = useCallback(
+    (key: DeviceKey) => {
+      setDevKey(key);
+      emit("device", { device: DEVICE_LABELS[key] });
+    },
+    [emit],
+  );
+
   const postToFrame = useCallback((msg: unknown) => {
     frameRef.current?.contentWindow?.postMessage(msg, "*");
   }, []);
+
+  const selectingRef = useRef(false);
+  const setSelectMode = useCallback(
+    (enabled: boolean, announce: boolean) => {
+      selectingRef.current = enabled;
+      setSelecting(enabled);
+      postToFrame({ __proxyCmd: enabled ? "select-start" : "select-stop" });
+      if (announce) emit("select-mode", { enabled });
+    },
+    [postToFrame, emit],
+  );
 
   // ---- comment pins -------------------------------------------------------
   // The page is told the whole set, never a delta: the agent that renders the pins is
@@ -679,8 +714,8 @@ export const WebViewer: React.FC<WebViewerProps> = ({
     setComments([]);
   }, []);
 
-  const actionsRef = useRef({ reload, goBack, goForward, postToFrame, clearComments });
-  actionsRef.current = { reload, goBack, goForward, postToFrame, clearComments };
+  const actionsRef = useRef({ reload, goBack, goForward, postToFrame, clearComments, setSelectMode });
+  actionsRef.current = { reload, goBack, goForward, postToFrame, clearComments, setSelectMode };
 
   useEffect(() => {
     if (!commands?.id || !subscribeToStream) return;
@@ -701,7 +736,7 @@ export const WebViewer: React.FC<WebViewerProps> = ({
           a.postToFrame({ __proxyCmd: "capture", mode: cmd.mode || "page" });
           break;
         case "select":
-          a.postToFrame({ __proxyCmd: cmd.enabled ? "select-start" : "select-stop" });
+          a.setSelectMode(!!cmd.enabled, false);
           break;
         case "draw":
           a.postToFrame({ __proxyCmd: cmd.enabled ? "draw-start" : "draw-stop" });
@@ -760,7 +795,7 @@ export const WebViewer: React.FC<WebViewerProps> = ({
       tag: meta.tag || "",
       text: meta.text ?? null,
       attrs: meta.attrs && Object.keys(meta.attrs).length > 0 ? meta.attrs : null,
-      device: device || "Desktop",
+      device: DEVICE_LABELS[devKey],
       comment: text,
       debug,
       page,
@@ -818,26 +853,51 @@ export const WebViewer: React.FC<WebViewerProps> = ({
   const iframeStyle: React.CSSProperties =
     dev.w && dev.h ? { width: dev.w, height: dev.h } : { width: "100%", height: "100%" };
 
+  const frameKey = `${frameSrc}#${devKey}#${reloadKey}`;
+  const loading = !!frameSrc && swReady && loadedKey !== frameKey;
+
   return (
     // remove-parent-padding is Ivy's opt-out for full-bleed widgets: the host layout zeroes
     // its own padding when a child carries it, so the viewport reaches the container edges.
     <div className="wvr-shell remove-parent-padding" style={shellStyle}>
+      {toolbar && (
+        <Toolbar
+          url={currentUrl}
+          canGoBack={canGoBack}
+          canGoForward={canGoForward}
+          loading={loading}
+          device={devKey}
+          selecting={selecting}
+          actions={actions}
+          onBack={goBack}
+          onForward={goForward}
+          onReload={reload}
+          onNavigate={navigateFromBar}
+          onDevice={chooseDevice}
+          onToggleSelect={() => setSelectMode(!selectingRef.current, true)}
+          onAction={(actionId) => emit("action", { id: actionId })}
+        />
+      )}
       <div className={"wvr-stage" + (dev.w ? " wvr-device" : "")}>
         {!currentUrl ? (
-          <div className="wvr-empty">No URL — set the Url prop to load a page.</div>
+          <div className="wvr-empty">
+            {toolbar ? "Enter a URL in the address bar to load a page." : "No URL. Set the Url prop to load a page."}
+          </div>
         ) : swReady && frameSrc ? (
           <iframe
             ref={frameRef}
-            key={`${frameSrc}#${devKey}#${reloadKey}`}
+            key={frameKey}
             className="wvr-frame"
             src={toViewUrl(frameSrc, viewerId, devKey)}
             title="Web content"
             style={iframeStyle}
             onLoad={() => {
+              setLoadedKey(frameKey);
               healEscapedFrame();
               // The document that just loaded has no pins yet: the agent is injected fresh
               // on every load and knows nothing of what the last one drew.
               pushMarkers();
+              if (selectingRef.current) postToFrame({ __proxyCmd: "select-start" });
             }}
           />
         ) : (
