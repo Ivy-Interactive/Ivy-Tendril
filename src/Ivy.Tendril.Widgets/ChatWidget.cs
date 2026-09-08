@@ -38,8 +38,16 @@ public record ChatSessionDto(
     List<ChatJobDto>? SpawnedJobs = null
 );
 
-public record AgentOptionDto(string Id, string Label);
 public record ModelOptionDto(string Id, string DisplayName);
+
+/// <param name="Icon">The <c>Icons</c> enum name of the agent's brand mark, e.g. <c>ClaudeCode</c>.</param>
+/// <param name="Models">The agent's catalog, so the picker can offer a model before the agent is selected.</param>
+public record AgentOptionDto(
+    string Id,
+    string Label,
+    string? Icon = null,
+    List<ModelOptionDto>? Models = null,
+    bool SupportsEffort = false);
 public record EffortOptionDto(string Id, string DisplayName);
 
 public record ChatAttachmentDto(
@@ -94,6 +102,8 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Prop] public string? StreamingText { get; init; }
     [Prop] public List<ChatQueuedMessageDto> QueuedMessages { get; init; } = new();
     [Prop] public List<ChatJobDto>? RunningJobs { get; init; }
+    [Prop] public string? Greeting { get; init; }
+    [Prop] public string? Headline { get; init; }
 
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnSelectSession { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnDeleteSession { get; init; }
@@ -108,4 +118,5 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Event] public Func<Event<ChatWidget, string[]>, ValueTask>? OnUpdateQueuedMessage { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnSendQueuedNow { get; init; }
     [Event] public Func<Event<ChatWidget, ChatQuestionAnswerDto>, ValueTask>? OnAnswerQuestion { get; init; }
+    [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnOpenPlan { get; init; }
 }

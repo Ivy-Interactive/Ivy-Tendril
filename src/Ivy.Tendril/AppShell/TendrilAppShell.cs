@@ -122,7 +122,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
     private static readonly HashSet<string> SidebarSectionAppIds = new(StringComparer.OrdinalIgnoreCase)
     {
-        "review", "plans", "drafts", "recommendations"
+        "review", "plans", "drafts", "recommendations", "chat"
     };
 
     internal static bool HasSidebarSection(string? appId) =>
@@ -730,9 +730,10 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Items(list.Items)
                 .SelectedId(list.SelectedId)
                 .Searchable(list.Searchable)
+                .SearchLabel(list.SearchLabel)
                 .OnSelectItem(itemId =>
                     OpenApp(new NavigateArgs(capturedList.AppId, capturedList.BuildSelectArgs(itemId))))
-                .OnSearch(showPlanSearchDialog);
+                .OnSearch(list.OnSearch ?? showPlanSearchDialog);
         }
         else
         {

@@ -7,6 +7,8 @@ using Ivy.Core;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Agents.Providers;
+using Ivy.Tendril.AppShell;
+using Ivy.Tendril.Apps.Chat.Dialogs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
@@ -18,6 +20,39 @@ namespace Ivy.Tendril.Apps.Chat;
 [App(title: "Chat", icon: Icons.MessageSquare, group: ["Apps"], order: Constants.Chat, isVisible: false, allowDuplicateTabs: false)]
 public class ChatApp : ViewBase
 {
+    internal static string DisplayTitle(ChatSessionModel session) =>
+        string.IsNullOrWhiteSpace(session.Title) ? "New Chat" : session.Title;
+
+    internal static List<ShellBadgeDto>? BuildRowBadges(
+        ChatSessionModel session,
+        string? selectedId,
+        IReadOnlySet<string> generatingIds,
+        IReadOnlySet<string> completedIds)
+    {
+        if (generatingIds.Contains(session.Id)) return [ShellBadgeDto.Warning("Working")];
+        if (completedIds.Contains(session.Id) && session.Id != selectedId) return [ShellBadgeDto.Success("Completed")];
+        return null;
+    }
+
+    /// <summary>The Chats list the shell sidebar shows while this app is open; selecting a row navigates here with that session.</summary>
+    internal static ShellSidebarListState BuildSidebarList(
+        IReadOnlyList<ChatSessionModel> sessions,
+        string? selectedId,
+        IReadOnlySet<string> generatingIds,
+        IReadOnlySet<string> completedIds,
+        Action openSearch)
+    {
+        var items = sessions
+            .Select(s => new ShellSectionItemDto(s.Id, DisplayTitle(s), Badges: BuildRowBadges(s, selectedId, generatingIds, completedIds)))
+            .ToList();
+        return new ShellSidebarListState(
+            "chat", "Chats", items, selectedId,
+            id => new ChatAppArgs(SessionId: id),
+            Searchable: true,
+            OnSearch: openSearch,
+            SearchLabel: "Search chats");
+    }
+
     public override object Build()
     {
         var args = UseArgs<ChatAppArgs>();
@@ -26,34 +61,27 @@ public class ChatApp : ViewBase
         var executionService = UseService<IChatExecutionService>();
         var agentRunner = UseService<IAgentRunner>();
         Context.TryUseService<IJobService>(out var jobService);
-
-        var activeSessionId = UseState<string?>(() =>
-        {
-            if (!string.IsNullOrEmpty(args?.SessionId)) return args.SessionId;
-            return chatService.GetSessions().FirstOrDefault()?.Id;
-        });
+        var navigator = UseNavigation();
+        var sidebarListSignal = Context.UseSignal<ShellSidebarListSignal, ShellSidebarListState, Unit>();
+        var activeSessionId = UseState<string?>(() => InitialSession()?.Id);
         var sessionVersion = UseState(0);
-        var selectedAgent = UseState(() =>
-        {
-            var sess = !string.IsNullOrEmpty(args?.SessionId) ? chatService.GetSession(args.SessionId) : chatService.GetSessions().FirstOrDefault();
-            return sess?.AgentId ?? configService.Settings.CodingAgent ?? "claude";
-        });
+        var selectedAgent = UseState(() => InitialSession()?.AgentId ?? configService.Settings.CodingAgent ?? "claude");
         var selectedModel = UseState(() =>
         {
-            var sess = !string.IsNullOrEmpty(args?.SessionId) ? chatService.GetSession(args.SessionId) : chatService.GetSessions().FirstOrDefault();
+            var sess = InitialSession();
             if (!string.IsNullOrEmpty(sess?.ModelId)) return sess.ModelId;
             var agent = sess?.AgentId ?? configService.Settings.CodingAgent ?? "claude";
             var initialModels = GetModelsForAgent(agentRunner, agent);
             return initialModels.Count > 0 ? initialModels[0].Id : "default";
         });
-        var selectedEffort = UseState(() =>
-        {
-            var sess = !string.IsNullOrEmpty(args?.SessionId) ? chatService.GetSession(args.SessionId) : chatService.GetSessions().FirstOrDefault();
-            return sess?.Effort ?? "default";
-        });
-        var searchState = UseState("");
+        var selectedEffort = UseState(() => InitialSession()?.Effort ?? "default");
         var initialHandled = UseRef(false);
         var streamVersion = UseState(0);
+        var (searchDialog, showSearchDialog) = UseTrigger(isOpen =>
+        {
+            if (!isOpen.Value) return null;
+            return new ChatSearchDialog(isOpen, chatService, SelectSession);
+        });
 
         UseEffect(() =>
         {
@@ -103,6 +131,11 @@ public class ChatApp : ViewBase
             });
         });
 
+        // The session the args name, when it still exists, else the most recent one.
+        ChatSessionModel? InitialSession() =>
+            (!string.IsNullOrEmpty(args?.SessionId) ? chatService.GetSession(args.SessionId) : null)
+            ?? chatService.GetSessions().FirstOrDefault();
+
         void SelectSession(string sessionId)
         {
             activeSessionId.Set(sessionId);
@@ -114,9 +147,12 @@ public class ChatApp : ViewBase
                 if (!string.IsNullOrEmpty(sess.ModelId)) selectedModel.Set(sess.ModelId);
                 if (!string.IsNullOrEmpty(sess.Effort)) selectedEffort.Set(sess.Effort);
             }
+            // The shell keys this page on its args, so the selection is also a navigation: the
+            // sidebar row and the browser URL follow, and re-opening the app lands on this session.
+            navigator.Navigate(typeof(ChatApp), new ChatAppArgs(SessionId: sessionId));
         }
 
-        var currentVersion = sessionVersion.Value;
+        _ = sessionVersion.Value;
         _ = streamVersion.Value;
         var sessions = chatService.GetSessions();
         var currentSessionId = activeSessionId.Value;
@@ -130,10 +166,13 @@ public class ChatApp : ViewBase
             registeredAgentIds = ["claude", "opencode", "codex", "gemini", "antigravity", "copilot", "ivy"];
         }
 
-        var agentDtos = registeredAgentIds.Select(id =>
+        var agentDtos = registeredAgentIds.Select(agentId =>
         {
-            var (label, _) = AgentBranding.For(id, agentRunner, configService);
-            return new AgentOptionDto(id, label);
+            var (label, icon) = AgentBranding.For(agentId, agentRunner, configService);
+            var agentModels = GetModelsForAgent(agentRunner, agentId)
+                .Select(m => new ModelOptionDto(m.Id, m.DisplayName))
+                .ToList();
+            return new AgentOptionDto(agentId, label, icon.ToString(), agentModels, DoesAgentSupportEffort(agentRunner, agentId));
         }).ToList();
 
         var currentModelOptions = GetModelsForAgent(agentRunner, selectedAgent.Value);
@@ -297,17 +336,12 @@ public class ChatApp : ViewBase
             SendMessage(new ChatSendMessageDto(args.Prompt, null, targetId));
         }
 
-        var sidebar = new SidebarView(
+        _ = sidebarListSignal.Send(BuildSidebarList(
             sessions,
-            activeSessionId,
-            sessionVersion,
-            selectedAgent,
-            selectedModel,
-            selectedEffort,
-            searchState,
-            chatService,
-            SelectSession
-        );
+            currentSessionId,
+            chatService.GetGeneratingSessionIds(),
+            chatService.GetCompletedSessionIds(),
+            showSearchDialog));
 
         var content = new ContentView(
             activeSession,
@@ -323,6 +357,8 @@ public class ChatApp : ViewBase
             supportsEffort,
             isSessionGenerating,
             streamSnapshot,
+            DashboardApp.BuildGreeting(DateTime.Now),
+            "What Are We Producing Today?",
             chatService,
             executionService,
             agentRunner,
@@ -330,7 +366,7 @@ public class ChatApp : ViewBase
             SelectSession
         );
 
-        return new SidebarLayout(content, sidebar).SidebarContentScroll(Scroll.None);
+        return new Fragment(content, searchDialog);
     }
 
     internal static bool DoesAgentSupportEffort(IAgentRunner runner, string agentId)

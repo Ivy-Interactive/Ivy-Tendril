@@ -15,6 +15,8 @@ frontend/             React/Vite bundle (npm run build → dist/)
     DraftMarkdown/    AnnotationsApp, CollapsibleApp, ComparisonApp, MathApp, StickyContentApp
     AgentViewer/      ErrorApp, LiveStreamApp, PreBufferedApp, TableOutputApp
     TendrilProcessViewer/  DemoApp
+    ChatWidget/       DemoApp (mocked conversation: attachments, tool calls, job event, questions, streaming toggle)
+    TendrilQuestions/ DemoApp (every question case of the plan schema)
     WebViewer/        DemoApp (inspector), SideBySideApp (two viewers on one page)
 
 .tests/               Playwright E2E tests

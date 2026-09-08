@@ -12,6 +12,7 @@ public record ShellSidebarSection : WidgetBase<ShellSidebarSection>
     [Prop] public List<ShellSectionItemDto> Items { get; init; } = new();
     [Prop] public string? SelectedId { get; init; }
     [Prop] public bool Searchable { get; init; }
+    [Prop] public string? SearchLabel { get; init; }
     [Prop] public string? EmptyText { get; init; }
 
     [Event] public EventHandler<Event<ShellSidebarSection, string>>? OnSelectItem { get; init; }
@@ -31,6 +32,9 @@ public static class ShellSidebarSectionExtensions
 
     public static ShellSidebarSection Searchable(this ShellSidebarSection w, bool searchable = true) =>
         w with { Searchable = searchable };
+
+    public static ShellSidebarSection SearchLabel(this ShellSidebarSection w, string? searchLabel) =>
+        w with { SearchLabel = searchLabel };
 
     public static ShellSidebarSection EmptyText(this ShellSidebarSection w, string? emptyText) =>
         w with { EmptyText = emptyText };

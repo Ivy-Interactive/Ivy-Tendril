@@ -16,6 +16,7 @@ import { ShellNav } from "./Shell/ShellNav";
 import { ShellSidebarSection } from "./Shell/ShellSidebarSection";
 import { ShellSettingsButton } from "./Shell/ShellSettingsButton";
 import { ShellTabs } from "./Shell/ShellTabs";
+import { TendrilQuestions } from "./TendrilQuestions/TendrilQuestions";
 
 if (typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).IvyTendrilWidgets = {
@@ -38,6 +39,7 @@ if (typeof window !== "undefined") {
     ShellSidebarSection,
     ShellSettingsButton,
     ShellTabs,
+    TendrilQuestions,
   };
 }
 
@@ -61,4 +63,5 @@ export {
   ShellSidebarSection,
   ShellSettingsButton,
   ShellTabs,
+  TendrilQuestions,
 };
