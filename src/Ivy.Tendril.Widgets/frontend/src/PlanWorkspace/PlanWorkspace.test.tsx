@@ -208,6 +208,35 @@ describe("PlanWorkspace", () => {
     expect(screen.getByText("Curious Otter")).toBeInTheDocument();
     expect(screen.getByText("CO")).toBeInTheDocument();
   });
+
+  it("renders project badges to the left of topbar actions with label and color attribute", () => {
+    renderWorkspace(vi.fn(), {
+      projects: [
+        { label: "tendril", color: "Amber" },
+        { label: "ivy-framework" },
+      ],
+    });
+
+    const badge1 = screen.getByTitle("tendril");
+    expect(badge1).toBeInTheDocument();
+    expect(badge1).toHaveTextContent("tendril");
+    expect(badge1).toHaveAttribute("data-color", "amber");
+    expect(badge1).toHaveClass("pws-project-badge");
+
+    const badge2 = screen.getByTitle("ivy-framework");
+    expect(badge2).toBeInTheDocument();
+    expect(badge2).toHaveTextContent("ivy-framework");
+    expect(badge2).toHaveClass("pws-project-badge");
+
+    const badgesContainer = badge1.closest(".pws-project-badges");
+    expect(badgesContainer).toBeInTheDocument();
+    const topbarRight = badgesContainer?.parentElement;
+    expect(topbarRight).toHaveClass("pws-topbar-right");
+    const children = Array.from(topbarRight?.children || []);
+    const badgeIdx = children.indexOf(badgesContainer!);
+    const actionsIdx = children.findIndex((el) => el.classList.contains("pws-icon-group"));
+    expect(badgeIdx).toBeLessThan(actionsIdx);
+  });
 });
 
 describe("shortcuts", () => {

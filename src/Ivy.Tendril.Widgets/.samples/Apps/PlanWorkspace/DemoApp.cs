@@ -224,6 +224,7 @@ class DemoApp : ViewBase
         var workspace = new PlanWorkspaceControl(content, chat, verifications, questions, toolbar)
             .PlanId("#59")
             .Title("Revamp the User Authentication Experience")
+            .Project("ivy-tendril", "Amber")
             .Meta("1/32 plans · Depends on #57, #58")
             .Source("https://github.com/Ivy-Interactive/Ivy-Tendril/issues/59", "Issue")
             .Persona(shareMode.Value ? "Curious Otter" : null, shareMode.Value ? "CO" : null)
