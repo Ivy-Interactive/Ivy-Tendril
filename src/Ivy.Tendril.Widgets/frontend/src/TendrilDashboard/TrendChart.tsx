@@ -5,9 +5,7 @@ interface TrendChartProps {
   /** One `yyyy-MM-dd` per point, ascending and contiguous. Axis ticks and tooltips come from these. */
   dates: string[];
   values: number[];
-  previous?: (number | null)[];
   currentName: string;
-  previousName: string;
   formatTick: (value: number) => string;
   formatValue: (value: number) => string;
   /**
@@ -75,9 +73,7 @@ const ZERO_LIFT = 6;
 export const TrendChart: React.FC<TrendChartProps> = ({
   dates,
   values,
-  previous = [],
   currentName,
-  previousName,
   formatTick,
   formatValue,
   rolling,
@@ -121,12 +117,11 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     [rolling, values],
   );
 
-  const { ticks, points, previousPoints, rollingSegments } = useMemo(() => {
-    const previousValues = previous.filter((v): v is number => v != null);
+  const { ticks, points, rollingSegments } = useMemo(() => {
     // The rolling series counts towards the scale: its first points average days from before the
     // displayed range, which can sit above everything on screen.
     const rollingValues = rollingSeries.filter((v): v is number => v != null);
-    const maxValue = Math.max(1, ...values, ...previousValues, ...rollingValues);
+    const maxValue = Math.max(1, ...values, ...rollingValues);
     const tickValues = niceTicks(maxValue, 4);
     const scaleMax = tickValues[tickValues.length - 1];
     const toPoint = (value: number, index: number): Point => ({
@@ -136,14 +131,11 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     return {
       ticks: tickValues,
       points: values.map(toPoint),
-      previousPoints: previous
-        .map((value, index) => (value != null ? toPoint(value, index) : null))
-        .filter((p): p is Point => p != null),
       rollingSegments: splitSegments(
         rollingSeries.map((value, index) => (value != null ? toPoint(value, index) : null)),
       ),
     };
-  }, [values, previous, rollingSeries, n, plotLeft, plotWidth, zeroY, plotHeight]);
+  }, [values, rollingSeries, n, plotLeft, plotWidth, zeroY, plotHeight]);
 
   const scaleTop = ticks[ticks.length - 1];
 
@@ -175,11 +167,6 @@ export const TrendChart: React.FC<TrendChartProps> = ({
           x: plotLeft + (n <= 1 ? plotWidth / 2 : (hoverIndex / (n - 1)) * plotWidth),
           value: values[hoverIndex],
           rollingValue: rollingSeries[hoverIndex] ?? null,
-          previousValue: previous[hoverIndex] ?? null,
-          previousY:
-            previous[hoverIndex] != null
-              ? zeroY - (previous[hoverIndex]! / scaleTop) * plotHeight
-              : null,
         }
       : null;
 
@@ -224,7 +211,6 @@ export const TrendChart: React.FC<TrendChartProps> = ({
             );
           })}
           {areaPath && <path d={areaPath} fill={`url(#${gradientId})`} style={{ color: "var(--tdb-fg)" }} />}
-          {previousPoints.length > 1 && <path className="tdb-trend-compare" d={smoothPath(previousPoints, zeroY)} />}
           {rollingSegments.map((segment, i) => (
             <path
               key={`rolling-${i}`}
@@ -244,9 +230,6 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                 strokeDasharray="3 3"
               />
               <circle cx={hover.x} cy={points[hover.index].y} r={3.5} fill="var(--tdb-fg)" />
-              {hover.previousY != null && (
-                <circle cx={hover.x} cy={hover.previousY} r={3.5} fill="var(--tdb-compare)" />
-              )}
             </g>
           )}
         </svg>
@@ -262,12 +245,6 @@ export const TrendChart: React.FC<TrendChartProps> = ({
             <div className="tdb-chart-tooltip-row">
               <span className="tdb-legend-line-avg" />
               7-day average: {formatValue(hover.rollingValue)}
-            </div>
-          )}
-          {hover.previousValue != null && (
-            <div className="tdb-chart-tooltip-row">
-              <span className="tdb-legend-dash" />
-              {previousName}: {formatValue(hover.previousValue)}
             </div>
           )}
         </div>

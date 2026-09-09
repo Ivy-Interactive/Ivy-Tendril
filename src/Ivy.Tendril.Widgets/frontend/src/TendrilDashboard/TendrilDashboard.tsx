@@ -93,7 +93,6 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
 
   const activeTrend = trendWeekly ?? trend;
   const currentTrendName = "Last 4 weeks";
-  const previousTrendName = "Previous 4 weeks";
 
   const trendData =
     activeTrend == null
@@ -101,14 +100,12 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
       : tab === "cost"
         ? {
             values: activeTrend.cost,
-            previous: activeTrend.prevCost,
             rolling: activeTrend.rollingCost,
             formatTick: formatCurrencyTick,
             formatValue: formatCurrencyValue,
           }
         : {
             values: activeTrend.plans,
-            previous: activeTrend.prevPlans,
             rolling: activeTrend.rollingPlans,
             formatTick: formatCountTick,
             formatValue: formatPlansValue,
@@ -211,10 +208,6 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                       {currentTrendName}
                     </span>
                     <span className="tdb-legend-item">
-                      <span className="tdb-legend-dash" />
-                      {previousTrendName}
-                    </span>
-                    <span className="tdb-legend-item">
                       <span className="tdb-legend-line-avg" />
                       7-day average
                     </span>
@@ -224,10 +217,8 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                   <TrendChart
                     dates={activeTrend!.dates}
                     values={trendData.values}
-                    previous={trendData.previous}
                     rolling={trendData.rolling}
                     currentName={currentTrendName}
-                    previousName={previousTrendName}
                     formatTick={trendData.formatTick}
                     formatValue={trendData.formatValue}
                   />

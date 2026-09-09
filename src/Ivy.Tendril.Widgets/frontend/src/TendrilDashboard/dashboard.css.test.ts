@@ -86,6 +86,8 @@ describe("dashboard.css rolling average curve and legend", () => {
   it("no longer carries the constant horizontal reference line", () => {
     expect(css).not.toContain(".tdb-trend-avg-line");
     expect(css).not.toContain(".tdb-legend-dash-avg");
+    expect(css).not.toContain(".tdb-trend-compare");
+    expect(css).not.toContain(".tdb-legend-dash {");
   });
 
   it("no longer carries granularity toggle styles", () => {

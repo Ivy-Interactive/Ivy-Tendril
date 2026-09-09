@@ -23,10 +23,8 @@ const renderChart = (props: Partial<React.ComponentProps<typeof TrendChart>> = {
     <TrendChart
       dates={dates}
       values={props.values ?? dates.map((_, i) => 100 + i * 10)}
-      previous={props.previous}
       rolling={props.rolling}
       currentName={props.currentName ?? "Last 4 weeks"}
-      previousName={props.previousName ?? "Previous 4 weeks"}
       formatTick={props.formatTick ?? ((v) => `$${v}`)}
       formatValue={props.formatValue ?? formatCurrencyValue}
     />,
@@ -56,6 +54,15 @@ describe("TrendChart rolling average curve", () => {
 
     expect(container.querySelectorAll(".tdb-trend-avg-curve")).toHaveLength(1);
     expect(container.querySelectorAll(".tdb-trend-avg-line")).toHaveLength(0);
+  });
+
+  it("does not render the comparison curve", () => {
+    const dates = days(30);
+    const values = dates.map((_, i) => 100 + i * 10);
+
+    const { container } = renderChart({ dates, values });
+
+    expect(container.querySelectorAll(".tdb-trend-compare")).toHaveLength(0);
   });
 
   it("draws an expanding average curve when rolling series is omitted", () => {
