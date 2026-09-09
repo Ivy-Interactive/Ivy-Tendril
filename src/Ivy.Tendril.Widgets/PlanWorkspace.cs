@@ -23,6 +23,8 @@ public record PlanActionDto(
 
 public record PlanTabDto(string Id, string Label, string? Badge = null);
 
+public record PlanProjectBadgeDto(string Label, string? Color = null);
+
 /// <summary>
 ///     The plan page frame shared by the Drafts and Review apps: a title bar with icon actions and a
 ///     primary button, a tab strip whose trailing corner holds the Verifications and Questions
@@ -68,6 +70,7 @@ public record PlanWorkspace : WidgetBase<PlanWorkspace>
     [Prop] public string? SourceLabel { get; init; }
     [Prop] public string? Persona { get; init; }
     [Prop] public string? PersonaInitials { get; init; }
+    [Prop] public List<PlanProjectBadgeDto> Projects { get; init; } = [];
     [Prop] public List<PlanActionDto> Actions { get; init; } = [];
     [Prop] public List<PlanActionDto> MenuItems { get; init; } = [];
     [Prop] public PlanActionDto? Primary { get; init; }
@@ -96,6 +99,12 @@ public static class PlanWorkspaceExtensions
 
     public static PlanWorkspace Persona(this PlanWorkspace w, string? persona, string? initials) =>
         w with { Persona = persona, PersonaInitials = initials };
+
+    public static PlanWorkspace Project(this PlanWorkspace w, string? label, string? color = null) =>
+        string.IsNullOrWhiteSpace(label) ? w : w with { Projects = [new PlanProjectBadgeDto(label, color)] };
+
+    public static PlanWorkspace Projects(this PlanWorkspace w, IEnumerable<PlanProjectBadgeDto> projects) =>
+        w with { Projects = projects.ToList() };
 
     public static PlanWorkspace Actions(this PlanWorkspace w, IEnumerable<PlanActionDto> actions) =>
         w with { Actions = actions.ToList() };

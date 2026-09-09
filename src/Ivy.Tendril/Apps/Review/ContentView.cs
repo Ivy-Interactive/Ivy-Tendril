@@ -310,6 +310,7 @@ public class ContentView(
                 page.Toolbar)
             .PlanId($"#{selectedPlan.Id}")
             .Title(selectedPlan.Title)
+            .Projects(ProjectHelper.BuildProjectBadges(selectedPlan.Project, config))
             .Meta($"{currentIndex + 1}/{allPlans.Count} plans")
             .Source(
                 string.IsNullOrEmpty(selectedPlan.SourceUrl) ? null : selectedPlan.SourceUrl,
@@ -329,7 +330,7 @@ public class ContentView(
         if (isBeta || isShareMode)
             elements.Add(shareModal);
 
-        return new Fragment(elements.ToArray());
+        return new Fragment(elements.Where(e => e is not null).ToArray()!);
     }
 
     private void AddPrimaryAction(
