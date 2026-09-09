@@ -480,6 +480,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   min-height: 0;
 }
 
@@ -487,19 +488,12 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
   margin-top: 16px;
   min-height: 0;
 }
 
 /* ---------- Activity grid ---------- */
-
-.tdb-activity-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-  flex: 1;
-}
 
 .tdb-activity-scroll {
   overflow-x: auto;
@@ -548,32 +542,6 @@
   color: var(--tdb-muted);
   text-align: left;
   white-space: nowrap;
-}
-
-.tdb-activity-metrics {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  margin-top: auto;
-  padding-top: 16px;
-  border-top: 1px solid var(--tdb-divider);
-}
-
-.tdb-activity-metric {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.tdb-activity-metric-value {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--tdb-fg);
-}
-
-.tdb-activity-metric-label {
-  font-size: 12px;
-  color: var(--tdb-muted);
 }
 
 .tdb-empty-note {

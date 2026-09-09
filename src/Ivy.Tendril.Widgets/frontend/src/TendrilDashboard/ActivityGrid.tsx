@@ -1,9 +1,5 @@
 import React, { useMemo } from "react";
-import {
-  computeActivityMetrics,
-  DashboardActivityMonthDto,
-  rampLevel,
-} from "./types";
+import { DashboardActivityMonthDto, rampLevel } from "./types";
 import { HoverTip, useHoverTip } from "./HoverTip";
 
 interface ActivityGridProps {
@@ -45,11 +41,6 @@ const weekStartDates = (month: DashboardActivityMonthDto): Map<number, Date> => 
 export const ActivityGrid: React.FC<ActivityGridProps> = ({ months }) => {
   const { wrapRef, tip, showTip, hideTip } = useHoverTip();
 
-  const { totalPrs, activeWeeks } = useMemo(
-    () => computeActivityMetrics(months),
-    [months],
-  );
-
   const maxWeek = useMemo(
     () => Math.max(0, ...months.flatMap((m) => m.weeks)),
     [months],
@@ -64,57 +55,45 @@ export const ActivityGrid: React.FC<ActivityGridProps> = ({ months }) => {
 
   return (
     <div className="tdb-tip-wrap" ref={wrapRef}>
-      <div className="tdb-activity-wrap">
-        <div className="tdb-activity-scroll">
-          <div className="tdb-activity">
-            {months.map((month, monthIndex) => {
-              const starts = weekStartDates(month);
-              return (
-                <div className="tdb-activity-col" key={monthIndex}>
-                  {month.weeks
-                    .map((count, weekIndex) => ({ count, weekIndex }))
-                    .filter(({ count }) => count > 0)
-                    .map(({ count, weekIndex }) => {
-                      const weekStart = starts.get(weekIndex);
-                      const title = weekStart
-                        ? `Week of ${weekStart.toLocaleDateString("en-US", {
-                            weekday: "short",
-                            month: "short",
-                            day: "numeric",
-                          })}`
-                        : month.label;
-                      const body = `${count} pull request${count === 1 ? "" : "s"} merged`;
-                      return (
-                        <div
-                          key={weekIndex}
-                          className="tdb-activity-cell"
-                          data-level={rampLevel(count, maxWeek)}
-                          onMouseEnter={showTip(title, body)}
-                          onMouseLeave={hideTip}
-                        />
-                      );
-                    })}
-                </div>
-              );
-            })}
-          </div>
-          <div className="tdb-activity-labels">
-            {months.map((month, monthIndex) => (
-              <div className="tdb-activity-label" key={monthIndex}>
-                {(months.length - 1 - monthIndex) % step === 0 ? month.label : ""}
+      <div className="tdb-activity-scroll">
+        <div className="tdb-activity">
+          {months.map((month, monthIndex) => {
+            const starts = weekStartDates(month);
+            return (
+              <div className="tdb-activity-col" key={monthIndex}>
+                {month.weeks
+                  .map((count, weekIndex) => ({ count, weekIndex }))
+                  .filter(({ count }) => count > 0)
+                  .map(({ count, weekIndex }) => {
+                    const weekStart = starts.get(weekIndex);
+                    const title = weekStart
+                      ? `Week of ${weekStart.toLocaleDateString("en-US", {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                        })}`
+                      : month.label;
+                    const body = `${count} pull request${count === 1 ? "" : "s"} merged`;
+                    return (
+                      <div
+                        key={weekIndex}
+                        className="tdb-activity-cell"
+                        data-level={rampLevel(count, maxWeek)}
+                        onMouseEnter={showTip(title, body)}
+                        onMouseLeave={hideTip}
+                      />
+                    );
+                  })}
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
-        <div className="tdb-activity-metrics">
-          <div className="tdb-activity-metric">
-            <span className="tdb-activity-metric-value">{totalPrs}</span>
-            <span className="tdb-activity-metric-label">PRs merged</span>
-          </div>
-          <div className="tdb-activity-metric">
-            <span className="tdb-activity-metric-value">{activeWeeks}</span>
-            <span className="tdb-activity-metric-label">Active weeks</span>
-          </div>
+        <div className="tdb-activity-labels">
+          {months.map((month, monthIndex) => (
+            <div className="tdb-activity-label" key={monthIndex}>
+              {(months.length - 1 - monthIndex) % step === 0 ? month.label : ""}
+            </div>
+          ))}
         </div>
       </div>
       <HoverTip tip={tip} />
