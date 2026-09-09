@@ -28,7 +28,9 @@ public class JobService : IJobService
     private readonly SynchronizationContext? _syncContext;
     private readonly ITelemetryService? _telemetryService;
     private readonly ILogger<JobService> _logger;
-    private readonly JobLauncher _jobLauncher;
+    private JobLauncher _jobLauncher;
+    internal const int MaxBackgroundContinuations = 2;
+    internal JobLauncher JobLauncher { get => _jobLauncher; set => _jobLauncher = value; }
     private readonly JobCompletionHandler _completionHandler;
     private readonly IAgentRunner? _agentRunner;
     private readonly IChatHistoryService? _chatHistoryService;
@@ -122,6 +124,10 @@ public class JobService : IJobService
     public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false)
     {
         if (!_jobs.TryGetValue(id, out var job)) return;
+
+        if (exitCode == 0 && !timedOut && TryContinueForBackgroundTask(job))
+            return; // relaunched in place; the new process's own exit will call CompleteJob again
+
         if (!job.TryClaimCompletion()) return;
 
         job.FlushParser();
@@ -156,6 +162,42 @@ public class JobService : IJobService
         RaiseJobsStructureChanged();
         JobFinished?.Invoke(job);
         ProcessJobQueue();
+    }
+
+    private bool TryContinueForBackgroundTask(JobItem job)
+    {
+        if (job.BackgroundContinuationCount >= MaxBackgroundContinuations)
+            return false;
+
+        var description = JobFailureAnalyzer.DescribeAbandonedBackgroundTasks(job.OutputLines);
+        if (description == null)
+            return false;
+
+        var ids = JobFailureAnalyzer.FindBackgroundTaskIds(job.OutputLines);
+        var idsString = string.Join(", ", ids);
+        var continuationPrompt = $"Your previous turn ended while background task(s) {idsString} were still running; the process was about to be torn down and that would have killed them. Check on them now (e.g. with BashOutput), and if any are still running, wait for them from inside a tool call rather than ending your turn on text alone. Once they're done, use their result and give your real final response, including anything you still owe from the original task (writing files, running verifications, etc.).";
+
+        job.BackgroundContinuationCount++;
+
+        if (!_jobLauncher.HasContext(job.Id))
+        {
+            var ctx = new JobLaunchContext(
+                job, _jobs, _jobSlotSemaphore, () => _jobTimeout, () => _staleOutputTimeout,
+                (when, type, folder, project, j) => RunHooks(when, type, folder, project, j),
+                (id, exitCode, timedOut, staleOutput) => CompleteJob(id, exitCode, timedOut, staleOutput),
+                RaiseJobsStructureChanged);
+            _jobLauncher.RegisterContext(ctx);
+        }
+
+        var relaunched = _jobLauncher.RelaunchAsContinuation(job, continuationPrompt);
+        if (relaunched)
+        {
+            PersistJob(job);
+            RaiseJobsPropertyChanged();
+            return true;
+        }
+
+        return false;
     }
 
     private void SetCompletionStatus(JobItem job, int? exitCode, bool timedOut, bool staleOutput)

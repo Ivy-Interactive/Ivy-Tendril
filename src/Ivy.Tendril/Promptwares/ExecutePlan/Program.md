@@ -285,19 +285,29 @@ Worktrees start with a clean checkout and may be missing build artifacts (e.g. `
 
 If the plan does **NOT** modify code in directories with build artifacts:
 
-1. **Copy pre-built artifacts** from the original repo into the worktree to avoid unnecessary rebuilds:
+1. **Copy pre-built artifacts** from the original repo into the worktree to avoid unnecessary rebuilds, using a copy-on-write clone where available:
 
 ```bash
-# Example: copy dist/ directories from original repo to worktree
+# Example: copy dist/ directories from original repo to worktree using copy-on-write where available
 for artifact_dir in $(find "<original-repo-path>" -name "dist" -type d -not -path "*/node_modules/*"); do
   relative_path="${artifact_dir#<original-repo-path>/}"
   parent_dir=$(dirname "$relative_path")
   mkdir -p "<worktree-path>/$parent_dir"
-  cp -r "$artifact_dir" "<worktree-path>/$parent_dir/"
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    cp -c -R "$artifact_dir" "<worktree-path>/$parent_dir/"
+  elif cp -r --reflink=auto "$artifact_dir" "<worktree-path>/$parent_dir/" 2>/dev/null; then
+    :
+  else
+    cp -r "$artifact_dir" "<worktree-path>/$parent_dir/"
+  fi
 done
 ```
 
-2. **Skip dependency installation** — the copied artifacts are sufficient for build and tests.
+2. **Never deep-copy `node_modules`:** Symlink it into the worktree, or share the package manager store, and if a copy is unavoidable split it per directory so each command finishes inside the tool timeout.
+
+3. **Scope the build:** A plan that changes no build-dependent code does not need sibling worktrees or a whole-solution build at all. Scope the copy and the build to what the plan actually touches.
+
+4. **Skip dependency installation:** The copied artifacts are sufficient for build and tests.
 
 #### Exception Path (Build-Dependent Code Changes)
 

@@ -294,4 +294,15 @@ public class FirmwareCompilerTests : IDisposable
         var templateIdx = result.IndexOf("## Plan Template");
         Assert.True(referenceIdx < templateIdx);
     }
+
+    [Fact]
+    public void Compile_IncludesBackgroundTaskGuidance()
+    {
+        var context = new FirmwareContext("/programs/Test", new Dictionary<string, string>());
+        var result = FirmwareCompiler.Compile(context);
+
+        Assert.Contains("**Background tasks:**", result);
+        Assert.Contains("wait for it inside a tool call", result);
+        Assert.Contains("Prefer commands that finish inside the tool timeout over ones you have to wait on.", result);
+    }
 }

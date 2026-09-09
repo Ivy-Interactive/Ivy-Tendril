@@ -136,6 +136,7 @@ public record JobItem
     public int? ProcessId { get; set; }
     public string? StatusMessage { get; set; }
     public ConcurrentQueue<string> OutputLines { get; set; } = new();
+    public int BackgroundContinuationCount { get; set; }
 
     /// <summary>
     /// Guards against re-reading the EventWire file from disk on every GetJob call
