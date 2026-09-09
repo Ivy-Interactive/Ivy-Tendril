@@ -533,6 +533,8 @@ public class ChatExecutionServiceJobTrackingTests
 
         public void Emit(AgentEvent evt) => _events.OnNext(evt);
 
+        public void Complete(ResultEvent result) => _completion.TrySetResult(result);
+
         public async Task<ResultEvent> WaitForCompletionAsync(CancellationToken ct = default)
         {
             using var reg = ct.Register(() => _completion.TrySetCanceled(ct));
@@ -699,6 +701,76 @@ public class ChatExecutionServiceJobTrackingTests
             Assert.Contains("I found the main entry point.", assistantMsg.RawStream);
             // Appended cancellation message
             Assert.Contains("Execution was cancelled.", assistantMsg.RawStream);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task SendMessageAsync_WhenResultHasErrorAndNoResponse_PersistsErrorInAssistantMessage()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilResultErrorTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var cancellableSession = new CancellableTestSession();
+            var agentRunner = new CancellableAgentRunner(TestAgentRunner.Create(), cancellableSession);
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+            var fakeJobService = new FakeChatJobService();
+
+            var execService = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                namingService,
+                serializer,
+                logger: null,
+                serviceProvider: null,
+                jobService: fakeJobService);
+
+            var session = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            var sendTask = execService.SendMessageAsync(session.Id, "Run the deploy script");
+
+            var deadline = DateTime.UtcNow.AddSeconds(2);
+            while ((!execService.IsGenerating(session.Id) || !cancellableSession.HasObservers) && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(20);
+            }
+            Assert.True(execService.IsGenerating(session.Id));
+
+            cancellableSession.Complete(new ResultEvent
+            {
+                Kind = AgentEventKind.Result,
+                IsSuccess = false,
+                ExitCode = -1,
+                Error = "Agent timed out: no output received for 5 minutes (idle timeout threshold exceeded).",
+            });
+
+            deadline = DateTime.UtcNow.AddSeconds(2);
+            while (execService.IsGenerating(session.Id) && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(20);
+            }
+            Assert.False(execService.IsGenerating(session.Id));
+
+            var updatedSession = chatService.GetSession(session.Id);
+            Assert.NotNull(updatedSession);
+            var assistantMsg = updatedSession.Messages.FirstOrDefault(m => m.Role == "assistant");
+            Assert.NotNull(assistantMsg);
+            Assert.Equal(
+                "Agent timed out: no output received for 5 minutes (idle timeout threshold exceeded).",
+                assistantMsg.Content);
         }
         finally
         {
