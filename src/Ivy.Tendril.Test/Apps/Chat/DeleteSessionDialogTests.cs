@@ -25,7 +25,7 @@ public class DeleteSessionDialogTests
 
         public IReadOnlyList<ChatSessionModel> GetSessions() => Sessions;
         public ChatSessionModel? GetSession(string id) => Sessions.Find(s => s.Id == id);
-        public ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null)
+        public ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null, string? kind = null)
         {
             var session = new ChatSessionModel(Guid.NewGuid().ToString(), title ?? "New Chat", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, agentId, modelId, [], effort);
             Sessions.Add(session);
@@ -184,6 +184,28 @@ public class DeleteSessionDialogTests
         Assert.Single(service.Sessions);
         Assert.Equal(1, sessionVersion.Value);
         Assert.Equal("sess-1", activeSessionId.Value);
+    }
+
+    [Fact]
+    public async Task Dialog_DeleteButton_WithoutActiveSessionState_StillDeletesSession()
+    {
+        var service = new FakeChatHistoryService();
+        var session = new ChatSessionModel("sess-1", "Terminal", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "claude", "opus", [], Kind: ChatSessionKinds.Terminal);
+        service.Sessions.Add(session);
+
+        var deletingSessionId = new TestState<string?>("sess-1");
+        var sessionVersion = new TestState<int>(1);
+
+        var dialog = new DeleteSessionDialog(deletingSessionId, session, service, null, sessionVersion);
+        var result = Assert.IsType<Dialog>(dialog.Build());
+        var footer = Assert.IsType<DialogFooter>(result.Children[2]);
+        var deleteBtn = Assert.IsType<Button>(footer.Children[1]);
+
+        await deleteBtn.OnClick!.Invoke(new Event<Button>("click", deleteBtn));
+
+        Assert.Empty(service.Sessions);
+        Assert.Null(deletingSessionId.Value);
+        Assert.Equal(2, sessionVersion.Value);
     }
 
     [Fact]

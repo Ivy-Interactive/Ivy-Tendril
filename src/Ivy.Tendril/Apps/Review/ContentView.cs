@@ -6,6 +6,7 @@ using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Apps.Agent;
+using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Review.Dialogs;
 using Ivy.Tendril.Apps.Review.Tabs;
@@ -481,9 +482,9 @@ public class ContentView(
         var standardOverflowItems = new[]
         {
             new MenuItem($"Discuss with {agentLabel}", Icon: agentIcon, Tag: "DiscussWithAgent")
-                .OnSelect(() => nav.Navigate<AgentApp>(new AgentAppArgs(
+                .OnSelect(() => ChatLauncher.Open(nav, config,
                     $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode.",
-                    $"#{TendrilAppShell.FormatPlanId(selectedPlan.FolderName)}"))),
+                    $"#{TendrilAppShell.FormatPlanId(selectedPlan.FolderName)}")),
             new MenuItem("Open in File Manager", Icon: Icons.FolderOpen, Tag: "OpenInExplorer")
                 .OnSelect(() => { PlatformHelper.OpenInFileManager(selectedPlan.FolderPath, logger); }),
             new MenuItem("Open in Terminal", Icon: Icons.Terminal, Tag: "OpenInTerminal").OnSelect(() =>
@@ -693,9 +694,9 @@ public class ContentView(
                 jobService,
                 refreshPlans,
                 selectedPlan.Project,
-                onDiscussWithAgent: () => nav.Navigate<AgentApp>(new AgentAppArgs(
+                onDiscussWithAgent: () => ChatLauncher.Open(nav, config,
                     $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode.",
-                    $"#{TendrilAppShell.FormatPlanId(selectedPlan.FolderName)}")));
+                    $"#{TendrilAppShell.FormatPlanId(selectedPlan.FolderName)}"));
 
             var tabNamesList = new List<string> { "summary", "plan", "details", "git" };
             var isSummarySelected = selectedTab.Value == 0;

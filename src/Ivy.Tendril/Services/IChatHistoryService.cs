@@ -31,8 +31,18 @@ public record ChatSessionModel(
     string ModelId,
     List<ChatMessageModel> Messages,
     string? Effort = null,
-    List<string>? SpawnedJobIds = null
+    List<string>? SpawnedJobIds = null,
+    string? Kind = null
 );
+
+public static class ChatSessionKinds
+{
+    public const string Chat = "chat";
+    public const string Terminal = "terminal";
+
+    public static bool IsTerminal(this ChatSessionModel session) =>
+        string.Equals(session.Kind, Terminal, StringComparison.OrdinalIgnoreCase);
+}
 
 public interface IChatHistoryService
 {
@@ -40,7 +50,7 @@ public interface IChatHistoryService
     event EventHandler? GeneratingSessionsChanged;
     IReadOnlyList<ChatSessionModel> GetSessions();
     ChatSessionModel? GetSession(string id);
-    ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null);
+    ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null, string? kind = null);
     void SaveSession(ChatSessionModel session);
     void DeleteSession(string id);
     void RenameSession(string id, string newTitle);

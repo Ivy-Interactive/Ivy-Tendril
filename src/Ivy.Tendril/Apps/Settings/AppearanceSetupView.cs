@@ -70,6 +70,14 @@ public class AppearanceSetupView : ViewBase
                 | (activeTheme.IsVaultTheme ? new Badge("Team Vault").Variant(BadgeVariant.Secondary).Small() : null));
 
         var isSidebarOpen = config.Settings.SidebarOpen;
+        var usesTerminal = ChatModes.IsTerminal(config.Settings.ChatMode);
+
+        void SetChatMode(string mode, string label)
+        {
+            config.Settings.ChatMode = mode;
+            config.SaveSettings();
+            client.Toast($"Chat opens as {label}", "Saved");
+        }
 
         return Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
                | Text.Block("Appearance").Bold()
@@ -131,6 +139,17 @@ public class AppearanceSetupView : ViewBase
                           config.Settings.SidebarOpen = false;
                           config.SaveSettings();
                           client.Toast("Sidebar set to collapsed by default", "Saved");
-                      }));
+                      }))
+               | Text.Block("Chat").Bold()
+               | Text.Muted("Choose how the Chat button talks to your coding agent: the chat view, or the agent's own terminal.").Small()
+               | (Layout.Horizontal()
+                  | new Button("Chat")
+                      .Variant(!usesTerminal ? ButtonVariant.Primary : ButtonVariant.Outline)
+                      .Icon(Icons.MessageCircle)
+                      .OnClick(() => SetChatMode(ChatModes.Chat, "chat"))
+                  | new Button("Terminal")
+                      .Variant(usesTerminal ? ButtonVariant.Primary : ButtonVariant.Outline)
+                      .Icon(Icons.Terminal)
+                      .OnClick(() => SetChatMode(ChatModes.Terminal, "terminal")));
     }
 }

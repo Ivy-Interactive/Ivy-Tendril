@@ -1,16 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Activity,
   ArrowRight,
   Check,
   CheckCheck,
-  CheckCircle2,
   ChevronDown,
-  Cpu,
-  Ellipsis,
   ListPlus,
   LoaderCircle,
-  MessageSquarePlus,
   Mic,
   Paperclip,
   Pencil,
@@ -30,6 +25,7 @@ import type {
 import { BlockMarkdown } from "../BlockMarkdown";
 import { AgentPicker } from "./AgentPicker";
 import { AssistantTurn } from "./AssistantTurn";
+import { ChatHeader } from "./ChatHeader";
 import {
   ComposerAttachmentCard,
   MessageAttachmentChip,
@@ -38,10 +34,9 @@ import {
 } from "./attachments";
 import { formatSystemEvent } from "./systemEvents";
 import { useAttachments } from "./useAttachments";
-import { useOutsideClick } from "./useOutsideClick";
 import { DEFAULT_TRANSCRIPTION_URL, useSpeechInput } from "./useSpeechInput";
 import { useThreadScroll } from "./useThreadScroll";
-import type { ChatJobDto, ChatMessageDto, ChatQueuedMessageDto, ChatWidgetProps } from "./types";
+import type { ChatMessageDto, ChatQueuedMessageDto, ChatWidgetProps } from "./types";
 import "./chat-widget.css";
 
 export type {
@@ -56,12 +51,6 @@ export type {
   ModelOptionDto,
 } from "./types";
 export { MAX_PAYLOAD_BYTES, formatFileSize } from "./attachments";
-
-const isRunningJob = (job: ChatJobDto) => job.status === "Running" || job.status === "Pending";
-const isCompletedJob = (job: ChatJobDto) => job.status === "Completed";
-const isFailedJob = (job: ChatJobDto) => job.status === "Failed" || job.status === "Timeout";
-
-const jobsLabel = (count: number) => `${count} job${count === 1 ? "" : "s"}`;
 
 const newOptimisticMessage = (content: string, agentId: string, modelId: string): ChatMessageDto => ({
   id: `opt-${Date.now()}-${Math.random()}`,
@@ -111,137 +100,6 @@ const SystemEventRow: React.FC<{ message: ChatMessageDto; onOpenPlan?: (planId: 
   );
 };
 
-interface JobsMenuProps {
-  jobs: ChatJobDto[];
-  spawned: boolean;
-  onReview: () => void;
-}
-
-const JobsMenu: React.FC<JobsMenuProps> = ({ jobs, spawned, onReview }) => {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const close = useCallback(() => setOpen(false), []);
-  useOutsideClick(open, [wrapRef], close);
-
-  const runningCount = jobs.filter(isRunningJob).length;
-  const completedCount = jobs.filter(isCompletedJob).length;
-  const failedCount = jobs.filter(isFailedJob).length;
-  const allFinished = runningCount === 0 && jobs.length > 0;
-  const state = runningCount > 0 ? "running" : failedCount > 0 ? "has-failed" : "all-completed";
-
-  return (
-    <div className="chat-jobs-badge-container" ref={wrapRef}>
-      <button
-        type="button"
-        className={`chat-jobs-badge ${state}`}
-        onClick={() => setOpen((value) => !value)}
-        title={runningCount > 0 ? `${runningCount} job(s) running` : "View jobs"}
-        aria-label="View running jobs"
-        aria-expanded={open}
-      >
-        {runningCount > 0 ? (
-          <>
-            <LoaderCircle size={16} className="spin" />
-            <span className="chat-jobs-badge-text">{runningCount} running</span>
-            <span className="chat-jobs-pulse-dot" />
-          </>
-        ) : failedCount > 0 ? (
-          <>
-            <XCircle size={16} />
-            <span className="chat-jobs-badge-text">
-              {jobsLabel(jobs.length)} ({failedCount} failed)
-            </span>
-          </>
-        ) : (
-          <>
-            <Activity size={16} />
-            <span className="chat-jobs-badge-text">{jobsLabel(jobs.length)}</span>
-          </>
-        )}
-        <ChevronDown size={16} className={`chat-jobs-badge-chevron ${open ? "open" : ""}`} />
-      </button>
-
-      {open && (
-        <div className="chat-jobs-dropdown-menu">
-          <div className="chat-jobs-dropdown-header">
-            <div className="chat-jobs-dropdown-title">
-              <Cpu size={14} />
-              <span>
-                {spawned ? "Spawned Jobs" : "Running Jobs"} ({jobs.length})
-              </span>
-            </div>
-            <div className="chat-jobs-dropdown-chips">
-              {runningCount > 0 && (
-                <span className="chat-job-chip chip-running">
-                  <LoaderCircle size={10} className="spin" />
-                  {runningCount} running
-                </span>
-              )}
-              {completedCount > 0 && (
-                <span className="chat-job-chip chip-completed">
-                  <Check size={10} />
-                  {completedCount} completed
-                </span>
-              )}
-              {failedCount > 0 && (
-                <span className="chat-job-chip chip-failed">
-                  <X size={10} />
-                  {failedCount} failed
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="chat-jobs-dropdown-list">
-            {jobs.map((job) => (
-              <div key={job.id} className={`chat-jobs-dropdown-item ${job.status.toLowerCase()}`}>
-                <div className="chat-job-status-indicator">
-                  {isRunningJob(job) && <LoaderCircle size={13} className="spin" />}
-                  {isCompletedJob(job) && <CheckCircle2 size={13} />}
-                  {isFailedJob(job) && <XCircle size={13} />}
-                  {!isRunningJob(job) && !isCompletedJob(job) && !isFailedJob(job) && <span className="chat-job-dot" />}
-                </div>
-                <div className="chat-job-details">
-                  <div className="chat-job-meta">
-                    <span className="chat-job-type">{job.type}</span>
-                    <span className="chat-job-id">{job.id}</span>
-                    {job.planTitle && (
-                      <span className="chat-job-plan-title" title={job.planTitle}>
-                        {job.planTitle}
-                      </span>
-                    )}
-                  </div>
-                  {job.statusMessage && (
-                    <div className="chat-job-message" title={job.statusMessage}>
-                      {job.statusMessage}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {allFinished && (
-            <div className="chat-jobs-dropdown-footer">
-              <button
-                type="button"
-                className="chat-spawned-jobs-review-btn"
-                onClick={() => {
-                  setOpen(false);
-                  onReview();
-                }}
-              >
-                <Sparkles size={13} />
-                Ask agent to review outcomes
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
 export function ChatWidget({
   id,
   activeSessionId,
@@ -266,9 +124,6 @@ export function ChatWidget({
   eventHandler,
 }: ChatWidgetProps) {
   const [promptText, setPromptText] = useState("");
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [editingTitleText, setEditingTitleText] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
   const [queuedMessages, setQueuedMessages] = useState<ChatQueuedMessageDto[]>(queuedMessagesProp || []);
   const [collapsedQueue, setCollapsedQueue] = useState(false);
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null);
@@ -281,7 +136,6 @@ export function ChatWidget({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   const {
     containerRef: messagesContainerRef,
@@ -329,9 +183,6 @@ export function ChatWidget({
     dismissVoiceError,
     toggle: toggleVoiceRecording,
   } = useSpeechInput(promptText, setPromptText, adjustTextareaHeight, transcriptionUrl);
-
-  const closeMenu = useCallback(() => setMenuOpen(false), []);
-  useOutsideClick(menuOpen, [menuRef], closeMenu);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
 
@@ -401,8 +252,6 @@ export function ChatWidget({
   useEffect(() => {
     setOptimisticStreaming(null);
     setQueuedMessages(queuedMessagesProp || []);
-    setMenuOpen(false);
-    setIsEditingTitle(false);
     clearPin();
     isAtBottomRef.current = true;
     scrollToBottom("auto");
@@ -539,22 +388,6 @@ export function ChatWidget({
       draftStoresRef.current.set(messageId, store);
     }
     return store;
-  };
-
-  const startHeaderTitleEdit = () => {
-    if (!activeSession) return;
-    setEditingTitleText(activeSession.title || "New Chat");
-    setIsEditingTitle(true);
-  };
-
-  const saveHeaderTitleEdit = () => {
-    if (activeSession && editingTitleText.trim() && editingTitleText.trim() !== activeSession.title) {
-      const newTitle = editingTitleText.trim();
-      setPendingRenames((prev) => ({ ...prev, [activeSession.id]: newTitle }));
-      // One array argument: the host maps a single argument onto the event's string[] value.
-      emit("OnRenameSession", [activeSession.id, newTitle]);
-    }
-    setIsEditingTitle(false);
   };
 
   const handleSendMessage = () => {
@@ -731,98 +564,29 @@ export function ChatWidget({
     <div className="chat-widget-root">
       <input ref={fileInputRef} type="file" multiple style={{ display: "none" }} onChange={handleFileSelect} />
 
-      <div className="chat-header">
-        <div className="chat-header-title-wrap">
-          {isEditingTitle ? (
-            <input
-              type="text"
-              className="chat-title-input"
-              aria-label="Chat name"
-              value={editingTitleText}
-              onChange={(e) => setEditingTitleText(e.target.value)}
-              onBlur={saveHeaderTitleEdit}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") saveHeaderTitleEdit();
-                if (e.key === "Escape") setIsEditingTitle(false);
-              }}
-              autoFocus
-            />
-          ) : (
-            <h1 className="chat-title" title={title}>
-              {title}
-            </h1>
-          )}
-        </div>
-        <div className="chat-header-actions">
-          <div className="chat-header-icons">
-            <button
-              type="button"
-              className="chat-icon-btn"
-              title="New chat"
-              aria-label="New chat"
-              onClick={() => emit("OnCreateSession")}
-            >
-              <MessageSquarePlus size={16} />
-            </button>
-            {activeSession && (
-              <div className="chat-menu-wrap" ref={menuRef}>
-                <button
-                  type="button"
-                  className="chat-icon-btn"
-                  title="Chat options"
-                  aria-label="Chat options"
-                  aria-haspopup="menu"
-                  aria-expanded={menuOpen}
-                  onClick={() => setMenuOpen((value) => !value)}
-                >
-                  <Ellipsis size={16} />
-                </button>
-                {menuOpen && (
-                  <div className="chat-menu" role="menu" aria-label="Chat options">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="chat-menu-item"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        startHeaderTitleEdit();
-                      }}
-                    >
-                      <Pencil size={14} />
-                      Edit name
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="chat-menu-item chat-menu-item--danger"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        emit("OnDeleteSession", activeSession.id);
-                      }}
-                    >
-                      <Trash2 size={14} />
-                      Delete chat
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-          {activeSession && headerJobs.length > 0 && (
-            <JobsMenu
-              jobs={headerJobs}
-              spawned={sessionSpawnedJobs.length > 0}
-              onReview={() =>
-                emit("OnSendMessage", {
-                  prompt: "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
-                  attachments: [],
-                  sessionId: activeSession.id,
-                })
-              }
-            />
-          )}
-        </div>
-      </div>
+      <ChatHeader
+        key={activeSessionId ?? "none"}
+        title={title}
+        editable={!!activeSession}
+        jobs={headerJobs}
+        spawned={sessionSpawnedJobs.length > 0}
+        onRename={(t) => {
+          if (!activeSession) return;
+          setPendingRenames((prev) => ({ ...prev, [activeSession.id]: t }));
+          // One array argument: the host maps a single argument onto the event's string[] value.
+          emit("OnRenameSession", [activeSession.id, t]);
+        }}
+        onDelete={() => activeSession && emit("OnDeleteSession", activeSession.id)}
+        onNewChat={() => emit("OnCreateSession")}
+        onReviewJobs={() =>
+          activeSession &&
+          emit("OnSendMessage", {
+            prompt: "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
+            attachments: [],
+            sessionId: activeSession.id,
+          })
+        }
+      />
 
       <div ref={messagesContainerRef} className="chat-messages-container">
         <div className="chat-thread" data-empty={!hasThreadContent}>

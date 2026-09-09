@@ -4,7 +4,8 @@
    literals are only fallbacks for a widget rendered outside a themed host. */
 
 .chat-widget-root,
-.chat-agent-layer {
+.chat-agent-layer,
+.chat-header-host {
   --tch-bg: var(--background, #ffffff);
   --tch-fg: var(--foreground, #000000);
   --tch-fg-title: var(--foreground, #202221);
@@ -31,7 +32,8 @@
 }
 
 .dark .chat-widget-root,
-.dark .chat-agent-layer {
+.dark .chat-agent-layer,
+.dark .chat-header-host {
   --tch-surface: color-mix(in srgb, var(--foreground, #f8f8f8) 7%, var(--background, #000000));
   --tch-surface-hover: color-mix(in srgb, var(--foreground, #f8f8f8) 11%, var(--background, #000000));
   --tch-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.6), 0 4px 12px -2px rgba(0, 0, 0, 0.4);
@@ -50,6 +52,18 @@
 
 .chat-widget-root *,
 .chat-agent-layer * {
+  box-sizing: border-box;
+}
+
+.chat-header-host {
+  width: 100%;
+  flex-shrink: 0;
+  font-family: var(--font-sans, "Geist", sans-serif);
+  font-size: 14px;
+  color: var(--tch-fg);
+}
+
+.chat-header-host * {
   box-sizing: border-box;
 }
 
@@ -78,6 +92,27 @@
   height: 48px;
   padding: 0 8px 0 20px;
   border-bottom: 1px solid var(--tch-border);
+}
+
+/* The terminal-hosted header is always black, regardless of the host theme:
+   override the chat tokens it draws from rather than hard-coding colors on
+   individual rules below, so the jobs pill/dropdown pick it up too. */
+.chat-header-host--terminal {
+  --tch-bg: #000;
+  --tch-fg: #fff;
+  --tch-fg-title: #fff;
+  --tch-muted: rgba(255, 255, 255, 0.6);
+  --tch-faint: rgba(255, 255, 255, 0.4);
+  --tch-border: #262626;
+  --tch-surface: rgba(255, 255, 255, 0.08);
+  --tch-surface-hover: rgba(255, 255, 255, 0.14);
+  --tch-popover: #141414;
+  --tch-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.7), 0 4px 12px -2px rgba(0, 0, 0, 0.5);
+}
+
+.chat-header--terminal {
+  background: #000;
+  color: #fff;
 }
 
 .chat-header-title-wrap {

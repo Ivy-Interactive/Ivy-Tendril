@@ -8,8 +8,8 @@ namespace Ivy.Tendril.Test.Apps.Chat;
 
 public class ChatAppSidebarListTests
 {
-    private static ChatSessionModel Session(string id, string title) =>
-        new(id, title, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "claude", "opus", []);
+    private static ChatSessionModel Session(string id, string title, string? kind = null) =>
+        new(id, title, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, "claude", "opus", [], Kind: kind);
 
     [Fact]
     public void BuildSidebarList_MapsSessionsToRowsAndRoutesSelectionThroughChatArgs()
@@ -33,6 +33,28 @@ public class ChatAppSidebarListTests
 
         list.OnSearch!();
         Assert.True(searched);
+        Assert.Null(list.OnNew);
+        Assert.Null(list.NewLabel);
+    }
+
+    [Fact]
+    public void BuildSidebarList_MarksTerminalSessionsAndExposesNewChat()
+    {
+        var sessions = new List<ChatSessionModel>
+        {
+            Session("chat", "Chat", ChatSessionKinds.Chat),
+            Session("term", "Terminal", ChatSessionKinds.Terminal)
+        };
+        var started = false;
+
+        var list = ChatApp.BuildSidebarList(sessions, null, new HashSet<string>(), new HashSet<string>(), () => { }, () => started = true);
+
+        Assert.Collection(list.Items,
+            item => Assert.Null(item.Icon),
+            item => Assert.Equal("Terminal", item.Icon));
+        Assert.Equal("New chat", list.NewLabel);
+        list.OnNew!();
+        Assert.True(started);
     }
 
     [Fact]

@@ -22,7 +22,9 @@ public record ShellSidebarListState(
     Func<string, object?> BuildSelectArgs,
     bool Searchable = true,
     Action? OnSearch = null,
-    string? SearchLabel = null);
+    string? SearchLabel = null,
+    Action? OnNew = null,
+    string? NewLabel = null);
 
 [Signal(BroadcastType.AppShell)]
 public class ShellSidebarListSignal : AbstractSignal<ShellSidebarListState, Unit> { }

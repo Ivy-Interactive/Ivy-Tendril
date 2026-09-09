@@ -263,6 +263,48 @@ public class ChatExecutionIntegrationTest
         }
     }
 
+    private sealed class RecordingNamingService : IChatSessionNamingService
+    {
+        public List<(string SessionId, string Prompt)> Calls { get; } = [];
+
+        public Task GenerateAndSetTitleAsync(string sessionId, string userPrompt, string? agentId = null, string? modelId = null, CancellationToken ct = default)
+        {
+            Calls.Add((sessionId, userPrompt));
+            return Task.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public async Task ChatExecutionService_SendMessageAsync_NamesTheSessionFromItsFirstPromptOnly()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatNamingTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var configService = new ConfigService(new TendrilSettings { CodingAgent = "codex" }, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var naming = new RecordingNamingService();
+            var execService = new ChatExecutionService(configService, chatService, TestAgentRunner.Create(), naming, new JsonEventSerializer());
+
+            var sess = chatService.CreateSession("codex", "gpt-5.6-sol");
+            _ = execService.SendMessageAsync(sess.Id, "Fix the login bug");
+            await execService.CancelAsync(sess.Id);
+            _ = execService.SendMessageAsync(sess.Id, "And add a test");
+            await execService.CancelAsync(sess.Id);
+
+            var call = Assert.Single(naming.Calls);
+            Assert.Equal((sess.Id, "Fix the login bug"), call);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
     [Fact]
     public async Task ChatExecutionService_CancelAsync_ClearsGeneratingStateAndClosesStream()
     {

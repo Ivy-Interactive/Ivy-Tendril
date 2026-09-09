@@ -51,7 +51,7 @@ describe("AssistantTurn", () => {
       { kind: "tool_call", timestamp: "t1", tool_use_id: "a", tool_name: "Read", input: { file_path: "/a.ts" } },
     ]);
     const { rerender } = render(<AssistantTurn stream={stream} live />);
-    expect(screen.getByText("Reading a.ts")).toBeInTheDocument();
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /1 tool call$/ })).toBeInTheDocument();
 
     const finished = wire([
@@ -74,9 +74,9 @@ describe("AssistantTurn", () => {
     expect(screen.getByText("$0.042")).toBeInTheDocument();
   });
 
-  it("renders an empty live stream as the starting status only", () => {
+  it("renders an empty live stream as the Thinking status only", () => {
     const { container } = render(<AssistantTurn stream="" live />);
-    expect(screen.getByText("Starting…")).toBeInTheDocument();
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
     expect(container.querySelector(".chat-tools")).toBeNull();
   });
 });

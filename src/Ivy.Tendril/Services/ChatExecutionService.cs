@@ -329,8 +329,17 @@ public sealed class ChatExecutionService : IChatExecutionService
             _chatService.AddMessage(sessionId, "assistant", warning, targetAgent, targetModel, effort: targetEffort);
         }
 
+        var isFirstUserMessage = role.Equals("user", StringComparison.OrdinalIgnoreCase)
+            && (sess?.Messages.Count ?? 0) == 0
+            && ChatSessionNamingService.IsDefaultTitle(sess?.Title);
+
         // Add user or system message to history
         _chatService.AddMessage(sessionId, role, promptWithAttachments, targetAgent, targetModel, effort: targetEffort);
+
+        if (isFirstUserMessage)
+        {
+            _ = _namingService.GenerateAndSetTitleAsync(sessionId, userPrompt, targetAgent, targetModel);
+        }
 
         // Build prompt with conversation history and spawned jobs status
         var currentSess = _chatService.GetSession(sessionId);
@@ -567,34 +576,6 @@ public sealed class ChatExecutionService : IChatExecutionService
                         : (result.IsSuccess ? "Task completed successfully." : failureText);
 
                 _chatService.UpdateMessage(sessionId, assistantMessageId, responseContent, rawStream: fullRawStream, flushImmediately: true);
-
-                // Auto-generate title on first exchange
-                var updatedSession = _chatService.GetSession(sessionId);
-                if (updatedSession != null &&
-                    (updatedSession.Title == "New Chat" || string.IsNullOrWhiteSpace(updatedSession.Title)) &&
-                    updatedSession.Messages.Count == 2)
-                {
-                    var firstUserMsg = updatedSession.Messages.FirstOrDefault(m => m.Role == "user")?.Content;
-                    if (!string.IsNullOrWhiteSpace(firstUserMsg))
-                    {
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                await _namingService.GenerateAndSetTitleAsync(
-                                    sessionId,
-                                    firstUserMsg,
-                                    responseContent,
-                                    targetAgent,
-                                    targetModel);
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogDebug(ex, "Failed to generate title for session {SessionId}", sessionId);
-                            }
-                        });
-                    }
-                }
             }
             catch (OperationCanceledException)
             {

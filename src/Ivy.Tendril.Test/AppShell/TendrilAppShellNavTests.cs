@@ -8,11 +8,12 @@ public class TendrilAppShellNavTests
     [
         MenuItem.Default("Plans", "plans"),
         MenuItem.Default("Inbox", "inbox"),
+        MenuItem.Default("Chat", "chat"),
         MenuItem.Default("Agent", "agent")
     ];
 
     [Fact]
-    public void BuildNavItems_ExcludesAgent_KeepsInboxByDefault()
+    public void BuildNavItems_ExcludesAgentAndChat_KeepsInboxByDefault()
     {
         var items = TendrilAppShell.BuildNavItems(Menu, activeAppId: "inbox");
 
