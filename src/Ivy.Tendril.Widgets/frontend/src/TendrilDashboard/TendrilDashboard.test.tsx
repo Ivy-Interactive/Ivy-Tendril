@@ -31,8 +31,6 @@ const trendOf = (
     dates,
     cost: dates.map(() => cost),
     plans: dates.map(() => plans),
-    prevCost: dates.map(() => cost / 2),
-    prevPlans: dates.map(() => plans / 2),
     rollingCost: dates.map((_, i) => (rollingKnown && i >= 6 ? cost : null)),
     rollingPlans: dates.map((_, i) => (rollingKnown && i >= 6 ? plans : null)),
   };
@@ -65,12 +63,12 @@ describe("TendrilDashboard trend legend", () => {
     } as unknown as typeof ResizeObserver;
   });
 
-  it("names the rolling average and drops the old constant average item", () => {
+  it("names the rolling average and omits the comparison series", () => {
     renderDashboard(trendOf(30, 100, 4));
 
     expect(screen.getByText("7-day average")).toBeInTheDocument();
     expect(screen.getByText("Last 4 weeks")).toBeInTheDocument();
-    expect(screen.getByText("Previous 4 weeks")).toBeInTheDocument();
+    expect(screen.queryByText("Previous 4 weeks")).not.toBeInTheDocument();
     expect(screen.queryByText(/^Avg /)).not.toBeInTheDocument();
   });
 
@@ -105,7 +103,7 @@ describe("TendrilDashboard range and metric combinations", () => {
 
     expect(screen.getByText("Last 4 weeks: $45.00")).toBeInTheDocument();
     expect(screen.getByText("7-day average: $45.00")).toBeInTheDocument();
-    expect(screen.getByText("Previous 4 weeks: $22.50")).toBeInTheDocument();
+    expect(screen.queryByText("Previous 4 weeks: $22.50")).not.toBeInTheDocument();
   });
 
   it("shows the 4 week plan series counted in plans", () => {
@@ -116,7 +114,7 @@ describe("TendrilDashboard range and metric combinations", () => {
 
     expect(screen.getByText("Last 4 weeks: 4 plans")).toBeInTheDocument();
     expect(screen.getByText("7-day average: 4 plans")).toBeInTheDocument();
-    expect(screen.getByText("Previous 4 weeks: 2 plans")).toBeInTheDocument();
+    expect(screen.queryByText("Previous 4 weeks: 2 plans")).not.toBeInTheDocument();
   });
 
   it("falls back to monthly trend if weekly trend is not provided", () => {
@@ -126,7 +124,7 @@ describe("TendrilDashboard range and metric combinations", () => {
 
     expect(screen.getByText("Last 4 weeks: $120.00")).toBeInTheDocument();
     expect(screen.getByText("7-day average: $120.00")).toBeInTheDocument();
-    expect(screen.getByText("Previous 4 weeks: $60.00")).toBeInTheDocument();
+    expect(screen.queryByText("Previous 4 weeks: $60.00")).not.toBeInTheDocument();
   });
 
   it("hides the trend card entirely when there is no series", () => {

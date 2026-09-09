@@ -92,47 +92,6 @@ public class DashboardAppViewModelTests
     }
 
     [Fact]
-    public void BuildTrend_ComparesTheSameCalendarDayAYearEarlier()
-    {
-        var today = new DateTime(2026, 9, 6);
-        var dataStart = new DateOnly(2025, 1, 1);
-        var activity = new DashboardActivityStats(
-            [], 0m, DailyCosts(dataStart, new DateOnly(2026, 9, 6), Unique), null, dataStart);
-
-        var trend = DashboardApp.BuildTrend(activity, today);
-
-        Assert.NotNull(trend);
-        // A year before the last displayed day, read by date rather than by bucket offset.
-        Assert.Equal((double)Unique(new DateOnly(2025, 9, 6)), trend.PrevCost[^1]);
-
-        // The comparison day for 2026-01-01 is exactly the first recorded day, so it is known.
-        var firstOfYear = trend.Dates.IndexOf("2026-01-01");
-        Assert.Equal((double)Unique(dataStart), trend.PrevCost[firstOfYear]);
-
-        // One day earlier the comparison falls before any record: unknown, not zero.
-        Assert.Null(trend.PrevCost[firstOfYear - 1]);
-        Assert.Null(trend.PrevCost[0]);
-    }
-
-    [Fact]
-    public void BuildTrend_MapsLeapDayOntoTheTwentyEighth()
-    {
-        // 2027 has no 29th of February. Clamping to the 28th is the calendar behaviour wanted, and the
-        // alternative (a gap in the comparison every fourth year) would read as missing data.
-        var today = new DateTime(2028, 3, 1);
-        var dataStart = new DateOnly(2026, 1, 1);
-        var activity = new DashboardActivityStats(
-            [], 0m, DailyCosts(dataStart, new DateOnly(2028, 3, 1), Unique), null, dataStart);
-
-        var trend = DashboardApp.BuildTrend(activity, today);
-
-        Assert.NotNull(trend);
-        var leapDay = trend.Dates.IndexOf("2028-02-29");
-        Assert.True(leapDay >= 0, "the displayed range should contain the leap day");
-        Assert.Equal((double)Unique(new DateOnly(2027, 2, 28)), trend.PrevCost[leapDay]);
-    }
-
-    [Fact]
     public void BuildTrend_WithoutADailySeries_IsAbsent()
     {
         // No monthly fallback: monthly buckets cannot carry a 7 day average or a date axis, so the card
@@ -160,7 +119,6 @@ public class DashboardAppViewModelTests
         Assert.All(trend.Plans, plans => Assert.Equal(0d, plans));
         Assert.All(trend.RollingCost, rolling => Assert.Null(rolling));
         Assert.All(trend.RollingPlans, rolling => Assert.Null(rolling));
-        Assert.All(trend.PrevCost, prev => Assert.Null(prev));
     }
 
     [Fact]
@@ -317,7 +275,7 @@ public class DashboardAppViewModelTests
     }
 
     [Fact]
-    public void BuildWeeklyTrend_Projects28DaysWithComparison()
+    public void BuildWeeklyTrend_Projects28Days()
     {
         var today = new DateTime(2026, 9, 6);
         var dailyCosts = new List<DashboardDailyCost>
@@ -341,8 +299,6 @@ public class DashboardAppViewModelTests
         Assert.Equal(28, trend.Dates.Count);
         Assert.Equal(28, trend.Cost.Count);
         Assert.Equal(28, trend.Plans.Count);
-        Assert.Equal(28, trend.PrevCost.Count);
-        Assert.Equal(28, trend.PrevPlans.Count);
         Assert.Equal(28, trend.RollingCost.Count);
 
         // 27 days before today through today, as dates rather than labels.
@@ -353,10 +309,6 @@ public class DashboardAppViewModelTests
         Assert.Equal(5.0, trend.Plans[^1]);
         // Zero-filled: Sept 4 has no rows at all and is present as 0, not missing.
         Assert.Equal(0d, trend.Cost[trend.Dates.IndexOf("2026-09-04")]);
-
-        // Sept 6 compared to 28 days earlier (Aug 9)
-        Assert.Equal(12.50, trend.PrevCost[^1]);
-        Assert.Equal(2.0, trend.PrevPlans[^1]);
 
         // Records begin Aug 9 (the fallback for a mock with no DailyDataStart).
         // Leading dates have expanding averages rather than null.

@@ -21,10 +21,6 @@
   --tdb-ramp-3: color-mix(in srgb, var(--foreground, #000000) 60%, transparent);
   --tdb-ramp-4: var(--foreground, #000000);
 
-  /* Comparison (previous year) line. Derived from the theme's --primary so it
-     tracks alternate themes; kept near full strength (unlike the KPI tints)
-     because it is a thin dashed stroke that has to stay readable. */
-  --tdb-compare: color-mix(in srgb, var(--primary, #a0bce8) 70%, var(--tdb-bg));
 
   /* KPI card tints. All four derive from the host theme's --primary so
      alternate themes (neon, retro, cupcake...) recolor the cards
@@ -346,12 +342,6 @@
   flex-shrink: 0;
 }
 
-.tdb-legend-dash {
-  width: 10px;
-  height: 0;
-  border-top: 2px dashed var(--tdb-compare);
-  flex-shrink: 0;
-}
 
 .tdb-legend-line-avg {
   width: 10px;
@@ -401,14 +391,6 @@
   stroke-linejoin: round;
 }
 
-.tdb-trend-compare {
-  fill: none;
-  stroke: var(--tdb-compare);
-  stroke-width: 1.25;
-  stroke-dasharray: 5 4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
 
 /* Dashed curve for 7-day average to distinguish from solid current usage. */
 .tdb-trend-avg-curve {
