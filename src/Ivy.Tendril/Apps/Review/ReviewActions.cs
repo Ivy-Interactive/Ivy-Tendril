@@ -1,10 +1,9 @@
 using Ivy.Tendril.Agents.Abstractions;
-using Ivy.Tendril.AppShell;
-using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Services.Share;
 using Ivy.Tendril.Services.Tunnel;
 using Microsoft.Extensions.Logging;
@@ -20,6 +19,9 @@ public sealed record ReviewActionsContext(
     IAgentRunner AgentRunner,
     IShareContext ShareContext,
     IShareTunnelService ShareTunnelService,
+    IPlanReaderService PlanService,
+    IChatHistoryService? ChatService,
+    IChatExecutionService? ChatExecution,
     bool IsBeta,
     Action<string> CopyToClipboard,
     int CommentCount,
@@ -30,13 +32,11 @@ public sealed record ReviewActionsContext(
 
 /// <summary>
 ///     What the Review page can do with a plan, laid out for the workspace top bar: Reset to Draft,
-///     Request Changes, Ask Tendril (the caret goes to the chat composer) and Share as icons, the
-///     rest in the overflow menu.
+///     Request Changes and Share as icons, the rest in the overflow menu. "Discuss with {agent}"
+///     opens the conversation in the plan's chat panel.
 /// </summary>
 public static class ReviewActions
 {
-    public const string ChatTag = "Chat";
-
     public static PlanWorkspaceActions Build(ReviewActionsContext ctx)
     {
         var actions = new PlanWorkspaceActions();
@@ -90,17 +90,22 @@ public static class ReviewActions
         actions
             .Action("ResetToDraft", "Reset to Draft", Icons.RotateCcw, ctx.ShowResetToDraftDialog, "r")
             .Action("RequestChanges", "Request Changes", Icons.MessageSquare, ctx.ShowSuggestChangesDialog, "c",
-                badge: ctx.CommentCount > 0 ? ctx.CommentCount.ToString() : null)
-            .Action(ChatTag, "Ask Tendril", Icons.WandSparkles, () => { }, "u", focusChat: true);
+                badge: ctx.CommentCount > 0 ? ctx.CommentCount.ToString() : null);
 
         if (ctx.IsBeta)
             actions.Action("Share", "Share", Icons.Share2, SharePlan);
 
+        actions.Menu("Discard", "Discard", Icons.Trash, ctx.ShowDiscardDialog, "Backspace", danger: true);
+
+        if (ctx.ChatService != null && ctx.ChatExecution != null)
+        {
+            actions.Menu("DiscussWithAgent", $"Discuss with {agentLabel}", agentIcon, () =>
+                    PlanChatSessions.Send(ctx.ChatService, ctx.ChatExecution, ctx.PlanService, ctx.AgentRunner, config, plan,
+                        PlanChatSessions.DiscussPrompt(plan)),
+                focusChat: true);
+        }
+
         return actions
-            .Menu("Discard", "Discard", Icons.Trash, ctx.ShowDiscardDialog, "Backspace", danger: true)
-            .Menu("DiscussWithAgent", $"Discuss with {agentLabel}", agentIcon, () => ctx.Nav.Navigate<AgentApp>(new AgentAppArgs(
-                $"User wants to discuss the plan {plan.FolderPath} currently in Review mode.",
-                $"#{TendrilAppShell.FormatPlanId(plan.FolderName)}")))
             .Menu("OpenInExplorer", "Open in File Manager", Icons.FolderOpen, () => PlatformHelper.OpenInFileManager(plan.FolderPath, ctx.Logger))
             .Menu("OpenInTerminal", "Open in Terminal", Icons.Terminal, () => PlatformHelper.OpenInTerminal(plan.FolderPath, ctx.Logger))
             .Menu("CopyPath", "Copy Path", Icons.Copy, CopyPath)

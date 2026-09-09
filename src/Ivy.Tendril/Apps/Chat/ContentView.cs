@@ -242,8 +242,12 @@ public class ContentView(
             }
         }
         .WithLayout()
-        .Full()
-        .RemoveParentPadding();
+        .Full();
+
+        // The panel that hosts an embedded chat draws its own inset; RemoveParentPadding would
+        // zero it (the framework strips padding from every ancestor wrapper of that class).
+        if (!embedded)
+            chatWidget = chatWidget.RemoveParentPadding();
 
         return new Fragment(chatWidget, deleteDialog);
     }

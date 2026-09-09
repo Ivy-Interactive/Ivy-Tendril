@@ -72,6 +72,8 @@ public class ContentView(
         var (shareModal, showShareModal) = UseTrigger((isOpen) =>
             !isOpen.Value ? null : new ShareTunnelModal(isOpen, selectedPlan!.FolderName, isReview: false));
 
+        var (updateDialog, showUpdateDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new UpdatePlanDialog(isOpen, selectedPlan!, selectedPlanState, jobService, refreshPlans));
+
         var (deleteDialog, showDeleteDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new DeletePlanDialog(isOpen, selectedPlan!, selectedPlanState, planService, refreshPlans));
 
         var (createIssueDialog, showCreateIssueDialog) = UseTrigger((isOpen) =>
@@ -145,9 +147,6 @@ public class ContentView(
             isEditingPrev.Set(isEditing.Value);
         }, isEditing);
 
-        // Navigation effects (was UseNavigationEffects)
-        UseEffect(() => { selectedTab.Set(PlanTab); }, selectedPlanState);
-
         UseEffect(() =>
         {
             void OnAnnotationsChanged(string folderPath, List<MarkdownAnnotation> updated)
@@ -166,9 +165,13 @@ public class ContentView(
         selectedPlanRef.Value = selectedPlan;
 #pragma warning restore CS8601
 
+        // Keyed on the plan's identity, not on the state object: every refresh hands the state a
+        // fresh PlanFile instance of the same plan, and that must not throw the reader back to the
+        // first tab.
         if (lastPlanId.Value != (selectedPlan?.Id ?? -1))
         {
             lastPlanId.Set(selectedPlan?.Id ?? -1);
+            selectedTab.Set(PlanTab);
             isEditing.Set(false);
             var loaded = selectedPlan != null
                 ? draftAnnotationService.GetAnnotationsForPlan(selectedPlan.FolderPath).ToImmutableList()
@@ -228,8 +231,9 @@ public class ContentView(
 
         var actions = DraftActions.Build(new DraftActionsContext(
             selectedPlan, selectedPlanState, isEditing, editContent, originalContent,
-            planService, jobService, config, client, nav, agentRunner, shareContext, shareTunnelService, isBeta,
-            refreshPlans, copyToClipboard, showDeleteDialog, showCreateIssueDialog, showShareModal,
+            planService, jobService, config, client, nav, agentRunner, shareContext, shareTunnelService,
+            _chatHistoryService, _chatExecutionService, isBeta,
+            refreshPlans, copyToClipboard, showUpdateDialog, showDeleteDialog, showCreateIssueDialog, showShareModal,
             hasActiveExpandJob, hasActiveSplitJob));
 
         var activeAnnotationCount = annotations.Value.Count(a => !a.IsResolved);
@@ -339,6 +343,7 @@ public class ContentView(
             .Tabs(tabs)
             .SelectedTab(effectiveTab)
             .QuestionsLabel(unansweredQuestions > 0 ? $"Questions ({unansweredQuestions} unanswered)" : "Questions")
+            .UnansweredQuestions(unansweredQuestions)
             .OnTabSelect(id => selectedTab.Set(id)))
             .WithLayout().Full().RemoveParentPadding()
             .Key(selectedPlan.Id);
@@ -375,6 +380,7 @@ public class ContentView(
         var elements = new List<object>
         {
             workspace,
+            updateDialog,
             deleteDialog,
             createIssueDialog,
             debugSheet,

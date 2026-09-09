@@ -14,6 +14,7 @@
   --pws-cta-bg: var(--primary, #000000);
   --pws-cta-fg: var(--primary-foreground, #ffffff);
   --pws-danger: var(--destructive, #ef4444);
+  --pws-indicator: var(--warning, #d97706);
   --pws-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.18), 0 4px 12px -2px rgba(0, 0, 0, 0.1);
   --pws-chat-width: 420px;
 
@@ -474,9 +475,25 @@
 }
 
 .pws-tool-btn:hover,
-.pws-tool-btn[data-active="true"] {
+.pws-tool-btn[data-active="true"],
+.pws-tool-btn[data-indicator="true"] {
   background: var(--pws-active-bg);
   opacity: 1;
+}
+
+.pws-tool-btn {
+  position: relative;
+}
+
+.pws-tool-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pws-indicator);
+  box-shadow: 0 0 0 2px var(--pws-bg);
 }
 
 .pws-dropdown {

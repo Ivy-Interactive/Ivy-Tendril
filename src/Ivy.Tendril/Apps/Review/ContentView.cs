@@ -54,9 +54,7 @@ public class ContentView(
         var syncingWorktrees = UseState(new HashSet<string>());
         var selectedRecTitles = UseState(() => new HashSet<string>());
         var selectedTab = UseState(SummaryTab);
-        // Brings a question into view when its dropdown entry is clicked; the token makes a repeat
-        // click on the same entry scroll again.
-        var scrollTo = UseState<QuestionScrollTarget?>(() => null);
+        var lastPlanFolder = UseState<string?>(() => selectedPlanState.Value?.FolderName);
         var draftDiffCommentService = UseService<Ivy.Tendril.Services.Plans.IPlanDiffCommentService>();
         var draftComments = UseState(() => selectedPlanState.Value != null
             ? draftDiffCommentService.GetDraftCommentsForPlan(selectedPlanState.Value.FolderPath)
@@ -71,6 +69,8 @@ public class ContentView(
         var shareTunnelService = UseService<Ivy.Tendril.Services.Tunnel.IShareTunnelService>();
         var resetToDraftLogger = UseService<ILogger<ResetToDraftDialog>>();
         Context.TryUseService<TendrilArgs>(out var tendrilArgs);
+        Context.TryUseService<IChatHistoryService>(out var chatService);
+        Context.TryUseService<IChatExecutionService>(out var chatExecution);
 
         var processView = Context.UseTendrilProcess();
 
@@ -225,8 +225,6 @@ public class ContentView(
             return Disposable.Empty;
         }, [localRefresh]);
 
-        UseEffect(() => { selectedTab.Set(SummaryTab); return Disposable.Empty; }, selectedPlanState);
-
         UseEffect(() => { selectedRecTitles.Set(new HashSet<string>()); return Disposable.Empty; },
             selectedPlanState);
 
@@ -256,6 +254,15 @@ public class ContentView(
         var isShareMode = shareContext.IsShareMode;
         var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
 
+        // Keyed on the plan's identity, not on the state object: every refresh hands the state a
+        // fresh PlanFile instance of the same plan, and that must not throw the reader back to the
+        // Summary tab.
+        if (!string.Equals(lastPlanFolder.Value, selectedPlanState.Value?.FolderName, StringComparison.OrdinalIgnoreCase))
+        {
+            lastPlanFolder.Set(selectedPlanState.Value?.FolderName);
+            selectedTab.Set(SummaryTab);
+        }
+
         if (selectedPlanState.Value is null)
         {
             if (allPlans.Count == 0)
@@ -275,7 +282,8 @@ public class ContentView(
             planContentQuery.Mutator.Revalidate);
 
         var actions = ReviewActions.Build(new ReviewActionsContext(
-            selectedPlan, config, client, logger, nav, agentRunner, shareContext, shareTunnelService, isBeta,
+            selectedPlan, config, client, logger, nav, agentRunner, shareContext, shareTunnelService,
+            planService, chatService, chatExecution, isBeta,
             copyToClipboard, draftComments.Value.Count,
             showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog, showShareModal));
 
@@ -283,7 +291,7 @@ public class ContentView(
             AddPrimaryAction(actions, selectedPlan, context, showCreatePrDialog, showDiscardDialog);
 
         var page = BuildPage(
-            selectedPlan, planContentQuery, selectedTab, scrollTo, sheets,
+            selectedPlan, planContentQuery, selectedTab, sheets,
             syncingWorktrees, selectedRecTitles, context, showDebugJob, showCostJob, draftComments,
             ImplementRecommendations);
 
@@ -291,7 +299,7 @@ public class ContentView(
                 page.Content,
                 isShareMode ? null : new PlanChatView(selectedPlan),
                 page.Verifications,
-                page.Questions,
+                null,
                 page.Toolbar)
             .PlanId($"#{selectedPlan.Id}")
             .Title(selectedPlan.Title)
@@ -304,7 +312,6 @@ public class ContentView(
                 isShareMode ? Ivy.Tendril.Services.Share.AnonymousPersonaGenerator.GetInitials(shareContext.Persona) : null)
             .Tabs(page.Tabs)
             .SelectedTab(page.SelectedTab)
-            .QuestionsLabel(page.QuestionsLabel)
             .OnTabSelect(id => selectedTab.Set(id)))
             .WithLayout().Full().RemoveParentPadding()
             .Key(selectedPlan.Id);
@@ -387,7 +394,6 @@ public class ContentView(
         PlanFile selectedPlan,
         QueryResult<PlanContentData> planContentQuery,
         IState<string> selectedTab,
-        IState<QuestionScrollTarget?> scrollTo,
         SheetsState sheets,
         IState<HashSet<string>> syncingWorktrees,
         IState<HashSet<string>> selectedRecTitles,
@@ -422,17 +428,6 @@ public class ContentView(
 
         overlays.Add(new FileSheet(openFile, config));
 
-        var questions = QuestionAnswers.Read(selectedPlan.LatestRevisionContent);
-        var unanswered = questions.Count(q => !q.HasAnswer);
-        object? questionsPanel = questions.Count > 0
-            ? new Plans.QuestionsPanelView(questions, id =>
-            {
-                selectedTab.Set(PlanTab);
-                scrollTo.Set(new QuestionScrollTarget(id, (scrollTo.Value?.Token ?? 0) + 1));
-            })
-            : null;
-        var questionsLabel = unanswered > 0 ? $"Questions ({unanswered} unanswered)" : "Questions";
-
         var planData = planContentQuery.Value;
         var tabs = new List<PlanTabDto> { new(SummaryTab, "Summary"), new(PlanTab, "Plan"), new(DetailsTab, "Details"), new(GitTab, "Git") };
 
@@ -440,7 +435,7 @@ public class ContentView(
         {
             return new ReviewPage(tabs, SummaryTab,
                 Layout.Vertical().AlignContent(Align.Center).Height(Size.Full()) | Text.Muted("Loading..."),
-                null, null, questionsPanel, questionsLabel, overlays);
+                null, null, overlays);
         }
 
         if (planData is null)
@@ -450,7 +445,7 @@ public class ContentView(
                 : "Failed to load plan data. Please try refreshing.";
             return new ReviewPage(tabs, SummaryTab,
                 Layout.Vertical().AlignContent(Align.Center).Height(Size.Full()) | Text.Muted(errorMsg),
-                null, null, questionsPanel, questionsLabel, overlays);
+                null, null, overlays);
         }
 
         var pendingRecs = planData.Recommendations.Where(r => r.State == RecommendationStatus.Pending).ToList();
@@ -499,7 +494,7 @@ public class ContentView(
             // so neither is wrapped in Cap(): wrapped, each would be inset twice and the two tabs
             // would start their text in different places.
             SummaryTab => new SummaryTabView(config, planData.SummaryMarkdown, onLinkClick, planContentQuery.Loading),
-            PlanTab => new PlanTabView(selectedPlan, selectedPlanState, openFile, planService, config, scrollTo.Value),
+            PlanTab => new PlanTabView(selectedPlan, selectedPlanState, openFile, planService, config),
             DetailsTab => Cap(new DetailsTabView(selectedPlan,
                 jobService.GetJobsForPlan(selectedPlan.FolderName),
                 showDebugJob, showCostJob, planService, selectedPlanState, refreshPlans,
@@ -516,7 +511,8 @@ public class ContentView(
                 },
                 syncingWorktrees.Value,
                 worktreePath => SynchronizeWorktreeAsync(worktreePath, syncingWorktrees, planContentQuery, client, planService, selectedPlanState, logger))),
-            ChangesTab => Layout.Vertical().Width(Size.Full()).Height(Size.Full().Min(Size.Px(0)))
+            // The diff view manages its own scroll, so it gets the workspace inset without Cap().
+            ChangesTab => Layout.Vertical().Width(Size.Full()).Height(Size.Full().Min(Size.Px(0))).Padding(8, 2, 8, 0)
                           | new ChangesTabView(
                               planData.AllChanges,
                               planContentQuery.Loading,
@@ -556,7 +552,7 @@ public class ContentView(
         var verificationsPanel = new ReviewVerificationsPanelView(
             selectedPlan.Verifications, planData.VerificationReports, v => openVerification.Set(v));
 
-        return new ReviewPage(tabs, activeTab, content, toolbar, verificationsPanel, questionsPanel, questionsLabel, overlays);
+        return new ReviewPage(tabs, activeTab, content, toolbar, verificationsPanel, overlays);
 
         // The workspace inset: 24px top, 32px sides, matching what PlanMarkdown applies to itself.
         object Cap(object inner)
@@ -580,8 +576,6 @@ public class ContentView(
         object Content,
         object? Toolbar,
         object? Verifications,
-        object? Questions,
-        string QuestionsLabel,
         List<object> Overlays);
 
     private void ImplementSelectedRecommendations(

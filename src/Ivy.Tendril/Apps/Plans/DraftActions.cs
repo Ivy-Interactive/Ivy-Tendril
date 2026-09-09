@@ -1,6 +1,5 @@
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.AppShell;
-using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -25,9 +24,12 @@ public sealed record DraftActionsContext(
     IAgentRunner AgentRunner,
     IShareContext ShareContext,
     IShareTunnelService ShareTunnelService,
+    IChatHistoryService? ChatService,
+    IChatExecutionService? ChatExecution,
     bool IsBeta,
     Action RefreshPlans,
     Action<string> CopyToClipboard,
+    Action ShowUpdateDialog,
     Action ShowDeleteDialog,
     Action ShowCreateIssueDialog,
     Action ShowShareModal,
@@ -35,14 +37,13 @@ public sealed record DraftActionsContext(
     bool HasActiveSplitJob);
 
 /// <summary>
-///     What the Drafts page can do with a plan, laid out for the workspace top bar: Edit, Update
-///     (which hands the caret to the chat composer), Expand and Share as icons, everything else in
-///     the overflow menu. Edit mode and share mode each replace the set with their own.
+///     What the Drafts page can do with a plan, laid out for the workspace top bar: Edit, Update,
+///     Expand and Share as icons, everything else in the overflow menu. "Discuss with {agent}" opens
+///     the conversation in the plan's chat panel. Edit mode and share mode each replace the set with
+///     their own.
 /// </summary>
 public static class DraftActions
 {
-    public const string ChatTag = "Chat";
-
     public static PlanWorkspaceActions Build(DraftActionsContext ctx)
     {
         var actions = new PlanWorkspaceActions();
@@ -133,19 +134,26 @@ public static class DraftActions
 
         actions
             .Action("Edit", "Edit", Icons.Pencil, () => ctx.IsEditing.Set(true), "E")
-            .Action(ChatTag, "Update", Icons.WandSparkles, () => { }, "U", focusChat: true)
+            .Action("Update", "Update", Icons.WandSparkles, ctx.ShowUpdateDialog, "U")
             .Action("Expand", "Expand", Icons.Expand, StartExpand, "P", disabled: ctx.HasActiveExpandJob);
 
         if (ctx.IsBeta)
             actions.Action("Share", "Share", Icons.Share2, SharePlan);
 
-        return actions
+        actions
             .Menu("Split", "Split", Icons.Scissors, StartSplit, disabled: ctx.HasActiveSplitJob)
             .Menu("Delete", "Delete", Icons.Trash, ctx.ShowDeleteDialog, "Backspace", danger: true)
-            .Menu("CreateIssue", "Create Issue", Icons.Github, ctx.ShowCreateIssueDialog)
-            .Menu("DiscussWithAgent", $"Discuss with {agentLabel}", agentIcon, () => ctx.Nav.Navigate<AgentApp>(new AgentAppArgs(
-                $"User wants to discuss the plan {plan.FolderPath} currently in Draft mode.",
-                $"#{TendrilAppShell.FormatPlanId(plan.FolderName)}")))
+            .Menu("CreateIssue", "Create Issue", Icons.Github, ctx.ShowCreateIssueDialog);
+
+        if (ctx.ChatService != null && ctx.ChatExecution != null)
+        {
+            actions.Menu("DiscussWithAgent", $"Discuss with {agentLabel}", agentIcon, () =>
+                    PlanChatSessions.Send(ctx.ChatService, ctx.ChatExecution, ctx.PlanService, ctx.AgentRunner, config, plan,
+                        PlanChatSessions.DiscussPrompt(plan)),
+                focusChat: true);
+        }
+
+        return actions
             .Menu("OpenInExplorer", "Open in File Manager", Icons.FolderOpen, () => PlatformHelper.OpenInFileManager(plan.FolderPath))
             .Menu("OpenInTerminal", "Open in Terminal", Icons.Terminal, () => PlatformHelper.OpenInTerminal(plan.FolderPath))
             .Menu("OpenInEditor", $"Open in {config.Editor.Label}", Icons.Code, () => OpenInEditor(plan.FolderPath))

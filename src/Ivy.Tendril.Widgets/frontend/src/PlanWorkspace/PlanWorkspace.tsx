@@ -141,12 +141,16 @@ interface TabToolProps {
   label: string;
   panel: React.ReactNode;
   open: boolean;
+  indicator?: boolean;
   onToggle: () => void;
   onClose: () => void;
 }
 
+/** Plans whose Questions dropdown was opened in this page session; the dot stays off for them. */
+const seenQuestionPlans = new Set<string>();
+
 /** One of the two icons in the tab strip's far corner; its panel drops down beneath it. */
-const TabTool: React.FC<TabToolProps> = ({ icon: Icon, label, panel, open, onToggle, onClose }) => {
+const TabTool: React.FC<TabToolProps> = ({ icon: Icon, label, panel, open, indicator = false, onToggle, onClose }) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   useOutsideClick(open, [wrapRef], onClose);
 
@@ -169,9 +173,11 @@ const TabTool: React.FC<TabToolProps> = ({ icon: Icon, label, panel, open, onTog
           aria-haspopup="dialog"
           aria-expanded={open}
           data-active={open}
+          data-indicator={indicator}
           onClick={onToggle}
         >
           <Icon size={16} />
+          {indicator && <span className="pws-tool-dot" aria-hidden="true" />}
         </button>
       </ShellTooltip>
       {open && (
@@ -202,6 +208,7 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
   chatWidth = 420,
   verificationsLabel = "Verifications",
   questionsLabel = "Questions",
+  unansweredQuestions = 0,
   events = EMPTY_EVENTS,
   eventHandler,
   slots,
@@ -211,6 +218,14 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
   const [width, setWidth] = useState(() => readStoredChatWidth() ?? chatWidth);
   const [dragging, setDragging] = useState(false);
   const [openTool, setOpenTool] = useState<"verifications" | "questions" | null>(null);
+  const [, setSeenVersion] = useState(0);
+  const questionsSeen = seenQuestionPlans.has(planId);
+
+  const openQuestions = () => {
+    seenQuestionPlans.add(planId);
+    setSeenVersion((value) => value + 1);
+    setOpenTool((value) => (value === "questions" ? null : "questions"));
+  };
 
   const emit = useCallback(
     (eventName: string, ...args: unknown[]) => {
@@ -384,7 +399,8 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
                       label={questionsLabel}
                       panel={slots?.Questions}
                       open={openTool === "questions"}
-                      onToggle={() => setOpenTool((value) => (value === "questions" ? null : "questions"))}
+                      indicator={unansweredQuestions > 0 && !questionsSeen}
+                      onToggle={openQuestions}
                       onClose={() => setOpenTool((value) => (value === "questions" ? null : value))}
                     />
                   )}

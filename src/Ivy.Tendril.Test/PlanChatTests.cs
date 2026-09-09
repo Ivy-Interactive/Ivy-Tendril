@@ -1,9 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Widgets;
 using Xunit;
 
 namespace Ivy.Tendril.Test;
@@ -149,6 +154,66 @@ public class PlanChatTests
         Assert.Contains($"tendril job start RetryPlan {plan.FolderName} --change-request", section);
         Assert.Contains($"tendril job start CreatePr {plan.FolderName} --chat-session sess-2", section);
         Assert.DoesNotContain("UpdatePlan", section);
+    }
+
+    private sealed class RecordingChatExecutionService : IChatExecutionService
+    {
+        public List<(string SessionId, string Prompt, string? AgentId, string? ModelId)> Sent { get; } = [];
+#pragma warning disable CS0067
+        public event Action<string>? SessionGeneratingChanged;
+        public event Action<string>? StreamUpdated;
+#pragma warning restore CS0067
+        public bool IsGenerating(string sessionId) => false;
+        public string GetStreamSnapshot(string sessionId) => string.Empty;
+        public IObservable<string> GetLiveStreamObservable(string sessionId) => System.Reactive.Linq.Observable.Empty<string>();
+
+        public Task SendMessageAsync(string sessionId, string prompt, IReadOnlyList<ChatAttachmentDto>? attachments = null,
+            string? agentId = null, string? modelId = null, string? effort = null, string role = "user", CancellationToken ct = default)
+        {
+            Sent.Add((sessionId, prompt, agentId, modelId));
+            return Task.CompletedTask;
+        }
+
+        public Task CancelAsync(string sessionId) => Task.CompletedTask;
+        public Task InterruptAsync(string sessionId) => Task.CompletedTask;
+
+        public Task ForceSendMessageAsync(string sessionId, string prompt, IReadOnlyList<ChatAttachmentDto>? attachments = null,
+            string? agentId = null, string? modelId = null, string? effort = null, CancellationToken ct = default) =>
+            SendMessageAsync(sessionId, prompt, attachments, agentId, modelId, effort, ct: ct);
+
+        public void Dispose() { }
+    }
+
+    [Fact]
+    public void Send_StartsThePlanSessionOnFirstUseAndReusesItAfterwards()
+    {
+        var (service, tempDir) = CreateChatService();
+        var planService = new FakePlanReaderService();
+        var execution = new RecordingChatExecutionService();
+        var config = new ConfigService(new TendrilSettings { CodingAgent = "codex" }, tempDir);
+        var plan = CreatePlan(59, "Revamp");
+        try
+        {
+            var first = PlanChatSessions.Send(service, execution, planService, TestAgentRunner.Create(), config, plan, "Let's talk");
+            var second = PlanChatSessions.Send(service, execution, planService, TestAgentRunner.Create(), config, plan, "Again");
+
+            Assert.Equal(first, second);
+            Assert.Equal(plan.FolderName, service.GetSession(first)?.PlanFolderName);
+            Assert.Equal((plan.FolderName, first), planService.LastChatSessionAssignment);
+            Assert.Equal(2, execution.Sent.Count);
+            Assert.Equal(("Let's talk", "codex"), (execution.Sent[0].Prompt, execution.Sent[0].AgentId));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void DiscussPrompt_FollowsThePlansStage()
+    {
+        Assert.Contains("before executing it", PlanChatSessions.DiscussPrompt(CreatePlan(1, "Draft")));
+        Assert.Contains("outcome of this plan", PlanChatSessions.DiscussPrompt(CreatePlan(2, "Done", PlanStatus.Review)));
     }
 
     [Fact]

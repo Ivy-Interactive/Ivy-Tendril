@@ -27,9 +27,9 @@ public sealed class PlanWorkspaceActions
 
     public PlanWorkspaceActions Menu(
         string tag, string label, Icons? icon, Action handler,
-        string? shortcut = null, bool disabled = false, bool danger = false)
+        string? shortcut = null, bool disabled = false, bool danger = false, bool focusChat = false)
     {
-        MenuItems.Add(new PlanActionDto(tag, label, icon?.ToString(), shortcut, Disabled: disabled, Danger: danger));
+        MenuItems.Add(new PlanActionDto(tag, label, icon?.ToString(), shortcut, Disabled: disabled, Danger: danger, FocusChat: focusChat));
         _handlers[tag] = handler;
         return this;
     }

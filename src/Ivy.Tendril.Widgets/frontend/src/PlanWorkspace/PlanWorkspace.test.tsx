@@ -123,6 +123,23 @@ describe("PlanWorkspace", () => {
     expect(screen.queryByText("question rows")).not.toBeInTheDocument();
   });
 
+  it("marks the Questions icon until its dropdown has been opened for the plan", () => {
+    renderWorkspace(vi.fn(), { unansweredQuestions: 2, planId: "#77" });
+    const questionsButton = () => screen.getByRole("button", { name: /Questions/ });
+    expect(questionsButton()).toHaveAttribute("data-indicator", "true");
+
+    fireEvent.click(questionsButton());
+    expect(questionsButton()).toHaveAttribute("data-indicator", "false");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(questionsButton()).toHaveAttribute("data-indicator", "false");
+  });
+
+  it("shows no indicator when every question is answered", () => {
+    renderWorkspace(vi.fn(), { unansweredQuestions: 0, planId: "#78" });
+    expect(screen.getByRole("button", { name: /Questions/ })).toHaveAttribute("data-indicator", "false");
+  });
+
   it("hides the dropdown icons when their slots are empty", () => {
     renderWorkspace(vi.fn(), { slots: { Content: [<div key="c" />], Verifications: [], Questions: undefined } });
     expect(screen.queryByRole("button", { name: "Verifications" })).not.toBeInTheDocument();

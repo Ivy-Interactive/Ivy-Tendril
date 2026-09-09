@@ -50,6 +50,8 @@ export interface PlanWorkspaceProps {
   chatWidth?: number;
   verificationsLabel?: string;
   questionsLabel?: string;
+  /** Unanswered questions; a dot marks the Questions icon until its dropdown is opened for this plan. */
+  unansweredQuestions?: number;
   events?: string[];
   eventHandler?: IvyEventHandler;
   slots?: PlanWorkspaceSlots;

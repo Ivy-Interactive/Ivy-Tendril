@@ -78,6 +78,9 @@ public record PlanWorkspace : WidgetBase<PlanWorkspace>
     [Prop] public string VerificationsLabel { get; init; } = "Verifications";
     [Prop] public string QuestionsLabel { get; init; } = "Questions";
 
+    /// <summary>Unanswered questions; a dot marks the Questions icon until its dropdown is opened for this plan.</summary>
+    [Prop] public int UnansweredQuestions { get; init; }
+
     [Event] public EventHandler<Event<PlanWorkspace, string>>? OnTabSelect { get; init; }
     [Event] public EventHandler<Event<PlanWorkspace, string>>? OnAction { get; init; }
 }
@@ -113,6 +116,8 @@ public static class PlanWorkspaceExtensions
         w with { VerificationsLabel = label };
 
     public static PlanWorkspace QuestionsLabel(this PlanWorkspace w, string label) => w with { QuestionsLabel = label };
+
+    public static PlanWorkspace UnansweredQuestions(this PlanWorkspace w, int count) => w with { UnansweredQuestions = count };
 
     public static PlanWorkspace OnTabSelect(this PlanWorkspace w, Action<string> handler) =>
         w with { OnTabSelect = new(e => { handler(e.Value); return ValueTask.CompletedTask; }) };
