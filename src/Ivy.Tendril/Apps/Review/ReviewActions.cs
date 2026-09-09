@@ -1,4 +1,6 @@
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.AppShell;
+using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -103,6 +105,12 @@ public static class ReviewActions
                     PlanChatSessions.Send(ctx.ChatService, ctx.ChatExecution, ctx.PlanService, ctx.AgentRunner, config, plan,
                         PlanChatSessions.DiscussPrompt(plan)),
                 focusChat: true);
+        }
+        else
+        {
+            actions.Menu("DiscussWithAgent", $"Discuss with {agentLabel}", agentIcon, () => ChatLauncher.Open(ctx.Nav, config,
+                $"User wants to discuss the plan {plan.FolderPath} currently in Review mode.",
+                $"#{TendrilAppShell.FormatPlanId(plan.FolderName)}"));
         }
 
         return actions

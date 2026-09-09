@@ -1035,8 +1035,8 @@ describe("ChatWidget File Uploads and Attachments", () => {
     expect(screen.getByRole("button", { name: /Stop/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Queue/i })).toBeInTheDocument();
 
-    // Immediately shows the Starting... status indicator
-    expect(screen.getByText("Starting…")).toBeInTheDocument();
+    // Immediately shows the Thinking status indicator
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
 
     // Clicking Stop cancels optimistic stream
     const stopBtn = screen.getByRole("button", { name: /Stop/i });

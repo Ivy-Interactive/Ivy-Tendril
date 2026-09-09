@@ -5,7 +5,7 @@ using Ivy.Core;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.AppShell;
 using Ivy.Tendril.Models;
-using Ivy.Tendril.Apps.Agent;
+using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Review.Dialogs;
 using Ivy.Tendril.Apps.Review.Tabs;
@@ -290,10 +290,17 @@ public class ContentView(
         if (!isShareMode)
             AddPrimaryAction(actions, selectedPlan, context, showCreatePrDialog, showDiscardDialog);
 
+        Action discussInChat = chatService != null && chatExecution != null
+            ? () => PlanChatSessions.Send(chatService, chatExecution, planService, agentRunner, config, selectedPlan,
+                PlanChatSessions.DiscussPrompt(selectedPlan))
+            : () => ChatLauncher.Open(nav, config,
+                $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode.",
+                $"#{TendrilAppShell.FormatPlanId(selectedPlan.FolderName)}");
+
         var page = BuildPage(
             selectedPlan, planContentQuery, selectedTab, sheets,
             syncingWorktrees, selectedRecTitles, context, showDebugJob, showCostJob, draftComments,
-            ImplementRecommendations);
+            ImplementRecommendations, discussInChat);
 
         var workspace = actions.ApplyTo(new PlanWorkspace(
                 page.Content,
@@ -401,7 +408,8 @@ public class ContentView(
         Action<string> showDebugJob,
         Action<string> showCostJob,
         IState<List<DraftComment>> draftComments,
-        Action onImplementRecommendations)
+        Action onImplementRecommendations,
+        Action onDiscussWithAgent)
     {
         var (client, logger, nav, args, copyToClipboard) = context;
         var (openVerification, openCommit, openFile, openArtifact, artifactContentQuery) = sheets;
@@ -522,9 +530,7 @@ public class ContentView(
                               jobService,
                               refreshPlans,
                               selectedPlan.Project,
-                              onDiscussWithAgent: () => nav.Navigate<AgentApp>(new AgentAppArgs(
-                                  $"User wants to discuss the plan {selectedPlan.FolderPath} currently in Review mode.",
-                                  $"#{TendrilAppShell.FormatPlanId(selectedPlan.FolderName)}"))),
+                              onDiscussWithAgent: onDiscussWithAgent),
             ArtifactsTab => Cap(new ArtifactsTabView(planData.Artifacts)),
             RecommendationsTab => Cap(new RecommendationsTabView(pendingRecs, selectedRecTitles, config, onImplementRecommendations, onLinkClick)),
             _ => new SummaryTabView(config, planData.SummaryMarkdown, onLinkClick, planContentQuery.Loading)

@@ -8,9 +8,11 @@ using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Agents.Providers;
 using Ivy.Tendril.AppShell;
+using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Apps.Chat.Dialogs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Jobs;
 using Ivy.Tendril.Widgets;
@@ -27,6 +29,9 @@ public class ChatApp : ViewBase
     internal static string? PlanTag(ChatSessionModel session) =>
         string.IsNullOrEmpty(session.PlanFolderName) ? null : $"#{TendrilAppShell.FormatPlanId(session.PlanFolderName)}";
 
+    internal static ChatJobDto ToJobDto(JobItem job) =>
+        new(job.Id, job.Type, job.Status.ToString(), job.ReportedPlanId, job.ReportedPlanTitle, job.StatusMessage);
+
     internal static List<ShellBadgeDto>? BuildRowBadges(
         ChatSessionModel session,
         string? selectedId,
@@ -38,23 +43,34 @@ public class ChatApp : ViewBase
         return null;
     }
 
-    /// <summary>The Chats list the shell sidebar shows while this app is open; selecting a row navigates here with that session.</summary>
+    /// <summary>
+    ///     The Chats list the shell sidebar shows while this app (or a terminal session) is open.
+    ///     Terminal sessions are listed too; the shell reroutes their selection to the terminal pane.
+    /// </summary>
     internal static ShellSidebarListState BuildSidebarList(
         IReadOnlyList<ChatSessionModel> sessions,
         string? selectedId,
         IReadOnlySet<string> generatingIds,
         IReadOnlySet<string> completedIds,
-        Action openSearch)
+        Action openSearch,
+        Action? startNewChat = null)
     {
         var items = sessions
-            .Select(s => new ShellSectionItemDto(s.Id, DisplayTitle(s), PlanTag(s), BuildRowBadges(s, selectedId, generatingIds, completedIds)))
+            .Select(s => new ShellSectionItemDto(
+                s.Id,
+                DisplayTitle(s),
+                PlanTag(s),
+                BuildRowBadges(s, selectedId, generatingIds, completedIds),
+                Icon: s.IsTerminal() ? "Terminal" : null))
             .ToList();
         return new ShellSidebarListState(
             "chat", "Chats", items, selectedId,
             id => new ChatAppArgs(SessionId: id),
             Searchable: true,
             OnSearch: openSearch,
-            SearchLabel: "Search chats");
+            SearchLabel: "Search chats",
+            OnNew: startNewChat,
+            NewLabel: startNewChat != null ? "New chat" : null);
     }
 
     public override object Build()
@@ -135,16 +151,29 @@ public class ChatApp : ViewBase
             });
         });
 
-        // The session the args name, when it still exists, else the most recent one.
-        ChatSessionModel? InitialSession() =>
-            (!string.IsNullOrEmpty(args?.SessionId) ? chatService.GetSession(args.SessionId) : null)
-            ?? chatService.GetSessions().FirstOrDefault();
+        // The chat session the args name, when it still exists; a bare prompt starts a fresh chat;
+        // otherwise the most recent chat. Terminal sessions belong to the AgentApp pane, never here.
+        ChatSessionModel? InitialSession()
+        {
+            if (!string.IsNullOrEmpty(args?.SessionId))
+            {
+                var named = chatService.GetSession(args.SessionId);
+                if (named != null && !named.IsTerminal()) return named;
+            }
+            if (!string.IsNullOrEmpty(args?.Prompt)) return null;
+            return chatService.GetSessions().FirstOrDefault(s => !s.IsTerminal());
+        }
 
         void SelectSession(string sessionId)
         {
+            var sess = chatService.GetSession(sessionId);
+            if (sess?.IsTerminal() == true)
+            {
+                navigator.Navigate(typeof(AgentApp), new AgentAppArgs(SessionId: sessionId));
+                return;
+            }
             activeSessionId.Set(sessionId);
             chatService.ClearSessionCompleted(sessionId);
-            var sess = chatService.GetSession(sessionId);
             if (sess != null)
             {
                 if (!string.IsNullOrEmpty(sess.AgentId)) selectedAgent.Set(sess.AgentId);
@@ -158,7 +187,8 @@ public class ChatApp : ViewBase
 
         _ = sessionVersion.Value;
         _ = streamVersion.Value;
-        var sessions = chatService.GetSessions();
+        var allSessions = chatService.GetSessions();
+        var sessions = allSessions.Where(s => !s.IsTerminal()).ToList();
         var currentSessionId = activeSessionId.Value;
         var activeSession = currentSessionId != null ? chatService.GetSession(currentSessionId) : null;
         var isSessionGenerating = currentSessionId != null && executionService.IsGenerating(currentSessionId);
@@ -184,6 +214,17 @@ public class ChatApp : ViewBase
             .Select(s => ToSessionDto(s, s.Id == currentSessionId, executionService, jobService, chatService))
             .ToList();
 
+        void StartNewChat()
+        {
+            if (ChatLauncher.UsesTerminal(configService))
+            {
+                navigator.Navigate(typeof(AgentApp), new AgentAppArgs());
+                return;
+            }
+            var newSess = chatService.CreateSession(selectedAgent.Value, effectiveModel, effort: effectiveEffort, kind: ChatSessionKinds.Chat);
+            SelectSession(newSess.Id);
+        }
+
         void SendMessage(ChatSendMessageDto dto)
         {
             var userPrompt = dto.Prompt?.Trim() ?? string.Empty;
@@ -193,7 +234,7 @@ public class ChatApp : ViewBase
             string targetSessionId = !string.IsNullOrEmpty(dto.SessionId) ? dto.SessionId : (activeSessionId.Value ?? string.Empty);
             if (string.IsNullOrEmpty(targetSessionId))
             {
-                var newSess = chatService.CreateSession(selectedAgent.Value, effectiveModel, effort: effectiveEffort);
+                var newSess = chatService.CreateSession(selectedAgent.Value, effectiveModel, effort: effectiveEffort, kind: ChatSessionKinds.Chat);
                 targetSessionId = newSess.Id;
                 SelectSession(targetSessionId);
             }
@@ -229,7 +270,7 @@ public class ChatApp : ViewBase
             var targetId = activeSessionId.Value;
             if (string.IsNullOrEmpty(targetId))
             {
-                var newSess = chatService.CreateSession(selectedAgent.Value, effectiveModel, effort: effectiveEffort);
+                var newSess = chatService.CreateSession(selectedAgent.Value, effectiveModel, effort: effectiveEffort, kind: ChatSessionKinds.Chat);
                 targetId = newSess.Id;
                 SelectSession(targetId);
             }
@@ -237,11 +278,12 @@ public class ChatApp : ViewBase
         }
 
         _ = sidebarListSignal.Send(BuildSidebarList(
-            sessions,
+            allSessions,
             currentSessionId,
             chatService.GetGeneratingSessionIds(),
             chatService.GetCompletedSessionIds(),
-            showSearchDialog));
+            showSearchDialog,
+            StartNewChat));
 
         var content = new ContentView(
             activeSession,
@@ -263,7 +305,8 @@ public class ChatApp : ViewBase
             executionService,
             agentRunner,
             SendMessage,
-            SelectSession
+            SelectSession,
+            StartNewChat
         );
 
         return new Fragment(content, searchDialog);
@@ -335,14 +378,7 @@ public class ChatApp : ViewBase
                 {
                     var job = jobService.GetJob(jId);
                     if (job == null) return new ChatJobDto(jId, "Job", "Unknown");
-                    return new ChatJobDto(
-                        job.Id,
-                        job.Type,
-                        job.Status.ToString(),
-                        job.ReportedPlanId,
-                        job.ReportedPlanTitle,
-                        job.StatusMessage
-                    );
+                    return ToJobDto(job);
                 }).ToList();
             }
         }

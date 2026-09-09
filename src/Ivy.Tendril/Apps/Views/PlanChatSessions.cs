@@ -41,7 +41,8 @@ internal static class PlanChatSessions
         string? effort)
     {
         var session = chatService.CreateSession(
-            agentId, modelId, title: $"#{plan.Id} {plan.Title}", effort: effort, planFolderName: plan.FolderName);
+            agentId, modelId, title: $"#{plan.Id} {plan.Title}", effort: effort,
+            kind: ChatSessionKinds.Chat, planFolderName: plan.FolderName);
 
         if (string.IsNullOrEmpty(plan.ChatSessionId))
             planService?.SetChatSessionId(plan.FolderName, session.Id);

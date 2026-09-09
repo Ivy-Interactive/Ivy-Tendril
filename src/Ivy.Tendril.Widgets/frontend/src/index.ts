@@ -7,6 +7,7 @@ import { ContentInput } from "./ContentInput/ContentInput";
 import { BadgeSelect } from "./BadgeSelect";
 import { PlanDiffView } from "./PlanDiffView/PlanDiffView";
 import { ChatWidget } from "./ChatWidget/ChatWidget";
+import { TerminalSessionHeader } from "./ChatWidget/TerminalSessionHeader";
 import { WebViewer } from "./WebViewer";
 import { TendrilShell } from "./Shell/TendrilShell";
 import { ShellSidebarHeader } from "./Shell/ShellSidebarHeader";
@@ -31,6 +32,7 @@ if (typeof window !== "undefined") {
     BadgeSelect,
     PlanDiffView,
     ChatWidget,
+    TerminalSessionHeader,
     WebViewer,
     TendrilShell,
     ShellSidebarHeader,
@@ -56,6 +58,7 @@ export {
   BadgeSelect,
   PlanDiffView,
   ChatWidget,
+  TerminalSessionHeader,
   WebViewer,
   TendrilShell,
   ShellSidebarHeader,

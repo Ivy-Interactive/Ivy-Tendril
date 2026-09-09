@@ -242,6 +242,94 @@ describe("ShellSidebarSection", () => {
     vi.useRealTimers();
   });
 
+  it("renders a new-chat button that fires OnNew when newLabel is set", () => {
+    const eventHandler = vi.fn();
+    render(
+      <ShellSidebarSection
+        id="sec-1"
+        title="Chats"
+        items={mockItems}
+        newLabel="New chat"
+        events={["OnNew"]}
+        eventHandler={eventHandler}
+      />,
+    );
+
+    const newBtn = screen.getByRole("button", { name: "New chat" });
+    expect(newBtn).toHaveClass("tsh-section-new");
+
+    fireEvent.click(newBtn);
+    expect(eventHandler).toHaveBeenCalledWith("OnNew", "sec-1", []);
+  });
+
+  it("does not render a new-chat button without newLabel", () => {
+    render(
+      <ShellSidebarSection id="sec-1" title="Chats" items={mockItems} eventHandler={vi.fn()} />,
+    );
+
+    expect(screen.queryByRole("button", { name: "New chat" })).not.toBeInTheDocument();
+  });
+
+  it("uses the title header instead of the full-width Search button when newLabel is set and the list is empty", () => {
+    render(
+      <ShellSidebarSection
+        id="sec-1"
+        title="Chats"
+        items={[]}
+        searchable={true}
+        newLabel="New chat"
+        events={["OnSearch", "OnNew"]}
+        eventHandler={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Chats")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /search plans/i })).toHaveClass("tsh-section-search");
+    expect(screen.queryByRole("button", { name: /^Search$/i })).not.toBeInTheDocument();
+  });
+
+  it("renders the new-chat button on the collapsed rail", () => {
+    const eventHandler = vi.fn();
+    render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellSidebarSection
+          id="sec-1"
+          title="Chats"
+          items={mockItems}
+          newLabel="New chat"
+          events={["OnNew"]}
+          eventHandler={eventHandler}
+        />
+      </ShellContext.Provider>,
+    );
+
+    const railNewBtn = screen.getByRole("button", { name: "New chat" });
+    expect(railNewBtn).toHaveClass("tsh-rail-new");
+
+    fireEvent.click(railNewBtn);
+    expect(eventHandler).toHaveBeenCalledWith("OnNew", "sec-1", []);
+  });
+
+  it("renders the mapped icon for an item with icon: Terminal", () => {
+    const itemsWithIcon: ShellSectionItemDto[] = [{ id: "term-1", title: "Terminal Session", icon: "Terminal" }];
+    const { container } = render(
+      <ShellSidebarSection id="sec-1" title="Chats" items={itemsWithIcon} eventHandler={vi.fn()} />,
+    );
+
+    const iconWrap = container.querySelector(".tsh-section-item-icon");
+    expect(iconWrap).toBeInTheDocument();
+    expect(iconWrap?.querySelector("svg")).toBeInTheDocument();
+  });
+
+  it("renders no icon for an item without a recognized icon name", () => {
+    const itemsWithoutIcon: ShellSectionItemDto[] = [{ id: "plain-1", title: "Plain Item" }];
+    const { container } = render(
+      <ShellSidebarSection id="sec-1" title="Chats" items={itemsWithoutIcon} eventHandler={vi.fn()} />,
+    );
+
+    expect(container.querySelector(".tsh-section-item-icon")).not.toBeInTheDocument();
+  });
+
   it("displays custom tooltip with plan title and badges when hovering collapsed rail plan item", () => {
     vi.useFakeTimers();
     const itemsWithBadges: ShellSectionItemDto[] = [

@@ -154,6 +154,7 @@ public class PlanChatView(PlanFile plan) : ViewBase
             agentRunner,
             SendMessage,
             id => activeSessionId.Set(id),
+            startNewChat: () => { },
             embedded: true);
 
         string DefaultAgent(ChatSessionModel? sess) =>
