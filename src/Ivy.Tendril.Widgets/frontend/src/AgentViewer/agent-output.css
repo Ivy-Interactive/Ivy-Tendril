@@ -522,6 +522,12 @@
   margin: 6px 0;
 }
 
+.aov-result-error {
+  white-space: pre-wrap;
+  font-family: var(--aov-mono);
+  color: var(--aov-danger);
+}
+
 .aov-result-stats {
   display: flex;
   flex-wrap: wrap;
