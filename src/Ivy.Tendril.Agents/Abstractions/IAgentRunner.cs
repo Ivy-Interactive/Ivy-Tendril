@@ -17,4 +17,5 @@ public interface IAgentRunner
     IAgentPty? GetPty(string agentId);
     IModelCatalogProvider? GetModelCatalog(string agentId);
     IEnumerable<IModelCatalogProvider> ModelCatalogs { get; }
+    IAgentUsageProvider? GetUsageProvider(string agentId) => null;
 }

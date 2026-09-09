@@ -16,6 +16,7 @@ public sealed class AgentRunner(ILogger<AgentRunner> logger, ConcurrencyOptions?
     private readonly Dictionary<string, IAgentHealthCheck> _healthChecks = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, IFailureAnalyzer> _failureAnalyzers = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, ISessionCostParser> _costParsers = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, IAgentUsageProvider> _usageProviders = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, IAgentPty> _ptys = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, IModelCatalogProvider> _modelCatalogs = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<IAgentSession> _activeSessions = [];
@@ -55,7 +56,8 @@ public sealed class AgentRunner(ILogger<AgentRunner> logger, ConcurrencyOptions?
         IFailureAnalyzer? failureAnalyzer = null,
         ISessionCostParser? costParser = null,
         IAgentPty? pty = null,
-        IModelCatalogProvider? modelCatalog = null)
+        IModelCatalogProvider? modelCatalog = null,
+        IAgentUsageProvider? usageProvider = null)
     {
         _clis[cli.Id] = cli;
         _parsers[cli.Id] = parser;
@@ -64,6 +66,7 @@ public sealed class AgentRunner(ILogger<AgentRunner> logger, ConcurrencyOptions?
         if (costParser is not null) _costParsers[cli.Id] = costParser;
         if (pty is not null) _ptys[cli.Id] = pty;
         if (modelCatalog is not null) _modelCatalogs[cli.Id] = modelCatalog;
+        if (usageProvider is not null) _usageProviders[cli.Id] = usageProvider;
         return this;
     }
 
@@ -72,6 +75,9 @@ public sealed class AgentRunner(ILogger<AgentRunner> logger, ConcurrencyOptions?
 
     public ISessionCostParser? GetCostParser(string agentId)
         => _costParsers.GetValueOrDefault(agentId);
+
+    public IAgentUsageProvider? GetUsageProvider(string agentId)
+        => _usageProviders.GetValueOrDefault(agentId);
 
     public IAgentPty? GetPty(string agentId)
         => _ptys.GetValueOrDefault(agentId);
