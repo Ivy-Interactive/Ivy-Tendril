@@ -136,7 +136,7 @@ public class AgentApp : ViewBase
             .Closed(ptyHandle.Closed)
             .AllowClipboard()
             .Loading($"Starting {agentLabel}...")
-            .Height(Size.Grow());
+            .Height(Size.Full());
 
         var pane = Layout.Vertical().Gap(0).Full().RemoveParentPadding()
                    | header

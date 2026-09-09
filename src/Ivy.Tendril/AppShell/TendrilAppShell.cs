@@ -344,6 +344,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             {
                 sessionsVersion.Set(v => v + 1);
                 CloseTabsOfDeletedSessions();
+                if (selectedIndex.Value is { } active && CheckTabExists(active) && IsAgentTab(tabs.Value[active]))
+                    SetTabTitle(tabs.Value[active]);
             }
 
             chatService.SessionsChanged += OnSessionsChanged;
