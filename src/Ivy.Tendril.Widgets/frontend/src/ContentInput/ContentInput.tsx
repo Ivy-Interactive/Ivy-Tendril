@@ -97,10 +97,7 @@ interface ContentInputProps {
   value?: string;
   transcriptionUrl?: string;
   uploadUrl?: string;
-  models?: string[];
   selectedModel?: string;
-  projects?: string[];
-  selectedProject?: string;
   attachedFiles?: AttachedFile[];
   submitLabel?: string;
   menuOptions?: string[];
