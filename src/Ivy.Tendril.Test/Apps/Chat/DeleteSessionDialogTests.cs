@@ -25,7 +25,7 @@ public class DeleteSessionDialogTests
 
         public IReadOnlyList<ChatSessionModel> GetSessions() => Sessions;
         public ChatSessionModel? GetSession(string id) => Sessions.Find(s => s.Id == id);
-        public ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null)
+        public ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null, string? planFolderName = null)
         {
             var session = new ChatSessionModel(Guid.NewGuid().ToString(), title ?? "New Chat", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, agentId, modelId, [], effort);
             Sessions.Add(session);

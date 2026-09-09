@@ -1700,3 +1700,93 @@ button.chat-system-event-plan {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ---------- Embedded (plan chat panel) ----------
+   The panel that hosts the widget draws the frame, so the widget drops its title bar and the
+   composer takes the prototype's tighter measurements (16px icons, 28px buttons). */
+
+.chat-widget-root[data-embedded="true"] .chat-header--embedded {
+  justify-content: flex-end;
+  height: auto;
+  padding: 0 0 8px;
+  border-bottom: none;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-thread {
+  padding: 0;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-empty-state {
+  gap: 0;
+  padding: 32px 16px;
+  width: 100%;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-empty-greeting {
+  width: 100%;
+  font-size: 20px;
+  font-weight: 300;
+  line-height: 26px;
+  color: var(--tch-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-empty-headline {
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 26px;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-footer {
+  padding: 12px 0 0;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-input-box {
+  border-radius: 12px;
+  padding: 8px 8px 8px 14px;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-input-row {
+  min-height: 28px;
+  gap: 12px;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-attach-btn {
+  margin-left: 0;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-textarea {
+  min-height: 28px;
+  padding: 4px 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-textarea::placeholder {
+  opacity: 0.8;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-input-tools {
+  gap: 6px;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-icon-btn,
+.chat-widget-root[data-embedded="true"] .chat-send-btn,
+.chat-widget-root[data-embedded="true"] .chat-stop-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-agent-trigger {
+  height: 28px;
+  padding: 6px;
+  border-radius: 8px;
+  opacity: 0.9;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-agent-trigger[data-compact="true"] {
+  gap: 0;
+}

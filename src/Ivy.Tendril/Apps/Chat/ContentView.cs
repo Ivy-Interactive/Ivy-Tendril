@@ -35,7 +35,8 @@ public class ContentView(
     IChatExecutionService executionService,
     IAgentRunner agentRunner,
     Action<ChatSendMessageDto> sendMessage,
-    Action<string> selectSession) : ViewBase
+    Action<string> selectSession,
+    bool embedded = false) : ViewBase
 {
     /// <summary>The plan a job event names, by folder, numeric id or zero-padded id.</summary>
     internal static PlanFile? FindPlan(IPlanReaderService planService, string planId)
@@ -120,6 +121,7 @@ public class ContentView(
             RunningJobs = runningJobs,
             Greeting = greeting,
             Headline = headline,
+            Embedded = embedded,
 
             OnSelectSession = e =>
             {

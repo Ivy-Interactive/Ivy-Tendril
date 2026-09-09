@@ -6,13 +6,13 @@ using Ivy.Tendril.Services.Plans;
 namespace Ivy.Tendril.Apps.Plans;
 
 /// <summary>
-///     Sticky-sidebar card listing a plan's verifications as checkboxes. Toggling a checkbox
+///     The Verifications dropdown in the tab strip: a plan's verifications as checkboxes. Toggling a checkbox
 ///     persists the new status (Pending when checked, Skipped when unchecked) to plan.yaml
 ///     immediately. Editing is only allowed while the plan is in Draft — once it has run the
 ///     checkboxes are disabled and show the real Pass/Fail/Skipped status. The list is the
 ///     plan.yaml snapshot; the Required flag is read live from the project config.
 /// </summary>
-public class VerificationsCardView(
+public class VerificationsPanelView(
     PlanFile selectedPlan,
     IPlanReaderService planService,
     IConfigService config) : ViewBase
@@ -46,7 +46,7 @@ public class VerificationsCardView(
                     status => planService.SetVerificationStatus(selectedPlan.FolderName, v.Name, status));
         }
 
-        return new Card(inner).Header("Verifications").Width(Size.Px(280));
+        return inner.Width(Size.Full());
     }
 }
 

@@ -18,22 +18,20 @@ public class PlanTabView(
     IState<ImmutableList<MarkdownAnnotation>> annotations,
     IState<string> revisionContent,
     Action<QuestionAnswer> onAnswerChanged,
+    QuestionScrollTarget? scrollTo,
     string? currentAuthor = null) : ViewBase
 {
     public override object Build()
     {
         var draftAnnotationService = UseService<Ivy.Tendril.Services.Plans.IPlanAnnotationService>();
-        // Brings a question into view when its card entry is clicked. The token is what makes a
-        // repeat click work — an unchanged id compares equal and nothing would move.
-        var scrollTo = UseState<QuestionScrollTarget?>(() => null);
 
         if (isEditing)
         {
-            // The Plan tab is no longer wrapped in Cap(), so provide the scroll,
-            // full height, and 1.5rem left inset (Padding(6,…)) here.
+            // The Plan tab is not wrapped in Cap(), so provide the scroll, full height and the
+            // workspace inset (24px top, 32px sides) here.
             return Layout.Vertical().Scroll(Scroll.Vertical).Width(Size.Full()).Height(Size.Full())
                 | (Layout.Vertical()
-                    .Padding(6, 0, 0, 4)
+                    .Padding(8, 6, 8, 4)
                     .Width(Size.Full().Max(Size.Units(200)))
                     | editContentState.ToCodeInput()
                         .Language(Languages.Markdown)
@@ -49,17 +47,6 @@ public class PlanTabView(
             // otherwise the polished form would be what gets written back.
             var raw = revisionContent.Value;
             var annotatedContent = MarkdownHelper.PrepareForDisplay(raw, config);
-            var questions = QuestionAnswers.Read(raw);
-
-            var sticky = Layout.Vertical().Gap(4);
-            if (questions.Count > 0)
-            {
-                sticky |= new QuestionsCardView(
-                    questions,
-                    id => scrollTo.Set(new QuestionScrollTarget(id, (scrollTo.Value?.Token ?? 0) + 1)));
-            }
-
-            sticky |= new VerificationsCardView(selectedPlan, planService, config);
 
             Action<string> onLinkClick = FileSheet.CreateLinkClickHandler(openFileState, planId =>
             {
@@ -77,7 +64,6 @@ public class PlanTabView(
                 .Article()
                 .DangerouslyAllowLocalFiles()
                 .Height(Size.Full())
-                .StickyContent(sticky)
                 .Annotations(annotations.Value)
                 .CurrentAuthor(currentAuthor)
                 .OnAnnotationsChange(a =>
@@ -86,7 +72,7 @@ public class PlanTabView(
                     _ = draftAnnotationService.SaveAnnotationsAsync(selectedPlan.FolderPath, a);
                 })
                 .OnAnswersChange(onAnswerChanged)
-                .ScrollTo(scrollTo.Value)
+                .ScrollTo(scrollTo)
                 .OnLinkClick(onLinkClick);
 
             return planLayout;

@@ -16,7 +16,8 @@ public class PlanTabView(
     IState<PlanFile?> selectedPlanState,
     IState<string?> openFile,
     IPlanReaderService planService,
-    IConfigService config) : ViewBase
+    IConfigService config,
+    QuestionScrollTarget? scrollTo = null) : ViewBase
 {
     public override object Build()
     {
@@ -33,6 +34,7 @@ public class PlanTabView(
             .DangerouslyAllowLocalFiles()
             .Article()
             .Height(Size.Full())
+            .ScrollTo(scrollTo)
             .OnLinkClick(FileSheet.CreateLinkClickHandler(openFile, planId =>
             {
                 var planFolder = Directory.GetDirectories(planService.PlansDirectory, $"{planId:D5}-*")

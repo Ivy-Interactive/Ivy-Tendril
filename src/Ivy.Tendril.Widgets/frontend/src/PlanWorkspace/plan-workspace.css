@@ -1,0 +1,599 @@
+/* Plan workspace: the Drafts/Review page frame from the Figma prototype (chat-reveal-side).
+   Light values are the prototype's hexes; everything derives from the host theme variables so
+   dark mode and alternate themes recolor it. */
+
+.pws-root {
+  --pws-bg: var(--background, #ffffff);
+  --pws-fg: var(--foreground, #000000);
+  --pws-fg-title: var(--foreground, #202221);
+  --pws-muted: color-mix(in srgb, var(--foreground, #000000) 60%, transparent);
+  --pws-border: var(--border, #e0e0e0);
+  --pws-active-bg: color-mix(in srgb, var(--foreground, #000000) 4%, var(--background, #ffffff));
+  --pws-hover-bg: color-mix(in srgb, var(--foreground, #000000) 7%, var(--background, #ffffff));
+  --pws-popover: var(--popover, #ffffff);
+  --pws-cta-bg: var(--primary, #000000);
+  --pws-cta-fg: var(--primary-foreground, #ffffff);
+  --pws-danger: var(--destructive, #ef4444);
+  --pws-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.18), 0 4px 12px -2px rgba(0, 0, 0, 0.1);
+  --pws-chat-width: 420px;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  background: var(--pws-bg);
+  color: var(--pws-fg);
+  font-family: var(--font-sans, "Geist", sans-serif);
+}
+
+.dark .pws-root {
+  --pws-active-bg: color-mix(in srgb, var(--foreground, #f8f8f8) 8%, var(--background, #000000));
+  --pws-hover-bg: color-mix(in srgb, var(--foreground, #f8f8f8) 12%, var(--background, #000000));
+  --pws-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.6), 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+}
+
+.pws-root * {
+  box-sizing: border-box;
+}
+
+.pws-root[data-dragging="true"] {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.pws-root[data-dragging="true"] iframe {
+  pointer-events: none;
+}
+
+@keyframes pws-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.pws-spin {
+  animation: pws-spin 1.2s linear infinite;
+}
+
+/* ---------- Top bar ---------- */
+
+.pws-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+  height: 48px;
+  padding: 8px 8px 8px 20px;
+  border-bottom: 1px solid var(--pws-border);
+}
+
+.pws-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  flex: 1;
+}
+
+.pws-title-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 16px;
+  line-height: normal;
+  color: var(--pws-fg-title);
+}
+
+.pws-plan-id {
+  flex-shrink: 0;
+  font-weight: 400;
+}
+
+.pws-title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pws-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 3px 6px;
+  border-radius: 6px;
+  color: var(--pws-muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.pws-source:hover {
+  background: var(--pws-hover-bg);
+  color: var(--pws-fg);
+}
+
+.pws-meta {
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--pws-fg-title);
+  white-space: nowrap;
+}
+
+.pws-topbar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.pws-icon-group {
+  display: flex;
+  align-items: center;
+}
+
+.pws-icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pws-fg);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.pws-icon-btn:hover:not(:disabled) {
+  background: var(--pws-hover-bg);
+}
+
+.pws-icon-btn[data-active="true"] {
+  background: var(--pws-active-bg);
+}
+
+.pws-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pws-icon-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 7px;
+  background: var(--pws-cta-bg);
+  color: var(--pws-cta-fg);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 14px;
+  text-align: center;
+}
+
+.pws-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 4px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: normal;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: opacity 150ms ease, background-color 120ms ease;
+}
+
+.pws-btn--primary {
+  background: var(--pws-cta-bg);
+  color: var(--pws-cta-fg);
+}
+
+.pws-btn--primary:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.pws-btn--secondary {
+  background: transparent;
+  border-color: var(--pws-border);
+  color: var(--pws-fg);
+}
+
+.pws-btn--secondary:hover:not(:disabled) {
+  background: var(--pws-hover-bg);
+}
+
+.pws-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pws-btn-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--pws-cta-bg);
+  color: var(--pws-cta-fg);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pws-btn--primary .pws-btn-badge {
+  background: color-mix(in srgb, var(--pws-cta-fg) 22%, transparent);
+}
+
+.pws-kbd {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.pws-btn-kbd {
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+}
+
+.pws-persona {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pws-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--pws-active-bg);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pws-persona-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Overflow menu ---------- */
+
+.pws-menu-wrap {
+  position: relative;
+}
+
+.pws-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 40;
+  min-width: 232px;
+  padding: 4px;
+  border: 1px solid var(--pws-border);
+  border-radius: 8px;
+  background: var(--pws-popover);
+  box-shadow: var(--pws-shadow);
+}
+
+.pws-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pws-fg);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pws-menu-item:hover:not(:disabled) {
+  background: var(--pws-hover-bg);
+}
+
+.pws-menu-item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pws-menu-item[data-danger="true"] {
+  color: var(--pws-danger);
+}
+
+.pws-menu-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.pws-menu-item-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pws-menu-item .pws-kbd {
+  margin-left: 12px;
+  opacity: 0.55;
+}
+
+/* ---------- Body: plan pane + chat panel ---------- */
+
+.pws-body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pws-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pws-toolbar {
+  flex-shrink: 0;
+}
+
+.pws-tabs-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 8px 12px 0;
+}
+
+.pws-tabs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.pws-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.pws-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 38px;
+  padding: 4px 12px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--pws-fg);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: normal;
+  white-space: nowrap;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+
+.pws-tab:hover {
+  opacity: 0.85;
+}
+
+.pws-tab[aria-selected="true"] {
+  border-bottom-color: var(--pws-fg);
+  opacity: 1;
+}
+
+.pws-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--pws-active-bg);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.pws-tab-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 7px 8px 0;
+}
+
+.pws-tool-wrap {
+  position: relative;
+}
+
+.pws-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pws-fg);
+  opacity: 0.75;
+  cursor: pointer;
+  transition: background-color 120ms ease, opacity 120ms ease;
+}
+
+.pws-tool-btn:hover,
+.pws-tool-btn[data-active="true"] {
+  background: var(--pws-active-bg);
+  opacity: 1;
+}
+
+.pws-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 288px;
+  max-width: min(440px, calc(100vw - 32px));
+  max-height: min(60vh, 520px);
+  overflow: auto;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--pws-border);
+  border-radius: 12px;
+  background: var(--pws-popover);
+  box-shadow: var(--pws-shadow);
+}
+
+.pws-dropdown-title {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pws-muted);
+}
+
+.pws-dropdown-body {
+  min-width: 0;
+}
+
+.pws-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pws-content > * {
+  flex: 1;
+  min-height: 0;
+}
+
+/* The markdown viewer sits inside the workspace: the prototype's 24px top / 32px side inset,
+   in place of the 1.5rem left gutter it uses on its own. */
+.pws-content .pmv-markdown {
+  padding: 24px 32px 32px;
+}
+
+/* ---------- Chat panel ---------- */
+
+.pws-resizer {
+  position: relative;
+  z-index: 3;
+  flex-shrink: 0;
+  width: 9px;
+  margin: 0 -4px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.pws-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 1px;
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+
+.pws-resizer:hover::after,
+.pws-root[data-dragging="true"] .pws-resizer::after {
+  background: color-mix(in srgb, var(--pws-fg) 35%, transparent);
+}
+
+.pws-chat {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: var(--pws-chat-width);
+  min-width: 0;
+  min-height: 0;
+  padding: 14px 16px;
+  border-left: 1px solid var(--pws-border);
+  background: var(--pws-bg);
+}
+
+.pws-chat > * {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Too narrow for two columns: the chat keeps its place under the plan instead. */
+.pws-root[data-narrow="true"] .pws-body {
+  flex-direction: column;
+}
+
+.pws-root[data-narrow="true"] .pws-resizer {
+  display: none;
+}
+
+.pws-root[data-narrow="true"] .pws-main {
+  flex: 1 1 55%;
+}
+
+.pws-root[data-narrow="true"] .pws-chat {
+  flex: 0 0 42%;
+  width: auto;
+  min-height: 220px;
+  padding: 10px 12px 12px;
+  border-left: none;
+  border-top: 1px solid var(--pws-border);
+}
+
+.pws-root[data-compact="true"] .pws-meta,
+.pws-root[data-compact="true"] .pws-btn-kbd {
+  display: none;
+}

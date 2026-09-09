@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Ivy.Core;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Apps.Plans.Dialogs;
 using Ivy.Tendril.Apps.Jobs;
 using Ivy.Tendril.Apps.Views;
@@ -14,6 +15,7 @@ using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Tunnel;
 using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Plans;
@@ -30,6 +32,10 @@ public class ContentView(
     IChatExecutionService? chatExecutionService = null,
     IChatHistoryService? chatHistoryService = null) : ViewBase
 {
+    private const string PlanTab = "plan";
+    private const string DetailsTab = "details";
+    private const string GitTab = "git";
+
     private IChatExecutionService? _chatExecutionService = chatExecutionService;
     private IChatHistoryService? _chatHistoryService = chatHistoryService;
 
@@ -37,6 +43,10 @@ public class ContentView(
     {
         var client = UseService<IClientProvider>();
         var copyToClipboard = UseClipboard();
+        var nav = UseNavigation();
+        var agentRunner = UseService<IAgentRunner>();
+        var shareTunnelService = UseService<IShareTunnelService>();
+        Context.TryUseService<TendrilArgs>(out var tendrilArgs);
         var openFile = UseState<string?>(null);
         var selectedRepoState = UseState<string?>(null);
         var issueAssigneeState = UseState<string?>(null);
@@ -59,7 +69,8 @@ public class ContentView(
 
         var processView = Context.UseTendrilProcess();
 
-        var (updateDialog, showUpdateDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new UpdatePlanDialog(isOpen, selectedPlan!, selectedPlanState, jobService, refreshPlans));
+        var (shareModal, showShareModal) = UseTrigger((isOpen) =>
+            !isOpen.Value ? null : new ShareTunnelModal(isOpen, selectedPlan!.FolderName, isReview: false));
 
         var (deleteDialog, showDeleteDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new DeletePlanDialog(isOpen, selectedPlan!, selectedPlanState, planService, refreshPlans));
 
@@ -97,7 +108,10 @@ public class ContentView(
         var lastPlanId = UseState(selectedPlan?.Id ?? -1);
         var lastContentHash = UseState(selectedPlan?.LatestRevisionContent?.GetHashCode() ?? 0);
 
-        var selectedTab = UseState(0);
+        var selectedTab = UseState(PlanTab);
+        // Brings a question into view when its dropdown entry is clicked. The token is what makes a
+        // repeat click work — an unchanged id compares equal and nothing would move.
+        var scrollTo = UseState<QuestionScrollTarget?>(() => null);
         var openVerification = UseState<string?>(null);
         var openCommit = UseState<string?>(null);
 
@@ -132,7 +146,7 @@ public class ContentView(
         }, isEditing);
 
         // Navigation effects (was UseNavigationEffects)
-        UseEffect(() => { selectedTab.Set(0); }, selectedPlanState);
+        UseEffect(() => { selectedTab.Set(PlanTab); }, selectedPlanState);
 
         UseEffect(() =>
         {
@@ -207,112 +221,42 @@ public class ContentView(
             planService.UpdateLatestRevision(selectedPlan.FolderName, merged);
         }
 
-        object BuildTitleArea(bool isMobile)
+        var isShareMode = shareContext.IsShareMode;
+        var isBeta = BetaHelper.IsBeta(tendrilArgs, config);
+        var hasActiveExpandJob = HasActiveJob<ExpandPlanArgs>();
+        var hasActiveSplitJob = HasActiveJob<SplitPlanArgs>();
+
+        var actions = DraftActions.Build(new DraftActionsContext(
+            selectedPlan, selectedPlanState, isEditing, editContent, originalContent,
+            planService, jobService, config, client, nav, agentRunner, shareContext, shareTunnelService, isBeta,
+            refreshPlans, copyToClipboard, showDeleteDialog, showCreateIssueDialog, showShareModal,
+            hasActiveExpandJob, hasActiveSplitJob));
+
+        var activeAnnotationCount = annotations.Value.Count(a => !a.IsResolved);
+        if (!isShareMode && !isEditing.Value)
         {
-            object SourceButton() => new Button(selectedPlan.SourceUrl.Contains("/pull/") ? "PR" : "Issue")
-                .Icon(Icons.ExternalLink).Ghost().OnClick(() => client.OpenUrl(selectedPlan.SourceUrl));
-
-            var hasSourceUrl = !string.IsNullOrEmpty(selectedPlan.SourceUrl);
-
-            var desktopTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full().Min(Size.Px(0)))
-                | Text.Block($"#{selectedPlan.Id} {selectedPlan.Title}").Bold().NoWrap().Overflow(Overflow.Ellipsis)
-                    .Width(Size.Shrink().Min(Size.Px(0)));
-
-            if (hasSourceUrl)
-                desktopTitleLayout |= SourceButton();
-
-            if (selectedPlan.DependsOn.Count > 0)
-            {
-                var depIds = string.Join(", ", selectedPlan.DependsOn.Select(d =>
-                {
-                    var name = Path.GetFileName(d);
-                    var dashIdx = name.IndexOf('-');
-                    var idStr = dashIdx > 0 ? name[..dashIdx] : name;
-                    return int.TryParse(idStr, out var id) ? $"#{id}" : idStr;
-                }));
-                desktopTitleLayout |= new Badge($"Depends on: {depIds}").Variant(BadgeVariant.Secondary);
-            }
-
-            var desktopTitle = new Box(desktopTitleLayout).BorderThickness(0).Padding(0)
-                .Width(Size.Full().Min(Size.Px(0)))
-                .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
-
-            var mobileTitleLayout = Layout.Horizontal().Gap(2).AlignContent(Align.Left).Width(Size.Full())
-                | MobileItemPicker.Build(
-                        $"#{selectedPlan.Id} {selectedPlan.Title}",
-                        allPlans,
-                        p => $"#{p.Id} {p.Title}",
-                        p => p.FolderName == selectedPlan.FolderName,
-                        p => selectedPlanState.Set(p))
-                    .Width(Size.Grow().Min(Size.Px(0)));
-
-            if (hasSourceUrl)
-                mobileTitleLayout |= SourceButton();
-
-            var mobileTitle = new Box(mobileTitleLayout).BorderThickness(0).Padding(0)
-                .Width(Size.Full().Min(Size.Px(0)))
-                .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
-
-            return Layout.Vertical().Gap(1).AlignContent(Align.Left).Width(Size.Grow().Min(Size.Px(0)))
-                   | desktopTitle
-                   | mobileTitle;
-        }
-
-        object BuildControls(bool isMobile)
-        {
-            if (shareContext.IsShareMode)
-            {
-                var persona = shareContext.Persona;
-                var initials = Ivy.Tendril.Services.Share.AnonymousPersonaGenerator.GetInitials(persona);
-                var reviewerBadge = Layout.Horizontal().Gap(2).AlignContent(Align.Right);
-
-                foreach (var badge in ProjectHelper.BuildBadges(selectedPlan.Project, config))
-                {
-                    reviewerBadge |= badge;
-                }
-
-                reviewerBadge |= new Avatar(initials).Small();
-                reviewerBadge |= Text.Block(persona).Small().Bold().NoWrap();
-                return reviewerBadge.Width(isMobile ? Size.Full() : Size.Fit());
-            }
-
-            var rightSide = Layout.Horizontal().Gap(2).AlignContent(Align.Right);
-
-            foreach (var badge in ProjectHelper.BuildBadges(selectedPlan.Project, config))
-            {
-                rightSide |= badge;
-            }
-
-            rightSide |= Text.Rich()
-                .NoWrap()
-                .Bold($"{currentIndex + 1}/{allPlans.Count}", word: true)
-                .Muted("plans", word: true);
-
-            var activeAnnotationCount = annotations.Value.Count(a => !a.IsResolved);
+            // Both kinds of pending work go through one button, because one job answers both: an
+            // UpdatePlan that folds them into the plan. The badge counts them together.
             if (activeAnnotationCount > 0 || answeredQuestions > 0)
-                rightSide |= BuildUpdateButton(annotations, answeredQuestions, draftAnnotationService);
+            {
+                actions.AddSecondary("UpdatePlan", "Update Plan", Icons.WandSparkles,
+                    () => SubmitAnnotationsUpdate(annotations, answeredQuestions, draftAnnotationService),
+                    disabled: HasActiveJob<UpdatePlanArgs>(),
+                    badge: (activeAnnotationCount + answeredQuestions).ToString());
+            }
 
-            rightSide |= new Button("Execute").Icon(Icons.Rocket).Primary().ShortcutKey("x")
-                            .Loading(isCheckingPreflight)
-                            .Disabled(isCheckingPreflight)
-                            .OnClick(() => runPreflight(selectedPlan.Project, result =>
-                            {
-                                // Unincorporated work first, then unanswered questions: the former
-                                // would be ignored outright, the latter merely decided for you.
-                                if (activeAnnotationCount > 0 || answeredQuestions > 0)
-                                    showAnnotationsDialog.Set(true);
-                                else if (unansweredQuestions > 0)
-                                    showQuestionsDialog.Set(true);
-                                else
-                                    ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
-                            }));
-
-            return rightSide.Width(isMobile ? Size.Full() : Size.Fit());
+            actions.SetPrimary("Execute", "Execute", Icons.Rocket, () => runPreflight(selectedPlan.Project, result =>
+            {
+                // Unincorporated work first, then unanswered questions: the former
+                // would be ignored outright, the latter merely decided for you.
+                if (activeAnnotationCount > 0 || answeredQuestions > 0)
+                    showAnnotationsDialog.Set(true);
+                else if (unansweredQuestions > 0)
+                    showQuestionsDialog.Set(true);
+                else
+                    ContinueExecute(null, result, pendingWaitJobIds, showDirtyDialog);
+            }), "x", disabled: isCheckingPreflight, loading: isCheckingPreflight);
         }
-
-        var header = ResponsiveHeader.Build(BuildTitleArea, BuildControls);
-
-        var content = Layout.Vertical().Height(Size.Full());
 
         var planTabContent = new PlanTabView(
             selectedPlan,
@@ -325,87 +269,79 @@ public class ContentView(
             annotations,
             revisionContent,
             ApplyAnswer,
-            shareContext.IsShareMode ? shareContext.Persona : null);
+            scrollTo.Value,
+            isShareMode ? shareContext.Persona : null);
+
+        var tabs = new List<PlanTabDto> { new(PlanTab, "Plan"), new(DetailsTab, "Details") };
+        object tabContent;
 
         if (planContentQuery.Loading)
         {
-            content |= Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
-                       | Text.Muted("Loading...");
+            tabContent = Layout.Vertical().AlignContent(Align.Center).Height(Size.Full())
+                         | Text.Muted("Loading...");
         }
         else
         {
             var planData = planContentQuery.Value;
             var gitData = planData.GitData ?? new GitTabDataBuilder.GitTabData([], []);
-            var gitItemCount = GitTabDataBuilder.CountGitItems(gitData, selectedPlan!);
-
-            var gitTabView = new GitTabView(
-                gitData,
-                selectedPlan!,
-                hash => openCommit.Set(hash),
-                path =>
-                {
-                    copyToClipboard(path);
-                    client.Toast("Copied path to clipboard", "Path Copied");
-                    return null!;
-                },
-                null,
-                null);
-
-            var isPlanSelected = selectedTab.Value == 0;
-            var isDetailsSelected = selectedTab.Value == 1;
-            var isGitSelected = selectedTab.Value == 2;
-
-            var tabList = new List<Tab>
-            {
-                // DraftMarkdown owns its own scroll and the pinned StickyContent slot,
-                // so it is not wrapped in Cap() (whose outer scroll would also scroll the
-                // pinned element). The widget reproduces Cap()'s left inset + max-width.
-                new Tab("Plan", isPlanSelected ? planTabContent : new Empty()),
-                new Tab("Details", isDetailsSelected ? Cap(new DetailsTabView(selectedPlan!,
-                    jobService.GetJobsForPlan(selectedPlan!.FolderName),
-                    showDebugJob, showCostJob, planService, selectedPlanState, refreshPlans,
-                    folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath)))) : new Empty()),
-            };
-
+            var gitItemCount = GitTabDataBuilder.CountGitItems(gitData, selectedPlan);
             if (gitItemCount > 0)
-                tabList.Add(new Tab("Git", isGitSelected ? Cap(gitTabView) : new Empty()).Badge(gitItemCount.ToString()));
+                tabs.Add(new PlanTabDto(GitTab, "Git", gitItemCount.ToString()));
 
-            var tabs = Layout.Tabs(tabList.ToArray())
-                .OnSelect(v => selectedTab.Set(v)).SelectedIndex(selectedTab.Value).Variant(TabsVariant.Content).RemoveParentPadding();
-
-            content |= (Layout.Vertical().Padding(2).Height(Size.Full()) | tabs);
+            var activeTab = tabs.Any(t => t.Id == selectedTab.Value) ? selectedTab.Value : PlanTab;
+            tabContent = activeTab switch
+            {
+                DetailsTab => Cap(new DetailsTabView(selectedPlan,
+                    jobService.GetJobsForPlan(selectedPlan.FolderName),
+                    showDebugJob, showCostJob, planService, selectedPlanState, refreshPlans,
+                    folderPath => selectedPlanState.Set(planService.GetPlanByFolder(folderPath)))),
+                GitTab => Cap(new GitTabView(
+                    gitData,
+                    selectedPlan,
+                    hash => openCommit.Set(hash),
+                    path =>
+                    {
+                        copyToClipboard(path);
+                        client.Toast("Copied path to clipboard", "Path Copied");
+                        return null!;
+                    },
+                    null,
+                    null)),
+                // PlanMarkdown owns its own scroll, so the Plan tab is not wrapped in Cap().
+                _ => planTabContent
+            };
         }
 
-        content |= new VerificationReportSheet(openVerification, selectedPlan, config);
-        content |= new CommitDetailSheet(openCommit, selectedPlan, config, gitService);
+        var effectiveTab = tabs.Any(t => t.Id == selectedTab.Value) ? selectedTab.Value : PlanTab;
 
-        var hasActiveExpandJob = HasActiveJob<ExpandPlanArgs>();
-        var hasActiveSplitJob = HasActiveJob<SplitPlanArgs>();
+        object? questionsPanel = questions.Count > 0
+            ? new QuestionsPanelView(questions, id =>
+            {
+                selectedTab.Set(PlanTab);
+                scrollTo.Set(new QuestionScrollTarget(id, (scrollTo.Value?.Token ?? 0) + 1));
+            })
+            : null;
 
-        var actionBar = new ActionBarView(
-            selectedPlan,
-            selectedPlanState,
-            isEditing,
-            editContent,
-            originalContent,
-            showUpdateDialog,
-            showDeleteDialog,
-            showCreateIssueDialog,
-            planService,
-            jobService,
-            config,
-            refreshPlans,
-            copyToClipboard,
-            hasActiveExpandJob,
-            hasActiveSplitJob);
-
-        var mainLayout = new HeaderLayout(
-            header,
-            new FooterLayout(
-                actionBar,
-                content
-            ).Scroll(Scroll.None).Size(Size.Full())
-        ).Scroll(Scroll.None).Size(Size.Full()).Key(selectedPlan.Id);
+        var workspace = actions.ApplyTo(new PlanWorkspace(
+                tabContent,
+                isShareMode ? null : new PlanChatView(selectedPlan),
+                new VerificationsPanelView(selectedPlan, planService, config),
+                questionsPanel)
+            .PlanId($"#{selectedPlan.Id}")
+            .Title(selectedPlan.Title)
+            .Meta(BuildMeta(selectedPlan, currentIndex, allPlans.Count))
+            .Source(
+                string.IsNullOrEmpty(selectedPlan.SourceUrl) ? null : selectedPlan.SourceUrl,
+                selectedPlan.IsPullRequestSource ? "PR" : "Issue")
+            .Persona(
+                isShareMode ? shareContext.Persona : null,
+                isShareMode ? Ivy.Tendril.Services.Share.AnonymousPersonaGenerator.GetInitials(shareContext.Persona) : null)
+            .Tabs(tabs)
+            .SelectedTab(effectiveTab)
+            .QuestionsLabel(unansweredQuestions > 0 ? $"Questions ({unansweredQuestions} unanswered)" : "Questions")
+            .OnTabSelect(id => selectedTab.Set(id)))
+            .WithLayout().Full().RemoveParentPadding()
+            .Key(selectedPlan.Id);
 
         var dirtyRepoDialog = showDirtyDialog.Value && preflightResult is { DirtyRepos.Count: > 0 }
             ? new DirtyRepoDialog(
@@ -438,13 +374,17 @@ public class ContentView(
 
         var elements = new List<object>
         {
-            mainLayout,
-            updateDialog,
+            workspace,
             deleteDialog,
             createIssueDialog,
             debugSheet,
-            costSheet
+            costSheet,
+            new VerificationReportSheet(openVerification, selectedPlan, config),
+            new CommitDetailSheet(openCommit, selectedPlan, config, gitService)
         };
+
+        if (isBeta || isShareMode)
+            elements.Add(shareModal);
 
         if (dirtyRepoDialog is not null)
             elements.Add(dirtyRepoDialog);
@@ -459,10 +399,27 @@ public class ContentView(
 
         return new Fragment(elements.ToArray());
 
+        // The workspace inset: 24px top, 32px sides, matching what PlanMarkdown applies to itself.
         object Cap(object inner) => Layout.Vertical().Scroll().HideScrollbar().Width(Size.Full()).Height(Size.Full())
             | (Layout.Vertical()
-                .Padding(6, 0, 0, 4)
+                .Padding(8, 6, 8, 4)
                 .Width(Size.Full().Max(Size.Units(200))) | inner);
+    }
+
+    internal static string BuildMeta(PlanFile plan, int currentIndex, int total)
+    {
+        var meta = $"{currentIndex + 1}/{total} plans";
+        if (plan.DependsOn.Count == 0)
+            return meta;
+
+        var depIds = string.Join(", ", plan.DependsOn.Select(d =>
+        {
+            var name = Path.GetFileName(d);
+            var dashIdx = name.IndexOf('-');
+            var idStr = dashIdx > 0 ? name[..dashIdx] : name;
+            return int.TryParse(idStr, out var id) ? $"#{id}" : idStr;
+        }));
+        return $"{meta} · Depends on {depIds}";
     }
 
     private object BuildNoSelectionView(object processView)
@@ -790,31 +747,6 @@ public class ContentView(
             j is { TypedArgs: TArgs, Status: JobStatus.Running or JobStatus.Queued or JobStatus.Pending } &&
             j.TypedArgs.PlanFolder != null &&
             j.TypedArgs.PlanFolder.Equals(selectedPlan!.FolderPath, StringComparison.OrdinalIgnoreCase));
-    }
-
-    /// <summary>
-    ///     Both kinds of pending work go through one button, because one job answers both: an
-    ///     UpdatePlan that folds them into the plan. The badge counts them together.
-    /// </summary>
-    private Button BuildUpdateButton(
-        IState<ImmutableList<MarkdownAnnotation>> annotations,
-        int answeredQuestions,
-        Ivy.Tendril.Services.Plans.IPlanAnnotationService draftAnnotationService)
-    {
-        var activeCount = annotations.Value.Count(a => !a.IsResolved);
-        var tooltip = activeCount > 0 && answeredQuestions > 0
-            ? "Update the plan from your annotations and answers"
-            : answeredQuestions > 0
-                ? "Update the plan from your answers"
-                : "Update the plan from your annotations";
-
-        return new Button("Update Plan")
-            .Icon(Icons.WandSparkles)
-            .Primary()
-            .Badge((activeCount + answeredQuestions).ToString())
-            .Disabled(HasActiveJob<UpdatePlanArgs>())
-            .Tooltip(tooltip)
-            .OnClick(() => SubmitAnnotationsUpdate(annotations, answeredQuestions, draftAnnotationService));
     }
 
     private string SubmitAnnotationsUpdate(

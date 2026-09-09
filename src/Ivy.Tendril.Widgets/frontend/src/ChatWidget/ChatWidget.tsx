@@ -262,6 +262,7 @@ export function ChatWidget({
   runningJobs = [],
   greeting,
   headline = "What Are We Producing Today?",
+  embedded = false,
   events = [],
   eventHandler,
 }: ChatWidgetProps) {
@@ -727,10 +728,27 @@ export function ChatWidget({
   const openPlan = events.includes("OnOpenPlan") ? (planId: string) => emit("OnOpenPlan", planId) : undefined;
   const title = (activeSession && pendingRenames[activeSession.id]) || activeSession?.title || "New Chat";
 
+  const jobsMenu = activeSession && headerJobs.length > 0 && (
+    <JobsMenu
+      jobs={headerJobs}
+      spawned={sessionSpawnedJobs.length > 0}
+      onReview={() =>
+        emit("OnSendMessage", {
+          prompt: "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
+          attachments: [],
+          sessionId: activeSession.id,
+        })
+      }
+    />
+  );
+
   return (
-    <div className="chat-widget-root">
+    <div className="chat-widget-root" data-embedded={embedded}>
       <input ref={fileInputRef} type="file" multiple style={{ display: "none" }} onChange={handleFileSelect} />
 
+      {embedded ? (
+        jobsMenu && <div className="chat-header chat-header--embedded">{jobsMenu}</div>
+      ) : (
       <div className="chat-header">
         <div className="chat-header-title-wrap">
           {isEditingTitle ? (
@@ -808,21 +826,10 @@ export function ChatWidget({
               </div>
             )}
           </div>
-          {activeSession && headerJobs.length > 0 && (
-            <JobsMenu
-              jobs={headerJobs}
-              spawned={sessionSpawnedJobs.length > 0}
-              onReview={() =>
-                emit("OnSendMessage", {
-                  prompt: "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
-                  attachments: [],
-                  sessionId: activeSession.id,
-                })
-              }
-            />
-          )}
+          {jobsMenu}
         </div>
       </div>
+      )}
 
       <div ref={messagesContainerRef} className="chat-messages-container">
         <div className="chat-thread" data-empty={!hasThreadContent}>
@@ -1050,7 +1057,7 @@ export function ChatWidget({
                 aria-label="Attach file"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <Paperclip size={20} />
+                <Paperclip size={embedded ? 16 : 20} />
               </button>
 
               <textarea
@@ -1076,6 +1083,7 @@ export function ChatWidget({
                   onAgentChange={(agentId) => emit("OnAgentChanged", agentId)}
                   onModelChange={(modelId) => emit("OnModelChanged", modelId)}
                   onEffortChange={(effortId) => emit("OnEffortChanged", effortId)}
+                  compact={embedded}
                 />
 
                 <button
@@ -1086,11 +1094,11 @@ export function ChatWidget({
                   onClick={toggleVoiceRecording}
                 >
                   {voiceStatus === "connecting" || voiceStatus === "processing" ? (
-                    <LoaderCircle size={20} className="spin" />
+                    <LoaderCircle size={embedded ? 16 : 20} className="spin" />
                   ) : voiceStatus === "recording" ? (
-                    <Square size={20} />
+                    <Square size={embedded ? 16 : 20} />
                   ) : (
-                    <Mic size={20} />
+                    <Mic size={embedded ? 16 : 20} />
                   )}
                 </button>
 
