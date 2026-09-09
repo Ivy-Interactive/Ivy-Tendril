@@ -609,6 +609,80 @@ public class SetupProjectPromptwareTests : IDisposable
         Assert.Contains("--browse", action.Command);
     }
 
+    // ==================== Artifact Production Tests ====================
+
+    [Fact]
+    public void BothProjectSetupPromptwares_DocumentScreenshotsVerification()
+    {
+        var promptwaresRoot = Path.GetFullPath(
+            Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "..", "Ivy.Tendril", "Promptwares"));
+
+        foreach (var name in new[] { "AddProject", "SetupProject" })
+        {
+            var programFile = Path.Combine(promptwaresRoot, name, "Program.md");
+            Assert.True(File.Exists(programFile), $"Expected to find {programFile}");
+            var content = File.ReadAllText(programFile);
+
+            Assert.Contains("Screenshots", content);
+            Assert.Contains("Artifacts/screenshots", content);
+            Assert.Contains("add-verification", content);
+        }
+    }
+
+    [Fact]
+    public void ExampleConfig_ShipsScreenshotsVerificationDefinition()
+    {
+        var configFile = Path.Combine(System.AppContext.BaseDirectory, "example.config.yaml");
+        Assert.True(File.Exists(configFile), $"Expected to find {configFile}");
+        var content = File.ReadAllText(configFile);
+
+        Assert.Contains("- name: Screenshots", content);
+        Assert.Contains("Artifacts/screenshots", content);
+    }
+
+    [Fact]
+    public void ScreenshotsVerification_IsOrderedBeforeCheckResult()
+    {
+        var repoPath = CreateRepo("MyDotnetApp", "src/MyDotnetApp/MyDotnetApp.csproj", "src/MyDotnetApp/Program.cs");
+        WriteConfig($"""
+            projects:
+            - name: MyDotnetApp
+              repos:
+              - path: {repoPath}
+            verifications:
+            - name: CheckResult
+              prompt: Verify the implementation matches the plan.
+            codingAgent: claude
+            codingAgents:
+            - name: claude
+              profiles:
+              - name: deep
+                model: opus
+                effort: max
+            """);
+
+        var config = LoadConfig();
+        config.Settings.Verifications.Add(new VerificationConfig { Name = "DotnetTest", Prompt = "Run `dotnet test` with filter from plan's Tests section." });
+        config.Settings.Verifications.Add(new VerificationConfig { Name = "Screenshots", Prompt = "Capture UI screenshots into the plan's Artifacts folder." });
+        config.SaveSettings();
+
+        var config2 = LoadConfig();
+        var project = config2.Settings.Projects[0];
+        project.Verifications.Add(new ProjectVerificationRef { Name = "DotnetTest", Required = true });
+        project.Verifications.Add(new ProjectVerificationRef { Name = "Screenshots", Required = true });
+        project.Verifications.Add(new ProjectVerificationRef { Name = "CheckResult", Required = true });
+        config2.SaveSettings();
+
+        var result = LoadConfig();
+        var proj = result.Settings.Projects[0];
+        var testIndex = proj.Verifications.FindIndex(v => v.Name == "DotnetTest");
+        var screenshotsIndex = proj.Verifications.FindIndex(v => v.Name == "Screenshots");
+        var checkResultIndex = proj.Verifications.FindIndex(v => v.Name == "CheckResult");
+
+        Assert.True(screenshotsIndex > testIndex);
+        Assert.True(screenshotsIndex < checkResultIndex);
+    }
+
     private static readonly object ConsoleLock = new();
 
     private static string CaptureConsoleOutput(Action action)

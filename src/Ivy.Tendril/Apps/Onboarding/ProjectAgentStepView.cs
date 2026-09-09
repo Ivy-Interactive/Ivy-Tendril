@@ -226,7 +226,7 @@ public class ProjectAgentStepView(
                     Values = new Dictionary<string, string>
                     {
                         ["ProjectName"] = name,
-                        ["Instructions"] = "Setup verifications and review actions"
+                        ["Instructions"] = "Setup verifications, review actions, and artifact production"
                     }
                 }, notifyingStream);
 
