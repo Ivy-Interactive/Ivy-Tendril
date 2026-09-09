@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
-import { VoiceRecorder, type VoiceStatus } from "./voice-recorder";
+import { VoiceRecorder, type VoiceStatus } from "../voice-recorder";
 import { isImageFile, processImageFile } from "../imageUtils";
 import "./content-input.css";
 

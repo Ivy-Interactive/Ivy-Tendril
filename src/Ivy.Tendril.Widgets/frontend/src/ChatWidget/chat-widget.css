@@ -1046,10 +1046,53 @@ button.chat-system-event-plan {
   }
 }
 
-.chat-voice-btn.recording {
+.chat-voice-btn.chat-voice-recording {
   color: var(--tch-danger);
   opacity: 1;
   animation: chat-pulse 1.5s infinite;
+}
+
+/* Only reachable on the server-transcription fallback path — the Web Speech API
+   goes straight from idle to recording. */
+.chat-voice-btn.chat-voice-connecting,
+.chat-voice-btn.chat-voice-processing {
+  opacity: 1;
+}
+
+.chat-voice-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--tch-danger);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--tch-danger) 12%, transparent);
+  color: var(--tch-danger);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.chat-voice-error span {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-voice-error-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.chat-voice-error-close:hover {
+  opacity: 1;
 }
 
 .chat-send-btn,

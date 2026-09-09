@@ -39,7 +39,7 @@ import {
 import { formatSystemEvent } from "./systemEvents";
 import { useAttachments } from "./useAttachments";
 import { useOutsideClick } from "./useOutsideClick";
-import { useSpeechInput } from "./useSpeechInput";
+import { DEFAULT_TRANSCRIPTION_URL, useSpeechInput } from "./useSpeechInput";
 import { useThreadScroll } from "./useThreadScroll";
 import type { ChatJobDto, ChatMessageDto, ChatQueuedMessageDto, ChatWidgetProps } from "./types";
 import "./chat-widget.css";
@@ -247,6 +247,7 @@ export function ChatWidget({
   activeSessionId,
   streamingSessionId: _streamingSessionId,
   uploadUrl,
+  transcriptionUrl = DEFAULT_TRANSCRIPTION_URL,
   sessions = [],
   agents = [],
   models = [],
@@ -322,7 +323,12 @@ export function ChatWidget({
     }
   }, []);
 
-  const { isRecording, toggle: toggleVoiceRecording } = useSpeechInput(promptText, setPromptText, adjustTextareaHeight);
+  const {
+    voiceStatus,
+    voiceError,
+    dismissVoiceError,
+    toggle: toggleVoiceRecording,
+  } = useSpeechInput(promptText, setPromptText, adjustTextareaHeight, transcriptionUrl);
 
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   useOutsideClick(menuOpen, [menuRef], closeMenu);
@@ -1009,6 +1015,21 @@ export function ChatWidget({
               </div>
             )}
 
+            {voiceError && (
+              <div className="chat-voice-error" role="alert">
+                <span>{voiceError}</span>
+                <button
+                  type="button"
+                  className="chat-voice-error-close"
+                  title="Dismiss"
+                  aria-label="Dismiss voice input error"
+                  onClick={dismissVoiceError}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+
             {attachments.length > 0 && (
               <div className="chat-attachments-row">
                 {attachments.map((att, idx) => (
@@ -1059,12 +1080,18 @@ export function ChatWidget({
 
                 <button
                   type="button"
-                  className={`chat-icon-btn chat-voice-btn ${isRecording ? "recording" : ""}`}
+                  className={`chat-icon-btn chat-voice-btn chat-voice-${voiceStatus}`}
                   title="Voice input"
                   aria-label="Voice input"
                   onClick={toggleVoiceRecording}
                 >
-                  <Mic size={20} />
+                  {voiceStatus === "connecting" || voiceStatus === "processing" ? (
+                    <LoaderCircle size={20} className="spin" />
+                  ) : voiceStatus === "recording" ? (
+                    <Square size={20} />
+                  ) : (
+                    <Mic size={20} />
+                  )}
                 </button>
 
                 {effectiveIsStreaming ? (

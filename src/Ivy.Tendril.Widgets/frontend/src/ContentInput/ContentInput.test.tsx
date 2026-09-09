@@ -150,12 +150,14 @@ describe("ContentInput", () => {
       },
     });
 
-    // Stub AudioContext for jsdom
+    // Stub AudioContext and AudioWorkletNode for jsdom, so the environment check passes and the
+    // recorder actually reaches getUserMedia.
     vi.stubGlobal("AudioContext", class {
       state = "running";
       close() { return Promise.resolve(); }
       resume() { return Promise.resolve(); }
     });
+    vi.stubGlobal("AudioWorkletNode", class {});
 
     render(<ContentInput id="civ-1" value="" transcriptionUrl="ws://test" />);
 
@@ -165,6 +167,29 @@ describe("ContentInput", () => {
     await vi.waitFor(() => {
       const errorBanner = document.querySelector(".civ-error-banner");
       expect(errorBanner?.textContent).toContain("System Settings");
+    });
+  });
+
+  it("reports an unsupported browser when audio capture is unavailable", async () => {
+    Object.defineProperty(global.navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [] }),
+      },
+    });
+
+    // A browser without AudioWorklet support, which is also jsdom's own default.
+    vi.stubGlobal("AudioWorkletNode", undefined);
+    expect(typeof AudioWorkletNode).toBe("undefined");
+
+    render(<ContentInput id="civ-1" value="" transcriptionUrl="ws://test" />);
+
+    const micButton = screen.getByTitle("Voice input transcription");
+    fireEvent.click(micButton);
+
+    await vi.waitFor(() => {
+      const errorBanner = document.querySelector(".civ-error-banner");
+      expect(errorBanner?.textContent).toContain("cannot capture audio");
     });
   });
 
