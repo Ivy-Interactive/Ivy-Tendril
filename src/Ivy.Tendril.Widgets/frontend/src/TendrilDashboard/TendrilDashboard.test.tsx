@@ -137,6 +137,43 @@ describe("TendrilDashboard range and metric combinations", () => {
   });
 });
 
+describe("TendrilDashboard git activity and pull requests side cards", () => {
+  it("renders Git Activity and Pull Requests as two separate cards, not as tabs", () => {
+    const { container } = render(
+      <TendrilDashboard
+        id="dash"
+        eventHandler={vi.fn()}
+        activity={[{ label: "Jan", weeks: [1] }]}
+        pullRequests={[{ label: "Jan", value: 3 }]}
+      />,
+    );
+
+    const sideBlocks = container.querySelectorAll(".tdb-col-side .tdb-side-block");
+    const titles = Array.from(sideBlocks).map(
+      (block) => block.querySelector(".tdb-block-title")?.textContent,
+    );
+    expect(titles).toContain("Git Activity");
+    expect(titles).toContain("Pull Requests");
+
+    const sideTabs = container.querySelectorAll(".tdb-col-side .tdb-tabs");
+    expect(sideTabs).toHaveLength(0);
+  });
+
+  it("shows both the activity grid and the pull requests list at the same time", () => {
+    const { container } = render(
+      <TendrilDashboard
+        id="dash"
+        eventHandler={vi.fn()}
+        activity={[{ label: "Jan", weeks: [1] }]}
+        pullRequests={[{ label: "Jan", value: 3 }]}
+      />,
+    );
+
+    expect(container.querySelector(".tdb-activity-col")).toBeInTheDocument();
+    expect(container.querySelector(".tdb-bars")).toBeInTheDocument();
+  });
+});
+
 describe("TendrilDashboard KPI card interactions and accessibility", () => {
   const kpis = [
     { id: "dailyPrs", label: "Avg Daily PR count", value: "1.2", delta: "+10%" },
