@@ -90,6 +90,7 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Prop] public string? ActiveSessionId { get; init; }
     [Prop] public string? StreamingSessionId { get; init; }
     [Prop] public string? UploadUrl { get; init; }
+    [Prop] public string TranscriptionUrl { get; init; } = "wss://tendril-api.ivy.app/transcribe/ws";
     [Prop] public List<ChatSessionDto> Sessions { get; init; } = new();
     [Prop] public List<AgentOptionDto> Agents { get; init; } = new();
     [Prop] public List<ModelOptionDto> Models { get; init; } = new();

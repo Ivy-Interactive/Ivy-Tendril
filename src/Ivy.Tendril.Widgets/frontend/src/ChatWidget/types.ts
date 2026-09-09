@@ -80,6 +80,8 @@ export interface ChatWidgetProps {
   activeSessionId?: string | null;
   streamingSessionId?: string | null;
   uploadUrl?: string;
+  /** WebSocket endpoint used to transcribe voice input when the Web Speech API cannot work here. */
+  transcriptionUrl?: string;
   sessions?: ChatSessionDto[];
   agents?: AgentOptionDto[];
   models?: ModelOptionDto[];
