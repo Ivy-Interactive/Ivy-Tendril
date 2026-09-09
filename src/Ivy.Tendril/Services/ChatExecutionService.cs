@@ -556,13 +556,15 @@ public sealed class ChatExecutionService : IChatExecutionService
                         fullRawStream = string.Join("\n", activeExec.RawLines);
                 }
 
+                var failureText = !string.IsNullOrWhiteSpace(result.Error)
+                    ? result.Error!
+                    : "Agent execution completed with status code " + (result.ExitCode?.ToString() ?? "unknown");
+
                 var responseContent = !string.IsNullOrWhiteSpace(result.Response)
                     ? result.Response
-                    : (!string.IsNullOrWhiteSpace(collectedText)
-                        ? collectedText
-                        : (result.IsSuccess
-                            ? "Task completed successfully."
-                            : "Agent execution completed with status code " + (result.ExitCode?.ToString() ?? "unknown")));
+                    : !string.IsNullOrWhiteSpace(collectedText)
+                        ? (result.IsSuccess ? collectedText : $"{collectedText}\n\n{failureText}")
+                        : (result.IsSuccess ? "Task completed successfully." : failureText);
 
                 _chatService.UpdateMessage(sessionId, assistantMessageId, responseContent, rawStream: fullRawStream, flushImmediately: true);
 
@@ -598,6 +600,9 @@ public sealed class ChatExecutionService : IChatExecutionService
             {
                 string? fullRawStream = null;
                 string? collectedText = null;
+                var abortText = activeExec.IsInterrupted
+                    ? "Execution was cancelled."
+                    : $"Agent execution timed out: total timeout limit of {(int)totalTimeout.TotalMinutes} minutes exceeded.";
                 lock (activeExec.Lock)
                 {
                     collectedText = lastTextEvent ?? activeExec.LastText;
@@ -625,7 +630,7 @@ public sealed class ChatExecutionService : IChatExecutionService
                     {
                         Kind = AgentEventKind.Text,
                         Timestamp = DateTimeOffset.UtcNow,
-                        Text = "Execution was cancelled.",
+                        Text = abortText,
                         IsDelta = false
                     };
                     var cancelJson = _serializer.Serialize(cancelEvt);
@@ -642,8 +647,8 @@ public sealed class ChatExecutionService : IChatExecutionService
                 }
 
                 var responseContent = !string.IsNullOrWhiteSpace(collectedText)
-                    ? $"{collectedText}\n\nExecution was cancelled."
-                    : "Execution was cancelled.";
+                    ? $"{collectedText}\n\n{abortText}"
+                    : abortText;
 
                 _chatService.UpdateMessage(sessionId, assistantMessageId, responseContent, rawStream: fullRawStream, flushImmediately: true);
             }
