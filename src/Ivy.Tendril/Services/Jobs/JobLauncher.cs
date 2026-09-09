@@ -537,7 +537,7 @@ internal class JobLauncher
         {
             values["ProjectName"] = addProjArgs.ProjectName;
             values["ReposJson"] = System.Text.Json.JsonSerializer.Serialize(addProjArgs.Repos);
-            values["Instructions"] = "Setup verifications and review actions for this project.";
+            values["Instructions"] = "Setup verifications, review actions, and artifact production for this project.";
             return (values, null, null);
         }
 
