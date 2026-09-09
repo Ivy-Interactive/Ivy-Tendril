@@ -64,7 +64,6 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
   slots,
 }) => {
   const [tab, setTab] = useState<"cost" | "plans">("cost");
-  const [sideTab, setSideTab] = useState<"git" | "prs">("git");
 
   const fireEvent = (eventName: string) => {
     if (events.includes(eventName)) {
@@ -241,32 +240,15 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
           <div className="tdb-col tdb-col-side">
             <div className="tdb-update-slot">{slots?.UpdateNotice}</div>
             <div className="tdb-block tdb-side-block">
-              <div className="tdb-side-head">
-                <div className="tdb-tabs">
-                  <button
-                    type="button"
-                    className="tdb-tab"
-                    data-active={sideTab === "git"}
-                    onClick={() => setSideTab("git")}
-                  >
-                    Git Activity
-                  </button>
-                  <button
-                    type="button"
-                    className="tdb-tab"
-                    data-active={sideTab === "prs"}
-                    onClick={() => setSideTab("prs")}
-                  >
-                    Pull Requests
-                  </button>
-                </div>
-              </div>
+              <div className="tdb-block-title">Git Activity</div>
               <div className="tdb-side-body">
-                {sideTab === "git" ? (
-                  <ActivityGrid months={activity} />
-                ) : (
-                  <PillBars items={pullRequests} />
-                )}
+                <ActivityGrid months={activity} />
+              </div>
+            </div>
+            <div className="tdb-block tdb-side-block">
+              <div className="tdb-block-title">Pull Requests</div>
+              <div className="tdb-side-body">
+                <PillBars items={pullRequests} />
               </div>
             </div>
             {hasSlotContent(slots?.TunnelQr) && (
