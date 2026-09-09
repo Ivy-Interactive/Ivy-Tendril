@@ -289,7 +289,7 @@ public class ChatHistoryService : IChatHistoryService
         return session;
     }
 
-    public ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null, string? kind = null)
+    public ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null, string? kind = null, string? planFolderName = null)
     {
         var now = DateTimeOffset.UtcNow;
         var id = Guid.NewGuid().ToString("N");
@@ -304,7 +304,8 @@ public class ChatHistoryService : IChatHistoryService
             ModelId: modelId,
             Messages: new List<ChatMessageModel>(),
             Effort: effort,
-            Kind: kind
+            Kind: kind,
+            PlanFolderName: planFolderName
         );
 
         _sessions[id] = session;

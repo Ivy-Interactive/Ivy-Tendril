@@ -25,6 +25,10 @@ public class ChatApp : ViewBase
     internal static string DisplayTitle(ChatSessionModel session) =>
         string.IsNullOrWhiteSpace(session.Title) ? "New Chat" : session.Title;
 
+    /// <summary>The plan a session belongs to, shown as its row tag; null for a free-standing chat.</summary>
+    internal static string? PlanTag(ChatSessionModel session) =>
+        string.IsNullOrEmpty(session.PlanFolderName) ? null : $"#{TendrilAppShell.FormatPlanId(session.PlanFolderName)}";
+
     internal static ChatJobDto ToJobDto(JobItem job) =>
         new(job.Id, job.Type, job.Status.ToString(), job.ReportedPlanId, job.ReportedPlanTitle, job.StatusMessage);
 
@@ -55,7 +59,8 @@ public class ChatApp : ViewBase
             .Select(s => new ShellSectionItemDto(
                 s.Id,
                 DisplayTitle(s),
-                Badges: BuildRowBadges(s, selectedId, generatingIds, completedIds),
+                PlanTag(s),
+                BuildRowBadges(s, selectedId, generatingIds, completedIds),
                 Icon: s.IsTerminal() ? "Terminal" : null))
             .ToList();
         return new ShellSidebarListState(
@@ -189,20 +194,7 @@ public class ChatApp : ViewBase
         var isSessionGenerating = currentSessionId != null && executionService.IsGenerating(currentSessionId);
         var streamSnapshot = isSessionGenerating ? executionService.GetStreamSnapshot(currentSessionId!) : string.Empty;
 
-        var registeredAgentIds = agentRunner.RegisteredAgents;
-        if (registeredAgentIds.Count == 0)
-        {
-            registeredAgentIds = ["claude", "opencode", "codex", "gemini", "antigravity", "copilot", "ivy"];
-        }
-
-        var agentDtos = registeredAgentIds.Select(agentId =>
-        {
-            var (label, icon) = AgentBranding.For(agentId, agentRunner, configService);
-            var agentModels = GetModelsForAgent(agentRunner, agentId)
-                .Select(m => new ModelOptionDto(m.Id, m.DisplayName))
-                .ToList();
-            return new AgentOptionDto(agentId, label, icon.ToString(), agentModels, DoesAgentSupportEffort(agentRunner, agentId));
-        }).ToList();
+        var agentDtos = BuildAgentDtos(agentRunner, configService);
 
         var currentModelOptions = GetModelsForAgent(agentRunner, selectedAgent.Value);
         var effectiveModel = currentModelOptions.Any(m => m.Id.Equals(selectedModel.Value, StringComparison.OrdinalIgnoreCase))
@@ -218,93 +210,9 @@ public class ChatApp : ViewBase
 
         // Compact DTO serialization: only serialize full message history for the active session,
         // preventing massive SignalR payload bloat when a user has hundreds of sessions.
-        var sessionDtos = sessions.Select(s =>
-        {
-            var isGenerating = executionService.IsGenerating(s.Id);
-            var status = isGenerating ? "generating" : "done";
-            var isActive = s.Id == currentSessionId;
-
-            var messages = s.Messages;
-            if (isGenerating && messages.Count > 0 && messages[^1].Role.Equals("assistant", StringComparison.OrdinalIgnoreCase))
-            {
-                // Omit in-progress assistant message while generating to prevent duplicate rendering with live stream
-                messages = messages.Take(messages.Count - 1).ToList();
-            }
-
-            List<ChatJobDto>? spawnedJobs = null;
-            if (jobService != null)
-            {
-                var combinedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                var matchingJobs = jobService.GetJobs().Where(j => string.Equals(j.ChatSessionId, s.Id, StringComparison.OrdinalIgnoreCase)).ToList();
-                foreach (var mj in matchingJobs)
-                {
-                    if (combinedIds.Add(mj.Id))
-                    {
-                        chatService.AddSpawnedJob(s.Id, mj.Id);
-                    }
-                }
-
-                if (s.SpawnedJobIds is { Count: > 0 } jIds)
-                {
-                    var staleIds = new List<string>();
-                    foreach (var id in jIds)
-                    {
-                        var job = jobService.GetJob(id);
-                        if (job != null)
-                        {
-                            if (string.Equals(job.ChatSessionId, s.Id, StringComparison.OrdinalIgnoreCase))
-                            {
-                                combinedIds.Add(id);
-                            }
-                            else
-                            {
-                                staleIds.Add(id);
-                            }
-                        }
-                    }
-
-                    if (staleIds.Count > 0)
-                    {
-                        chatService.RemoveSpawnedJobs(s.Id, staleIds);
-                    }
-                }
-
-                if (combinedIds.Count > 0)
-                {
-                    spawnedJobs = combinedIds.Select(jId =>
-                    {
-                        var job = jobService.GetJob(jId);
-                        if (job == null) return new ChatJobDto(jId, "Job", "Unknown");
-                        return ToJobDto(job);
-                    }).ToList();
-                }
-            }
-
-            return new ChatSessionDto(
-                s.Id,
-                s.Title,
-                s.AgentId,
-                s.ModelId,
-                s.CreatedAt.ToString("o"),
-                s.UpdatedAt.ToString("o"),
-                isActive
-                    ? messages.Select(m => new ChatMessageDto(
-                        m.Id,
-                        m.Role,
-                        m.Content,
-                        m.Timestamp.ToString("t"),
-                        m.AgentId,
-                        m.ModelId,
-                        m.RawStream,
-                        m.Effort
-                    )).ToList()
-                    : [],
-                status,
-                s.Effort,
-                spawnedJobs
-            );
-        }).ToList();
+        var sessionDtos = sessions
+            .Select(s => ToSessionDto(s, s.Id == currentSessionId, executionService, jobService, chatService))
+            .ToList();
 
         void StartNewChat()
         {
@@ -402,6 +310,120 @@ public class ChatApp : ViewBase
         );
 
         return new Fragment(content, searchDialog);
+    }
+
+    /// <summary>
+    ///     A session as the widget wants it. Only the active session carries its messages, which
+    ///     keeps the payload small for a user with hundreds of sessions.
+    /// </summary>
+    internal static ChatSessionDto ToSessionDto(
+        ChatSessionModel s,
+        bool isActive,
+        IChatExecutionService executionService,
+        IJobService? jobService,
+        IChatHistoryService chatService)
+    {
+        var isGenerating = executionService.IsGenerating(s.Id);
+        var status = isGenerating ? "generating" : "done";
+
+        var messages = s.Messages;
+        if (isGenerating && messages.Count > 0 && messages[^1].Role.Equals("assistant", StringComparison.OrdinalIgnoreCase))
+        {
+            // Omit in-progress assistant message while generating to prevent duplicate rendering with live stream
+            messages = messages.Take(messages.Count - 1).ToList();
+        }
+
+        List<ChatJobDto>? spawnedJobs = null;
+        if (jobService != null)
+        {
+            var combinedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            var matchingJobs = jobService.GetJobs().Where(j => string.Equals(j.ChatSessionId, s.Id, StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (var mj in matchingJobs)
+            {
+                if (combinedIds.Add(mj.Id))
+                {
+                    chatService.AddSpawnedJob(s.Id, mj.Id);
+                }
+            }
+
+            if (s.SpawnedJobIds is { Count: > 0 } jIds)
+            {
+                var staleIds = new List<string>();
+                foreach (var id in jIds)
+                {
+                    var job = jobService.GetJob(id);
+                    if (job != null)
+                    {
+                        if (string.Equals(job.ChatSessionId, s.Id, StringComparison.OrdinalIgnoreCase))
+                        {
+                            combinedIds.Add(id);
+                        }
+                        else
+                        {
+                            staleIds.Add(id);
+                        }
+                    }
+                }
+
+                if (staleIds.Count > 0)
+                {
+                    chatService.RemoveSpawnedJobs(s.Id, staleIds);
+                }
+            }
+
+            if (combinedIds.Count > 0)
+            {
+                spawnedJobs = combinedIds.Select(jId =>
+                {
+                    var job = jobService.GetJob(jId);
+                    if (job == null) return new ChatJobDto(jId, "Job", "Unknown");
+                    return ToJobDto(job);
+                }).ToList();
+            }
+        }
+
+        return new ChatSessionDto(
+            s.Id,
+            s.Title,
+            s.AgentId,
+            s.ModelId,
+            s.CreatedAt.ToString("o"),
+            s.UpdatedAt.ToString("o"),
+            isActive
+                ? messages.Select(m => new ChatMessageDto(
+                    m.Id,
+                    m.Role,
+                    m.Content,
+                    m.Timestamp.ToString("t"),
+                    m.AgentId,
+                    m.ModelId,
+                    m.RawStream,
+                    m.Effort
+                )).ToList()
+                : [],
+            status,
+            s.Effort,
+            spawnedJobs
+        );
+    }
+
+    internal static List<AgentOptionDto> BuildAgentDtos(IAgentRunner agentRunner, IConfigService configService)
+    {
+        var registeredAgentIds = agentRunner.RegisteredAgents;
+        if (registeredAgentIds.Count == 0)
+        {
+            registeredAgentIds = ["claude", "opencode", "codex", "gemini", "antigravity", "copilot", "ivy"];
+        }
+
+        return registeredAgentIds.Select(agentId =>
+        {
+            var (label, icon) = AgentBranding.For(agentId, agentRunner, configService);
+            var agentModels = GetModelsForAgent(agentRunner, agentId)
+                .Select(m => new ModelOptionDto(m.Id, m.DisplayName))
+                .ToList();
+            return new AgentOptionDto(agentId, label, icon.ToString(), agentModels, DoesAgentSupportEffort(agentRunner, agentId));
+        }).ToList();
     }
 
     internal static bool DoesAgentSupportEffort(IAgentRunner runner, string agentId)

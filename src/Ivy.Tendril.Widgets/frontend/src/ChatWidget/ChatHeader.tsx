@@ -29,7 +29,7 @@ interface JobsMenuProps {
   onReview: () => void;
 }
 
-const JobsMenu: React.FC<JobsMenuProps> = ({ jobs, spawned, onReview }) => {
+export const JobsMenu: React.FC<JobsMenuProps> = ({ jobs, spawned, onReview }) => {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);

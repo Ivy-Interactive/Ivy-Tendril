@@ -34,6 +34,9 @@ public interface IPlanReaderService
     void ResetToDraft(string folderName);
     void ResetVerificationsForRetry(string folderName);
     void SetVerificationStatus(string folderName, string name, VerificationStatus status);
+
+    /// <summary>Records the chat session that belongs to the plan, so jobs started for it report back there.</summary>
+    void SetChatSessionId(string folderName, string chatSessionId) { }
     void SaveRevision(string folderName, string content);
     void RevertRevision(string folderName);
     string ReadLatestRevision(string folderName);

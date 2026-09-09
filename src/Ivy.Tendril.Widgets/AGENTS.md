@@ -8,6 +8,8 @@ External widget library for the Ivy framework, bundled as React IIFE modules ser
 DraftMarkdown.cs      Widget record with [Prop] and [Event] attributes
 AgentViewer.cs
 TendrilProcessViewer.cs
+PlanWorkspace.cs      The Drafts/Review page frame: title bar actions, tabs with the Verifications and
+                      Questions dropdowns, slot for the tab content, resizable chat panel (ChatWidget Embedded)
 frontend/             React/Vite bundle (npm run build → dist/)
 
 .samples/             Standalone Ivy app hosting widgets for development and testing
@@ -16,6 +18,7 @@ frontend/             React/Vite bundle (npm run build → dist/)
     AgentViewer/      ErrorApp, LiveStreamApp, PreBufferedApp, TableOutputApp
     TendrilProcessViewer/  DemoApp
     ChatWidget/       DemoApp (mocked conversation: attachments, tool calls, job event, questions, streaming toggle)
+    PlanWorkspace/    DemoApp (top bar actions and shortcuts, tabs, dropdown panels, embedded chat, drag-to-resize)
     TendrilQuestions/ DemoApp (every question case of the plan schema)
     WebViewer/        DemoApp (inspector), SideBySideApp (two viewers on one page)
 

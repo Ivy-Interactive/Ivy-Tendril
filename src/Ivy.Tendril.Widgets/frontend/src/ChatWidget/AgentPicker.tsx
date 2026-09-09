@@ -16,6 +16,8 @@ export interface AgentPickerProps {
   onAgentChange: (agentId: string) => void;
   onModelChange: (modelId: string) => void;
   onEffortChange: (effortId: string) => void;
+  /** Icon-only trigger, for the narrow composer of an embedded chat. */
+  compact?: boolean;
 }
 
 interface SelectOption {
@@ -91,6 +93,7 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
   onAgentChange,
   onModelChange,
   onEffortChange,
+  compact = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -192,6 +195,7 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
         type="button"
         className="chat-agent-trigger"
         data-open={open}
+        data-compact={compact}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`Agent: ${label}`}
@@ -199,7 +203,7 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
         onClick={toggleMenu}
       >
         <BrandIcon name={selected?.icon} size={16} className="chat-agent-trigger-icon" />
-        <span className="chat-agent-trigger-label">{label}</span>
+        {!compact && <span className="chat-agent-trigger-label">{label}</span>}
       </button>
 
       {open &&

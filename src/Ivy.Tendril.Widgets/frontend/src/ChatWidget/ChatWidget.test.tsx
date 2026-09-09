@@ -2265,3 +2265,50 @@ describe("ChatWidget voice input", () => {
     expect(errorBanner()).toBeNull();
   });
 });
+
+describe("ChatWidget embedded mode", () => {
+  beforeEach(() => {
+    window.ResizeObserver = class {
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = vi.fn();
+    } as any;
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+  });
+
+  it("drops the title bar and shows the plan greeting above the headline", () => {
+    const { container } = render(
+      <ChatWidget
+        id="embedded"
+        embedded
+        greeting="#59 Revamp the User Authentication Experience"
+        headline="Ask Tendril to Change Anything"
+      />,
+    );
+
+    expect(container.querySelector(".chat-widget-root")).toHaveAttribute("data-embedded", "true");
+    expect(container.querySelector(".chat-header")).toBeNull();
+    expect(screen.queryByRole("button", { name: "New chat" })).not.toBeInTheDocument();
+    expect(screen.getByText("#59 Revamp the User Authentication Experience")).toBeInTheDocument();
+    expect(screen.getByText("Ask Tendril to Change Anything")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Ask Tendril anything/)).toBeInTheDocument();
+  });
+
+  it("keeps the jobs menu reachable without the title bar", () => {
+    const session: ChatSessionDto = {
+      id: "s1",
+      title: "Plan chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [{ id: "m1", role: "user", content: "hi", timestamp: "" }],
+      spawnedJobs: [{ id: "00148", type: "ExecutePlan", status: "Running" }],
+    };
+    const { container } = render(<ChatWidget id="embedded" embedded activeSessionId="s1" sessions={[session]} />);
+
+    expect(container.querySelector(".chat-header--embedded")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "View running jobs" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Chat options" })).not.toBeInTheDocument();
+  });
+});

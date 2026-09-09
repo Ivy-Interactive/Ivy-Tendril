@@ -25,7 +25,7 @@ import type {
 import { BlockMarkdown } from "../BlockMarkdown";
 import { AgentPicker } from "./AgentPicker";
 import { AssistantTurn } from "./AssistantTurn";
-import { ChatHeader } from "./ChatHeader";
+import { ChatHeader, JobsMenu } from "./ChatHeader";
 import {
   ComposerAttachmentCard,
   MessageAttachmentChip,
@@ -120,6 +120,7 @@ export function ChatWidget({
   runningJobs = [],
   greeting,
   headline = "What Are We Producing Today?",
+  embedded = false,
   events = [],
   eventHandler,
 }: ChatWidgetProps) {
@@ -561,32 +562,51 @@ export function ChatWidget({
   const title = (activeSession && pendingRenames[activeSession.id]) || activeSession?.title || "New Chat";
 
   return (
-    <div className="chat-widget-root">
+    <div className="chat-widget-root" data-embedded={embedded}>
       <input ref={fileInputRef} type="file" multiple style={{ display: "none" }} onChange={handleFileSelect} />
 
-      <ChatHeader
-        key={activeSessionId ?? "none"}
-        title={title}
-        editable={!!activeSession}
-        jobs={headerJobs}
-        spawned={sessionSpawnedJobs.length > 0}
-        onRename={(t) => {
-          if (!activeSession) return;
-          setPendingRenames((prev) => ({ ...prev, [activeSession.id]: t }));
-          // One array argument: the host maps a single argument onto the event's string[] value.
-          emit("OnRenameSession", [activeSession.id, t]);
-        }}
-        onDelete={() => activeSession && emit("OnDeleteSession", activeSession.id)}
-        onNewChat={() => emit("OnCreateSession")}
-        onReviewJobs={() =>
-          activeSession &&
-          emit("OnSendMessage", {
-            prompt: "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
-            attachments: [],
-            sessionId: activeSession.id,
-          })
-        }
-      />
+      {embedded ? (
+        activeSession &&
+        headerJobs.length > 0 && (
+          <div className="chat-header chat-header--embedded">
+            <JobsMenu
+              jobs={headerJobs}
+              spawned={sessionSpawnedJobs.length > 0}
+              onReview={() =>
+                emit("OnSendMessage", {
+                  prompt: "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
+                  attachments: [],
+                  sessionId: activeSession.id,
+                })
+              }
+            />
+          </div>
+        )
+      ) : (
+        <ChatHeader
+          key={activeSessionId ?? "none"}
+          title={title}
+          editable={!!activeSession}
+          jobs={headerJobs}
+          spawned={sessionSpawnedJobs.length > 0}
+          onRename={(t) => {
+            if (!activeSession) return;
+            setPendingRenames((prev) => ({ ...prev, [activeSession.id]: t }));
+            // One array argument: the host maps a single argument onto the event's string[] value.
+            emit("OnRenameSession", [activeSession.id, t]);
+          }}
+          onDelete={() => activeSession && emit("OnDeleteSession", activeSession.id)}
+          onNewChat={() => emit("OnCreateSession")}
+          onReviewJobs={() =>
+            activeSession &&
+            emit("OnSendMessage", {
+              prompt: "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
+              attachments: [],
+              sessionId: activeSession.id,
+            })
+          }
+        />
+      )}
 
       <div ref={messagesContainerRef} className="chat-messages-container">
         <div className="chat-thread" data-empty={!hasThreadContent}>
@@ -814,7 +834,7 @@ export function ChatWidget({
                 aria-label="Attach file"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <Paperclip size={20} />
+                <Paperclip size={embedded ? 16 : 20} />
               </button>
 
               <textarea
@@ -840,6 +860,7 @@ export function ChatWidget({
                   onAgentChange={(agentId) => emit("OnAgentChanged", agentId)}
                   onModelChange={(modelId) => emit("OnModelChanged", modelId)}
                   onEffortChange={(effortId) => emit("OnEffortChanged", effortId)}
+                  compact={embedded}
                 />
 
                 <button
@@ -850,11 +871,11 @@ export function ChatWidget({
                   onClick={toggleVoiceRecording}
                 >
                   {voiceStatus === "connecting" || voiceStatus === "processing" ? (
-                    <LoaderCircle size={20} className="spin" />
+                    <LoaderCircle size={embedded ? 16 : 20} className="spin" />
                   ) : voiceStatus === "recording" ? (
-                    <Square size={20} />
+                    <Square size={embedded ? 16 : 20} />
                   ) : (
-                    <Mic size={20} />
+                    <Mic size={embedded ? 16 : 20} />
                   )}
                 </button>
 

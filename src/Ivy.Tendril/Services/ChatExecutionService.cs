@@ -74,6 +74,52 @@ public sealed class ChatExecutionService : IChatExecutionService
         @"\bJob started:\s*([0-9a-zA-Z_-]+)",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+    private PlanFile? ResolveAttachedPlan(ChatSessionModel? session)
+    {
+        if (string.IsNullOrEmpty(session?.PlanFolderName)) return null;
+        var planReader = ResolvedPlanReaderService;
+        if (planReader == null) return null;
+        try
+        {
+            return planReader.GetPlanByFolder(Path.Combine(planReader.PlansDirectory, session.PlanFolderName));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to resolve the plan attached to chat session {SessionId}", session.Id);
+            return null;
+        }
+    }
+
+    /// <summary>
+    ///     The prompt section for a session that belongs to one plan: the agent works on that plan
+    ///     alone, through the jobs that fit the plan's current stage.
+    /// </summary>
+    internal static string BuildAttachedPlanSection(PlanFile plan, string sessionId)
+    {
+        var folder = plan.FolderName;
+        var underReview = plan.Status is PlanStatus.Review or PlanStatus.Completed or PlanStatus.Failed;
+        var sb = new StringBuilder();
+        sb.AppendLine("# Attached Plan");
+        sb.AppendLine($"This chat session belongs to plan #{plan.Id} \"{plan.Title}\" (project: {plan.Project}, status: {plan.Status}).");
+        sb.AppendLine($"Plan folder: {plan.FolderPath}");
+        sb.AppendLine("Read plan.yaml and the latest revision in that folder before you answer or change anything.");
+        sb.AppendLine("Only work on this plan: do not create plans, and do not start jobs for any other plan.");
+        sb.AppendLine("When the user wants something done, start the matching job (every command must include the chat session):");
+        if (underReview)
+        {
+            sb.AppendLine($"- Change the implementation: `tendril job start RetryPlan {folder} --change-request \"<what to change>\" --chat-session {sessionId}`");
+            sb.AppendLine($"- Create the pull request: `tendril job start CreatePr {folder} --chat-session {sessionId}`");
+        }
+        else
+        {
+            sb.AppendLine($"- Change the plan: `tendril job start UpdatePlan {folder} --instructions \"<the requested changes>\" --chat-session {sessionId}`");
+            sb.AppendLine($"- Execute the plan: `tendril job start ExecutePlan {folder} --chat-session {sessionId}`");
+        }
+        sb.AppendLine("Questions that only need an answer, and small edits the user asks you to make directly to the plan's revision, do not need a job.");
+        sb.AppendLine("Job completions are reported back into this chat as system events.");
+        return sb.ToString().TrimEnd();
+    }
+
     internal void TryTrackSpawnedJob(string sessionId, string? text)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
@@ -433,6 +479,14 @@ public sealed class ChatExecutionService : IChatExecutionService
         agentPromptBuilder.AppendLine($"When starting jobs using `tendril job start`, always include `--chat-session {sessionId}` so the job is tracked in this chat session.");
         agentPromptBuilder.AppendLine("---");
         agentPromptBuilder.AppendLine();
+
+        var attachedPlan = ResolveAttachedPlan(currentSess);
+        if (attachedPlan != null)
+        {
+            agentPromptBuilder.AppendLine(BuildAttachedPlanSection(attachedPlan, sessionId));
+            agentPromptBuilder.AppendLine("---");
+            agentPromptBuilder.AppendLine();
+        }
 
         if (role.Equals("system", StringComparison.OrdinalIgnoreCase))
         {

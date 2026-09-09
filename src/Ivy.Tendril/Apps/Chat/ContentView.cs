@@ -36,7 +36,8 @@ public class ContentView(
     IAgentRunner agentRunner,
     Action<ChatSendMessageDto> sendMessage,
     Action<string> selectSession,
-    Action startNewChat) : ViewBase
+    Action startNewChat,
+    bool embedded = false) : ViewBase
 {
     /// <summary>The plan a job event names, by folder, numeric id or zero-padded id.</summary>
     internal static PlanFile? FindPlan(IPlanReaderService planService, string planId)
@@ -114,6 +115,7 @@ public class ContentView(
             RunningJobs = runningJobs,
             Greeting = greeting,
             Headline = headline,
+            Embedded = embedded,
 
             OnSelectSession = e =>
             {
@@ -233,8 +235,12 @@ public class ContentView(
             }
         }
         .WithLayout()
-        .Full()
-        .RemoveParentPadding();
+        .Full();
+
+        // The panel that hosts an embedded chat draws its own inset; RemoveParentPadding would
+        // zero it (the framework strips padding from every ancestor wrapper of that class).
+        if (!embedded)
+            chatWidget = chatWidget.RemoveParentPadding();
 
         return new Fragment(chatWidget, deleteDialog);
     }

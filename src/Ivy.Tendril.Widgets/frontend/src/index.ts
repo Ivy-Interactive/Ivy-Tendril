@@ -18,6 +18,7 @@ import { ShellSidebarSection } from "./Shell/ShellSidebarSection";
 import { ShellSettingsButton } from "./Shell/ShellSettingsButton";
 import { ShellTabs } from "./Shell/ShellTabs";
 import { TendrilQuestions } from "./TendrilQuestions/TendrilQuestions";
+import { PlanWorkspace } from "./PlanWorkspace/PlanWorkspace";
 
 if (typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).IvyTendrilWidgets = {
@@ -42,6 +43,7 @@ if (typeof window !== "undefined") {
     ShellSettingsButton,
     ShellTabs,
     TendrilQuestions,
+    PlanWorkspace,
   };
 }
 
@@ -67,4 +69,5 @@ export {
   ShellSettingsButton,
   ShellTabs,
   TendrilQuestions,
+  PlanWorkspace,
 };
