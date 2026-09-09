@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Git;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test;
@@ -688,5 +689,48 @@ public class GithubServiceTests
         };
         using var process = Process.Start(psi)!;
         process.WaitForExit();
+    }
+
+    [Fact]
+    public async Task SearchIssuesAsync_NonexistentRepo_ReturnsErrorWithoutRateLimitMessage()
+    {
+        var configService = new ConfigService(new TendrilSettings());
+        using var githubService = new GithubService(configService, NullLogger<GithubService>.Instance);
+
+        var request = new IssueSearchRequest("nonexistent-owner-12345", "nonexistent-repo-12345");
+        var (issues, error) = await githubService.SearchIssuesAsync(request);
+
+        Assert.Empty(issues);
+        Assert.NotNull(error);
+        Assert.NotEqual(GhRateLimit.UserMessage, error);
+    }
+
+    [Fact]
+    public async Task ExecuteGhCliAsync_ConcurrentCalls_AreSerializedByGhGate()
+    {
+        var configService = new ConfigService(new TendrilSettings());
+        using var githubService = new GithubService(configService, NullLogger<GithubService>.Instance);
+
+        // Pre-acquire the gate to simulate an active operation holding the semaphore
+        await githubService.GhGate.WaitAsync();
+
+        // Launch an operation that calls ExecuteGhCliAsync
+        var task = Task.Run(async () =>
+        {
+            return await githubService.ExecuteGhCliAsync("version", s => s, string.Empty);
+        });
+
+        // Give the background task time to attempt acquiring the gate
+        await Task.Delay(100);
+
+        // While gate is held, the queued call must remain blocked
+        Assert.False(task.IsCompleted);
+
+        // Release the gate
+        githubService.GhGate.Release();
+
+        // Now the task should unblock and complete
+        var (result, error) = await task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(task.IsCompletedSuccessfully);
     }
 }
