@@ -58,6 +58,36 @@ public class ChatLauncherTests
         }
     }
 
+    private static ChatSessionModel Session(string id, string title, string? kind, int minutesAgo) =>
+        new(id, title, DateTimeOffset.UtcNow.AddMinutes(-minutesAgo), DateTimeOffset.UtcNow.AddMinutes(-minutesAgo), "claude", "opus", [], Kind: kind);
+
+    [Fact]
+    public void LatestTerminalSessionId_PicksTheMostRecentlyUpdatedTerminal()
+    {
+        var sessions = new[]
+        {
+            Session("chat-new", "Chat", ChatSessionKinds.Chat, 0),
+            Session("term-old", "Old", ChatSessionKinds.Terminal, 60),
+            Session("term-new", "New", ChatSessionKinds.Terminal, 5)
+        };
+
+        Assert.Equal("term-new", ChatLauncher.LatestTerminalSessionId(sessions));
+        Assert.Null(ChatLauncher.LatestTerminalSessionId([sessions[0]]));
+    }
+
+    [Fact]
+    public void SessionListSignature_ChangesOnlyWithIdsAndTitles()
+    {
+        var a = Session("a", "First", null, 0);
+        var b = Session("b", "Second", null, 0);
+
+        var before = ChatLauncher.SessionListSignature([a, b]);
+
+        Assert.Equal(before, ChatLauncher.SessionListSignature([a with { UpdatedAt = DateTimeOffset.UtcNow.AddHours(1) }, b]));
+        Assert.NotEqual(before, ChatLauncher.SessionListSignature([a with { Title = "Renamed" }, b]));
+        Assert.NotEqual(before, ChatLauncher.SessionListSignature([a]));
+    }
+
     [Fact]
     public void NewSessionTarget_TerminalMode_DefersSessionCreationToTheShell()
     {

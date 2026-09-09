@@ -67,7 +67,7 @@ public class ChatSessionNamingService : IChatSessionNamingService
                 effectiveAgentId,
                 prompt,
                 modelOverride: modelId,
-                permissionMode: PermissionMode.FullAuto);
+                permissionMode: PermissionMode.Plan);
 
             context = context with
             {

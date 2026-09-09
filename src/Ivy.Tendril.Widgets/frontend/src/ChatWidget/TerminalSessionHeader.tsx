@@ -41,13 +41,12 @@ export const TerminalSessionHeader: React.FC<TerminalSessionHeaderProps> = ({
       <ChatHeader
         variant="terminal"
         title={title}
-        editable
+        editable={!!sessionId}
         jobs={jobs}
         spawned={spawned}
         onRename={(newTitle) => emit("OnRenameSession", [sessionId, newTitle])}
         onDelete={() => emit("OnDeleteSession", sessionId)}
         onNewChat={() => emit("OnCreateSession")}
-        onOpenPlan={(planId) => emit("OnOpenPlan", planId)}
         onReviewJobs={() => emit("OnReviewJobs")}
       />
     </div>

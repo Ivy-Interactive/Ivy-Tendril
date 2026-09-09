@@ -4,7 +4,6 @@ using System.Text.RegularExpressions;
 using Ivy.Hooks.Pty;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
-using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Chat.Dialogs;
 using Ivy.Tendril.Helpers;
@@ -27,12 +26,11 @@ public class AgentApp : ViewBase
         var agentRunner = UseService<IAgentRunner>();
         var chatService = UseService<IChatHistoryService>();
         Context.TryUseService<IJobService>(out var jobService);
-        Context.TryUseService<IPlanReaderService>(out var planService);
         var navigator = UseNavigation();
         var args = UseArgs<AgentAppArgs>();
         var sessionVersion = UseState(0);
         var deletingSessionId = UseState<string?>(null);
-        var activeSessionId = UseState<string?>(() => args?.SessionId);
+        var headerKey = UseRef<string?>(null);
 
         // The initial task is delivered as a command-line argument (see each provider's
         // BuildPtySpec) so the agent auto-runs it on launch — no fragile "wait then paste"
@@ -70,10 +68,20 @@ public class AgentApp : ViewBase
             }
         );
 
+        // Both events fire for every session and job in the process; only this pane's own
+        // title and jobs are worth a rebuild.
         UseEffect(() =>
         {
-            void OnSessionsChanged(object? sender, EventArgs e) => sessionVersion.Set(v => v + 1);
-            void OnJobsChanged() => sessionVersion.Set(v => v + 1);
+            void Refresh()
+            {
+                var key = HeaderKey(chatService, jobService, args?.SessionId);
+                if (key == headerKey.Value) return;
+                headerKey.Value = key;
+                sessionVersion.Set(v => v + 1);
+            }
+
+            void OnSessionsChanged(object? sender, EventArgs e) => Refresh();
+            void OnJobsChanged() => Refresh();
 
             chatService.SessionsChanged += OnSessionsChanged;
             if (jobService != null) jobService.JobsChanged += OnJobsChanged;
@@ -98,18 +106,15 @@ public class AgentApp : ViewBase
         var (agentLabel, _) = AgentBranding.For(configService.Settings.CodingAgent, agentRunner, configService);
         var title = session != null ? ChatApp.DisplayTitle(session) : (args?.Title ?? agentLabel);
 
-        var jobs = session != null && jobService != null
-            ? jobService.GetJobs()
-                .Where(j => string.Equals(j.ChatSessionId, session.Id, StringComparison.OrdinalIgnoreCase))
-                .Select(ChatApp.ToJobDto)
-                .ToList()
+        var jobs = session != null
+            ? SessionJobs(jobService, session.Id).Select(ChatApp.ToJobDto).ToList()
             : [];
 
         var header = new TerminalSessionHeader()
             .SessionId(session?.Id ?? "")
             .Title(title)
             .Jobs(jobs)
-            .Spawned(jobs.Count > 0)
+            .Spawned(session?.SpawnedJobIds is { Count: > 0 })
             .OnRenameSession((id, newTitle) =>
             {
                 chatService.RenameSession(id, newTitle);
@@ -117,17 +122,9 @@ public class AgentApp : ViewBase
             })
             .OnDeleteSession(id => deletingSessionId.Set(id))
             .OnCreateSession(() => ChatLauncher.StartNew(navigator, configService, chatService, agentRunner))
-            .OnOpenPlan(planId =>
-            {
-                if (planService == null || string.IsNullOrEmpty(planId)) return;
-                var plan = ContentView.FindPlan(planService, planId);
-                if (plan == null) return;
-                var (app, appArgs) = PlanSearchDialog.ResolveTarget(plan);
-                navigator.Navigate(app, appArgs);
-            })
             .OnReviewJobs(() => ptyHandle.HandleInput(ReviewJobsPrompt + "\r"));
 
-        var deleteDialog = new DeleteSessionDialog(deletingSessionId, session, chatService, activeSessionId, sessionVersion);
+        var deleteDialog = new DeleteSessionDialog(deletingSessionId, session, chatService, null, sessionVersion);
 
         var terminal = new Xterm.Terminal()
             .Stream(ptyHandle.Stream)
@@ -143,6 +140,17 @@ public class AgentApp : ViewBase
                    | terminal;
 
         return new Fragment(pane, deleteDialog);
+    }
+
+    private static IEnumerable<JobItem> SessionJobs(IJobService? jobService, string sessionId) =>
+        jobService?.GetJobs().Where(j => string.Equals(j.ChatSessionId, sessionId, StringComparison.OrdinalIgnoreCase)) ?? [];
+
+    internal static string HeaderKey(IChatHistoryService chatService, IJobService? jobService, string? sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return "";
+        var session = chatService.GetSession(sessionId);
+        var jobs = string.Join(",", SessionJobs(jobService, sessionId).Select(j => j.Id + ":" + j.Status));
+        return $"{session?.Title}|{session?.SpawnedJobIds?.Count ?? 0}|{jobs}";
     }
 
     private static Dictionary<string, string> BuildEnvironment(IConfigService config, string? sessionId)

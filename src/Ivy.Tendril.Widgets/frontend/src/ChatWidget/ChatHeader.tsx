@@ -165,7 +165,6 @@ export interface ChatHeaderProps {
   onDelete?: () => void;
   onNewChat: () => void;
   onReviewJobs?: () => void;
-  onOpenPlan?: (planId: string) => void;
 }
 
 /**
@@ -183,7 +182,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onDelete,
   onNewChat,
   onReviewJobs,
-  onOpenPlan: _onOpenPlan,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitleText, setEditingTitleText] = useState("");

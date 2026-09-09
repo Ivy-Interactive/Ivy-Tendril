@@ -161,9 +161,14 @@ public class ChatApp : ViewBase
 
         void SelectSession(string sessionId)
         {
+            var sess = chatService.GetSession(sessionId);
+            if (sess?.IsTerminal() == true)
+            {
+                navigator.Navigate(typeof(ChatApp), new ChatAppArgs(SessionId: sessionId));
+                return;
+            }
             activeSessionId.Set(sessionId);
             chatService.ClearSessionCompleted(sessionId);
-            var sess = chatService.GetSession(sessionId);
             if (sess != null)
             {
                 if (!string.IsNullOrEmpty(sess.AgentId)) selectedAgent.Set(sess.AgentId);

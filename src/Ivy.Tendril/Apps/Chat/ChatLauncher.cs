@@ -34,4 +34,10 @@ internal static class ChatLauncher
         var (app, args) = NewSessionTarget(config, chats, runner);
         navigator.Navigate(app, args);
     }
+
+    public static string? LatestTerminalSessionId(IEnumerable<ChatSessionModel> sessions) =>
+        sessions.Where(s => s.IsTerminal()).OrderByDescending(s => s.UpdatedAt).FirstOrDefault()?.Id;
+
+    public static string SessionListSignature(IEnumerable<ChatSessionModel> sessions) =>
+        string.Join("\u001e", sessions.Select(s => s.Id + "\u001f" + s.Title));
 }

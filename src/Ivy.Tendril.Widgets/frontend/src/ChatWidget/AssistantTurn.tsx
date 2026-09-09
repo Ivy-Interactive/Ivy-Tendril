@@ -164,7 +164,7 @@ export interface AssistantTurnProps {
 export const AssistantTurn: React.FC<AssistantTurnProps> = ({ stream, live = false }) => {
   const events = useMemo(() => (stream ? parseEventWireStream(stream) : []), [stream]);
   const turn = useMemo(() => summarizeTurn(events), [events]);
-  const status = useMemo(() => deriveStatus(events), [events]);
+  const complete = useMemo(() => deriveStatus(events).complete, [events]);
 
   return (
     <div className="chat-turn">
@@ -180,7 +180,7 @@ export const AssistantTurn: React.FC<AssistantTurnProps> = ({ stream, live = fal
           </div>
         ),
       )}
-      {live && !status.complete && (
+      {live && !complete && (
         <div className="aov-shell chat-turn-status">
           <AnimatedStatus statusText="Thinking" isComplete={false} />
         </div>

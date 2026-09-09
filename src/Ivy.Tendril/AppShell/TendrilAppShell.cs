@@ -203,8 +203,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     }
 
     /// <summary>
-    ///     Flattens the app menu into the sidebar nav rows. The agent and chat entries are excluded — they
-    ///     are reached through the dedicated Chat button above the nav instead — as are the apps in
+    ///     Flattens the app menu into the sidebar nav rows. The agent and chat entries are excluded (they
+    ///     are reached through the dedicated Chat button above the nav instead), as are the apps in
     ///     <paramref name="footerAppIds"/>, which get their own button in the sidebar footer.
     /// </summary>
     internal static List<ShellNavItemDto> BuildNavItems(MenuItem[] menuItems, string? activeAppId,
@@ -267,6 +267,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var chatService = UseService<IChatHistoryService>();
         Context.TryUseService<IChatSessionNamingService>(out var namingService);
         var sessionsVersion = UseState(0);
+        var sessionsSignature = UseRef<string?>(null);
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
         Context.TryUseService<TendrilArgs>(out var tendrilArgs);
 
@@ -340,8 +341,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         // Chats list the shell draws while a terminal pane is visible.
         UseEffect(() =>
         {
+            // SessionsChanged also fires for every persisted message chunk; only a change in the
+            // set of sessions or their titles concerns the shell.
             void OnSessionsChanged(object? sender, EventArgs e)
             {
+                var signature = ChatLauncher.SessionListSignature(chatService.GetSessions());
+                if (signature == sessionsSignature.Value) return;
+                sessionsSignature.Value = signature;
+
                 sessionsVersion.Set(v => v + 1);
                 CloseTabsOfDeletedSessions();
                 if (selectedIndex.Value is { } active && CheckTabExists(active) && IsAgentTab(tabs.Value[active]))
@@ -386,6 +393,16 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                     targetAppId = defaultAppId;
 
                 var appArgs = args.GetArgs<object>();
+
+                // Args are hidden from the URL, so a reloaded terminal pane has no session: resume
+                // the latest terminal session instead of persisting a fresh one on every refresh.
+                if (string.Equals(targetAppId, AgentAppId, StringComparison.OrdinalIgnoreCase) && appArgs == null)
+                {
+                    var resumed = ChatLauncher.LatestTerminalSessionId(chatService.GetSessions());
+                    if (resumed != null) appArgs = new AgentAppArgs(SessionId: resumed);
+                    else targetAppId = defaultAppId;
+                }
+
                 OpenApp(new NavigateArgs(targetAppId, appArgs), true);
             }
             else
@@ -825,7 +842,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 SelectSession(latest);
                 return;
             }
-            OpenApp(new NavigateArgs(AgentAppId));
+            var resumed = ChatLauncher.LatestTerminalSessionId(chatService.GetSessions());
+            OpenApp(new NavigateArgs(AgentAppId, resumed != null ? new AgentAppArgs(SessionId: resumed) : null));
         }
 
         void StartNewChat() => ChatLauncher.StartNew(navigator, config, chatService, agentRunner);

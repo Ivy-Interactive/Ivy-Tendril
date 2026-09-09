@@ -8,7 +8,7 @@ public class DeleteSessionDialog(
     IState<string?> deletingSessionId,
     ChatSessionModel? session,
     IChatHistoryService chatService,
-    IState<string?> activeSessionId,
+    IState<string?>? activeSessionId,
     IState<int> sessionVersion) : ViewBase
 {
     public override object? Build()
@@ -34,7 +34,7 @@ public class DeleteSessionDialog(
                     {
                         chatService.DeleteSession(idToDelete);
                         sessionVersion.Set(v => v + 1);
-                        if (activeSessionId.Value == idToDelete)
+                        if (activeSessionId != null && activeSessionId.Value == idToDelete)
                         {
                             var remaining = chatService.GetSessions();
                             activeSessionId.Set(remaining.FirstOrDefault()?.Id);
