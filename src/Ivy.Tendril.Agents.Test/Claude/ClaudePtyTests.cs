@@ -388,6 +388,42 @@ public class ClaudePtyTests
     }
 
     [Fact]
+    public void BuildPtySpec_WithResume_ProducesResumeFlagAndOmitsSessionId()
+    {
+        var config = new AgentPtyConfig
+        {
+            WorkingDirectory = "/tmp/test",
+            SessionId = "abc-123",
+            Resume = true,
+        };
+
+        var spec = _pty.BuildPtySpec(config);
+
+        Assert.DoesNotContain("--session-id", spec.CommandLine);
+        var idx = spec.CommandLine.ToList().IndexOf("--resume");
+        Assert.True(idx >= 0);
+        Assert.Equal("abc-123", spec.CommandLine[idx + 1]);
+    }
+
+    [Fact]
+    public void BuildPtySpec_WithoutResume_ProducesSessionIdFlag()
+    {
+        var config = new AgentPtyConfig
+        {
+            WorkingDirectory = "/tmp/test",
+            SessionId = "abc-123",
+            Resume = false,
+        };
+
+        var spec = _pty.BuildPtySpec(config);
+
+        Assert.DoesNotContain("--resume", spec.CommandLine);
+        var idx = spec.CommandLine.ToList().IndexOf("--session-id");
+        Assert.True(idx >= 0);
+        Assert.Equal("abc-123", spec.CommandLine[idx + 1]);
+    }
+
+    [Fact]
     public void BuildPtySpec_InitialPrompt_IsTrailingPositionalArg()
     {
         var config = new AgentPtyConfig
