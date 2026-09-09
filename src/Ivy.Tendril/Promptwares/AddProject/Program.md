@@ -115,7 +115,8 @@ Verifications run top-to-bottom during plan execution. The correct order is:
 1. **Linting/Formatting** — e.g. `DotnetFormat`, `NpmLint`, `RustClippy`, `GoFmt`, `FrameworkFrontendLint`, `VitePlusCheck`
 2. **Build** — e.g. `DotnetBuild`, `FrameworkDotnetBuild`, `NpmBuild`, `RustBuild`, `GoBuild`
 3. **Tests** — e.g. `DotnetTest`, `NpmTest`, `RustTest`, `GoTest`
-4. **CheckResult** — always last
+4. **Screenshots** — only when the project got a UI-launching review action (see Step 3.5)
+5. **CheckResult** — always last
 
 After adding all verifications, verify ordering with `tendril project get <project-name>` and fix with:
 ```bash
@@ -167,6 +168,31 @@ tendril project add-review-action <project-name> "<name>" \
   --command="<launch command>" \
   --condition="Test-Path \"Worktrees/<owner>/<repo>/<path>\""
 ```
+
+### 3.5. Setup Artifact Production
+
+Add this only when Step 3 created a review action that starts a UI. A library or CLI-only project with no launchable UI gets no `Screenshots` verification, keeping Step 2's "Keep it minimal" rule intact.
+
+1. Check `tendril verification list` for a `Screenshots` definition. If missing, create it with the long-prompt form (`--prompt=` is documented for inline text only):
+   ```bash
+   tendril verification add Screenshots --stdin <<'EOF'
+   Capture UI screenshots into the plan's Artifacts folder so the Review tab has visual evidence of the change.
+   1. Run `tendril project get "<project>"` and pick the first review action whose condition holds. Review action commands are relative to <TendrilPlanFolder>, so run them from the plan folder, not from the worktree.
+   2. If the project has no review action that starts a UI, write <TendrilPlanFolder>/Verification/Screenshots.md with `result: Skipped` plus the reason, and stop.
+   3. Start the app in the background with that command. Take the listening URL from its stdout, or fall back to `tendril plan env get <plan-id>` for the plan's allocated ports. Allow at most 120 seconds for the port to accept connections.
+   4. Capture one PNG per page into <TendrilPlanFolder>/Artifacts/screenshots/, named <NN>-<page>.png: the entry route, plus each route the plan's changes touch. Use the repo's own browser tooling if it has any, otherwise `npx --yes playwright screenshot --full-page --wait-for-timeout=2000 <url> <file>`.
+   5. Stop the app process you started.
+   6. Write <TendrilPlanFolder>/Verification/Screenshots.md with `result: Pass` and the list of captured files. If the tooling is unavailable (no Node, no browser download, offline), record `result: Skipped` with the reason instead. Never report Fail for missing tooling, and never spend more than 5 minutes in this verification.
+   EOF
+   ```
+2. Add it to the project, placed right before `CheckResult`:
+   ```bash
+   tendril project add-verification <project-name> Screenshots --required --after=<last test verification>
+   ```
+   When the project has no test verification, use `--after=<last build verification>` instead. Confirm ordering with `tendril project get <project-name>` and repair with:
+   ```bash
+   tendril project move-verification <project-name> CheckResult --after=Screenshots
+   ```
 
 ### 4. Set the Stack Hash
 
@@ -241,6 +267,7 @@ Include the following sections in `stack.md`:
 Print a summary of what was configured:
 - Verifications added
 - Review actions added
+- Screenshots verification added (or why it was skipped)
 - Stack hash configured
 - Project memory created (`stack.md`)
 
