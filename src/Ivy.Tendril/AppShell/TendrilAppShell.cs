@@ -342,10 +342,11 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         UseEffect(() =>
         {
             // SessionsChanged also fires for every persisted message chunk; only a change in the
-            // set of sessions or their titles concerns the shell.
+            // sessions, their titles or their working state concerns the shell's Chats list.
             void OnSessionsChanged(object? sender, EventArgs e)
             {
-                var signature = ChatLauncher.SessionListSignature(chatService.GetSessions());
+                var signature = ChatLauncher.SessionListSignature(
+                    chatService.GetSessions(), chatService.GetGeneratingSessionIds(), chatService.GetCompletedSessionIds());
                 if (signature == sessionsSignature.Value) return;
                 sessionsSignature.Value = signature;
 
@@ -356,7 +357,12 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             }
 
             chatService.SessionsChanged += OnSessionsChanged;
-            return Disposable.Create(() => chatService.SessionsChanged -= OnSessionsChanged);
+            chatService.GeneratingSessionsChanged += OnSessionsChanged;
+            return Disposable.Create(() =>
+            {
+                chatService.SessionsChanged -= OnSessionsChanged;
+                chatService.GeneratingSessionsChanged -= OnSessionsChanged;
+            });
         });
 
         UseEffect(() =>
@@ -396,11 +402,10 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
                 // Args are hidden from the URL, so a reloaded terminal pane has no session: resume
                 // the latest terminal session instead of persisting a fresh one on every refresh.
-                if (string.Equals(targetAppId, AgentAppId, StringComparison.OrdinalIgnoreCase) && appArgs == null)
+                if (string.Equals(targetAppId, AgentAppId, StringComparison.OrdinalIgnoreCase) && appArgs == null
+                    && ChatLauncher.LatestTerminalSessionId(chatService.GetSessions()) is { } resumed)
                 {
-                    var resumed = ChatLauncher.LatestTerminalSessionId(chatService.GetSessions());
-                    if (resumed != null) appArgs = new AgentAppArgs(SessionId: resumed);
-                    else targetAppId = defaultAppId;
+                    appArgs = new AgentAppArgs(SessionId: resumed);
                 }
 
                 OpenApp(new NavigateArgs(targetAppId, appArgs), true);

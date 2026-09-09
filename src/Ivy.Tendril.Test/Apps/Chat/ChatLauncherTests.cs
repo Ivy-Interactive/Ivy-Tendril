@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Ivy.Tendril.Apps.Agent;
@@ -76,16 +77,20 @@ public class ChatLauncherTests
     }
 
     [Fact]
-    public void SessionListSignature_ChangesOnlyWithIdsAndTitles()
+    public void SessionListSignature_TracksIdsTitlesKindAndWorkingState()
     {
         var a = Session("a", "First", null, 0);
         var b = Session("b", "Second", null, 0);
+        var none = new HashSet<string>();
 
-        var before = ChatLauncher.SessionListSignature([a, b]);
+        var before = ChatLauncher.SessionListSignature([a, b], none, none);
 
-        Assert.Equal(before, ChatLauncher.SessionListSignature([a with { UpdatedAt = DateTimeOffset.UtcNow.AddHours(1) }, b]));
-        Assert.NotEqual(before, ChatLauncher.SessionListSignature([a with { Title = "Renamed" }, b]));
-        Assert.NotEqual(before, ChatLauncher.SessionListSignature([a]));
+        Assert.Equal(before, ChatLauncher.SessionListSignature([a with { UpdatedAt = DateTimeOffset.UtcNow.AddHours(1) }, b], none, none));
+        Assert.NotEqual(before, ChatLauncher.SessionListSignature([a with { Title = "Renamed" }, b], none, none));
+        Assert.NotEqual(before, ChatLauncher.SessionListSignature([a with { Kind = ChatSessionKinds.Terminal }, b], none, none));
+        Assert.NotEqual(before, ChatLauncher.SessionListSignature([a, b], new HashSet<string> { "a" }, none));
+        Assert.NotEqual(before, ChatLauncher.SessionListSignature([a, b], none, new HashSet<string> { "b" }));
+        Assert.NotEqual(before, ChatLauncher.SessionListSignature([a], none, none));
     }
 
     [Fact]

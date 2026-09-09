@@ -164,7 +164,7 @@ public class ChatApp : ViewBase
             var sess = chatService.GetSession(sessionId);
             if (sess?.IsTerminal() == true)
             {
-                navigator.Navigate(typeof(ChatApp), new ChatAppArgs(SessionId: sessionId));
+                navigator.Navigate(typeof(AgentApp), new AgentAppArgs(SessionId: sessionId));
                 return;
             }
             activeSessionId.Set(sessionId);

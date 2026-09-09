@@ -38,6 +38,10 @@ internal static class ChatLauncher
     public static string? LatestTerminalSessionId(IEnumerable<ChatSessionModel> sessions) =>
         sessions.Where(s => s.IsTerminal()).OrderByDescending(s => s.UpdatedAt).FirstOrDefault()?.Id;
 
-    public static string SessionListSignature(IEnumerable<ChatSessionModel> sessions) =>
-        string.Join("\u001e", sessions.Select(s => s.Id + "\u001f" + s.Title));
+    public static string SessionListSignature(
+        IEnumerable<ChatSessionModel> sessions,
+        IReadOnlySet<string>? generatingIds = null,
+        IReadOnlySet<string>? completedIds = null) =>
+        string.Join("\u001e", sessions.Select(s =>
+            $"{s.Id}\u001f{s.Title}\u001f{s.Kind}\u001f{generatingIds?.Contains(s.Id) == true}\u001f{completedIds?.Contains(s.Id) == true}"));
 }

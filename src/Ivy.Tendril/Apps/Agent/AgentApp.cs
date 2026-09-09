@@ -74,7 +74,10 @@ public class AgentApp : ViewBase
         {
             void Refresh()
             {
-                var key = HeaderKey(chatService, jobService, args?.SessionId);
+                var sessionId = args?.SessionId;
+                var key = string.IsNullOrEmpty(sessionId)
+                    ? ""
+                    : HeaderKey(chatService.GetSession(sessionId), SessionJobs(jobService, sessionId));
                 if (key == headerKey.Value) return;
                 headerKey.Value = key;
                 sessionVersion.Set(v => v + 1);
@@ -114,7 +117,7 @@ public class AgentApp : ViewBase
             .SessionId(session?.Id ?? "")
             .Title(title)
             .Jobs(jobs)
-            .Spawned(session?.SpawnedJobIds is { Count: > 0 })
+            .Spawned(jobs.Count > 0)
             .OnRenameSession((id, newTitle) =>
             {
                 chatService.RenameSession(id, newTitle);
@@ -145,13 +148,8 @@ public class AgentApp : ViewBase
     private static IEnumerable<JobItem> SessionJobs(IJobService? jobService, string sessionId) =>
         jobService?.GetJobs().Where(j => string.Equals(j.ChatSessionId, sessionId, StringComparison.OrdinalIgnoreCase)) ?? [];
 
-    internal static string HeaderKey(IChatHistoryService chatService, IJobService? jobService, string? sessionId)
-    {
-        if (string.IsNullOrEmpty(sessionId)) return "";
-        var session = chatService.GetSession(sessionId);
-        var jobs = string.Join(",", SessionJobs(jobService, sessionId).Select(j => j.Id + ":" + j.Status));
-        return $"{session?.Title}|{session?.SpawnedJobIds?.Count ?? 0}|{jobs}";
-    }
+    internal static string HeaderKey(ChatSessionModel? session, IEnumerable<JobItem> jobs) =>
+        $"{session?.Title}|" + string.Join(",", jobs.Select(j => $"{j.Id}:{j.Status}:{j.StatusMessage}:{j.ReportedPlanId}:{j.ReportedPlanTitle}"));
 
     private static Dictionary<string, string> BuildEnvironment(IConfigService config, string? sessionId)
     {
