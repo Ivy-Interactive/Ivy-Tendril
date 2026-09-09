@@ -323,13 +323,13 @@ public class ContentView(
             .WithLayout().Full().RemoveParentPadding()
             .Key(selectedPlan.Id);
 
-        var elements = new List<object> { workspace };
+        var elements = new List<object?> { workspace };
         elements.AddRange(page.Overlays);
         elements.AddRange([discardDialog, suggestChangesDialog, createPrDialog, resetToDraftDialog, debugSheet, costSheet]);
         if (isBeta || isShareMode)
             elements.Add(shareModal);
 
-        return new Fragment(elements.ToArray());
+        return new Fragment(elements.OfType<object>().ToArray());
     }
 
     private void AddPrimaryAction(
