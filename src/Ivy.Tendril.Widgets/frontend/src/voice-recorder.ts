@@ -1,5 +1,36 @@
 export type VoiceStatus = "idle" | "connecting" | "recording" | "processing";
 
+export const INSECURE_CONTEXT_ERROR =
+  "Voice input needs a secure connection. Open Tendril over HTTPS or on localhost, then try again.";
+
+export const MEDIA_DEVICES_UNAVAILABLE_ERROR =
+  "Voice input is not available in this window. On macOS, quit and reopen Ivy Tendril after updating, then allow microphone access when prompted. You can also run 'tendril --web' and use voice input in your browser.";
+
+export const AUDIO_CAPTURE_UNSUPPORTED_ERROR =
+  "This browser cannot capture audio for voice input.";
+
+/**
+ * Returns the reason voice capture cannot work in this environment, or null when it can.
+ * Ordered most-specific-cause first so the message names the actual fix.
+ */
+export function unsupportedEnvironmentError(): string | null {
+  const hostname = typeof window !== "undefined" ? window.location?.hostname : undefined;
+  const isLoopback = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+  if (typeof window !== "undefined" && window.isSecureContext === false && !isLoopback) {
+    return INSECURE_CONTEXT_ERROR;
+  }
+
+  if (typeof navigator === "undefined" || !navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+    return MEDIA_DEVICES_UNAVAILABLE_ERROR;
+  }
+
+  if (typeof AudioWorkletNode === "undefined") {
+    return AUDIO_CAPTURE_UNSUPPORTED_ERROR;
+  }
+
+  return null;
+}
+
 export interface VoiceRecorderOptions {
   endpoint: string;
   language?: string;
@@ -25,6 +56,16 @@ export class VoiceRecorder {
     console.log("[VoiceRecorder] start() initiated");
     this.options.onStatusChange("connecting");
 
+    // Feature-detect before constructing anything, so an unsupported browser is not
+    // left holding a dangling AudioContext.
+    const unsupported = unsupportedEnvironmentError();
+    if (unsupported) {
+      console.warn("[VoiceRecorder] Environment cannot capture audio:", unsupported);
+      this.options.onError(unsupported);
+      this.options.onStatusChange("idle");
+      return;
+    }
+
     try {
       // Initialize AudioContext synchronously within the user gesture event handler
       // to prevent modern browsers from blocking/suspending the audio context.
@@ -33,17 +74,6 @@ export class VoiceRecorder {
       if (this.audioContext.state === "suspended") {
         await this.audioContext.resume();
         console.log("[VoiceRecorder] AudioContext resumed, state:", this.audioContext.state);
-      }
-
-      // Feature-detect before touching the mic
-      if (typeof navigator === "undefined" || !navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
-        this.options.onError("Voice input is not available in this window. On macOS, quit and reopen Ivy Tendril after updating, then allow microphone access when prompted. You can also run 'tendril --web' and use voice input in your browser.");
-        this.options.onStatusChange("idle");
-        if (this.audioContext) {
-          this.audioContext.close().catch(() => {});
-          this.audioContext = null;
-        }
-        return;
       }
 
       this.stream = await navigator.mediaDevices.getUserMedia({
