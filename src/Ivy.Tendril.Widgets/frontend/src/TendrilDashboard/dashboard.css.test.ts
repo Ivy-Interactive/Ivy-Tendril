@@ -59,6 +59,16 @@ describe("dashboard.css side block and git activity layout", () => {
     expect(css).toMatch(/\.tdb-activity-metrics\s*\{[^}]*display:\s*flex;/);
     expect(css).toMatch(/\.tdb-activity-metrics\s*\{[^}]*border-top:\s*1px solid var\(--tdb-divider\);/);
   });
+
+  it("stacks monthly activity columns from the bottom", () => {
+    expect(css).toMatch(/\.tdb-activity-col\s*\{[^}]*flex-direction:\s*column-reverse;/);
+    expect(css).toMatch(/\.tdb-activity\s*\{[^}]*align-items:\s*flex-end;/);
+  });
+
+  it("no longer carries the daily contribution heatmap classes", () => {
+    expect(css).not.toContain(".tdb-activity-weekdays");
+    expect(css).not.toContain(".tdb-activity-months-row");
+  });
 });
 
 describe("dashboard.css rolling average curve and legend", () => {
