@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { TendrilDashboard } from "./TendrilDashboard";
-import type { DashboardTrendDto } from "./types";
+import type { DashboardMonthValueDto, DashboardTrendDto } from "./types";
 
 const PLOT_LEFT = 44;
 const PLOT_WIDTH = 548;
@@ -153,8 +153,8 @@ describe("TendrilDashboard git activity and pull requests side cards", () => {
     expect(titles).toContain("Git Activity");
     expect(titles).toContain("Pull Requests");
 
-    const sideTabs = container.querySelectorAll(".tdb-col-side .tdb-tabs");
-    expect(sideTabs).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: "Git Activity" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pull Requests" })).not.toBeInTheDocument();
   });
 
   it("shows both the activity grid and the pull requests list at the same time", () => {
@@ -267,5 +267,77 @@ describe("TendrilDashboard KPI card interactions and accessibility", () => {
     fireEvent.click(card);
 
     expect(eventHandler).toHaveBeenCalledWith("OnSelectKpi", "dash", ["dailyPrs"]);
+  });
+});
+
+describe("TendrilDashboard pull requests week/month toggle", () => {
+  const monthlyPrs: DashboardMonthValueDto[] = [
+    { label: "Apr", value: 10 },
+    { label: "May", value: 15 },
+    { label: "Jun", value: 8 },
+    { label: "Jul", value: 12 },
+    { label: "Aug", value: 20 },
+    { label: "Sep", value: 7 },
+  ];
+
+  const weeklyPrs: DashboardMonthValueDto[] = [
+    { label: "Aug 3", value: 4 },
+    { label: "Aug 10", value: 6 },
+    { label: "Aug 17", value: 3 },
+    { label: "Aug 24", value: 5 },
+    { label: "Aug 31", value: 8 },
+    { label: "Sep 7", value: 2 },
+  ];
+
+  it("defaults to month view and displays monthly pull requests", () => {
+    render(
+      <TendrilDashboard
+        id="dash"
+        eventHandler={vi.fn()}
+        pullRequests={monthlyPrs}
+        pullRequestsWeekly={weeklyPrs}
+      />,
+    );
+
+    const monthBtn = screen.getByRole("button", { name: "Month" });
+    const weekBtn = screen.getByRole("button", { name: "Week" });
+
+    expect(monthBtn).toHaveAttribute("data-active", "true");
+    expect(weekBtn).toHaveAttribute("data-active", "false");
+
+    expect(screen.getByText("Apr")).toBeInTheDocument();
+    expect(screen.getByText("Sep")).toBeInTheDocument();
+    expect(screen.queryByText("Aug 24")).not.toBeInTheDocument();
+  });
+
+  it("switches to week view on click and restores month view when clicked again", () => {
+    render(
+      <TendrilDashboard
+        id="dash"
+        eventHandler={vi.fn()}
+        pullRequests={monthlyPrs}
+        pullRequestsWeekly={weeklyPrs}
+      />,
+    );
+
+    const monthBtn = screen.getByRole("button", { name: "Month" });
+    const weekBtn = screen.getByRole("button", { name: "Week" });
+
+    // Switch to Week
+    fireEvent.click(weekBtn);
+    expect(weekBtn).toHaveAttribute("data-active", "true");
+    expect(monthBtn).toHaveAttribute("data-active", "false");
+
+    expect(screen.getByText("Aug 24")).toBeInTheDocument();
+    expect(screen.getByText("Sep 7")).toBeInTheDocument();
+    expect(screen.queryByText("Apr")).not.toBeInTheDocument();
+
+    // Switch back to Month
+    fireEvent.click(monthBtn);
+    expect(monthBtn).toHaveAttribute("data-active", "true");
+    expect(weekBtn).toHaveAttribute("data-active", "false");
+
+    expect(screen.getByText("Apr")).toBeInTheDocument();
+    expect(screen.queryByText("Aug 24")).not.toBeInTheDocument();
   });
 });

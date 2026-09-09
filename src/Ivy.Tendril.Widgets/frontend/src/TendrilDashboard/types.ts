@@ -61,6 +61,7 @@ export interface TendrilDashboardProps {
   trend?: DashboardTrendDto | null;
   trendWeekly?: DashboardTrendDto | null;
   pullRequests?: DashboardMonthValueDto[];
+  pullRequestsWeekly?: DashboardMonthValueDto[];
   activity?: DashboardActivityMonthDto[];
   jobs?: DashboardJobDto[];
   slots?: {

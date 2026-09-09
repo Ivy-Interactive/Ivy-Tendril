@@ -447,6 +447,16 @@
   min-height: 24px;
 }
 
+.tdb-side-tabs {
+  gap: 8px;
+}
+
+.tdb-side-tab {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
 .tdb-tunnel {
   min-height: 0;
 }
