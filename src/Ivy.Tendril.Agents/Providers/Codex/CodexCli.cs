@@ -16,7 +16,8 @@ public sealed class CodexCli : IAgentCli
         AgentCapabilities.EffortControl |
         AgentCapabilities.DirectoryRestriction |
         AgentCapabilities.HealthCheck |
-        AgentCapabilities.ExtraArgPassthrough;
+        AgentCapabilities.ExtraArgPassthrough |
+        AgentCapabilities.UsageReporting;
 
     public TransportKind SupportedTransports => TransportKind.CliSpawn;
     public PromptTransport PromptTransport => PromptTransport.Stdin;
