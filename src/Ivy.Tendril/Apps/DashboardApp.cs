@@ -139,6 +139,7 @@ public class DashboardApp : ViewBase
                 .TakeLast(6)
                 .Select(m => new DashboardMonthValueDto(MonthLabel(m.Month), m.PrsMerged))
                 .ToList())
+            .PullRequestsWeekly(BuildWeeklyPullRequests(prDays, today))
             .Activity(BuildActivityMonths(prDays, firstActivityMonth))
             .Jobs(BuildActiveJobs(jobs, planService))
             .OnDrafts(() => navigator.Navigate<PlansApp>())
@@ -201,6 +202,25 @@ public class DashboardApp : ViewBase
 
     private static string MonthLabel(int month) =>
         CultureInfo.InvariantCulture.DateTimeFormat.GetAbbreviatedMonthName(month);
+
+    internal static List<DashboardMonthValueDto> BuildWeeklyPullRequests(
+        List<(DateOnly Date, int Count)> prDays, DateTime today, int weeks = 6)
+    {
+        var daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
+        var currentWeekMonday = DateOnly.FromDateTime(today).AddDays(-daysSinceMonday);
+        var result = new List<DashboardMonthValueDto>(weeks);
+
+        for (var i = weeks - 1; i >= 0; i--)
+        {
+            var weekStart = currentWeekMonday.AddDays(-i * 7);
+            var weekEnd = weekStart.AddDays(6);
+            var count = prDays.Where(p => p.Date >= weekStart && p.Date <= weekEnd).Sum(p => p.Count);
+            var label = $"{MonthLabel(weekStart.Month)} {weekStart.Day}";
+            result.Add(new DashboardMonthValueDto(label, count));
+        }
+
+        return result;
+    }
 
     internal static List<DashboardKpiDto> BuildKpis(
         DashboardModels stats,

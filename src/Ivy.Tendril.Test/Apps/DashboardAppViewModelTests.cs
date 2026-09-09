@@ -419,4 +419,49 @@ public class DashboardAppViewModelTests
     {
         Assert.Equal(expected, DashboardApp.GetKpiSheetTitle(key));
     }
+
+    [Fact]
+    public void BuildWeeklyPullRequests_BucketsIntoTrailingWeeks()
+    {
+        var today = new DateTime(2026, 9, 9, 12, 0, 0, DateTimeKind.Utc);
+        var prDays = new List<(DateOnly Date, int Count)>
+        {
+            // Outside trailing 6 weeks: should not be counted
+            (new DateOnly(2026, 7, 1), 10),
+            // Week 1: Aug 3 to Aug 9
+            (new DateOnly(2026, 8, 4), 3),
+            (new DateOnly(2026, 8, 9), 2),
+            // Week 2: Aug 10 to Aug 16 has 0 PRs
+            // Week 3: Aug 17 to Aug 23
+            (new DateOnly(2026, 8, 20), 4),
+            // Week 4: Aug 24 to Aug 30
+            (new DateOnly(2026, 8, 24), 7),
+            // Week 5: Aug 31 to Sep 6
+            (new DateOnly(2026, 8, 31), 1),
+            (new DateOnly(2026, 9, 5), 2),
+            // Week 6: Sep 7 to Sep 13
+            (new DateOnly(2026, 9, 8), 6)
+        };
+
+        var result = DashboardApp.BuildWeeklyPullRequests(prDays, today, 6);
+
+        Assert.Equal(6, result.Count);
+        Assert.Equal("Aug 3", result[0].Label);
+        Assert.Equal(5, result[0].Value);
+
+        Assert.Equal("Aug 10", result[1].Label);
+        Assert.Equal(0, result[1].Value);
+
+        Assert.Equal("Aug 17", result[2].Label);
+        Assert.Equal(4, result[2].Value);
+
+        Assert.Equal("Aug 24", result[3].Label);
+        Assert.Equal(7, result[3].Value);
+
+        Assert.Equal("Aug 31", result[4].Label);
+        Assert.Equal(3, result[4].Value);
+
+        Assert.Equal("Sep 7", result[5].Label);
+        Assert.Equal(6, result[5].Value);
+    }
 }
