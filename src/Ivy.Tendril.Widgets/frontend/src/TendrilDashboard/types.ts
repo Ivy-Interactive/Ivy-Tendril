@@ -38,8 +38,6 @@ export interface DashboardTrendDto {
   dates: string[];
   cost: number[];
   plans: number[];
-  prevCost: (number | null)[];
-  prevPlans: (number | null)[];
   /** 7-day trailing mean aligned to `dates`; null where the window reaches past the earliest record. */
   rollingCost: (number | null)[];
   rollingPlans: (number | null)[];
@@ -63,6 +61,7 @@ export interface TendrilDashboardProps {
   trend?: DashboardTrendDto | null;
   trendWeekly?: DashboardTrendDto | null;
   pullRequests?: DashboardMonthValueDto[];
+  pullRequestsWeekly?: DashboardMonthValueDto[];
   activity?: DashboardActivityMonthDto[];
   jobs?: DashboardJobDto[];
   slots?: {

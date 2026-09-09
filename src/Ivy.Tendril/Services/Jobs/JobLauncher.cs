@@ -38,6 +38,7 @@ internal class JobLauncher
     private readonly IAgentRunner? _agentRunner;
     private readonly ILogger _logger;
     private readonly string _promptsRoot;
+    private readonly ConcurrentDictionary<string, JobLaunchContext> _contexts = new();
 
     internal JobLauncher(IConfigService? configService, IAgentRunner? agentRunner, ILogger logger, string promptsRoot)
     {
@@ -46,6 +47,9 @@ internal class JobLauncher
         _logger = logger;
         _promptsRoot = promptsRoot;
     }
+
+    internal bool HasContext(string jobId) => _contexts.ContainsKey(jobId);
+    internal void RegisterContext(JobLaunchContext ctx) => _contexts[ctx.Job.Id] = ctx;
 
     internal void LaunchJob(
         JobItem job,
@@ -66,6 +70,7 @@ internal class JobLauncher
 
     private void LaunchJob(JobLaunchContext ctx)
     {
+        _contexts[ctx.Job.Id] = ctx;
         try
         {
             // Defense in depth (#1340): refuse to launch a plan job that references a repo outside its
@@ -104,6 +109,95 @@ internal class JobLauncher
         }
     }
 
+    public virtual bool RelaunchAsContinuation(JobItem job, string continuationPrompt)
+    {
+        if (_contexts.TryGetValue(job.Id, out var ctx))
+            return RelaunchAsContinuation(ctx, continuationPrompt);
+        return false;
+    }
+
+    public virtual bool RelaunchAsContinuation(JobLaunchContext ctx, string continuationPrompt)
+    {
+        var job = ctx.Job;
+        var programFolder = Path.Combine(_promptsRoot, job.Type);
+        var settings = _configService?.Settings ?? new TendrilSettings();
+        var profileOverride = job.ExecutionProfile;
+
+        AgentResolution? resolution = null;
+        if (_agentRunner != null)
+        {
+            var jobContext = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["PROMPTWARE_DIR"] = programFolder
+            };
+            if (_configService != null)
+            {
+                try
+                {
+                    var (values, _, _) = BuildFirmwareValues(ctx, programFolder);
+                    values["TendrilProject"] = job.Project;
+                    jobContext = BuildJobContext(job, values, programFolder);
+                }
+                catch
+                {
+                    // Fall back to minimal jobContext if firmware values build fails
+                }
+            }
+            resolution = AgentProviderFactory.Resolve(_agentRunner, settings, job.Type, profileOverride, jobContext);
+        }
+
+        if (resolution == null)
+            return false;
+
+        var workDir = !string.IsNullOrEmpty(job.WorkingDirectory)
+            ? job.WorkingDirectory
+            : (_configService != null ? ResolveWorkingDirectory(job, programFolder) : Directory.GetCurrentDirectory());
+
+        var projectConfigForJob = _configService?.GetProject(job.Project);
+        var mcpServersForJob = new List<McpServerConfig>();
+        if (projectConfigForJob?.McpServers is { Count: > 0 })
+        {
+            foreach (var server in projectConfigForJob.McpServers.Where(s => !s.Disabled))
+            {
+                var cmd = VariableExpansion.ExpandVariables(server.Command, _configService?.TendrilHome ?? "");
+                var args = server.Arguments?.Select(a => VariableExpansion.ExpandVariables(a, _configService?.TendrilHome ?? "")).ToList() ?? new List<string>();
+                var env = server.Environment?.ToDictionary(
+                    kv => kv.Key,
+                    kv => VariableExpansion.ExpandVariables(kv.Value, _configService?.TendrilHome ?? "")) ?? new Dictionary<string, string>();
+                mcpServersForJob.Add(new McpServerConfig(server.Name, cmd, args, env));
+            }
+        }
+
+        var launchConfig = new AgentLaunchConfig
+        {
+            Prompt = continuationPrompt,
+            WorkingDirectory = workDir,
+            Model = string.IsNullOrEmpty(job.Model) ? (string.IsNullOrEmpty(resolution.Model) ? null : resolution.Model) : job.Model,
+            Effort = AgentProviderFactory.ParseEffort(job.Effort ?? resolution.Effort),
+            SessionId = job.SessionId,
+            Resume = true,
+            PermissionMode = PermissionMode.FullAuto,
+            AllowedTools = resolution.AllowedTools,
+            WritableDirectories = _configService != null ? ResolveWritableDirectories(job.Type, programFolder) : [],
+            ExtraArguments = resolution.ExtraArgs,
+            EnvironmentVariables = resolution.EnvironmentVariables,
+            Timeout = ctx.JobTimeout(),
+            McpServers = mcpServersForJob,
+        };
+
+        var spec = resolution.Cli.BuildProcessSpec(launchConfig);
+        var psi = AgentProcessHelper.ToPsi(spec);
+        SetTendrilEnvironment(psi, job);
+
+        var process = StartAgentProcess(ctx, psi, spec.StdinContent);
+        if (process == null)
+            return false;
+
+        InitializeJobMonitoring(ctx, process);
+        ctx.RaiseStructureChanged();
+        return true;
+    }
+
     private void HandleUnhandledLaunchFailure(JobLaunchContext ctx, Exception ex)
     {
         var job = ctx.Job;
@@ -138,7 +232,7 @@ internal class JobLauncher
         job.Status = JobStatus.Failed;
         job.StatusMessage = ex.Message;
         job.CompletedAt = DateTime.UtcNow;
-        ctx.JobSlotSemaphore.Release();
+        try { ctx.JobSlotSemaphore.Release(); } catch (SemaphoreFullException) { }
         ctx.RaiseStructureChanged();
     }
 
@@ -153,7 +247,7 @@ internal class JobLauncher
         job.Status = JobStatus.Failed;
         job.StatusMessage = message;
         job.CompletedAt = DateTime.UtcNow;
-        ctx.JobSlotSemaphore.Release();
+        try { ctx.JobSlotSemaphore.Release(); } catch (SemaphoreFullException) { }
         ctx.RaiseStructureChanged();
     }
 
@@ -240,7 +334,7 @@ internal class JobLauncher
         return true;
     }
 
-    private Process? StartAgentProcess(
+    internal virtual Process? StartAgentProcess(
         JobLaunchContext ctx,
         ProcessStartInfo psi,
         string? stdinContent)
@@ -768,12 +862,13 @@ internal class JobLauncher
 
     private void SetTendrilEnvironment(ProcessStartInfo psi, JobItem job)
     {
-        var tendrilHome = _configService!.TendrilHome;
-        if (!string.IsNullOrEmpty(tendrilHome))
-            psi.Environment["TENDRIL_HOME"] = tendrilHome;
-        psi.Environment["TENDRIL_PLANS"] = _configService.PlanFolder;
-        // Deliberately no TENDRIL_JOB_ID: process env does not reach the agent's nested `tendril` calls
-        // (see AGENTS.md). The job id travels as the TendrilJobId firmware header and is passed as an argument.
+        if (_configService != null)
+        {
+            var tendrilHome = _configService.TendrilHome;
+            if (!string.IsNullOrEmpty(tendrilHome))
+                psi.Environment["TENDRIL_HOME"] = tendrilHome;
+            psi.Environment["TENDRIL_PLANS"] = _configService.PlanFolder;
+        }
 
         // Disable MSBuild node reuse and dotnet CLI build servers so background worker daemons do not
         // outlive the agent process and hold redirected stdout/stderr pipes open (#2044).

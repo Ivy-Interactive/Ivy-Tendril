@@ -25,10 +25,6 @@ public record DashboardJobDto(string Id, string PlanId, string Title, string Sta
 ///     One <c>yyyy-MM-dd</c> per plotted day, ascending and contiguous. The frontend formats the axis
 ///     and the tooltip from these, so the series carries no pre-rendered labels.
 /// </param>
-/// <param name="PrevCost">
-///     The comparison period's raw value for the same calendar day, or null where that day predates the
-///     records and comparing against it would invent a zero.
-/// </param>
 /// <param name="RollingCost">
 ///     A 7 day trailing mean aligned to <paramref name="Dates" />, null where the window reaches back
 ///     past the earliest record. A gap here is drawn as a gap in the curve.
@@ -37,8 +33,6 @@ public record DashboardTrendDto(
     List<string> Dates,
     List<double> Cost,
     List<double> Plans,
-    List<double?> PrevCost,
-    List<double?> PrevPlans,
     List<double?> RollingCost,
     List<double?> RollingPlans);
 
@@ -94,6 +88,7 @@ public record TendrilDashboard : WidgetBase<TendrilDashboard>
     [Prop] public DashboardTrendDto? Trend { get; init; }
     [Prop] public DashboardTrendDto? TrendWeekly { get; init; }
     [Prop] public List<DashboardMonthValueDto> PullRequests { get; init; } = new();
+    [Prop] public List<DashboardMonthValueDto> PullRequestsWeekly { get; init; } = new();
     [Prop] public List<DashboardActivityMonthDto> Activity { get; init; } = new();
     [Prop] public List<DashboardJobDto> Jobs { get; init; } = new();
 
@@ -141,6 +136,9 @@ public static class TendrilDashboardExtensions
 
     public static TendrilDashboard PullRequests(this TendrilDashboard w, List<DashboardMonthValueDto> value) =>
         w with { PullRequests = value };
+
+    public static TendrilDashboard PullRequestsWeekly(this TendrilDashboard w, List<DashboardMonthValueDto> value) =>
+        w with { PullRequestsWeekly = value };
 
     public static TendrilDashboard Activity(this TendrilDashboard w, List<DashboardActivityMonthDto> value) =>
         w with { Activity = value };

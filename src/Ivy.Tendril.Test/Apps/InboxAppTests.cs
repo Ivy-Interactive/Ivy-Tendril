@@ -1,7 +1,14 @@
+using Ivy;
 using Ivy.Tendril.Apps.Inbox;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Git;
+using Ivy.Tendril.Services.Inbox;
+using Ivy.Tendril.Services.Jobs;
+using Ivy.Tendril.Test.Helpers;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Ivy.Tendril.Test.Apps;
 
@@ -199,8 +206,80 @@ public class InboxAppTests
         Assert.Null(pr.Branch);
     }
 
-    private sealed class StubGithubService(ProjectConfig? projectToReturn) : IGithubService
+    [Fact]
+    public async Task InboxApp_SingleFlight_CollapsesConcurrentFetches_And_OnRefresh_BypassesTtl()
     {
+        var services = new ServiceCollection();
+        var stubGithub = new StubGithubService();
+        var configService = new ConfigService(new TendrilSettings());
+        var queryService = new QueryService(NullLogger<QueryService>.Instance);
+
+        services.AddSingleton<IGithubService>(stubGithub);
+        services.AddSingleton<IConfigService>(configService);
+        services.AddSingleton<IQueryService>(queryService);
+        services.AddSingleton<IClientProvider>(new DummyClientProvider());
+        services.AddLogging();
+        services.AddSingleton<ILogger<InboxApp>>(NullLogger<InboxApp>.Instance);
+        var autoImportService = new AssignedIssuesAutoImportService(
+            configService,
+            stubGithub,
+            new FakePlanReaderService(),
+            new DummyJobService(),
+            NullLogger<AssignedIssuesAutoImportService>.Instance,
+            queryService);
+        services.AddSingleton(autoImportService);
+
+        var appContext = (Ivy.AppContext)Activator.CreateInstance(
+            typeof(Ivy.AppContext),
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance,
+            null,
+            new object?[] { "conn1", "mach1", "inbox", "inbox", null, "http", "localhost", null },
+            null)!;
+        services.AddSingleton(appContext);
+
+        var sp = services.BuildServiceProvider();
+
+        int refreshCount = 0;
+        var ctx = new Ivy.Core.Hooks.ViewContext(() => { refreshCount++; }, null, sp);
+
+        var app = new InboxApp();
+        app.BeforeBuild(ctx);
+        var built = app.Build();
+        app.AfterBuild();
+
+        Assert.NotNull(built);
+
+        var layout = Assert.IsType<SidebarLayout>(built);
+        var mainContentSlot = Assert.IsType<Slot>(layout.Children[0]);
+        var contentView = Assert.IsType<ContentView>(mainContentSlot.Children[0]);
+
+        var initialCompleted = RetryHelper.WaitUntil(() =>
+            stubGithub.MyAssignedIssuesCallCount == 1 &&
+            stubGithub.ReviewRequestsCallCount == 1,
+            timeout: TimeSpan.FromSeconds(5));
+
+        Assert.True(initialCompleted, "Initial queries did not complete within timeout.");
+        Assert.Equal(1, stubGithub.MyAssignedIssuesCallCount);
+        Assert.Equal(1, stubGithub.ReviewRequestsCallCount);
+
+        // Invoke the onRefresh callback passed to ContentView while selectedCategory is MyIssues
+        // and assert the counter increments by exactly one immediately, bypassing the 60-second Expiration.
+        await contentView.RefreshHandler();
+
+        var refreshCompleted = RetryHelper.WaitUntil(() =>
+            stubGithub.MyAssignedIssuesCallCount == 2,
+            timeout: TimeSpan.FromSeconds(5));
+
+        Assert.True(refreshCompleted, "OnRefresh did not trigger revalidation within timeout.");
+        Assert.Equal(2, stubGithub.MyAssignedIssuesCallCount);
+        Assert.Equal(1, stubGithub.ReviewRequestsCallCount);
+    }
+
+    private sealed class StubGithubService(ProjectConfig? projectToReturn = null) : IGithubService
+    {
+        public int MyAssignedIssuesCallCount { get; private set; }
+        public int ReviewRequestsCallCount { get; private set; }
+
         public List<RepoConfig> GetRepos() => [];
         public RepoConfig? GetRepoConfigFromPathCached(string repoPath) => null;
         public ProjectConfig? FindProjectForGithubRepo(string ownerRepo) => projectToReturn;
@@ -213,9 +292,55 @@ public class InboxAppTests
             Task.FromResult((new Dictionary<string, PrInfo>(), (string?)null));
         public Task<(List<GitHubIssue> issues, string? error)> SearchIssuesAsync(IssueSearchRequest request) =>
             Task.FromResult((new List<GitHubIssue>(), (string?)null));
-        public Task<(List<GitHubIssue> issues, string? error)> GetMyAssignedIssuesAsync() =>
-            Task.FromResult((new List<GitHubIssue>(), (string?)null));
-        public Task<(List<GitHubReviewItem> prs, string? error)> GetReviewRequestsAsync() =>
-            Task.FromResult((new List<GitHubReviewItem>(), (string?)null));
+        public Task<(List<GitHubIssue> issues, string? error)> GetMyAssignedIssuesAsync()
+        {
+            MyAssignedIssuesCallCount++;
+            return Task.FromResult((new List<GitHubIssue>(), (string?)null));
+        }
+        public Task<(List<GitHubReviewItem> prs, string? error)> GetReviewRequestsAsync()
+        {
+            ReviewRequestsCallCount++;
+            return Task.FromResult((new List<GitHubReviewItem>(), (string?)null));
+        }
+    }
+
+    private sealed class DummyClientProvider : IClientProvider
+    {
+        public IClientSender Sender { get; set; } = new DummyClientSender();
+    }
+
+    private sealed class DummyClientSender : IClientSender
+    {
+        public void Send(string method, object? data) { }
+    }
+
+    private sealed class DummyJobService : IJobService
+    {
+#pragma warning disable CS0067
+        public event Action? JobsChanged;
+        public event Action? JobsStructureChanged;
+        public event Action? JobPropertyChanged;
+        public event Action<JobNotification>? NotificationReady;
+        public event Action<JobItem>? JobFinished;
+#pragma warning restore CS0067
+
+        public string StartJob(JobArgsBase args, string? inboxFilePath = null) => "job-1";
+        public void ForceStartJob(string id) { }
+        public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false) { }
+        public void StopJob(string id) { }
+        public int StopAllJobs() => 0;
+        public void DeleteJob(string id) { }
+        public void ClearCompletedJobs() { }
+        public void ClearFailedJobs() { }
+        public void ClearAllJobs() { }
+        public int StopQueuedJobs() => 0;
+        public List<JobItem> GetJobs() => [];
+        public List<JobItem> GetJobsForPlan(string planFile) => [];
+        public JobItem? GetJob(string id) => null;
+        public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null) => true;
+        public void SetChatSessionId(string id, string chatSessionId) { }
+        public bool ReportJobFailure(string id, string message) => true;
+        public bool IsInboxFileTracked(string filePath) => false;
+        public void Dispose() { }
     }
 }

@@ -86,4 +86,31 @@ describe("VoiceRecorder.start", () => {
     expect(audioContext).not.toHaveBeenCalled();
     expect(webSocket).not.toHaveBeenCalled();
   });
+
+  it("produces zero console.log calls while still producing console.warn when DEV mode is disabled", async () => {
+    const originalDev = import.meta.env.DEV;
+    (import.meta.env as Record<string, unknown>).DEV = false;
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      stubMediaDevices(undefined);
+      const recorder = new VoiceRecorder({
+        endpoint: "ws://test",
+        onStatusChange: vi.fn(),
+        onResult: vi.fn(),
+        onError: vi.fn(),
+      });
+
+      await recorder.start();
+
+      expect(logSpy).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      (import.meta.env as Record<string, unknown>).DEV = originalDev;
+      logSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
+  });
 });

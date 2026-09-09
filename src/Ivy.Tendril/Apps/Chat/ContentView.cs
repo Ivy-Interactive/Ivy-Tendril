@@ -39,6 +39,10 @@ public class ContentView(
     Action startNewChat,
     bool embedded = false) : ViewBase
 {
+    internal IState<string> SelectedAgentState => selectedAgent;
+    internal IState<string> SelectedModelState => selectedModel;
+    internal IState<string> SelectedEffortState => selectedEffort;
+
     /// <summary>The plan a job event names, by folder, numeric id or zero-padded id.</summary>
     internal static PlanFile? FindPlan(IPlanReaderService planService, string planId)
     {
@@ -161,22 +165,35 @@ public class ContentView(
             {
                 selectedAgent.Set(e.Value);
                 var newModels = ChatApp.GetModelsForAgent(agentRunner, e.Value);
+                string? initialModel = null;
                 if (newModels.Count > 0)
                 {
-                    selectedModel.Set(newModels[0].Id);
+                    initialModel = newModels[0].Id;
+                    selectedModel.Set(initialModel);
                 }
                 selectedEffort.Set("default");
+                configService.Settings.LastChatAgent = e.Value;
+                if (initialModel != null)
+                {
+                    configService.Settings.LastChatModel = initialModel;
+                }
+                configService.SaveSettings();
                 return ValueTask.CompletedTask;
             },
             OnModelChanged = e =>
             {
                 selectedModel.Set(e.Value);
                 selectedEffort.Set("default");
+                configService.Settings.LastChatModel = e.Value;
+                configService.Settings.LastChatAgent = selectedAgent.Value;
+                configService.SaveSettings();
                 return ValueTask.CompletedTask;
             },
             OnEffortChanged = e =>
             {
                 selectedEffort.Set(e.Value);
+                configService.Settings.LastChatEffort = e.Value;
+                configService.SaveSettings();
                 return ValueTask.CompletedTask;
             },
             OnDeleteQueuedMessage = e =>

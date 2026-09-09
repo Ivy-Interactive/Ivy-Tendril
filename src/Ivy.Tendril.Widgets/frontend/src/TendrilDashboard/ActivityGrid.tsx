@@ -14,7 +14,7 @@ const parseIsoDate = (iso: string): Date => {
 /**
  * Monday of the calendar week for each week index in a month, derived from its daily breakdown
  * (grouped the same way the backend groups `days` into `weeks`, see `BuildActivityMonths`).
- * Returns an empty map when `days` isn't supplied — e.g. by the samples app — since the `weeks`
+ * Returns an empty map when `days` isn't supplied (e.g. by the samples app) since the `weeks`
  * array alone has no date information to recover.
  */
 const weekStartDates = (month: DashboardActivityMonthDto): Map<number, Date> => {

@@ -13,6 +13,8 @@ public class GithubService : IGithubService, IDisposable
 {
     public const int DefaultIssueLimit = 1000;
     public const int MaxIssueLimit = 1000;
+    public const string MyIssuesQueryTag = "github:my-issues";
+    public const string ReviewRequestsQueryTag = "github:review-requests";
 
     // ConcurrentDictionary required: multiple UseQuery calls from different views/dialogs
     // can fetch different repos simultaneously, causing concurrent writes to different keys.
@@ -21,6 +23,8 @@ public class GithubService : IGithubService, IDisposable
     private readonly ILogger<GithubService> _logger;
     private readonly ConcurrentDictionary<string, List<string>> _labelCache = new();
     private readonly ConcurrentDictionary<string, RepoConfig?> _repoPathCache = new();
+    private readonly SemaphoreSlim _ghGate = new(1, 1);
+    internal SemaphoreSlim GhGate => _ghGate;
 
     public GithubService(IConfigService config, ILogger<GithubService> logger)
     {
@@ -37,6 +41,7 @@ public class GithubService : IGithubService, IDisposable
     public void Dispose()
     {
         _config.SettingsReloaded -= OnSettingsReloaded;
+        _ghGate.Dispose();
         GC.SuppressFinalize(this);
     }
 
@@ -94,33 +99,15 @@ public class GithubService : IGithubService, IDisposable
         try
         {
             var args = BuildIssueListArgs(request);
+            var (output, error) = await ExecuteGhCliAsync(
+                args,
+                s => s,
+                string.Empty);
 
-            var psi = new ProcessStartInfo("gh", args)
+            if (error != null)
             {
-                WorkingDirectory = Path.GetTempPath(),
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding = Encoding.UTF8
-            };
-
-            using var process = Process.Start(psi);
-            if (process is null)
-                return ([], "GitHub CLI (gh) is not available. Please install it from https://cli.github.com/");
-
-            var output = await process.StandardOutput.ReadToEndAsync();
-            var stderr = await process.StandardError.ReadToEndAsync();
-            await process.WaitForExitOrKillAsync(60000);
-
-            if (process.ExitCode != 0)
-            {
-                _logger.LogWarning("gh issue list failed for {Owner}/{Repo}: {Stderr}", request.Owner, request.Repo, stderr);
-                var errorMsg = !string.IsNullOrWhiteSpace(stderr)
-                    ? stderr.Trim()
-                    : $"GitHub CLI exited with code {process.ExitCode}";
-                return ([], errorMsg);
+                _logger.LogWarning("gh issue list failed for {Owner}/{Repo}: {Stderr}", request.Owner, request.Repo, error);
+                return ([], error);
             }
 
             var issues = ParseIssuesFromJson(output);
@@ -357,46 +344,73 @@ public class GithubService : IGithubService, IDisposable
             .ToList();
     }
 
-    private async Task<(T result, string? error)> ExecuteGhCliAsync<T>(
+    internal async Task<(T result, string? error)> ExecuteGhCliAsync<T>(
         string args,
         Func<string, T> parseOutput,
         T emptyResult)
     {
+        await _ghGate.WaitAsync();
         try
         {
-            var psi = new ProcessStartInfo("gh", args)
+            const int maxAttempts = 3;
+            for (var attempt = 1; attempt <= maxAttempts; attempt++)
             {
-                WorkingDirectory = Path.GetTempPath(),
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding = Encoding.UTF8
-            };
+                var psi = new ProcessStartInfo("gh", args)
+                {
+                    WorkingDirectory = Path.GetTempPath(),
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    StandardOutputEncoding = Encoding.UTF8,
+                    StandardErrorEncoding = Encoding.UTF8
+                };
 
-            using var process = Process.Start(psi);
-            if (process is null)
-                return (emptyResult, "GitHub CLI (gh) is not available. Please install it from https://cli.github.com/");
+                using var process = Process.Start(psi);
+                if (process is null)
+                    return (emptyResult, "GitHub CLI (gh) is not available. Please install it from https://cli.github.com/");
 
-            var output = await process.StandardOutput.ReadToEndAsync();
-            var stderr = await process.StandardError.ReadToEndAsync();
-            await process.WaitForExitOrKillAsync(60000);
+                var output = await process.StandardOutput.ReadToEndAsync();
+                var stderr = await process.StandardError.ReadToEndAsync();
+                await process.WaitForExitOrKillAsync(60000);
 
-            if (process.ExitCode != 0)
-            {
-                var errorMsg = !string.IsNullOrWhiteSpace(stderr)
-                    ? stderr.Trim()
-                    : $"GitHub CLI exited with code {process.ExitCode}";
-                return (emptyResult, errorMsg);
+                if (process.ExitCode != 0)
+                {
+                    if (GhRateLimit.IsRateLimitError(stderr))
+                    {
+                        if (attempt < maxAttempts)
+                        {
+                            var delay = GhRateLimit.GetRetryDelay(attempt, GhRateLimit.ParseRetryAfter(stderr));
+                            _logger.LogWarning("GitHub rate limit hit on attempt {Attempt}/{MaxAttempts} for gh {Args}. Retrying in {DelayMs:F0}ms. Stderr: {Stderr}",
+                                attempt, maxAttempts, args, delay.TotalMilliseconds, stderr);
+                            await Task.Delay(delay);
+                            continue;
+                        }
+
+                        _logger.LogWarning("GitHub rate limit exceeded after {MaxAttempts} attempts for gh {Args}. Stderr: {Stderr}",
+                            maxAttempts, args, stderr);
+                        return (emptyResult, GhRateLimit.UserMessage);
+                    }
+
+                    var errorMsg = !string.IsNullOrWhiteSpace(stderr)
+                        ? stderr.Trim()
+                        : $"GitHub CLI exited with code {process.ExitCode}";
+                    return (emptyResult, errorMsg);
+                }
+
+                return (parseOutput(output), null);
             }
 
-            return (parseOutput(output), null);
+            return (emptyResult, "Failed to execute gh CLI.");
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to execute gh CLI: {Args}", args);
             return (emptyResult, $"Failed to execute gh CLI: {ex.Message}");
+        }
+        finally
+        {
+            _ghGate.Release();
         }
     }
 

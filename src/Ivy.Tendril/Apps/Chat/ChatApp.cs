@@ -85,16 +85,35 @@ public class ChatApp : ViewBase
         var sidebarListSignal = Context.UseSignal<ShellSidebarListSignal, ShellSidebarListState, Unit>();
         var activeSessionId = UseState<string?>(() => InitialSession()?.Id);
         var sessionVersion = UseState(0);
-        var selectedAgent = UseState(() => InitialSession()?.AgentId ?? configService.Settings.CodingAgent ?? "claude");
+        var selectedAgent = UseState(() =>
+        {
+            var sess = InitialSession();
+            if (!string.IsNullOrEmpty(sess?.AgentId)) return sess.AgentId;
+            var lastAgent = configService.Settings.LastChatAgent;
+            if (!string.IsNullOrEmpty(lastAgent) && agentRunner.RegisteredAgents.Any(a => string.Equals(a, lastAgent, StringComparison.OrdinalIgnoreCase)))
+            {
+                return agentRunner.RegisteredAgents.First(a => string.Equals(a, lastAgent, StringComparison.OrdinalIgnoreCase));
+            }
+            return configService.Settings.CodingAgent ?? "claude";
+        });
         var selectedModel = UseState(() =>
         {
             var sess = InitialSession();
             if (!string.IsNullOrEmpty(sess?.ModelId)) return sess.ModelId;
-            var agent = sess?.AgentId ?? configService.Settings.CodingAgent ?? "claude";
-            var initialModels = GetModelsForAgent(agentRunner, agent);
+            var initialModels = GetModelsForAgent(agentRunner, selectedAgent.Value);
+            var lastModel = configService.Settings.LastChatModel;
+            if (!string.IsNullOrEmpty(lastModel) && initialModels.Any(m => string.Equals(m.Id, lastModel, StringComparison.OrdinalIgnoreCase)))
+            {
+                return initialModels.First(m => string.Equals(m.Id, lastModel, StringComparison.OrdinalIgnoreCase)).Id;
+            }
             return initialModels.Count > 0 ? initialModels[0].Id : "default";
         });
-        var selectedEffort = UseState(() => InitialSession()?.Effort ?? "default");
+        var selectedEffort = UseState(() =>
+        {
+            var sess = InitialSession();
+            if (sess != null) return sess.Effort ?? "default";
+            return configService.Settings.LastChatEffort ?? "default";
+        });
         var initialHandled = UseRef(false);
         var streamVersion = UseState(0);
         var (searchDialog, showSearchDialog) = UseTrigger(isOpen =>

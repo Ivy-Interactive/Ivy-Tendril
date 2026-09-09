@@ -1,5 +1,6 @@
 using Ivy;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Helpers;
 
@@ -14,6 +15,12 @@ public static class ProjectHelper
                 .Variant(BadgeVariant.Outline)
                 .WithProjectColor(config, project);
         }
+    }
+
+    public static List<PlanProjectBadgeDto> BuildProjectBadges(string? projectValue, IConfigService config)
+    {
+        var projects = ParseProjects(projectValue);
+        return projects.Select(p => new PlanProjectBadgeDto(p, config.GetProjectColor(p)?.ToString())).ToList();
     }
 
     /// <summary>

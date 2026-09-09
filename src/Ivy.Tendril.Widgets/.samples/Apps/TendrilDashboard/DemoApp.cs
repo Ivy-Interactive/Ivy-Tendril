@@ -45,11 +45,6 @@ class DemoApp : ViewBase
             trendPlans.Add(weekend ? trendRandom.Next(0, 2) : trendRandom.Next(2, 12));
         }
 
-        // Nulls at the start stand for days the comparison period has no records for.
-        var trendPrevCost = trendCost
-            .Select((v, i) => i < 30 ? (double?)null : Math.Round(v * 0.62)).ToList();
-        var trendPrevPlans = trendPlans
-            .Select((v, i) => i < 30 ? (double?)null : Math.Round(v * 0.7)).ToList();
 
         // Mirrors UpdateNoticeView's compact layout: alert + actions, filling
         // the dashboard's fixed 120px update slot.
@@ -114,8 +109,6 @@ class DemoApp : ViewBase
                 trendDates,
                 trendCost,
                 trendPlans,
-                trendPrevCost,
-                trendPrevPlans,
                 Rolling(trendCost),
                 Rolling(trendPlans)))
             // The short range is the tail of the same series, so its rolling curve starts six days in
@@ -124,8 +117,6 @@ class DemoApp : ViewBase
                 trendDates.TakeLast(28).ToList(),
                 trendCost.TakeLast(28).ToList(),
                 trendPlans.TakeLast(28).ToList(),
-                trendPrevCost.TakeLast(28).ToList(),
-                trendPrevPlans.TakeLast(28).ToList(),
                 Rolling(trendCost.TakeLast(28).ToList()),
                 Rolling(trendPlans.TakeLast(28).ToList())))
             .OnDrafts(() => client.Toast("Drafts clicked", "OnDrafts").Info())

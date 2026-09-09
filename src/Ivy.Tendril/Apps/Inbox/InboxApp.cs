@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Ivy;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
@@ -26,8 +27,17 @@ public class InboxApp : ViewBase
         var selectedLabels = UseState(Array.Empty<string>());
         var selectedIssueNumbers = UseState<HashSet<int>>([]);
 
-        var myIssues = UseState<List<GitHubIssue>>([]);
-        var reviewRequests = UseState<List<GitHubReviewItem>>([]);
+        var myIssuesQuery = this.UseQuery<(List<GitHubIssue> Issues, string? Error), string>(
+            "inbox:my-issues",
+            async (_, _) => await githubService.GetMyAssignedIssuesAsync(),
+            new QueryOptions { Expiration = TimeSpan.FromSeconds(60) },
+            tags: [GithubService.MyIssuesQueryTag]);
+        var reviewRequestsQuery = this.UseQuery<(List<GitHubReviewItem> Reviews, string? Error), string>(
+            "inbox:review-requests",
+            async (_, _) => await githubService.GetReviewRequestsAsync(),
+            new QueryOptions { Expiration = TimeSpan.FromSeconds(60) },
+            tags: [GithubService.ReviewRequestsQueryTag]);
+
         var projectIssues = UseState<List<GitHubIssue>>([]);
         var availableAssignees = UseState<List<string>>([]);
         var availableLabels = UseState<List<string>>([]);
@@ -35,7 +45,6 @@ public class InboxApp : ViewBase
         var isFetching = UseState(false);
         var isImporting = UseState(false);
         var errorMessage = UseState<string?>(null);
-        var hasInitialLoaded = UseState(false);
         var refreshToken = UseRefreshToken();
 
         UseEffect(() =>
@@ -45,7 +54,10 @@ public class InboxApp : ViewBase
             selectedAssignees.Set(Array.Empty<string>());
             selectedLabels.Set(Array.Empty<string>());
 
-            Task.Run(FetchCurrentDataAsync);
+            if (selectedCategory.Value == InboxCategory.Project)
+            {
+                Task.Run(FetchCurrentDataAsync);
+            }
         }, selectedCategory);
 
         UseEffect(() =>
@@ -61,117 +73,63 @@ public class InboxApp : ViewBase
             }
         }, selectedProject);
 
-        UseEffect(() =>
-        {
-            if (!hasInitialLoaded.Value)
-            {
-                hasInitialLoaded.Set(true);
-                Task.Run(FetchCurrentDataAsync);
-
-                // Also background-fetch counts for MyIssues and Reviews
-                Task.Run(async () =>
-                {
-                    try
-                    {
-                        var (issues, _) = await githubService.GetMyAssignedIssuesAsync();
-                        myIssues.Set(issues);
-                    }
-                    catch { }
-
-                    try
-                    {
-                        var (reviews, _) = await githubService.GetReviewRequestsAsync();
-                        reviewRequests.Set(reviews);
-                    }
-                    catch { }
-                });
-            }
-        });
-
         async Task FetchCurrentDataAsync()
         {
+            if (string.IsNullOrEmpty(selectedProject.Value))
+            {
+                projectIssues.Set([]);
+                return;
+            }
+
             isFetching.Set(true);
             errorMessage.Set(null);
 
             try
             {
-                if (selectedCategory.Value == InboxCategory.MyIssues)
+                var proj = config.Settings.Projects.FirstOrDefault(p =>
+                    string.Equals(p.Name, selectedProject.Value, StringComparison.OrdinalIgnoreCase));
+                if (proj == null)
                 {
-                    var (issues, err) = await githubService.GetMyAssignedIssuesAsync();
-                    if (err != null)
-                    {
+                    projectIssues.Set([]);
+                    return;
+                }
+
+                var resolvedRepos = githubService.GetResolvedGithubRepos(proj);
+                if (resolvedRepos.Count == 0)
+                {
+                    projectIssues.Set([]);
+                    errorMessage.Set($"No git remotes resolved for project {proj.Name}.");
+                    return;
+                }
+
+                var allIssues = new List<GitHubIssue>();
+                var allAssignees = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var allLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var repoStr in resolvedRepos)
+                {
+                    var parts = repoStr.Split('/');
+                    if (parts.Length != 2) continue;
+                    var owner = parts[0];
+                    var repoName = parts[1];
+
+                    var (issues, err) = await githubService.SearchIssuesAsync(
+                        CreateProjectIssueRequest(owner, repoName));
+
+                    if (err != null && errorMessage.Value == null)
                         errorMessage.Set(err);
-                    }
-                    else
+
+                    foreach (var issue in issues)
                     {
-                        myIssues.Set(issues);
+                        allIssues.Add(issue with { Repository = repoStr });
+                        foreach (var a in issue.Assignees) if (!string.IsNullOrWhiteSpace(a)) allAssignees.Add(a);
+                        foreach (var l in issue.Labels) if (!string.IsNullOrWhiteSpace(l)) allLabels.Add(l);
                     }
                 }
-                else if (selectedCategory.Value == InboxCategory.Reviews)
-                {
-                    var (reviews, err) = await githubService.GetReviewRequestsAsync();
-                    if (err != null)
-                    {
-                        errorMessage.Set(err);
-                    }
-                    else
-                    {
-                        reviewRequests.Set(reviews);
-                    }
-                }
-                else // Project
-                {
-                    if (string.IsNullOrEmpty(selectedProject.Value))
-                    {
-                        projectIssues.Set([]);
-                        return;
-                    }
 
-                    var proj = config.Settings.Projects.FirstOrDefault(p =>
-                        string.Equals(p.Name, selectedProject.Value, StringComparison.OrdinalIgnoreCase));
-                    if (proj == null)
-                    {
-                        projectIssues.Set([]);
-                        return;
-                    }
-
-                    var resolvedRepos = githubService.GetResolvedGithubRepos(proj);
-                    if (resolvedRepos.Count == 0)
-                    {
-                        projectIssues.Set([]);
-                        errorMessage.Set($"No git remotes resolved for project {proj.Name}.");
-                        return;
-                    }
-
-                    var allIssues = new List<GitHubIssue>();
-                    var allAssignees = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    var allLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                    foreach (var repoStr in resolvedRepos)
-                    {
-                        var parts = repoStr.Split('/');
-                        if (parts.Length != 2) continue;
-                        var owner = parts[0];
-                        var repoName = parts[1];
-
-                        var (issues, err) = await githubService.SearchIssuesAsync(
-                            CreateProjectIssueRequest(owner, repoName));
-
-                        if (err != null && errorMessage.Value == null)
-                            errorMessage.Set(err);
-
-                        foreach (var issue in issues)
-                        {
-                            allIssues.Add(issue with { Repository = repoStr });
-                            foreach (var a in issue.Assignees) if (!string.IsNullOrWhiteSpace(a)) allAssignees.Add(a);
-                            foreach (var l in issue.Labels) if (!string.IsNullOrWhiteSpace(l)) allLabels.Add(l);
-                        }
-                    }
-
-                    projectIssues.Set(allIssues);
-                    availableAssignees.Set(allAssignees.OrderBy(a => a).ToList());
-                    availableLabels.Set(allLabels.OrderBy(l => l).ToList());
-                }
+                projectIssues.Set(allIssues);
+                availableAssignees.Set(allAssignees.OrderBy(a => a).ToList());
+                availableLabels.Set(allLabels.OrderBy(l => l).ToList());
             }
             catch (Exception ex)
             {
@@ -252,12 +210,15 @@ public class InboxApp : ViewBase
             }
         }
 
+        var myIssuesCount = myIssuesQuery.Loading ? 0 : (myIssuesQuery.Value.Issues?.Count ?? 0);
+        var reviewsCount = reviewRequestsQuery.Loading ? 0 : (reviewRequestsQuery.Value.Reviews?.Count ?? 0);
+
         var sidebar = new SidebarView(
             selectedCategory,
             selectedProject,
             config.Settings.Projects,
-            myIssuesCount: myIssues.Value.Count,
-            reviewsCount: reviewRequests.Value.Count,
+            myIssuesCount: myIssuesCount,
+            reviewsCount: reviewsCount,
             config: config,
             onSelectMyIssues: () => selectedCategory.Set(InboxCategory.MyIssues),
             onSelectReviews: () => selectedCategory.Set(InboxCategory.Reviews),
@@ -268,21 +229,47 @@ public class InboxApp : ViewBase
             }
         );
 
+        var myIssuesList = myIssuesQuery.Value.Issues ?? [];
+        var reviewRequestsList = reviewRequestsQuery.Value.Reviews ?? [];
+
+        var currentIsFetching = selectedCategory.Value switch
+        {
+            InboxCategory.MyIssues => myIssuesQuery.Loading,
+            InboxCategory.Reviews => reviewRequestsQuery.Loading,
+            _ => isFetching.Value
+        };
+
+        var currentErrorMessage = selectedCategory.Value switch
+        {
+            InboxCategory.MyIssues => myIssuesQuery.Value.Error,
+            InboxCategory.Reviews => reviewRequestsQuery.Value.Error,
+            _ => errorMessage.Value
+        };
+
+        Func<Task> onRefresh = selectedCategory.Value switch
+        {
+            InboxCategory.MyIssues => () => { myIssuesQuery.Mutator.Revalidate(); return Task.CompletedTask; }
+            ,
+            InboxCategory.Reviews => () => { reviewRequestsQuery.Mutator.Revalidate(); return Task.CompletedTask; }
+            ,
+            _ => FetchCurrentDataAsync
+        };
+
         var content = new ContentView(
             selectedCategory,
             selectedProject,
             config.Settings.Projects,
             selectedIssueNumbers,
-            myIssues.Value,
-            reviewRequests.Value,
+            myIssuesList,
+            reviewRequestsList,
             projectIssues.Value,
-            isFetching.Value,
-            errorMessage.Value,
+            currentIsFetching,
+            currentErrorMessage,
             isImporting,
             config,
             githubService,
             refreshToken,
-            onRefresh: FetchCurrentDataAsync,
+            onRefresh: onRefresh,
             onFireOffIssues: FireOffIssues,
             autoImportService: autoImportService
         );

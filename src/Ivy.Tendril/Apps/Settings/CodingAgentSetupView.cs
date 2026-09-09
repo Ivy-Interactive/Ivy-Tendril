@@ -9,6 +9,7 @@ using Ivy.Tendril.Agents.Providers.Ivy;
 using Ivy.Tendril.Apps.Settings.Dialogs;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Telemetry;
 
 namespace Ivy.Tendril.Apps.Settings;
 
@@ -57,6 +58,13 @@ public class CodingAgentSetupView : ViewBase
                 return result.Models.ToArray();
             },
             initialValue: runner.GetModelCatalog(GetInitialCodingAgent(config))?.GetStaticModels()?.ToArray() ?? []
+        );
+
+        var usage = UseService<AgentUsageService>();
+        var usageQuery = UseQuery<AgentUsageSnapshot?, string>(
+            ResolveFinalAgent(selectedAgent.Value, openAiProxyBaseUrl.Value),
+            (agentId, ct) => usage.GetUsageAsync(agentId, ct),
+            options: new QueryOptions { RefreshInterval = TimeSpan.FromSeconds(60) }
         );
 
         var isBerget = selectedAgent.Value == "berget_card";
@@ -269,7 +277,52 @@ public class CodingAgentSetupView : ViewBase
         var hasFetchedModels = models.Count > 0;
         var isCustomMode = isByo && (useCustomModelNames.Value || !hasFetchedModels);
 
+        object? WindowMetric(AgentUsageWindow w)
+        {
+            var p = w.UsedPercent;
+            var valueColor = p switch
+            {
+                >= 90f => Colors.Destructive,
+                >= 75f => Colors.Warning,
+                _ => (Colors?)null
+            };
+
+            var valueText = Text.Block(p is { } pct
+                ? $"{pct:0.#}%"
+                : $"{UsageWindowCalculator.FormatTokens(w.TotalTokens)} tokens").Small();
+
+            if (valueColor.HasValue)
+            {
+                valueText = valueText.Color(valueColor.Value);
+            }
+
+            var progress = p is { } progVal
+                ? (valueColor.HasValue
+                    ? new Progress((int)Math.Round(progVal)).Color(valueColor.Value).Small()
+                    : new Progress((int)Math.Round(progVal)).Small())
+                : null;
+
+            return Layout.Vertical().Gap(0).Width(Size.Units(36))
+                | Text.Muted($"{UsageWindowCalculator.FormatWindow(w.WindowMinutes)} window").Small()
+                | valueText
+                | (progress != null ? progress : null!)
+                | (w.ResetsAt is { } r ? Text.Muted($"resets in {UsageWindowCalculator.FormatCountdown(r - DateTimeOffset.UtcNow)}").Small() : null!);
+        }
+
+        var snapshot = usageQuery.Loading ? null : usageQuery.Value;
+        var capturedAt = snapshot?.CapturedAt;
+        var isStale = capturedAt is { } cap && DateTimeOffset.UtcNow - cap > TimeSpan.FromMinutes(10);
+        var usageStrip = snapshot is { Windows.Count: > 0 }
+            ? (Layout.Vertical().Gap(1)
+                | (Layout.Horizontal().Gap(8)
+                    | snapshot.Windows.Take(2).Select(WindowMetric).ToArray())
+                | (isStale
+                    ? Text.Muted($"as of {UsageWindowCalculator.FormatRelative(capturedAt!.Value)}").Small()
+                    : null!))
+            : null;
+
         var profileModels = Layout.Vertical().Width(Size.Auto().Max(Size.Units(120)))
+            | usageStrip
             | (isByo && hasFetchedModels ? useCustomModelNames.ToSwitchInput(label: "Custom model names") : null!)
             | Text.Block("Profile Models").Bold()
             | Text.Muted(isCustomMode

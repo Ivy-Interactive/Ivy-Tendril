@@ -30,17 +30,13 @@ public record ContentInput : WidgetBase<ContentInput>, IAnyInput
 
     [Prop] public string Value { get; init; } = "";
     [Prop] public string TranscriptionUrl { get; init; } = "wss://tendril-api.ivy.app/transcribe/ws";
-    [Prop] public List<string> Models { get; init; } = new() { "Build", "Edit", "Chat" };
     [Prop] public string SelectedModel { get; init; } = "Build";
-    [Prop] public List<string> Projects { get; init; } = new();
-    [Prop] public string SelectedProject { get; init; } = "";
     [Prop] public List<AttachedFile> AttachedFiles { get; init; } = new();
     [Prop] public List<string> MenuOptions { get; init; } = new();
 
     [Event] public Func<Event<ContentInput, SubmitEventArgs>, ValueTask>? OnSubmit { get; init; }
     [Event] public Func<Event<ContentInput, string>, ValueTask>? OnChange { get; init; }
     [Event] public Func<Event<ContentInput, string>, ValueTask>? OnModelChanged { get; init; }
-    [Event] public Func<Event<ContentInput, string>, ValueTask>? OnProjectChanged { get; init; }
     [Event] public Func<Event<ContentInput, string>, ValueTask>? OnMenuAction { get; init; }
     [Event] public Func<Event<ContentInput, string>, ValueTask>? OnQuickAction { get; init; }
     [Event] public Func<Event<ContentInput, string>, ValueTask>? OnRemoveAttachment { get; init; }
@@ -86,9 +82,6 @@ public static class ContentInputExtensions
 
     public static ContentInput TranscriptionUrl(this ContentInput w, string url) =>
         w with { TranscriptionUrl = url };
-
-    public static ContentInput Models(this ContentInput w, List<string> models) =>
-        w with { Models = models };
 
     public static ContentInput SelectedModel(this ContentInput w, string model) =>
         w with { SelectedModel = model };
@@ -175,20 +168,6 @@ public static class ContentInputExtensions
 
     public static ContentInput OnModelChanged(this ContentInput w, Action<string> handler) =>
         w with { OnModelChanged = e => { handler(e.Value); return ValueTask.CompletedTask; } };
-
-    public static ContentInput Projects(this ContentInput w, List<string> projects) =>
-        w with { Projects = projects };
-
-    public static ContentInput SelectedProject(this ContentInput w, string selectedProject) =>
-        w with { SelectedProject = selectedProject };
-
-    public static ContentInput OnProjectChanged(
-        this ContentInput w,
-        Func<Event<ContentInput, string>, ValueTask> handler) =>
-        w with { OnProjectChanged = handler };
-
-    public static ContentInput OnProjectChanged(this ContentInput w, Action<string> handler) =>
-        w with { OnProjectChanged = e => { handler(e.Value); return ValueTask.CompletedTask; } };
 
     public static ContentInput OnMenuAction(
         this ContentInput w,

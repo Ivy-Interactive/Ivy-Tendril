@@ -94,4 +94,50 @@ public class ProjectHelperTests
         Assert.Equal(BadgeVariant.Outline, badges[1].Variant);
         Assert.Equal(Colors.Amber, badges[1].Color);
     }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void BuildProjectBadges_NullOrEmpty_ReturnsEmpty(string? input)
+    {
+        var config = new StubConfigService();
+        var badges = ProjectHelper.BuildProjectBadges(input, config);
+        Assert.Empty(badges);
+    }
+
+    [Fact]
+    public void BuildProjectBadges_SingleProject_ReturnsBadgeWithConfiguredColor()
+    {
+        var config = new StubConfigService(
+        [
+            new ProjectConfig { Name = "Tendril", Color = "Blue" }
+        ]);
+
+        var badges = ProjectHelper.BuildProjectBadges("Tendril", config);
+
+        var badge = Assert.Single(badges);
+        Assert.Equal("Tendril", badge.Label);
+        Assert.Equal("Blue", badge.Color);
+    }
+
+    [Fact]
+    public void BuildProjectBadges_MultipleProjects_ReturnsBadgeForEachProject()
+    {
+        var config = new StubConfigService(
+        [
+            new ProjectConfig { Name = "Tendril", Color = "Blue" },
+            new ProjectConfig { Name = "Framework", Color = "Amber" }
+        ]);
+
+        var badges = ProjectHelper.BuildProjectBadges("Tendril, Framework", config);
+
+        Assert.Equal(2, badges.Count);
+
+        Assert.Equal("Tendril", badges[0].Label);
+        Assert.Equal("Blue", badges[0].Color);
+
+        Assert.Equal("Framework", badges[1].Label);
+        Assert.Equal("Amber", badges[1].Color);
+    }
 }

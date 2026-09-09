@@ -48,6 +48,8 @@ public class ContentView(
     Func<IReadOnlyList<GitHubIssue>, Task> onFireOffIssues,
     AssignedIssuesAutoImportService? autoImportService = null) : ViewBase
 {
+    internal Func<Task> RefreshHandler => onRefresh;
+
     public override object Build()
     {
         var client = UseService<IClientProvider>();

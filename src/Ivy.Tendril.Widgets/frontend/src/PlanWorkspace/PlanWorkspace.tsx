@@ -10,7 +10,7 @@ import { hasNodes } from "./types";
 import type { PlanActionDto, PlanWorkspaceProps } from "./types";
 import "./plan-workspace.css";
 
-export type { PlanActionDto, PlanTabDto, PlanWorkspaceProps } from "./types";
+export type { PlanActionDto, PlanProjectBadgeDto, PlanTabDto, PlanWorkspaceProps } from "./types";
 
 /** Below this the chat panel stacks under the plan instead of sitting beside it. */
 const NARROW_WIDTH = 760;
@@ -199,6 +199,7 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
   sourceLabel,
   persona,
   personaInitials,
+  projects = [],
   actions = EMPTY_ACTIONS,
   menuItems = EMPTY_ACTIONS,
   primary,
@@ -338,6 +339,20 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
           {meta && <span className="pws-meta">{meta}</span>}
         </div>
         <div className="pws-topbar-right">
+          {projects && projects.length > 0 && (
+            <div className="pws-project-badges">
+              {projects.map((proj, i) => (
+                <span
+                  key={proj.label || i}
+                  className="pws-project-badge"
+                  data-color={proj.color?.toLowerCase()}
+                  title={proj.label}
+                >
+                  {proj.label}
+                </span>
+              ))}
+            </div>
+          )}
           {persona && (
             <div className="pws-persona" title={persona}>
               <span className="pws-avatar" aria-hidden="true">

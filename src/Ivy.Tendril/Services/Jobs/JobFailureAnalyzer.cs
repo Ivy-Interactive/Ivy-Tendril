@@ -8,6 +8,43 @@ namespace Ivy.Tendril.Services.Jobs;
 
 internal static class JobFailureAnalyzer
 {
+    internal static readonly Regex BackgroundTaskPattern = new(
+        @"(?:was moved to the background|running in background with ID:?)\s*(?:\(?ID:?\s*)?(?<id>[a-z0-9]+)\)?",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    internal static IReadOnlyList<string> FindBackgroundTaskIds(IEnumerable<string> outputLines)
+    {
+        var serializer = new JsonEventSerializer();
+        var ids = new List<string>();
+        foreach (var line in outputLines)
+        {
+            var evt = serializer.Deserialize(line);
+            if (evt is ToolResultEvent { Output.Length: > 0 } tr)
+            {
+                var matches = BackgroundTaskPattern.Matches(tr.Output);
+                foreach (Match match in matches)
+                {
+                    if (match.Success)
+                    {
+                        var id = match.Groups["id"].Value;
+                        if (!ids.Contains(id))
+                        {
+                            ids.Add(id);
+                        }
+                    }
+                }
+            }
+        }
+        return ids;
+    }
+
+    internal static string? DescribeAbandonedBackgroundTasks(IEnumerable<string> outputLines)
+    {
+        var ids = FindBackgroundTaskIds(outputLines);
+        if (ids.Count == 0) return null;
+        return $"Background task(s) still running when the turn ended ({string.Join(", ", ids)}).";
+    }
+
     internal static string ExtractFailureReason(List<string> outputLines, string jobType, int? exitCode = null)
     {
         if (outputLines.Count == 0)

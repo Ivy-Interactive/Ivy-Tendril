@@ -59,11 +59,14 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
   trend = null,
   trendWeekly = null,
   pullRequests = [],
+  pullRequestsWeekly = [],
   activity = [],
   jobs = [],
   slots,
 }) => {
   const [tab, setTab] = useState<"cost" | "plans">("cost");
+  const [prPeriod, setPrPeriod] = useState<"week" | "month">("month");
+  const activePrs = prPeriod === "week" ? (pullRequestsWeekly ?? []) : (pullRequests ?? []);
 
   const fireEvent = (eventName: string) => {
     if (events.includes(eventName)) {
@@ -93,7 +96,6 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
 
   const activeTrend = trendWeekly ?? trend;
   const currentTrendName = "Last 4 weeks";
-  const previousTrendName = "Previous 4 weeks";
 
   const trendData =
     activeTrend == null
@@ -101,14 +103,12 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
       : tab === "cost"
         ? {
             values: activeTrend.cost,
-            previous: activeTrend.prevCost,
             rolling: activeTrend.rollingCost,
             formatTick: formatCurrencyTick,
             formatValue: formatCurrencyValue,
           }
         : {
             values: activeTrend.plans,
-            previous: activeTrend.prevPlans,
             rolling: activeTrend.rollingPlans,
             formatTick: formatCountTick,
             formatValue: formatPlansValue,
@@ -211,10 +211,6 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                       {currentTrendName}
                     </span>
                     <span className="tdb-legend-item">
-                      <span className="tdb-legend-dash" />
-                      {previousTrendName}
-                    </span>
-                    <span className="tdb-legend-item">
                       <span className="tdb-legend-line-avg" />
                       7-day average
                     </span>
@@ -224,10 +220,8 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                   <TrendChart
                     dates={activeTrend!.dates}
                     values={trendData.values}
-                    previous={trendData.previous}
                     rolling={trendData.rolling}
                     currentName={currentTrendName}
-                    previousName={previousTrendName}
                     formatTick={trendData.formatTick}
                     formatValue={trendData.formatValue}
                   />
@@ -246,9 +240,29 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
               </div>
             </div>
             <div className="tdb-block tdb-side-block">
-              <div className="tdb-block-title">Pull Requests</div>
+              <div className="tdb-side-head">
+                <div className="tdb-block-title">Pull Requests</div>
+                <div className="tdb-tabs tdb-side-tabs">
+                  <button
+                    type="button"
+                    className="tdb-tab tdb-side-tab"
+                    data-active={prPeriod === "week"}
+                    onClick={() => setPrPeriod("week")}
+                  >
+                    Week
+                  </button>
+                  <button
+                    type="button"
+                    className="tdb-tab tdb-side-tab"
+                    data-active={prPeriod === "month"}
+                    onClick={() => setPrPeriod("month")}
+                  >
+                    Month
+                  </button>
+                </div>
+              </div>
               <div className="tdb-side-body">
-                <PillBars items={pullRequests} />
+                <PillBars items={activePrs} />
               </div>
             </div>
             {hasSlotContent(slots?.TunnelQr) && (

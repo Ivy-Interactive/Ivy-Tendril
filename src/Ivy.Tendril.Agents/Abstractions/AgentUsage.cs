@@ -52,3 +52,23 @@ public sealed record SessionCostResult
     public DateTimeOffset? StartedAt { get; init; }
     public DateTimeOffset? CompletedAt { get; init; }
 }
+
+public sealed record AgentUsageWindow
+{
+    /// <summary>Window length as the agent reports it. 300 = 5h, 10080 = 7d, 43200 = 30d.</summary>
+    public required int WindowMinutes { get; init; }
+    public double? UsedPercent { get; init; }
+    public long? TotalTokens { get; init; }
+    public decimal? CostUsd { get; init; }
+    public DateTimeOffset? ResetsAt { get; init; }
+}
+
+public sealed record AgentUsageSnapshot
+{
+    public required string AgentId { get; init; }
+    public required IReadOnlyList<AgentUsageWindow> Windows { get; init; }
+    /// <summary>When the numbers were last true. For Codex this is the last agent run, not now.</summary>
+    public DateTimeOffset? CapturedAt { get; init; }
+    public string? Note { get; init; }
+}
+

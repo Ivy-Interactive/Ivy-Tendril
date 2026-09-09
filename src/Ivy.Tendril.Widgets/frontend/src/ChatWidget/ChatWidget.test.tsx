@@ -1790,6 +1790,47 @@ describe("ChatWidget Running Jobs Badge and Spinner", () => {
     const pulseDot = badge.querySelector(".chat-jobs-pulse-dot");
     expect(pulseDot).toBeInTheDocument();
   });
+
+  it("renders running jobs badge to the left of action buttons in DOM order", () => {
+    const session: ChatSessionDto = {
+      id: "sess-order",
+      title: "Session Order",
+      agentId: "agent-1",
+      modelId: "model-1",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+    };
+    const runningJobs = [
+      { id: "job-1", type: "CreatePlan", status: "Running", planTitle: "Test Plan" },
+    ];
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-order"
+        sessions={[session]}
+        runningJobs={runningJobs}
+      />
+    );
+
+    const badge = screen.getByRole("button", { name: /View running jobs/i });
+    const newChatBtn = screen.getByRole("button", { name: /New chat/i });
+    const chatOptionsBtn = screen.getByRole("button", { name: /Chat options/i });
+
+    expect(badge).toBeInTheDocument();
+    expect(newChatBtn).toBeInTheDocument();
+    expect(chatOptionsBtn).toBeInTheDocument();
+
+    const actionsContainer = badge.closest(".chat-header-actions");
+    expect(actionsContainer).toBeInTheDocument();
+    expect(actionsContainer).toContainElement(badge);
+    expect(actionsContainer).toContainElement(newChatBtn);
+    expect(actionsContainer).toContainElement(chatOptionsBtn);
+
+    expect(badge.compareDocumentPosition(newChatBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(newChatBtn.compareDocumentPosition(chatOptionsBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
 
 

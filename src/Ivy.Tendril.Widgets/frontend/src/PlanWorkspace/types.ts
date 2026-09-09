@@ -24,6 +24,11 @@ export interface PlanTabDto {
   badge?: string;
 }
 
+export interface PlanProjectBadgeDto {
+  label: string;
+  color?: string;
+}
+
 export interface PlanWorkspaceSlots {
   Content?: React.ReactNode[];
   Chat?: React.ReactNode[];
@@ -41,6 +46,7 @@ export interface PlanWorkspaceProps {
   sourceLabel?: string;
   persona?: string;
   personaInitials?: string;
+  projects?: PlanProjectBadgeDto[];
   actions?: PlanActionDto[];
   menuItems?: PlanActionDto[];
   primary?: PlanActionDto | null;

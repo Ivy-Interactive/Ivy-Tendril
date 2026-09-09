@@ -40,6 +40,10 @@ describe("dashboard.css KPI grid", () => {
 });
 
 describe("dashboard.css side block and git activity layout", () => {
+  it("constrains side block contents within container bounds with overflow: hidden", () => {
+    expect(css).toMatch(/\.tdb-side-block\s*\{[^}]*overflow:\s*hidden;/);
+  });
+
   it("bottom-anchors side body and tip wrap with justify-content: flex-end", () => {
     const sideBodyBlocks = [...css.matchAll(/\.tdb-side-body\s*\{([^}]*)\}/g)].map((m) => m[1]);
     expect(sideBodyBlocks.length).toBeGreaterThanOrEqual(1);
@@ -86,10 +90,22 @@ describe("dashboard.css rolling average curve and legend", () => {
   it("no longer carries the constant horizontal reference line", () => {
     expect(css).not.toContain(".tdb-trend-avg-line");
     expect(css).not.toContain(".tdb-legend-dash-avg");
+    expect(css).not.toContain(".tdb-trend-compare");
+    expect(css).not.toContain(".tdb-legend-dash {");
   });
 
   it("no longer carries granularity toggle styles", () => {
     expect(css).not.toContain(".tdb-granularity-toggle");
     expect(css).not.toContain(".tdb-granularity-btn");
+  });
+});
+
+describe("dashboard.css side tabs", () => {
+  it("defines compact tab controls for side card headers", () => {
+    expect(css).toContain(".tdb-side-tabs {");
+    expect(css).toContain(".tdb-side-tab {");
+    expect(css).toMatch(/\.tdb-side-tab\s*\{[^}]*font-size:\s*12px;/);
+    expect(css).toMatch(/\.tdb-side-tab\s*\{[^}]*padding:\s*3px 8px;/);
+    expect(css).toMatch(/\.tdb-side-tab\s*\{[^}]*border-radius:\s*6px;/);
   });
 });

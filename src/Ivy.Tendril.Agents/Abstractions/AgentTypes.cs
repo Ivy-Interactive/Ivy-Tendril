@@ -102,6 +102,7 @@ public enum AgentCapabilities
     HealthCheck = 1 << 14,
     ExtraArgPassthrough = 1 << 15,
     MaxTurns = 1 << 16,
+    UsageReporting = 1 << 17,
 }
 
 [Flags]
