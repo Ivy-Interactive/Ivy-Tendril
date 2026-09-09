@@ -21,6 +21,7 @@ frontend/             React/Vite bundle (npm run build → dist/)
     PlanWorkspace/    DemoApp (top bar actions and shortcuts, tabs, dropdown panels, embedded chat, drag-to-resize)
     TendrilQuestions/ DemoApp (every question case of the plan schema)
     WebViewer/        DemoApp (inspector), SideBySideApp (two viewers on one page)
+    PlanDependencyGraph/   DemoApp (clickable graph), CyclicApp (a dependency loop)
 
 .tests/               Playwright E2E tests
   widgets/            Test specs grouped by widget
@@ -146,6 +147,24 @@ URL the caller did not name and the allow-list would never see it.
 No cookies travel in either direction, and `Set-Cookie` is not relayed: every proxied site is
 served from the Ivy app's one origin, so a single cookie jar would be shared by all of them.
 Sites that need a session cannot be reviewed signed in.
+
+## PlanDependencyGraph
+
+`PlanDependencyGraph.cs` takes a flat node list plus `PlanDependencyEdgeDto(Plan, DependsOn)`
+edges and fires `OnNodeClick` with the plan id, which is what the host uses to navigate. The
+layout is computed in the browser (`frontend/src/PlanDependencyGraph/layout.ts`), not by a layout
+library: edges are normalized, cycles are found by depth-first search, ranks come from a
+longest-path pass, and the order inside each rank is settled by barycenter sweeps. Everything
+there is a pure function, so `layout.test.ts` covers ranking, ordering and overlap without a DOM.
+
+Three things the widget has to keep doing:
+
+- a cycle is drawn, not dropped. A hand-edited `plan.yaml` can always close a loop, so the edge
+  that closes it is excluded from ranking and rendered dashed;
+- the pointer is captured only once a pan passes the drag threshold. A captured pointer retargets
+  the click to the viewport, which silently swallowed every click on a node;
+- hovering dims the unrelated plans, selecting does not. A selection lives as long as the plan is
+  open in the host, and a permanently dimmed graph is unreadable.
 
 ## Markdown raw HTML
 
