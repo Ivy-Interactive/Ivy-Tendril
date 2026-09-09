@@ -26,6 +26,12 @@ export default defineConfig({
         },
         extend: false,
       },
+      onLog(level, log, defaultHandler) {
+        if (log.code === "EMPTY_IMPORT_META") {
+          return;
+        }
+        defaultHandler(level, log);
+      },
     },
     outDir: "dist",
     emptyOutDir: true,
