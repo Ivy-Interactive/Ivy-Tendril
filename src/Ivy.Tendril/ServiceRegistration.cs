@@ -4,6 +4,7 @@ using Ivy.Tendril.Agents;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Telemetry;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -134,6 +135,7 @@ internal static class ServiceRegistration
         });
 
         server.Services.AddSingleton<ModelPricingService>();
+        server.Services.AddSingleton<AgentUsageService>();
 
         if (configService.Settings.Llm is { } llmConfig && !string.IsNullOrEmpty(llmConfig.ApiKey))
             server.Services.AddSingleton<IChatClient>(sp =>
