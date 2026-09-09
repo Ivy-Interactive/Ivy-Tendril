@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
+import { Kbd } from "../ui/Kbd";
+import { Tooltip } from "../ui/Tooltip";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { VoiceRecorder, type VoiceStatus } from "../voice-recorder";
@@ -136,22 +138,7 @@ const parseValue = (val: string) => {
   return { cleanText, filePaths };
 };
 
-const renderShortcut = (isMac: boolean) => {
-  if (isMac) {
-    return (
-      <>
-        <span>⌘</span>
-        <span className="civ-shortcut-enter">↵</span>
-      </>
-    );
-  }
-  return (
-    <>
-      <span>Ctrl</span>
-      <span className="civ-shortcut-enter">↵</span>
-    </>
-  );
-};
+const submitShortcutKeys = (isMac: boolean): string[] => (isMac ? ["⌘", "↵"] : ["Ctrl", "↵"]);
 
 export const ContentInput: React.FC<ContentInputProps> = ({
   id,
@@ -775,14 +762,16 @@ export const ContentInput: React.FC<ContentInputProps> = ({
                   )}
 
                   {/* Overlaid Close Button */}
-                  <button
-                    className="civ-thumbnail-card-remove"
-                    onClick={() => handleRemoveFile(filePath)}
-                    type="button"
-                    title="Remove file"
-                  >
-                    ×
-                  </button>
+                  <Tooltip content="Remove file">
+                    <button
+                      className="civ-thumbnail-card-remove"
+                      onClick={() => handleRemoveFile(filePath)}
+                      type="button"
+                      aria-label="Remove file"
+                    >
+                      ×
+                    </button>
+                  </Tooltip>
 
                   {/* Overlaid File Metadata & Badge */}
                   <div className="civ-thumbnail-content">
@@ -845,16 +834,18 @@ export const ContentInput: React.FC<ContentInputProps> = ({
                   }
                 }}
               />
-              <button
-                className="civ-plus-btn"
-                onClick={() => fileInputRef.current?.click()}
-                type="button"
-                title="Attach files"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                </svg>
-              </button>
+              <Tooltip content="Attach files">
+                <button
+                  className="civ-plus-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                  type="button"
+                  aria-label="Attach files"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </button>
+              </Tooltip>
             </div>
 
             {slots?.ProjectPicker || slots?.LeftActions}
@@ -875,32 +866,34 @@ export const ContentInput: React.FC<ContentInputProps> = ({
                   </div>
                 </div>
               )}
-              <button
-                className={`civ-mic-btn civ-status-${voiceStatus}`}
-                onClick={toggleRecording}
-                type="button"
-                title="Voice input transcription"
-              >
-                {voiceStatus === "connecting" ? (
-                  <div className="civ-spinner" />
-                ) : voiceStatus === "processing" ? (
-                  <div className="civ-spinner processing" />
-                ) : voiceStatus === "recording" ? (
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect x="6" y="6" width="12" height="12" rx="2" ry="2" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                    <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v3M8 22h8" />
-                  </svg>
-                )}
-              </button>
+              <Tooltip content="Voice input transcription">
+                <button
+                  className={`civ-mic-btn civ-status-${voiceStatus}`}
+                  onClick={toggleRecording}
+                  type="button"
+                  aria-label="Voice input transcription"
+                >
+                  {voiceStatus === "connecting" ? (
+                    <div className="civ-spinner" />
+                  ) : voiceStatus === "processing" ? (
+                    <div className="civ-spinner processing" />
+                  ) : voiceStatus === "recording" ? (
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <rect x="6" y="6" width="12" height="12" rx="2" ry="2" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                      <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v3M8 22h8" />
+                    </svg>
+                  )}
+                </button>
+              </Tooltip>
             </div>
 
             {/* Submit Button or Split Button */}
@@ -909,27 +902,31 @@ export const ContentInput: React.FC<ContentInputProps> = ({
                 className={`civ-split-btn-container ${!canSubmit ? "disabled" : ""}`}
                 ref={menuRef}
               >
-                <button
-                  className="civ-submit-btn civ-submit-btn-labeled civ-split-btn-left"
-                  onClick={handleSubmit}
-                  disabled={!canSubmit}
-                  type="button"
-                  title={submitLabel || "Send"}
-                >
-                  <span className="civ-submit-text">{submitLabel}</span>
-                  <kbd className="civ-submit-shortcut">{renderShortcut(isMac)}</kbd>
-                </button>
-                <button
-                  className="civ-split-btn-arrow"
-                  onClick={() => setMenuOpen(!menuOpen)}
-                  disabled={!canSubmit}
-                  type="button"
-                  title="More options"
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </button>
+                <Tooltip content={submitLabel || "Send"} wrapTrigger triggerDisabled={!canSubmit}>
+                  <button
+                    className="civ-submit-btn civ-submit-btn-labeled civ-split-btn-left"
+                    onClick={handleSubmit}
+                    disabled={!canSubmit}
+                    type="button"
+                    aria-label={submitLabel || "Send"}
+                  >
+                    <span className="civ-submit-text">{submitLabel}</span>
+                    <Kbd keys={submitShortcutKeys(isMac)} className="civ-submit-shortcut" />
+                  </button>
+                </Tooltip>
+                <Tooltip content="More options" wrapTrigger triggerDisabled={!canSubmit}>
+                  <button
+                    className="civ-split-btn-arrow"
+                    onClick={() => setMenuOpen(!menuOpen)}
+                    disabled={!canSubmit}
+                    type="button"
+                    aria-label="More options"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+                </Tooltip>
                 {menuOpen && (
                   <div className="civ-dropdown-menu">
                     {menuOptions.map((option, idx) => (
@@ -951,25 +948,27 @@ export const ContentInput: React.FC<ContentInputProps> = ({
                 )}
               </div>
             ) : (
-              <button
-                className={`civ-submit-btn ${submitLabel ? "civ-submit-btn-labeled" : ""}`}
-                onClick={handleSubmit}
-                disabled={!canSubmit}
-                type="button"
-                title={submitLabel || "Send"}
-              >
-                {submitLabel ? (
-                  <>
-                    <span className="civ-submit-text">{submitLabel}</span>
-                    <kbd className="civ-submit-shortcut">{renderShortcut(isMac)}</kbd>
-                  </>
-                ) : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <line x1="12" y1="19" x2="12" y2="5" />
-                    <polyline points="5 12 12 5 19 12" />
-                  </svg>
-                )}
-              </button>
+              <Tooltip content={submitLabel || "Send"} wrapTrigger triggerDisabled={!canSubmit}>
+                <button
+                  className={`civ-submit-btn ${submitLabel ? "civ-submit-btn-labeled" : ""}`}
+                  onClick={handleSubmit}
+                  disabled={!canSubmit}
+                  type="button"
+                  aria-label={submitLabel || "Send"}
+                >
+                  {submitLabel ? (
+                    <>
+                      <span className="civ-submit-text">{submitLabel}</span>
+                      <Kbd keys={submitShortcutKeys(isMac)} className="civ-submit-shortcut" />
+                    </>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="12" y1="19" x2="12" y2="5" />
+                      <polyline points="5 12 12 5 19 12" />
+                    </svg>
+                  )}
+                </button>
+              </Tooltip>
             )}
           </div>
         </div>

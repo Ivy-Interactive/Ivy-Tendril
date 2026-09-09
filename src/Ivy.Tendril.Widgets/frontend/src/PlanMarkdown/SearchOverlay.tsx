@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { IconButton } from "../ui/IconButton";
 
 interface SearchOverlayProps {
   query: string;
@@ -74,43 +75,43 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
       </div>
       {counterText && <span className="pmv-search-count">{counterText}</span>}
       <div className="pmv-search-actions">
-        <button
-          type="button"
+        <IconButton
+          size="md"
           className="pmv-search-btn"
           onClick={onPrevious}
           disabled={matchCount === 0}
-          aria-label="Previous match"
-          title="Previous match (Shift+Enter)"
+          label="Previous match"
+          shortcut="Shift+Enter"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="18 15 12 9 6 15" />
           </svg>
-        </button>
-        <button
-          type="button"
+        </IconButton>
+        <IconButton
+          size="md"
           className="pmv-search-btn"
           onClick={onNext}
           disabled={matchCount === 0}
-          aria-label="Next match"
-          title="Next match (Enter)"
+          label="Next match"
+          shortcut="Enter"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="6 9 12 15 18 9" />
           </svg>
-        </button>
+        </IconButton>
         <div className="pmv-search-divider" />
-        <button
-          type="button"
+        <IconButton
+          size="md"
           className="pmv-search-btn pmv-search-btn--close"
           onClick={onClose}
-          aria-label="Close search"
-          title="Close (Escape)"
+          label="Close search"
+          shortcut="Escape"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
-        </button>
+        </IconButton>
       </div>
     </div>
   );

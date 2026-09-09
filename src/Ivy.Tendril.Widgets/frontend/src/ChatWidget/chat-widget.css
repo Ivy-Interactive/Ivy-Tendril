@@ -162,30 +162,6 @@
   align-items: center;
 }
 
-.chat-icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--tch-fg);
-  opacity: 0.7;
-  cursor: pointer;
-  transition:
-    background-color 120ms ease,
-    opacity 120ms ease;
-}
-
-.chat-icon-btn:hover,
-.chat-icon-btn[aria-expanded="true"] {
-  background: var(--tch-surface);
-  opacity: 1;
-}
-
 .chat-menu-wrap {
   position: relative;
 }
@@ -266,24 +242,9 @@
   white-space: nowrap;
 }
 
-@keyframes chat-pulse-dot {
-  0%,
-  100% {
-    transform: scale(0.9);
-    opacity: 0.35;
-  }
-  50% {
-    transform: scale(1.2);
-    opacity: 1;
-  }
-}
-
+/* The pill's own color, so the dot goes red with the pill when a job has failed. */
 .chat-jobs-pulse-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
   background: currentColor;
-  animation: chat-pulse-dot 1.6s ease-in-out infinite;
 }
 
 .chat-jobs-badge-chevron {
@@ -347,27 +308,6 @@
   gap: 6px;
 }
 
-.chat-job-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 500;
-  background: var(--tch-bg);
-  border: 1px solid var(--tch-border);
-  color: var(--tch-muted);
-}
-
-.chat-job-chip.chip-completed {
-  color: var(--tch-success);
-}
-
-.chat-job-chip.chip-failed {
-  color: var(--tch-danger);
-}
-
 .chat-jobs-dropdown-list {
   display: flex;
   flex-direction: column;
@@ -407,13 +347,6 @@
 .chat-jobs-dropdown-item.failed .chat-job-status-indicator,
 .chat-jobs-dropdown-item.timeout .chat-job-status-indicator {
   color: var(--tch-danger);
-}
-
-.chat-job-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--tch-faint);
 }
 
 .chat-job-details {
@@ -1012,8 +945,9 @@ button.chat-system-event-plan {
   border: none;
   background: transparent;
   color: var(--tch-fg);
+  /* The composer reads at the same size as the thread it writes into: `font: inherit` picks up
+     the widget root's 14px, matching .chat-markdown-body and the user bubble. */
   font: inherit;
-  font-size: 16px;
   line-height: 20px;
   resize: none;
   outline: none;
@@ -1113,58 +1047,22 @@ button.chat-system-event-plan {
   min-width: 0;
 }
 
-.chat-voice-error-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  opacity: 0.75;
+/* The banner's own color, and tight enough not to grow its 12px rows. */
+.chat-voice-error .tui-icon-btn {
+  width: 20px;
+  height: 20px;
+  color: currentColor;
 }
 
-.chat-voice-error-close:hover {
-  opacity: 1;
-}
-
-.chat-send-btn,
-.chat-stop-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: opacity 150ms ease;
-}
-
-.chat-send-btn {
-  background: var(--tch-cta-bg);
-  color: var(--tch-cta-fg);
-}
-
-.chat-send-btn:hover:not(:disabled) {
-  opacity: 0.9;
-}
-
-.chat-send-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
+/* The shared icon button, in the composer's stop colors. */
 .chat-stop-btn {
   border: 1px solid var(--tch-danger);
   background: color-mix(in srgb, var(--tch-danger) 10%, transparent);
   color: var(--tch-danger);
+  opacity: 1;
 }
 
-.chat-stop-btn:hover {
+.chat-stop-btn:hover:not(:disabled) {
   background: color-mix(in srgb, var(--tch-danger) 20%, transparent);
 }
 
@@ -1528,54 +1426,12 @@ button.chat-system-event-plan {
 }
 
 .chat-queued-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 6px;
-  border: 1px solid var(--tch-border);
-  border-radius: 999px;
-  background: var(--tch-bg);
-  font-size: 11px;
-  font-weight: 600;
+  border-color: var(--tch-border);
 }
 
 .chat-queued-subtitle {
   font-size: 12px;
   color: var(--tch-muted);
-}
-
-.chat-queued-toggle-btn,
-.chat-queued-item-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--tch-muted);
-  cursor: pointer;
-  transition:
-    background-color 120ms ease,
-    color 120ms ease;
-}
-
-.chat-queued-toggle-btn:hover,
-.chat-queued-item-btn:hover {
-  background: var(--tch-surface);
-  color: var(--tch-fg);
-}
-
-.chat-queued-item-btn.delete:hover,
-.chat-queued-item-btn.cancel:hover {
-  background: color-mix(in srgb, var(--tch-danger) 12%, transparent);
-  color: var(--tch-danger);
-}
-
-.chat-queued-item-btn.save {
-  color: var(--tch-fg);
 }
 
 .chat-queued-chevron {
@@ -1622,13 +1478,6 @@ button.chat-system-event-plan {
 }
 
 .chat-queued-item-att-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: var(--tch-surface);
-  font-size: 11px;
   color: var(--tch-muted);
 }
 

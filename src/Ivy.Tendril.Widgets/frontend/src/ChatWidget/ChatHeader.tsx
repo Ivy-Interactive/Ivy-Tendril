@@ -15,6 +15,9 @@ import {
   XCircle,
 } from "lucide-react";
 import { useOutsideClick } from "./useOutsideClick";
+import { Badge, StatusDot } from "../ui/Badge";
+import { IconButton } from "../ui/IconButton";
+import { Tooltip } from "../ui/Tooltip";
 import type { ChatJobDto } from "./types";
 
 const isRunningJob = (job: ChatJobDto) => job.status === "Running" || job.status === "Pending";
@@ -43,35 +46,36 @@ const JobsMenu: React.FC<JobsMenuProps> = ({ jobs, spawned, onReview }) => {
 
   return (
     <div className="chat-jobs-badge-container" ref={wrapRef}>
-      <button
-        type="button"
-        className={`chat-jobs-badge ${state}`}
-        onClick={() => setOpen((value) => !value)}
-        title={runningCount > 0 ? `${runningCount} job(s) running` : "View jobs"}
-        aria-label="View running jobs"
-        aria-expanded={open}
-      >
-        {runningCount > 0 ? (
-          <>
-            <LoaderCircle size={16} className="spin" />
-            <span className="chat-jobs-badge-text">{runningCount} running</span>
-            <span className="chat-jobs-pulse-dot" />
-          </>
-        ) : failedCount > 0 ? (
-          <>
-            <XCircle size={16} />
-            <span className="chat-jobs-badge-text">
-              {jobsLabel(jobs.length)} ({failedCount} failed)
-            </span>
-          </>
-        ) : (
-          <>
-            <Activity size={16} />
-            <span className="chat-jobs-badge-text">{jobsLabel(jobs.length)}</span>
-          </>
-        )}
-        <ChevronDown size={16} className={`chat-jobs-badge-chevron ${open ? "open" : ""}`} />
-      </button>
+      <Tooltip content={runningCount > 0 ? `${runningCount} job(s) running` : "View jobs"}>
+        <button
+          type="button"
+          className={`chat-jobs-badge ${state}`}
+          onClick={() => setOpen((value) => !value)}
+          aria-label="View running jobs"
+          aria-expanded={open}
+        >
+          {runningCount > 0 ? (
+            <>
+              <LoaderCircle size={16} className="spin" />
+              <span className="chat-jobs-badge-text">{runningCount} running</span>
+              <StatusDot pulse className="chat-jobs-pulse-dot" />
+            </>
+          ) : failedCount > 0 ? (
+            <>
+              <XCircle size={16} />
+              <span className="chat-jobs-badge-text">
+                {jobsLabel(jobs.length)} ({failedCount} failed)
+              </span>
+            </>
+          ) : (
+            <>
+              <Activity size={16} />
+              <span className="chat-jobs-badge-text">{jobsLabel(jobs.length)}</span>
+            </>
+          )}
+          <ChevronDown size={16} className={`chat-jobs-badge-chevron ${open ? "open" : ""}`} />
+        </button>
+      </Tooltip>
 
       {open && (
         <div className="chat-jobs-dropdown-menu">
@@ -84,22 +88,22 @@ const JobsMenu: React.FC<JobsMenuProps> = ({ jobs, spawned, onReview }) => {
             </div>
             <div className="chat-jobs-dropdown-chips">
               {runningCount > 0 && (
-                <span className="chat-job-chip chip-running">
+                <Badge>
                   <LoaderCircle size={10} className="spin" />
                   {runningCount} running
-                </span>
+                </Badge>
               )}
               {completedCount > 0 && (
-                <span className="chat-job-chip chip-completed">
+                <Badge kind="success">
                   <Check size={10} />
                   {completedCount} completed
-                </span>
+                </Badge>
               )}
               {failedCount > 0 && (
-                <span className="chat-job-chip chip-failed">
+                <Badge kind="danger">
                   <X size={10} />
                   {failedCount} failed
-                </span>
+                </Badge>
               )}
             </div>
           </div>
@@ -111,7 +115,7 @@ const JobsMenu: React.FC<JobsMenuProps> = ({ jobs, spawned, onReview }) => {
                   {isRunningJob(job) && <LoaderCircle size={13} className="spin" />}
                   {isCompletedJob(job) && <CheckCircle2 size={13} />}
                   {isFailedJob(job) && <XCircle size={13} />}
-                  {!isRunningJob(job) && !isCompletedJob(job) && !isFailedJob(job) && <span className="chat-job-dot" />}
+                  {!isRunningJob(job) && !isCompletedJob(job) && !isFailedJob(job) && <StatusDot />}
                 </div>
                 <div className="chat-job-details">
                   <div className="chat-job-meta">
@@ -228,29 +232,25 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
       </div>
       <div className="chat-header-actions">
+        {/* The jobs pill is conditional, so it sits left of the buttons: the buttons keep the
+            same place whether or not any job is running. */}
+        {editable && jobs.length > 0 && (
+          <JobsMenu jobs={jobs} spawned={spawned} onReview={() => onReviewJobs?.()} />
+        )}
         <div className="chat-header-icons">
-          <button
-            type="button"
-            className="chat-icon-btn"
-            title="New chat"
-            aria-label="New chat"
-            onClick={onNewChat}
-          >
+          <IconButton label="New chat" onClick={onNewChat}>
             <MessageSquarePlus size={16} />
-          </button>
+          </IconButton>
           {editable && (
             <div className="chat-menu-wrap" ref={menuRef}>
-              <button
-                type="button"
-                className="chat-icon-btn"
-                title="Chat options"
-                aria-label="Chat options"
+              <IconButton
+                label="Chat options"
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 onClick={() => setMenuOpen((value) => !value)}
               >
                 <Ellipsis size={16} />
-              </button>
+              </IconButton>
               {menuOpen && (
                 <div className="chat-menu" role="menu" aria-label="Chat options">
                   <button
@@ -282,9 +282,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             </div>
           )}
         </div>
-        {editable && jobs.length > 0 && (
-          <JobsMenu jobs={jobs} spawned={spawned} onReview={() => onReviewJobs?.()} />
-        )}
       </div>
     </div>
   );

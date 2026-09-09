@@ -10,6 +10,7 @@ import { MessageSquare } from "lucide-react";
 import { refractor } from "refractor/all";
 import { prismTheme } from "../prismTheme";
 import { getInitials } from "../PlanMarkdown/annotationUtils";
+import { Tooltip } from "../ui/Tooltip";
 
 const refractorAdapter = {
   ...refractor,
@@ -279,35 +280,38 @@ const CommentWidgetContainer: React.FC<CommentWidgetContainerProps> = ({
                     )}
                     {canResolve && (
                       <>
-                        <button
-                          type="button"
-                          className={`hover:underline cursor-pointer ${
-                            isResolved
-                              ? "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                              : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 font-medium"
-                          }`}
-                          onClick={() =>
-                            onUpdateComment({
-                              ...comment,
-                              isResolved: !isResolved,
-                            })
-                          }
-                          title={isResolved ? "Reopen comment" : "Mark comment as resolved"}
-                        >
-                          {isResolved ? "Unresolve" : "Resolve"}
-                        </button>
+                        <Tooltip content={isResolved ? "Reopen comment" : "Mark comment as resolved"}>
+                          <button
+                            type="button"
+                            className={`hover:underline cursor-pointer ${
+                              isResolved
+                                ? "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                                : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 font-medium"
+                            }`}
+                            onClick={() =>
+                              onUpdateComment({
+                                ...comment,
+                                isResolved: !isResolved,
+                              })
+                            }
+                          >
+                            {isResolved ? "Unresolve" : "Resolve"}
+                          </button>
+                        </Tooltip>
                         {canDelete && <span>&bull;</span>}
                       </>
                     )}
                     {canDelete && (
-                      <button
-                        type="button"
-                        className="hover:underline text-[var(--destructive)] cursor-pointer"
-                        onClick={() => onDeleteComment(comment)}
-                        title="Delete comment"
-                      >
-                        Delete
-                      </button>
+                      <Tooltip content="Delete comment">
+                        <button
+                          type="button"
+                          className="hover:underline text-[var(--destructive)] cursor-pointer"
+                          onClick={() => onDeleteComment(comment)}
+                          aria-label="Delete comment"
+                        >
+                          Delete
+                        </button>
+                      </Tooltip>
                     )}
                   </div>
                 </div>
@@ -757,30 +761,35 @@ export const PlanDiffView: React.FC<PlanDiffViewProps> = ({
                     const fileCommentCount = comments.length;
                     const hidden = commentsHidden[fileKey] ?? false;
                     return (
-                      <button
-                        type="button"
-                        aria-label={hidden ? "Show comments" : "Hide comments"}
-                        aria-pressed={!hidden}
-                        disabled={fileCommentCount === 0}
-                        title={
+                      <Tooltip
+                        wrapTrigger
+                        triggerDisabled={fileCommentCount === 0}
+                        content={
                           fileCommentCount === 0
                             ? "No comments on this file"
                             : hidden
                               ? `Show ${fileCommentCount} comment(s)`
                               : `Hide ${fileCommentCount} comment(s)`
                         }
-                        className="flex items-center gap-1 p-1 rounded hover:bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--muted-foreground)]"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (fileCommentCount === 0) return;
-                          setCommentsHidden((prev) => ({ ...prev, [fileKey]: !hidden }));
-                        }}
                       >
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        <span className="font-mono text-xs tabular-nums min-w-4 text-left">
-                          {fileCommentCount > 0 ? fileCommentCount : ""}
-                        </span>
-                      </button>
+                        <button
+                          type="button"
+                          aria-label={hidden ? "Show comments" : "Hide comments"}
+                          aria-pressed={!hidden}
+                          disabled={fileCommentCount === 0}
+                          className="flex items-center gap-1 p-1 rounded hover:bg-[var(--muted)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--muted-foreground)]"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (fileCommentCount === 0) return;
+                            setCommentsHidden((prev) => ({ ...prev, [fileKey]: !hidden }));
+                          }}
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span className="font-mono text-xs tabular-nums min-w-4 text-left">
+                            {fileCommentCount > 0 ? fileCommentCount : ""}
+                          </span>
+                        </button>
+                      </Tooltip>
                     );
                   })()}
                 </div>

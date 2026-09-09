@@ -758,9 +758,8 @@ describe("ChatWidget File Uploads and Attachments", () => {
     expect(warning).toBeInTheDocument();
     expect(warning).toHaveTextContent(/Attachments exceed the 50 MB limit/i);
 
-    // Send button is disabled due to oversized payload
+    // Send button is disabled due to oversized payload; the reason is on its tooltip and banner
     expect(sendBtn).toBeDisabled();
-    expect(sendBtn).toHaveAttribute("title", "Attachments exceed the 50 MB limit");
   });
 
   it("uploads files via HTTP multipart POST when uploadUrl is provided and sends metadata without base64", async () => {
@@ -1035,8 +1034,8 @@ describe("ChatWidget File Uploads and Attachments", () => {
     expect(screen.getByRole("button", { name: /Stop/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Queue/i })).toBeInTheDocument();
 
-    // Immediately shows the Thinking status indicator
-    expect(screen.getByText("Thinking")).toBeInTheDocument();
+    // Immediately shows the agent status line
+    expect(screen.getByText("Starting…")).toBeInTheDocument();
 
     // Clicking Stop cancels optimistic stream
     const stopBtn = screen.getByRole("button", { name: /Stop/i });

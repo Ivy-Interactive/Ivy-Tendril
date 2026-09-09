@@ -9,6 +9,8 @@ import {
   modKeyLabel,
 } from "./types";
 import { ShellTooltip } from "./ShellTooltip";
+import { Badge } from "../ui/Badge";
+import { Kbd } from "../ui/Kbd";
 import "./shell.css";
 
 const SEARCH_SHORTCUT_KEY = "K";
@@ -117,9 +119,9 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
                       {item.badges && item.badges.length > 0 && (
                         <div className="tsh-rail-tooltip-badges">
                           {item.badges.map((badge, i) => (
-                            <span key={i} className="tsh-badge" data-kind={badge.kind}>
+                            <Badge key={i} kind={badge.kind}>
                               {badge.label}
-                            </span>
+                            </Badge>
                           ))}
                         </div>
                       )}
@@ -156,10 +158,7 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
                 <Search size={16} />
                 <span className="tsh-section-search-button-label">Search</span>
               </span>
-              <span className="tsh-kbd">
-                <span>{modKeyLabel()}</span>
-                <span>{SEARCH_SHORTCUT_KEY}</span>
-              </span>
+              <Kbd keys={[modKeyLabel(), SEARCH_SHORTCUT_KEY]} variant="bare" className="tsh-kbd" />
             </button>
           </ShellTooltip>
         </div>
@@ -208,9 +207,9 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
               {item.badges && item.badges.length > 0 && (
                 <span className="tsh-section-item-badges">
                   {item.badges.map((badge, i) => (
-                    <span key={i} className="tsh-badge" data-kind={badge.kind}>
+                    <Badge key={i} kind={badge.kind}>
                       {badge.label}
-                    </span>
+                    </Badge>
                   ))}
                 </span>
               )}

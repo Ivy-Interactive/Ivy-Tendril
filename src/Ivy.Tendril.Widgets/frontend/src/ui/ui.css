@@ -1,0 +1,407 @@
+/* Shared primitives for the Tendril widget bundle: one tooltip, one keyboard hint, one badge
+   and one icon button, so every widget in the bundle presents the same control the same way.
+   Every color derives from the host theme's variables; the literals are only fallbacks for a
+   widget rendered outside a themed host. */
+
+.tui-tooltip-content,
+.tui-icon-btn,
+.tui-kbd,
+.tui-badge,
+.tui-dot,
+.tui-status {
+  --tui-fg: var(--foreground, #000000);
+  --tui-muted: color-mix(in srgb, var(--foreground, #000000) 60%, transparent);
+  --tui-border: var(--border, #e0e0e0);
+  --tui-surface: color-mix(in srgb, var(--foreground, #000000) 6%, transparent);
+  --tui-muted-bg: var(--muted, #f0f0f0);
+  --tui-danger: var(--destructive, #ef4444);
+  --tui-success: var(--success, #16a34a);
+  --tui-warning: var(--warning, #f59e0b);
+  --tui-info: var(--info, #2563eb);
+
+  box-sizing: border-box;
+  font-family: var(--font-sans, "Geist", sans-serif);
+}
+
+/* ---------- Tooltip ---------- */
+
+@keyframes tui-tooltip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes tui-tooltip-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.tui-tooltip-content {
+  z-index: 70;
+  border-radius: var(--radius-selectors, 6px);
+  border: 1px solid var(--border, #e0e0e0);
+  background: var(--card, #ffffff);
+  color: var(--card-foreground, #000000);
+  padding: 6px 12px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
+  max-width: 320px;
+  pointer-events: none;
+  animation: tui-tooltip-in 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+}
+
+.dark .tui-tooltip-content {
+  background: var(--card, #0a0a0a);
+  color: var(--card-foreground, #f8f8f8);
+  border-color: var(--border, #27272a);
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.4),
+    0 2px 4px -2px rgb(0 0 0 / 0.4);
+}
+
+.tui-tooltip-content[data-state="closed"] {
+  animation: tui-tooltip-out 100ms ease-in;
+}
+
+.tui-tooltip-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tui-tooltip-label {
+  white-space: nowrap;
+}
+
+/* Anchor for a control that can be disabled; a disabled button emits no pointer events. */
+.tui-tooltip-trigger-wrap {
+  display: inline-flex;
+}
+
+.tui-tooltip-trigger-wrap:focus-visible {
+  outline: none;
+}
+
+/* ---------- Keyboard hint ---------- */
+
+.tui-kbd {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  font-family: inherit;
+  font-weight: 500;
+}
+
+/* Bare: the key letters alone, for hints that sit inside a button's own chrome. */
+.tui-kbd--bare {
+  gap: 2px;
+  font-size: 12px;
+  letter-spacing: -0.24px;
+  opacity: 0.8;
+}
+
+/* Boxed: a key cap, for hints that stand on their own (tooltips, toolbars). */
+.tui-kbd--boxed {
+  height: 16px;
+  min-width: 16px;
+  justify-content: center;
+  padding: 0 4px;
+  border: 1px solid var(--tui-border);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--tui-muted-bg) 40%, transparent);
+  color: var(--card-foreground, #000000);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.dark .tui-kbd--boxed {
+  border-color: var(--border, #27272a);
+  background: color-mix(in srgb, var(--muted, #27272a) 40%, transparent);
+  color: var(--card-foreground, #f8f8f8);
+}
+
+/* ---------- Badges, counts and status dots ---------- */
+
+/* The kind palette the shell's Figma prototype established, adopted for every badge in the
+   bundle. A tint that dark rides on the surface rather than the raw color, which would drown
+   text at this size. */
+.tui-badge {
+  --tui-badge-project-bg: color-mix(in srgb, var(--info, #bcd6ff) 18%, var(--card, #ffffff));
+  --tui-badge-project-fg: color-mix(in srgb, var(--info, #183b75) 40%, var(--foreground, #000000));
+  --tui-badge-success-bg: color-mix(in srgb, var(--success, #b7e4b9) 18%, var(--card, #ffffff));
+  --tui-badge-success-fg: color-mix(in srgb, var(--success, #1f4924) 40%, var(--foreground, #000000));
+  --tui-badge-warning-bg: color-mix(in srgb, var(--warning, #fce4b5) 18%, var(--card, #ffffff));
+  --tui-badge-warning-fg: color-mix(in srgb, var(--warning, #6b4e14) 40%, var(--foreground, #000000));
+  --tui-badge-danger-bg: color-mix(in srgb, var(--destructive, #f9c0c0) 18%, var(--card, #ffffff));
+  --tui-badge-danger-fg: color-mix(in srgb, var(--destructive, #7f1d1d) 40%, var(--foreground, #000000));
+  --tui-badge-border: color-mix(in srgb, var(--foreground, #000000) 30%, transparent);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 2px 5px;
+  border: 0.5px solid transparent;
+  border-radius: 4px;
+  background: var(--tui-muted-bg);
+  color: var(--tui-fg);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+.dark .tui-badge {
+  --tui-badge-project-bg: color-mix(in srgb, var(--info, #1e3a6d) 28%, var(--card, #000000));
+  --tui-badge-project-fg: color-mix(in srgb, var(--info, #bcd6ff) 40%, var(--foreground, #ffffff));
+  --tui-badge-success-bg: color-mix(in srgb, var(--success, #1f4924) 28%, var(--card, #000000));
+  --tui-badge-success-fg: color-mix(in srgb, var(--success, #b7e4b9) 40%, var(--foreground, #ffffff));
+  --tui-badge-warning-bg: color-mix(in srgb, var(--warning, #6b4e14) 28%, var(--card, #000000));
+  --tui-badge-warning-fg: color-mix(in srgb, var(--warning, #fce4b5) 40%, var(--foreground, #ffffff));
+  --tui-badge-danger-bg: color-mix(in srgb, var(--destructive, #7f1d1d) 28%, var(--card, #000000));
+  --tui-badge-danger-fg: color-mix(in srgb, var(--destructive, #f9c0c0) 40%, var(--foreground, #ffffff));
+  --tui-badge-border: color-mix(in srgb, var(--foreground, #ffffff) 25%, transparent);
+}
+
+/* A count reads as a number, not a word: fixed width so it does not jitter as it ticks. */
+.tui-badge--count {
+  min-width: 17px;
+  padding: 2px 4px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.tui-badge[data-kind="project"],
+.tui-badge[data-kind="success"],
+.tui-badge[data-kind="warning"],
+.tui-badge[data-kind="danger"] {
+  border-color: var(--tui-badge-border);
+}
+
+.tui-badge[data-kind="project"] {
+  background: var(--tui-badge-project-bg);
+  color: var(--tui-badge-project-fg);
+}
+
+.tui-badge[data-kind="success"] {
+  background: var(--tui-badge-success-bg);
+  color: var(--tui-badge-success-fg);
+}
+
+.tui-badge[data-kind="warning"] {
+  background: var(--tui-badge-warning-bg);
+  color: var(--tui-badge-warning-fg);
+}
+
+.tui-badge[data-kind="danger"] {
+  background: var(--tui-badge-danger-bg);
+  color: var(--tui-badge-danger-fg);
+}
+
+.tui-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--tui-muted);
+}
+
+.tui-dot[data-tone="success"] {
+  background: var(--tui-success);
+}
+
+.tui-dot[data-tone="warning"] {
+  background: var(--tui-warning);
+}
+
+.tui-dot[data-tone="danger"] {
+  background: var(--tui-danger);
+}
+
+.tui-dot[data-tone="info"] {
+  background: var(--tui-info);
+}
+
+@keyframes tui-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+}
+
+.tui-dot[data-pulse="true"] {
+  animation: tui-dot-pulse 1.6s ease-in-out infinite;
+}
+
+/* ---------- Icon button ---------- */
+
+.tui-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tui-fg);
+  opacity: 0.7;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    opacity 120ms ease;
+}
+
+.tui-icon-btn[data-size="sm"] {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+
+.tui-icon-btn[data-size="md"] {
+  width: 28px;
+  height: 28px;
+}
+
+.tui-icon-btn[data-size="lg"] {
+  width: 32px;
+  height: 32px;
+}
+
+.tui-icon-btn:hover:not(:disabled),
+.tui-icon-btn[data-active="true"],
+.tui-icon-btn[aria-expanded="true"] {
+  background: var(--tui-surface);
+  opacity: 1;
+}
+
+.tui-icon-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--tui-fg) 40%, transparent);
+  outline-offset: 1px;
+  opacity: 1;
+}
+
+.tui-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.tui-icon-btn[data-variant="danger"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--tui-danger) 14%, transparent);
+  color: var(--tui-danger);
+}
+
+.tui-icon-btn[data-variant="solid"] {
+  background: var(--primary, #000000);
+  color: var(--primary-foreground, #ffffff);
+  opacity: 1;
+}
+
+.tui-icon-btn[data-variant="solid"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary, #000000) 85%, var(--background, #ffffff));
+}
+
+/* ---------- Status line ---------- */
+
+.tui-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--tui-muted);
+}
+
+.tui-status-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+@keyframes tui-status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tui-status-icon[data-spin="true"] {
+  animation: tui-status-spin 1s linear infinite;
+}
+
+.tui-status[data-complete="true"] {
+  color: var(--tui-fg);
+}
+
+.tui-status-metrics {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.tui-status-sep {
+  opacity: 0.55;
+}
+
+.tui-status-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes tui-status-shimmer {
+  to {
+    background-position: -200% center;
+  }
+}
+
+/* The running label shimmers; the finished one is plain. */
+.tui-status[data-complete="false"] .tui-status-text {
+  background: linear-gradient(
+      90deg,
+      var(--tui-muted) 0%,
+      var(--tui-fg) 20%,
+      var(--tui-muted) 40%
+    )
+    0 center / 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: tui-status-shimmer 3s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tui-status-icon[data-spin="true"],
+  .tui-status[data-complete="false"] .tui-status-text,
+  .tui-dot[data-pulse="true"] {
+    animation: none;
+  }
+
+  .tui-status[data-complete="false"] .tui-status-text {
+    background: none;
+    color: var(--tui-muted);
+  }
+}

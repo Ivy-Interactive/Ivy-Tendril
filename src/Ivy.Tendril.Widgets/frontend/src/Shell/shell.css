@@ -4,8 +4,7 @@
 
 .tsh-root,
 .tsh-section,
-.tsh-rail-tooltip,
-.tsh-tooltip-content {
+.tsh-rail-tooltip {
   /* Every token derives from the host theme's variables so alternate themes
      (Retro, etc.) recolor the shell; the literals are only fallbacks for when
      the widget renders outside a themed host, and match the Figma prototype. */
@@ -25,29 +24,9 @@
     color-mix(in srgb, var(--foreground, #000000) 6%, var(--background, #ffffff))
   );
   --tsh-row-active-fg: var(--foreground, #000000);
-  --tsh-badge-bg: var(--muted, #f0f0f0);
   --tsh-badge-bg-active: color-mix(in srgb, var(--accent, #e6e6e6) 45%, var(--background, #ffffff));
   --tsh-cta-bg: var(--primary, #000000);
   --tsh-cta-fg: var(--primary-foreground, #f8f8f8);
-  /* Status chips are pale fills with the status color as text: themes pair
-     e.g. warning #d97706 with a white foreground, which is unreadable at this
-     size, so the raw color is tinted toward the surface instead. */
-  --tsh-badge-project-bg: color-mix(in srgb, var(--info, #bcd6ff) 18%, var(--card, #ffffff));
-  --tsh-badge-project-fg: color-mix(in srgb, var(--info, #183b75) 40%, var(--foreground, #000000));
-  --tsh-badge-success-bg: color-mix(in srgb, var(--success, #b7e4b9) 18%, var(--card, #ffffff));
-  --tsh-badge-success-fg: color-mix(
-    in srgb,
-    var(--success, #1f4924) 40%,
-    var(--foreground, #000000)
-  );
-  --tsh-badge-warning-bg: color-mix(in srgb, var(--warning, #fce4b5) 18%, var(--card, #ffffff));
-  --tsh-badge-warning-fg: color-mix(
-    in srgb,
-    var(--warning, #6b4e14) 40%,
-    var(--foreground, #000000)
-  );
-  --tsh-badge-border: color-mix(in srgb, var(--foreground, #000000) 30%, transparent);
-
   --tsh-sidebar-width: 320px;
   --tsh-rail-width: 56px;
   --tsh-anim: 300ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -58,8 +37,7 @@
 
 .dark .tsh-root,
 .dark .tsh-section,
-.dark .tsh-rail-tooltip,
-.dark .tsh-tooltip-content {
+.dark .tsh-rail-tooltip {
   /* Dark theme swaps these two roles relative to light: the shell backdrop
      takes the lighter grey and the content frame sits darker inside it, so the
      frame reads as inset rather than as a lighter card on black. */
@@ -77,25 +55,9 @@
     color-mix(in srgb, var(--foreground, #f8f8f8) 8%, var(--background, #000000))
   );
   --tsh-row-active-fg: var(--foreground, #f8f8f8);
-  --tsh-badge-bg: var(--muted, #27272a);
   --tsh-badge-bg-active: color-mix(in srgb, var(--accent, #18181b) 55%, var(--background, #000000));
   --tsh-cta-bg: var(--primary, #f8f8f8);
   --tsh-cta-fg: var(--primary-foreground, #000000);
-  --tsh-badge-project-bg: color-mix(in srgb, var(--info, #1e3a6d) 28%, var(--card, #000000));
-  --tsh-badge-project-fg: color-mix(in srgb, var(--info, #bcd6ff) 40%, var(--foreground, #ffffff));
-  --tsh-badge-success-bg: color-mix(in srgb, var(--success, #1f4924) 28%, var(--card, #000000));
-  --tsh-badge-success-fg: color-mix(
-    in srgb,
-    var(--success, #b7e4b9) 40%,
-    var(--foreground, #ffffff)
-  );
-  --tsh-badge-warning-bg: color-mix(in srgb, var(--warning, #6b4e14) 28%, var(--card, #000000));
-  --tsh-badge-warning-fg: color-mix(
-    in srgb,
-    var(--warning, #fce4b5) 40%,
-    var(--foreground, #ffffff)
-  );
-  --tsh-badge-border: color-mix(in srgb, var(--foreground, #ffffff) 25%, transparent);
 }
 
 .tsh-root *,
@@ -412,15 +374,8 @@
     opacity 200ms ease;
 }
 
+/* The shared bare key hint (ui.css), plus the sidebar's collapse transition. */
 .tsh-kbd {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: -0.24px;
-  opacity: 0.8;
-  white-space: nowrap;
   transition:
     max-width var(--tsh-anim),
     opacity 200ms ease;
@@ -621,19 +576,8 @@
   font-weight: 500;
 }
 
+/* The shared count badge (ui.css), plus the sidebar's collapse transition. */
 .tsh-nav-badge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 17px;
-  padding: 2px 4px;
-  border-radius: 4px;
-  background: var(--tsh-badge-bg);
-  font-size: 10px;
-  font-weight: 500;
-  line-height: 13px;
-  color: var(--tsh-fg);
-  white-space: nowrap;
   transition:
     max-width var(--tsh-anim),
     opacity 200ms ease,
@@ -821,127 +765,9 @@
   color: var(--tsh-row-active-fg);
 }
 
-/* Tooltip styling aligned with Ivy Framework tooltips */
-@keyframes tsh-tooltip-in {
-  from {
-    opacity: 0;
-    scale: 0.95;
-  }
-  to {
-    opacity: 1;
-    scale: 1;
-  }
-}
-
-@keyframes tsh-tooltip-out {
-  from {
-    opacity: 1;
-    scale: 1;
-  }
-  to {
-    opacity: 0;
-    scale: 0.95;
-  }
-}
-
-.tsh-tooltip-content {
-  z-index: 70;
-  border-radius: var(--radius-selectors, 6px);
-  border: 1px solid var(--border, #e0e0e0);
-  background: var(--card, #ffffff);
-  color: var(--card-foreground, #000000);
-  padding: 6px 12px;
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: 500;
-  box-shadow:
-    0 4px 6px -1px rgb(0 0 0 / 0.1),
-    0 2px 4px -2px rgb(0 0 0 / 0.1);
-  max-width: 320px;
-  pointer-events: none;
-  font-family: var(--font-sans, "Geist", sans-serif);
-  animation: tsh-tooltip-in 150ms cubic-bezier(0.16, 1, 0.3, 1);
-  transform-origin: var(--radix-tooltip-content-transform-origin);
-}
-
-.dark .tsh-tooltip-content {
-  background: var(--card, #0a0a0a);
-  color: var(--card-foreground, #f8f8f8);
-  border-color: var(--border, #27272a);
-  box-shadow:
-    0 4px 6px -1px rgb(0 0 0 / 0.4),
-    0 2px 4px -2px rgb(0 0 0 / 0.4);
-}
-
-.tsh-tooltip-content[data-state="closed"] {
-  animation: tsh-tooltip-out 100ms ease-in;
-}
-
-.tsh-tooltip-inner {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.tsh-tooltip-label {
-  white-space: nowrap;
-}
-
-.tsh-tooltip-kbd-wrap {
-  display: inline-flex;
-  align-items: center;
-}
-
-.tsh-tooltip-kbd {
-  box-sizing: border-box;
-  display: inline-flex;
-  height: 16px;
-  min-width: 16px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  border: 1px solid var(--border, #e0e0e0);
-  background: color-mix(in srgb, var(--muted, #f0f0f0) 40%, transparent);
-  padding: 0 4px;
-  font-size: 10px;
-  line-height: 1;
-  font-family: inherit;
-  color: var(--card-foreground, #000000);
-}
-
-.dark .tsh-tooltip-kbd {
-  border-color: var(--border, #27272a);
-  background: color-mix(in srgb, var(--muted, #27272a) 40%, transparent);
-  color: var(--card-foreground, #f8f8f8);
-}
-
-/* Hover flyout for a rail plan chip: title plus the row badges. Fixed-position
-   (portaled to <body>) so the sidebar's overflow:hidden cannot clip it. */
+/* Hover flyout for a rail plan chip: the shared tooltip, widened for the row badges. */
 .tsh-rail-tooltip {
-  position: fixed;
-  transform: translateY(-50%);
-  z-index: 60;
   max-width: 260px;
-  padding: 6px 12px;
-  border: 1px solid var(--border, #e0e0e0);
-  border-radius: var(--radius-selectors, 6px);
-  background: var(--card, #ffffff);
-  color: var(--card-foreground, #000000);
-  box-shadow:
-    0 4px 6px -1px rgb(0 0 0 / 0.1),
-    0 2px 4px -2px rgb(0 0 0 / 0.1);
-  pointer-events: none;
-  font-family: var(--font-sans, "Geist", sans-serif);
-  animation: tsh-tooltip-in 150ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.dark .tsh-rail-tooltip {
-  background: var(--card, #0a0a0a);
-  color: var(--card-foreground, #f8f8f8);
-  border-color: var(--border, #27272a);
-  box-shadow:
-    0 4px 6px -1px rgb(0 0 0 / 0.4),
-    0 2px 4px -2px rgb(0 0 0 / 0.4);
 }
 
 .tsh-rail-tooltip-title {
@@ -1136,38 +962,6 @@
   align-items: center;
   gap: 6px;
   width: 100%;
-}
-
-.tsh-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 5px;
-  border-radius: 4px;
-  border: 0.5px solid var(--tsh-badge-border);
-  font-size: 10px;
-  font-weight: 400;
-  line-height: 13px;
-  white-space: nowrap;
-}
-
-.tsh-badge[data-kind="project"] {
-  background: var(--tsh-badge-project-bg);
-  color: var(--tsh-badge-project-fg);
-}
-
-.tsh-badge[data-kind="success"] {
-  background: var(--tsh-badge-success-bg);
-  color: var(--tsh-badge-success-fg);
-}
-
-.tsh-badge[data-kind="warning"] {
-  background: var(--tsh-badge-warning-bg);
-  color: var(--tsh-badge-warning-fg);
-}
-
-.tsh-badge[data-kind="neutral"] {
-  background: var(--tsh-badge-bg);
-  color: var(--tsh-fg);
 }
 
 .tsh-section-empty {

@@ -4,6 +4,7 @@ import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { isImageFile } from "../imageUtils";
 import { getIvyHost } from "../PlanMarkdown/localFiles";
+import { Tooltip } from "../ui/Tooltip";
 import type { ChatAttachmentDto } from "./types";
 
 if (typeof window !== "undefined") {
@@ -152,15 +153,16 @@ export const ComposerAttachmentCard: React.FC<ComposerAttachmentCardProps> = ({ 
         </div>
       )}
 
-      <button
-        type="button"
-        className="chat-thumbnail-card-remove"
-        onClick={onRemove}
-        title="Remove file"
-        aria-label="Remove attachment"
-      >
-        <X size={12} />
-      </button>
+      <Tooltip content="Remove file">
+        <button
+          type="button"
+          className="chat-thumbnail-card-remove"
+          onClick={onRemove}
+          aria-label="Remove attachment"
+        >
+          <X size={12} />
+        </button>
+      </Tooltip>
 
       <div className="chat-thumbnail-content">
         {hasPreview ? (

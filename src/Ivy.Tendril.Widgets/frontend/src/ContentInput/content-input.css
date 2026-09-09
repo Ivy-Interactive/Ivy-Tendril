@@ -476,24 +476,13 @@
 /* Matches the Ivy Framework key cap (Kbd / ShortcutKeys, `inherit` variant):
    16px tall, 10px text, 0.25rem corners, transparent fill with a current-color
    border, on a colored surface. Keep these values in sync with Kbd.tsx keyCapBase. */
+/* The shared boxed key cap (ui.css), recolored to sit on the filled submit button. */
 .civ-submit-shortcut {
   margin-left: 6px;
-  box-sizing: border-box;
-  height: 16px;
-  min-width: 16px;
-  padding: 0 4px;
-  font-size: 10px;
-  font-weight: 400;
-  line-height: 0.5;
-  border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
-  border-radius: 0.25rem;
-  opacity: 0.8;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
+  border-color: color-mix(in srgb, currentColor 30%, transparent);
   background: transparent;
   color: inherit;
+  opacity: 0.8;
 }
 
 /* Animations */
@@ -549,6 +538,17 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* The submit buttons sit inside a tooltip wrapper, which has to pass the container's height
+   through, and stay hoverable while the disabled container blocks pointer events — that is the
+   state whose tooltip explains itself. */
+.civ-split-btn-container .tui-tooltip-trigger-wrap {
+  height: 100%;
+}
+
+.civ-split-btn-container.disabled .tui-tooltip-trigger-wrap {
+  pointer-events: auto;
 }
 
 /* Split button container */
@@ -825,7 +825,3 @@
   width: fit-content;
 }
 
-.civ-shortcut-enter {
-  display: inline-flex;
-  align-items: center;
-}

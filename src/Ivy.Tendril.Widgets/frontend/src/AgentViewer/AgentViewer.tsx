@@ -4,9 +4,10 @@ import type { EventHandler, PresentationEvent } from "./types";
 import { getHeight, getWidth } from "../styles";
 import { BlockMarkdown } from "../BlockMarkdown";
 import { useAutoScroll } from "./use-auto-scroll";
-import { parseEventWireStream } from "./parse-events";
+import { parseEventWires, presentEventWires } from "./parse-events";
 import { deriveStatus } from "./status";
-import { AnimatedStatus } from "./animated-status";
+import { deriveStreamMetrics } from "./stream-metrics";
+import { StatusLine } from "../ui/StatusLine";
 import { ToolUseCard } from "./tool-use-card";
 import { ResultSummary } from "./result-summary";
 import { groupToolUseEvents } from "./group-events";
@@ -58,12 +59,13 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
   statusLabelOverride,
   groupToolCalls = false,
 }) => {
-  const parsedEvents = useMemo<PresentationEvent[]>(
-    () => (jsonStream ? parseEventWireStream(jsonStream) : []),
-    [jsonStream],
-  );
+  /* One parse per stream update: the presentation events and the run's metrics are two
+     derivations of the same wires. */
+  const wires = useMemo(() => (jsonStream ? parseEventWires(jsonStream) : []), [jsonStream]);
+  const parsedEvents = useMemo<PresentationEvent[]>(() => presentEventWires(wires), [wires]);
 
   const derived = useMemo(() => deriveStatus(parsedEvents), [parsedEvents]);
+  const metrics = useMemo(() => deriveStreamMetrics(wires), [wires]);
   const statusText = statusLabelOverride ?? derived.text;
   const isComplete = derived.complete;
 
@@ -178,7 +180,13 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
         })}
         {showStatusLabel && !isComplete && (
           <div className="aov-status-row">
-            <AnimatedStatus statusText={statusText} isComplete={isComplete} />
+            <StatusLine
+              statusText={statusText}
+              isComplete={isComplete}
+              startedAt={metrics.startedAt}
+              tokens={metrics.tokens}
+              tokensEstimated={metrics.tokensEstimated}
+            />
           </div>
         )}
       </div>

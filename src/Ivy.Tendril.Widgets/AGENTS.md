@@ -8,7 +8,9 @@ External widget library for the Ivy framework, bundled as React IIFE modules ser
 DraftMarkdown.cs      Widget record with [Prop] and [Event] attributes
 AgentViewer.cs
 TendrilProcessViewer.cs
+TendrilUi.cs          The shared primitives as external widgets (see "Shared primitives")
 frontend/             React/Vite bundle (npm run build → dist/)
+  src/ui/             Tooltip, Kbd, Badge, IconButton, StatusLine + ui.css
 
 .samples/             Standalone Ivy app hosting widgets for development and testing
   Apps/
@@ -18,6 +20,7 @@ frontend/             React/Vite bundle (npm run build → dist/)
     ChatWidget/       DemoApp (mocked conversation: attachments, tool calls, job event, questions, streaming toggle)
     TendrilQuestions/ DemoApp (every question case of the plan schema)
     WebViewer/        DemoApp (inspector), SideBySideApp (two viewers on one page)
+    Ui/               GalleryApp (every shared primitive and its variants)
 
 .tests/               Playwright E2E tests
   widgets/            Test specs grouped by widget
@@ -163,6 +166,37 @@ and `rehype-sanitize` immediately prunes it against the allow-list in
 
 Styling lives in `frontend/src/DraftMarkdown/draft-markdown.css` (chevron, hover, body inset),
 mirroring the framework's `typography.details` / `typography.summary`.
+
+## Shared primitives
+
+`frontend/src/ui` holds the controls every widget in the bundle reuses, so a tooltip, a
+shortcut hint, a badge or an icon button looks and behaves the same wherever it appears.
+Reach for these before writing a new one; a widget's own CSS should carry only what genuinely
+differs (a collapse transition, an on-CTA recolor), never a second copy of the chrome.
+
+| Component | What it replaces |
+|---|---|
+| `Tooltip` | native `title` on controls, and per-widget tooltip styling. `ShellTooltip` is this tooltip with the shell's default side |
+| `Kbd` | `variant="boxed"` is a key cap (tooltips, toolbars); `variant="bare"` is the letters alone, inside a button's own chrome |
+| `Badge` / `CountBadge` / `StatusDot` | label chips, notification counts and status dots |
+| `IconButton` | square icon controls; it carries the tooltip, so callers pass `label`, not `title` |
+| `StatusLine` | the agent status line: spinner, live elapsed time, token count, message |
+
+Two things worth knowing:
+
+- **Tooltips on controls that can be disabled.** A disabled button emits no pointer events, so
+  its tooltip — which is exactly the one that says *why* it is disabled — never opens. Pass
+  `wrapTrigger` (`IconButton` does it for you whenever the caller passes `disabled`) to anchor
+  on a focusable wrapper instead. It describes the control, not its current state: flipping it
+  would remount the trigger and drop focus mid-interaction.
+- **The status line's token count.** Only a `result` event carries a reported usage, so a run in
+  flight can be counted no other way than from its own stream. `AgentViewer/stream-metrics.ts`
+  estimates it at ~4 characters per token and flags it, and the status line renders a flagged
+  figure with a leading `~`. Once a result arrives the reported figure wins.
+
+Each primitive is also an external widget (`TendrilUi.cs`), so Ivy apps can compose the same
+controls. C# enum props arrive as PascalCase member names; `frontend/src/ui/widgets.tsx` maps
+them down to the lowercase values the primitives take.
 
 ## Widget ↔ Framework Contract
 

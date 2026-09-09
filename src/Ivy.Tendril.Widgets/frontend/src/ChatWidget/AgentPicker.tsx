@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, ChevronRight } from "lucide-react";
 import { BrandIcon } from "../Shell/brandIcons";
+import { Tooltip } from "../ui/Tooltip";
 import type { AgentOptionDto, EffortOptionDto, ModelOptionDto } from "./types";
 
 export interface AgentPickerProps {
@@ -187,20 +188,21 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
 
   return (
     <>
-      <button
-        ref={triggerRef}
-        type="button"
-        className="chat-agent-trigger"
-        data-open={open}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={`Agent: ${label}`}
-        title="Agent, model and effort"
-        onClick={toggleMenu}
-      >
-        <BrandIcon name={selected?.icon} size={16} className="chat-agent-trigger-icon" />
-        <span className="chat-agent-trigger-label">{label}</span>
-      </button>
+      <Tooltip content="Agent, model and effort">
+        <button
+          ref={triggerRef}
+          type="button"
+          className="chat-agent-trigger"
+          data-open={open}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={`Agent: ${label}`}
+          onClick={toggleMenu}
+        >
+          <BrandIcon name={selected?.icon} size={16} className="chat-agent-trigger-icon" />
+          <span className="chat-agent-trigger-label">{label}</span>
+        </button>
+      </Tooltip>
 
       {open &&
         createPortal(

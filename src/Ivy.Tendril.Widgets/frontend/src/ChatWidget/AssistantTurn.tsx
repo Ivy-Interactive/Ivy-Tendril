@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from "react";
 import { ChevronRight, Coins, LoaderCircle, Timer } from "lucide-react";
-import { parseEventWireStream } from "../AgentViewer/parse-events";
+import { parseEventWires, presentEventWires } from "../AgentViewer/parse-events";
 import { deriveStatus } from "../AgentViewer/status";
-import { AnimatedStatus } from "../AgentViewer/animated-status";
+import { deriveStreamMetrics } from "../AgentViewer/stream-metrics";
+import { StatusLine } from "../ui/StatusLine";
 import { ToolUseCard } from "../AgentViewer/tool-use-card";
 import type { PresentationEvent, ResultWire, ToolUsePresentation } from "../AgentViewer/types";
 import { BlockMarkdown } from "../BlockMarkdown";
@@ -162,9 +163,12 @@ export interface AssistantTurnProps {
  * (while streaming) or the duration and token figures of the finished run.
  */
 export const AssistantTurn: React.FC<AssistantTurnProps> = ({ stream, live = false }) => {
-  const events = useMemo(() => (stream ? parseEventWireStream(stream) : []), [stream]);
+  /* One parse per stream update; the turn, its status and its metrics all derive from it. */
+  const wires = useMemo(() => (stream ? parseEventWires(stream) : []), [stream]);
+  const events = useMemo(() => presentEventWires(wires), [wires]);
   const turn = useMemo(() => summarizeTurn(events), [events]);
-  const complete = useMemo(() => deriveStatus(events).complete, [events]);
+  const status = useMemo(() => deriveStatus(events), [events]);
+  const metrics = useMemo(() => deriveStreamMetrics(wires), [wires]);
 
   return (
     <div className="chat-turn">
@@ -180,9 +184,14 @@ export const AssistantTurn: React.FC<AssistantTurnProps> = ({ stream, live = fal
           </div>
         ),
       )}
-      {live && !complete && (
+      {live && !status.complete && (
         <div className="aov-shell chat-turn-status">
-          <AnimatedStatus statusText="Thinking" isComplete={false} />
+          <StatusLine
+            statusText={status.text}
+            startedAt={metrics.startedAt}
+            tokens={metrics.tokens}
+            tokensEstimated={metrics.tokensEstimated}
+          />
         </div>
       )}
       {!live && turn.result && <TurnMeta wire={turn.result} />}

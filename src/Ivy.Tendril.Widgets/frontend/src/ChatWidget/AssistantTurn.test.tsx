@@ -46,12 +46,12 @@ describe("summarizeTurn", () => {
 });
 
 describe("AssistantTurn", () => {
-  it("shows the animated status while live and the metrics once finished", () => {
+  it("shows the live status line while live and the metrics once finished", () => {
     const stream = wire([
       { kind: "tool_call", timestamp: "t1", tool_use_id: "a", tool_name: "Read", input: { file_path: "/a.ts" } },
     ]);
     const { rerender } = render(<AssistantTurn stream={stream} live />);
-    expect(screen.getByText("Thinking")).toBeInTheDocument();
+    expect(screen.getByText("Reading a.ts")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /1 tool call$/ })).toBeInTheDocument();
 
     const finished = wire([
@@ -74,9 +74,19 @@ describe("AssistantTurn", () => {
     expect(screen.getByText("$0.042")).toBeInTheDocument();
   });
 
-  it("renders an empty live stream as the Thinking status only", () => {
+  it("renders an empty live stream as the starting status only", () => {
     const { container } = render(<AssistantTurn stream="" live />);
-    expect(screen.getByText("Thinking")).toBeInTheDocument();
+    expect(screen.getByText("Starting…")).toBeInTheDocument();
     expect(container.querySelector(".chat-tools")).toBeNull();
+  });
+
+  it("shows the live run's elapsed time and estimated token count", () => {
+    const startedAt = new Date(Date.now() - 82_000).toISOString();
+    const stream = wire([
+      { kind: "text", timestamp: startedAt, text: "x".repeat(4000), delta: false },
+    ]);
+    render(<AssistantTurn stream={stream} live />);
+    expect(screen.getByText("1m 22s")).toBeInTheDocument();
+    expect(screen.getByText("~1k tokens")).toBeInTheDocument();
   });
 });
