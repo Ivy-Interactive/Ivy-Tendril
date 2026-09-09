@@ -310,6 +310,22 @@ public class ChatHistoryService : IChatHistoryService
 
         _sessions[id] = session;
         PersistSessionToDisk(session);
+        if (_configService?.Settings != null)
+        {
+            if (!string.IsNullOrEmpty(agentId))
+            {
+                _configService.Settings.LastChatAgent = agentId;
+            }
+            if (!string.IsNullOrEmpty(modelId))
+            {
+                _configService.Settings.LastChatModel = modelId;
+            }
+            if (!string.IsNullOrEmpty(effort))
+            {
+                _configService.Settings.LastChatEffort = effort;
+            }
+            _configService.SaveSettings();
+        }
         SessionsChanged?.Invoke(this, EventArgs.Empty);
         return session;
     }

@@ -289,6 +289,9 @@ public class TendrilSettings
     public string ChatMode { get; set; } = ChatModes.Chat;
     public bool Beta { get; set; } = false;
     public string? DismissedUpdateVersion { get; set; }
+    public string? LastChatModel { get; set; }
+    public string? LastChatAgent { get; set; }
+    public string? LastChatEffort { get; set; }
 
     public List<LevelConfig> Levels { get; set; } = new()
     {
