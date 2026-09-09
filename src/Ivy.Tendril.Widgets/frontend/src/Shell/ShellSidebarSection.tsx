@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect } from "react";
-import { Plus, Search, SquareTerminal } from "lucide-react";
+import { MessageCircle, Plus, Search, SquareTerminal } from "lucide-react";
 import { useShell } from "./ShellContext";
 import {
   ShellSectionItemDto,
@@ -16,6 +16,7 @@ const SEARCH_SHORTCUT_KEY = "K";
 /** Maps a `ShellSectionItemDto.icon` name to its lucide component; unknown names render nothing. */
 const sectionItemIcons: Record<string, React.FC<{ size?: number }>> = {
   Terminal: SquareTerminal,
+  MessageCircle: MessageCircle,
 };
 
 interface ShellSidebarSectionProps extends ShellWidgetProps {
@@ -104,39 +105,43 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
           </ShellTooltip>
         )}
         <div className="tsh-rail-list">
-          {items.map(
-            (item) =>
-              item.tag && (
-                <ShellTooltip
-                  key={item.id}
-                  side="right"
-                  className="tsh-rail-tooltip"
-                  content={
-                    <div>
-                      <div className="tsh-rail-tooltip-title">{item.title}</div>
-                      {item.badges && item.badges.length > 0 && (
-                        <div className="tsh-rail-tooltip-badges">
-                          {item.badges.map((badge, i) => (
-                            <span key={i} className="tsh-badge" data-kind={badge.kind}>
-                              {badge.label}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  }
+          {items.map((item) => {
+            const RailIcon = (item.icon && sectionItemIcons[item.icon]) || MessageCircle;
+            return (
+              <ShellTooltip
+                key={item.id}
+                side="right"
+                className="tsh-rail-tooltip"
+                content={
+                  <div>
+                    <div className="tsh-rail-tooltip-title">{item.title}</div>
+                    {item.badges && item.badges.length > 0 && (
+                      <div className="tsh-rail-tooltip-badges">
+                        {item.badges.map((badge, i) => (
+                          <span key={i} className="tsh-badge" data-kind={badge.kind}>
+                            {badge.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                }
+              >
+                <button
+                  className="tsh-rail-item"
+                  data-selected={item.id === selectedId}
+                  onClick={() => select(item.id)}
+                  aria-label={item.title}
                 >
-                  <button
-                    className="tsh-rail-item"
-                    data-selected={item.id === selectedId}
-                    onClick={() => select(item.id)}
-                    aria-label={item.title}
-                  >
+                  {item.tag ? (
                     <span className="tsh-rail-item-text">{item.tag}</span>
-                  </button>
-                </ShellTooltip>
-              ),
-          )}
+                  ) : (
+                    <RailIcon size={16} />
+                  )}
+                </button>
+              </ShellTooltip>
+            );
+          })}
         </div>
       </div>
     );

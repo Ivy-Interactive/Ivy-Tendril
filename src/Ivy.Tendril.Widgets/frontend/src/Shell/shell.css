@@ -779,6 +779,10 @@
 }
 
 .tsh-rail-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
   flex-shrink: 0;
   width: 100%;
   padding: 6px 2px;

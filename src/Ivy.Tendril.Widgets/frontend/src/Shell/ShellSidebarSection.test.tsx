@@ -368,4 +368,89 @@ describe("ShellSidebarSection", () => {
     expect(document.querySelector(".tsh-rail-tooltip")).toBeInTheDocument();
     vi.useRealTimers();
   });
+
+  it("renders items without tags (icon-only terminal sessions and default chat items) in collapsed rail", () => {
+    const mixedItems: ShellSectionItemDto[] = [
+      { id: "term-1", title: "Terminal Chat", icon: "Terminal" },
+      { id: "chat-1", title: "General Chat" },
+      { id: "plan-1", title: "Plan Item", tag: "#1" },
+    ];
+
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellSidebarSection id="sec-1" title="Chats" items={mixedItems} eventHandler={vi.fn()} />
+      </ShellContext.Provider>,
+    );
+
+    const railList = container.querySelector(".tsh-rail-list");
+    expect(railList).toBeInTheDocument();
+
+    const buttons = railList?.querySelectorAll("button.tsh-rail-item");
+    expect(buttons).toHaveLength(3);
+
+    expect(buttons?.[0].querySelector("svg")).toBeInTheDocument();
+    expect(buttons?.[0].querySelector(".tsh-rail-item-text")).not.toBeInTheDocument();
+
+    expect(buttons?.[1].querySelector("svg")).toBeInTheDocument();
+    expect(buttons?.[1].querySelector(".tsh-rail-item-text")).not.toBeInTheDocument();
+
+    expect(buttons?.[2].querySelector(".tsh-rail-item-text")).toHaveTextContent("#1");
+  });
+
+  it("triggers OnSelectItem when a rail chat item is clicked", () => {
+    const onSelect = vi.fn();
+    const chatItems: ShellSectionItemDto[] = [
+      { id: "chat-1", title: "General Chat" },
+    ];
+
+    render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellSidebarSection
+          id="sec-1"
+          title="Chats"
+          items={chatItems}
+          events={["OnSelectItem"]}
+          eventHandler={onSelect}
+        />
+      </ShellContext.Provider>,
+    );
+
+    const chatBtn = screen.getByRole("button", { name: "General Chat" });
+    fireEvent.click(chatBtn);
+    expect(onSelect).toHaveBeenCalledWith("OnSelectItem", "sec-1", ["chat-1"]);
+  });
+
+  it("displays tooltip with title and badges when hovering over a rail chat item", () => {
+    vi.useFakeTimers();
+    const chatItems: ShellSectionItemDto[] = [
+      {
+        id: "chat-1",
+        title: "Project Discussion",
+        badges: [{ label: "Active", kind: "success" }],
+      },
+    ];
+
+    render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellSidebarSection
+          id="sec-1"
+          title="Chats"
+          items={chatItems}
+          eventHandler={vi.fn()}
+        />
+      </ShellContext.Provider>,
+    );
+
+    const chatBtn = screen.getByRole("button", { name: "Project Discussion" });
+    fireEvent.pointerMove(chatBtn);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toBeInTheDocument();
+    expect(tooltip).toHaveTextContent("Project Discussion");
+    expect(tooltip).toHaveTextContent("Active");
+    vi.useRealTimers();
+  });
 });
