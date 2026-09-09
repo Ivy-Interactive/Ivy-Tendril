@@ -99,3 +99,13 @@ describe("dashboard.css rolling average curve and legend", () => {
     expect(css).not.toContain(".tdb-granularity-btn");
   });
 });
+
+describe("dashboard.css side tabs", () => {
+  it("defines compact tab controls for side card headers", () => {
+    expect(css).toContain(".tdb-side-tabs {");
+    expect(css).toContain(".tdb-side-tab {");
+    expect(css).toMatch(/\.tdb-side-tab\s*\{[^}]*font-size:\s*12px;/);
+    expect(css).toMatch(/\.tdb-side-tab\s*\{[^}]*padding:\s*3px 8px;/);
+    expect(css).toMatch(/\.tdb-side-tab\s*\{[^}]*border-radius:\s*6px;/);
+  });
+});

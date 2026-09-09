@@ -59,11 +59,14 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
   trend = null,
   trendWeekly = null,
   pullRequests = [],
+  pullRequestsWeekly = [],
   activity = [],
   jobs = [],
   slots,
 }) => {
   const [tab, setTab] = useState<"cost" | "plans">("cost");
+  const [prPeriod, setPrPeriod] = useState<"week" | "month">("month");
+  const activePrs = prPeriod === "week" ? (pullRequestsWeekly ?? []) : (pullRequests ?? []);
 
   const fireEvent = (eventName: string) => {
     if (events.includes(eventName)) {
@@ -237,9 +240,29 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
               </div>
             </div>
             <div className="tdb-block tdb-side-block">
-              <div className="tdb-block-title">Pull Requests</div>
+              <div className="tdb-side-head">
+                <div className="tdb-block-title">Pull Requests</div>
+                <div className="tdb-tabs tdb-side-tabs">
+                  <button
+                    type="button"
+                    className="tdb-tab tdb-side-tab"
+                    data-active={prPeriod === "week"}
+                    onClick={() => setPrPeriod("week")}
+                  >
+                    Week
+                  </button>
+                  <button
+                    type="button"
+                    className="tdb-tab tdb-side-tab"
+                    data-active={prPeriod === "month"}
+                    onClick={() => setPrPeriod("month")}
+                  >
+                    Month
+                  </button>
+                </div>
+              </div>
               <div className="tdb-side-body">
-                <PillBars items={pullRequests} />
+                <PillBars items={activePrs} />
               </div>
             </div>
             {hasSlotContent(slots?.TunnelQr) && (
