@@ -228,6 +228,9 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         )}
       </div>
       <div className="chat-header-actions">
+        {editable && jobs.length > 0 && (
+          <JobsMenu jobs={jobs} spawned={spawned} onReview={() => onReviewJobs?.()} />
+        )}
         <div className="chat-header-icons">
           <button
             type="button"
@@ -282,9 +285,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             </div>
           )}
         </div>
-        {editable && jobs.length > 0 && (
-          <JobsMenu jobs={jobs} spawned={spawned} onReview={() => onReviewJobs?.()} />
-        )}
       </div>
     </div>
   );
