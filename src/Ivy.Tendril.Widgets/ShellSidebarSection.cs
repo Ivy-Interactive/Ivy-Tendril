@@ -14,9 +14,11 @@ public record ShellSidebarSection : WidgetBase<ShellSidebarSection>
     [Prop] public bool Searchable { get; init; }
     [Prop] public string? SearchLabel { get; init; }
     [Prop] public string? EmptyText { get; init; }
+    [Prop] public string? NewLabel { get; init; }
 
     [Event] public EventHandler<Event<ShellSidebarSection, string>>? OnSelectItem { get; init; }
     [Event] public EventHandler<Event<ShellSidebarSection>>? OnSearch { get; init; }
+    [Event] public EventHandler<Event<ShellSidebarSection>>? OnNew { get; init; }
 }
 
 public static class ShellSidebarSectionExtensions
@@ -44,4 +46,10 @@ public static class ShellSidebarSectionExtensions
 
     public static ShellSidebarSection OnSearch(this ShellSidebarSection w, Action handler) =>
         w with { OnSearch = new(_ => { handler(); return ValueTask.CompletedTask; }) };
+
+    public static ShellSidebarSection NewLabel(this ShellSidebarSection w, string? newLabel) =>
+        w with { NewLabel = newLabel };
+
+    public static ShellSidebarSection OnNew(this ShellSidebarSection w, Action? handler) =>
+        handler == null ? w : w with { OnNew = new(_ => { handler(); return ValueTask.CompletedTask; }) };
 }

@@ -35,7 +35,8 @@ public class ContentView(
     IChatExecutionService executionService,
     IAgentRunner agentRunner,
     Action<ChatSendMessageDto> sendMessage,
-    Action<string> selectSession) : ViewBase
+    Action<string> selectSession,
+    Action startNewChat) : ViewBase
 {
     /// <summary>The plan a job event names, by folder, numeric id or zero-padded id.</summary>
     internal static PlanFile? FindPlan(IPlanReaderService planService, string planId)
@@ -92,14 +93,7 @@ public class ContentView(
             ? jobService.GetJobs()
                 .Where(j => string.Equals(j.ChatSessionId, activeSessionId.Value, StringComparison.OrdinalIgnoreCase)
                          && (j.Status == JobStatus.Running || j.Status == JobStatus.Pending || j.Status == JobStatus.Queued))
-                .Select(j => new ChatJobDto(
-                    j.Id,
-                    j.Type,
-                    j.Status.ToString(),
-                    j.ReportedPlanId,
-                    j.ReportedPlanTitle,
-                    j.StatusMessage
-                )).ToList()
+                .Select(ChatApp.ToJobDto).ToList()
             : new List<ChatJobDto>();
 
         var chatWidget = new ChatWidget
@@ -145,8 +139,7 @@ public class ContentView(
             },
             OnCreateSession = _ =>
             {
-                var newSess = chatService.CreateSession(selectedAgent.Value, selectedModel.Value, effort: selectedEffort.Value);
-                selectSession(newSess.Id);
+                startNewChat();
                 return ValueTask.CompletedTask;
             },
             OnSendMessage = e =>

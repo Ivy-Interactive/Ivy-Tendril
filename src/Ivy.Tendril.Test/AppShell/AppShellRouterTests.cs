@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Ivy.Core.Apps;
 using Ivy.Tendril.AppShell;
+using Ivy.Tendril.Apps.Agent;
 using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Services;
 using static Ivy.Tendril.AppShell.TendrilAppShell;
@@ -142,6 +143,44 @@ public class AppShellRouterTests
             Descriptor("agent", allowDuplicateTabs: true));
 
         Assert.Equal(AppShellRouter.RouteAction.CreateNewTab, result.Action);
+    }
+
+    [Fact]
+    public void RouteHybrid_AgentArgsForOpenTerminalSession_SwitchesToItsPane()
+    {
+        var tabs = ImmutableArray.Create(
+            new TabState("review-tab", "review-action", "#1 Tendril", null!, null, "k1"),
+            new TabState("sess-42", "agent", "Fix login", null!, null, "k2"));
+        var router = new AppShellRouter();
+
+        var result = router.Route(
+            new NavigateArgs("agent", new AgentAppArgs(SessionId: "sess-42")),
+            AppShellNavigation.Tabs,
+            null,
+            tabs,
+            Descriptor("agent", allowDuplicateTabs: true));
+
+        Assert.Equal(AppShellRouter.RouteAction.SwitchToExistingTab, result.Action);
+        Assert.Equal(1, result.TabIndex);
+        Assert.Equal("sess-42", result.TabId);
+    }
+
+    [Fact]
+    public void RouteHybrid_AgentArgsForClosedTerminalSession_CreatesNewTab()
+    {
+        var tabs = ImmutableArray.Create(
+            new TabState("sess-1", "agent", "Other", null!, null, "k1"));
+        var router = new AppShellRouter();
+
+        var result = router.Route(
+            new NavigateArgs("agent", new AgentAppArgs(SessionId: "sess-42")),
+            AppShellNavigation.Tabs,
+            null,
+            tabs,
+            Descriptor("agent", allowDuplicateTabs: true));
+
+        Assert.Equal(AppShellRouter.RouteAction.CreateNewTab, result.Action);
+        Assert.Equal("agent", result.EffectiveAppId);
     }
 
     [Fact]

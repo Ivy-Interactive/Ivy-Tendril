@@ -243,6 +243,17 @@ public class InboxConfig
     public int CheckIntervalMinutes { get; set; } = 15;
 }
 
+public static class ChatModes
+{
+    public const string Chat = "chat";
+    public const string Terminal = "terminal";
+
+    public static string Normalize(string? mode) =>
+        string.Equals(mode, Terminal, StringComparison.OrdinalIgnoreCase) ? Terminal : Chat;
+
+    public static bool IsTerminal(string? mode) => Normalize(mode) == Terminal;
+}
+
 public class TendrilSettings
 {
     public string CodingAgent { get; set; } = "claude";
@@ -275,6 +286,7 @@ public class TendrilSettings
     public bool SidebarOpen { get; set; } = true;
     public string Theme { get; set; } = "default";
     public string ThemeMode { get; set; } = "system";
+    public string ChatMode { get; set; } = ChatModes.Chat;
     public bool Beta { get; set; } = false;
     public string? DismissedUpdateVersion { get; set; }
 
@@ -621,6 +633,8 @@ public class ConfigService : IConfigService, IDisposable
         {
             Settings.ThemeMode = Settings.ThemeMode.ToLowerInvariant();
         }
+
+        Settings.ChatMode = ChatModes.Normalize(Settings.ChatMode);
     }
 
     public TendrilSettings Settings { get; private set; }

@@ -182,7 +182,7 @@ export const AssistantTurn: React.FC<AssistantTurnProps> = ({ stream, live = fal
       )}
       {live && !status.complete && (
         <div className="aov-shell chat-turn-status">
-          <AnimatedStatus statusText={status.text} isComplete={false} />
+          <AnimatedStatus statusText="Thinking" isComplete={false} />
         </div>
       )}
       {!live && turn.result && <TurnMeta wire={turn.result} />}

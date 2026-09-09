@@ -25,6 +25,8 @@ export interface ShellSectionItemDto {
   title: string;
   tag?: string;
   badges?: ShellBadgeDto[];
+  /** A lucide icon name (see ShellSidebarSection's icon map), rendered left of the title. */
+  icon?: string;
 }
 
 export interface ShellTabDto {
