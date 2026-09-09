@@ -437,6 +437,7 @@
   min-height: 280px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .tdb-side-head {

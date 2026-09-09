@@ -40,6 +40,10 @@ describe("dashboard.css KPI grid", () => {
 });
 
 describe("dashboard.css side block and git activity layout", () => {
+  it("constrains side block contents within container bounds with overflow: hidden", () => {
+    expect(css).toMatch(/\.tdb-side-block\s*\{[^}]*overflow:\s*hidden;/);
+  });
+
   it("bottom-anchors side body and tip wrap with justify-content: flex-end", () => {
     const sideBodyBlocks = [...css.matchAll(/\.tdb-side-body\s*\{([^}]*)\}/g)].map((m) => m[1]);
     expect(sideBodyBlocks.length).toBeGreaterThanOrEqual(1);
