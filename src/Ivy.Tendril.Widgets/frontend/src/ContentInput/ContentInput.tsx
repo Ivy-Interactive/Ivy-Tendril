@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorker from "pdfjs-dist/build/pdf.worker.mjs?url";
 import { VoiceRecorder, type VoiceStatus } from "../voice-recorder";
+import { debugLog } from "../debug-log";
 import { isImageFile, processImageFile } from "../imageUtils";
 import "./content-input.css";
 
@@ -687,14 +688,14 @@ export const ContentInput: React.FC<ContentInputProps> = ({
         endpoint: transcriptionUrl,
         onStatusChange: (status) => setVoiceStatus(status),
         onResult: (transcription) => {
-          console.log("[ContentInput] Transcription result received:", transcription);
+          debugLog("[ContentInput] Transcription result received:", transcription);
           if (transcription.trim() === "") {
             setRecordError("The transcription did not contain enough information to generate a prompt. Please try again and speak clearly.");
             return;
           }
           setText((prev) => {
             const next = prev ? `${prev} ${transcription}` : transcription;
-            console.log("[ContentInput] Next text state:", next);
+            debugLog("[ContentInput] Next text state (length):", next.length);
             if (dispatchEvent) {
               const fullText = next + filesRef.current.map((f) => ` [file: ${f}]`).join("");
               dispatchEvent("OnChange", id, [fullText]);
