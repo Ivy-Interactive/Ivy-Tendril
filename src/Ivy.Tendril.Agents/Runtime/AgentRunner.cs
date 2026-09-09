@@ -220,10 +220,13 @@ public sealed class AgentRunner(ILogger<AgentRunner> logger, ConcurrencyOptions?
             }
             catch (OperationCanceledException)
             {
+                if (timeout.HasValue && !ct.IsCancellationRequested)
+                    session.MarkAborted($"Agent execution timed out: total timeout limit of {AgentFailureMessage.FormatDuration(timeout.Value)} exceeded.");
                 await session.KillAsync();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                session.MarkAborted($"Agent process failed: {ex.Message}");
                 await session.KillAsync();
             }
             finally
