@@ -5,5 +5,7 @@
     <IvySource Condition="'$(IvySource)' == '' And Exists('$(MSBuildThisFileDirectory)../../Ivy-Framework/src/Ivy/Ivy.csproj')">true</IvySource>
     <IvySource Condition="'$(IvySource)' == ''">false</IvySource>
     <IvySource Condition="'$(GITHUB_ACTIONS)' == 'true' or '$(Publishing)' == 'true'">false</IvySource>
+    <!-- Ivy.Tendril.Widgets manages its own frontend build and embedding -->
+    <IvyEnableExternalWidgets>false</IvyEnableExternalWidgets>
   </PropertyGroup>
 </Project>

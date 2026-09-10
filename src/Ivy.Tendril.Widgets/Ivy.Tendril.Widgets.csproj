@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <IvyEnableExternalWidgets>false</IvyEnableExternalWidgets>
   </PropertyGroup>
   <ItemGroup>
     <!-- WebViewerProxy hosts endpoints on the consuming app's origin. -->
