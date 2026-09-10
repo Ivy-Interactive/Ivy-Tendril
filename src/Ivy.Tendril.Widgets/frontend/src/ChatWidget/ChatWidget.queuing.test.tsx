@@ -22,15 +22,14 @@ describe("ChatWidget Queued Messages UI", () => {
     );
 
     const textarea = screen.getByPlaceholderText(/Ask/i);
-    const queueBtn = screen.getByRole("button", { name: /Queue/i });
 
     // Queue first message
     fireEvent.change(textarea, { target: { value: "test message 1" } });
-    fireEvent.click(queueBtn);
+    fireEvent.click(screen.getByRole("button", { name: "Queue message" }));
 
     // Queue second message
     fireEvent.change(textarea, { target: { value: "test message 2" } });
-    fireEvent.click(queueBtn);
+    fireEvent.click(screen.getByRole("button", { name: "Queue message" }));
 
     expect(screen.getByText("Queued Messages")).toBeInTheDocument();
     expect(screen.getByText("2")).toBeInTheDocument();
@@ -40,14 +39,44 @@ describe("ChatWidget Queued Messages UI", () => {
     expect(screen.getByText("test message 2")).toBeInTheDocument();
   });
 
+  it("only shows the queue button while the composer has content, left of the stop button", () => {
+    render(<ChatWidget id="test-chat" isStreaming={true} />);
+
+    expect(screen.getByRole("button", { name: /Stop agent/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Queue message" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Send message/i })).not.toBeInTheDocument();
+
+    const textarea = screen.getByPlaceholderText(/Ask/i);
+    fireEvent.change(textarea, { target: { value: "hello" } });
+
+    const queueBtn = screen.getByRole("button", { name: "Queue message" });
+    const stopBtn = screen.getByRole("button", { name: /Stop agent/i });
+    expect(queueBtn.compareDocumentPosition(stopBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(stopBtn).toHaveClass("chat-stop-btn");
+
+    fireEvent.change(textarea, { target: { value: "   " } });
+    expect(screen.queryByRole("button", { name: "Queue message" })).not.toBeInTheDocument();
+  });
+
+  it("hides the queue button again once the message is queued", () => {
+    render(<ChatWidget id="test-chat" isStreaming={true} />);
+
+    const textarea = screen.getByPlaceholderText(/Ask/i);
+    fireEvent.change(textarea, { target: { value: "queued task" } });
+    fireEvent.click(screen.getByRole("button", { name: "Queue message" }));
+
+    expect(screen.getByText("queued task")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Queue message" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Stop agent/i })).toBeInTheDocument();
+  });
+
   it("allows collapsing and expanding the queued messages list", () => {
     render(<ChatWidget id="test-chat" isStreaming={true} />);
 
     const textarea = screen.getByPlaceholderText(/Ask/i);
-    const queueBtn = screen.getByRole("button", { name: /Queue/i });
 
     fireEvent.change(textarea, { target: { value: "queued task" } });
-    fireEvent.click(queueBtn);
+    fireEvent.click(screen.getByRole("button", { name: "Queue message" }));
 
     const toggleBtn = screen.getByRole("button", { name: /Collapse queued messages/i });
     fireEvent.click(toggleBtn);
@@ -64,10 +93,9 @@ describe("ChatWidget Queued Messages UI", () => {
     render(<ChatWidget id="test-chat" isStreaming={true} />);
 
     const textarea = screen.getByPlaceholderText(/Ask/i);
-    const queueBtn = screen.getByRole("button", { name: /Queue/i });
 
     fireEvent.change(textarea, { target: { value: "original prompt" } });
-    fireEvent.click(queueBtn);
+    fireEvent.click(screen.getByRole("button", { name: "Queue message" }));
 
     const editBtn = screen.getByRole("button", { name: /Edit message/i });
     fireEvent.click(editBtn);
@@ -94,13 +122,12 @@ describe("ChatWidget Queued Messages UI", () => {
     );
 
     const textarea = screen.getByPlaceholderText(/Ask/i);
-    const queueBtn = screen.getByRole("button", { name: /Queue/i });
 
     fireEvent.change(textarea, { target: { value: "message to send now" } });
-    fireEvent.click(queueBtn);
+    fireEvent.click(screen.getByRole("button", { name: "Queue message" }));
 
     fireEvent.change(textarea, { target: { value: "message to delete" } });
-    fireEvent.click(queueBtn);
+    fireEvent.click(screen.getByRole("button", { name: "Queue message" }));
 
     expect(screen.getByText("2")).toBeInTheDocument();
 
@@ -227,10 +254,9 @@ describe("ChatWidget Queued Messages UI", () => {
     );
 
     const textarea = screen.getByPlaceholderText(/Ask/i);
-    const queueBtn = screen.getByRole("button", { name: /Queue/i });
 
     fireEvent.change(textarea, { target: { value: "optimistic prompt" } });
-    fireEvent.click(queueBtn);
+    fireEvent.click(screen.getByRole("button", { name: "Queue message" }));
 
     expect(screen.getByText("Queued Messages")).toBeInTheDocument();
     expect(screen.getByText("optimistic prompt")).toBeInTheDocument();
@@ -295,10 +321,9 @@ describe("ChatWidget Queued Messages UI", () => {
     );
 
     const textarea = screen.getByPlaceholderText(/Ask/i);
-    const queueBtn = screen.getByRole("button", { name: /Queue/i });
 
     fireEvent.change(textarea, { target: { value: "what can you do?" } });
-    fireEvent.click(queueBtn);
+    fireEvent.click(screen.getByRole("button", { name: "Queue message" }));
 
     expect(screen.getByText("Queued Messages")).toBeInTheDocument();
     // Verify it is inside the queued panel

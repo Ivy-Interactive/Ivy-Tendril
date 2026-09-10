@@ -259,6 +259,7 @@ export function ChatWidget({
   const headerJobs = [...sessionSpawnedJobs, ...otherRunningJobs];
   const currentOptimistic = (activeSessionId && optimisticMessages[activeSessionId]) || [];
   const displayMessages = [...(activeSession?.messages || []), ...currentOptimistic];
+  const hasComposerContent = promptText.trim().length > 0 || attachments.length > 0;
   const isSendDisabled =
     isPayloadOversized || isUploading || isAnyFailed || (!promptText.trim() && !hasValidAttachments);
   const effectiveIsStreaming =
@@ -962,26 +963,26 @@ export function ChatWidget({
 
                 {effectiveIsStreaming ? (
                   <>
-                    <IconButton
-                      className="chat-stop-btn"
-                      label="Stop agent"
-                      onClick={handleCancelStream}
-                    >
+                    {hasComposerContent && (
+                      <IconButton
+                        variant="solid"
+                        className="chat-send-btn"
+                        label="Queue message"
+                        tooltip={sendTitle}
+                        disabled={isSendDisabled}
+                        onClick={handleSendMessage}
+                      >
+                        <ListPlus size={16} />
+                      </IconButton>
+                    )}
+                    <IconButton className="chat-stop-btn" label="Stop agent" onClick={handleCancelStream}>
                       <Square size={12} fill="currentColor" />
-                    </IconButton>
-                    <IconButton
-                      variant="solid"
-                      label="Queue message"
-                      tooltip={sendTitle}
-                      disabled={isSendDisabled}
-                      onClick={handleSendMessage}
-                    >
-                      <ListPlus size={16} />
                     </IconButton>
                   </>
                 ) : (
                   <IconButton
                     variant="solid"
+                    className="chat-send-btn"
                     label="Send message"
                     tooltip={sendTitle}
                     disabled={isSendDisabled}

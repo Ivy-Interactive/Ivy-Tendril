@@ -686,8 +686,10 @@ describe("ChatWidget File Uploads and Attachments", () => {
 
     fireEvent.click(sendBtn);
 
-    // Immediately shows Stop and Queue buttons without waiting for server props
+    // Immediately swaps Send for Stop without waiting for server props; Queue waits for new input
     expect(screen.getByRole("button", { name: /Stop/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Queue/i })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText(/Ask/i), { target: { value: "next" } });
     expect(screen.getByRole("button", { name: /Queue/i })).toBeInTheDocument();
 
     // Immediately shows the agent status line

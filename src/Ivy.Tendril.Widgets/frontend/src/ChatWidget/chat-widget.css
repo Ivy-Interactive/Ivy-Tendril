@@ -14,6 +14,7 @@
   --tch-border: var(--border, #e0e0e0);
   --tch-surface: color-mix(in srgb, var(--foreground, #000000) 4%, var(--background, #ffffff));
   --tch-surface-hover: color-mix(in srgb, var(--foreground, #000000) 8%, var(--background, #ffffff));
+  --tch-input-border: color-mix(in srgb, var(--foreground, #000000) 15%, transparent);
   --tch-popover: var(--popover, #ffffff);
   --tch-bubble-bg: var(--primary, #000000);
   --tch-bubble-fg: var(--primary-foreground, #ffffff);
@@ -983,7 +984,7 @@ button.chat-system-event-plan {
 }
 
 .chat-input-box:focus-within {
-  border-color: color-mix(in srgb, var(--tch-fg) 15%, transparent);
+  border-color: var(--tch-input-border);
 }
 
 .chat-input-box.dragging {
@@ -1197,16 +1198,15 @@ button.chat-system-event-plan {
   color: currentColor;
 }
 
-/* The shared icon button, in the composer's stop colors. */
 .chat-stop-btn {
-  border: 1px solid var(--tch-danger);
-  background: color-mix(in srgb, var(--tch-danger) 10%, transparent);
-  color: var(--tch-danger);
+  border: 1px solid var(--tch-input-border);
+  background: var(--tch-surface);
+  color: var(--tch-fg);
   opacity: 1;
 }
 
 .chat-stop-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--tch-danger) 20%, transparent);
+  background: var(--tch-surface-hover);
 }
 
 /* ---------- Agent picker (portalled) ---------- */
