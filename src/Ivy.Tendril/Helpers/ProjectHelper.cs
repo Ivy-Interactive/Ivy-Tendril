@@ -1,9 +1,21 @@
+using Ivy;
 using Ivy.Tendril.Services;
 
 namespace Ivy.Tendril.Helpers;
 
 public static class ProjectHelper
 {
+    public static IEnumerable<Badge> BuildBadges(string? projectValue, IConfigService config)
+    {
+        var projects = ParseProjects(projectValue);
+        foreach (var project in projects)
+        {
+            yield return new Badge(project)
+                .Variant(BadgeVariant.Outline)
+                .WithProjectColor(config, project);
+        }
+    }
+
     /// <summary>
     ///     Builds a project-name-to-color-name mapping (e.g. for
     ///     <see cref="LabelsDisplayRenderer.BadgeColorMapping"/>) from the configured projects'

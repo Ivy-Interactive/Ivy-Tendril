@@ -61,24 +61,15 @@ public partial class JobsApp
             .UpdateStream(updateStream)
             .Width(Size.Full())
             .Height(Size.Full())
-            .Header(t => t.Status, "Status")
-            .Header(t => t.Type, "Type")
-            .Header(t => t.PlanId, "Plan")
-            .Header(t => t.Plan, "Prompt/Title")
-            .Header(t => t.Project, "Project")
-            .Header(t => t.Timer, "Timer")
-            .Header(t => t.Cost, "Cost")
-            .Header(t => t.Tokens, "Tokens")
-            .Header(t => t.AgentOutput, "Agent Output")
+            // Headers are derived from property names (SplitPascalCase) so filter tokens match visible labels
             .Renderer(t => t.AgentOutput, new AnimatedStatusLabelDisplayRenderer
             {
                 Mode = AnimatedStatusMode.SpinnerTimer
             })
-            .Header(t => t.StatusMessage, "Status")
             .Width(t => t.Status, Size.Px(100))
             .Width(t => t.PlanId, Size.Px(80))
             .Width(t => t.Type, Size.Px(100))
-            .Width(t => t.Plan, Size.Px(250))
+            .Width(t => t.Prompt, Size.Px(250))
             .Width(t => t.Project, Size.Px(150))
             .Width(t => t.Timer, Size.Px(80))
             .Width(t => t.AgentOutput, Size.Px(100))
@@ -104,11 +95,14 @@ public partial class JobsApp
             {
                 BadgeColorMapping = projectColors
             })
-            .Renderer(t => t.Plan, new TextDisplayRenderer())
+            .Renderer(t => t.Prompt, new TextDisplayRenderer())
             .Renderer(t => t.StatusMessage, new TextDisplayRenderer())
             .Hidden(t => t.Id)
             .Hidden(t => t.LastOutputTimestamp)
             .Hidden(t => t.ErrorContext)
+            .Filterable(t => t.Id, false)
+            .Filterable(t => t.LastOutputTimestamp, false)
+            .Filterable(t => t.ErrorContext, false)
             .SortDirection(t => t.Id, SortDirection.Descending)
             .Config(c =>
             {
@@ -202,7 +196,7 @@ public partial class JobsApp
                 return ValueTask.CompletedTask;
             })
             */
-            .OnCellAction(t => t.Plan, e =>
+            .OnCellAction(t => t.Prompt, e =>
             {
                 var id = e.Value.RowId?.ToString();
                 if (!string.IsNullOrEmpty(id))

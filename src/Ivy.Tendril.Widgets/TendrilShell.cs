@@ -18,7 +18,7 @@ public record TendrilShell : WidgetBase<TendrilShell>
     public TendrilShell(
         object? sidebarHeader = null,
         object?[]? sidebarBody = null,
-        object? sidebarFooter = null,
+        object?[]? sidebarFooter = null,
         object? content = null,
         object?[]? sessionContents = null,
         object? tabs = null,
@@ -28,12 +28,12 @@ public record TendrilShell : WidgetBase<TendrilShell>
     }
 
     private static object[] BuildSlots(
-        object? sidebarHeader, object?[]? sidebarBody, object? sidebarFooter,
+        object? sidebarHeader, object?[]? sidebarBody, object?[]? sidebarFooter,
         object? content, object?[]? sessionContents, object? tabs, object?[]? hidden) =>
     [
         sidebarHeader != null ? new Slot("SidebarHeader", sidebarHeader) : new Slot("SidebarHeader"),
         new Slot("SidebarBody", (sidebarBody ?? []).Where(c => c != null).Cast<object>().ToArray()),
-        sidebarFooter != null ? new Slot("SidebarFooter", sidebarFooter) : new Slot("SidebarFooter"),
+        new Slot("SidebarFooter", (sidebarFooter ?? []).Where(c => c != null).Cast<object>().ToArray()),
         content != null ? new Slot("Content", content) : new Slot("Content"),
         new Slot("SessionContents", (sessionContents ?? []).Where(c => c != null).Cast<object>().ToArray()),
         tabs != null ? new Slot("Tabs", tabs) : new Slot("Tabs"),

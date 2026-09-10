@@ -7,6 +7,7 @@ using Ivy.Tendril.Helpers;
 using System;
 using System.IO;
 using Ivy.Tendril.Apps.Agent;
+using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Settings;
 using Ivy.Tendril.Apps.Settings.Dialogs;
 
@@ -196,7 +197,7 @@ public class CreatePlanDialog(
                     if (string.IsNullOrWhiteSpace(createPlanText.Value)) return ValueTask.CompletedTask;
                     planWasCreated = true;
                     var prompt = BuildAgentPrompt(selectedProject.Value, createPlanText.Value);
-                    nav.Navigate<AgentApp>(new AgentAppArgs(prompt));
+                    ChatLauncher.Open(nav, configService, prompt);
                     onClose();
                 }
                 return ValueTask.CompletedTask;

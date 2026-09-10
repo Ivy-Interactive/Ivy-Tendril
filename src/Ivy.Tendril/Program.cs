@@ -9,6 +9,8 @@ using Ivy.Tendril.Database;
 using Ivy.Tendril.Infrastructure;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Git;
+using Ivy.Tendril.Services.Vault;
+using Ivy.Tendril.Themes;
 using Ivy.Tendril.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -69,6 +71,9 @@ public class Program
 
     // ConfigService reference for cleanup on exit
     private static ConfigService? _configService;
+
+    // ChatExecutionService reference for flush on exit
+    private static IChatExecutionService? _chatExecutionService;
 
     [STAThread]
     public static async Task<int> Main(string[] args)
@@ -271,6 +276,9 @@ public class Program
             // chosen project (PlanSourceProjectGuard). Resolves git remotes of project repos.
             cliServices.AddSingleton<GithubService>();
             cliServices.AddSingleton<IGithubService>(sp => sp.GetRequiredService<GithubService>());
+
+            cliServices.AddSingleton<IVaultService, VaultService>();
+            cliServices.AddSingleton<IThemeSerializationService, ThemeSerializationService>();
 
             var app = ConfigureCliCommands(cliServices);
 
@@ -719,6 +727,8 @@ public class Program
                     .WithDescription("Remove a repository");
                 plan.AddCommand<PlanAddPrCommand>("add-pr")
                     .WithDescription("Add a PR URL");
+                plan.AddCommand<PlanRemovePrCommand>("remove-pr")
+                    .WithDescription("Remove a PR URL");
                 plan.AddCommand<PlanAddCommitCommand>("add-commit")
                     .WithDescription("Add a commit hash");
                 plan.AddCommand<PlanAddRelatedPlanCommand>("add-related-plan")
@@ -772,6 +782,14 @@ public class Program
                         .WithDescription("Add a verification to a plan");
                     verification.AddCommand<PlanVerificationRemoveCommand>("remove")
                         .WithDescription("Remove a verification from a plan");
+                });
+
+                plan.AddBranch("env", env =>
+                {
+                    env.AddCommand<PlanEnvMaterializeCommand>("materialize")
+                        .WithDescription("Allocate ports and write the project's environment files into the plan's worktrees");
+                    env.AddCommand<PlanEnvGetCommand>("get")
+                        .WithDescription("Print the plan's allocated ports and resolved environment values");
                 });
             });
 
@@ -843,6 +861,26 @@ public class Program
                     .WithDescription("Import MCP servers from a repository into a project");
                 project.AddCommand<ProjectImportSkillsCommand>("import-skills")
                     .WithDescription("Import custom skills from a repository into a project");
+
+                project.AddBranch("port", port =>
+                {
+                    port.AddCommand<ProjectListPortsCommand>("list")
+                        .WithDescription("List the project's named service ports");
+                    port.AddCommand<ProjectAddPortCommand>("add")
+                        .WithDescription("Add or update a named service port");
+                    port.AddCommand<ProjectRemovePortCommand>("remove")
+                        .WithDescription("Remove a named service port");
+                });
+
+                project.AddBranch("env-file", envFile =>
+                {
+                    envFile.AddCommand<ProjectListEnvFilesCommand>("list")
+                        .WithDescription("List the environment files materialized into plan worktrees");
+                    envFile.AddCommand<ProjectAddEnvFileCommand>("add")
+                        .WithDescription("Add or update an environment file");
+                    envFile.AddCommand<ProjectRemoveEnvFileCommand>("remove")
+                        .WithDescription("Remove an environment file");
+                });
             });
 
             config.AddBranch("config", cfg =>
@@ -851,6 +889,54 @@ public class Program
                     .WithDescription("Get a top-level config value");
                 cfg.AddCommand<ConfigSetCommand>("set")
                     .WithDescription("Set a top-level config value");
+            });
+
+            config.AddBranch("vault", vault =>
+            {
+                vault.AddCommand<VaultListCommand>("list")
+                    .WithDescription("List connected vaults");
+                vault.AddCommand<VaultStatusCommand>("status")
+                    .WithDescription("Show detailed status of a vault");
+                vault.AddCommand<VaultDiscoverCommand>("discover")
+                    .WithDescription("Discover existing vault repositories on GitHub");
+                vault.AddCommand<VaultConnectCommand>("connect")
+                    .WithDescription("Connect an existing vault repository");
+                vault.AddCommand<VaultCreateCommand>("create")
+                    .WithDescription("Create a new vault repository on GitHub and connect it");
+                vault.AddCommand<VaultDisconnectCommand>("disconnect")
+                    .WithDescription("Disconnect a vault repository");
+                vault.AddCommand<VaultSyncCommand>("sync")
+                    .WithDescription("Pull latest changes from remote vault repository and update tracked projects");
+                vault.AddCommand<VaultSyncCommand>("pull")
+                    .WithDescription("Alias for sync: pull latest changes from remote vault repository");
+                vault.AddCommand<VaultSetAutoSyncCommand>("set-auto-sync")
+                    .WithDescription("Enable or disable automatic synchronization for a vault");
+                vault.AddCommand<VaultCatalogCommand>("catalog")
+                    .WithDescription("List projects and assets available in the vault catalog");
+                vault.AddCommand<VaultImportCommand>("import")
+                    .WithDescription("Import or merge a project from the vault into Tendril");
+                vault.AddCommand<VaultPushCommand>("push")
+                    .WithDescription("Export project(s) and create a pull request to the vault repository");
+                vault.AddCommand<VaultDeleteCommand>("delete")
+                    .WithDescription("Delete a project from the vault repository and create a pull request");
+
+                vault.AddBranch("theme", theme =>
+                {
+                    theme.AddCommand<VaultThemeListCommand>("list")
+                        .WithDescription("List team themes available in the vault");
+                    theme.AddCommand<VaultThemeGetCommand>("get")
+                        .WithDescription("Get details of a vault theme");
+                    theme.AddCommand<VaultThemeAddCommand>("add")
+                        .WithDescription("Add or import a theme into the vault");
+                    theme.AddCommand<VaultThemeCreateCommand>("create")
+                        .WithDescription("Create a new theme and save it to the vault");
+                    theme.AddCommand<VaultThemeSetCommand>("set")
+                        .WithDescription("Update a property or color token on a vault theme");
+                    theme.AddCommand<VaultThemeDeleteCommand>("delete")
+                        .WithDescription("Delete a theme from the vault");
+                    theme.AddCommand<VaultThemeApplyCommand>("apply")
+                        .WithDescription("Apply a theme as the active Tendril theme");
+                });
             });
         });
         return app;
@@ -905,6 +991,16 @@ public class Program
             {
                 CrashLog.Write($"[{DateTime.UtcNow:O}] Failed to dispose ConfigService: {ex}");
             }
+
+            // Flush active chat executions
+            try
+            {
+                _chatExecutionService?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                CrashLog.Write($"[{DateTime.UtcNow:O}] Failed to dispose ChatExecutionService: {ex}");
+            }
         };
     }
 
@@ -930,6 +1026,11 @@ public class Program
     internal static void SetConfigServiceForCleanup(ConfigService configService)
     {
         _configService = configService;
+    }
+
+    internal static void SetChatExecutionServiceForCleanup(IChatExecutionService chatExecutionService)
+    {
+        _chatExecutionService = chatExecutionService;
     }
 
     private static string GetMemoryStats()

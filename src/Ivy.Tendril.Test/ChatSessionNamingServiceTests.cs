@@ -64,15 +64,14 @@ public class ChatSessionNamingServiceTests
     }
 
     [Fact]
-    public void BuildPrompt_FormatsPromptWithUserAndAssistantMessages()
+    public void BuildPrompt_FormatsPromptWithUserMessageOnly()
     {
         var userPrompt = "How do I fix the database connection?";
-        var assistantResponse = "You need to update the connection string in config.yaml.";
 
-        var prompt = ChatSessionNamingService.BuildPrompt(userPrompt, assistantResponse);
+        var prompt = ChatSessionNamingService.BuildPrompt(userPrompt);
 
         Assert.Contains("How do I fix the database connection?", prompt);
-        Assert.Contains("You need to update the connection string in config.yaml.", prompt);
+        Assert.DoesNotContain("Assistant:", prompt);
         Assert.Contains("short 3 to 6 word title", prompt);
     }
 
@@ -148,7 +147,6 @@ public class ChatSessionNamingServiceTests
             await namingService.GenerateAndSetTitleAsync(
                 session.Id,
                 "How do I configure Redis cache?",
-                "You can configure Redis in settings.",
                 "claude",
                 "sonnet");
 
@@ -189,7 +187,6 @@ public class ChatSessionNamingServiceTests
             await namingService.GenerateAndSetTitleAsync(
                 session.Id,
                 "How do I configure Redis cache?",
-                "You can configure Redis in settings.",
                 "claude",
                 "sonnet");
 
@@ -231,7 +228,6 @@ public class ChatSessionNamingServiceTests
             await namingService.GenerateAndSetTitleAsync(
                 session.Id,
                 "Prompt",
-                "Response",
                 "claude",
                 "sonnet");
 
@@ -271,7 +267,6 @@ public class ChatSessionNamingServiceTests
             await namingService.GenerateAndSetTitleAsync(
                 session.Id,
                 "Prompt",
-                "Response",
                 "claude",
                 "sonnet");
 

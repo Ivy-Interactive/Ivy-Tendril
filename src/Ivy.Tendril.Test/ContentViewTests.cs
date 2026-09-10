@@ -312,4 +312,53 @@ public class ContentViewTests
 
         Assert.Empty(selected);
     }
+
+    [Fact]
+    public void CountUnansweredQuestions_IncludesOptionalQuestionsWithoutAnswers()
+    {
+        var questions = new QuestionSummary[]
+        {
+            new(0, "q1", "Question 1", null, HasAnswer: false, IsOptional: false),
+            new(0, "q2", "Question 2", null, HasAnswer: false, IsOptional: true),
+            new(0, "q3", "Question 3", null, HasAnswer: true, IsOptional: false),
+            new(0, "q4", "Question 4", null, HasAnswer: true, IsOptional: true),
+        };
+
+        var count = ContentView.CountUnansweredQuestions(questions);
+
+        Assert.Equal(2, count);
+    }
+
+    [Fact]
+    public void CountUnansweredQuestions_FromMarkdown_CountsBothRequiredAndOptionalUnanswered()
+    {
+        var markdown = """
+            # Test Plan
+
+            ```questions
+            - id: req-q
+              question: "Required question"
+              options:
+                - text: "Option A"
+                - text: "Option B"
+            - id: opt-q
+              question: "Optional question"
+              optional: true
+              options:
+                - text: "Option A"
+                - text: "Option B"
+            - id: answered-opt-q
+              question: "Answered optional question"
+              optional: true
+              answer: "Option A"
+              options:
+                - text: "Option A"
+                - text: "Option B"
+            ```
+            """;
+
+        var count = ContentView.CountUnansweredQuestions(markdown);
+
+        Assert.Equal(2, count);
+    }
 }

@@ -17,19 +17,31 @@ export interface ShellNavItemDto {
 
 export interface ShellBadgeDto {
   label: string;
-  kind: "project" | "success" | "warning" | "neutral";
+  kind: "project" | "success" | "warning" | "neutral" | "color";
+  /** An Ivy color name the host assigned (e.g. "Purple"); it recolors the badge and takes precedence over `kind`. */
+  color?: string;
 }
+
+export type ShellItemState = "working" | "completed";
 
 export interface ShellSectionItemDto {
   id: string;
   title: string;
   tag?: string;
   badges?: ShellBadgeDto[];
+  /** A lucide icon name (see ShellSidebarSection's icon map), rendered left of the title. */
+  icon?: string;
+  /** A small icon left of the title telling the row's state, e.g. a chat still being answered. */
+  state?: ShellItemState;
 }
 
 export interface ShellTabDto {
   id: string;
   title: string;
+  /** The page tab cannot be closed: it is how the user gets back to the page behind the sessions. */
+  closable?: boolean;
+  /** Lucide icon name; defaults to the terminal glyph used by session tabs. */
+  icon?: string;
 }
 
 export const isMac = (): boolean =>

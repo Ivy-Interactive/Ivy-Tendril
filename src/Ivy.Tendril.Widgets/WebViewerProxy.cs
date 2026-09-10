@@ -329,7 +329,11 @@ public static class WebViewerProxy
                 .Select(f => new { file = f.File, line = f.Line, col = f.Col, name = f.Name }),
             frames = resolved.Select(f => new
             {
-                file = f.File, line = f.Line, col = f.Col, name = f.Name, isThirdParty = f.IsThirdParty,
+                file = f.File,
+                line = f.Line,
+                col = f.Col,
+                name = f.Name,
+                isThirdParty = f.IsThirdParty,
             }),
         });
     }

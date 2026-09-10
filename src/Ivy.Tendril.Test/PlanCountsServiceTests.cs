@@ -252,6 +252,10 @@ public class TendrilProcessStatusServiceTests : IDisposable
             throw new NotImplementedException();
         }
 
+        public void SetChatSessionId(string id, string chatSessionId)
+        {
+        }
+
         public bool ReportJobFailure(string id, string message)
         {
             throw new NotImplementedException();
@@ -276,6 +280,7 @@ public class TendrilProcessStatusServiceTests : IDisposable
         public event Action? JobsStructureChanged;
         public event Action? JobPropertyChanged;
         public event Action<JobNotification>? NotificationReady;
+        public event Action<JobItem>? JobFinished;
 #pragma warning restore CS0067
     }
 

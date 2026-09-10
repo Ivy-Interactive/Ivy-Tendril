@@ -1,4 +1,6 @@
-﻿using System.Globalization;
+using System.Globalization;
+using System.IO;
+using System.Linq;
 using Ivy.Tendril.Helpers;
 using Xunit;
 
@@ -92,5 +94,53 @@ public class FormatHelperTests
     public void FormatExecutionProfile(string? profile, string? expected)
     {
         Assert.Equal(expected, FormatHelper.FormatExecutionProfile(profile));
+    }
+
+    [Fact]
+    public void SourceFiles_DoNotContainUtf8Bom()
+    {
+        var repoRoot = FindRepoRoot();
+        var targetDirs = new[]
+        {
+            Path.Combine(repoRoot, "src", "Ivy.Tendril"),
+            Path.Combine(repoRoot, "src", "Ivy.Tendril.Test")
+        };
+
+        var utf8Bom = new byte[] { 0xEF, 0xBB, 0xBF };
+        var violatingFiles = new List<string>();
+
+        foreach (var dir in targetDirs)
+        {
+            var csFiles = Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories)
+                .Where(f => !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar) &&
+                            !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar));
+
+            foreach (var file in csFiles)
+            {
+                using var stream = File.OpenRead(file);
+                var header = new byte[3];
+                var bytesRead = stream.Read(header, 0, 3);
+                if (bytesRead == 3 && header.SequenceEqual(utf8Bom))
+                {
+                    violatingFiles.Add(Path.GetRelativePath(repoRoot, file));
+                }
+            }
+        }
+
+        Assert.Empty(violatingFiles);
+    }
+
+    private static string FindRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+        while (dir != null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "src", "Ivy.Tendril", "Ivy.Tendril.slnx")))
+            {
+                return dir.FullName;
+            }
+            dir = dir.Parent;
+        }
+        throw new DirectoryNotFoundException("Could not locate repository root from BaseDirectory: " + AppDomain.CurrentDomain.BaseDirectory);
     }
 }

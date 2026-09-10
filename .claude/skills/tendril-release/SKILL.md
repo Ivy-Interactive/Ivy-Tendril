@@ -112,10 +112,15 @@ gh workflow run publish-tendril.yml --ref main
 ```
 
 #### Test Mode Deployment
-To run a test deployment (which compiles, runs all tests, and packages/bundles the installers as run artifacts, but bypasses publishing to NuGet and creating a GitHub release), trigger the workflow with `test-mode` set to `true` (this can be run on `development` or `main`):
+To run a test deployment dry run (which compiles, packages, and uploads unsigned NuGet and desktop installer artifacts to the workflow run, while skipping all signing, notarization, NuGet push, GitHub release creation, Docker image push, and Azure production docs deployment), trigger the workflow with `test-mode` set to `true` (this can be run on `development` or `main`):
 ```bash
 gh workflow run publish-tendril.yml --ref development -f test-mode=true
 ```
+
+In test mode (`test-mode=true`):
+- It performs a side-effect-free release dry run.
+- It compiles, packages, and uploads unsigned NuGet and desktop installer artifacts to the workflow run.
+- It completely skips all signing (SSL.com NuGet and Windows signing, Apple codesign and productsign), Apple notarization, NuGet push, GitHub release creation, Docker image push, and Azure production docs deployment.
 
 Confirm that the workflow has been dispatched by showing the URL/logs:
 ```bash

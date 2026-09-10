@@ -1,5 +1,6 @@
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Plans;
 
 namespace Ivy.Tendril.Test;
 
@@ -27,7 +28,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
             planReaderService: planReader);
     }
 
-    private string CreatePlanFolder(string name, string state, List<string>? dependsOn = null)
+    private string CreatePlanFolder(string name, string state, List<string>? dependsOn = null, string? prUrl = null)
     {
         var folder = Path.Combine(_plansDir, name);
         Directory.CreateDirectory(folder);
@@ -40,6 +41,8 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
         else
             depsYaml = "dependsOn: []";
 
+        var prsYaml = prUrl == null ? "prs: []" : $"prs:\n- '{prUrl}'";
+
         File.WriteAllText(Path.Combine(folder, "plan.yaml"), $"""
                                                               state: {state}
                                                               project: Tendril
@@ -49,7 +52,7 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
                                                               updated: 2026-04-01T00:00:00Z
                                                               repos:
                                                               - {repoDir}
-                                                              prs: []
+                                                              {prsYaml}
                                                               commits: []
                                                               verifications: []
                                                               relatedPlans: []
@@ -57,6 +60,95 @@ public class JobServiceDependencyAutoRetryTests : IDisposable
                                                               """);
 
         return folder;
+    }
+
+    // ==================== DependencyChecker PR gate (issue #2336) ====================
+
+    private DependencyChecker CreateChecker(Func<string, DependencyChecker.PrLookup> resolver) =>
+        new(new StubPlanReaderService(_plansDir)) { PrStateResolver = resolver };
+
+    [Fact]
+    public void CheckDependencies_WhenDependencyPrIsMerged_IsSatisfied()
+    {
+        const string prUrl = "https://github.com/owner/repo/pull/19";
+        _ = CreatePlanFolder("03200-DepPlan", "Completed", prUrl: prUrl);
+        var planA = CreatePlanFolder("03201-PlanA", "Draft", ["03200-DepPlan"]);
+
+        var checker = CreateChecker(_ => new DependencyChecker.PrLookup(0, "MERGED", ""));
+        var (ok, reason) = checker.CheckDependencies(planA);
+
+        Assert.True(ok);
+        Assert.Null(reason);
+    }
+
+    [Fact]
+    public void CheckDependencies_WhenDependencyPrIsOpen_BlocksSayingNotMerged()
+    {
+        const string prUrl = "https://github.com/owner/repo/pull/19";
+        _ = CreatePlanFolder("03210-DepPlan", "Completed", prUrl: prUrl);
+        var planA = CreatePlanFolder("03211-PlanA", "Draft", ["03210-DepPlan"]);
+
+        var checker = CreateChecker(_ => new DependencyChecker.PrLookup(0, "OPEN", ""));
+        var (ok, reason) = checker.CheckDependencies(planA);
+
+        Assert.False(ok);
+        Assert.Equal($"Dependency '03210-DepPlan' PR {prUrl} is 'OPEN', not MERGED", reason);
+    }
+
+    [Fact]
+    public void CheckDependencies_WhenGhCannotResolveThePr_BlocksWithGhsOwnReason()
+    {
+        // Plan 00077 recorded pull/61, a number that did not exist. gh writes the GraphQL error to
+        // stderr and nothing to stdout, so the gate used to report "is '', not MERGED".
+        const string prUrl = "https://github.com/SpaceCorps/components-storybook/pull/61";
+        _ = CreatePlanFolder("03220-DepPlan", "Completed", prUrl: prUrl);
+        var planA = CreatePlanFolder("03221-PlanA", "Draft", ["03220-DepPlan"]);
+
+        var checker = CreateChecker(_ => new DependencyChecker.PrLookup(
+            1, "", "GraphQL: Could not resolve to a PullRequest with the number of 61. (repository.pullRequest)"));
+        var (ok, reason) = checker.CheckDependencies(planA);
+
+        Assert.False(ok);
+        Assert.Equal(
+            $"Dependency '03220-DepPlan' PR {prUrl} could not be resolved " +
+            "(gh: GraphQL: Could not resolve to a PullRequest with the number of 61. (repository.pullRequest))",
+            reason);
+        Assert.DoesNotContain("not MERGED", reason);
+    }
+
+    [Fact]
+    public void CheckDependencies_WhenGhSucceedsButPrintsNothing_BlocksAsUnresolved()
+    {
+        // Exit 0 with empty stdout is the shape an auth failure took before gh started exiting 1 on
+        // it. Neither null nor MERGED, so the old code blocked with an empty-quoted state.
+        const string prUrl = "https://github.com/owner/repo/pull/19";
+        _ = CreatePlanFolder("03230-DepPlan", "Completed", prUrl: prUrl);
+        var planA = CreatePlanFolder("03231-PlanA", "Draft", ["03230-DepPlan"]);
+
+        var checker = CreateChecker(_ => new DependencyChecker.PrLookup(0, "", ""));
+        var (ok, reason) = checker.CheckDependencies(planA);
+
+        Assert.False(ok);
+        Assert.Equal(
+            $"Dependency '03230-DepPlan' PR {prUrl} could not be resolved (gh exited 0 with no output)",
+            reason);
+    }
+
+    [Fact]
+    public void CheckDependencies_TruncatesALongGhErrorSoItFitsAStatusMessage()
+    {
+        const string prUrl = "https://github.com/owner/repo/pull/19";
+        _ = CreatePlanFolder("03240-DepPlan", "Completed", prUrl: prUrl);
+        var planA = CreatePlanFolder("03241-PlanA", "Draft", ["03240-DepPlan"]);
+
+        var checker = CreateChecker(_ => new DependencyChecker.PrLookup(
+            1, "", new string('x', 500) + "\nsecond line of stderr"));
+        var (ok, reason) = checker.CheckDependencies(planA);
+
+        Assert.False(ok);
+        Assert.NotNull(reason);
+        Assert.Contains("gh: " + new string('x', 200) + "...", reason);
+        Assert.DoesNotContain("second line of stderr", reason);
     }
 
     [Fact]

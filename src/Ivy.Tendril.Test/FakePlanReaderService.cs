@@ -19,9 +19,10 @@ internal class FakePlanReaderService : IPlanReaderService
     {
     }
 
+    public List<PlanFile> Plans { get; set; } = [];
     public List<PlanFile> GetPlans(PlanStatus? statusFilter = null)
     {
-        return [];
+        return Plans;
     }
 
     public PlanFile? GetPlanByFolder(string folderPath)
@@ -47,6 +48,13 @@ internal class FakePlanReaderService : IPlanReaderService
 
     public void ResetVerificationsForRetry(string folderName)
     {
+    }
+
+    public (string FolderName, string ChatSessionId)? LastChatSessionAssignment { get; private set; }
+
+    public void SetChatSessionId(string folderName, string chatSessionId)
+    {
+        LastChatSessionAssignment = (folderName, chatSessionId);
     }
 
     public void SetVerificationStatus(string folderName, string name, VerificationStatus status)
@@ -102,6 +110,12 @@ internal class FakePlanReaderService : IPlanReaderService
     {
         return [];
     }
+
+    public List<RecentMergedPrDto> RecentMergedPrsToReturn { get; set; } = [];
+    public List<RecentPlanCostDto> RecentPlanCostsToReturn { get; set; } = [];
+
+    public List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50) => RecentMergedPrsToReturn;
+    public List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7) => RecentPlanCostsToReturn;
 
     public decimal GetPlanTotalCost(string folderPath)
     {

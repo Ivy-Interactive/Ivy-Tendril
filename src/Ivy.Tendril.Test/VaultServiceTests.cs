@@ -856,4 +856,109 @@ verifications: []
         Assert.NotNull(item);
         Assert.Equal(VaultItemSyncStatus.Modified, item.SyncStatus);
     }
+
+    [Fact]
+    public void CollectProjectAssets_WithConfigAndDiskSkills_ReturnsCombinedDeduplicatedSkills()
+    {
+        var config = CreateConfig();
+        var vaultService = new VaultService(config, NullLogger<VaultService>.Instance);
+
+        var skillsDir = ProjectPathHelper.GetSkillsDir(_tempDir.Path, "LocalApp");
+        Directory.CreateDirectory(skillsDir);
+        File.WriteAllText(Path.Combine(skillsDir, "local-skill.md"), "# Local Skill");
+        File.WriteAllText(Path.Combine(skillsDir, "disk-only-skill.md"), "# Disk Only Skill");
+        File.WriteAllText(Path.Combine(skillsDir, "LOCAL-SKILL.md"), "# Duplicate case");
+
+        var assets = vaultService.CollectProjectAssets("LocalApp");
+
+        Assert.Equal("LocalApp", assets.ProjectName);
+        Assert.Equal(2, assets.Skills.Count);
+        Assert.Contains("local-skill", assets.Skills, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("disk-only-skill", assets.Skills, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CollectProjectAssets_WithMemoryFiles_ReturnsAllMemoryFileNames()
+    {
+        var config = CreateConfig();
+        var vaultService = new VaultService(config, NullLogger<VaultService>.Instance);
+
+        var memoryDir = ProjectPathHelper.GetMemoryDir(_tempDir.Path, "LocalApp");
+        Directory.CreateDirectory(memoryDir);
+        File.WriteAllText(Path.Combine(memoryDir, "context.md"), "# Context Memory");
+        File.WriteAllText(Path.Combine(memoryDir, "learnings.md"), "# Learnings Memory");
+
+        var assets = vaultService.CollectProjectAssets("LocalApp");
+
+        Assert.Equal(2, assets.Memories.Count);
+        Assert.Contains("context.md", assets.Memories, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("learnings.md", assets.Memories, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CollectProjectAssets_WithConfiguredMcpsActionsAndVerifications_ReturnsAllItems()
+    {
+        var yaml = @"
+projects:
+  - name: TestProj
+    color: Blue
+    context: Test project
+    repos:
+      - path: /tmp/repos/test-proj
+    mcpServers:
+      - name: test-mcp
+        command: test-cmd
+    skills: []
+    reviewActions:
+      - name: TestReviewAction
+        command: pwsh -File test.ps1
+    verifications:
+      - name: TestVerification
+        required: true
+";
+        File.WriteAllText(Path.Combine(_tempDir.Path, "config.yaml"), yaml);
+
+        var config = CreateConfig();
+        var vaultService = new VaultService(config, NullLogger<VaultService>.Instance);
+
+        var assets = vaultService.CollectProjectAssets("TestProj");
+
+        Assert.Equal("TestProj", assets.ProjectName);
+        Assert.Contains("test-mcp", assets.McpServers, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("TestReviewAction", assets.ReviewActions, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("TestVerification", assets.Verifications, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void CollectProjectAssets_WhenProjectNotFound_ReturnsEmptyAssets()
+    {
+        var config = CreateConfig();
+        var vaultService = new VaultService(config, NullLogger<VaultService>.Instance);
+
+        var assets = vaultService.CollectProjectAssets("NonExistentProject");
+
+        Assert.Equal("NonExistentProject", assets.ProjectName);
+        Assert.Empty(assets.Skills);
+        Assert.Empty(assets.McpServers);
+        Assert.Empty(assets.Memories);
+        Assert.Empty(assets.ReviewActions);
+        Assert.Empty(assets.Verifications);
+    }
+
+    [Fact]
+    public async Task CollectProjectAssetsAsync_ReturnsMatchingAssets()
+    {
+        var config = CreateConfig();
+        var vaultService = new VaultService(config, NullLogger<VaultService>.Instance);
+
+        var skillsDir = ProjectPathHelper.GetSkillsDir(_tempDir.Path, "LocalApp");
+        Directory.CreateDirectory(skillsDir);
+        File.WriteAllText(Path.Combine(skillsDir, "async-skill.md"), "# Async Skill");
+
+        var assets = await vaultService.CollectProjectAssetsAsync("LocalApp");
+
+        Assert.Equal("LocalApp", assets.ProjectName);
+        Assert.Contains("local-skill", assets.Skills, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("async-skill", assets.Skills, StringComparer.OrdinalIgnoreCase);
+    }
 }

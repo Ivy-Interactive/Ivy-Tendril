@@ -1,0 +1,47 @@
+name: Frontend Tests
+
+on:
+  push:
+    branches:
+      - development
+      - main
+    paths:
+      - 'src/Ivy.Tendril.Widgets/frontend/**'
+      - '.github/workflows/frontend-tests.yml'
+  pull_request:
+    branches:
+      - development
+      - main
+    paths:
+      - 'src/Ivy.Tendril.Widgets/frontend/**'
+      - '.github/workflows/frontend-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Vitest
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: src/Ivy.Tendril.Widgets/frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: src/Ivy.Tendril.Widgets/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        working-directory: src/Ivy.Tendril.Widgets/frontend
+        run: pnpm test

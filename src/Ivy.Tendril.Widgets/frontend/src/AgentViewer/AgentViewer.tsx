@@ -1,19 +1,17 @@
 import React, { useCallback, useEffect, useMemo } from "react";
-import Markdown from "react-markdown";
 import "./agent-output.css";
 import type { EventHandler, PresentationEvent } from "./types";
 import { getHeight, getWidth } from "../styles";
-import { BlockHandler } from "../BlockHandler";
+import { BlockMarkdown } from "../BlockMarkdown";
 import { useAutoScroll } from "./use-auto-scroll";
-import { parseEventWireStream } from "./parse-events";
+import { parseEventWires, presentEventWires } from "./parse-events";
 import { deriveStatus } from "./status";
-import { AnimatedStatus } from "./animated-status";
+import { deriveStreamMetrics } from "./stream-metrics";
+import { StatusLine } from "../ui/StatusLine";
 import { ToolUseCard } from "./tool-use-card";
 import { ResultSummary } from "./result-summary";
 import { groupToolUseEvents } from "./group-events";
 import { ToolUseGroup } from "./tool-use-group";
-import { getMarkdownPlugins } from "../math";
-import { AlertBlockquote } from "../PlanMarkdown/AlertBlockquote";
 
 function buildSuppressIndices(events: PresentationEvent[]): Set<number> {
   const indices = new Set<number>();
@@ -23,7 +21,8 @@ function buildSuppressIndices(events: PresentationEvent[]): Set<number> {
     if (
       cur.kind === "assistant-text" &&
       next.kind === "result" &&
-      next.wire.response?.trim() === cur.text.trim()
+      (next.wire.response?.trim() === cur.text.trim() ||
+        Boolean(next.wire.response && next.wire.response.trim().length > 0))
     ) {
       indices.add(i);
     }
@@ -60,12 +59,13 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
   statusLabelOverride,
   groupToolCalls = false,
 }) => {
-  const parsedEvents = useMemo<PresentationEvent[]>(
-    () => (jsonStream ? parseEventWireStream(jsonStream) : []),
-    [jsonStream],
-  );
+  /* One parse per stream update: the presentation events and the run's metrics are two
+     derivations of the same wires. */
+  const wires = useMemo(() => (jsonStream ? parseEventWires(jsonStream) : []), [jsonStream]);
+  const parsedEvents = useMemo<PresentationEvent[]>(() => presentEventWires(wires), [wires]);
 
   const derived = useMemo(() => deriveStatus(parsedEvents), [parsedEvents]);
+  const metrics = useMemo(() => deriveStreamMetrics(wires), [wires]);
   const statusText = statusLabelOverride ?? derived.text;
   const isComplete = derived.complete;
 
@@ -160,12 +160,7 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
             case "assistant-text":
               return (
                 <div key={idx} className="aov-markdown aov-assistant">
-                  <Markdown
-                    {...getMarkdownPlugins(event.text)}
-                    components={{ code: BlockHandler, blockquote: AlertBlockquote, pre: ({ children }) => <>{children}</> }}
-                  >
-                    {event.text}
-                  </Markdown>
+                  <BlockMarkdown content={event.text} />
                 </div>
               );
             case "result":
@@ -185,7 +180,13 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
         })}
         {showStatusLabel && !isComplete && (
           <div className="aov-status-row">
-            <AnimatedStatus statusText={statusText} isComplete={isComplete} />
+            <StatusLine
+              statusText={statusText}
+              isComplete={isComplete}
+              startedAt={metrics.startedAt}
+              tokens={metrics.tokens}
+              tokensEstimated={metrics.tokensEstimated}
+            />
           </div>
         )}
       </div>

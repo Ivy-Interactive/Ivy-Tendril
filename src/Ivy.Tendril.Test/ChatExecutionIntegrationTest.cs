@@ -161,9 +161,7 @@ public class ChatExecutionIntegrationTest
 
         var sp = CreateServiceProvider(configService, chatService, agentRunner, serializer);
 
-        var app = new Ivy.Tendril.Apps.Chat.ChatApp();
-        var contentBuilder = new Ivy.ContentBuilder();
-        var tree = new Ivy.Core.WidgetTree(app, contentBuilder, sp);
+        var (_, tree) = CreateChatHost(sp);
 
         var buildTask = tree.BuildAsync();
         var completedTask = await Task.WhenAny(buildTask, Task.Delay(5000));
@@ -198,9 +196,7 @@ public class ChatExecutionIntegrationTest
 
             var sp = CreateServiceProvider(configService, chatService, agentRunner, serializer);
 
-            var app = new Ivy.Tendril.Apps.Chat.ChatApp();
-            var contentBuilder = new Ivy.ContentBuilder();
-            var tree = new Ivy.Core.WidgetTree(app, contentBuilder, sp);
+            var (_, tree) = CreateChatHost(sp);
 
             var buildTask = tree.BuildAsync();
             var completedTask = await Task.WhenAny(buildTask, Task.Delay(5000));
@@ -239,7 +235,7 @@ public class ChatExecutionIntegrationTest
             var sp = CreateServiceProvider(configService, chatService, agentRunner, serializer);
             var ctx = new Ivy.Core.Hooks.ViewContext(() => { }, null, sp);
 
-            var app = new Ivy.Tendril.Apps.Chat.ChatApp();
+            var (app, _) = CreateChatHost(sp);
             app.BeforeBuild(ctx);
             var built = app.Build();
             app.AfterBuild();
@@ -257,6 +253,48 @@ public class ChatExecutionIntegrationTest
 
             _output.WriteLine($"Refresh count after second build: {refreshCount}");
             Assert.True(refreshCount <= 2, $"Refresh count was too high: {refreshCount}");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    private sealed class RecordingNamingService : IChatSessionNamingService
+    {
+        public List<(string SessionId, string Prompt)> Calls { get; } = [];
+
+        public Task GenerateAndSetTitleAsync(string sessionId, string userPrompt, string? agentId = null, string? modelId = null, CancellationToken ct = default)
+        {
+            Calls.Add((sessionId, userPrompt));
+            return Task.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public async Task ChatExecutionService_SendMessageAsync_NamesTheSessionFromItsFirstPromptOnly()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatNamingTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var configService = new ConfigService(new TendrilSettings { CodingAgent = "codex" }, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var naming = new RecordingNamingService();
+            var execService = new ChatExecutionService(configService, chatService, TestAgentRunner.Create(), naming, new JsonEventSerializer());
+
+            var sess = chatService.CreateSession("codex", "gpt-5.6-sol");
+            _ = execService.SendMessageAsync(sess.Id, "Fix the login bug");
+            await execService.CancelAsync(sess.Id);
+            _ = execService.SendMessageAsync(sess.Id, "And add a test");
+            await execService.CancelAsync(sess.Id);
+
+            var call = Assert.Single(naming.Calls);
+            Assert.Equal((sess.Id, "Fix the login bug"), call);
         }
         finally
         {
@@ -378,7 +416,7 @@ public class ChatExecutionIntegrationTest
             var sp = CreateServiceProvider(configService, chatService, agentRunner, serializer);
             var ctx = new Ivy.Core.Hooks.ViewContext(() => { }, null, sp);
 
-            var app = new Ivy.Tendril.Apps.Chat.ChatApp();
+            var (app, _) = CreateChatHost(sp);
             app.BeforeBuild(ctx);
             var built = app.Build();
             app.AfterBuild();
@@ -464,14 +502,14 @@ public class ChatExecutionIntegrationTest
             var ctxApp = new Ivy.Core.Hooks.ViewContext(() => { }, null, sp);
             var ctxContent = new Ivy.Core.Hooks.ViewContext(() => { }, null, sp);
 
-            var app = new Ivy.Tendril.Apps.Chat.ChatApp();
+            // The chat list now lives in the shell sidebar: the app builds to its content view plus
+            // the (closed) search dialog trigger.
+            var (app, _) = CreateChatHost(sp);
             app.BeforeBuild(ctxApp);
-            var built1 = app.Build() as Ivy.SidebarLayout;
+            var contentView1 = (app.Build() as Ivy.Fragment)?.Children[0] as Ivy.Tendril.Apps.Chat.ContentView;
             app.AfterBuild();
             ctxApp.Reset();
 
-            Assert.NotNull(built1);
-            var contentView1 = built1.Children.OfType<Ivy.Slot>().First(s => s.Name == "MainContent").Children.First() as Ivy.Tendril.Apps.Chat.ContentView;
             Assert.NotNull(contentView1);
 
             // Initial build: not generating, empty stream snapshot
@@ -507,11 +545,10 @@ public class ChatExecutionIntegrationTest
 
             // Re-render ChatApp
             app.BeforeBuild(ctxApp);
-            var built2 = app.Build() as Ivy.SidebarLayout;
+            var contentView2 = (app.Build() as Ivy.Fragment)?.Children[0] as Ivy.Tendril.Apps.Chat.ContentView;
             app.AfterBuild();
             ctxApp.Reset();
 
-            var contentView2 = built2!.Children.OfType<Ivy.Slot>().First(s => s.Name == "MainContent").Children.First() as Ivy.Tendril.Apps.Chat.ContentView;
             Assert.NotNull(contentView2);
 
             var ctxContent2 = new Ivy.Core.Hooks.ViewContext(() => { }, null, sp);
@@ -614,7 +651,36 @@ public class ChatExecutionIntegrationTest
         services.AddSingleton<IChatExecutionService, ChatExecutionService>();
         services.AddSingleton<IUploadService>(new Ivy.UploadService("conn1", null!));
         services.AddSingleton<IClientProvider>(new DummyClientProvider());
+        // The chat publishes its sidebar list through a shell signal and navigates on selection,
+        // both of which resolve the connection's session from the store.
+        var sessionStore = new Ivy.Core.Server.AppSessionStore();
+        services.AddSingleton(sessionStore);
+        services.AddSingleton(new Ivy.SignalRouter(sessionStore));
+        services.AddSingleton<Ivy.Core.Apps.IAppRepository>(new Ivy.Core.Apps.AppRepository());
         return services.BuildServiceProvider();
+    }
+
+    /// <summary>The chat app with a widget tree, registered as the connection's session so signals resolve.</summary>
+    private static (Ivy.Tendril.Apps.Chat.ChatApp App, Ivy.Core.WidgetTree Tree) CreateChatHost(IServiceProvider sp)
+    {
+        var app = new Ivy.Tendril.Apps.Chat.ChatApp();
+        var contentBuilder = new Ivy.ContentBuilder();
+        var tree = new Ivy.Core.WidgetTree(app, contentBuilder, sp);
+        var store = sp.GetRequiredService<Ivy.Core.Server.AppSessionStore>();
+        store.Sessions["conn1"] = new Ivy.Core.Apps.AppSession
+        {
+            ConnectionId = "conn1",
+            AppId = "chat",
+            MachineId = "mach1",
+            ParentId = null,
+            WidgetTree = tree,
+            AppDescriptor = Ivy.Core.Apps.AppHelpers.GetApp(typeof(Ivy.Tendril.Apps.Chat.ChatApp)),
+            App = app,
+            ContentBuilder = contentBuilder,
+            AppServices = sp,
+            LastInteraction = DateTime.UtcNow,
+        };
+        return (app, tree);
     }
 
     [Fact]
@@ -641,9 +707,7 @@ public class ChatExecutionIntegrationTest
 
             var sp = CreateServiceProvider(configService, chatService, agentRunner, serializer);
 
-            var app = new Ivy.Tendril.Apps.Chat.ChatApp();
-            var contentBuilder = new Ivy.ContentBuilder();
-            var tree = new Ivy.Core.WidgetTree(app, contentBuilder, sp);
+            var (_, tree) = CreateChatHost(sp);
 
             var buildTask = tree.BuildAsync();
             var completedTask = await Task.WhenAny(buildTask, Task.Delay(5000));
@@ -672,6 +736,126 @@ public class ChatExecutionIntegrationTest
     private sealed class DummyClientSender : IClientSender
     {
         public void Send(string method, object? data) { }
+    }
+}
+
+public class ChatExecutionServiceTests
+{
+    [Fact]
+    public async Task SendMessageAsync_WhenProcessKilledOrCancelled_PreservesPartialStreamOnDisk()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatExecCancelTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+
+            var execService = new ChatExecutionService(configService, chatService, agentRunner, namingService, serializer);
+
+            var sess = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            // Start sending message
+            _ = execService.SendMessageAsync(sess.Id, "Hello test message");
+
+            // Verify session is marked generating
+            Assert.True(execService.IsGenerating(sess.Id));
+
+            // Emit live stream lines
+            execService.EmitStreamLine(sess.Id, "{\"kind\":\"thinking\",\"content\":\"planning response\"}");
+            execService.EmitStreamLine(sess.Id, "{\"kind\":\"text\",\"text\":\"partial answer\"}");
+
+            // Cancel execution (simulates user stop, cancellation, or process interruption)
+            await execService.CancelAsync(sess.Id);
+            Assert.False(execService.IsGenerating(sess.Id));
+
+            // Verify in-memory session contains assistant message with the partial stream
+            var inMemorySession = chatService.GetSession(sess.Id);
+            Assert.NotNull(inMemorySession);
+            Assert.True(inMemorySession.Messages.Count >= 2);
+            var assistantMsg = inMemorySession.Messages.Last();
+            Assert.Equal("assistant", assistantMsg.Role);
+            Assert.NotNull(assistantMsg.RawStream);
+            Assert.Contains("planning response", assistantMsg.RawStream);
+            Assert.Contains("partial answer", assistantMsg.RawStream);
+
+            // Verify disk persistence by loading in a fresh ChatHistoryService instance (simulating restart)
+            var restartConfigService = new ConfigService(config, tempDir);
+            var restartedChatService = new ChatHistoryService(restartConfigService);
+            var persistedSession = restartedChatService.GetSession(sess.Id);
+            Assert.NotNull(persistedSession);
+            Assert.True(persistedSession.Messages.Count >= 2);
+            var persistedAssistantMsg = persistedSession.Messages.Last();
+            Assert.Equal("assistant", persistedAssistantMsg.Role);
+            Assert.NotNull(persistedAssistantMsg.RawStream);
+            Assert.Contains("planning response", persistedAssistantMsg.RawStream);
+            Assert.Contains("partial answer", persistedAssistantMsg.RawStream);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ActiveStream_FlushesIncrementally()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatIncrementalFlushTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+
+            var execService = new ChatExecutionService(configService, chatService, agentRunner, namingService, serializer);
+
+            var sess = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            _ = execService.SendMessageAsync(sess.Id, "Hello streaming test");
+            Assert.True(execService.IsGenerating(sess.Id));
+
+            // Emit first line
+            execService.EmitStreamLine(sess.Id, "{\"kind\":\"thinking\",\"content\":\"first thought\"}");
+
+            // Wait 1.1s so the throttle window elapses
+            await Task.Delay(1100);
+
+            // Emit second line which triggers the throttled persist
+            execService.EmitStreamLine(sess.Id, "{\"kind\":\"text\",\"text\":\"second thought\"}");
+
+            // Wait briefly for timer/write
+            await Task.Delay(200);
+
+            // Verify file on disk before completion or cancellation
+            var sessionFile = Path.Combine(tempDir, "Chats", $"{sess.Id}.json");
+            Assert.True(File.Exists(sessionFile));
+
+            var json = File.ReadAllText(sessionFile);
+            Assert.Contains("first thought", json);
+
+            // Clean up
+            await execService.CancelAsync(sess.Id);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
     }
 }
 

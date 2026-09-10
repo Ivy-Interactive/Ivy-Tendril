@@ -192,8 +192,16 @@ public sealed class ClaudeCli : IAgentCli
 
         if (!string.IsNullOrEmpty(config.SessionId))
         {
-            args.Add("--session-id");
-            args.Add(config.SessionId);
+            if (config.Resume)
+            {
+                args.Add("--resume");
+                args.Add(config.SessionId);
+            }
+            else
+            {
+                args.Add("--session-id");
+                args.Add(config.SessionId);
+            }
         }
 
         if (config.MaxTurns.HasValue)
@@ -255,7 +263,9 @@ public sealed class ClaudeCli : IAgentCli
         new Dictionary<string, string>
         {
             ["CI"] = "true",
-            ["TERM"] = "dumb"
+            ["TERM"] = "dumb",
+            ["BASH_DEFAULT_TIMEOUT_MS"] = "300000",
+            ["BASH_MAX_TIMEOUT_MS"] = "600000",
         };
 
     private static string NormalizeClaudeModel(string model)

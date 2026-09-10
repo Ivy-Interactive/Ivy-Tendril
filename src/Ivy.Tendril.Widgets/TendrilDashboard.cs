@@ -1,20 +1,47 @@
 namespace Ivy.Tendril.Widgets;
 
-public record DashboardKpiDto(string Label, string Value, string? Delta = null, string? Direction = null);
+/// <param name="Hint">
+///     A second line under the value, for a figure that is not actionable without its basis (the cost
+///     forecast states the day counts it projected from here). Null on the cards that need none.
+/// </param>
+public record DashboardKpiDto(
+    string Label,
+    string Value,
+    string? Delta = null,
+    string? Direction = null,
+    string? Hint = null,
+    string? Id = null,
+    string? SubValue = null);
 
-public record DashboardMonthValueDto(string Label, double Value);
+public record DashboardMonthValueDto(
+    string Label,
+    double Value,
+    int? Year = null,
+    int? Month = null,
+    int? Day = null,
+    string? Date = null);
 
-public record DashboardActivityMonthDto(string Label, List<int> Weeks);
+public record DashboardActivityDayDto(string Date, int Count);
+
+public record DashboardActivityMonthDto(string Label, List<int> Weeks, List<DashboardActivityDayDto>? Days = null);
 
 /// <summary>Row in the Active Jobs card. Status is lowercased; "running" spins the row's loader.</summary>
 public record DashboardJobDto(string Id, string PlanId, string Title, string Status);
 
+/// <param name="Dates">
+///     One <c>yyyy-MM-dd</c> per plotted day, ascending and contiguous. The frontend formats the axis
+///     and the tooltip from these, so the series carries no pre-rendered labels.
+/// </param>
+/// <param name="RollingCost">
+///     A 7 day trailing mean aligned to <paramref name="Dates" />, null where the window reaches back
+///     past the earliest record. A gap here is drawn as a gap in the curve.
+/// </param>
 public record DashboardTrendDto(
-    List<string> Months,
+    List<string> Dates,
     List<double> Cost,
     List<double> Plans,
-    List<double?> PrevCost,
-    List<double?> PrevPlans);
+    List<double?> RollingCost,
+    List<double?> RollingPlans);
 
 [ExternalWidget(
     "frontend/dist/ivy-tendril-widgets.js",
@@ -66,7 +93,9 @@ public record TendrilDashboard : WidgetBase<TendrilDashboard>
     [Prop] public int FailedCount { get; init; }
     [Prop] public List<DashboardKpiDto> Kpis { get; init; } = new();
     [Prop] public DashboardTrendDto? Trend { get; init; }
+    [Prop] public DashboardTrendDto? TrendWeekly { get; init; }
     [Prop] public List<DashboardMonthValueDto> PullRequests { get; init; } = new();
+    [Prop] public List<DashboardMonthValueDto> PullRequestsWeekly { get; init; } = new();
     [Prop] public List<DashboardActivityMonthDto> Activity { get; init; } = new();
     [Prop] public List<DashboardJobDto> Jobs { get; init; } = new();
 
@@ -74,6 +103,7 @@ public record TendrilDashboard : WidgetBase<TendrilDashboard>
     [Event] public EventHandler<Event<TendrilDashboard>>? OnReview { get; init; }
     [Event] public EventHandler<Event<TendrilDashboard>>? OnJobs { get; init; }
     [Event] public EventHandler<Event<TendrilDashboard, string>>? OnJob { get; init; }
+    [Event] public EventHandler<Event<TendrilDashboard, string>>? OnSelectKpi { get; init; }
 }
 
 public static class TendrilDashboardExtensions
@@ -108,8 +138,14 @@ public static class TendrilDashboardExtensions
     public static TendrilDashboard Trend(this TendrilDashboard w, DashboardTrendDto? value) =>
         w with { Trend = value };
 
+    public static TendrilDashboard TrendWeekly(this TendrilDashboard w, DashboardTrendDto? value) =>
+        w with { TrendWeekly = value };
+
     public static TendrilDashboard PullRequests(this TendrilDashboard w, List<DashboardMonthValueDto> value) =>
         w with { PullRequests = value };
+
+    public static TendrilDashboard PullRequestsWeekly(this TendrilDashboard w, List<DashboardMonthValueDto> value) =>
+        w with { PullRequestsWeekly = value };
 
     public static TendrilDashboard Activity(this TendrilDashboard w, List<DashboardActivityMonthDto> value) =>
         w with { Activity = value };
@@ -128,4 +164,7 @@ public static class TendrilDashboardExtensions
 
     public static TendrilDashboard OnJob(this TendrilDashboard w, Action<string> handler) =>
         w with { OnJob = new(e => { handler(e.Value); return ValueTask.CompletedTask; }) };
+
+    public static TendrilDashboard OnSelectKpi(this TendrilDashboard w, Action<string> handler) =>
+        w with { OnSelectKpi = new(e => { handler(e.Value); return ValueTask.CompletedTask; }) };
 }

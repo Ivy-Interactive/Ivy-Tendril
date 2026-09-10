@@ -54,4 +54,25 @@ public class CodexModelCatalogTests
         Assert.Equal("codex", result.AgentId);
         Assert.NotEmpty(result.Models);
     }
+
+    [Fact]
+    public void GetStaticModels_ContainsGpt6Astra_WithValidConfiguration()
+    {
+        var models = _catalog.GetStaticModels();
+        var astra = models.FirstOrDefault(m => m.Id == "gpt-6-astra");
+
+        Assert.NotNull(astra);
+        Assert.Equal("GPT-6 Astra", astra.DisplayName);
+        Assert.Equal("openai", astra.Provider);
+        Assert.Equal(10.00m, astra.InputPerMillion);
+        Assert.Equal(40.00m, astra.OutputPerMillion);
+        Assert.Equal(2.50m, astra.CacheReadPerMillion);
+        Assert.Equal(12.50m, astra.CacheWritePerMillion);
+        Assert.Equal(400_000, astra.ContextWindow);
+        Assert.Equal(32_000, astra.MaxOutputTokens);
+        Assert.True(astra.Capabilities.HasFlag(ModelCapabilities.Reasoning));
+        Assert.True(astra.Capabilities.HasFlag(ModelCapabilities.CodeGeneration));
+        Assert.True(astra.Capabilities.HasFlag(ModelCapabilities.ToolUse));
+        Assert.True(astra.Capabilities.HasFlag(ModelCapabilities.Streaming));
+    }
 }

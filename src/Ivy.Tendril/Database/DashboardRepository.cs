@@ -6,6 +6,13 @@ namespace Ivy.Tendril.Database;
 
 public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSlim lockSlim)
 {
+    /// <summary>
+    ///     How far back the daily series go: 365 days the trend chart plots, six leading days so its
+    ///     first plotted point has a full 7 day rolling window, and 365 more for the prior-year
+    ///     comparison the long range draws against.
+    /// </summary>
+    internal const int DailyTrendWindowDays = 736;
+
     private sealed class ReadLockHandle : IDisposable
     {
         private readonly ReaderWriterLockSlim _lock;
@@ -39,8 +46,12 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                         COALESCE(SUM(CASE WHEN State = 'Review' THEN 1 ELSE 0 END), 0),
                         COALESCE(SUM(CASE WHEN State = 'Completed' THEN 1 ELSE 0 END), 0),
                         COALESCE(SUM(CASE WHEN State = 'Failed' THEN 1 ELSE 0 END), 0),
-                        (SELECT CASE WHEN COUNT(DISTINCT p2.Id) > 0
-                            THEN COALESCE(SUM(c2.Cost), 0) / COUNT(DISTINCT p2.Id) ELSE 0 END
+                        -- Averaged over the plans that could be priced, not over every plan with a
+                        -- Costs row: a subscription run stores NULL, and counting it in the divisor
+                        -- would report an average nobody spent. COUNT(column) skips NULL for us.
+                        (SELECT CASE WHEN COUNT(DISTINCT CASE WHEN c2.Cost IS NOT NULL THEN p2.Id END) > 0
+                            THEN COALESCE(SUM(c2.Cost), 0)
+                                 / COUNT(DISTINCT CASE WHEN c2.Cost IS NOT NULL THEN p2.Id END) ELSE 0 END
                          FROM Costs c2 JOIN Plans p2 ON p2.Id = c2.PlanId
                          WHERE p2.Created >= @cutoff AND p2.State IN ('Completed', 'Failed', 'Review') {pfAlias2}
                         ) AS AvgCost
@@ -96,7 +107,7 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                         GROUP BY DATE(p.Updated)
                     ),
                     cte_costs AS (
-                        SELECT DATE(p.Updated) AS d, SUM(c.Cost) AS cost, SUM(c.Tokens) AS tokens
+                        SELECT DATE(p.Updated) AS d, COALESCE(SUM(c.Cost), 0) AS cost, SUM(c.Tokens) AS tokens
                         FROM Costs c JOIN Plans p ON p.Id = c.PlanId
                         WHERE p.Updated >= @cutoff AND p.State IN ('Completed', 'Failed', 'Review') {pfAlias}
                         GROUP BY DATE(p.Updated)
@@ -218,7 +229,7 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
             using (var cmd = connection.CreateCommand())
             {
                 cmd.CommandText = """
-                    SELECT strftime('%Y-%m', p.Updated) AS ym, SUM(c.Cost), SUM(c.Tokens)
+                    SELECT strftime('%Y-%m', p.Updated) AS ym, COALESCE(SUM(c.Cost), 0), SUM(c.Tokens)
                     FROM Costs c JOIN Plans p ON p.Id = c.PlanId
                     WHERE p.Updated >= @cutoff AND p.State IN ('Completed', 'Failed', 'Review')
                     GROUP BY ym
@@ -237,8 +248,9 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
             using (var cmd = connection.CreateCommand())
             {
                 cmd.CommandText = """
-                    SELECT CASE WHEN COUNT(DISTINCT p.Id) > 0
-                        THEN COALESCE(SUM(c.Cost), 0) / COUNT(DISTINCT p.Id) ELSE 0 END
+                    SELECT CASE WHEN COUNT(DISTINCT CASE WHEN c.Cost IS NOT NULL THEN p.Id END) > 0
+                        THEN COALESCE(SUM(c.Cost), 0)
+                             / COUNT(DISTINCT CASE WHEN c.Cost IS NOT NULL THEN p.Id END) ELSE 0 END
                     FROM Costs c JOIN Plans p ON p.Id = c.PlanId
                     WHERE p.Created >= @from AND p.Created < @to
                       AND p.State IN ('Completed', 'Failed', 'Review')
@@ -246,6 +258,81 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                 cmd.Parameters.AddWithValue("@from", today.AddDays(-13).ToString("yyyy-MM-dd"));
                 cmd.Parameters.AddWithValue("@to", today.AddDays(-6).ToString("yyyy-MM-dd"));
                 prevWeekAvgCost = Convert.ToDecimal(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
+            }
+
+            // Deliberately unfiltered by p.State: money an Executing plan has spent is already spent,
+            // and dropping it is a large part of why the monthly figures above read low. Bucketed on
+            // the cost row's own timestamp where it has one, so spend lands on the day it happened
+            // rather than the day the plan was last touched.
+            var dailyCosts = new List<DashboardDailyCost>();
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT DATE(COALESCE(c.LogTimestamp, p.Updated)) AS d,
+                           COALESCE(SUM(c.Cost), 0),
+                           COALESCE(SUM(c.Tokens), 0),
+                           COALESCE(SUM(CASE WHEN c.CostSource IN ('agent', 'computed') OR (c.CostSource IS NULL AND c.Cost > 0) THEN c.Cost ELSE 0 END), 0),
+                           COALESCE(SUM(CASE WHEN c.CostSource IN ('agent', 'computed') OR (c.CostSource IS NULL AND c.Cost > 0) THEN c.Tokens ELSE 0 END), 0),
+                           COALESCE(SUM(CASE WHEN c.CostSource = 'estimated' THEN c.Cost ELSE 0 END), 0),
+                           COALESCE(SUM(CASE WHEN c.CostSource = 'estimated' OR (c.CostSource IS NULL AND (c.Cost IS NULL OR c.Cost = 0)) THEN c.Tokens ELSE 0 END), 0)
+                    FROM Costs c JOIN Plans p ON p.Id = c.PlanId
+                    WHERE COALESCE(c.LogTimestamp, p.Updated) >= @cutoff
+                    GROUP BY d ORDER BY d
+                    """;
+                cmd.Parameters.AddWithValue("@cutoff",
+                    today.AddDays(-(DailyTrendWindowDays - 1)).ToString("O", CultureInfo.InvariantCulture));
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    if (!DateOnly.TryParse(r.GetString(0), CultureInfo.InvariantCulture, out var day))
+                        continue;
+                    dailyCosts.Add(new DashboardDailyCost(
+                        day,
+                        Convert.ToDecimal(r.GetValue(1), CultureInfo.InvariantCulture),
+                        Convert.ToInt64(r.GetValue(2), CultureInfo.InvariantCulture),
+                        Convert.ToDecimal(r.GetValue(3), CultureInfo.InvariantCulture),
+                        Convert.ToInt64(r.GetValue(4), CultureInfo.InvariantCulture),
+                        Convert.ToDecimal(r.GetValue(5), CultureInfo.InvariantCulture),
+                        Convert.ToInt64(r.GetValue(6), CultureInfo.InvariantCulture)));
+                }
+            }
+
+            var dailyPlans = new Dictionary<DateOnly, int>();
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT DATE(Created) AS d, COUNT(*)
+                    FROM Plans
+                    WHERE Created >= @cutoff
+                    GROUP BY d
+                    """;
+                cmd.Parameters.AddWithValue("@cutoff",
+                    today.AddDays(-(DailyTrendWindowDays - 1)).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    if (DateOnly.TryParse(r.GetString(0), CultureInfo.InvariantCulture, out var day))
+                        dailyPlans[day] = r.GetInt32(1);
+                }
+            }
+
+            // Where the daily series stop being silent about a gap and start meaning it. Clamped up to
+            // the retrieval window, because a record older than the window is not in the series either.
+            var windowStart = DateOnly.FromDateTime(today.AddDays(-(DailyTrendWindowDays - 1)));
+            DateOnly? dailyDataStart = null;
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = """
+                    SELECT MIN(d) FROM (
+                        SELECT DATE(Created) AS d FROM Plans
+                        UNION ALL
+                        SELECT DATE(COALESCE(c.LogTimestamp, p.Updated)) AS d
+                        FROM Costs c JOIN Plans p ON p.Id = c.PlanId
+                    )
+                    """;
+                if (cmd.ExecuteScalar() is string earliestText
+                    && DateOnly.TryParse(earliestText, CultureInfo.InvariantCulture, out var earliest))
+                    dailyDataStart = earliest > windowStart ? earliest : windowStart;
             }
 
             var months = new List<DashboardMonthStats>(monthsBack);
@@ -263,7 +350,82 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                 ));
             }
 
-            return new DashboardActivityStats(months, prevWeekAvgCost);
+            return new DashboardActivityStats(
+                months, prevWeekAvgCost, dailyCosts, dailyPlans, dailyDataStart);
+        }
+    }
+
+    public List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50)
+    {
+        using (new ReadLockHandle(lockSlim))
+        {
+            var results = new List<RecentMergedPrDto>();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT pr.PrUrl, p.Id, p.Title,
+                       (SELECT r.RepoPath FROM Repos r WHERE r.PlanId = p.Id LIMIT 1) AS Repo,
+                       p.Updated
+                FROM PullRequests pr
+                JOIN Plans p ON p.Id = pr.PlanId
+                WHERE p.State = 'Completed'
+                ORDER BY p.Updated DESC
+                LIMIT @limit
+                """;
+            cmd.Parameters.AddWithValue("@limit", limit);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                var prUrl = r.GetString(0);
+                var planId = r.GetInt32(1);
+                var title = r.GetString(2);
+                var repo = r.IsDBNull(3) ? null : r.GetString(3);
+                var updatedStr = r.GetString(4);
+                var updated = DateTime.TryParse(updatedStr, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var dt)
+                    ? dt
+                    : DateTime.UtcNow;
+                results.Add(new RecentMergedPrDto(prUrl, planId, title, repo, updated));
+            }
+            return results;
+        }
+    }
+
+    public List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7)
+    {
+        using (new ReadLockHandle(lockSlim))
+        {
+            var cutoff = DateTime.UtcNow.Date.AddDays(-(days - 1)).ToString("yyyy-MM-dd");
+            var results = new List<RecentPlanCostDto>();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT p.Id, p.Title, p.State, p.Created,
+                       SUM(c.Cost) AS TotalCost,
+                       COUNT(CASE WHEN c.Cost IS NOT NULL THEN 1 END) AS PricedRows,
+                       COALESCE(SUM(c.Tokens), 0) AS TotalTokens
+                FROM Plans p
+                LEFT JOIN Costs c ON c.PlanId = p.Id
+                WHERE p.Created >= @cutoff AND p.State IN ('Completed', 'Failed', 'Review')
+                GROUP BY p.Id, p.Title, p.State, p.Created
+                ORDER BY p.Created DESC
+                """;
+            cmd.Parameters.AddWithValue("@cutoff", cutoff);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                var planId = r.GetInt32(0);
+                var title = r.GetString(1);
+                var state = r.GetString(2);
+                var createdStr = r.GetString(3);
+                var created = DateTime.TryParse(createdStr, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var dt)
+                    ? dt
+                    : DateTime.UtcNow;
+                var pricedRows = r.GetInt32(5);
+                decimal? cost = pricedRows > 0 && !r.IsDBNull(4)
+                    ? Convert.ToDecimal(r.GetValue(4), CultureInfo.InvariantCulture)
+                    : null;
+                var tokens = Convert.ToInt64(r.GetValue(6), CultureInfo.InvariantCulture);
+                results.Add(new RecentPlanCostDto(planId, title, state, created, cost, tokens));
+            }
+            return results;
         }
     }
 }

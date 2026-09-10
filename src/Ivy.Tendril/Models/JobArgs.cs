@@ -21,6 +21,7 @@ public abstract record JobArgsBase
     [JsonIgnore]
     public virtual string? PlanFolder => null;
     public List<string>? WaitForJobs { get; init; }
+    public string? ChatSessionId { get; init; }
 }
 
 public record CreatePlanArgs(
@@ -81,7 +82,8 @@ public record CreatePrArgs(
     bool IncludeArtifacts = true,
     string[]? Reviewers = null,
     string? Comment = null,
-    bool Draft = false) : JobArgsBase
+    bool Draft = false,
+    string? BaseBranch = null) : JobArgsBase
 {
     public override string Type => Constants.JobTypes.CreatePr;
     public override string PlanFolder => FolderPath;

@@ -4,6 +4,7 @@ using Ivy.Tendril.Agents;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Telemetry;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -22,8 +23,26 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<IConfigService>(configService);
         server.Services.AddSingleton<ConfigService>(configService);
         server.Services.AddSingleton<IChatHistoryService, ChatHistoryService>();
+        server.Services.AddSingleton<IChatAgentPreferences, ChatAgentPreferences>();
         server.Services.AddSingleton<IChatSessionNamingService, ChatSessionNamingService>();
-        server.Services.AddSingleton<IChatExecutionService, ChatExecutionService>();
+        server.Services.AddSingleton<ChatExecutionService>();
+        server.Services.AddSingleton<IChatExecutionService>(sp =>
+        {
+            var execService = sp.GetRequiredService<ChatExecutionService>();
+            Program.SetChatExecutionServiceForCleanup(execService);
+
+            var appLifetime = sp.GetService<Microsoft.Extensions.Hosting.IHostApplicationLifetime>();
+            appLifetime?.ApplicationStopping.Register(() =>
+            {
+                try
+                {
+                    execService.Dispose();
+                }
+                catch { }
+            });
+
+            return execService;
+        });
         server.Services.AddSingleton<ICreatePlanPreferences, CreatePlanPreferences>();
 
         Program.SetConfigServiceForCleanup(configService);
@@ -117,6 +136,7 @@ internal static class ServiceRegistration
         });
 
         server.Services.AddSingleton<ModelPricingService>();
+        server.Services.AddSingleton<AgentUsageService>();
 
         if (configService.Settings.Llm is { } llmConfig && !string.IsNullOrEmpty(llmConfig.ApiKey))
             server.Services.AddSingleton<IChatClient>(sp =>
@@ -201,7 +221,9 @@ internal static class ServiceRegistration
                 sp.GetRequiredService<ITelemetryService>(),
                 sp.GetRequiredService<IPlanWatcherService>(),
                 string.IsNullOrEmpty(cfg.TendrilHome) ? null : sp.GetRequiredService<IPlanDatabaseService>(),
-                sp.GetRequiredService<IAgentRunner>());
+                sp.GetRequiredService<IAgentRunner>(),
+                sp.GetRequiredService<IModelPricingProvider>(),
+                sp.GetService<IChatHistoryService>());
         });
         server.Services.AddSingleton<IJobService>(sp => sp.GetRequiredService<JobService>());
         server.Services.AddSingleton<PlanWatcherService>(sp =>
@@ -228,6 +250,8 @@ internal static class ServiceRegistration
             return new InboxWatcherService(config, jobService, sp.GetRequiredService<ILogger<InboxWatcherService>>());
         });
         server.Services.AddSingleton<IInboxWatcherService>(sp => sp.GetRequiredService<InboxWatcherService>());
+        server.Services.AddSingleton<Services.Inbox.AssignedIssuesAutoImportService>();
+        server.Services.AddSingleton<IStartable>(sp => sp.GetRequiredService<Services.Inbox.AssignedIssuesAutoImportService>());
         server.Services.AddSingleton<WorktreeCleanupService>(sp =>
         {
             var config = sp.GetRequiredService<IConfigService>();
@@ -289,9 +313,19 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<Services.Plans.IPlanDiffCommentService, Services.Plans.PlanDiffCommentService>();
         server.Services.AddTransient<Services.Share.IShareContext, Services.Share.ShareContext>();
         server.Services.AddSingleton<Services.Vault.IVaultService, Services.Vault.VaultService>();
+        server.Services.AddSingleton<Themes.IThemeSerializationService, Themes.ThemeSerializationService>();
 
         server.Services.AddSingleton<Services.Telemetry.ModelPricingWarmupService>();
         server.Services.AddSingleton<IStartable>(sp =>
             sp.GetRequiredService<Services.Telemetry.ModelPricingWarmupService>());
+
+        server.Services.AddSingleton<Services.Telemetry.CostBackfillService>(sp =>
+            new Services.Telemetry.CostBackfillService(
+                sp.GetRequiredService<IPlanDatabaseService>(),
+                sp.GetRequiredService<IModelPricingProvider>(),
+                sp.GetRequiredService<ILogger<Services.Telemetry.CostBackfillService>>(),
+                sp.GetRequiredService<JobService>()));
+        server.Services.AddSingleton<IStartable>(sp =>
+            sp.GetRequiredService<Services.Telemetry.CostBackfillService>());
     }
 }

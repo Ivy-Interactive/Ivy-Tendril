@@ -476,4 +476,50 @@ public class ClaudeCliTests
         var env = _cli.GetDefaultEnvironment();
         Assert.Equal("dumb", env["TERM"]);
     }
+
+    [Fact]
+    public void GetDefaultEnvironment_ContainsBashTimeoutDefaults()
+    {
+        var env = _cli.GetDefaultEnvironment();
+        Assert.Equal("300000", env["BASH_DEFAULT_TIMEOUT_MS"]);
+        Assert.Equal("600000", env["BASH_MAX_TIMEOUT_MS"]);
+    }
+
+    [Fact]
+    public void BuildProcessSpec_WithResume_ProducesResumeFlagAndOmitsSessionId()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            SessionId = "my-session-id",
+            Resume = true,
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        Assert.DoesNotContain("--session-id", spec.Arguments);
+        var idx = spec.Arguments.ToList().IndexOf("--resume");
+        Assert.True(idx >= 0);
+        Assert.Equal("my-session-id", spec.Arguments[idx + 1]);
+    }
+
+    [Fact]
+    public void BuildProcessSpec_WithoutResume_ProducesSessionIdFlag()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            SessionId = "my-session-id",
+            Resume = false,
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        Assert.DoesNotContain("--resume", spec.Arguments);
+        var idx = spec.Arguments.ToList().IndexOf("--session-id");
+        Assert.True(idx >= 0);
+        Assert.Equal("my-session-id", spec.Arguments[idx + 1]);
+    }
 }

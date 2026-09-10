@@ -108,13 +108,13 @@ public class PullRequestApp : ViewBase
             .Width(Size.Full())
             .Height(Size.Full())
             .Order(
-                e => e.Plan, 
-                e => e.Project, 
-                e => e.Status, 
-                e => e.Pr, 
-                e => e.Tokens, 
+                e => e.Plan,
+                e => e.Project,
+                e => e.Status,
+                e => e.Pr,
+                e => e.Tokens,
                 e => e.Cost,
-                e => e.Repository, 
+                e => e.Repository,
                 e => e.Branch)
             .Header(t => t.Project, "Project")
             .Header(t => t.Repository, "Repository")

@@ -275,4 +275,73 @@ public class CodexFailureAnalyzerTests
         Assert.True(result.IsRetryable);
         Assert.Contains("hit your usage limit", result.Reason);
     }
+
+    [Fact]
+    public void Analyze_SkillsBudgetWarningEvent_DoesNotMaskEarlierError()
+    {
+        var ctx = new FailureContext
+        {
+            Events =
+            [
+                new ErrorEvent
+                {
+                    Kind = AgentEventKind.Error,
+                    Message = "rate limit exceeded",
+                    RawLine = "",
+                },
+                new ErrorEvent
+                {
+                    Kind = AgentEventKind.Error,
+                    Message = "Skill descriptions were shortened to fit the 2% skills context budget.",
+                    RawLine = "",
+                }
+            ],
+            AgentId = AgentId.Codex,
+            ExitCode = 1,
+        };
+
+        var result = _analyzer.Analyze(ctx);
+
+        Assert.Equal(FailureKind.RateLimit, result.Kind);
+        Assert.Contains("rate limit", result.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("skill", result.Reason, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Analyze_SkillsBudgetWarningStderr_IgnoredInReasonAndContext()
+    {
+        var ctx = new FailureContext
+        {
+            Events = [],
+            AgentId = AgentId.Codex,
+            StderrLines = ["boom", "Warning: Exceeded skills context budget of 2%. Loaded skill descriptions were truncated..."],
+            ExitCode = 1,
+        };
+
+        var result = _analyzer.Analyze(ctx);
+
+        Assert.Equal(FailureKind.ProcessCrash, result.Kind);
+        Assert.Contains("boom", result.Reason);
+        Assert.DoesNotContain("skill", result.Reason, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(result.ContextLines);
+        Assert.DoesNotContain(result.ContextLines, l => l.Contains("skill", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Analyze_OnlySkillsBudgetWarning_ReportsPlainExitCode()
+    {
+        var ctx = new FailureContext
+        {
+            Events = [],
+            AgentId = AgentId.Codex,
+            StderrLines = ["Skill descriptions were shortened to fit the 2% skills context budget."],
+            ExitCode = 1,
+        };
+
+        var result = _analyzer.Analyze(ctx);
+
+        Assert.Equal(FailureKind.ProcessCrash, result.Kind);
+        Assert.Equal("Codex exited with code 1", result.Reason);
+        Assert.Empty(result.ContextLines);
+    }
 }

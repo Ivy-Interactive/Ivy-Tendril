@@ -1,315 +1,177 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import "./ChatWidget.testUtils";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import "@testing-library/jest-dom";
+import { ChatWidget, type ChatSessionDto } from "./ChatWidget";
+import { setupChatWidgetTestEnvironment } from "./ChatWidget.testUtils";
 
-vi.mock("pdfjs-dist", () => ({ GlobalWorkerOptions: {}, getDocument: vi.fn() }));
-vi.mock("pdfjs-dist/build/pdf.worker.mjs?url", () => ({ default: "" }));
-
-import { ChatWidget } from "./ChatWidget";
-
-describe("ChatWidget Queued Messages UI", () => {
+describe("ChatWidget Running Jobs Badge and Spinner", () => {
   beforeEach(() => {
-    window.ResizeObserver = class {
-      observe = vi.fn();
-      unobserve = vi.fn();
-      disconnect = vi.fn();
-    } as any;
-    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    setupChatWidgetTestEnvironment();
   });
 
-  it("renders queued messages panel when isStreaming and user queues messages", () => {
-    const handleEvent = vi.fn();
-    render(
-      <ChatWidget
-        id="test-chat"
-        isStreaming={true}
-        events={["OnSendMessage"]}
-        eventHandler={handleEvent}
-      />
-    );
-
-    const textarea = screen.getByPlaceholderText(/Ask/i);
-    const queueBtn = screen.getByRole("button", { name: /Queue/i });
-
-    // Queue first message
-    fireEvent.change(textarea, { target: { value: "test message 1" } });
-    fireEvent.click(queueBtn);
-
-    // Queue second message
-    fireEvent.change(textarea, { target: { value: "test message 2" } });
-    fireEvent.click(queueBtn);
-
-    expect(screen.getByText("Queued Messages")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
-    expect(screen.getByText("Sends after agent finishes working")).toBeInTheDocument();
-
-    expect(screen.getByText("test message 1")).toBeInTheDocument();
-    expect(screen.getByText("test message 2")).toBeInTheDocument();
-  });
-
-  it("allows collapsing and expanding the queued messages list", () => {
-    render(<ChatWidget id="test-chat" isStreaming={true} />);
-
-    const textarea = screen.getByPlaceholderText(/Ask/i);
-    const queueBtn = screen.getByRole("button", { name: /Queue/i });
-
-    fireEvent.change(textarea, { target: { value: "queued task" } });
-    fireEvent.click(queueBtn);
-
-    const toggleBtn = screen.getByRole("button", { name: /Collapse queued messages/i });
-    fireEvent.click(toggleBtn);
-
-    expect(screen.queryByText("queued task")).not.toBeInTheDocument();
-
-    const expandBtn = screen.getByRole("button", { name: /Expand queued messages/i });
-    fireEvent.click(expandBtn);
-
-    expect(screen.getByText("queued task")).toBeInTheDocument();
-  });
-
-  it("supports editing a queued message", () => {
-    render(<ChatWidget id="test-chat" isStreaming={true} />);
-
-    const textarea = screen.getByPlaceholderText(/Ask/i);
-    const queueBtn = screen.getByRole("button", { name: /Queue/i });
-
-    fireEvent.change(textarea, { target: { value: "original prompt" } });
-    fireEvent.click(queueBtn);
-
-    const editBtn = screen.getByRole("button", { name: /Edit message/i });
-    fireEvent.click(editBtn);
-
-    const editInput = screen.getByDisplayValue("original prompt");
-    fireEvent.change(editInput, { target: { value: "updated prompt" } });
-
-    const saveBtn = screen.getByRole("button", { name: /Save/i });
-    fireEvent.click(saveBtn);
-
-    expect(screen.getByText("updated prompt")).toBeInTheDocument();
-    expect(screen.queryByText("original prompt")).not.toBeInTheDocument();
-  });
-
-  it("supports sending a queued message immediately and deleting a queued message", () => {
-    const handleEvent = vi.fn();
-    render(
-      <ChatWidget
-        id="test-chat"
-        isStreaming={true}
-        events={["OnSendMessage"]}
-        eventHandler={handleEvent}
-      />
-    );
-
-    const textarea = screen.getByPlaceholderText(/Ask/i);
-    const queueBtn = screen.getByRole("button", { name: /Queue/i });
-
-    fireEvent.change(textarea, { target: { value: "message to send now" } });
-    fireEvent.click(queueBtn);
-
-    fireEvent.change(textarea, { target: { value: "message to delete" } });
-    fireEvent.click(queueBtn);
-
-    expect(screen.getByText("2")).toBeInTheDocument();
-
-    // Delete second message
-    const deleteBtns = screen.getAllByRole("button", { name: /Delete message/i });
-    fireEvent.click(deleteBtns[1]);
-
-    expect(screen.queryByText("message to delete")).not.toBeInTheDocument();
-    expect(screen.getByText("1")).toBeInTheDocument();
-
-    // Send first message now
-    const sendNowBtn = screen.getByRole("button", { name: /Send now/i });
-    fireEvent.click(sendNowBtn);
-
-    expect(handleEvent).toHaveBeenCalledWith(
-      "OnSendMessage",
-      "test-chat",
-      expect.arrayContaining([expect.objectContaining({ prompt: "message to send now" })])
-    );
-    expect(screen.queryByText("Queued Messages")).not.toBeInTheDocument();
-  });
-
-  it("renders queued messages passed via props upon mount and handles session switches", () => {
-    const queuedItems = [
-      { id: "q-1", prompt: "persisted queued prompt 1" },
-      { id: "q-2", prompt: "persisted queued prompt 2" },
-    ];
-
-    const { rerender } = render(
-      <ChatWidget
-        id="test-chat"
-        activeSessionId="sess-1"
-        isStreaming={true}
-        queuedMessages={queuedItems}
-      />
-    );
-
-    expect(screen.getByText("Queued Messages")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
-    expect(screen.getByText("persisted queued prompt 1")).toBeInTheDocument();
-    expect(screen.getByText("persisted queued prompt 2")).toBeInTheDocument();
-
-    // Rerender with empty queue (e.g. switched to another session)
-    rerender(
-      <ChatWidget
-        id="test-chat"
-        activeSessionId="sess-2"
-        isStreaming={false}
-        queuedMessages={[]}
-      />
-    );
-
-    expect(screen.queryByText("Queued Messages")).not.toBeInTheDocument();
-    expect(screen.queryByText("persisted queued prompt 1")).not.toBeInTheDocument();
-  });
-
-  it("emits backend sync events OnDeleteQueuedMessage, OnUpdateQueuedMessage, and OnSendQueuedNow", () => {
-    const handleEvent = vi.fn();
-    const queuedItems = [
-      { id: "q-edit", prompt: "to be edited" },
-      { id: "q-del", prompt: "to be deleted" },
-      { id: "q-send", prompt: "to be sent now" },
+  it("renders running jobs badge indicator, .spin loader, and .chat-jobs-pulse-dot when runningJobs has active jobs", () => {
+    const session: ChatSessionDto = {
+      id: "sess-0",
+      title: "Session 0",
+      agentId: "agent-1",
+      modelId: "model-1",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+    };
+    const runningJobs = [
+      { id: "job-1", type: "CreatePlan", status: "Running", planTitle: "Test Plan" },
     ];
 
     render(
       <ChatWidget
         id="test-chat"
-        activeSessionId="sess-1"
-        isStreaming={true}
-        queuedMessages={queuedItems}
-        events={["OnDeleteQueuedMessage", "OnUpdateQueuedMessage", "OnSendQueuedNow"]}
-        eventHandler={handleEvent}
-      />
+        activeSessionId="sess-0"
+        sessions={[session]}
+        runningJobs={runningJobs}
+      />,
     );
 
-    // Edit item
-    const editBtns = screen.getAllByRole("button", { name: /Edit message/i });
-    fireEvent.click(editBtns[0]);
-    const editInput = screen.getByDisplayValue("to be edited");
-    fireEvent.change(editInput, { target: { value: "edited content" } });
-    const saveBtn = screen.getByRole("button", { name: /Save/i });
-    fireEvent.click(saveBtn);
+    const badge = screen.getByRole("button", { name: /View running jobs/i });
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveClass("chat-jobs-badge", "running");
+    expect(within(badge).getByText(/1 running/i)).toBeInTheDocument();
 
-    expect(handleEvent).toHaveBeenCalledWith(
-      "OnUpdateQueuedMessage",
-      "test-chat",
-      ["q-edit", "edited content"]
-    );
+    const spinLoader = badge.querySelector(".spin");
+    expect(spinLoader).toBeInTheDocument();
 
-    // Delete item
-    const deleteBtns = screen.getAllByRole("button", { name: /Delete message/i });
-    fireEvent.click(deleteBtns[1]);
-
-    expect(handleEvent).toHaveBeenCalledWith(
-      "OnDeleteQueuedMessage",
-      "test-chat",
-      ["q-del"]
-    );
-
-    // Send item now
-    const sendNowBtns = screen.getAllByRole("button", { name: /Send now/i });
-    fireEvent.click(sendNowBtns[1]);
-
-    expect(handleEvent).toHaveBeenCalledWith(
-      "OnSendQueuedNow",
-      "test-chat",
-      ["q-send"]
-    );
+    const pulseDot = badge.querySelector(".chat-jobs-pulse-dot");
+    expect(pulseDot).toBeInTheDocument();
   });
 
-  it("preserves optimistically queued message when in-flight queuedMessages prop is empty", () => {
-    const handleEvent = vi.fn();
-    const { rerender } = render(
-      <ChatWidget
-        id="test-chat"
-        isStreaming={true}
-        activeSessionId="sess-1"
-        queuedMessages={[]}
-        events={["OnSendMessage"]}
-        eventHandler={handleEvent}
-      />
-    );
-
-    const textarea = screen.getByPlaceholderText(/Ask/i);
-    const queueBtn = screen.getByRole("button", { name: /Queue/i });
-
-    fireEvent.change(textarea, { target: { value: "optimistic prompt" } });
-    fireEvent.click(queueBtn);
-
-    expect(screen.getByText("Queued Messages")).toBeInTheDocument();
-    expect(screen.getByText("optimistic prompt")).toBeInTheDocument();
-
-    // Simulate in-flight SignalR update where server hasn't yet included the queued message
-    rerender(
-      <ChatWidget
-        id="test-chat"
-        isStreaming={true}
-        activeSessionId="sess-1"
-        queuedMessages={[]}
-        events={["OnSendMessage"]}
-        eventHandler={handleEvent}
-      />
-    );
-
-    // Should still be visible optimistically!
-    expect(screen.getByText("Queued Messages")).toBeInTheDocument();
-    expect(screen.getByText("optimistic prompt")).toBeInTheDocument();
-
-    // When server confirms the queued message
-    rerender(
-      <ChatWidget
-        id="test-chat"
-        isStreaming={true}
-        activeSessionId="sess-1"
-        queuedMessages={[{ id: "guid-server-123", prompt: "optimistic prompt" }]}
-        events={["OnSendMessage"]}
-        eventHandler={handleEvent}
-      />
-    );
-
-    expect(screen.getByText("Queued Messages")).toBeInTheDocument();
-    expect(screen.getByText("optimistic prompt")).toBeInTheDocument();
-  });
-
-  it("does not drop queued message when its content matches an existing historical message", () => {
-    const handleEvent = vi.fn();
-    const session = {
-      id: "sess-repeat",
-      title: "Repeat Test",
-      agentId: "claude",
-      modelId: "opus",
-      createdAt: "2026-08-15T12:00:00Z",
-      updatedAt: "2026-08-15T12:30:00Z",
-      messages: [{ id: "m-1", role: "user" as const, content: "what can you do?", timestamp: "10:00" }],
-      status: "generating" as const,
+  it("renders running jobs badge indicator when active session has spawned running jobs", () => {
+    const session: ChatSessionDto = {
+      id: "sess-1",
+      title: "Session 1",
+      agentId: "agent-1",
+      modelId: "model-1",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+      spawnedJobs: [
+        { id: "job-2", type: "ExecutePlan", status: "Running", planTitle: "Execution Plan" },
+      ],
     };
 
+    render(<ChatWidget id="test-chat" activeSessionId="sess-1" sessions={[session]} />);
+
+    const badge = screen.getByRole("button", { name: /View running jobs/i });
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveClass("chat-jobs-badge", "running");
+    expect(within(badge).getByText(/1 running/i)).toBeInTheDocument();
+
+    const spinLoader = badge.querySelector(".spin");
+    expect(spinLoader).toBeInTheDocument();
+
+    const pulseDot = badge.querySelector(".chat-jobs-pulse-dot");
+    expect(pulseDot).toBeInTheDocument();
+  });
+
+  it("renders running jobs badge to the left of action buttons in DOM order", () => {
+    const session: ChatSessionDto = {
+      id: "sess-order",
+      title: "Session Order",
+      agentId: "agent-1",
+      modelId: "model-1",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+    };
+    const runningJobs = [
+      { id: "job-1", type: "CreatePlan", status: "Running", planTitle: "Test Plan" },
+    ];
+
     render(
       <ChatWidget
         id="test-chat"
-        isStreaming={true}
-        activeSessionId="sess-repeat"
+        activeSessionId="sess-order"
         sessions={[session]}
-        queuedMessages={[]}
-        events={["OnSendMessage"]}
-        eventHandler={handleEvent}
-      />
+        runningJobs={runningJobs}
+      />,
     );
 
-    const textarea = screen.getByPlaceholderText(/Ask/i);
-    const queueBtn = screen.getByRole("button", { name: /Queue/i });
+    const badge = screen.getByRole("button", { name: /View running jobs/i });
+    const newChatBtn = screen.getByRole("button", { name: /New chat/i });
+    const chatOptionsBtn = screen.getByRole("button", { name: /Chat options/i });
 
-    fireEvent.change(textarea, { target: { value: "what can you do?" } });
-    fireEvent.click(queueBtn);
+    expect(badge).toBeInTheDocument();
+    expect(newChatBtn).toBeInTheDocument();
+    expect(chatOptionsBtn).toBeInTheDocument();
 
-    expect(screen.getByText("Queued Messages")).toBeInTheDocument();
-    // Verify it is inside the queued panel
-    const queuedItem = document.querySelector(".chat-queued-item-text");
-    expect(queuedItem).toHaveTextContent("what can you do?");
+    const actionsContainer = badge.closest(".chat-header-actions");
+    expect(actionsContainer).toBeInTheDocument();
+    expect(actionsContainer).toContainElement(badge);
+    expect(actionsContainer).toContainElement(newChatBtn);
+    expect(actionsContainer).toContainElement(chatOptionsBtn);
+
+    expect(
+      badge.compareDocumentPosition(newChatBtn) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      newChatBtn.compareDocumentPosition(chatOptionsBtn) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});
+
+describe("ChatWidget redesign", () => {
+  beforeEach(() => {
+    setupChatWidgetTestEnvironment();
   });
 
-  it("renders delete button next to chat title and directly emits OnDeleteSession upon click", () => {
+  const baseSession = (overrides: Partial<ChatSessionDto>): ChatSessionDto => ({
+    id: "sess-redesign",
+    title: "Redesign Chat",
+    agentId: "claude",
+    modelId: "opus",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    messages: [],
+    ...overrides,
+  });
+
+  const wire = (events: object[]) => events.map((e) => JSON.stringify(e)).join("\n");
+
+  it("renames the chat through the options menu and emits OnRenameSession", () => {
+    const handleEvent = vi.fn();
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-redesign"
+        sessions={[baseSession({})]}
+        events={["OnRenameSession"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Redesign Chat" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Chat options/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Edit name/i }));
+
+    const input = screen.getByRole("textbox", { name: /Chat name/i });
+    fireEvent.change(input, { target: { value: "Dark mode toggle" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(handleEvent).toHaveBeenCalledWith("OnRenameSession", "test-chat", [
+      ["sess-redesign", "Dark mode toggle"],
+    ]);
+    expect(screen.getByRole("heading", { name: "Dark mode toggle" })).toBeInTheDocument();
+  });
+
+  it("emits OnCreateSession from the header's new chat button", () => {
+    const handleEvent = vi.fn();
+    render(<ChatWidget id="test-chat" events={["OnCreateSession"]} eventHandler={handleEvent} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /New chat/i }));
+    expect(handleEvent).toHaveBeenCalledWith("OnCreateSession", "test-chat", []);
+  });
+
+  it("offers Delete chat in the header options menu and emits OnDeleteSession upon click", () => {
     const handleEvent = vi.fn();
     const session = {
       id: "sess-123",
@@ -328,23 +190,23 @@ describe("ChatWidget Queued Messages UI", () => {
         sessions={[session]}
         events={["OnDeleteSession"]}
         eventHandler={handleEvent}
-      />
+      />,
     );
 
-    const deleteBtn = screen.getByRole("button", { name: /Delete chat session/i });
+    expect(screen.queryByRole("menuitem", { name: /Delete chat/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Chat options/i }));
+
+    const deleteBtn = screen.getByRole("menuitem", { name: /Delete chat/i });
     expect(deleteBtn).toBeInTheDocument();
 
     fireEvent.click(deleteBtn);
+    expect(screen.queryByRole("menuitem", { name: /Delete chat/i })).not.toBeInTheDocument();
 
     expect(handleEvent).toHaveBeenCalledTimes(1);
-    expect(handleEvent).toHaveBeenCalledWith(
-      "OnDeleteSession",
-      "test-chat",
-      ["sess-123"]
-    );
+    expect(handleEvent).toHaveBeenCalledWith("OnDeleteSession", "test-chat", ["sess-123"]);
   });
 
-  it("renders effort picker and emits OnEffortChanged when changed", () => {
+  it("renders effort picker and emits OnEffortChanged for the selected agent when changed", () => {
     const handleEvent = vi.fn();
     const efforts = [
       { id: "default", displayName: "Default" },
@@ -357,6 +219,7 @@ describe("ChatWidget Queued Messages UI", () => {
       <ChatWidget
         id="test-chat"
         efforts={efforts}
+        selectedAgent="claude"
         selectedEffort="high"
         supportsEffort={true}
         events={["OnEffortChanged"]}
@@ -364,547 +227,416 @@ describe("ChatWidget Queued Messages UI", () => {
       />
     );
 
-    const effortTrigger = screen.getByTitle("Effort Level");
-    expect(effortTrigger).toBeInTheDocument();
-    expect(screen.getByText("High")).toBeInTheDocument();
+    // The effort select lives in the selected agent's options panel, behind its row's options button.
+    fireEvent.click(screen.getByRole("button", { name: /^Agent:/i }));
+    fireEvent.click(screen.getByRole("button", { name: "claude options" }));
+    const effortSelect = screen.getByLabelText("Effort Level");
+    expect(effortSelect).toHaveValue("high");
 
-    fireEvent.click(effortTrigger.querySelector("button")!);
-    const maxOption = screen.getByRole("button", { name: /Max/i });
-    fireEvent.click(maxOption);
+    fireEvent.change(effortSelect, { target: { value: "max" } });
 
     expect(handleEvent).toHaveBeenCalledWith(
       "OnEffortChanged",
       "test-chat",
-      ["max"]
+      [["claude", "max"]]
     );
   });
-});
 
-describe("ChatWidget File Uploads and Attachments", () => {
-  beforeEach(() => {
-    window.ResizeObserver = class {
-      observe = vi.fn();
-      unobserve = vi.fn();
-      disconnect = vi.fn();
-    } as any;
-    window.HTMLElement.prototype.scrollIntoView = vi.fn();
-  });
-
-  it("attaches non-image files (e.g. PDF and text files) on paste and prevents default text insertion", async () => {
-    render(<ChatWidget id="test-chat" />);
-    const textarea = screen.getByPlaceholderText(/Ask/i);
-
-    const pdfFile = new File(["dummy pdf content"], "sample.pdf", { type: "application/pdf" });
-    const textFile = new File(["line1\nline2\nline3"], "notes.txt", { type: "text/plain" });
-
-    const pasteEvent = {
-      clipboardData: {
-        files: [pdfFile, textFile],
-        items: [],
+  it("collapses a turn's tool calls behind one line and lists them with their in/out on demand", () => {
+    const rawStream = wire([
+      { kind: "session_init", timestamp: "t0", session_id: "s1", model: "opus" },
+      {
+        kind: "tool_call",
+        timestamp: "t1",
+        tool_use_id: "tu1",
+        tool_name: "Read",
+        input: { file_path: "/src/theme.ts" },
       },
-    };
-
-    fireEvent.paste(textarea, pasteEvent);
-
-    await waitFor(() => {
-      expect(screen.getByTitle("sample.pdf")).toBeInTheDocument();
-      expect(screen.getByText("notes.txt")).toBeInTheDocument();
-      expect(screen.getByText("PDF")).toBeInTheDocument();
-      expect(screen.getByText("TXT")).toBeInTheDocument();
+      {
+        kind: "tool_result",
+        timestamp: "t2",
+        tool_use_id: "tu1",
+        output: "export const theme = 1;",
+        is_error: false,
+      },
+      {
+        kind: "tool_call",
+        timestamp: "t3",
+        tool_use_id: "tu2",
+        tool_name: "Bash",
+        input: { command: "pnpm test" },
+      },
+      {
+        kind: "tool_result",
+        timestamp: "t4",
+        tool_use_id: "tu2",
+        output: "42 passed",
+        is_error: false,
+      },
+      { kind: "text", timestamp: "t5", text: "Plan 00059 started.", delta: false },
+      {
+        kind: "result",
+        timestamp: "t6",
+        response: "Plan 00059 started.",
+        is_success: true,
+        duration_ms: 125200,
+        usage: {
+          input_tokens: 140284,
+          output_tokens: 23009,
+          cache_read_tokens: 0,
+          cache_write_tokens: 0,
+          reasoning_tokens: 0,
+        },
+      },
+    ]);
+    const session = baseSession({
+      messages: [
+        {
+          id: "m-turn",
+          role: "assistant",
+          content: "Plan 00059 started.",
+          timestamp: "10:00",
+          rawStream,
+        },
+      ],
     });
+
+    const { container } = render(
+      <ChatWidget id="test-chat" activeSessionId="sess-redesign" sessions={[session]} />,
+    );
+
+    const toggle = screen.getByRole("button", { name: /2 tool calls/i });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Bash")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Plan 00059 started.")).toHaveLength(1);
+    expect(screen.getByText("125.2s")).toBeInTheDocument();
+    expect(screen.getByText("140,284 / 23,009")).toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Read")).toBeInTheDocument();
+    expect(screen.getByText("Bash")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Bash").closest(".aov-tool-header")!);
+    expect(screen.getByText("IN")).toBeInTheDocument();
+    expect(screen.getByText("OUT")).toBeInTheDocument();
+    expect(container.querySelector(".aov-tool-pre")).toHaveTextContent("pnpm test");
   });
 
-  it("supports dragging and dropping files onto chat input container with drag styling", async () => {
-    const { container } = render(<ChatWidget id="test-chat" />);
-    const inputBox = container.querySelector(".chat-input-box")!;
-    expect(inputBox).toBeInTheDocument();
-
-    // Drag enter
-    fireEvent.dragEnter(inputBox, {
-      dataTransfer: { dropEffect: "none" },
-    });
-    expect(inputBox).toHaveClass("dragging");
-
-    // Drag leave
-    fireEvent.dragLeave(inputBox);
-    expect(inputBox).not.toHaveClass("dragging");
-
-    // Drag over
-    fireEvent.dragOver(inputBox, {
-      dataTransfer: { dropEffect: "none" },
-    });
-    expect(inputBox).toHaveClass("dragging");
-
-    // Drop file
-    const droppedFile = new File(["test data"], "report.docx", { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
-    fireEvent.drop(inputBox, {
-      dataTransfer: { files: [droppedFile] },
-    });
-    expect(inputBox).not.toHaveClass("dragging");
-
-    await waitFor(() => {
-      expect(screen.getByText("report.docx")).toBeInTheDocument();
-      expect(screen.getByText("DOCX")).toBeInTheDocument();
-    });
-  });
-
-  it("supports removing an attached file via its thumbnail remove button", async () => {
-    render(<ChatWidget id="test-chat" />);
-    const textarea = screen.getByPlaceholderText(/Ask/i);
-
-    const file = new File(["content"], "delete-me.txt", { type: "text/plain" });
-    fireEvent.paste(textarea, {
-      clipboardData: { files: [file], items: [] },
-      preventDefault: vi.fn(),
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("delete-me.txt")).toBeInTheDocument();
-    });
-
-    const removeBtn = screen.getByRole("button", { name: /Remove attachment/i });
-    fireEvent.click(removeBtn);
-
-    expect(screen.queryByText("delete-me.txt")).not.toBeInTheDocument();
-  });
-
-  it("includes attachments in OnSendMessage event payload", async () => {
+  it("condenses a job completion system event into a plan link that emits OnOpenPlan", () => {
     const handleEvent = vi.fn();
+    const session = baseSession({
+      messages: [
+        {
+          id: "m-sys",
+          role: "system",
+          content:
+            "[System Event] Job 00148 (ExecutePlan) for '00059: Add dark mode toggle to vault theme settings' has finished with status: Completed (Completed successfully). Please inspect the outcome and guide the user.",
+          timestamp: "10:00",
+        },
+      ],
+    });
+
+    const { container } = render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-redesign"
+        sessions={[session]}
+        events={["OnOpenPlan"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    const row = container.querySelector(".chat-system-event-row") as HTMLElement;
+    expect(row).toHaveAttribute("data-kind", "completed");
+    expect(row).toHaveTextContent(
+      "Completed plan #59 Add dark mode toggle to vault theme settings.",
+    );
+    expect(screen.queryByText(/Please inspect/)).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "#59 Add dark mode toggle to vault theme settings" }),
+    );
+    expect(handleEvent).toHaveBeenCalledWith("OnOpenPlan", "test-chat", ["00059"]);
+  });
+
+  it("selects an agent from the picker and remembers a model or effort per agent from its options panel", () => {
+    const handleEvent = vi.fn();
+    const agents = [
+      { id: "claude", label: "Claude Code", icon: "ClaudeCode", supportsEffort: true },
+      { id: "codex", label: "Codex", icon: "OpenAI", models: [{ id: "gpt-5", displayName: "GPT-5" }], selectedModel: "gpt-5" },
+    ];
     render(
       <ChatWidget
         id="test-chat"
-        activeSessionId="sess-1"
-        events={["OnSendMessage"]}
+        agents={agents}
+        models={[{ id: "opus", displayName: "Opus" }]}
+        efforts={[{ id: "default", displayName: "Default" }, { id: "max", displayName: "Max" }]}
+        selectedAgent="claude"
+        selectedModel="opus"
+        selectedEffort="max"
+        events={["OnAgentChanged", "OnModelChanged", "OnEffortChanged"]}
         eventHandler={handleEvent}
       />
     );
 
-    const textarea = screen.getByPlaceholderText(/Ask/i);
-    const sendBtn = screen.getByRole("button", { name: /Send/i });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Agent: Claude Code" }));
 
-    const file = new File(["hello world"], "hello.py", { type: "text/x-python" });
-    fireEvent.paste(textarea, {
-      clipboardData: { files: [file], items: [] },
-      preventDefault: vi.fn(),
-    });
+    expect(screen.getByRole("menuitemradio", { name: "Claude Code" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByLabelText("Model")).not.toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(screen.getByText("hello.py")).toBeInTheDocument();
-    });
+    // A row's options button opens that agent's panel; its model is remembered without selecting it.
+    fireEvent.click(screen.getByRole("button", { name: "Codex options" }));
+    expect(screen.getByRole("group", { name: "Codex settings" })).toBeInTheDocument();
+    const codexModel = screen.getByLabelText("Model");
+    expect(codexModel).toHaveValue("gpt-5");
+    expect(codexModel.tagName).toBe("SELECT");
+    fireEvent.change(codexModel, { target: { value: "gpt-5" } });
+    expect(handleEvent).toHaveBeenCalledWith("OnModelChanged", "test-chat", [["codex", "gpt-5"]]);
+    expect(handleEvent).not.toHaveBeenCalledWith("OnAgentChanged", expect.anything(), expect.anything());
+    expect(screen.queryByLabelText("Effort Level")).not.toBeInTheDocument();
 
-    fireEvent.change(textarea, { target: { value: "Please review this code" } });
-    fireEvent.click(sendBtn);
+    // The selected agent's panel shows the host's model and effort; an effort change is remembered for it.
+    fireEvent.click(screen.getByRole("button", { name: "Claude Code options" }));
+    expect(screen.getByLabelText("Model")).toHaveValue("opus");
+    expect(screen.getByLabelText("Effort Level")).toHaveValue("max");
+    fireEvent.change(screen.getByLabelText("Effort Level"), { target: { value: "default" } });
+    expect(handleEvent).toHaveBeenCalledWith("OnEffortChanged", "test-chat", [["claude", "default"]]);
 
-    expect(handleEvent).toHaveBeenCalledWith(
-      "OnSendMessage",
-      "test-chat",
-      expect.arrayContaining([
-        expect.objectContaining({
-          prompt: "Please review this code",
-          sessionId: "sess-1",
-          attachments: expect.arrayContaining([
-            expect.objectContaining({
-              name: "hello.py",
-              contentType: "text/x-python",
-            }),
-          ]),
-        }),
-      ])
-    );
+    // Clicking a row selects that agent and closes the menu.
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Codex" }));
+    expect(handleEvent).toHaveBeenLastCalledWith("OnAgentChanged", "test-chat", ["codex"]);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Agent: Claude Code" }));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
-  it("renders user messages with attachments displaying clean badges instead of raw paths", () => {
-    const session = {
-      id: "sess-1",
-      title: "Chat with Files",
-      agentId: "antigravity",
-      modelId: "gemini-3.7-flash",
-      createdAt: "2026-08-15T12:00:00Z",
-      updatedAt: "2026-08-15T12:30:00Z",
+  it("scrolls a just-sent message to the top of the thread and keeps it there while the reply grows", () => {
+    const layout = { spacerTop: 360 };
+    Object.defineProperty(HTMLElement.prototype, "offsetTop", {
+      configurable: true,
+      get(this: HTMLElement) {
+        if (this.dataset.messageId) return 300;
+        if (this.classList.contains("chat-scroll-spacer")) return layout.spacerTop;
+        return 0;
+      },
+    });
+
+    try {
+      const session = baseSession({});
+      const { rerender } = render(
+        <ChatWidget
+          id="test-chat"
+          activeSessionId="sess-redesign"
+          sessions={[session]}
+          events={["OnSendMessage"]}
+          eventHandler={vi.fn()}
+        />,
+      );
+
+      const container = document.querySelector(".chat-messages-container") as HTMLDivElement;
+      const spacer = document.querySelector(".chat-scroll-spacer") as HTMLDivElement;
+      let scrollTop = 0;
+      Object.defineProperty(container, "clientHeight", { value: 400, configurable: true });
+      // The spacer is part of the scrollable content, as it would be in a browser.
+      Object.defineProperty(container, "scrollHeight", {
+        get: () => layout.spacerTop + parseFloat(spacer.style.height || "0"),
+        configurable: true,
+      });
+      Object.defineProperty(container, "scrollTop", {
+        get: () => scrollTop,
+        set: (v: number) => {
+          scrollTop = v;
+        },
+        configurable: true,
+      });
+
+      fireEvent.change(screen.getByPlaceholderText(/Ask/i), { target: { value: "pin me" } });
+      fireEvent.click(screen.getByRole("button", { name: /Send/i }));
+
+      // 400 viewport - (360 - 300) of content below the message - 10 padding = 330 of spacer.
+      expect(spacer.style.height).toBe("330px");
+      expect(scrollTop).toBe(290);
+
+      // The reply streams in below: the spacer gives way, the scroll offset stays.
+      layout.spacerTop = 500;
+      rerender(
+        <ChatWidget
+          id="test-chat"
+          activeSessionId="sess-redesign"
+          sessions={[session]}
+          isStreaming={true}
+          streamingText={JSON.stringify({
+            kind: "text",
+            timestamp: "t",
+            text: "working",
+            delta: false,
+          })}
+          events={["OnSendMessage"]}
+          eventHandler={vi.fn()}
+        />,
+      );
+      expect(spacer.style.height).toBe("190px");
+      expect(scrollTop).toBe(290);
+    } finally {
+      delete (HTMLElement.prototype as any).offsetTop;
+    }
+  });
+});
+
+describe("ChatWidget embedded mode", () => {
+  beforeEach(() => {
+    setupChatWidgetTestEnvironment();
+  });
+
+  it("drops the title bar and shows the plan greeting above the headline", () => {
+    const { container } = render(
+      <ChatWidget
+        id="embedded"
+        embedded
+        greeting="#59 Revamp the User Authentication Experience"
+        headline="Ask Tendril to Change Anything"
+      />,
+    );
+
+    expect(container.querySelector(".chat-widget-root")).toHaveAttribute("data-embedded", "true");
+    expect(container.querySelector(".chat-header")).toBeNull();
+    expect(screen.queryByRole("button", { name: "New chat" })).not.toBeInTheDocument();
+    expect(screen.getByText("#59 Revamp the User Authentication Experience")).toBeInTheDocument();
+    expect(screen.getByText("Ask Tendril to Change Anything")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Ask Tendril anything/)).toBeInTheDocument();
+  });
+
+  it("keeps the jobs menu reachable without the title bar", () => {
+    const session: ChatSessionDto = {
+      id: "s1",
+      title: "Plan chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [{ id: "m1", role: "user", content: "hi", timestamp: "" }],
+      spawnedJobs: [{ id: "00148", type: "ExecutePlan", status: "Running" }],
+    };
+    const { container } = render(
+      <ChatWidget id="embedded" embedded activeSessionId="s1" sessions={[session]} />,
+    );
+
+    expect(container.querySelector(".chat-header--embedded")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "View running jobs" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Chat options" })).not.toBeInTheDocument();
+  });
+});
+
+describe("ChatWidget Markdown Code Blocks", () => {
+  beforeEach(() => {
+    setupChatWidgetTestEnvironment();
+  });
+
+  it("renders assistant markdown code blocks inside pmv-code-block with copy button", () => {
+    const session: ChatSessionDto = {
+      id: "s-code",
+      title: "Code block test",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
       messages: [
         {
-          id: "m-1",
-          role: "user" as const,
-          content: "Here is the log file\n\n[Attached Files]:\n- /path/to/server-error.log\n- /path/to/data-export.csv",
-          timestamp: "12:00",
+          id: "m-user",
+          role: "user",
+          content: "Show me a code snippet",
+          timestamp: "",
+        },
+        {
+          id: "m-assistant",
+          role: "assistant",
+          content:
+            "Here is a TypeScript snippet:\n\n```typescript\nconst greeting = 'hello world';\nconsole.log(greeting);\n```\n\nAnd here is an untagged block:\n\n```\necho 'plain text block'\n```\n\nAnd an inline `const foo = 42;` value.",
+          timestamp: "",
         },
       ],
     };
 
-    render(
-      <ChatWidget
-        id="test-chat"
-        activeSessionId="sess-1"
-        sessions={[session]}
-      />
+    const { container } = render(
+      <ChatWidget id="test-chat" activeSessionId="s-code" sessions={[session]} />,
     );
 
-    expect(screen.getByText("Here is the log file")).toBeInTheDocument();
-    expect(screen.getByText("server-error.log")).toBeInTheDocument();
-    expect(screen.getByText("LOG")).toBeInTheDocument();
-    expect(screen.getByText("data-export.csv")).toBeInTheDocument();
-    expect(screen.getByText("CSV")).toBeInTheDocument();
-    expect(screen.queryByText("[Attached Files]:")).not.toBeInTheDocument();
-  });
+    const assistantRow = container.querySelector(".chat-message-row.assistant");
+    expect(assistantRow).toBeInTheDocument();
 
-  it("submitting a message with an attached file and empty text prompt emits OnSendMessage with empty prompt", async () => {
-    const handleEvent = vi.fn();
-    render(
-      <ChatWidget
-        id="test-chat"
-        activeSessionId="sess-1"
-        events={["OnSendMessage"]}
-        eventHandler={handleEvent}
-      />
+    const markdownBody = assistantRow?.querySelector(".chat-markdown-body");
+    expect(markdownBody).toBeInTheDocument();
+
+    const codeBlocks = assistantRow?.querySelectorAll(".pmv-code-block");
+    expect(codeBlocks?.length).toBe(2);
+
+    // Verify first code block (tagged)
+    const firstBlock = codeBlocks?.[0];
+    expect(firstBlock).toBeInTheDocument();
+    expect(firstBlock?.querySelector("button.pmv-code-copy")).toBeInTheDocument();
+    expect(firstBlock?.querySelector("pre")).toBeInTheDocument();
+    expect(firstBlock?.textContent).toContain("const greeting = 'hello world';");
+
+    // Verify second code block (untagged)
+    const secondBlock = codeBlocks?.[1];
+    expect(secondBlock).toBeInTheDocument();
+    expect(secondBlock?.querySelector("button.pmv-code-copy")).toBeInTheDocument();
+    expect(secondBlock?.querySelector("pre")).toBeInTheDocument();
+    expect(secondBlock?.querySelector("pre code")).toBeInTheDocument();
+    expect(secondBlock?.textContent).toContain("echo 'plain text block'");
+
+    // Verify inline code is rendered as standalone code tag outside pmv-code-block
+    const allCodeTags = assistantRow?.querySelectorAll("code");
+    const inlineCode = Array.from(allCodeTags || []).find(
+      (el) => el.textContent === "const foo = 42;",
     );
+    expect(inlineCode).toBeInTheDocument();
+    expect(inlineCode?.closest(".pmv-code-block")).toBeNull();
+  });
 
-    const textarea = screen.getByPlaceholderText(/Ask/i);
-    const sendBtn = screen.getByRole("button", { name: /Send/i });
-
-    // Initially disabled when empty and no attachments
-    expect(sendBtn).toBeDisabled();
-
-    const imageFile = new File(["dummy-image-bytes"], "screenshot.png", { type: "image/png" });
-    fireEvent.paste(textarea, {
-      clipboardData: { files: [imageFile], items: [] },
-      preventDefault: vi.fn(),
+  it("renders assistant streaming turns with code blocks inside pmv-code-block", () => {
+    const rawStream = JSON.stringify({
+      kind: "text",
+      text: "Streaming code block:\n\n```python\ndef add(a, b):\n    return a + b\n```",
+      delta: false,
     });
 
-    await waitFor(() => {
-      expect(screen.getByTitle("screenshot.png")).toBeInTheDocument();
-    });
-
-    // Send button should be enabled even without prompt text
-    expect(sendBtn).not.toBeDisabled();
-    fireEvent.click(sendBtn);
-
-    expect(handleEvent).toHaveBeenCalledWith(
-      "OnSendMessage",
-      "test-chat",
-      expect.arrayContaining([
-        expect.objectContaining({
-          prompt: "",
-          sessionId: "sess-1",
-          attachments: expect.arrayContaining([
-            expect.objectContaining({
-              name: "screenshot.png",
-              contentType: "image/png",
-            }),
-          ]),
-        }),
-      ])
-    );
-  });
-
-  it("displays payload size warning banner and disables Send button when attachments exceed 50 MB", async () => {
-    render(<ChatWidget id="test-chat" />);
-    const textarea = screen.getByPlaceholderText(/Ask/i);
-    const sendBtn = screen.getByRole("button", { name: /Send/i });
-
-    // Create a 51 MB dummy file
-    const largeFile = new File(["x"], "large-dataset.bin", { type: "application/octet-stream" });
-    Object.defineProperty(largeFile, "size", { value: 51 * 1024 * 1024 });
-
-    fireEvent.paste(textarea, {
-      clipboardData: { files: [largeFile], items: [] },
-      preventDefault: vi.fn(),
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("large-dataset.bin")).toBeInTheDocument();
-    });
-
-    // Warning banner is displayed
-    const warning = screen.getByRole("alert");
-    expect(warning).toBeInTheDocument();
-    expect(warning).toHaveTextContent(/Attachments exceed the 50 MB limit/i);
-
-    // Send button is disabled due to oversized payload
-    expect(sendBtn).toBeDisabled();
-    expect(sendBtn).toHaveAttribute("title", "Attachments exceed the 50 MB limit");
-  });
-
-  it("uploads files via HTTP multipart POST when uploadUrl is provided and sends metadata without base64", async () => {
-    const handleEvent = vi.fn();
-    let capturedXhr: any = null;
-
-    class MockXMLHttpRequest {
-      open = vi.fn();
-      send = vi.fn();
-      upload = { onprogress: null as any };
-      onload: any = null;
-      onerror: any = null;
-      status = 200;
-      constructor() {
-        capturedXhr = this;
-      }
-    }
-
-    const origXHR = window.XMLHttpRequest;
-    (window as any).XMLHttpRequest = MockXMLHttpRequest;
-
-    try {
-      render(
-        <ChatWidget
-          id="test-chat"
-          activeSessionId="sess-1"
-          uploadUrl="/ivy/upload/conn-1/up-1"
-          events={["OnSendMessage"]}
-          eventHandler={handleEvent}
-        />
-      );
-
-      const textarea = screen.getByPlaceholderText(/Ask/i);
-      const sendBtn = screen.getByRole("button", { name: /Send/i });
-
-      const file = new File(["test-image-content"], "photo.png", { type: "image/png" });
-      fireEvent.paste(textarea, {
-        clipboardData: { files: [file], items: [] },
-        preventDefault: vi.fn(),
-      });
-
-      await waitFor(() => {
-        expect(capturedXhr).not.toBeNull();
-        expect(capturedXhr.open).toHaveBeenCalledWith("POST", "/ivy/upload/conn-1/up-1", true);
-        expect(capturedXhr.send).toHaveBeenCalledWith(expect.any(FormData));
-      });
-
-      // While uploading, send button should be disabled
-      expect(sendBtn).toBeDisabled();
-
-      // Complete the upload
-      capturedXhr.status = 200;
-      capturedXhr.onload();
-
-      await waitFor(() => {
-        expect(sendBtn).not.toBeDisabled();
-      });
-
-      fireEvent.change(textarea, { target: { value: "Look at this photo" } });
-      fireEvent.click(sendBtn);
-
-      expect(handleEvent).toHaveBeenCalledWith(
-        "OnSendMessage",
-        "test-chat",
-        expect.arrayContaining([
-          expect.objectContaining({
-            prompt: "Look at this photo",
-            sessionId: "sess-1",
-            attachments: expect.arrayContaining([
-              expect.objectContaining({
-                name: "photo.png",
-                contentType: "image/png",
-                base64Data: undefined,
-              }),
-            ]),
-          }),
-        ])
-      );
-    } finally {
-      window.XMLHttpRequest = origXHR;
-    }
-  });
-
-  it("displays upload progress and failure state on HTTP upload error", async () => {
-    let capturedXhr: any = null;
-
-    class MockXMLHttpRequest {
-      open = vi.fn();
-      send = vi.fn();
-      upload = { onprogress: null as any };
-      onload: any = null;
-      onerror: any = null;
-      status = 500;
-      constructor() {
-        capturedXhr = this;
-      }
-    }
-
-    const origXHR = window.XMLHttpRequest;
-    (window as any).XMLHttpRequest = MockXMLHttpRequest;
-
-    try {
-      render(
-        <ChatWidget
-          id="test-chat"
-          activeSessionId="sess-1"
-          uploadUrl="/ivy/upload/conn-1/up-1"
-        />
-      );
-
-      const textarea = screen.getByPlaceholderText(/Ask/i);
-      const sendBtn = screen.getByRole("button", { name: /Send/i });
-
-      const file = new File(["sample data"], "data.csv", { type: "text/csv" });
-      fireEvent.paste(textarea, {
-        clipboardData: { files: [file], items: [] },
-        preventDefault: vi.fn(),
-      });
-
-      await waitFor(() => {
-        expect(capturedXhr).not.toBeNull();
-      });
-
-      // Trigger progress
-      capturedXhr.upload.onprogress?.({ lengthComputable: true, loaded: 50, total: 100 });
-
-      await waitFor(() => {
-        expect(screen.getByText("50%")).toBeInTheDocument();
-      });
-
-      // Trigger failure
-      capturedXhr.status = 500;
-      capturedXhr.onload();
-
-      await waitFor(() => {
-        expect(screen.getByText("Failed")).toBeInTheDocument();
-      });
-
-      // Send button remains disabled when there is no text or valid finished attachments
-      expect(sendBtn).toBeDisabled();
-    } finally {
-      window.XMLHttpRequest = origXHR;
-    }
-  });
-
-  it("handles 20MB large image upload without crashing and downscales before uploading", async () => {
-    let capturedXhr: any = null;
-
-    class MockXMLHttpRequest {
-      open = vi.fn();
-      send = vi.fn();
-      upload = { onprogress: null as any };
-      onload: any = null;
-      onerror: any = null;
-      status = 200;
-      constructor() {
-        capturedXhr = this;
-      }
-    }
-
-    const origXHR = window.XMLHttpRequest;
-    (window as any).XMLHttpRequest = MockXMLHttpRequest;
-
-    try {
-      render(
-        <ChatWidget
-          id="test-chat"
-          activeSessionId="sess-1"
-          uploadUrl="/ivy/upload/test"
-        />
-      );
-
-      const textarea = screen.getByPlaceholderText(/Ask/i);
-      const sendBtn = screen.getByRole("button", { name: /Send/i });
-
-      const largeImage = new File(["dummy-data"], "large-photo.jpg", { type: "image/jpeg" });
-      Object.defineProperty(largeImage, "size", { value: 20 * 1024 * 1024 });
-
-      fireEvent.paste(textarea, {
-        clipboardData: { files: [largeImage], items: [] },
-        preventDefault: vi.fn(),
-      });
-
-      await waitFor(() => {
-        expect(capturedXhr).not.toBeNull();
-        expect(capturedXhr.open).toHaveBeenCalledWith("POST", "/ivy/upload/test", true);
-      });
-
-      capturedXhr.status = 200;
-      capturedXhr.onload();
-
-      await waitFor(() => {
-        expect(sendBtn).not.toBeDisabled();
-      });
-    } finally {
-      window.XMLHttpRequest = origXHR;
-    }
-  });
-
-  it("optimistically displays user message immediately upon clicking Send", async () => {
-    const handleEvent = vi.fn();
-    const session = {
-      id: "sess-empty",
-      title: "New Chat",
-      agentId: "codex",
-      modelId: "gpt-5.6-sol",
-      createdAt: "2026-09-03T10:00:00Z",
-      updatedAt: "2026-09-03T10:00:00Z",
-      messages: [],
+    const session: ChatSessionDto = {
+      id: "s-stream",
+      title: "Streaming code block test",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [
+        {
+          id: "m-stream-assistant",
+          role: "assistant",
+          content: "",
+          rawStream,
+          timestamp: "",
+        },
+      ],
     };
 
-    render(
-      <ChatWidget
-        id="test-chat"
-        activeSessionId="sess-empty"
-        sessions={[session]}
-        eventHandler={handleEvent}
-        events={["OnSendMessage"]}
-      />
+    const { container } = render(
+      <ChatWidget id="test-chat" activeSessionId="s-stream" sessions={[session]} />,
     );
 
-    expect(screen.getByText("Start a conversation")).toBeInTheDocument();
+    const assistantRow = container.querySelector(".chat-message-row.assistant");
+    expect(assistantRow).toBeInTheDocument();
 
-    const textarea = screen.getByPlaceholderText(/Ask/i);
-    fireEvent.change(textarea, { target: { value: "test. Alive?" } });
+    const turn = assistantRow?.querySelector(".chat-turn");
+    expect(turn).toBeInTheDocument();
 
-    const sendBtn = screen.getByRole("button", { name: /Send/i });
-    fireEvent.click(sendBtn);
-
-    expect(handleEvent).toHaveBeenCalledWith("OnSendMessage", "test-chat", [
-      { prompt: "test. Alive?", attachments: [], sessionId: "sess-empty" },
-    ]);
-
-    // Optimistic message should appear immediately without waiting for props update!
-    expect(screen.getByText("test. Alive?")).toBeInTheDocument();
-    expect(screen.queryByText("Start a conversation")).not.toBeInTheDocument();
-  });
-
-  it("optimistically displays assistant Starting status and switches Send button to Stop/Queue immediately upon clicking Send", async () => {
-    const handleEvent = vi.fn();
-    const session = {
-      id: "sess-1",
-      title: "Active Chat",
-      agentId: "codex",
-      modelId: "gpt-5.6-sol",
-      createdAt: "2026-09-03T10:00:00Z",
-      updatedAt: "2026-09-03T10:00:00Z",
-      messages: [],
-    };
-
-    render(
-      <ChatWidget
-        id="test-chat"
-        activeSessionId="sess-1"
-        selectedAgent="codex"
-        sessions={[session]}
-        eventHandler={handleEvent}
-        events={["OnSendMessage", "OnCancelStream"]}
-      />
-    );
-
-    const textarea = screen.getByPlaceholderText(/Ask/i);
-    fireEvent.change(textarea, { target: { value: "retry again" } });
-
-    const sendBtn = screen.getByRole("button", { name: /Send/i });
-    expect(sendBtn).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Stop/i })).not.toBeInTheDocument();
-
-    fireEvent.click(sendBtn);
-
-    // Immediately shows Stop and Queue buttons without waiting for server props
-    expect(screen.getByRole("button", { name: /Stop/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Queue/i })).toBeInTheDocument();
-
-    // Immediately shows the Starting... status indicator
-    expect(screen.getByText("Starting…")).toBeInTheDocument();
-
-    // Clicking Stop cancels optimistic stream
-    const stopBtn = screen.getByRole("button", { name: /Stop/i });
-    fireEvent.click(stopBtn);
-    expect(handleEvent).toHaveBeenCalledWith("OnCancelStream", "test-chat", []);
-    expect(screen.queryByRole("button", { name: /Stop/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Send/i })).toBeInTheDocument();
+    const codeBlock = assistantRow?.querySelector(".pmv-code-block");
+    expect(codeBlock).toBeInTheDocument();
+    expect(codeBlock?.querySelector("button.pmv-code-copy")).toBeInTheDocument();
+    expect(codeBlock?.textContent).toContain("def add(a, b):");
   });
 });
-

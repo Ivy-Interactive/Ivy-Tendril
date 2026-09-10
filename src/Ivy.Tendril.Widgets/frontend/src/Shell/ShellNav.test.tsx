@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
 import { ShellNav, NAV_HEIGHT_STORAGE_KEY } from "./ShellNav";
@@ -30,12 +30,21 @@ const layOut = (container: HTMLElement) => {
 const renderNav = (collapsed = false) => {
   const utils = render(
     <ShellContext.Provider value={{ collapsed, toggle: () => {} }}>
-      <div className="tsh-sidebar-body" ref={(el) => {
-        if (el) el.getBoundingClientRect = () => ({ top: 0, bottom: 1000 }) as DOMRect;
-      }}>
-        <ShellNav id="nav-1" items={items} showDivider={true} events={["OnSelect"]} eventHandler={vi.fn()} />
+      <div
+        className="tsh-sidebar-body"
+        ref={(el) => {
+          if (el) el.getBoundingClientRect = () => ({ top: 0, bottom: 1000 }) as DOMRect;
+        }}
+      >
+        <ShellNav
+          id="nav-1"
+          items={items}
+          showDivider={true}
+          events={["OnSelect"]}
+          eventHandler={vi.fn()}
+        />
       </div>
-    </ShellContext.Provider>
+    </ShellContext.Provider>,
   );
   return { ...utils, ...layOut(utils.container) };
 };
@@ -93,5 +102,156 @@ describe("ShellNav divider resizing", () => {
     expect(divider).toHaveAttribute("data-resizable", "false");
     drag(divider, 270, 210);
     expect(list.style.maxHeight).toBe("");
+  });
+});
+
+describe("ShellNav badges", () => {
+  const badgeItems: ShellNavItemDto[] = [
+    { id: "plans", label: "Plans", icon: "Feather", badge: "7", isActive: true },
+    { id: "review", label: "Review", icon: "ThumbsUp", badge: "1" },
+    { id: "recommendations", label: "Recommendations", icon: "Lightbulb", badge: "105" },
+    { id: "activity", label: "Activity", icon: "Activity" },
+  ];
+
+  it("renders navigation item badges in expanded mode with .tsh-nav-badge", () => {
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: false, toggle: () => {} }}>
+        <ShellNav id="nav-1" items={badgeItems} events={[]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>,
+    );
+
+    const badges = container.querySelectorAll(".tsh-nav-badge");
+    expect(badges).toHaveLength(3);
+    expect(badges[0]).toHaveTextContent("7");
+    expect(badges[1]).toHaveTextContent("1");
+    expect(badges[2]).toHaveTextContent("105");
+  });
+
+  it("renders navigation item badges in collapsed mode with .tsh-nav-badge and caps large counts", () => {
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellNav id="nav-1" items={badgeItems} events={[]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>,
+    );
+
+    const badges = container.querySelectorAll(".tsh-nav-badge");
+    expect(badges).toHaveLength(3);
+    expect(badges[0]).toHaveTextContent("7");
+    expect(badges[1]).toHaveTextContent("1");
+    expect(badges[2]).toHaveTextContent("99");
+  });
+
+  it("sets data-active='true' on active items and retains the badge element", () => {
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: false, toggle: () => {} }}>
+        <ShellNav id="nav-1" items={badgeItems} events={[]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>,
+    );
+
+    const activeItem = container.querySelector('.tsh-nav-item[data-active="true"]');
+    expect(activeItem).toBeInTheDocument();
+    expect(activeItem).toHaveAttribute("data-menu-item", "plans");
+    const badge = activeItem?.querySelector(".tsh-nav-badge");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent("7");
+  });
+
+  it("renders two-digit badges in collapsed mode without capping and preserves exact count", () => {
+    const twoDigitItems: ShellNavItemDto[] = [
+      { id: "drafts", label: "Drafts", icon: "Feather", badge: "21", isActive: true },
+      { id: "review", label: "Review", icon: "ThumbsUp", badge: "99" },
+    ];
+
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellNav id="nav-1" items={twoDigitItems} events={[]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>
+    );
+
+    const badges = container.querySelectorAll(".tsh-nav-badge");
+    expect(badges).toHaveLength(2);
+    expect(badges[0]).toHaveTextContent("21");
+    expect(badges[1]).toHaveTextContent("99");
+  });
+
+  it("retains active item styling and badge in collapsed mode", () => {
+    const twoDigitItems: ShellNavItemDto[] = [
+      { id: "drafts", label: "Drafts", icon: "Feather", badge: "21", isActive: true },
+      { id: "review", label: "Review", icon: "ThumbsUp", badge: "2" },
+    ];
+
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellNav id="nav-1" items={twoDigitItems} events={[]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>
+    );
+
+    const activeItem = container.querySelector('.tsh-nav-item[data-active="true"]');
+    expect(activeItem).toBeInTheDocument();
+    expect(activeItem).toHaveAttribute("data-menu-item", "drafts");
+    const badge = activeItem?.querySelector(".tsh-nav-badge");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent("21");
+  });
+});
+
+describe("ShellNav tooltips", () => {
+  const navItems: ShellNavItemDto[] = [
+    { id: "plans", label: "Plans", icon: "Feather" },
+    { id: "review", label: "Review", icon: "ThumbsUp" },
+  ];
+
+  it("does not render native title attributes on navigation item buttons", () => {
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: false, toggle: () => {} }}>
+        <ShellNav id="nav-1" items={navItems} events={[]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>,
+    );
+
+    const buttons = container.querySelectorAll("button.tsh-nav-item");
+    buttons.forEach((btn) => {
+      expect(btn.getAttribute("title")).toBeNull();
+    });
+  });
+
+  it("displays framework-styled tooltip with item.label on hover in collapsed rail mode", () => {
+    vi.useFakeTimers();
+    render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellNav id="nav-1" items={navItems} events={[]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>,
+    );
+
+    const buttons = screen.getAllByRole("button");
+    fireEvent.pointerMove(buttons[0]);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toBeInTheDocument();
+    expect(tooltip).toHaveTextContent("Plans");
+    expect(document.querySelector(".tui-tooltip-content")).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("displays framework-styled tooltip with item.label on focus in collapsed rail mode", () => {
+    vi.useFakeTimers();
+    render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellNav id="nav-1" items={navItems} events={[]} eventHandler={vi.fn()} />
+      </ShellContext.Provider>,
+    );
+
+    const buttons = screen.getAllByRole("button");
+    fireEvent.focus(buttons[1]);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toBeInTheDocument();
+    expect(tooltip).toHaveTextContent("Review");
+    vi.useRealTimers();
   });
 });

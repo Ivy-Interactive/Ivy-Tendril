@@ -23,9 +23,18 @@ public sealed class AgentSession : IAgentSession
     private readonly CancellationTokenSource _cts = new();
     private readonly List<AgentEvent> _allEvents = [];
     private readonly List<string> _tempFiles = [];
+    private readonly Queue<string> _stderrTail = new();
+    private readonly object _stderrLock = new();
     private volatile SessionState _state = SessionState.NotStarted;
     private long _lastActivityTicks;
     private bool _idleTimeoutFired;
+
+    internal string? AbortReason { get; private set; }
+
+    internal void MarkAborted(string reason)
+    {
+        AbortReason ??= reason;
+    }
 
     public string SessionId { get; }
     public string AgentId { get; }
@@ -252,6 +261,16 @@ public sealed class AgentSession : IAgentSession
             {
                 MarkActivity();
                 _rawStderr.OnNext(line);
+
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    lock (_stderrLock)
+                    {
+                        _stderrTail.Enqueue(line);
+                        while (_stderrTail.Count > 20)
+                            _stderrTail.Dequeue();
+                    }
+                }
             }
         }
         catch (OperationCanceledException)
@@ -271,7 +290,16 @@ public sealed class AgentSession : IAgentSession
     {
         CompletedAt = _timeProvider.GetUtcNow();
 
+        var finalState = overrideState ?? (exitCode == 0 ? SessionState.Completed : SessionState.Failed);
+
         var result = _parser.BuildResult(_allEvents, exitCode);
+
+        var failure = AgentFailureMessage.Describe(
+            _idleTimeoutFired, _idleTimeout, AbortReason, exitCode, finalState, StderrTailSnapshot());
+
+        if (result is not null && failure is not null && string.IsNullOrWhiteSpace(result.Error) && !result.IsSuccess)
+            result = result with { Error = failure };
+
         Result = result;
 
         if (result is not null)
@@ -280,7 +308,7 @@ public sealed class AgentSession : IAgentSession
             _events.OnNext(result);
         }
 
-        _state = overrideState ?? (exitCode == 0 ? SessionState.Completed : SessionState.Failed);
+        _state = finalState;
 
         var durationMs = (long)(CompletedAt.Value - StartedAt).TotalMilliseconds;
         AgentLogMessages.SessionCompleted(_logger, SessionId, _state, durationMs);
@@ -301,7 +329,16 @@ public sealed class AgentSession : IAgentSession
                 Kind = AgentEventKind.Result,
                 IsSuccess = false,
                 ExitCode = exitCode,
+                Error = failure,
             });
+    }
+
+    private List<string> StderrTailSnapshot()
+    {
+        lock (_stderrLock)
+        {
+            return [.. _stderrTail];
+        }
     }
 
     private void CleanupTempFiles()

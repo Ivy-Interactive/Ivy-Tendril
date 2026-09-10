@@ -57,13 +57,16 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
   failedCount = 0,
   kpis = [],
   trend = null,
+  trendWeekly = null,
   pullRequests = [],
+  pullRequestsWeekly = [],
   activity = [],
   jobs = [],
   slots,
 }) => {
   const [tab, setTab] = useState<"cost" | "plans">("cost");
-  const [sideTab, setSideTab] = useState<"git" | "prs">("git");
+  const [prPeriod, setPrPeriod] = useState<"week" | "month">("month");
+  const activePrs = prPeriod === "week" ? (pullRequestsWeekly ?? []) : (pullRequests ?? []);
 
   const fireEvent = (eventName: string) => {
     if (events.includes(eventName)) {
@@ -77,27 +80,36 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
     }
   };
 
+  const fireKpiEvent = (kpiKey: string) => {
+    if (events.includes("OnSelectKpi")) {
+      eventHandler("OnSelectKpi", id, [kpiKey]);
+    }
+  };
+
   const statusItems = [
-    { icon: <Feather size={16} />, count: draftCount, label: "Drafts", event: "OnDrafts" },
+    { icon: <Feather size={16} />, count: draftCount, label: "Plans", event: "OnDrafts" },
     { icon: <Sprout size={16} />, count: inProgressCount, label: "In Progress", event: "OnJobs" },
     { icon: <Eye size={16} />, count: reviewCount, label: "Ready For Review", event: "OnReview" },
     { icon: <Check size={16} />, count: completedCount, label: "Completed", event: "OnJobs" },
     { icon: <MessageSquareWarning size={16} />, count: failedCount, label: "Failed", event: "OnJobs" },
   ];
 
+  const activeTrend = trendWeekly ?? trend;
+  const currentTrendName = "Last 4 weeks";
+
   const trendData =
-    trend == null
+    activeTrend == null
       ? null
       : tab === "cost"
         ? {
-            values: trend.cost,
-            previous: trend.prevCost,
+            values: activeTrend.cost,
+            rolling: activeTrend.rollingCost,
             formatTick: formatCurrencyTick,
             formatValue: formatCurrencyValue,
           }
         : {
-            values: trend.plans,
-            previous: trend.prevPlans,
+            values: activeTrend.plans,
+            rolling: activeTrend.rollingPlans,
             formatTick: formatCountTick,
             formatValue: formatPlansValue,
           };
@@ -129,24 +141,46 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
 
             {kpis.length > 0 && (
               <div className="tdb-kpis">
-                {kpis.map((kpi, index) => (
-                  <div className="tdb-kpi" data-tone={index % 4} key={kpi.label}>
-                    <div className="tdb-kpi-label">{kpi.label}</div>
-                    <div className="tdb-kpi-row">
-                      <span className="tdb-kpi-value">{kpi.value}</span>
-                      {kpi.delta && (
-                        <span className="tdb-kpi-delta">
-                          {kpi.delta}
-                          {kpi.direction === "down" ? (
-                            <TrendingDown />
-                          ) : (
-                            <TrendingUp />
-                          )}
-                        </span>
-                      )}
+                {kpis.map((kpi, index) => {
+                  const fallbackId =
+                    ["dailyPrs", "avgCostMonth", "forecastMonth", "avgCostPlan"][index] ??
+                    kpi.label;
+                  const kpiKey = kpi.id ?? fallbackId;
+                  return (
+                    <div
+                      className="tdb-kpi"
+                      data-tone={index % 4}
+                      key={kpi.label}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`View calculation breakdown for ${kpi.label}`}
+                      onClick={() => fireKpiEvent(kpiKey)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          fireKpiEvent(kpiKey);
+                        }
+                      }}
+                    >
+                      <div className="tdb-kpi-label">{kpi.label}</div>
+                      <div className="tdb-kpi-row">
+                        <span className="tdb-kpi-value">{kpi.value}</span>
+                        {kpi.subValue && <span className="tdb-kpi-subvalue">{kpi.subValue}</span>}
+                        {kpi.delta && (
+                          <span className="tdb-kpi-delta">
+                            {kpi.delta}
+                            {kpi.direction === "down" ? (
+                              <TrendingDown />
+                            ) : (
+                              <TrendingUp />
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      {kpi.hint && <div className="tdb-kpi-hint">{kpi.hint}</div>}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -155,6 +189,7 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                 <div className="tdb-trend-header">
                   <div className="tdb-tabs">
                     <button
+                      type="button"
                       className="tdb-tab"
                       data-active={tab === "cost"}
                       onClick={() => setTab("cost")}
@@ -162,6 +197,7 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                       Total Cost
                     </button>
                     <button
+                      type="button"
                       className="tdb-tab"
                       data-active={tab === "plans"}
                       onClick={() => setTab("plans")}
@@ -173,21 +209,20 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                   <div className="tdb-legend">
                     <span className="tdb-legend-item">
                       <span className="tdb-legend-dot" />
-                      Last 12 months
+                      {currentTrendName}
                     </span>
                     <span className="tdb-legend-item">
-                      <span className="tdb-legend-dash" />
-                      Previous year
+                      <span className="tdb-legend-line-avg" />
+                      7-day average
                     </span>
                   </div>
                 </div>
                 <div className="tdb-trend-chart">
                   <TrendChart
-                    labels={trend!.months}
+                    dates={activeTrend!.dates}
                     values={trendData.values}
-                    previous={trendData.previous}
-                    currentName="Last 12 months"
-                    previousName="Previous year"
+                    rolling={trendData.rolling}
+                    currentName={currentTrendName}
                     formatTick={trendData.formatTick}
                     formatValue={trendData.formatValue}
                   />
@@ -199,61 +234,46 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
 
           <div className="tdb-col tdb-col-side">
             <div className="tdb-update-slot">{slots?.UpdateNotice}</div>
-            {hasSlotContent(slots?.TunnelQr) ? (
-              <>
-                {/* With the tunnel card present, Git Activity and Pull Requests
-                    merge into one tabbed card so the column keeps the same
-                    number of rows as without a tunnel. */}
-                <div className="tdb-block tdb-side-block">
-                  <div className="tdb-side-head">
-                    <div className="tdb-tabs">
-                      <button
-                        className="tdb-tab"
-                        data-active={sideTab === "git"}
-                        onClick={() => setSideTab("git")}
-                      >
-                        Git Activity
-                      </button>
-                      <button
-                        className="tdb-tab"
-                        data-active={sideTab === "prs"}
-                        onClick={() => setSideTab("prs")}
-                      >
-                        Pull Requests
-                      </button>
-                    </div>
-                  </div>
-                  <div className="tdb-side-body">
-                    {sideTab === "git" ? (
-                      <ActivityGrid months={activity} />
-                    ) : (
-                      <PillBars items={pullRequests} />
-                    )}
-                  </div>
+            <div className="tdb-block tdb-side-block">
+              <div className="tdb-block-title">Git Activity</div>
+              <div className="tdb-side-body">
+                <ActivityGrid months={activity} />
+              </div>
+            </div>
+            <div className="tdb-block tdb-side-block">
+              <div className="tdb-side-head">
+                <div className="tdb-block-title">Pull Requests</div>
+                <div className="tdb-tabs tdb-side-tabs">
+                  <button
+                    type="button"
+                    className="tdb-tab tdb-side-tab"
+                    data-active={prPeriod === "week"}
+                    onClick={() => setPrPeriod("week")}
+                  >
+                    Week
+                  </button>
+                  <button
+                    type="button"
+                    className="tdb-tab tdb-side-tab"
+                    data-active={prPeriod === "month"}
+                    onClick={() => setPrPeriod("month")}
+                  >
+                    Month
+                  </button>
                 </div>
-                <div className="tdb-block tdb-side-block tdb-tunnel">
-                  <div className="tdb-side-head">
-                    <div className="tdb-block-title">Tunnel</div>
-                    {slots?.TunnelMenu}
-                  </div>
-                  <div className="tdb-tunnel-body">{slots?.TunnelQr}</div>
+              </div>
+              <div className="tdb-side-body">
+                <PillBars items={activePrs} />
+              </div>
+            </div>
+            {hasSlotContent(slots?.TunnelQr) && (
+              <div className="tdb-block tdb-side-block tdb-tunnel">
+                <div className="tdb-side-head">
+                  <div className="tdb-block-title">Tunnel</div>
+                  {slots?.TunnelMenu}
                 </div>
-              </>
-            ) : (
-              <>
-                <div className="tdb-block tdb-side-block">
-                  <div className="tdb-block-title">Git Activity</div>
-                  <div className="tdb-side-body">
-                    <ActivityGrid months={activity} />
-                  </div>
-                </div>
-                <div className="tdb-block tdb-side-block">
-                  <div className="tdb-block-title">Pull Requests</div>
-                  <div className="tdb-side-body">
-                    <PillBars items={pullRequests} />
-                  </div>
-                </div>
-              </>
+                <div className="tdb-tunnel-body">{slots?.TunnelQr}</div>
+              </div>
             )}
           </div>
 

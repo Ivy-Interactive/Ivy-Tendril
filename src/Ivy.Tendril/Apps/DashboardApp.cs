@@ -5,6 +5,7 @@ using Ivy.Tendril.Apps.Plans;
 using Ivy.Tendril.Apps.Jobs.Sheets;
 using Ivy.Tendril.Apps.Review;
 using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Hooks;
 using Ivy.Tendril.Models;
@@ -21,8 +22,8 @@ public class DashboardApp : ViewBase
 {
     private const int ActivityMonths = 16;
     private const int TrendMonthsBack = 24;
-    private const int TrendMonthsShown = 12;
     private const int ActiveJobsShown = 8;
+    private static readonly string[] DayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
     public override object Build()
     {
@@ -47,6 +48,22 @@ public class DashboardApp : ViewBase
             return new Sheet(
                 () => isOpen.Set(false),
                 new OutputSheet(jobId, jobService),
+                title
+            ).Width(UxHelper.SheetWidth).Resizable();
+        });
+
+        var (kpiSheet, showKpiDetail) = UseTrigger<string>((isOpen, kpiKey) =>
+        {
+            if (!isOpen.Value) return null;
+            var currentToday = DateTime.UtcNow.Date;
+            var currentFirstActivityMonth = new DateTime(currentToday.Year, currentToday.Month, 1).AddMonths(-(ActivityMonths - 1));
+            var currentStats = planService.GetDashboardData(null);
+            var currentActivity = planService.GetDashboardActivity(TrendMonthsBack);
+            var currentPrDays = planService.GetCompletedPrsByDay((currentToday - currentFirstActivityMonth).Days + 1);
+            var title = GetKpiSheetTitle(kpiKey);
+            return new Sheet(
+                () => isOpen.Set(false),
+                new KpiBreakdownSheet(kpiKey, currentStats, currentActivity, currentPrDays, currentToday, planService),
                 title
             ).Width(UxHelper.SheetWidth).Resizable();
         });
@@ -116,20 +133,29 @@ public class DashboardApp : ViewBase
             .CompletedCount(jobs.Count(j => j.Status == JobStatus.Completed))
             .FailedCount(jobs.Count(j => j.Status == JobStatus.Failed))
             .Kpis(BuildKpis(stats, activity, prDays, today))
-            .Trend(BuildTrend(activity))
-            .PullRequests(activity.Months
-                .TakeLast(6)
-                .Select(m => new DashboardMonthValueDto(MonthLabel(m.Month), m.PrsMerged))
-                .ToList())
+            .Trend(BuildTrend(activity, today))
+            .TrendWeekly(BuildWeeklyTrend(activity, today))
+            .PullRequests(BuildMonthlyPullRequests(activity.Months))
+            .PullRequestsWeekly(BuildWeeklyPullRequests(prDays, today))
             .Activity(BuildActivityMonths(prDays, firstActivityMonth))
             .Jobs(BuildActiveJobs(jobs, planService))
             .OnDrafts(() => navigator.Navigate<PlansApp>())
             .OnReview(() => navigator.Navigate<ReviewApp>())
             .OnJobs(() => navigator.Navigate<JobsApp>())
-            .OnJob(showOutput);
+            .OnJob(showOutput)
+            .OnSelectKpi(showKpiDetail);
 
-        return new Fragment(dashboard, outputSheet);
+        return new Fragment(dashboard, outputSheet, kpiSheet);
     }
+
+    internal static string GetKpiSheetTitle(string kpiKey) => kpiKey switch
+    {
+        "dailyPrs" => "Avg Daily PR Count",
+        "avgCostMonth" => "Avg Cost/Month",
+        "forecastMonth" => "Forecast This Month",
+        "avgCostPlan" => "Avg Cost/Plan",
+        _ => "KPI Breakdown"
+    };
 
     internal static List<DashboardJobDto> BuildActiveJobs(List<JobItem> jobs, IPlanReaderService planService)
     {
@@ -150,7 +176,7 @@ public class DashboardApp : ViewBase
             .ToList();
     }
 
-    private static string BuildGreeting(DateTime now)
+    internal static string BuildGreeting(DateTime now)
     {
         var word = now.Hour switch
         {
@@ -174,6 +200,46 @@ public class DashboardApp : ViewBase
     private static string MonthLabel(int month) =>
         CultureInfo.InvariantCulture.DateTimeFormat.GetAbbreviatedMonthName(month);
 
+    internal static List<DashboardMonthValueDto> BuildMonthlyPullRequests(
+        IEnumerable<DashboardMonthStats> months, int count = 6)
+    {
+        return months
+            .TakeLast(count)
+            .Select(m => new DashboardMonthValueDto(
+                MonthLabel(m.Month),
+                m.PrsMerged,
+                m.Year,
+                m.Month,
+                1,
+                $"{m.Year:D4}-{m.Month:D2}-01"))
+            .ToList();
+    }
+
+    internal static List<DashboardMonthValueDto> BuildWeeklyPullRequests(
+        List<(DateOnly Date, int Count)> prDays, DateTime today, int weeks = 6)
+    {
+        var daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
+        var currentWeekMonday = DateOnly.FromDateTime(today).AddDays(-daysSinceMonday);
+        var result = new List<DashboardMonthValueDto>(weeks);
+
+        for (var i = weeks - 1; i >= 0; i--)
+        {
+            var weekStart = currentWeekMonday.AddDays(-i * 7);
+            var weekEnd = weekStart.AddDays(6);
+            var count = prDays.Where(p => p.Date >= weekStart && p.Date <= weekEnd).Sum(p => p.Count);
+            var label = $"{MonthLabel(weekStart.Month)} {weekStart.Day}";
+            result.Add(new DashboardMonthValueDto(
+                label,
+                count,
+                weekStart.Year,
+                weekStart.Month,
+                weekStart.Day,
+                weekStart.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
+        }
+
+        return result;
+    }
+
     internal static List<DashboardKpiDto> BuildKpis(
         DashboardModels stats,
         DashboardActivityStats activity,
@@ -187,7 +253,7 @@ public class DashboardApp : ViewBase
         var prev30Start = DateOnly.FromDateTime(today.AddDays(-59));
         var dailyPrs = prDays.Where(p => p.Date >= last30Start).Sum(p => p.Count) / 30m;
         var prevDailyPrs = prDays.Where(p => p.Date >= prev30Start && p.Date < last30Start).Sum(p => p.Count) / 30m;
-        kpis.Add(Kpi("Avg Daily PR count", dailyPrs.ToString("0.#", CultureInfo.InvariantCulture), dailyPrs, prevDailyPrs));
+        kpis.Add(Kpi("Avg Daily PR count", dailyPrs.ToString("0.#", CultureInfo.InvariantCulture), dailyPrs, prevDailyPrs, "dailyPrs"));
 
         // Monthly cost/token averages over recent complete months with data; the delta
         // compares the two most recent complete months.
@@ -200,19 +266,46 @@ public class DashboardApp : ViewBase
             ? costMonths.Average(m => m.Cost)
             : activity.Months.Count > 0 ? activity.Months[^1].Cost : 0;
         var (lastCost, prevCost) = LastTwo(completeMonths, m => m.Cost);
-        kpis.Add(Kpi("Avg Cost/Month", FormatCost(avgMonthCost), lastCost, prevCost));
+        kpis.Add(Kpi("Avg Cost/Month", FormatCost(avgMonthCost), lastCost, prevCost, "avgCostMonth"));
 
-        var tokenMonths = completeMonths.TakeLast(6).Where(m => m.Tokens > 0).ToList();
-        var avgMonthTokens = tokenMonths.Count > 0
-            ? (long)tokenMonths.Average(m => m.Tokens)
-            : activity.Months.Count > 0 ? activity.Months[^1].Tokens : 0;
-        var (lastTokens, prevTokens) = LastTwo(completeMonths, m => m.Tokens);
-        kpis.Add(Kpi("Avg Tokens/Month", FormatTokenAverage(avgMonthTokens), lastTokens, prevTokens));
+        // Next to the retrospective average on purpose: what the month has cost so far and what it is
+        // heading for are read together.
+        kpis.Add(BuildForecastKpi(activity.DailyCosts, today));
+
 
         kpis.Add(Kpi("Avg Cost/Plan", FormatHelper.FormatCost(stats.AvgCostPerPlan),
-            stats.AvgCostPerPlan, activity.PrevWeekAvgCostPerPlan));
+            stats.AvgCostPerPlan, activity.PrevWeekAvgCostPerPlan, "avgCostPlan"));
 
         return kpis;
+    }
+
+    /// <summary>
+    ///     What this month is heading for. No delta, because there is nothing prior to compare a projection against.
+    /// </summary>
+    internal static DashboardKpiDto BuildForecastKpi(List<DashboardDailyCost>? dailyCosts, DateTime today)
+    {
+        const string label = "Forecast This Month";
+
+        var forecast = CostForecastCalculator.Project(dailyCosts ?? [], today);
+        if (forecast.CalendarProjection is not { } totalProjection)
+            return new DashboardKpiDto(label, "-", Hint: "No cost data in the last 30 days", Id: "forecastMonth");
+
+        if (forecast.ApiCalendarProjection is { } apiProjection && forecast.TotalApiSpend > 0)
+        {
+            return new DashboardKpiDto(
+                label,
+                $"{FormatCost(apiProjection)} API",
+                Hint: $"{forecast.SubsidizedTokenPercent:0}% subsidized via subscription",
+                Id: "forecastMonth",
+                SubValue: $"{FormatCost(totalProjection)} total");
+        }
+
+        return new DashboardKpiDto(
+            label,
+            "$0 API",
+            Hint: "100% subsidized via subscription",
+            Id: "forecastMonth",
+            SubValue: $"{FormatCost(totalProjection)} total");
     }
 
     private static (decimal Last, decimal Previous) LastTwo(
@@ -224,48 +317,88 @@ public class DashboardApp : ViewBase
             : (0, 0);
     }
 
-    internal static DashboardKpiDto Kpi(string label, string value, decimal current, decimal previous)
+    internal static DashboardKpiDto Kpi(string label, string value, decimal current, decimal previous, string? id = null)
     {
         if (previous <= 0 || current <= 0)
-            return new DashboardKpiDto(label, value);
+            return new DashboardKpiDto(label, value, Id: id);
 
         var pct = (current - previous) / previous * 100m;
         var magnitude = Math.Abs(pct) >= 10
             ? Math.Round(Math.Abs(pct)).ToString("0", CultureInfo.InvariantCulture)
             : Math.Abs(pct).ToString("0.##", CultureInfo.InvariantCulture);
         var delta = (pct >= 0 ? "+" : "-") + magnitude + "%";
-        return new DashboardKpiDto(label, value, delta, pct >= 0 ? "up" : "down");
+        return new DashboardKpiDto(label, value, delta, pct >= 0 ? "up" : "down", Id: id);
     }
 
     private static string FormatCost(decimal cost) =>
         cost >= 100 ? FormatHelper.FormatCost(Math.Round(cost), 0) : FormatHelper.FormatCost(cost);
 
-    private static string FormatTokenAverage(long tokens) =>
-        tokens >= 1_000_000
-            ? FormatHelper.FormatTokens((int)Math.Min(tokens, int.MaxValue))
-            : FormatHelper.FormatCount(tokens);
+    /// <summary>Days the long range plots. A year of them, compared against the same day a year back.</summary>
+    internal const int TrendDailyShownDays = 365;
 
-    internal static DashboardTrendDto BuildTrend(DashboardActivityStats activity)
+    /// <summary>Days the short range plots, and the offset it compares against.</summary>
+    internal const int TrendDailyWindowDays = 28;
+
+    /// <summary>
+    ///     The last twelve months as daily points. Null when no daily series is available.
+    /// </summary>
+    internal static DashboardTrendDto? BuildTrend(
+        DashboardActivityStats activity, DateTime? todayOverride = null) =>
+        BuildDailyTrend(activity, TrendDailyShownDays, todayOverride);
+
+    /// <summary>
+    ///     The last four weeks as daily points. Null when no daily series is available.
+    /// </summary>
+    internal static DashboardTrendDto? BuildWeeklyTrend(
+        DashboardActivityStats activity, DateTime? todayOverride = null) =>
+        BuildDailyTrend(activity, TrendDailyWindowDays, todayOverride);
+
+    /// <summary>
+    ///     One trend card's worth of contiguous daily points ending today, with a rolling 7 day mean.
+    /// </summary>
+    /// <remarks>
+    ///     Returns null when neither daily series is present rather than falling back to weekly or
+    ///     monthly buckets. Buckets cannot carry a true 7 day average or a date axis, and plotting them
+    ///     under a "7-day average" label would be the misleading result this contract exists to avoid;
+    ///     the widget renders no trend card at all instead.
+    /// </remarks>
+    internal static DashboardTrendDto? BuildDailyTrend(
+        DashboardActivityStats activity,
+        int days,
+        DateTime? todayOverride = null)
     {
-        var all = activity.Months;
-        var start = Math.Max(0, all.Count - TrendMonthsShown);
-        var window = all.Skip(start).ToList();
+        if (activity.DailyCosts == null && activity.DailyPlans == null)
+            return null;
 
-        var prevCost = new List<double?>(window.Count);
-        var prevPlans = new List<double?>(window.Count);
-        for (var i = 0; i < window.Count; i++)
-        {
-            var prevIndex = start + i - 12;
-            prevCost.Add(prevIndex >= 0 ? (double)all[prevIndex].Cost : null);
-            prevPlans.Add(prevIndex >= 0 ? all[prevIndex].PlansCreated : null);
-        }
+        var today = DateOnly.FromDateTime((todayOverride ?? DateTime.UtcNow).Date);
+        var costsByDay = activity.DailyCosts?.ToDictionary(d => d.Date, d => (double)d.Cost) ?? [];
+        var plansByDay = activity.DailyPlans ?? [];
+
+        // A mock or a fake supplies a daily series without saying where records begin. The earliest day
+        // it holds is the best stand-in; leaving it null would blank every rolling point.
+        var dataStart = activity.DailyDataStart ?? EarliestRecordedDay(costsByDay, plansByDay);
+
+        var dates = new List<DateOnly>(days);
+        for (var i = 0; i < days; i++)
+            dates.Add(today.AddDays(-days + 1 + i));
+
+        // Zero-filled, so a day with no rows is a plotted 0 rather than a missing point.
+        double CostAt(DateOnly date) => costsByDay.GetValueOrDefault(date, 0.0);
+        double PlansAt(DateOnly date) => plansByDay.GetValueOrDefault(date, 0);
 
         return new DashboardTrendDto(
-            window.Select(m => MonthLabel(m.Month)).ToList(),
-            window.Select(m => (double)m.Cost).ToList(),
-            window.Select(m => (double)m.PlansCreated).ToList(),
-            prevCost,
-            prevPlans);
+            dates.Select(d => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).ToList(),
+            dates.Select(CostAt).ToList(),
+            dates.Select(PlansAt).ToList(),
+            RollingAverageCalculator.Compute(dates, CostAt, dataStart),
+            RollingAverageCalculator.Compute(dates, PlansAt, dataStart));
+    }
+
+    private static DateOnly? EarliestRecordedDay(
+        Dictionary<DateOnly, double> costsByDay, Dictionary<DateOnly, int> plansByDay)
+    {
+        var recorded = costsByDay.Keys.Concat(plansByDay.Keys).ToList();
+        return recorded.Count > 0 ? recorded.Min() : null;
     }
 
     internal static List<DashboardActivityMonthDto> BuildActivityMonths(
@@ -280,17 +413,20 @@ public class DashboardApp : ViewBase
             var daysInMonth = DateTime.DaysInMonth(monthStart.Year, monthStart.Month);
             var offset = ((int)monthStart.DayOfWeek + 6) % 7;
             var weeks = new int[(offset + daysInMonth + 6) / 7];
+            var days = new List<DashboardActivityDayDto>(daysInMonth);
 
             for (var day = 1; day <= daysInMonth; day++)
             {
                 var date = new DateOnly(monthStart.Year, monthStart.Month, day);
-                if (byDay.TryGetValue(date, out var count))
-                    weeks[(offset + day - 1) / 7] += count;
+                var count = byDay.GetValueOrDefault(date, 0);
+                weeks[(offset + day - 1) / 7] += count;
+                days.Add(new DashboardActivityDayDto(date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), count));
             }
 
-            months.Add(new DashboardActivityMonthDto(MonthLabel(monthStart.Month), weeks.ToList()));
+            months.Add(new DashboardActivityMonthDto(MonthLabel(monthStart.Month), weeks.ToList(), days));
         }
 
         return months;
     }
+
 }

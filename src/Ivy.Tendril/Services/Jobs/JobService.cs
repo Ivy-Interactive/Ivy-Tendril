@@ -28,9 +28,12 @@ public class JobService : IJobService
     private readonly SynchronizationContext? _syncContext;
     private readonly ITelemetryService? _telemetryService;
     private readonly ILogger<JobService> _logger;
-    private readonly JobLauncher _jobLauncher;
+    private JobLauncher _jobLauncher;
+    internal const int MaxBackgroundContinuations = 2;
+    internal JobLauncher JobLauncher { get => _jobLauncher; set => _jobLauncher = value; }
     private readonly JobCompletionHandler _completionHandler;
     private readonly IAgentRunner? _agentRunner;
+    private readonly IChatHistoryService? _chatHistoryService;
     private Timer? _blockedJobCheckTimer;
     public JobService(
         IConfigService configService,
@@ -40,7 +43,9 @@ public class JobService : IJobService
         ITelemetryService? telemetryService = null,
         IPlanWatcherService? planWatcherService = null,
         IPlanDatabaseService? database = null,
-        IAgentRunner? agentRunner = null)
+        IAgentRunner? agentRunner = null,
+        IModelPricingProvider? pricingProvider = null,
+        IChatHistoryService? chatHistoryService = null)
     {
         _syncContext = SynchronizationContext.Current;
         _configService = configService;
@@ -51,6 +56,7 @@ public class JobService : IJobService
         _planWatcherService = planWatcherService;
         _database = database;
         _agentRunner = agentRunner;
+        _chatHistoryService = chatHistoryService;
         _jobTimeout = TimeSpan.FromMinutes(configService.Settings.JobTimeout);
         _staleOutputTimeout = TimeSpan.FromMinutes(configService.Settings.StaleOutputTimeout);
         _maxConcurrentJobs = configService.Settings.MaxConcurrentJobs;
@@ -62,7 +68,7 @@ public class JobService : IJobService
         _jobLauncher = new JobLauncher(configService, agentRunner, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
             configService, _logger, modelPricingService, planReaderService,
-            telemetryService, planWatcherService, promptsRoot);
+            telemetryService, planWatcherService, promptsRoot, pricingProvider, database);
         configService.SettingsReloaded += OnSettingsReloaded;
         JobIdAllocator.SeedIfNeeded(configService.TendrilHome);
         LoadHistoricalJobs();
@@ -78,7 +84,8 @@ public class JobService : IJobService
         ITelemetryService? telemetryService = null,
         IPlanDatabaseService? database = null,
         ILogger<JobService>? logger = null,
-        IAgentRunner? agentRunner = null)
+        IAgentRunner? agentRunner = null,
+        IChatHistoryService? chatHistoryService = null)
     {
         _syncContext = SynchronizationContext.Current;
         _logger = logger ?? NullLogger<JobService>.Instance;
@@ -93,11 +100,12 @@ public class JobService : IJobService
         _telemetryService = telemetryService;
         _database = database;
         _agentRunner = agentRunner;
+        _chatHistoryService = chatHistoryService;
         var promptsRoot = Ivy.Tendril.Helpers.PromptwareHelper.ResolvePromptsRoot();
         _jobLauncher = new JobLauncher(null, agentRunner!, _logger, promptsRoot);
         _completionHandler = new JobCompletionHandler(
             null, _logger, null, planReaderService, telemetryService,
-            null, promptsRoot);
+            null, promptsRoot, database: database);
         LoadHistoricalJobs();
         _blockedJobCheckTimer = new Timer(OnBlockedJobCheckTimer, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
     }
@@ -106,6 +114,7 @@ public class JobService : IJobService
     public event Action? JobsStructureChanged;
     public event Action? JobPropertyChanged;
     public event Action<JobNotification>? NotificationReady;
+    public event Action<JobItem>? JobFinished;
 
     public string StartJob(JobArgsBase args, string? inboxFilePath = null)
     {
@@ -115,6 +124,10 @@ public class JobService : IJobService
     public void CompleteJob(string id, int? exitCode, bool timedOut = false, bool staleOutput = false)
     {
         if (!_jobs.TryGetValue(id, out var job)) return;
+
+        if (exitCode == 0 && !timedOut && TryContinueForBackgroundTask(job))
+            return; // relaunched in place; the new process's own exit will call CompleteJob again
+
         if (!job.TryClaimCompletion()) return;
 
         job.FlushParser();
@@ -147,7 +160,44 @@ public class JobService : IJobService
         PersistJob(job);
         EvictStaleJobs();
         RaiseJobsStructureChanged();
+        JobFinished?.Invoke(job);
         ProcessJobQueue();
+    }
+
+    private bool TryContinueForBackgroundTask(JobItem job)
+    {
+        if (job.BackgroundContinuationCount >= MaxBackgroundContinuations)
+            return false;
+
+        var description = JobFailureAnalyzer.DescribeAbandonedBackgroundTasks(job.OutputLines);
+        if (description == null)
+            return false;
+
+        var ids = JobFailureAnalyzer.FindBackgroundTaskIds(job.OutputLines);
+        var idsString = string.Join(", ", ids);
+        var continuationPrompt = $"Your previous turn ended while background task(s) {idsString} were still running; the process was about to be torn down and that would have killed them. Check on them now (e.g. with BashOutput), and if any are still running, wait for them from inside a tool call rather than ending your turn on text alone. Once they're done, use their result and give your real final response, including anything you still owe from the original task (writing files, running verifications, etc.).";
+
+        job.BackgroundContinuationCount++;
+
+        if (!_jobLauncher.HasContext(job.Id))
+        {
+            var ctx = new JobLaunchContext(
+                job, _jobs, _jobSlotSemaphore, () => _jobTimeout, () => _staleOutputTimeout,
+                (when, type, folder, project, j) => RunHooks(when, type, folder, project, j),
+                (id, exitCode, timedOut, staleOutput) => CompleteJob(id, exitCode, timedOut, staleOutput),
+                RaiseJobsStructureChanged);
+            _jobLauncher.RegisterContext(ctx);
+        }
+
+        var relaunched = _jobLauncher.RelaunchAsContinuation(job, continuationPrompt);
+        if (relaunched)
+        {
+            PersistJob(job);
+            RaiseJobsPropertyChanged();
+            return true;
+        }
+
+        return false;
     }
 
     private void SetCompletionStatus(JobItem job, int? exitCode, bool timedOut, bool staleOutput)
@@ -290,11 +340,12 @@ public class JobService : IJobService
         PersistJob(job);
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
-            _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase);
+            _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase, PersistJob);
 
         _completionHandler.HandleWaitForJobsDependents(job, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob, DeleteJobFromDatabase);
 
         RaiseJobsStructureChanged();
+        JobFinished?.Invoke(job);
 
         // Try to start queued jobs now that a slot is free
         if (heldSlot)
@@ -343,7 +394,7 @@ public class JobService : IJobService
             ApplyDeletePlanState(removed);
 
             if (removed.TypedArgs is ExecutePlanArgs or RetryPlanArgs or CreatePrArgs)
-                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase);
+                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase, PersistJob);
 
             _completionHandler.HandleWaitForJobsDependents(removed, _jobs, RaiseNotification, StartJobSkipDepCheck, PersistJob, DeleteJobFromDatabase);
         }
@@ -421,7 +472,7 @@ public class JobService : IJobService
         {
             var hasBlocked = _jobs.Values.Any(j => j.Status == JobStatus.Blocked);
             if (hasBlocked)
-                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase);
+                _completionHandler.HandleRetryBlockedJobs(_jobs, RaiseNotification, StartJobSkipDepCheck, DeleteJobFromDatabase, PersistJob);
         }
         catch
         {
@@ -613,6 +664,21 @@ public class JobService : IJobService
         PersistJob(job);
         RaiseJobsPropertyChanged();
         return true;
+    }
+
+    public void SetChatSessionId(string id, string chatSessionId)
+    {
+        if (_jobs.TryGetValue(id, out var job))
+        {
+            job.ChatSessionId = chatSessionId;
+            if (job.TypedArgs != null)
+            {
+                job.TypedArgs = job.TypedArgs with { ChatSessionId = chatSessionId };
+            }
+            _chatHistoryService?.AddSpawnedJob(chatSessionId, id);
+            PersistJob(job);
+            RaiseJobsPropertyChanged();
+        }
     }
 
     public bool ReportJobFailure(string id, string message)
@@ -1033,6 +1099,11 @@ public class JobService : IJobService
 
         _jobs[id] = job;
 
+        if (!string.IsNullOrEmpty(job.ChatSessionId))
+        {
+            _chatHistoryService?.AddSpawnedJob(job.ChatSessionId, id);
+        }
+
         // Persist while in flight, not just on completion: the agent reports status over HTTP and
         // must still be resolvable if the master restarts mid-job (#1759).
         PersistJob(job);
@@ -1113,6 +1184,34 @@ public class JobService : IJobService
         _planReaderService.TransitionState(folderName, target.Value);
     }
 
+    private string? ResolvePlanChatSessionId(string planFolder)
+    {
+        if (string.IsNullOrEmpty(planFolder))
+            return null;
+
+        var plan = _planReaderService?.GetPlanByFolder(planFolder);
+        if (!string.IsNullOrEmpty(plan?.ChatSessionId))
+            return plan.ChatSessionId;
+
+        if (_database != null)
+        {
+            var dbPlan = _database.GetPlanByFolder(planFolder);
+            if (!string.IsNullOrEmpty(dbPlan?.ChatSessionId))
+                return dbPlan.ChatSessionId;
+
+            var folderName = Path.GetFileName(planFolder);
+            var jobs = _database.GetJobsForPlan(folderName);
+            if (jobs.Count == 0 && folderName != planFolder)
+                jobs = _database.GetJobsForPlan(planFolder);
+
+            var fallbackId = jobs.Select(j => j.ChatSessionId).FirstOrDefault(id => !string.IsNullOrEmpty(id));
+            if (!string.IsNullOrEmpty(fallbackId))
+                return fallbackId;
+        }
+
+        return null;
+    }
+
     private JobItem BuildJobItem(string id, JobArgsBase args, string? inboxFilePath)
     {
         var (planFile, project, priority) = ExtractJobMetadata(args);
@@ -1127,8 +1226,31 @@ public class JobService : IJobService
             TypedArgs = args,
             Provider = _configService?.Settings.CodingAgent ?? "claude",
             Priority = priority,
-            WaitForJobIds = args.WaitForJobs
+            WaitForJobIds = args.WaitForJobs,
+            ChatSessionId = args.ChatSessionId
         };
+
+        if (string.IsNullOrEmpty(job.ChatSessionId))
+        {
+            var targetFolder = args.PlanFolder;
+            if (string.IsNullOrEmpty(targetFolder) && !string.IsNullOrEmpty(planFile) && args is not CreatePlanArgs and not AddProjectArgs)
+            {
+                targetFolder = planFile;
+            }
+
+            if (!string.IsNullOrEmpty(targetFolder))
+            {
+                var inheritedSessionId = ResolvePlanChatSessionId(targetFolder);
+                if (!string.IsNullOrEmpty(inheritedSessionId))
+                {
+                    job.ChatSessionId = inheritedSessionId;
+                    if (job.TypedArgs != null)
+                    {
+                        job.TypedArgs = job.TypedArgs with { ChatSessionId = inheritedSessionId };
+                    }
+                }
+            }
+        }
 
         if (args is CreatePlanArgs)
             SetupInboxTracking(job, id, args, inboxFilePath);
@@ -1285,7 +1407,7 @@ public class JobService : IJobService
         return true;
     }
 
-    private static string DescribeWaitDependency(JobItem dep)
+    internal static string DescribeWaitDependency(JobItem dep)
     {
         var planId = dep.ResolvePlanId();
         return string.IsNullOrEmpty(planId)
@@ -1317,8 +1439,34 @@ public class JobService : IJobService
             Status = JobStatus.Running,
             StartedAt = DateTime.UtcNow,
             TypedArgs = args,
-            TimeoutCts = new CancellationTokenSource()
+            TimeoutCts = new CancellationTokenSource(),
+            ChatSessionId = args.ChatSessionId
         };
+        if (string.IsNullOrEmpty(job.ChatSessionId))
+        {
+            var targetFolder = args.PlanFolder;
+            if (string.IsNullOrEmpty(targetFolder) && !string.IsNullOrEmpty(planFile) && args is not CreatePlanArgs and not AddProjectArgs)
+            {
+                targetFolder = planFile;
+            }
+
+            if (!string.IsNullOrEmpty(targetFolder))
+            {
+                var inheritedSessionId = ResolvePlanChatSessionId(targetFolder);
+                if (!string.IsNullOrEmpty(inheritedSessionId))
+                {
+                    job.ChatSessionId = inheritedSessionId;
+                    if (job.TypedArgs != null)
+                    {
+                        job.TypedArgs = job.TypedArgs with { ChatSessionId = inheritedSessionId };
+                    }
+                }
+            }
+        }
+        if (!string.IsNullOrEmpty(job.ChatSessionId) && _chatHistoryService != null)
+        {
+            _chatHistoryService.AddSpawnedJob(job.ChatSessionId, id);
+        }
         // Mirror StartJob (including its CreatePlanArgs guard) so inbox-recovery behaviour can be
         // exercised without a launchable agent.
         if (args is CreatePlanArgs)
@@ -1407,6 +1555,18 @@ public class JobService : IJobService
         set => _staleOutputTimeout = value;
     }
 
+    internal TimeSpan HookConditionTimeout
+    {
+        get => _completionHandler.HookConditionTimeout;
+        set => _completionHandler.HookConditionTimeout = value;
+    }
+
+    internal TimeSpan HookActionTimeout
+    {
+        get => _completionHandler.HookActionTimeout;
+        set => _completionHandler.HookActionTimeout = value;
+    }
+
 
     private void ProcessJobQueue()
     {
@@ -1468,8 +1628,28 @@ public class JobService : IJobService
     internal void WriteJobLog(JobItem job)
         => _completionHandler.WriteJobLog(job);
 
-    internal static void LogCostToCsv(string planFolder, string jobType, int tokens, double cost)
-        => PlanYamlHelper.LogCostToCsv(planFolder, jobType, tokens, cost);
+    internal static void LogCostToCsv(string planFolder, string jobType, int tokens, decimal? cost, string? model = null, string? costSource = null)
+        => PlanYamlHelper.LogCostToCsv(planFolder, jobType, tokens, cost, model, costSource);
+
+    /// <summary>
+    /// Writes a cost <see cref="Services.Telemetry.CostBackfillService" /> worked out after the fact
+    /// onto the job this service is holding, so an open Jobs table or cost sheet picks it up instead
+    /// of showing the blank the backfill just repaired until the next reload.
+    /// <para>
+    /// The database row is the backfill's own business; this only reconciles memory. Returns false
+    /// when the job is no longer held, which is the ordinary case for anything older than
+    /// <c>LoadHistoricalJobs</c> kept.
+    /// </para>
+    /// </summary>
+    internal bool ApplyBackfilledCost(string jobId, decimal cost, string costSource)
+    {
+        if (!_jobs.TryGetValue(jobId, out var job)) return false;
+
+        job.Cost = cost;
+        job.CostSource = costSource;
+        RaiseJobsPropertyChanged();
+        return true;
+    }
 
     internal bool IsRecoveredJob(JobItem job)
     {

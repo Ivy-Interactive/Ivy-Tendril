@@ -1,4 +1,4 @@
-﻿using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Apps.Views.Sheets;
 using Ivy.Tendril.Models;
@@ -348,18 +348,45 @@ public class JobCostResolutionTests
     }
 
     [Theory]
-    [InlineData(JobCostSources.Agent, 1.25, 1.25)]
-    [InlineData(JobCostSources.Computed, 1.25, null)]
-    [InlineData(null, 1.25, null)]
+    [InlineData(JobCostSources.Agent, 1.25, 1.25, null)]
+    [InlineData(JobCostSources.Computed, 1.25, null, null)]
+    [InlineData(JobCostSources.Estimated, 1.25, null, 1.25)]
+    [InlineData(null, 1.25, null, null)]
     public void Sheet_AgentReportedCost_OnlySetWhenTheAgentActuallyReportedOne(
-        string? costSource, double charged, double? expected)
+        string? costSource, double charged, double? expectedReported, double? expectedEstimated)
     {
-        // A charge whose source was never recorded must not be presented as the agent's figure.
+        // A charge whose source was never recorded must not be presented as the agent's figure, and an
+        // estimate least of all: the two are mutually exclusive so the sheet can label one without
+        // laundering it into the other.
         var model = Build(CostedJob(costSource, (decimal)charged));
 
-        Assert.Equal((decimal?)expected, model.AgentReportedCost);
+        Assert.Equal((decimal?)expectedReported, model.AgentReportedCost);
+        Assert.Equal((decimal?)expectedEstimated, model.EstimatedCost);
         Assert.Equal((decimal)charged, model.ChargedCost);
         Assert.Equal(costSource, model.CostSource);
+    }
+
+    [Fact]
+    public void Sheet_ComputeCost_NoBucketCarriesARate_ReturnsNullRatherThanZero()
+    {
+        // The distinction the whole estimated tier rests on. An unpriced model must never come out of
+        // the shared helper as a free run.
+        var unpriced = JobCostModelBuilder.BuildBuckets(CostedJob(JobCostSources.Agent), pricing: null);
+
+        Assert.NotEmpty(unpriced);
+        Assert.Null(JobCostModelBuilder.ComputeCost(unpriced));
+    }
+
+    [Fact]
+    public void Sheet_ComputeCost_ReasoningOnly_ReturnsNull()
+    {
+        // Reasoning never counts toward the total and carries no rate, so a job with nothing else has
+        // no counted bucket at all.
+        var job = UncostedJob();
+        job.ReasoningTokens = 5000;
+
+        Assert.Null(JobCostModelBuilder.ComputeCost(
+            JobCostModelBuilder.BuildBuckets(job, StaticClaudePricing)));
     }
 
     [Fact]
@@ -445,6 +472,112 @@ public class JobCostResolutionTests
         job.StatusMessage = "Verifying: DotnetBuild";
 
         Assert.NotEqual(before, JobDebugSheet.BuildSignature(job));
+    }
+
+    // The estimated tier: a subscription plan (Claude Max) reports tokens and no charge at all, so
+    // neither the inline figure nor a session parse yields anything to show. The precedence below is
+    // the guarantee that an estimate is only ever a last resort.
+
+    /// <summary>A provider holding only <see cref="StaticClaudePricing" />, as the estimate path sees it.</summary>
+    private static ModelPricingProvider ClaudeOnlyPricing() => new([StaticClaudePricing]);
+
+    /// <summary>
+    ///     The buckets on <see cref="SubscriptionUsage" /> priced at <see cref="StaticClaudePricing" />:
+    ///     1000 input at $3, 500 output at $15, 90,000 cache read at $0.30, 300 cache write at $3.75.
+    /// </summary>
+    private const decimal ExpectedEstimate =
+        1000 * 3m / 1_000_000m + 500 * 15m / 1_000_000m
+        + 90_000 * 0.3m / 1_000_000m + 300 * 3.75m / 1_000_000m;
+
+    private static AgentUsage SubscriptionUsage(string? model = "claude-opus-5") => new()
+    {
+        InputTokens = 1000,
+        OutputTokens = 500,
+        CacheReadTokens = 90_000,
+        CacheWriteTokens = 300,
+        ReasoningTokens = 42,
+        CostUsd = 0m,
+        Model = model,
+    };
+
+    [Fact]
+    public void ResolveJobCost_NeitherSourceCharged_EstimatesFromTokensAndPriceList()
+    {
+        var usage = JobCompletionHandler.ResolveJobCost(
+            SubscriptionUsage(), priced: null, ClaudeOnlyPricing());
+
+        Assert.Equal(ExpectedEstimate, usage.Cost);
+        Assert.Equal(JobCostSources.Estimated, usage.CostSource);
+    }
+
+    [Fact]
+    public void ResolveJobCost_InlineCost_WinsOverAnEstimate()
+    {
+        var inline = SubscriptionUsage() with { CostUsd = 0.02m };
+
+        var usage = JobCompletionHandler.ResolveJobCost(inline, priced: null, ClaudeOnlyPricing());
+
+        Assert.Equal(0.02m, usage.Cost);
+        Assert.Equal(JobCostSources.Agent, usage.CostSource);
+    }
+
+    [Fact]
+    public void ResolveJobCost_PricedCost_WinsOverAnEstimate()
+    {
+        var priced = new CostCalculation { TotalTokens = 1500, TotalCost = 0.031 };
+
+        var usage = JobCompletionHandler.ResolveJobCost(
+            SubscriptionUsage(), priced, ClaudeOnlyPricing());
+
+        Assert.Equal(0.031m, usage.Cost);
+        Assert.Equal(JobCostSources.Computed, usage.CostSource);
+    }
+
+    [Fact]
+    public void ResolveJobCost_Estimate_ExcludesReasoningTokens()
+    {
+        // Reasoning is reported alongside (and by some providers inside) output, so an estimate that
+        // charged for it would overstate the run.
+        var withReasoning = JobCompletionHandler.ResolveJobCost(
+            SubscriptionUsage() with { ReasoningTokens = 500_000 }, priced: null, ClaudeOnlyPricing());
+        var without = JobCompletionHandler.ResolveJobCost(
+            SubscriptionUsage() with { ReasoningTokens = 0 }, priced: null, ClaudeOnlyPricing());
+
+        Assert.Equal(without.Cost, withReasoning.Cost);
+    }
+
+    [Fact]
+    public void ResolveJobCost_UnknownModel_LeavesCostAndSourceNull()
+    {
+        var usage = JobCompletionHandler.ResolveJobCost(
+            SubscriptionUsage("some-model-nobody-has-rates-for"), priced: null, ClaudeOnlyPricing());
+
+        Assert.Null(usage.Cost);
+        Assert.Null(usage.CostSource);
+        Assert.Equal(1500, usage.Tokens);
+    }
+
+    [Fact]
+    public void ResolveJobCost_KnownModelButNoTokens_LeavesCostAndSourceNull()
+    {
+        var usage = JobCompletionHandler.ResolveJobCost(
+            new AgentUsage { Model = "claude-opus-5" }, priced: null, ClaudeOnlyPricing());
+
+        Assert.Null(usage.Cost);
+        Assert.Null(usage.CostSource);
+    }
+
+    [Fact]
+    public void ResolveJobCost_NoProviderPassed_BehavesAsBefore()
+    {
+        // The two-argument call is what every pre-existing caller and test uses; adding the tier must
+        // not change what it returns.
+        var usage = JobCompletionHandler.ResolveJobCost(SubscriptionUsage(), priced: null);
+
+        Assert.Null(usage.Cost);
+        Assert.Null(usage.CostSource);
+        Assert.Equal(1500, usage.Tokens);
+        Assert.Equal(90_000, usage.CacheReadTokens);
     }
 
     private static JobItem UncostedJob() => new()

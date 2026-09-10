@@ -48,6 +48,7 @@ Before processing, read `plan.yaml` and check the `state` field. After reading, 
   - `PrReviewer` — comma-separated GitHub usernames to request as reviewers (default: none)
   - `PrComment` — Review comment text (default: none)
   - `PrDraft` — `true`/`false` (default: `false`)
+  - `PrBaseBranch` — Target branch for pull request (default: repo default branch or project configured base branch)
 
 ### 2. For Each Worktree
 
@@ -148,7 +149,7 @@ concurrent CreatePr jobs share `$TMPDIR`) and pass `--body-file`:
 # last-writer-wins race that swaps PR bodies between plans (#1551).
 body_file=$(mktemp)
 printf '%s' "$body" > "$body_file"
-gh pr create [--draft] --repo <owner/repo> --base <default-branch> --head <branch> \
+gh pr create [--draft] --repo <owner/repo> --base <base-branch> --head <branch> \
   --assignee @me --title "[<planId>] <plan title>" --body-file "$body_file"
 rm -f "$body_file"
 ```
@@ -159,14 +160,14 @@ rm -f "$body_file"
   TITLE="[<planId>] <plan title>"
   body_file=$(mktemp)
   printf '%s' "$body" > "$body_file"
-  gh pr create --repo <owner/repo> --base <default-branch> --head <branch> \
+  gh pr create --repo <owner/repo> --base <base-branch> --head <branch> \
     --assignee @me --title "$TITLE" --body-file "$body_file"
   rm -f "$body_file"
   ```
 
 - **Base branch:**
-  1. Read plan.yaml and get the project name
-  2. For each repo, check the firmware header for `baseBranch` configuration
+  1. Check if `PrBaseBranch` is specified in the firmware header; if present and non-empty, use that branch
+  2. Otherwise, check the firmware header `RepoConfigs` for `baseBranch` configuration for this repo
   3. If configured, use that value
   4. Otherwise, auto-detect via: `gh repo view <owner/repo> --json defaultBranchRef -q .defaultBranchRef.name`
 - **Title:** `[<planId>] <plan title>`
@@ -237,8 +238,8 @@ When the PR status is `CONFLICTING`, resolve the conflict locally:
 3. **Merge the base branch** into the feature branch:
    ```bash
    cd <worktree-or-repo-path>
-   git fetch origin <default-branch>
-   git merge origin/<default-branch>
+   git fetch origin <base-branch>
+   git merge origin/<base-branch>
    ```
 
 4. **Resolve conflicts**: Read each conflicted file (`git diff --name-only --diff-filter=U`), understand both sides, and edit to resolve. Prioritize:
@@ -249,7 +250,7 @@ When the PR status is `CONFLICTING`, resolve the conflict locally:
 5. **Commit the merge**:
    ```bash
    git add -A
-   git commit -m "[<planId>] Resolve merge conflicts with <default-branch>"
+   git commit -m "[<planId>] Resolve merge conflicts with <base-branch>"
    ```
 
 6. **Quick build check** (if build-critical files were involved in conflicts):
@@ -289,9 +290,9 @@ When merging, build the command from the flags:
 ```bash
 gh pr merge <pr-number> --repo <owner/repo> --merge [--delete-branch] --admin
 cd <original-repo-path>
-# Only pull if the local repo is clean (no uncommitted changes, on the default branch)
-if [ -z "$(git status --porcelain)" ] && [ "$(git symbolic-ref --short HEAD)" = "<default-branch>" ]; then
-  git pull origin <default-branch>
+# Only pull if the local repo is clean (no uncommitted changes, on the target base branch)
+if [ -z "$(git status --porcelain)" ] && [ "$(git symbolic-ref --short HEAD)" = "<base-branch>" ]; then
+  git pull origin <base-branch>
 fi
 ```
 

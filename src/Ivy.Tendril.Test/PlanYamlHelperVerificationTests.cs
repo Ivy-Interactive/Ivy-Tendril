@@ -147,4 +147,36 @@ public class PlanYamlHelperVerificationTests
     {
         Assert.Equal("TestPlan", PlanYamlHelper.ExtractSafeTitleFromFolder("00015-TestPlan"));
     }
+
+    [Fact]
+    public void ToSafeTitle_TruncatesLongTitleToMaxLength()
+    {
+        var longTitle = new string('A', 200);
+
+        var result = PlanYamlHelper.ToSafeTitle(longTitle);
+
+        Assert.Equal(PlanYamlHelper.SafeTitleMaxLength, result.Length);
+    }
+
+    [Fact]
+    public void ToSafeTitle_ShortTitleIsUntouched()
+    {
+        var shortTitle = "Fix Login Bug";
+
+        var result = PlanYamlHelper.ToSafeTitle(shortTitle);
+
+        Assert.Equal("FixLoginBug", result);
+        Assert.True(result.Length <= PlanYamlHelper.SafeTitleMaxLength);
+    }
+
+    [Fact]
+    public void ToSafeTitle_ResultIsAlphanumericAfterTruncation()
+    {
+        var titleWithSpecialChars = new string('A', 15) + "!@#$%^&*()" + new string('B', 15);
+
+        var result = PlanYamlHelper.ToSafeTitle(titleWithSpecialChars);
+
+        Assert.All(result, c => Assert.True(char.IsLetterOrDigit(c)));
+        Assert.True(result.Length <= PlanYamlHelper.SafeTitleMaxLength);
+    }
 }

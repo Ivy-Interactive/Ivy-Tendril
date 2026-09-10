@@ -51,7 +51,7 @@ projects:
     {
         var method = typeof(JobLauncher).GetMethod("BuildRepoConfigsYaml",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        return (string?)method?.Invoke(launcher, new object[] { plan, project });
+        return (string?)method?.Invoke(launcher, new object?[] { plan, project, null });
     }
 
     // prRule is no longer a model field (the Create PR dialog is now always shown, unconditionally).

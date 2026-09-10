@@ -19,9 +19,16 @@ public sealed class CodexFailureAnalyzer : IFailureAnalyzer
             };
         }
 
-        var errorEvent = context.Events.OfType<ErrorEvent>().LastOrDefault();
+        // The skills context budget notice arrives on the same channels as real errors but never causes a
+        // failure, so it must not become the reported reason for one.
+        var errorEvent = context.Events
+            .OfType<ErrorEvent>()
+            .LastOrDefault(e => !CodexEventParser.IsSkillsBudgetWarning(e.Message));
         var errorText = errorEvent?.Message ?? "";
-        var stderr = string.Join("\n", context.StderrLines);
+        var stderrLines = context.StderrLines
+            .Where(l => !CodexEventParser.IsSkillsBudgetWarning(l))
+            .ToList();
+        var stderr = string.Join("\n", stderrLines);
         var combined = string.IsNullOrWhiteSpace(errorText) ? stderr : $"{errorText}\n{stderr}";
 
         if (ContainsAny(combined, "rate limit", "429", "too many requests", "usage limit", "hit your usage limit"))
@@ -30,7 +37,7 @@ public sealed class CodexFailureAnalyzer : IFailureAnalyzer
             {
                 Kind = FailureKind.RateLimit,
                 Reason = !string.IsNullOrWhiteSpace(errorText) ? errorText : "Rate limited or usage limit reached by Codex API",
-                ContextLines = context.StderrLines,
+                ContextLines = stderrLines,
                 IsRetryable = true,
                 Suggestion = "Wait before retrying, upgrade your ChatGPT plan, or switch to a different model or agent",
             };
@@ -42,7 +49,7 @@ public sealed class CodexFailureAnalyzer : IFailureAnalyzer
             {
                 Kind = FailureKind.InvalidModel,
                 Reason = !string.IsNullOrWhiteSpace(errorText) ? errorText : "The specified model is not supported with this account",
-                ContextLines = context.StderrLines,
+                ContextLines = stderrLines,
                 IsRetryable = false,
                 Suggestion = "Select a supported model (e.g. gpt-5.6-terra) or authenticate with an API key",
             };
@@ -54,7 +61,7 @@ public sealed class CodexFailureAnalyzer : IFailureAnalyzer
             {
                 Kind = FailureKind.AuthError,
                 Reason = !string.IsNullOrWhiteSpace(errorText) ? errorText : "Authentication failure",
-                ContextLines = context.StderrLines,
+                ContextLines = stderrLines,
                 IsRetryable = false,
                 Suggestion = "Run 'codex login' to authenticate",
             };
@@ -66,7 +73,7 @@ public sealed class CodexFailureAnalyzer : IFailureAnalyzer
             {
                 Kind = FailureKind.InvalidModel,
                 Reason = !string.IsNullOrWhiteSpace(errorText) ? errorText : "The specified model is not available",
-                ContextLines = context.StderrLines,
+                ContextLines = stderrLines,
                 IsRetryable = false,
                 Suggestion = "Check model name or use a different model (e.g., gpt-5.6-terra, o4-mini)",
             };
@@ -78,7 +85,7 @@ public sealed class CodexFailureAnalyzer : IFailureAnalyzer
             {
                 Kind = FailureKind.NetworkError,
                 Reason = !string.IsNullOrWhiteSpace(errorText) ? errorText : "Network connectivity issue",
-                ContextLines = context.StderrLines,
+                ContextLines = stderrLines,
                 IsRetryable = true,
                 Suggestion = "Check network connection and retry",
             };
@@ -86,7 +93,7 @@ public sealed class CodexFailureAnalyzer : IFailureAnalyzer
 
         var lastMessage = !string.IsNullOrWhiteSpace(errorText)
             ? errorText
-            : context.StderrLines.LastOrDefault(l => !string.IsNullOrWhiteSpace(l));
+            : stderrLines.LastOrDefault(l => !string.IsNullOrWhiteSpace(l));
 
         if (context.ExitCode is not null and not 0)
         {
@@ -96,7 +103,7 @@ public sealed class CodexFailureAnalyzer : IFailureAnalyzer
                 Reason = lastMessage != null
                     ? $"Codex exited with code {context.ExitCode}: {lastMessage}"
                     : $"Codex exited with code {context.ExitCode}",
-                ContextLines = context.StderrLines,
+                ContextLines = stderrLines,
                 IsRetryable = true,
             };
         }

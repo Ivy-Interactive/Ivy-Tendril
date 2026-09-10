@@ -51,7 +51,7 @@ public record JobItem
     public DateTime? StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public int? DurationSeconds { get; set; }
-    public JobArgsBase? TypedArgs { get; init; }
+    public JobArgsBase? TypedArgs { get; set; }
     public bool CancellationRequested { get; set; }
 
     /// <summary>
@@ -73,6 +73,12 @@ public record JobItem
     public PlanStatus? PreviousPlanState { get; set; }
 
     public string? SessionId { get; set; }
+    public string? ChatSessionId
+    {
+        get => _chatSessionId ?? TypedArgs?.ChatSessionId;
+        set => _chatSessionId = value;
+    }
+    private string? _chatSessionId;
     // Settable: the standalone CLI runners resolve the agent after the job object exists.
     public string Provider { get; set; } = "claude";
     public string? Model { get; set; }
@@ -130,6 +136,7 @@ public record JobItem
     public int? ProcessId { get; set; }
     public string? StatusMessage { get; set; }
     public ConcurrentQueue<string> OutputLines { get; set; } = new();
+    public int BackgroundContinuationCount { get; set; }
 
     /// <summary>
     /// Guards against re-reading the EventWire file from disk on every GetJob call
@@ -350,7 +357,7 @@ public record JobItemRow
     /// </summary>
     public string Status { get; init; } = "";
     public string PlanId { get; init; } = "";
-    public string Plan { get; init; } = "";
+    public string Prompt { get; init; } = "";
     public string Type { get; init; } = "";
     public string Project { get; init; } = "";
     public string Timer { get; init; } = "";

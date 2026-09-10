@@ -1,4 +1,4 @@
-﻿using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Services.Telemetry;
 using Microsoft.Extensions.Logging;
@@ -70,6 +70,12 @@ public class OnboardingSetupService(IConfigService config, IAgentRunner agentRun
         _logger.LogInformation("Setting environment variable TENDRIL_HOME={Value}", tendrilHome);
         Environment.SetEnvironmentVariable("TENDRIL_HOME", tendrilHome);
 
+        if (IsTestMode())
+        {
+            _logger.LogInformation("Skipping shell configuration, pointer file, and user environment persistence in test mode");
+            return;
+        }
+
         try
         {
             var pointerFile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".tendril_location");
@@ -110,6 +116,13 @@ public class OnboardingSetupService(IConfigService config, IAgentRunner agentRun
         }
 
         _logger.LogInformation("Environment variable persisted (Windows={IsWin})", OperatingSystem.IsWindows());
+    }
+
+    private static bool IsTestMode()
+    {
+        return Environment.GetEnvironmentVariable("TENDRIL_E2E") == "1"
+            || Environment.GetEnvironmentVariable("TENDRIL_TEST") == "1"
+            || Environment.GetEnvironmentVariable("TENDRIL_NO_PERSIST_SHELL") == "1";
     }
 
     public Task CommitPendingProjectAsync()

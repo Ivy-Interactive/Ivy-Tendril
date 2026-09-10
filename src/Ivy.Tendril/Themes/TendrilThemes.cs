@@ -1,3 +1,9 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using Ivy.Tendril.Services.Vault;
+
 namespace Ivy.Tendril.Themes;
 
 public class TendrilThemeDescriptor
@@ -7,7 +13,10 @@ public class TendrilThemeDescriptor
     public string Description { get; init; } = "";
     public bool IsDark { get; init; }
     public string[] PreviewColors { get; init; } = [];
-    public Theme IvyTheme { get; init; } = Theme.Default;
+    public Theme IvyTheme { get; init; } = TendrilThemes.CreateDefaultIvyTheme();
+    public string? VaultId { get; init; }
+    public string? VaultName { get; init; }
+    public bool IsVaultTheme { get; init; }
 }
 
 public static class TendrilThemes
@@ -19,7 +28,7 @@ public static class TendrilThemes
         Description = "Standard clean Tendril theme with slate light and dark zinc",
         IsDark = false,
         PreviewColors = ["#18181b", "#71717a", "#27272a", "#ffffff"],
-        IvyTheme = Theme.Default
+        IvyTheme = CreateDefaultIvyTheme()
     };
 
     public static readonly TendrilThemeDescriptor Cupcake = new()
@@ -50,7 +59,7 @@ public static class TendrilThemes
                     Background = "#faf7f5",
                     Foreground = "#291334",
                     Destructive = "#f87272",
-                    DestructiveForeground = "#ffffff",
+                    DestructiveForeground = "#000000",
                     Success = "#36d399",
                     SuccessForeground = "#1d232a",
                     Warning = "#fbbd23",
@@ -78,7 +87,7 @@ public static class TendrilThemes
                     Background = "#231a28",
                     Foreground = "#faf7f5",
                     Destructive = "#f87272",
-                    DestructiveForeground = "#ffffff",
+                    DestructiveForeground = "#000000",
                     Success = "#36d399",
                     SuccessForeground = "#1d232a",
                     Warning = "#fbbd23",
@@ -204,7 +213,7 @@ public static class TendrilThemes
                     Background = "#faf5ff",
                     Foreground = "#1e1035",
                     Destructive = "#ef4444",
-                    DestructiveForeground = "#ffffff",
+                    DestructiveForeground = "#000000",
                     Success = "#10b981",
                     SuccessForeground = "#ffffff",
                     Warning = "#f59e0b",
@@ -232,7 +241,7 @@ public static class TendrilThemes
                     Background = "#1a103c",
                     Foreground = "#f3e8ff",
                     Destructive = "#ff5757",
-                    DestructiveForeground = "#ffffff",
+                    DestructiveForeground = "#000000",
                     Success = "#2dd4bf",
                     SuccessForeground = "#1a103c",
                     Warning = "#f3cc30",
@@ -386,7 +395,7 @@ public static class TendrilThemes
                     Background = "#282a36",
                     Foreground = "#f8f8f2",
                     Destructive = "#ff5555",
-                    DestructiveForeground = "#f8f8f2",
+                    DestructiveForeground = "#000000",
                     Success = "#50fa7b",
                     SuccessForeground = "#282a36",
                     Warning = "#f1fa8c",
@@ -435,7 +444,7 @@ public static class TendrilThemes
                     Background = "#eceff4",
                     Foreground = "#2e3440",
                     Destructive = "#bf616a",
-                    DestructiveForeground = "#ffffff",
+                    DestructiveForeground = "#000000",
                     Success = "#a3be8c",
                     SuccessForeground = "#2e3440",
                     Warning = "#ebcb8b",
@@ -463,7 +472,7 @@ public static class TendrilThemes
                     Background = "#2e3440",
                     Foreground = "#eceff4",
                     Destructive = "#bf616a",
-                    DestructiveForeground = "#eceff4",
+                    DestructiveForeground = "#000000",
                     Success = "#a3be8c",
                     SuccessForeground = "#2e3440",
                     Warning = "#ebcb8b",
@@ -617,7 +626,7 @@ public static class TendrilThemes
                     Background = "#0b2545",
                     Foreground = "#eef4f8",
                     Destructive = "#ff5757",
-                    DestructiveForeground = "#ffffff",
+                    DestructiveForeground = "#000000",
                     Success = "#00e676",
                     SuccessForeground = "#0b2545",
                     Warning = "#ffeb3b",
@@ -771,7 +780,7 @@ public static class TendrilThemes
                     Background = "#121c2a",
                     Foreground = "#f8e9e2",
                     Destructive = "#ff5757",
-                    DestructiveForeground = "#ffffff",
+                    DestructiveForeground = "#000000",
                     Success = "#2dd4bf",
                     SuccessForeground = "#121c2a",
                     Warning = "#fcd34d",
@@ -848,7 +857,7 @@ public static class TendrilThemes
                     Background = "#20161f",
                     Foreground = "#ddd0b9",
                     Destructive = "#ef4444",
-                    DestructiveForeground = "#ffffff",
+                    DestructiveForeground = "#000000",
                     Success = "#22c55e",
                     SuccessForeground = "#20161f",
                     Warning = "#eab308",
@@ -897,7 +906,7 @@ public static class TendrilThemes
                     Background = "#f8fafc",
                     Foreground = "#1e293b",
                     Destructive = "#ef4444",
-                    DestructiveForeground = "#ffffff",
+                    DestructiveForeground = "#000000",
                     Success = "#16a34a",
                     SuccessForeground = "#ffffff",
                     Warning = "#f59e0b",
@@ -1002,7 +1011,7 @@ public static class TendrilThemes
                     Background = "#09090b",
                     Foreground = "#f5f5f5",
                     Destructive = "#ef4444",
-                    DestructiveForeground = "#ffffff",
+                    DestructiveForeground = "#000000",
                     Success = "#22c55e",
                     SuccessForeground = "#09090b",
                     Warning = "#dca54c",
@@ -1051,7 +1060,7 @@ public static class TendrilThemes
                     Background = "#faf8f5",
                     Foreground = "#18181b",
                     Destructive = "#ef4444",
-                    DestructiveForeground = "#ffffff",
+                    DestructiveForeground = "#000000",
                     Success = "#10b981",
                     SuccessForeground = "#ffffff",
                     Warning = "#f59e0b",
@@ -1079,7 +1088,7 @@ public static class TendrilThemes
                     Background = "#09090b",
                     Foreground = "#f4f4f5",
                     Destructive = "#f43f5e",
-                    DestructiveForeground = "#ffffff",
+                    DestructiveForeground = "#000000",
                     Success = "#10b981",
                     SuccessForeground = "#ffffff",
                     Warning = "#f59e0b",
@@ -1177,7 +1186,7 @@ public static class TendrilThemes
         }
     };
 
-    public static readonly IReadOnlyList<TendrilThemeDescriptor> All =
+    public static readonly IReadOnlyList<TendrilThemeDescriptor> BuiltInThemes =
     [
         Default,
         Cupcake,
@@ -1197,13 +1206,113 @@ public static class TendrilThemes
         HelloKitty
     ];
 
-    private static readonly Dictionary<string, TendrilThemeDescriptor> ThemesById =
-        All.ToDictionary(t => t.Id, t => t, StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, TendrilThemeDescriptor> BuiltInThemesById =
+        BuiltInThemes.ToDictionary(t => t.Id, t => t, StringComparer.OrdinalIgnoreCase);
+
+    private static readonly ConcurrentDictionary<string, TendrilThemeDescriptor> CustomThemesById =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public static IReadOnlyList<TendrilThemeDescriptor> All
+    {
+        get
+        {
+            var list = new List<TendrilThemeDescriptor>(BuiltInThemes);
+            list.AddRange(CustomThemesById.Values);
+            return list;
+        }
+    }
+
+    public static void RegisterVaultTheme(VaultThemeManifest manifest, string vaultId, string vaultName)
+    {
+        if (manifest == null || string.IsNullOrWhiteSpace(manifest.Id)) return;
+
+        var descriptor = new TendrilThemeDescriptor
+        {
+            Id = manifest.Id.Trim(),
+            Name = manifest.Name,
+            Description = !string.IsNullOrWhiteSpace(manifest.Description)
+                ? manifest.Description
+                : $"Theme from vault {vaultName}",
+            IsDark = manifest.IsDark,
+            PreviewColors = manifest.PreviewColors != null && manifest.PreviewColors.Length > 0
+                ? manifest.PreviewColors
+                : ExtractPreviewColors(manifest.IvyTheme, manifest.IsDark),
+            IvyTheme = manifest.IvyTheme ?? CreateDefaultIvyTheme(),
+            VaultId = vaultId,
+            VaultName = vaultName,
+            IsVaultTheme = true
+        };
+
+        CustomThemesById[descriptor.Id] = descriptor;
+    }
+
+    public static void RegisterCustomTheme(TendrilThemeDescriptor descriptor)
+    {
+        if (descriptor == null || string.IsNullOrWhiteSpace(descriptor.Id)) return;
+        CustomThemesById[descriptor.Id.Trim()] = descriptor;
+    }
+
+    public static bool RemoveVaultTheme(string themeId)
+    {
+        if (string.IsNullOrWhiteSpace(themeId)) return false;
+        return CustomThemesById.TryRemove(themeId.Trim(), out _);
+    }
+
+    public static void ClearVaultThemes(string? vaultId = null)
+    {
+        if (string.IsNullOrEmpty(vaultId))
+        {
+            CustomThemesById.Clear();
+            return;
+        }
+
+        foreach (var kvp in CustomThemesById)
+        {
+            if (string.Equals(kvp.Value.VaultId, vaultId, StringComparison.OrdinalIgnoreCase))
+            {
+                CustomThemesById.TryRemove(kvp.Key, out _);
+            }
+        }
+    }
+
+    public static string[] ExtractPreviewColors(Theme? theme, bool isDark = false)
+    {
+        if (theme?.Colors == null)
+            return ["#18181b", "#71717a", "#27272a", "#ffffff"];
+
+        var dark = theme.Colors.Dark;
+        var light = theme.Colors.Light;
+        var hasDark = !string.IsNullOrWhiteSpace(dark?.Primary);
+        var hasLight = !string.IsNullOrWhiteSpace(light?.Primary);
+
+        ThemeColors? colors;
+        if (isDark)
+        {
+            colors = hasDark ? dark : (hasLight ? light : dark);
+        }
+        else
+        {
+            colors = hasLight ? light : (hasDark ? dark : light);
+        }
+
+        return [
+            colors?.Primary ?? "#000000",
+            colors?.Secondary ?? "#888888",
+            colors?.Accent ?? "#555555",
+            colors?.Background ?? "#ffffff"
+        ];
+    }
 
     public static TendrilThemeDescriptor GetTheme(string? id)
     {
-        if (!string.IsNullOrWhiteSpace(id) && ThemesById.TryGetValue(id.Trim(), out var theme))
-            return theme;
+        if (!string.IsNullOrWhiteSpace(id))
+        {
+            var trimmed = id.Trim();
+            if (CustomThemesById.TryGetValue(trimmed, out var customTheme))
+                return customTheme;
+            if (BuiltInThemesById.TryGetValue(trimmed, out var theme))
+                return theme;
+        }
         return Default;
     }
 
@@ -1228,5 +1337,70 @@ public static class TendrilThemes
     public static void ApplyThemeMode(IClientProvider client, string? mode)
     {
         client.SetThemeMode(ParseThemeMode(mode));
+    }
+
+    public static Theme CloneTheme(Theme source)
+    {
+        return new Theme
+        {
+            Name = source.Name,
+            FontFamily = source.FontFamily,
+            FontSize = source.FontSize,
+            BorderRadiusBoxes = source.BorderRadiusBoxes,
+            BorderRadiusFields = source.BorderRadiusFields,
+            BorderRadiusSelectors = source.BorderRadiusSelectors,
+            ShadowBoxes = source.ShadowBoxes,
+            ShadowFields = source.ShadowFields,
+            ShadowSelectors = source.ShadowSelectors,
+            Colors = new ThemeColorScheme
+            {
+                Light = CloneThemeColors(source.Colors?.Light ?? ThemeColors.DefaultLight),
+                Dark = CloneThemeColors(source.Colors?.Dark ?? ThemeColors.DefaultDark)
+            }
+        };
+    }
+
+    /// <summary>
+    /// Ivy's Theme.Default pairs Destructive #ef4444 with #ffffff (3.76:1), below the WCAG 2.1 AA
+    /// minimum of 4.5:1. Black on the same red is 5.58:1.
+    /// </summary>
+    public static Theme CreateDefaultIvyTheme()
+    {
+        var theme = CloneTheme(Theme.Default);
+        theme.Colors.Light!.DestructiveForeground = "#000000";
+        theme.Colors.Dark!.DestructiveForeground = "#000000";
+        return theme;
+    }
+
+    public static ThemeColors CloneThemeColors(ThemeColors source)
+    {
+        return new ThemeColors
+        {
+            Primary = source.Primary,
+            PrimaryForeground = source.PrimaryForeground,
+            Secondary = source.Secondary,
+            SecondaryForeground = source.SecondaryForeground,
+            Background = source.Background,
+            Foreground = source.Foreground,
+            Destructive = source.Destructive,
+            DestructiveForeground = source.DestructiveForeground,
+            Success = source.Success,
+            SuccessForeground = source.SuccessForeground,
+            Warning = source.Warning,
+            WarningForeground = source.WarningForeground,
+            Info = source.Info,
+            InfoForeground = source.InfoForeground,
+            Border = source.Border,
+            Input = source.Input,
+            Ring = source.Ring,
+            Muted = source.Muted,
+            MutedForeground = source.MutedForeground,
+            Accent = source.Accent,
+            AccentForeground = source.AccentForeground,
+            Card = source.Card,
+            CardForeground = source.CardForeground,
+            Popover = source.Popover,
+            PopoverForeground = source.PopoverForeground
+        };
     }
 }

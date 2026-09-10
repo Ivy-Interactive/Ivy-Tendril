@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent, render } from "@testing-library/react";
+import { act, fireEvent, render } from "@testing-library/react";
 import { PlanMarkdown as DraftMarkdown } from "./PlanMarkdown";
+import { QuestionsCallout } from "./QuestionsCallout";
 
 const renderContent = (content: string) => {
   const { container } = render(<DraftMarkdown id="w1" content={content} />);
@@ -163,7 +164,7 @@ const renderInteractive = (content: string) => {
 };
 
 const checks = (container: HTMLElement) =>
-  Array.from(container.querySelectorAll<HTMLInputElement>(".pmv-question-check"));
+  Array.from(container.querySelectorAll<HTMLInputElement>(".tq-option-input"));
 
 const answerCalls = (eventHandler: ReturnType<typeof vi.fn>) =>
   eventHandler.mock.calls.map((call) => call[2][0]);
@@ -172,7 +173,7 @@ describe("DraftMarkdown interactive questions", () => {
   it("renders option rows rather than raw YAML when the host subscribes", () => {
     const { container } = renderInteractive(SINGLE);
 
-    expect(container.querySelectorAll(".pmv-question-option").length).toBeGreaterThan(0);
+    expect(container.querySelectorAll(".tq-option").length).toBeGreaterThan(0);
     expect(container.querySelector(".pmv-questions-content")).toBeNull();
     expect(container.textContent).not.toContain("questions:");
     expect(container.textContent).toContain("Per request");
@@ -183,21 +184,21 @@ describe("DraftMarkdown interactive questions", () => {
     // not a form, and certainly not the raw YAML.
     const container = renderContent(SINGLE_ANSWERED);
 
-    expect(container.querySelector(".pmv-question-option")).toBeNull();
-    expect(container.querySelector(".pmv-question-check")).toBeNull();
-    expect(container.querySelector(".pmv-question-clear")).toBeNull();
+    expect(container.querySelector(".tq-option")).toBeNull();
+    expect(container.querySelector(".tq-option-input")).toBeNull();
+    expect(container.querySelector(".tq-clear")).toBeNull();
     expect(container.querySelector(".pmv-questions-content")).toBeNull();
     expect(container.textContent).not.toContain("questions:");
 
     // The option's title, not the slug the answer names.
-    expect(container.querySelector(".pmv-question-answer-value")?.textContent).toBe("Per request");
+    expect(container.querySelector(".tq-answer-value")?.textContent).toBe("Per request");
   });
 
   it("lists every value of a read-only multi-select answer", () => {
     const container = renderContent(MULTI_ANSWERED);
 
     expect(
-      Array.from(container.querySelectorAll(".pmv-question-answer-value")).map((e) => e.textContent),
+      Array.from(container.querySelectorAll(".tq-answer-value")).map((e) => e.textContent),
     ).toEqual(["In-app"]);
   });
 
@@ -211,7 +212,7 @@ describe("DraftMarkdown interactive questions", () => {
       ),
     );
 
-    expect(container.querySelector(".pmv-question-answer-value")?.textContent).toBe("Dispatch");
+    expect(container.querySelector(".tq-answer-value")?.textContent).toBe("Dispatch");
   });
 
   it("says an unanswered question was left to the agent, and an optional one was not required", () => {
@@ -227,8 +228,8 @@ describe("DraftMarkdown interactive questions", () => {
     );
 
     expect(
-      Array.from(container.querySelectorAll(".pmv-question-answer--none")).map((e) => e.textContent),
-    ).toEqual(["Not answered — Agent decided", "Not answered — Not required"]);
+      Array.from(container.querySelectorAll(".tq-answer--none")).map((e) => e.textContent),
+    ).toEqual(["Not answered (agent decided)", "Not answered (not required)"]);
   });
 
   it("still renders a legacy prose block as its text when nobody subscribes", () => {
@@ -304,11 +305,11 @@ describe("DraftMarkdown interactive questions", () => {
   it("fires the typed text when Other is chosen", () => {
     const { container, eventHandler } = renderInteractive(SINGLE);
 
-    const otherRow = container.querySelector(".pmv-question-option--other");
+    const otherRow = container.querySelector(".tq-option--other");
     expect(otherRow).not.toBeNull();
-    fireEvent.click(otherRow!.querySelector<HTMLInputElement>(".pmv-question-check")!);
+    fireEvent.click(otherRow!.querySelector<HTMLInputElement>(".tq-option-input")!);
 
-    const input = container.querySelector<HTMLInputElement>(".pmv-question-other-input");
+    const input = container.querySelector<HTMLInputElement>(".tq-text-input");
     expect(input).not.toBeNull();
     fireEvent.change(input!, { target: { value: "per-tenant" } });
 
@@ -318,17 +319,17 @@ describe("DraftMarkdown interactive questions", () => {
   it("fires a null answer when Clear is used", () => {
     const { container, eventHandler } = renderInteractive(SINGLE_ANSWERED);
 
-    fireEvent.click(container.querySelector<HTMLButtonElement>(".pmv-question-clear")!);
+    fireEvent.click(container.querySelector<HTMLButtonElement>(".tq-clear")!);
 
     expect(answerCalls(eventHandler)).toEqual([{ questionId: "budget", answer: null }]);
   });
 
   it("offers Clear only once something in the block is answered", () => {
     const { container } = renderInteractive(SINGLE);
-    expect(container.querySelector(".pmv-question-clear")).toBeNull();
+    expect(container.querySelector(".tq-clear")).toBeNull();
 
     const { container: answered } = renderInteractive(SINGLE_ANSWERED);
-    expect(answered.querySelector(".pmv-question-clear")).not.toBeNull();
+    expect(answered.querySelector(".tq-clear")).not.toBeNull();
   });
 
   it("offers no Clear for a question whose only answer is a leftover null", () => {
@@ -342,21 +343,21 @@ describe("DraftMarkdown interactive questions", () => {
 
     const { container } = renderInteractive(legacySkip);
 
-    expect(container.querySelector(".pmv-question-clear")).toBeNull();
+    expect(container.querySelector(".tq-clear")).toBeNull();
   });
 
   it("gives a multi-question block one shared Clear, not one per question", () => {
     const { container } = renderInteractive(TWO_QUESTIONS);
 
-    expect(container.querySelectorAll(".pmv-question")).toHaveLength(2);
-    expect(container.querySelectorAll(".pmv-question-clear")).toHaveLength(1);
+    expect(container.querySelectorAll(".tq-question")).toHaveLength(2);
+    expect(container.querySelectorAll(".tq-clear")).toHaveLength(1);
   });
 
   it("clears every answered question in the block and leaves the rest alone", () => {
     // `naming` is unanswered and `owner` is not, so Clear must fire for owner only.
     const { container, eventHandler } = renderInteractive(TWO_QUESTIONS);
 
-    fireEvent.click(container.querySelector<HTMLButtonElement>(".pmv-question-clear")!);
+    fireEvent.click(container.querySelector<HTMLButtonElement>(".tq-clear")!);
 
     expect(answerCalls(eventHandler)).toEqual([{ questionId: "owner", answer: null }]);
   });
@@ -376,7 +377,7 @@ describe("DraftMarkdown interactive questions", () => {
 
     const { container } = renderInteractive(optional);
 
-    expect(container.querySelector(".pmv-question-optional")?.textContent).toBe("Optional");
+    expect(container.querySelector(".tq-question-optional")?.textContent).toBe("Optional");
     // Optional says the plan does not wait on it, not that anything has been chosen.
     expect(checks(container).some((check) => check.checked)).toBe(false);
   });
@@ -384,15 +385,15 @@ describe("DraftMarkdown interactive questions", () => {
   it("does not mark an ordinary question as optional", () => {
     const { container } = renderInteractive(SINGLE);
 
-    expect(container.querySelector(".pmv-question-optional")).toBeNull();
+    expect(container.querySelector(".tq-question-optional")).toBeNull();
   });
 
   it("renders no Other row when other is false", () => {
     const { container } = renderInteractive(SINGLE_NO_OTHER);
 
-    expect(container.querySelector(".pmv-question-option--other")).toBeNull();
-    expect(container.querySelector(".pmv-question-other-input")).toBeNull();
-    expect(container.querySelectorAll(".pmv-question-option")).toHaveLength(2);
+    expect(container.querySelector(".tq-option--other")).toBeNull();
+    expect(container.querySelector(".tq-text-input")).toBeNull();
+    expect(container.querySelectorAll(".tq-option")).toHaveLength(2);
   });
 
   it("renders a free-text input and no options for a question with no options", () => {
@@ -400,8 +401,8 @@ describe("DraftMarkdown interactive questions", () => {
       fence("questions:", "  - id: name", "    title: What should it be called?"),
     );
 
-    expect(container.querySelector(".pmv-question-option--other")).toBeNull();
-    const input = container.querySelector<HTMLInputElement>(".pmv-question-other-input");
+    expect(container.querySelector(".tq-option--other")).toBeNull();
+    const input = container.querySelector<HTMLInputElement>(".tq-text-input");
     expect(input).not.toBeNull();
 
     fireEvent.change(input!, { target: { value: "Notifier" } });
@@ -411,16 +412,16 @@ describe("DraftMarkdown interactive questions", () => {
   it("marks the recommended option with a chip", () => {
     const { container } = renderInteractive(SINGLE);
 
-    const chips = container.querySelectorAll(".pmv-question-option-recommended");
+    const chips = container.querySelectorAll(".tq-option-recommended");
     expect(chips).toHaveLength(1);
     expect(chips[0].textContent).toBe("Recommended");
-    expect(chips[0].closest(".pmv-question-option")?.textContent).toContain("Per session");
+    expect(chips[0].closest(".tq-option")?.textContent).toContain("Per session");
   });
 
   it("stacks every question in the block instead of tabbing between them", () => {
     const { container } = renderInteractive(TWO_QUESTIONS);
 
-    const titles = Array.from(container.querySelectorAll(".pmv-question-title")).map(
+    const titles = Array.from(container.querySelectorAll(".tq-question-title")).map(
       (t) => t.textContent,
     );
     expect(titles).toEqual(["What should it be called?", "Who owns the rollout?"]);
@@ -430,7 +431,7 @@ describe("DraftMarkdown interactive questions", () => {
   it("answers the second question of a block without touching the first", () => {
     const { container, eventHandler } = renderInteractive(TWO_QUESTIONS);
 
-    const inputs = container.querySelectorAll<HTMLInputElement>(".pmv-question-other-input");
+    const inputs = container.querySelectorAll<HTMLInputElement>(".tq-text-input");
     expect(inputs).toHaveLength(2);
 
     fireEvent.change(inputs[1], { target: { value: "platform-team" } });
@@ -443,11 +444,11 @@ describe("DraftMarkdown interactive questions", () => {
   it("renders the header as an eyebrow, and nothing when there is none", () => {
     const { container } = renderInteractive(TWO_QUESTIONS);
 
-    expect(Array.from(container.querySelectorAll(".pmv-question-header")).map((h) => h.textContent))
+    expect(Array.from(container.querySelectorAll(".tq-question-header")).map((h) => h.textContent))
       .toEqual(["Naming", "Owner"]);
 
     const { container: bare } = renderInteractive(SINGLE);
-    expect(bare.querySelector(".pmv-question-header")).toBeNull();
+    expect(bare.querySelector(".tq-question-header")).toBeNull();
   });
 
   it("keeps a legacy prose fence static next to a structured one", () => {
@@ -460,9 +461,9 @@ describe("DraftMarkdown interactive questions", () => {
     expect(callouts[0].querySelector(".pmv-questions-content")?.textContent).toBe(
       "What is the retention policy?",
     );
-    expect(callouts[0].querySelector(".pmv-question-option")).toBeNull();
+    expect(callouts[0].querySelector(".tq-option")).toBeNull();
     expect(callouts[1].querySelector(".pmv-questions-content")).toBeNull();
-    expect(callouts[1].querySelectorAll(".pmv-question-option").length).toBeGreaterThan(0);
+    expect(callouts[1].querySelectorAll(".tq-option").length).toBeGreaterThan(0);
   });
 
   it("gives each block its own radio group so two blocks do not interfere", () => {
@@ -483,7 +484,7 @@ describe("DraftMarkdown interactive questions", () => {
   it("renders block markdown in an option description, code fences included", () => {
     const { container } = renderInteractive(RICH_DESCRIPTION);
 
-    const description = container.querySelector(".pmv-question-option-description");
+    const description = container.querySelector(".tq-option-description");
     expect(description).not.toBeNull();
     expect(description!.querySelector("strong")?.textContent).toBe("own");
 
@@ -496,17 +497,93 @@ describe("DraftMarkdown interactive questions", () => {
     const { container, eventHandler } = renderInteractive(RICH_DESCRIPTION);
 
     const copy = container.querySelector<HTMLButtonElement>(
-      ".pmv-question-option-description .pmv-code-copy",
+      ".tq-option-description .pmv-code-copy",
     );
     expect(copy).not.toBeNull();
     expect(copy!.closest("label")).toBeNull();
     expect(eventHandler).not.toHaveBeenCalled();
   });
 
+  it("selects an option when clicking the card container element", () => {
+    const { container, eventHandler } = renderInteractive(SINGLE);
+
+    const card = container.querySelector<HTMLElement>(".tq-option");
+    expect(card).not.toBeNull();
+    fireEvent.click(card!);
+
+    expect(eventHandler).toHaveBeenCalledTimes(1);
+    expect(eventHandler).toHaveBeenCalledWith("OnAnswersChange", "w1", [
+      { questionId: "budget", answer: ["per-request"] },
+    ]);
+  });
+
+  it("selects an option when clicking inside the option description markdown", () => {
+    const { container, eventHandler } = renderInteractive(RICH_DESCRIPTION);
+
+    const description = container.querySelector<HTMLElement>(".tq-option-description");
+    expect(description).not.toBeNull();
+    const strong = description!.querySelector("strong");
+    expect(strong).not.toBeNull();
+    fireEvent.click(strong!);
+
+    expect(eventHandler).toHaveBeenCalledTimes(1);
+    expect(eventHandler).toHaveBeenCalledWith("OnAnswersChange", "w1", [
+      { questionId: "budget", answer: ["per-request"] },
+    ]);
+  });
+
+  it("ignores card click when clicking interactive elements such as code copy buttons", async () => {
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+      },
+    });
+
+    const { container, eventHandler } = renderInteractive(RICH_DESCRIPTION);
+
+    const copy = container.querySelector<HTMLButtonElement>(
+      ".tq-option-description .pmv-code-copy",
+    );
+    expect(copy).not.toBeNull();
+    await act(async () => {
+      fireEvent.click(copy!);
+    });
+
+    expect(eventHandler).not.toHaveBeenCalled();
+  });
+
+  it("ignores card click when user has an active text selection", () => {
+    const { container, eventHandler } = renderInteractive(SINGLE);
+
+    const selectionSpy = vi.spyOn(window, "getSelection").mockReturnValue({
+      toString: () => "selected text",
+    } as Selection);
+
+    const card = container.querySelector<HTMLElement>(".tq-option");
+    expect(card).not.toBeNull();
+    fireEvent.click(card!);
+
+    expect(eventHandler).not.toHaveBeenCalled();
+    selectionSpy.mockRestore();
+  });
+
+  it("toggles other input when clicking the Other card container", () => {
+    const { container } = renderInteractive(SINGLE);
+
+    const otherCard = container.querySelector<HTMLElement>(".tq-option--other");
+    expect(otherCard).not.toBeNull();
+    expect(container.querySelector(".tq-text-input")).toBeNull();
+
+    fireEvent.click(otherCard!);
+
+    const input = container.querySelector<HTMLInputElement>(".tq-text-input");
+    expect(input).not.toBeNull();
+  });
+
   it("renders a GFM table in a description", () => {
     const { container } = renderInteractive(RICH_DESCRIPTION);
 
-    const table = container.querySelector(".pmv-question-description table");
+    const table = container.querySelector(".tq-question-description table");
     expect(table).not.toBeNull();
     expect(table!.textContent).toContain("retry.window");
   });
@@ -516,9 +593,9 @@ describe("DraftMarkdown interactive questions", () => {
 
     // One picker — the real block. The example inside the description stays text.
     expect(container.querySelectorAll(".pmv-questions")).toHaveLength(1);
-    const description = container.querySelector(".pmv-question-option-description");
+    const description = container.querySelector(".tq-option-description");
     expect(description!.querySelector(".pmv-code-block")?.textContent).toContain("id: not-a-picker");
-    expect(description!.querySelector(".pmv-question-option")).toBeNull();
+    expect(description!.querySelector(".tq-option")).toBeNull();
   });
 
   it("anchors each question by its id so a host can scroll to it", () => {
@@ -565,10 +642,126 @@ describe("DraftMarkdown interactive questions", () => {
     expect(scrollTo).toHaveBeenCalledTimes(2);
   });
 
+  it("scrolls to the enclosing block for the first question and directly to the question for subsequent questions", () => {
+    const scrollTo = vi.fn();
+    Element.prototype.scrollTo = scrollTo as unknown as Element["scrollTo"];
+
+    const { container, rerender } = render(
+      <DraftMarkdown id="w1" content={TWO_QUESTIONS} events={["OnAnswersChange"]} eventHandler={vi.fn()} />,
+    );
+
+    const shell = container.querySelector(".pmv-shell");
+    const block = container.querySelector(".pmv-questions");
+    const q1 = container.querySelector('[data-question-id="naming"]');
+    const q2 = container.querySelector('[data-question-id="owner"]');
+
+    expect(shell).not.toBeNull();
+    expect(block).not.toBeNull();
+    expect(q1).not.toBeNull();
+    expect(q2).not.toBeNull();
+
+    vi.spyOn(shell!, "getBoundingClientRect").mockReturnValue({
+      top: 50,
+      bottom: 500,
+      left: 0,
+      right: 500,
+      width: 500,
+      height: 450,
+      x: 0,
+      y: 50,
+      toJSON: () => {},
+    });
+
+    vi.spyOn(block!, "getBoundingClientRect").mockReturnValue({
+      top: 100,
+      bottom: 400,
+      left: 0,
+      right: 500,
+      width: 500,
+      height: 300,
+      x: 0,
+      y: 100,
+      toJSON: () => {},
+    });
+
+    vi.spyOn(q1!, "getBoundingClientRect").mockReturnValue({
+      top: 130,
+      bottom: 230,
+      left: 0,
+      right: 500,
+      width: 500,
+      height: 100,
+      x: 0,
+      y: 130,
+      toJSON: () => {},
+    });
+
+    vi.spyOn(q2!, "getBoundingClientRect").mockReturnValue({
+      top: 250,
+      bottom: 350,
+      left: 0,
+      right: 500,
+      width: 500,
+      height: 100,
+      x: 0,
+      y: 250,
+      toJSON: () => {},
+    });
+
+    const draw = (target: { questionId: string; token: number } | null) =>
+      rerender(
+        <DraftMarkdown
+          id="w1"
+          content={TWO_QUESTIONS}
+          events={["OnAnswersChange"]}
+          eventHandler={vi.fn()}
+          scrollTo={target}
+        />,
+      );
+
+    // Navigating to the first question targets the block:
+    // delta = block.top (100) - shell.top (50) - 16 = 34
+    draw({ questionId: "naming", token: 1 });
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 34, behavior: "smooth" });
+
+    // Navigating to the second question targets q2 directly:
+    // delta = q2.top (250) - shell.top (50) - 16 = 184
+    draw({ questionId: "owner", token: 2 });
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 184, behavior: "smooth" });
+  });
+
   it("still wraps an ordinary fence in its code block after the pre override", () => {
     const { container } = renderInteractive("```js\nconst x = 1;\n```");
 
     expect(container.querySelector(".pmv-code-block")).not.toBeNull();
     expect(container.querySelector("pre")).not.toBeNull();
+  });
+});
+
+describe("QuestionsCallout without a draft context", () => {
+  // Chat wraps every interactive block in `QuestionsDraftContext.Provider`, but nothing forces
+  // that: `QuestionsCallout` reads the context optionally, and this proves it degrades to the
+  // pre-draft-store behaviour — selection still comes from the document — when no provider is
+  // present, so a plan view (which never provides it) is unaffected by the new context.
+  it("still derives selection from the document and submits normally when no draft store is present", () => {
+    // `QuestionsCallout.content` is the fence body only, unlike `SINGLE` above which still has its
+    // ``` `questions` ``` wrapper for `DraftMarkdown` to dispatch on.
+    const singleBody = SINGLE.split("\n").slice(1, -1).join("\n");
+    const onSubmit = vi.fn();
+    const { container } = render(<QuestionsCallout content={singleBody} onSubmit={onSubmit} />);
+
+    // The chat path renders the TendrilQuestions form, whose controls carry its own classes.
+    const radios = Array.from(container.querySelectorAll<HTMLInputElement>(".tq-option-input"));
+    fireEvent.click(radios[0]);
+
+    const submitBtn = container.querySelector<HTMLButtonElement>(".tq-submit");
+    expect(submitBtn?.disabled).toBe(false);
+
+    fireEvent.click(submitBtn!);
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      { budget: ["per-request"] },
+      expect.stringContaining("Per request"),
+    );
   });
 });

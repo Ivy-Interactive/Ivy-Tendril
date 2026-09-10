@@ -29,7 +29,7 @@ public static class ModelProfilePriorities
             [(ModelProviderKind.Ivy, ModelProfileKind.Deep)] =
             [
                 "claude-fable-5", "claude-opus-5-1", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5",
-                "claude-opus-4", "opus", "gpt-5.6-sol", "sol", "claude-sonnet-5", "gemini-3.8-flash", "gemini-3.7-flash"
+                "claude-opus-4", "opus", "gpt-5.6-sol", "gpt-6-astra", "astra", "sol", "claude-sonnet-5", "gemini-3.8-flash", "gemini-3.7-flash"
             ],
             [(ModelProviderKind.Ivy, ModelProfileKind.Balanced)] =
             [
@@ -75,7 +75,7 @@ public static class ModelProfilePriorities
             // === OpenAI Direct ===
             [(ModelProviderKind.OpenAi, ModelProfileKind.Deep)] =
             [
-                "gpt-5.6-sol", "gpt-5.6", "gpt-5.5", "gpt-5", "sol", "o3", "o1", "gpt-4o"
+                "gpt-5.6-sol", "gpt-6-astra", "astra", "gpt-5.6", "gpt-5.5", "gpt-5", "sol", "o3", "o1", "gpt-4o"
             ],
             [(ModelProviderKind.OpenAi, ModelProfileKind.Balanced)] =
             [
@@ -117,7 +117,7 @@ public static class ModelProfilePriorities
             // === Generic / Fallback ===
             [(ModelProviderKind.Generic, ModelProfileKind.Deep)] =
             [
-                "gpt-5.6-sol", "claude-fable-5", "claude-opus-5-1", "claude-opus-5", "gemini-3.8-flash", "gemini-3.7-flash", "claude-sonnet-5", "gpt-4o"
+                "gpt-5.6-sol", "gpt-6-astra", "claude-fable-5", "claude-opus-5-1", "claude-opus-5", "gemini-3.8-flash", "gemini-3.7-flash", "claude-sonnet-5", "gpt-4o"
             ],
             [(ModelProviderKind.Generic, ModelProfileKind.Balanced)] =
             [

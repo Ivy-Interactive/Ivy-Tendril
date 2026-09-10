@@ -4,17 +4,22 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using Ivy.Tendril.Widgets;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Services;
 
 public class ChatHistoryService : IChatHistoryService
 {
     private readonly IConfigService _configService;
+    private readonly ILogger<ChatHistoryService>? _logger;
     private readonly ConcurrentDictionary<string, ChatSessionModel> _sessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _generatingSessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _completedSessions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, List<ChatQueuedItem>> _queuedMessages = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _lastPersistTimes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, Timer> _debounceTimers = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _sessionLock = new();
     private readonly object _queueLock = new();
 
@@ -78,6 +83,7 @@ public class ChatHistoryService : IChatHistoryService
         {
             if (_queuedMessages.TryGetValue(sessionId, out var list))
             {
+                list.RemoveAll(q => q.Prompt != null && q.Prompt.StartsWith("[System Event]", StringComparison.OrdinalIgnoreCase));
                 return list.ToList();
             }
             return Array.Empty<ChatQueuedItem>();
@@ -86,6 +92,11 @@ public class ChatHistoryService : IChatHistoryService
 
     public ChatQueuedItem EnqueueMessage(string sessionId, ChatSendMessageDto dto)
     {
+        if (dto.Prompt != null && dto.Prompt.StartsWith("[System Event]", StringComparison.OrdinalIgnoreCase))
+        {
+            return new ChatQueuedItem(Guid.NewGuid().ToString("N"), dto.Prompt, dto.Attachments != null ? new List<ChatAttachmentDto>(dto.Attachments) : null, DateTimeOffset.UtcNow);
+        }
+
         var item = new ChatQueuedItem(
             Id: Guid.NewGuid().ToString("N"),
             Prompt: dto.Prompt,
@@ -199,9 +210,10 @@ public class ChatHistoryService : IChatHistoryService
         PropertyNameCaseInsensitive = true,
     };
 
-    public ChatHistoryService(IConfigService configService)
+    public ChatHistoryService(IConfigService configService, ILogger<ChatHistoryService>? logger = null)
     {
         _configService = configService;
+        _logger = logger;
         LoadSessionsFromDisk();
     }
 
@@ -251,15 +263,15 @@ public class ChatHistoryService : IChatHistoryService
                         _sessions[session.Id] = session;
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Ignore corrupted single session files gracefully
+                    _logger?.LogError(ex, "Failed to load chat session from file {File}", file);
                 }
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore directory creation / read issues on startup
+            _logger?.LogError(ex, "Failed to load chat sessions from disk");
         }
     }
 
@@ -277,7 +289,7 @@ public class ChatHistoryService : IChatHistoryService
         return session;
     }
 
-    public ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null)
+    public ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null, string? kind = null, string? planFolderName = null)
     {
         var now = DateTimeOffset.UtcNow;
         var id = Guid.NewGuid().ToString("N");
@@ -291,11 +303,29 @@ public class ChatHistoryService : IChatHistoryService
             AgentId: agentId,
             ModelId: modelId,
             Messages: new List<ChatMessageModel>(),
-            Effort: effort
+            Effort: effort,
+            Kind: kind,
+            PlanFolderName: planFolderName
         );
 
         _sessions[id] = session;
         PersistSessionToDisk(session);
+        if (_configService?.Settings != null)
+        {
+            if (!string.IsNullOrEmpty(agentId))
+            {
+                _configService.Settings.LastChatAgent = agentId;
+            }
+            if (!string.IsNullOrEmpty(modelId))
+            {
+                _configService.Settings.LastChatModel = modelId;
+            }
+            if (!string.IsNullOrEmpty(effort))
+            {
+                _configService.Settings.LastChatEffort = effort;
+            }
+            _configService.SaveSettings();
+        }
         SessionsChanged?.Invoke(this, EventArgs.Empty);
         return session;
     }
@@ -304,6 +334,8 @@ public class ChatHistoryService : IChatHistoryService
     {
         if (session == null || string.IsNullOrEmpty(session.Id)) return;
         _sessions[session.Id] = session;
+        CancelPendingPersist(session.Id);
+        _lastPersistTimes[session.Id] = DateTimeOffset.UtcNow;
         PersistSessionToDisk(session);
         SessionsChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -311,6 +343,8 @@ public class ChatHistoryService : IChatHistoryService
     public void DeleteSession(string id)
     {
         if (string.IsNullOrEmpty(id)) return;
+        CancelPendingPersist(id);
+        _lastPersistTimes.TryRemove(id, out _);
         _sessions.TryRemove(id, out _);
         _queuedMessages.TryRemove(id, out _);
 
@@ -322,9 +356,9 @@ public class ChatHistoryService : IChatHistoryService
                 File.Delete(filePath);
             }
         }
-        catch
+        catch (Exception ex)
         {
-            // Best effort file deletion
+            _logger?.LogError(ex, "Failed to delete chat session file for {SessionId}", id);
         }
         SessionsChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -347,6 +381,8 @@ public class ChatHistoryService : IChatHistoryService
 
         if (updated != null)
         {
+            CancelPendingPersist(id);
+            _lastPersistTimes[id] = DateTimeOffset.UtcNow;
             PersistSessionToDisk(updated);
             SessionsChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -389,9 +425,354 @@ public class ChatHistoryService : IChatHistoryService
             _sessions[session.Id] = updatedSession;
         }
 
+        CancelPendingPersist(updatedSession.Id);
+        _lastPersistTimes[updatedSession.Id] = DateTimeOffset.UtcNow;
         PersistSessionToDisk(updatedSession);
         SessionsChanged?.Invoke(this, EventArgs.Empty);
         return msg;
+    }
+
+    public void AddSpawnedJob(string sessionId, string jobId)
+    {
+        if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(jobId)) return;
+        ChatSessionModel? updated = null;
+        lock (_sessionLock)
+        {
+            var session = GetSession(sessionId);
+            if (session == null) return;
+            var currentJobs = session.SpawnedJobIds != null ? new List<string>(session.SpawnedJobIds) : new List<string>();
+            if (!currentJobs.Contains(jobId, StringComparer.OrdinalIgnoreCase))
+            {
+                currentJobs.Add(jobId);
+                updated = session with
+                {
+                    SpawnedJobIds = currentJobs
+                };
+                _sessions[sessionId] = updated;
+            }
+        }
+
+        if (updated != null)
+        {
+            PersistSessionToDisk(updated);
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public void RemoveSpawnedJobs(string sessionId, IEnumerable<string> jobIds)
+    {
+        if (string.IsNullOrEmpty(sessionId) || jobIds == null) return;
+        ChatSessionModel? updated = null;
+        lock (_sessionLock)
+        {
+            var session = GetSession(sessionId);
+            if (session == null || session.SpawnedJobIds == null || session.SpawnedJobIds.Count == 0) return;
+            var toRemove = new HashSet<string>(jobIds, StringComparer.OrdinalIgnoreCase);
+            var remaining = session.SpawnedJobIds.Where(id => !toRemove.Contains(id)).ToList();
+            if (remaining.Count != session.SpawnedJobIds.Count)
+            {
+                updated = session with
+                {
+                    SpawnedJobIds = remaining.Count > 0 ? remaining : null
+                };
+                _sessions[sessionId] = updated;
+            }
+        }
+
+        if (updated != null)
+        {
+            PersistSessionToDisk(updated);
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public IReadOnlyList<string> GetSpawnedJobs(string sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return Array.Empty<string>();
+        var session = GetSession(sessionId);
+        return session?.SpawnedJobIds ?? (IReadOnlyList<string>)Array.Empty<string>();
+    }
+
+    public bool ApplyQuestionAnswers(string sessionId, string messageId, IReadOnlyDictionary<string, string[]> answers)
+    {
+        if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(messageId) || answers == null || answers.Count == 0)
+            return false;
+
+        ChatSessionModel? updatedSession = null;
+        lock (_sessionLock)
+        {
+            var session = GetSession(sessionId);
+            if (session == null) return false;
+
+            var msgIndex = session.Messages.FindIndex(m => string.Equals(m.Id, messageId, StringComparison.OrdinalIgnoreCase));
+            if (msgIndex < 0) return false;
+
+            var targetMsg = session.Messages[msgIndex];
+            var content = targetMsg.Content;
+            bool modified = false;
+
+            foreach (var (qId, ansValues) in answers)
+            {
+                var qa = new QuestionAnswer(qId, ansValues);
+                if (QuestionAnswers.TryApply(content, qa, out var updatedContent))
+                {
+                    content = updatedContent;
+                    modified = true;
+                }
+            }
+
+            if (!modified) return false;
+
+            string? rawStream = targetMsg.RawStream;
+            if (!string.IsNullOrEmpty(rawStream))
+            {
+                var lines = rawStream.Split('\n');
+                bool rawModified = false;
+                bool anyTextApplied = false;
+                bool hasDeltaText = false;
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    var line = lines[i].Trim();
+                    if (string.IsNullOrEmpty(line)) continue;
+                    try
+                    {
+                        var node = System.Text.Json.Nodes.JsonNode.Parse(line);
+                        if (node is System.Text.Json.Nodes.JsonObject obj)
+                        {
+                            bool lineChanged = false;
+                            if (obj.TryGetPropertyValue("delta", out var deltaNode) && deltaNode != null && deltaNode.GetValue<bool>())
+                            {
+                                hasDeltaText = true;
+                            }
+                            if (obj.TryGetPropertyValue("text", out var textNode) && textNode != null)
+                            {
+                                var textVal = textNode.GetValue<string>();
+                                foreach (var (qId, ansValues) in answers)
+                                {
+                                    var qa = new QuestionAnswer(qId, ansValues);
+                                    if (QuestionAnswers.TryApply(textVal, qa, out var updatedTextVal))
+                                    {
+                                        textVal = updatedTextVal;
+                                        lineChanged = true;
+                                        anyTextApplied = true;
+                                    }
+                                }
+                                if (lineChanged) obj["text"] = textVal;
+                            }
+                            if (obj.TryGetPropertyValue("response", out var respNode) && respNode != null)
+                            {
+                                var respVal = respNode.GetValue<string>();
+                                foreach (var (qId, ansValues) in answers)
+                                {
+                                    var qa = new QuestionAnswer(qId, ansValues);
+                                    if (QuestionAnswers.TryApply(respVal, qa, out var updatedRespVal))
+                                    {
+                                        respVal = updatedRespVal;
+                                        lineChanged = true;
+                                    }
+                                }
+                                if (lineChanged) obj["response"] = respVal;
+                            }
+                            if (lineChanged)
+                            {
+                                lines[i] = obj.ToJsonString();
+                                rawModified = true;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // ignore malformed lines
+                    }
+                }
+
+                if (hasDeltaText && !anyTextApplied && modified)
+                {
+                    var newLines = new List<string>();
+                    bool consolidatedInserted = false;
+                    foreach (var line in lines)
+                    {
+                        var trimmed = line.Trim();
+                        if (string.IsNullOrEmpty(trimmed)) continue;
+                        bool isDeltaText = false;
+                        try
+                        {
+                            var node = System.Text.Json.Nodes.JsonNode.Parse(trimmed);
+                            if (node is System.Text.Json.Nodes.JsonObject obj &&
+                                obj.TryGetPropertyValue("kind", out var kind) && kind?.GetValue<string>() == "text" &&
+                                obj.TryGetPropertyValue("delta", out var delta) && delta != null && delta.GetValue<bool>())
+                            {
+                                isDeltaText = true;
+                            }
+                        }
+                        catch { }
+
+                        if (isDeltaText)
+                        {
+                            if (!consolidatedInserted)
+                            {
+                                var consolidated = new System.Text.Json.Nodes.JsonObject
+                                {
+                                    ["kind"] = "text",
+                                    ["text"] = content,
+                                    ["delta"] = false
+                                };
+                                newLines.Add(consolidated.ToJsonString());
+                                consolidatedInserted = true;
+                                rawModified = true;
+                            }
+                        }
+                        else
+                        {
+                            newLines.Add(trimmed);
+                        }
+                    }
+                    lines = newLines.ToArray();
+                }
+
+                if (rawModified)
+                {
+                    rawStream = string.Join("\n", lines);
+                }
+            }
+
+            var updatedMsg = targetMsg with { Content = content, RawStream = rawStream };
+            var updatedMessages = new List<ChatMessageModel>(session.Messages);
+            updatedMessages[msgIndex] = updatedMsg;
+
+            updatedSession = session with
+            {
+                UpdatedAt = DateTimeOffset.UtcNow,
+                Messages = updatedMessages
+            };
+            _sessions[session.Id] = updatedSession;
+        }
+
+        if (updatedSession != null)
+        {
+            PersistSessionToDisk(updatedSession);
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
+            return true;
+        }
+
+        return false;
+    }
+
+    public ChatMessageModel? UpdateMessage(string sessionId, string messageId, string content, string? rawStream = null, bool flushImmediately = true, bool touchUpdatedAt = true)
+    {
+        if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(messageId)) return null;
+
+        ChatMessageModel? updatedMsg = null;
+        ChatSessionModel? updatedSession = null;
+
+        lock (_sessionLock)
+        {
+            var session = GetSession(sessionId);
+            if (session == null) return null;
+
+            var msgIndex = session.Messages.FindIndex(m => m.Id == messageId);
+            if (msgIndex < 0) return null;
+
+            var existingMsg = session.Messages[msgIndex];
+            updatedMsg = existingMsg with
+            {
+                Content = content,
+                RawStream = rawStream ?? existingMsg.RawStream
+            };
+
+            var newMessages = new List<ChatMessageModel>(session.Messages);
+            newMessages[msgIndex] = updatedMsg;
+
+            updatedSession = session with
+            {
+                UpdatedAt = touchUpdatedAt ? DateTimeOffset.UtcNow : session.UpdatedAt,
+                Messages = newMessages
+            };
+
+            _sessions[session.Id] = updatedSession;
+        }
+
+        if (updatedSession != null)
+        {
+            if (flushImmediately)
+            {
+                CancelPendingPersist(sessionId);
+                _lastPersistTimes[sessionId] = DateTimeOffset.UtcNow;
+                PersistSessionToDisk(updatedSession);
+            }
+            else
+            {
+                ScheduleThrottledPersist(updatedSession);
+            }
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        return updatedMsg;
+    }
+
+    public void FlushSession(string sessionId)
+    {
+        if (string.IsNullOrEmpty(sessionId)) return;
+        CancelPendingPersist(sessionId);
+        var session = GetSession(sessionId);
+        if (session != null)
+        {
+            _lastPersistTimes[sessionId] = DateTimeOffset.UtcNow;
+            PersistSessionToDisk(session);
+        }
+    }
+
+    private void CancelPendingPersist(string sessionId)
+    {
+        if (_debounceTimers.TryRemove(sessionId, out var timer))
+        {
+            try
+            {
+                timer.Dispose();
+            }
+            catch { }
+        }
+    }
+
+    private void ScheduleThrottledPersist(ChatSessionModel session)
+    {
+        var sessionId = session.Id;
+        var now = DateTimeOffset.UtcNow;
+        if (!_lastPersistTimes.TryGetValue(sessionId, out var lastTime))
+        {
+            lastTime = DateTimeOffset.MinValue;
+        }
+
+        var elapsed = now - lastTime;
+        if (elapsed >= TimeSpan.FromSeconds(1))
+        {
+            CancelPendingPersist(sessionId);
+            _lastPersistTimes[sessionId] = now;
+            PersistSessionToDisk(session);
+            return;
+        }
+
+        var delay = TimeSpan.FromSeconds(1) - elapsed;
+        if (delay < TimeSpan.FromMilliseconds(50))
+        {
+            delay = TimeSpan.FromMilliseconds(50);
+        }
+
+        _debounceTimers.AddOrUpdate(
+            sessionId,
+            id => new Timer(_ => OnDebounceTimerFired(id), null, delay, Timeout.InfiniteTimeSpan),
+            (id, existingTimer) => existingTimer);
+    }
+
+    private void OnDebounceTimerFired(string sessionId)
+    {
+        CancelPendingPersist(sessionId);
+        var session = GetSession(sessionId);
+        if (session != null)
+        {
+            _lastPersistTimes[sessionId] = DateTimeOffset.UtcNow;
+            PersistSessionToDisk(session);
+        }
     }
 
     private void PersistSessionToDisk(ChatSessionModel session)
@@ -402,9 +783,9 @@ public class ChatHistoryService : IChatHistoryService
             var json = JsonSerializer.Serialize(session, JsonOptions);
             Ivy.Tendril.Helpers.FileHelper.WriteAllText(filePath, json);
         }
-        catch
+        catch (Exception ex)
         {
-            // Best effort write
+            _logger?.LogError(ex, "Failed to persist chat session {SessionId} to disk", session.Id);
         }
     }
 }

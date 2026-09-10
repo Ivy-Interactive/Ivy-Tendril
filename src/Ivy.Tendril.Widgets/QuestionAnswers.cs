@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using YamlDotNet.Core;
 using YamlDotNet.Core.Events;
 using YamlDotNet.RepresentationModel;
@@ -192,11 +193,263 @@ public static class QuestionAnswers
     // Editing one block body
     // ---------------------------------------------------------------------------------------------
 
+    private static readonly Regex FieldRegex = new(@"^(\s*(?:-\s+)?)(title|header|description):[ \t]*(.*)$", RegexOptions.Compiled);
+    private static readonly Regex BlockScalarRegex = new(@"^[|>][\-+]?\d*(?:\s+.*)?$", RegexOptions.Compiled);
+
+    /// <summary>
+    ///     Sanitizes YAML text in a questions block by wrapping unquoted strings in text fields
+    ///     (<c>title</c>, <c>header</c>, <c>description</c>) in double quotes, making them resilient to colons,
+    ///     code snippets, and formatting. Preserves block scalars (| and &gt;) intact.
+    /// </summary>
+    public static string SanitizeQuestionYaml(string body)
+    {
+        if (string.IsNullOrEmpty(body))
+            return body;
+
+        var newline = DetectNewline(body);
+        var lines = body.Replace("\r\n", "\n").Split('\n');
+        var result = new List<string>(lines.Length);
+
+        var inBlockScalar = false;
+        var blockScalarIndent = 0;
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+
+            if (inBlockScalar)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    result.Add(line);
+                    continue;
+                }
+
+                var indent = IndentOfLine(line);
+                if (indent > blockScalarIndent)
+                {
+                    result.Add(line);
+                    continue;
+                }
+
+                inBlockScalar = false;
+            }
+
+            var match = FieldRegex.Match(line);
+            if (!match.Success)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var prefix = match.Groups[1].Value;
+            var key = match.Groups[2].Value;
+            var val = match.Groups[3].Value;
+            var trimmedVal = val.Trim();
+
+            if (trimmedVal.Length == 0)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            if (BlockScalarRegex.IsMatch(trimmedVal))
+            {
+                inBlockScalar = true;
+                blockScalarIndent = prefix.Length;
+                result.Add(line);
+                continue;
+            }
+
+            if (IsAlreadyQuoted(trimmedVal))
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var escaped = trimmedVal.Replace("\\", "\\\\").Replace("\"", "\\\"");
+            result.Add($"{prefix}{key}: \"{escaped}\"");
+        }
+
+        return string.Join(newline, result);
+    }
+
+    private static bool IsAlreadyQuoted(string val)
+    {
+        if (val.Length < 2)
+            return false;
+
+        if (val.StartsWith('"'))
+        {
+            var escaped = false;
+            for (var i = 1; i < val.Length; i++)
+            {
+                var c = val[i];
+                if (escaped)
+                {
+                    escaped = false;
+                    continue;
+                }
+                if (c == '\\')
+                {
+                    escaped = true;
+                    continue;
+                }
+                if (c == '"')
+                {
+                    var rest = val[(i + 1)..].Trim();
+                    return rest.Length == 0 || rest.StartsWith('#');
+                }
+            }
+            return false;
+        }
+
+        if (val.StartsWith('\''))
+        {
+            for (var i = 1; i < val.Length; i++)
+            {
+                var c = val[i];
+                if (c == '\'')
+                {
+                    if (i + 1 < val.Length && val[i + 1] == '\'')
+                    {
+                        i++;
+                        continue;
+                    }
+                    var rest = val[(i + 1)..].Trim();
+                    return rest.Length == 0 || rest.StartsWith('#');
+                }
+            }
+            return false;
+        }
+
+        return false;
+    }
+
+    private static int IndentOfLine(string line)
+    {
+        var count = 0;
+        while (count < line.Length && line[count] == ' ')
+            count++;
+        return count;
+    }
+
+    /// <summary>
+    ///     The body as written, then with the repairs a block an agent typed by hand may need: text
+    ///     fields quoted, and a key repeated within one mapping reduced to its last occurrence. The
+    ///     widget reads those blocks, so the answer has to land in the same text.
+    /// </summary>
+    private static IEnumerable<string> BodyCandidates(string body)
+    {
+        yield return body;
+
+        var sanitized = SanitizeQuestionYaml(body);
+        if (sanitized != body)
+            yield return sanitized;
+
+        var deduplicated = DropRepeatedKeys(body);
+        if (deduplicated == body)
+            yield break;
+
+        yield return deduplicated;
+        var both = SanitizeQuestionYaml(deduplicated);
+        if (both != deduplicated)
+            yield return both;
+    }
+
+    private static readonly Regex MappingLineRegex = new(@"^( *)(- +)?(?:([A-Za-z0-9_.\-]+):(?: |$))?", RegexOptions.Compiled);
+
+    /// <summary>
+    ///     Drops the earlier of two identical keys in one mapping, with the value block under it, so
+    ///     the last value wins as it does when the widget reads the block. A repeat whose first
+    ///     occurrence opens a list item keeps that one instead: the dash is part of the line.
+    /// </summary>
+    internal static string DropRepeatedKeys(string body)
+    {
+        var lines = body.Split('\n');
+        var removed = new bool[lines.Length];
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var (key, keyIndent, _) = MappingLine(lines[i]);
+            if (key is null)
+                continue;
+
+            for (var j = i - 1; j >= 0; j--)
+            {
+                if (removed[j] || IsBlankOrComment(lines[j]))
+                    continue;
+
+                var (otherKey, otherIndent, startsItem) = MappingLine(lines[j]);
+                if (otherIndent > keyIndent)
+                    continue;
+                if (otherIndent < keyIndent)
+                    break;
+
+                if (otherKey == key)
+                {
+                    if (startsItem)
+                        removed[i] = true;
+                    else
+                        RemoveWithValue(lines, removed, j);
+                    break;
+                }
+
+                if (startsItem)
+                    break;
+            }
+        }
+
+        return removed.Any(r => r)
+            ? string.Join("\n", lines.Where((_, index) => !removed[index]))
+            : body;
+    }
+
+    private static (string? Key, int Indent, bool StartsItem) MappingLine(string line)
+    {
+        var match = MappingLineRegex.Match(line);
+        var dash = match.Groups[2].Value;
+        var key = match.Groups[3].Success ? match.Groups[3].Value : null;
+        return (key, match.Groups[1].Length + dash.Length, dash.Length > 0);
+    }
+
+    private static bool IsBlankOrComment(string line)
+    {
+        var trimmed = line.TrimStart();
+        return trimmed.Length == 0 || trimmed.StartsWith('#');
+    }
+
+    private static void RemoveWithValue(string[] lines, bool[] removed, int index)
+    {
+        removed[index] = true;
+        var indent = IndentOfLine(lines[index]);
+        for (var k = index + 1; k < lines.Length; k++)
+        {
+            if (lines[k].Trim().Length == 0)
+                continue;
+            if (IndentOfLine(lines[k]) <= indent)
+                break;
+            removed[k] = true;
+        }
+    }
+
     private static bool TryEditBody(string body, QuestionAnswer answer, out string edited)
     {
         edited = body;
 
-        if (QuestionNodes(body) is not { } questions)
+        var targetBody = body;
+        List<YamlNode>? questions = null;
+        foreach (var candidate in BodyCandidates(body))
+        {
+            questions = QuestionNodesRaw(candidate);
+            if (questions is not null)
+            {
+                targetBody = candidate;
+                break;
+            }
+        }
+
+        if (questions is null)
             return false;
 
         foreach (var child in questions)
@@ -205,8 +458,8 @@ public static class QuestionAnswers
                 continue;
 
             edited = entry.Style == MappingStyle.Flow
-                ? EditFlowEntry(body, entry, answer.Answer)
-                : EditBlockEntry(body, entry, answer.Answer);
+                ? EditFlowEntry(targetBody, entry, answer.Answer)
+                : EditBlockEntry(targetBody, entry, answer.Answer);
             return true;
         }
 
@@ -215,7 +468,7 @@ public static class QuestionAnswers
 
     /// <summary>
     ///     The question nodes of one block body, in document order, or null when the body is not a
-    ///     questions block this reader can address — the pre-schema plain-text form, or YAML that
+    ///     questions block this reader can address: the pre-schema plain-text form, or YAML that
     ///     does not parse at all.
     ///     <para>
     ///         Three shapes say the same thing, and agents write all three: the canonical
@@ -230,6 +483,16 @@ public static class QuestionAnswers
     ///     </para>
     /// </summary>
     private static List<YamlNode>? QuestionNodes(string body)
+    {
+        var nodes = QuestionNodesRaw(body);
+        if (nodes is not null)
+            return nodes;
+
+        var sanitized = SanitizeQuestionYaml(body);
+        return sanitized != body ? QuestionNodesRaw(sanitized) : null;
+    }
+
+    private static List<YamlNode>? QuestionNodesRaw(string body)
     {
         YamlNode? root;
         try

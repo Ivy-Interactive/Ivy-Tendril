@@ -90,6 +90,34 @@ public class JobServiceWaitForJobsTests
     }
 
     [Fact]
+    public void HandleWaitForJobsDependents_WhenPartialDependenciesComplete_UpdatesStatusMessage()
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        var service = new JobService(
+            TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10),
+            maxConcurrentJobs: 5);
+
+        var depA = service.CreateTestJob(new CreatePlanArgs("Dep A", "Auto"));
+        var depB = service.CreateTestJob(new CreatePlanArgs("Dep B", "Auto"));
+
+        var waitingId = service.StartJob(new CreatePlanArgs("Waiting job", "Auto") { WaitForJobs = [depA, depB] });
+        var waitingJob = service.GetJob(waitingId);
+        Assert.NotNull(waitingJob);
+        Assert.Equal(JobStatus.Blocked, waitingJob.Status);
+        Assert.Contains(depA, waitingJob.StatusMessage);
+        Assert.Contains(depB, waitingJob.StatusMessage);
+
+        service.CompleteJob(depA, 0);
+
+        var stillWaiting = service.GetJob(waitingId);
+        Assert.NotNull(stillWaiting);
+        Assert.Equal(JobStatus.Blocked, stillWaiting.Status);
+        Assert.DoesNotContain(depA, stillWaiting.StatusMessage);
+        Assert.Contains(depB, stillWaiting.StatusMessage);
+    }
+
+    [Fact]
     public void CompleteJob_Failure_CascadesFailureToWaitingJobs()
     {
         SynchronizationContext.SetSynchronizationContext(null);

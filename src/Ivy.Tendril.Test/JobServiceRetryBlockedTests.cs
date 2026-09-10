@@ -152,6 +152,58 @@ public class JobServiceRetryBlockedTests : IDisposable
     }
 
     [Fact]
+    public void RetryBlockedJobs_WhenDependencyStillUnsatisfied_UpdatesStatusMessageAndPersists()
+    {
+        SynchronizationContext.SetSynchronizationContext(null);
+
+        // Create plans directory with two dependencies: Dep1 in Executing, Dep2 in Draft
+        var plansDir = CreatePlansDirectory(("01100-Dep1", "Executing"), ("01101-Dep2", "Draft"));
+
+        // Create the dependent plan that depends on Dep1 and Dep2
+        var dependentPlan = CreatePlanFolder("Draft", ["01100-Dep1", "01101-Dep2"]);
+
+        var planReader = new FakePlanReaderService(plansDir);
+        var db = new FakeDatabaseService();
+        var service = new JobService(
+            TimeSpan.FromMinutes(30),
+            TimeSpan.FromMinutes(10),
+            planReaderService: planReader,
+            database: db);
+
+        // Create a blocked job with status message pointing to Dep1
+        var blockedId = service.CreateTestJob(new ExecutePlanArgs(dependentPlan));
+        var blockedJob = service.GetJob(blockedId)!;
+        blockedJob.Status = JobStatus.Blocked;
+        blockedJob.StatusMessage = "Dependency '01100-Dep1' is 'Executing', not Completed";
+        db.UpsertedJobIds.Clear();
+
+        // Transition Dep1 to Completed
+        var dep1YamlPath = Path.Combine(plansDir, "01100-Dep1", "plan.yaml");
+        var dep1Yaml = File.ReadAllText(dep1YamlPath).Replace("state: Executing", "state: Completed");
+        File.WriteAllText(dep1YamlPath, dep1Yaml);
+
+        // Create a completing job to trigger RetryBlockedJobs
+        var completingId = service.CreateTestJob(new CreatePrArgs(Path.GetTempPath()));
+        service.CompleteJob(completingId, 0);
+
+        // Verify job remains Blocked, but StatusMessage updates to point to Dep2
+        var stillBlocked = service.GetJob(blockedId);
+        Assert.NotNull(stillBlocked);
+        Assert.Equal(JobStatus.Blocked, stillBlocked.Status);
+        Assert.Equal("Dependency '01101-Dep2' is 'Draft', not Completed", stillBlocked.StatusMessage);
+
+        // Verify persistJob was invoked with updated message
+        Assert.Contains(blockedId, db.UpsertedJobIds);
+        var persistedJob = db.GetJobById(blockedId);
+        Assert.NotNull(persistedJob);
+        Assert.Equal("Dependency '01101-Dep2' is 'Draft', not Completed", persistedJob.StatusMessage);
+
+        // Cleanup
+        Directory.Delete(dependentPlan, true);
+        Directory.Delete(plansDir, true);
+    }
+
+    [Fact]
     public void RetryBlockedJobs_WhenJobAlreadyRemoved_DoesNotCreateDuplicate()
     {
         SynchronizationContext.SetSynchronizationContext(null);

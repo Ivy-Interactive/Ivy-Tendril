@@ -131,28 +131,7 @@ public static class TendrilServer
         });
 
         var assembly = typeof(TendrilServer).Assembly;
-        server.AppRepository.AddFactory(() => AppHelpers.GetApps(assembly)
-            .Select(app => app.Type == typeof(Ivy.Tendril.Apps.Chat.ChatApp) ? new AppDescriptor
-            {
-                Id = app.Id,
-                Title = app.Title,
-                Icon = app.Icon,
-                Description = app.Description,
-                Type = app.Type,
-                Group = app.Group,
-                Order = app.Order,
-                ViewFactory = app.ViewFactory,
-                ViewFunc = app.ViewFunc,
-                IsVisible = isBeta,
-                IsIndex = app.IsIndex,
-                GroupExpanded = app.GroupExpanded,
-                Next = app.Next,
-                Previous = app.Previous,
-                DocumentSource = app.DocumentSource,
-                SearchHints = app.SearchHints,
-                AllowDuplicateTabs = app.AllowDuplicateTabs,
-            } : app)
-            .ToArray());
+        server.AppRepository.AddFactory(() => AppHelpers.GetApps(assembly).ToArray());
         server.AddConnectionsFromAssembly(typeof(TendrilServer).Assembly);
 
         // Eagerly register Ivy.Tendril.Widgets and framework widgets assemblies to ensure widgets

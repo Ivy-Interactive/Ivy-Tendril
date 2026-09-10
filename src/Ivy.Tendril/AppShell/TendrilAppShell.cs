@@ -7,6 +7,8 @@ using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps;
 using Ivy.Tendril.Apps.Agent;
+using Ivy.Tendril.Apps.Chat;
+using Ivy.Tendril.Apps.Chat.Dialogs;
 using Ivy.Tendril.Apps.Icebox;
 using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.PullRequest;
@@ -80,6 +82,44 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
            && index >= 0
            && index < tabCount;
 
+    /// <summary>
+    ///     The bottom strip's entries: a non-closable page tab first, then the session tabs.
+    ///     The page tab is what makes a session escapable - without it, opening a review action
+    ///     hides the page with no way back but closing every session (issue #2245).
+    /// </summary>
+    internal static List<ShellTabDto> BuildStripTabs(
+        string pageTitle, string? pageIcon, IEnumerable<(string Id, string Title)> sessionTabs)
+    {
+        var strip = new List<ShellTabDto> { new(PageTabId, pageTitle, Closable: false, Icon: pageIcon) };
+        strip.AddRange(sessionTabs.Select(t => new ShellTabDto(t.Id, t.Title)));
+        return strip;
+    }
+
+    /// <summary>
+    ///     The strip's selected id: the active session's, or the page tab when no session is
+    ///     showing. A terminal pane is not in the strip (it is reached from the Chats list), so
+    ///     it selects nothing rather than falsely marking the page tab as current.
+    /// </summary>
+    /// <summary>
+    ///     The page tab's title: the selected sidebar row when the page has one (so the strip
+    ///     reads "#74 Draft | #74 Run Tests" rather than the generic "Plans"), else the app's
+    ///     own title. A row whose title is blank falls back too.
+    /// </summary>
+    internal static string PageTabTitle(string appTitle, ShellSidebarListState? sidebarList)
+    {
+        if (sidebarList?.SelectedId is not { Length: > 0 } selectedId) return appTitle;
+
+        var selectedRow = sidebarList.Items.FirstOrDefault(i => i.Id == selectedId);
+        return selectedRow?.Title is { Length: > 0 } rowTitle ? rowTitle : appTitle;
+    }
+
+    internal static string? SelectedStripTabId(ImmutableArray<TabState> tabs, int? selectedIndex)
+    {
+        if (selectedIndex is not { } index || index < 0 || index >= tabs.Length) return PageTabId;
+        var tab = tabs[index];
+        return string.Equals(tab.AppId, AgentAppId, StringComparison.OrdinalIgnoreCase) ? null : tab.Id;
+    }
+
     internal static MenuItem[] BuildHelpMenuItems(bool isBeta, IClientProvider? client, INavigator? navigator)
     {
         var items = new List<MenuItem>
@@ -119,10 +159,16 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
     // The Agent app id (and its menu-item Tag) collapses to "agent" via AppHelpers.GetApp.
     private const string AgentAppId = "agent";
+    private const string ChatAppId = "chat";
+    private const string InboxAppId = "inbox";
+
+    // Identifies the strip's leading tab, which reveals the page behind the session panes.
+    // Session tab ids are Guids or chat session ids, so the "$" prefix cannot collide.
+    internal const string PageTabId = "$page";
 
     private static readonly HashSet<string> SidebarSectionAppIds = new(StringComparer.OrdinalIgnoreCase)
     {
-        "review", "plans", "drafts", "recommendations"
+        "review", "plans", "drafts", "recommendations", "chat"
     };
 
     internal static bool HasSidebarSection(string? appId) =>
@@ -199,16 +245,19 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     }
 
     /// <summary>
-    ///     Flattens the app menu into the sidebar nav rows. The agent entry is excluded — it is
-    ///     rendered as the dedicated agent button above the nav instead.
+    ///     Flattens the app menu into the sidebar nav rows. The agent and chat entries are excluded (they
+    ///     are reached through the dedicated Chat button above the nav instead), as are the apps in
+    ///     <paramref name="footerAppIds"/>, which get their own button in the sidebar footer.
     /// </summary>
-    internal static List<ShellNavItemDto> BuildNavItems(MenuItem[] menuItems, string? activeAppId)
+    internal static List<ShellNavItemDto> BuildNavItems(MenuItem[] menuItems, string? activeAppId,
+        IReadOnlyCollection<string>? footerAppIds = null)
     {
         var result = new List<ShellNavItemDto>();
 
         void AddLeaf(MenuItem item)
         {
-            if (item.Tag is not string tag || tag == AgentAppId) return;
+            if (item.Tag is not string tag || tag == AgentAppId || tag == ChatAppId) return;
+            if (footerAppIds?.Contains(tag, StringComparer.OrdinalIgnoreCase) == true) return;
             result.Add(new ShellNavItemDto(
                 tag,
                 item.Label ?? tag,
@@ -257,14 +306,12 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var sidebarListSignal = Context.UseSignal<ShellSidebarListSignal, ShellSidebarListState, Unit>();
         var navigator = UseNavigation();
         var jobService = UseService<IJobService>();
+        var chatService = UseService<IChatHistoryService>();
+        Context.TryUseService<IChatSessionNamingService>(out var namingService);
+        var sessionsVersion = UseState(0);
+        var sessionsSignature = UseRef<string?>(null);
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
         Context.TryUseService<TendrilArgs>(out var tendrilArgs);
-
-        var (importIssuesDialog, showImportIssuesDialog) = UseTrigger((isOpen) =>
-        {
-            if (!isOpen.Value) return null;
-            return new ImportIssuesDialog(isOpen, config);
-        });
 
         var (updateDialog, showUpdateDialog) = UseTrigger<VersionInfo>((isOpen, info) =>
         {
@@ -276,6 +323,13 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         {
             if (!isOpen.Value) return null;
             return new PlanSearchDialog(isOpen);
+        });
+
+        var (chatSearchDialog, showChatSearchDialog) = UseTrigger((isOpen) =>
+        {
+            if (!isOpen.Value) return null;
+            return new ChatSearchDialog(isOpen, chatService,
+                sessionId => navigator.Navigate(typeof(ChatApp), new ChatAppArgs(SessionId: sessionId)));
         });
 
         var isShareMode = shareContext.IsShareMode;
@@ -317,12 +371,40 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             void OnSettingsReloaded(object? sender, EventArgs e)
             {
                 menuItems.Set(BuildMenuItems(appRepository, status.Value, agentRunner, shareContext.IsShareMode));
-                sidebarOpen.Set(config.Settings.SidebarOpen);
                 TendrilThemes.ApplyTheme(client, config.Settings.Theme);
                 TendrilThemes.ApplyThemeMode(client, config.Settings.ThemeMode);
             }
             config.SettingsReloaded += OnSettingsReloaded;
             return Disposable.Create(() => config.SettingsReloaded -= OnSettingsReloaded);
+        });
+
+        // Terminal panes are keyed by their chat session: when a session is deleted (from the
+        // pane's own header or the chat app) the pane closes with it. Renames re-render the
+        // Chats list the shell draws while a terminal pane is visible.
+        UseEffect(() =>
+        {
+            // SessionsChanged also fires for every persisted message chunk; only a change in the
+            // sessions, their titles or their working state concerns the shell's Chats list.
+            void OnSessionsChanged(object? sender, EventArgs e)
+            {
+                var signature = ChatLauncher.SessionListSignature(
+                    chatService.GetSessions(), chatService.GetGeneratingSessionIds(), chatService.GetCompletedSessionIds());
+                if (signature == sessionsSignature.Value) return;
+                sessionsSignature.Value = signature;
+
+                sessionsVersion.Set(v => v + 1);
+                CloseTabsOfDeletedSessions();
+                if (selectedIndex.Value is { } active && CheckTabExists(active) && IsAgentTab(tabs.Value[active]))
+                    SetTabTitle(tabs.Value[active]);
+            }
+
+            chatService.SessionsChanged += OnSessionsChanged;
+            chatService.GeneratingSessionsChanged += OnSessionsChanged;
+            return Disposable.Create(() =>
+            {
+                chatService.SessionsChanged -= OnSessionsChanged;
+                chatService.GeneratingSessionsChanged -= OnSessionsChanged;
+            });
         });
 
         UseEffect(() =>
@@ -359,6 +441,15 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                     targetAppId = defaultAppId;
 
                 var appArgs = args.GetArgs<object>();
+
+                // Args are hidden from the URL, so a reloaded terminal pane has no session: resume
+                // the latest terminal session instead of persisting a fresh one on every refresh.
+                if (string.Equals(targetAppId, AgentAppId, StringComparison.OrdinalIgnoreCase) && appArgs == null
+                    && ChatLauncher.LatestTerminalSessionId(chatService.GetSessions()) is { } resumed)
+                {
+                    appArgs = new AgentAppArgs(SessionId: resumed);
+                }
+
                 OpenApp(new NavigateArgs(targetAppId, appArgs), true);
             }
             else
@@ -409,6 +500,12 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             client.Redirect(navigateArgs.GetUrl(includeArgs: settings.IncludeArgsInUrl), replaceHistory, tabId);
         }
 
+        bool IsTerminalSession(string? sessionId) =>
+            !string.IsNullOrEmpty(sessionId) && chatService.GetSession(sessionId)?.IsTerminal() == true;
+
+        static bool IsAgentTab(TabState tab) =>
+            string.Equals(tab.AppId, AgentAppId, StringComparison.OrdinalIgnoreCase);
+
         void OpenApp(NavigateArgs navigateArgs, bool replaceHistory = false)
         {
             try
@@ -416,6 +513,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 if (isShareMode && navigateArgs.AppId != null && !ShareAllowedAppIds.Contains(navigateArgs.AppId))
                 {
                     navigateArgs = navigateArgs with { AppId = "review" };
+                }
+
+                // The Chats list holds terminal sessions too; picking one opens its pane, not the chat page.
+                if (string.Equals(navigateArgs.AppId, ChatAppId, StringComparison.OrdinalIgnoreCase)
+                    && navigateArgs.AppArgs is ChatAppArgs { SessionId: { Length: > 0 } chatSessionId }
+                    && IsTerminalSession(chatSessionId))
+                {
+                    navigateArgs = navigateArgs with { AppId = AgentAppId, AppArgs = new AgentAppArgs(SessionId: chatSessionId) };
                 }
 
                 var router = new AppShellRouter();
@@ -465,11 +570,32 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             var wasOnSession = selectedIndex.Value != null;
             var effectiveNavigateArgs = navigateArgs with { AppId = effectiveAppId };
 
+            if (effectiveNavigateArgs.AppArgs == null &&
+                string.Equals(previousApp, effectiveAppId, StringComparison.OrdinalIgnoreCase))
+            {
+                if (currentApp.Value?.AppArgs != null)
+                {
+                    effectiveNavigateArgs = effectiveNavigateArgs with { AppArgs = currentApp.Value.AppArgs };
+                }
+                else if (sidebarList.Value is { } currentSidebar &&
+                         string.Equals(currentSidebar.AppId, effectiveAppId, StringComparison.OrdinalIgnoreCase) &&
+                         !string.IsNullOrEmpty(currentSidebar.SelectedId))
+                {
+                    effectiveNavigateArgs = effectiveNavigateArgs with { AppArgs = currentSidebar.BuildSelectArgs(currentSidebar.SelectedId) };
+                }
+            }
+
             var appHost = effectiveAppId != null
                 ? effectiveNavigateArgs.ToAppHost(args.ConnectionId)
                 : null;
 
-            currentApp.Set(appHost);
+            if (currentApp.Value == null ||
+                !string.Equals(previousApp, effectiveAppId, StringComparison.OrdinalIgnoreCase) ||
+                !Equals(currentApp.Value.AppArgs, effectiveNavigateArgs.AppArgs))
+            {
+                currentApp.Set(appHost);
+            }
+
             selectedIndex.Set((int?)null);
 
             // The sidebar section belongs to the page app; drop it when the page changes to an
@@ -486,17 +612,46 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 RedirectToAppIfNotError(effectiveNavigateArgs, replaceHistory);
         }
 
+        void SetTabTitle(TabState tab)
+        {
+            if (!IsAgentTab(tab))
+            {
+                SetAppTitle(tab.AppId);
+                return;
+            }
+            var session = chatService.GetSession(tab.Id);
+            client.SetTitle(session != null ? ChatApp.DisplayTitle(session) : tab.Title, serverArgs.Metadata.Title);
+        }
+
         void HandleSwitchToExistingTab(NavigateArgs navigateArgs, int tabIndex,
             string tabId, bool replaceHistory)
         {
             var previousSelectedIndex = selectedIndex.Value;
             selectedIndex.Set(tabIndex);
             lastSessionIndex.Value = tabIndex;
-            var tab = tabs.Value[tabIndex];
-            SetAppTitle(tab.AppId);
+            SetTabTitle(tabs.Value[tabIndex]);
 
             if (navigateArgs.HistoryOp is HistoryOp.Push && previousSelectedIndex != tabIndex)
                 RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
+        }
+
+        // A terminal pane is backed by a chat session (Kind = terminal) so it lists beside the
+        // chats; the session is created here, on first open, so the pane and its sidebar row share
+        // the id. The initial prompt is kept as the session's first message and names the session.
+        ChatSessionModel EnsureTerminalSession(AgentAppArgs agentArgs)
+        {
+            if (!string.IsNullOrEmpty(agentArgs.SessionId) && chatService.GetSession(agentArgs.SessionId) is { } existing)
+                return existing;
+
+            var agent = config.Settings.CodingAgent ?? "claude";
+            var session = chatService.CreateSession(agent, "default", title: agentArgs.Title, kind: ChatSessionKinds.Terminal);
+            if (!string.IsNullOrWhiteSpace(agentArgs.Prompt))
+            {
+                chatService.AddMessage(session.Id, "user", agentArgs.Prompt, agent);
+                if (namingService != null && ChatSessionNamingService.IsDefaultTitle(session.Title))
+                    _ = namingService.GenerateAndSetTitleAsync(session.Id, agentArgs.Prompt, agent);
+            }
+            return session;
         }
 
         void HandleCreateNewTab(NavigateArgs navigateArgs, string effectiveAppId,
@@ -504,19 +659,40 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         {
             if (navigateArgs.HistoryOp is not HistoryOp.Push) return;
 
-            var tabId = Guid.NewGuid().ToString();
-            var appHost = navigateArgs.ToAppHost(args.ConnectionId);
             var app = appRepository.GetAppOrDefault(effectiveAppId);
             var (tabTitle, tabIcon) = BrandedAppDisplay(app);
-            tabTitle = ResolveArgsTabTitle(navigateArgs.AppArgs) ?? tabTitle;
+            var tabId = Guid.NewGuid().ToString();
 
-            var newTabs = tabs.Value.Add(new TabState(tabId, app.Id, tabTitle, appHost,
-                tabIcon, Guid.NewGuid().ToString()));
+            if (app.Id == AgentAppId)
+            {
+                var agentArgs = navigateArgs.AppArgs as AgentAppArgs ?? new AgentAppArgs();
+                var session = EnsureTerminalSession(agentArgs);
+                navigateArgs = navigateArgs with { AppArgs = agentArgs with { SessionId = session.Id } };
+                tabId = session.Id;
+                tabTitle = ChatApp.DisplayTitle(session);
+            }
+            else
+            {
+                tabTitle = ResolveArgsTabTitle(navigateArgs.AppArgs) ?? tabTitle;
+            }
+
+            var appHost = navigateArgs.ToAppHost(args.ConnectionId);
+            var newTab = new TabState(tabId, app.Id, tabTitle, appHost, tabIcon, Guid.NewGuid().ToString());
+            var newTabs = tabs.Value.Add(newTab);
             tabs.Set(newTabs);
             selectedIndex.Set(newTabs.Length - 1);
             lastSessionIndex.Value = newTabs.Length - 1;
-            SetAppTitle(app.Id);
+            SetTabTitle(newTab);
             RedirectToAppIfNotError(navigateArgs, replaceHistory, tabId);
+        }
+
+        void CloseTabsOfDeletedSessions()
+        {
+            for (var i = tabs.Value.Length - 1; i >= 0; i--)
+            {
+                var tab = tabs.Value[i];
+                if (IsAgentTab(tab) && chatService.GetSession(tab.Id) == null) OnTabClose(i);
+            }
         }
 
         bool CheckTabExists(int tabIndex)
@@ -539,8 +715,51 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             selectedIndex.Set(tabIndex);
             lastSessionIndex.Value = tabIndex;
             var tab = tabs.Value[tabIndex];
-            SetAppTitle(tab.AppId);
+            SetTabTitle(tab);
             RedirectToAppIfNotError(new NavigateArgs(tab.AppId), tabId: tab.Id);
+        }
+
+        // The page tab is named after the page it reveals - preferring the selected sidebar row,
+        // so it names the plan and not just "Plans" - falling back to "Home" when the shell is
+        // showing the wallpaper (no page opened yet this session). GetAppOrDefault matches how
+        // SetAppTitle and HandleCreateNewTab resolve a descriptor; currentApp always holds a
+        // real app id, so the "or default" arm is unreachable here.
+        (string Title, string? Icon) PageTabDisplay()
+        {
+            if (currentApp.Value?.AppId is not { } pageAppId) return ("Home", null);
+
+            var (title, icon) = BrandedAppDisplay(appRepository.GetAppOrDefault(pageAppId));
+            var pageList = sidebarList.Value is { } published
+                           && string.Equals(published.AppId, pageAppId, StringComparison.OrdinalIgnoreCase)
+                ? published
+                : null;
+            return (PageTabTitle(title, pageList), icon?.ToString());
+        }
+
+        // Reveals whatever sits behind the session panes: the open page, or the wallpaper
+        // (with the sidebar reopened, since there is nothing else left to navigate from).
+        // Shared by the page tab and by closing the last session so the two cannot drift.
+        void RevealPageBehindSessions()
+        {
+            if (currentApp.Value is { } page)
+            {
+                SetAppTitle(page.AppId);
+                RedirectToAppIfNotError(new NavigateArgs(page.AppId, page.AppArgs));
+                return;
+            }
+
+            client.SetTitle(serverArgs.Metadata.Title);
+            client.Redirect("/");
+            sidebarOpen.Set(true);
+        }
+
+        // Leaves every session pane mounted, so a review action's terminal keeps running
+        // while the reviewer goes back to the plan.
+        void ShowPage()
+        {
+            if (selectedIndex.Value == null) return;
+            selectedIndex.Set((int?)null);
+            RevealPageBehindSessions();
         }
 
         void OnTabClose(int closedIndex)
@@ -576,20 +795,12 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             if (newIndex is { } idx)
             {
                 var tab = newTabs[idx];
-                SetAppTitle(tab.AppId);
+                SetTabTitle(tab);
                 RedirectToAppIfNotError(new NavigateArgs(tab.AppId), tabId: tab.Id);
-            }
-            else if (currentApp.Value is { } page)
-            {
-                // The page is still open behind the sessions; reveal it again.
-                SetAppTitle(page.AppId);
-                RedirectToAppIfNotError(new NavigateArgs(page.AppId));
             }
             else
             {
-                client.SetTitle(serverArgs.Metadata.Title);
-                client.Redirect("/");
-                sidebarOpen.Set(true);
+                RevealPageBehindSessions();
             }
         }
 
@@ -607,10 +818,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Tag("$icebox")
                 .Icon(Icons.Snowflake)
                 .OnSelect(() => navigator.Navigate<IceboxApp>()),
-            MenuItem.Default("Import Issues from GitHub")
-                .Tag("$import-issues")
-                .Icon(Icons.Download)
-                .OnSelect(showImportIssuesDialog),
             MenuItem.Default("Check for Updates")
                 .Tag("$check-updates")
                 .Icon(Icons.CircleArrowUp)
@@ -685,34 +892,72 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .OnClick(() => open())
         ));
 
-        // While a session pane is visible the agent row is the selected item, so the
+        // While a session pane is visible the chat row is the selected item, so the
         // nav must not keep highlighting the page app behind it.
         var sessionIsActive = selectedIndex.Value is { } activeSession && CheckTabExists(activeSession);
         var activeNavAppId = sessionIsActive ? null : currentApp.Value?.AppId;
+        var activeTerminalTab = sessionIsActive && IsAgentTab(tabs.Value[selectedIndex.Value!.Value])
+            ? tabs.Value[selectedIndex.Value!.Value]
+            : null;
+        var chatIsActive = activeTerminalTab != null
+                           || (!sessionIsActive && string.Equals(currentApp.Value?.AppId, ChatAppId, StringComparison.OrdinalIgnoreCase));
 
-        var (agentLabel, _) = AgentBranding.For(config.Settings.CodingAgent, agentRunner, config);
-        var agentButton = new ShellAgentButton()
-            .IsActive(sessionIsActive)
-            .Label(agentLabel)
-            .Icon(AgentBranding.IconFor(config.Settings.CodingAgent, config).ToString())
-            .OnOpen(() =>
+        int? LatestTerminalTabIndex()
+        {
+            if (lastSessionIndex.Value is { } last && CheckTabExists(last) && IsAgentTab(tabs.Value[last])) return last;
+            for (var i = tabs.Value.Length - 1; i >= 0; i--)
+                if (IsAgentTab(tabs.Value[i])) return i;
+            return null;
+        }
+
+        // The Chat row opens the configured session kind: the chat page, or (chatMode: terminal)
+        // the latest terminal pane. The chord always starts a fresh session of that kind.
+        void OpenChat()
+        {
+            if (!ChatLauncher.UsesTerminal(config))
             {
-                if (tabs.Value.Length == 0)
-                {
-                    OpenApp(new NavigateArgs(AgentAppId));
-                    return;
-                }
-                var latest = lastSessionIndex.Value is { } last && CheckTabExists(last)
-                    ? last
-                    : tabs.Value.Length - 1;
+                OpenApp(new NavigateArgs(ChatAppId));
+                return;
+            }
+            if (LatestTerminalTabIndex() is { } latest)
+            {
                 SelectSession(latest);
-            })
-            .OnNewChat(() => OpenApp(new NavigateArgs(AgentAppId)));
+                return;
+            }
+            var resumed = ChatLauncher.LatestTerminalSessionId(chatService.GetSessions());
+            OpenApp(new NavigateArgs(AgentAppId, resumed != null ? new AgentAppArgs(SessionId: resumed) : null));
+        }
+
+        void StartNewChat() => ChatLauncher.StartNew(navigator, config, chatService, agentRunner);
+
+        var chatButton = new ShellAgentButton()
+            .IsActive(chatIsActive)
+            .Label("Chat")
+            .Icon(Icons.MessageCircle.ToString())
+            .OnOpen(OpenChat)
+            .OnNewChat(StartNewChat);
 
         // Plan search is always reachable from the sidebar: apps without a list (and lists
         // with no rows) get the section's full-width Search button in place of the title.
+        // A visible terminal pane shows the Chats list with its own row selected, whatever
+        // page sits behind it.
+        _ = sessionsVersion.Value;
+        var list = sidebarList.Value is { } published && UsesSidebarList(published.AppId, currentApp.Value?.AppId)
+            ? published
+            : null;
+        if (activeTerminalTab != null)
+        {
+            list = ChatApp.BuildSidebarList(
+                chatService.GetSessions(),
+                activeTerminalTab.Id,
+                chatService.GetGeneratingSessionIds(),
+                chatService.GetCompletedSessionIds(),
+                showChatSearchDialog,
+                StartNewChat);
+        }
+
         ShellSidebarSection section;
-        if (sidebarList.Value is { } list && UsesSidebarList(list.AppId, currentApp.Value?.AppId))
+        if (list != null)
         {
             var capturedList = list;
             section = new ShellSidebarSection()
@@ -720,9 +965,13 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Items(list.Items)
                 .SelectedId(list.SelectedId)
                 .Searchable(list.Searchable)
+                .SearchLabel(list.SearchLabel)
+                .NewLabel(list.NewLabel)
+                .CollapsedMenu(list.CollapsedMenu)
                 .OnSelectItem(itemId =>
                     OpenApp(new NavigateArgs(capturedList.AppId, capturedList.BuildSelectArgs(itemId))))
-                .OnSearch(showPlanSearchDialog);
+                .OnSearch(list.OnSearch ?? showPlanSearchDialog)
+                .OnNew(list.OnNew);
         }
         else
         {
@@ -731,16 +980,27 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .OnSearch(showPlanSearchDialog);
         }
 
+        // Beta: the inbox moves out of the nav into the footer, beside an icon-only settings button.
+        var inboxInFooter = isBeta && !isShareMode;
+        string[] footerAppIds = inboxInFooter ? [InboxAppId] : [];
+
         var nav = new ShellNav()
-            .Items(BuildNavItems(menuItems.Value, activeNavAppId))
+            .Items(BuildNavItems(menuItems.Value, activeNavAppId, footerAppIds))
             .ShowDivider(true)
             .OnSelect(appId => OpenApp(new NavigateArgs(appId)));
 
         var settingsMenu = new DropDownMenu(
                 DropDownMenu.DefaultSelectHandler(),
-                new ShellSettingsButton())
+                new ShellSettingsButton().ShowLabel(!inboxInFooter))
             .Top()
             .Items(settings.FooterMenuItemsTransformer(settingsMenuItems, navigator));
+
+        var inboxButton = new ShellSettingsButton()
+            .Icon(Icons.Inbox.ToString())
+            .Label("Inbox")
+            .ShowLabel(false)
+            .IsActive(string.Equals(activeNavAppId, InboxAppId, StringComparison.OrdinalIgnoreCase))
+            .OnClick(() => OpenApp(new NavigateArgs(InboxAppId)));
 
         // ----- Content + session tabs -----
 
@@ -754,12 +1014,23 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             .Select(t => (object?)t.AppHost.Key(StringHelper.GetShortHash(t.Id + t.RefreshToken)))
             .ToArray();
 
+        // Terminal panes are reached from the Chats list, so the strip only shows the other
+        // session tabs (review actions). It is led by a non-closable tab for the page hidden
+        // behind them, so opening a review action no longer strands the reviewer on its
+        // terminal until every session is closed (issue #2245).
+        var stripTabs = tabs.Value.Where(t => !IsAgentTab(t)).ToList();
+        var (pageTabTitle, pageTabIcon) = PageTabDisplay();
+
         var tabsWidget = new ShellTabs()
-            .Tabs(tabs.Value.Select(t => new ShellTabDto(t.Id, t.Title)).ToList())
-            .SelectedId(selectedIndex.Value is { } si && CheckTabExists(si) ? tabs.Value[si].Id : null)
-            .OnSelect(tabId => SelectSession(FindTabIndexById(tabId)))
+            .Tabs(BuildStripTabs(pageTabTitle, pageTabIcon, stripTabs.Select(t => (t.Id, t.Title))))
+            .SelectedId(SelectedStripTabId(tabs.Value, selectedIndex.Value))
+            .OnSelect(tabId =>
+            {
+                if (tabId == PageTabId) ShowPage();
+                else SelectSession(FindTabIndexById(tabId));
+            })
             .OnClose(tabId => OnTabClose(FindTabIndexById(tabId)))
-            .OnNew(() => OpenApp(new NavigateArgs(AgentAppId)));
+            .OnNew(StartNewChat);
 
         // Cmd+W (Ctrl+W on Windows) closes the active session tab, matching desktop-app convention.
         // ShortcutKey is the only shortcut API Ivy exposes, so the binding lives on a zero-width
@@ -790,11 +1061,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var reviewerPersona = shareContext.Persona;
         var reviewerInitials = GetInitials(reviewerPersona);
 
-        object sidebarFooter = isShareMode
-            ? Layout.Horizontal().AlignContent(Align.Left).Height(Size.Auto()).Width(Size.Full())
+        object?[] sidebarFooter = isShareMode
+            ?
+            [
+                Layout.Horizontal().AlignContent(Align.Left).Height(Size.Auto()).Width(Size.Full())
                 | new Avatar(reviewerInitials).Small()
                 | Text.Block(reviewerPersona).Small().Bold().Overflow(Overflow.Ellipsis)
-            : settingsMenu;
+            ]
+            : inboxInFooter ? [settingsMenu, inboxButton] : [settingsMenu];
 
         // A shared link that points straight at one plan renders that plan alone, with no shell
         // chrome around it.
@@ -809,7 +1083,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             return new Fragment(
                 selectInputWarmup,
                 selectedApp ?? null!,
-                importIssuesDialog,
                 updateDialog,
                 planSearchDialog,
                 closeTabShortcut
@@ -820,27 +1093,27 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 sidebarHeader: sidebarHeader,
                 sidebarBody: isShareMode
                     ? [nav, section]
-                    : [newPlanButton, agentButton, nav, section],
+                    : [newPlanButton, chatButton, nav, section],
                 sidebarFooter: sidebarFooter,
                 content: pageContent,
                 sessionContents: sessionContents,
                 tabs: tabsWidget,
                 hidden: [selectInputWarmup, closeTabShortcut])
             .Collapsed(!sidebarOpen.Value)
-            .HasTabs(tabs.Value.Length > 0)
+            // Counts session tabs only: the page tab never keeps the strip alive on its own.
+            // ShellTabs applies the same rule to its own markup - keep the two in step.
+            .HasTabs(stripTabs.Count > 0)
             .ActiveSessionIndex(selectedIndex.Value)
             .OnCollapsedChanged(collapsed =>
             {
                 sidebarOpen.Set(!collapsed);
-                config.Settings.SidebarOpen = !collapsed;
-                config.SaveSettings();
             });
 
         return new Fragment(
             shell,
-            importIssuesDialog,
             updateDialog,
-            planSearchDialog
+            planSearchDialog,
+            chatSearchDialog
         );
     }
 

@@ -1,7 +1,7 @@
 import React, { lazy, Suspense, useContext } from "react";
 import { CodeBlock } from "./CodeBlock";
 import { QuestionsCallout } from "./PlanMarkdown/QuestionsCallout";
-import { QuestionsAnswerContext } from "./PlanMarkdown/questionsContext";
+import { QuestionsAnswerContext, QuestionsSubmitContext } from "./PlanMarkdown/questionsContext";
 
 /** `questions`, or `questions_<n>` once `tagQuestionBlocks` has stamped the block's index on it. */
 const QUESTIONS_LANG = /^questions(?:_(\d+))?$/;
@@ -13,6 +13,7 @@ export const BlockHandler: React.FC<React.HTMLAttributes<HTMLElement>> = ({ clas
   const match = /language-(\w+)/.exec(String(className || ""));
   const content = String(children).replace(/\n$/, "");
   const onAnswer = useContext(QuestionsAnswerContext);
+  const onSubmit = useContext(QuestionsSubmitContext);
 
   if (match) {
     const lang = match[1];
@@ -33,15 +34,8 @@ export const BlockHandler: React.FC<React.HTMLAttributes<HTMLElement>> = ({ clas
       );
     }
 
-    const questions = QUESTIONS_LANG.exec(lang);
-    if (questions) {
-      return (
-        <QuestionsCallout
-          content={content}
-          blockIndex={questions[1] ? Number(questions[1]) : 0}
-          onAnswer={onAnswer}
-        />
-      );
+    if (QUESTIONS_LANG.test(lang)) {
+      return <QuestionsCallout content={content} onAnswer={onAnswer} onSubmit={onSubmit} />;
     }
 
     return <CodeBlock content={content} language={lang} />;

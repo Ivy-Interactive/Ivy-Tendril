@@ -1,0 +1,161 @@
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+
+const cssPath = join(dirname(fileURLToPath(import.meta.url)), "dashboard.css");
+const css = readFileSync(cssPath, "utf-8");
+
+/** Every `.tdb-kpis { ... }` declaration block, base rule and container overrides alike. */
+const kpiGridBlocks = [...css.matchAll(/\.tdb-kpis\s*\{([^}]*)\}/g)].map((m) => m[1]);
+
+describe("dashboard.css KPI grid", () => {
+  it("lays four cards out across four columns when full width", () => {
+    expect(css).toContain("grid-template-columns: repeat(4, minmax(0, 1fr));");
+  });
+
+  it("folds to a balanced 2x2 grid on narrower containers", () => {
+    expect(kpiGridBlocks.length).toBeGreaterThan(1);
+    const twoColBlocks = kpiGridBlocks.filter((block) => block.includes("repeat(2,"));
+    expect(twoColBlocks.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("never falls back to a three column grid, which would leave the fourth card alone", () => {
+    for (const block of kpiGridBlocks) {
+      expect(block).not.toContain("repeat(3,");
+    }
+  });
+
+  it("styles the hint as a footnote under the value", () => {
+    expect(css).toContain(".tdb-kpi-hint {");
+    expect(css).toMatch(/\.tdb-kpi-hint\s*\{[^}]*opacity: 0\.7;/);
+  });
+
+  it("styles the subvalue alongside the primary value", () => {
+    expect(css).toContain(".tdb-kpi-subvalue {");
+    expect(css).toMatch(/\.tdb-kpi-subvalue\s*\{[^}]*font-size:\s*13px;/);
+    expect(css).toMatch(/\.tdb-kpi-subvalue\s*\{[^}]*opacity:\s*0\.75;/);
+  });
+
+  it("defines cursor pointer, transition, hover, and focus-visible on .tdb-kpi", () => {
+    expect(css).toMatch(/\.tdb-kpi\s*\{[^}]*cursor:\s*pointer;/);
+    expect(css).toMatch(/\.tdb-kpi\s*\{[^}]*transition:\s*[^;]*transform/);
+    expect(css).toContain(".tdb-kpi:hover");
+    expect(css).toContain(".tdb-kpi:focus-visible");
+  });
+});
+
+describe("dashboard.css side block and git activity layout", () => {
+  it("constrains side block contents within container bounds with overflow: hidden", () => {
+    expect(css).toMatch(/\.tdb-side-block\s*\{[^}]*overflow:\s*hidden;/);
+  });
+
+  it("bottom-anchors side body and tip wrap with justify-content: flex-end", () => {
+    const sideBodyBlocks = [...css.matchAll(/\.tdb-side-body\s*\{([^}]*)\}/g)].map((m) => m[1]);
+    expect(sideBodyBlocks.length).toBeGreaterThanOrEqual(1);
+    for (const block of sideBodyBlocks) {
+      expect(block).toContain("justify-content: flex-end;");
+    }
+
+    const tipWrapBlocks = [...css.matchAll(/\.tdb-tip-wrap\s*\{([^}]*)\}/g)].map((m) => m[1]);
+    expect(tipWrapBlocks.length).toBeGreaterThanOrEqual(1);
+    for (const block of tipWrapBlocks) {
+      expect(block).toContain("justify-content: flex-end;");
+    }
+  });
+
+  it("no longer carries the activity metrics summary row", () => {
+    expect(css).not.toContain(".tdb-activity-metrics");
+    expect(css).not.toContain(".tdb-activity-wrap");
+  });
+
+  it("stacks monthly activity columns from the bottom", () => {
+    expect(css).toMatch(/\.tdb-activity-col\s*\{[^}]*flex-direction:\s*column-reverse;/);
+    expect(css).toMatch(/\.tdb-activity\s*\{[^}]*align-items:\s*flex-end;/);
+  });
+
+  it("no longer carries the daily contribution heatmap classes", () => {
+    expect(css).not.toContain(".tdb-activity-weekdays");
+    expect(css).not.toContain(".tdb-activity-months-row");
+  });
+
+  it("constrains width on side body and tip wrap with min-width: 0 and max-width: 100%", () => {
+    expect(css).toMatch(/\.tdb-side-body\s*\{[^}]*min-width:\s*0;/);
+    expect(css).toMatch(/\.tdb-side-body\s*\{[^}]*max-width:\s*100%;/);
+    expect(css).toMatch(/\.tdb-tip-wrap\s*\{[^}]*min-width:\s*0;/);
+    expect(css).toMatch(/\.tdb-tip-wrap\s*\{[^}]*max-width:\s*100%;/);
+  });
+
+  it("constrains scroll container with min-width: 0 and overflow-x: auto", () => {
+    expect(css).toMatch(/\.tdb-activity-scroll\s*\{[^}]*min-width:\s*0;/);
+    expect(css).toMatch(/\.tdb-activity-scroll\s*\{[^}]*max-width:\s*100%;/);
+    expect(css).toMatch(/\.tdb-activity-scroll\s*\{[^}]*overflow-x:\s*auto;/);
+  });
+
+  it("allows activity columns to shrink flexibly to fit 16 months", () => {
+    expect(css).toMatch(/\.tdb-activity-col\s*\{[^}]*flex:\s*1\s+1\s+0;/);
+    expect(css).toMatch(/\.tdb-activity-col\s*\{[^}]*min-width:\s*9px;/);
+    expect(css).toMatch(/\.tdb-activity\s*\{[^}]*gap:\s*5px;/);
+  });
+
+  it("aligns the trailing activity label to the right to prevent clipping", () => {
+    expect(css).toMatch(/\.tdb-activity-label:last-child\s*\{[^}]*text-align:\s*right;/);
+  });
+});
+
+describe("dashboard.css rolling average curve and legend", () => {
+  it("defines the dashed muted average legend indicator", () => {
+    expect(css).toContain(".tdb-legend-line-avg {");
+    expect(css).toMatch(/\.tdb-legend-line-avg\s*\{[^}]*border-top:\s*1\.5px dashed var\(--tdb-muted\)/);
+  });
+
+  it("strokes the rolling curve with dashed pattern without filling it", () => {
+    expect(css).toContain(".tdb-trend-avg-curve {");
+    expect(css).toMatch(/\.tdb-trend-avg-curve\s*\{[^}]*fill:\s*none;/);
+    expect(css).toMatch(/\.tdb-trend-avg-curve\s*\{[^}]*stroke:\s*var\(--tdb-muted\);/);
+    expect(css).toMatch(/\.tdb-trend-avg-curve\s*\{[^}]*stroke-dasharray:\s*4 4;/);
+  });
+
+  it("no longer carries the constant horizontal reference line", () => {
+    expect(css).not.toContain(".tdb-trend-avg-line");
+    expect(css).not.toContain(".tdb-legend-dash-avg");
+    expect(css).not.toContain(".tdb-trend-compare");
+    expect(css).not.toContain(".tdb-legend-dash {");
+  });
+
+  it("no longer carries granularity toggle styles", () => {
+    expect(css).not.toContain(".tdb-granularity-toggle");
+    expect(css).not.toContain(".tdb-granularity-btn");
+  });
+});
+
+describe("dashboard.css side tabs", () => {
+  it("defines compact tab controls for side card headers", () => {
+    expect(css).toContain(".tdb-side-tabs {");
+    expect(css).toContain(".tdb-side-tab {");
+    expect(css).toMatch(/\.tdb-side-tab\s*\{[^}]*font-size:\s*12px;/);
+    expect(css).toMatch(/\.tdb-side-tab\s*\{[^}]*padding:\s*3px 8px;/);
+    expect(css).toMatch(/\.tdb-side-tab\s*\{[^}]*border-radius:\s*6px;/);
+  });
+});
+
+describe("dashboard.css pull request bars layout and alignment", () => {
+  it("defines centered text alignment, controlled line height, and consistent min-height for bar labels", () => {
+    expect(css).toContain(".tdb-bar-label {");
+    expect(css).toMatch(/\.tdb-bar-label\s*\{[^}]*text-align:\s*center;/);
+    expect(css).toMatch(/\.tdb-bar-label\s*\{[^}]*line-height:\s*1\.2;/);
+    expect(css).toMatch(/\.tdb-bar-label\s*\{[^}]*min-height:\s*28px;/);
+    expect(css).toMatch(/\.tdb-bar-label\s*\{[^}]*white-space:\s*pre-line;/);
+  });
+
+  it("uses a compact gap on .tdb-bars-plot to prevent horizontal overflow", () => {
+    expect(css).toContain(".tdb-bars-plot {");
+    expect(css).toMatch(/\.tdb-bars-plot\s*\{[^}]*gap:\s*8px;/);
+  });
+
+  it("sets min-width 0 on .tdb-bar-item and aligns Y-axis zero tick with 36px padding-bottom", () => {
+    expect(css).toMatch(/\.tdb-bar-item\s*\{[^}]*min-width:\s*0;/);
+    expect(css).toMatch(/\.tdb-bars-y\s*\{[^}]*padding-bottom:\s*36px;/);
+  });
+});
+

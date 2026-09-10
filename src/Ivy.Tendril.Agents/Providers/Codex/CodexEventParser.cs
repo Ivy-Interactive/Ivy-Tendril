@@ -214,6 +214,7 @@ public sealed class CodexEventParser : IEventParser
     {
         var rawMsg = item.TryGetProperty("message", out var msgProp) ? msgProp.GetString() ?? "" : "";
         var cleanMsg = ExtractErrorMessage(rawMsg);
+        if (IsSkillsBudgetWarning(cleanMsg)) return Empty;
         return [new ErrorEvent
         {
             Kind = AgentEventKind.Error,
@@ -226,6 +227,7 @@ public sealed class CodexEventParser : IEventParser
     {
         var rawMsg = root.TryGetProperty("message", out var msgProp) ? msgProp.GetString() ?? "" : "";
         var cleanMsg = ExtractErrorMessage(rawMsg);
+        if (IsSkillsBudgetWarning(cleanMsg)) return Empty;
         var isAuth = cleanMsg.Contains("auth", StringComparison.OrdinalIgnoreCase) ||
                      cleanMsg.Contains("login", StringComparison.OrdinalIgnoreCase) ||
                      cleanMsg.Contains("unauthorized", StringComparison.OrdinalIgnoreCase);
@@ -251,6 +253,7 @@ public sealed class CodexEventParser : IEventParser
         }
 
         var cleanMsg = ExtractErrorMessage(rawMsg);
+        if (IsSkillsBudgetWarning(cleanMsg)) return Empty;
         if (string.IsNullOrWhiteSpace(cleanMsg))
             cleanMsg = "Turn failed";
 
@@ -300,5 +303,22 @@ public sealed class CodexEventParser : IEventParser
         }
 
         return rawMessage;
+    }
+
+    /// <summary>
+    /// True when a Codex error payload is really the skills context budget notice. Codex emits this on
+    /// the error channel after it truncates skill descriptions to fit the 2% budget, then continues and
+    /// exits 0, so treating it as terminal fails a run that succeeded.
+    /// </summary>
+    public static bool IsSkillsBudgetWarning(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message)) return false;
+
+        if (message.Contains("skills context budget", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return message.Contains("skill description", StringComparison.OrdinalIgnoreCase) &&
+               (message.Contains("truncated", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("shortened", StringComparison.OrdinalIgnoreCase));
     }
 }

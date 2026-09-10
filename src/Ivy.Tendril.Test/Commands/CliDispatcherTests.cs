@@ -41,6 +41,7 @@ public class CliDispatcherTests
     [InlineData("run")]
     [InlineData("version")]
     [InlineData("report-bug")]
+    [InlineData("vault")]
     public void Classify_RegisteredTopLevelCommand_ReturnsCliCommand(string command)
     {
         Assert.Equal(CliInvocationKind.CliCommand, CliDispatcher.Classify([command]));

@@ -10,6 +10,11 @@ interface ToolCall {
 
 interface ToolUseCardProps {
   tool: ToolCall;
+  /**
+   * The chat's bare row: no card fill, the status dot doubling as the chevron under the pointer,
+   * and the body flush with the row.
+   */
+  minimal?: boolean;
 }
 
 function getStringParam(input: Record<string, unknown>, keys: string[]): string | undefined {
@@ -123,7 +128,7 @@ function getToolStatus(tool: ToolCall): ToolStatus {
   return "success";
 }
 
-export const ToolUseCard: React.FC<ToolUseCardProps> = ({ tool }) => {
+export const ToolUseCard: React.FC<ToolUseCardProps> = ({ tool, minimal = false }) => {
   const status = getToolStatus(tool);
   const [open, setOpen] = useState(false);
 
@@ -140,7 +145,7 @@ export const ToolUseCard: React.FC<ToolUseCardProps> = ({ tool }) => {
   }
 
   return (
-    <div className={`aov-tool ${open ? "open" : ""}`}>
+    <div className={`aov-tool ${open ? "open" : ""}${minimal ? " aov-tool--minimal" : ""}`}>
       <div
         className="aov-tool-header"
         onClick={handleToggle}
@@ -154,10 +159,21 @@ export const ToolUseCard: React.FC<ToolUseCardProps> = ({ tool }) => {
           }
         }}
       >
-        <span className={`aov-tool-chevron ${open ? "open" : ""}`}>
-          <ChevronDownIcon />
-        </span>
-        <span className={`aov-tool-status aov-tool-status--${status}`} />
+        {minimal ? (
+          <span className="aov-tool-mark" aria-hidden="true">
+            <span className={`aov-tool-status aov-tool-status--${status}`} />
+            <span className={`aov-tool-chevron ${open ? "open" : ""}`}>
+              <ChevronDownIcon />
+            </span>
+          </span>
+        ) : (
+          <>
+            <span className={`aov-tool-chevron ${open ? "open" : ""}`}>
+              <ChevronDownIcon />
+            </span>
+            <span className={`aov-tool-status aov-tool-status--${status}`} />
+          </>
+        )}
         <span className="aov-tool-name">{tool.name}</span>
         {headerPreview && <span className="aov-tool-preview">{headerPreview}</span>}
       </div>

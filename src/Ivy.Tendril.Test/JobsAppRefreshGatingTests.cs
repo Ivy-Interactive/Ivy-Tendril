@@ -119,6 +119,25 @@ public class JobsAppRefreshGatingTests
     }
 
     [Fact]
+    public void BuildDataTableUpdates_EmitsUpdateWhenBlockedJobStatusMessageChanges()
+    {
+        var jobService = new FakeJobService();
+        var job = MakeJob("job-1", JobStatus.Blocked);
+        job.StatusMessage = "Waiting for Dep A";
+        jobService.Jobs.Add(job);
+        var cache = new Dictionary<string, string>();
+
+        JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
+
+        job.StatusMessage = "Waiting for Dep B";
+        var updates = JobsApp.BuildDataTableUpdates(jobService, cache).ToList();
+
+        var update = Assert.Single(updates);
+        Assert.Equal(nameof(JobItemRow.StatusMessage), update.ColumnName);
+        Assert.Equal("Waiting for Dep B", update.Value);
+    }
+
+    [Fact]
     public void BuildDataTableUpdates_PrunesCacheKeysForJobsNoLongerReturned()
     {
         var jobService = new FakeJobService();
@@ -190,6 +209,7 @@ public class JobsAppRefreshGatingTests
         public List<JobItem> GetJobsForPlan(string planFile) => throw new NotSupportedException();
         public JobItem? GetJob(string id) => Jobs.FirstOrDefault(j => j.Id == id);
         public bool UpdateJobStatus(string id, string message, string? planId = null, string? planTitle = null) => throw new NotSupportedException();
+        public void SetChatSessionId(string id, string chatSessionId) { }
         public bool ReportJobFailure(string id, string message) => throw new NotSupportedException();
         public bool IsInboxFileTracked(string filePath) => false;
         public void Dispose()
@@ -201,6 +221,7 @@ public class JobsAppRefreshGatingTests
         public event Action? JobsStructureChanged;
         public event Action? JobPropertyChanged;
         public event Action<JobNotification>? NotificationReady;
+        public event Action<JobItem>? JobFinished;
 #pragma warning restore CS0067
     }
 }

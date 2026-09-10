@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       test-mode:
-        description: 'Test mode (do not publish to NuGet, do not create release)'
+        description: 'Test mode (dry run: build and upload unsigned artifacts, skip all signing, notarization, publishing, and docs deployment)'
         required: false
         type: boolean
         default: false
@@ -96,17 +96,20 @@ jobs:
             /p:CommitId=${{ github.sha }}
 
       - name: NuGet login
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
         uses: NuGet/login@v1
         id: login
         with:
           user: rorychatt-ivy
 
       - name: Clean NuGet output before signing
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
         run: |
           find ./nupkg -mindepth 1 -maxdepth 1 -not -name "*.nupkg" -exec rm -rf {} +
           mkdir -p ./nupkg_signed
 
       - name: Sign NuGet packages
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
         uses: sslcom/esigner-codesign@develop
         with:
           command: batch_sign
@@ -119,8 +122,15 @@ jobs:
           output_path: nupkg_signed
 
       - name: Overwrite origin with signed nuget
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
         run: |
           cp -f ./nupkg_signed/*.nupkg ./nupkg/
+
+      - name: Upload NuGet Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tendril-nuget-${{ needs.version.outputs.version }}
+          path: nupkg/*.nupkg
 
       - name: Push to NuGet
         if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
@@ -412,7 +422,7 @@ jobs:
           echo "Ivy Agent CLI bundled successfully!"
 
       - name: Import Apple Certificates (macOS)
-        if: startsWith(matrix.rid, 'osx-')
+        if: startsWith(matrix.rid, 'osx-') && (github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode))
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
@@ -435,7 +445,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign:,productbuild:,productsign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
       - name: Store Notary Credentials (macOS)
-        if: startsWith(matrix.rid, 'osx-')
+        if: startsWith(matrix.rid, 'osx-') && (github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode))
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
@@ -449,6 +459,8 @@ jobs:
             --keychain "$RUNNER_TEMP/app-signing.keychain-db"
 
       - name: Pack Installer (Velopack)
+        env:
+          IS_PRODUCTION: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode) }}
         run: |
           export PATH="$PATH:$HOME/.dotnet/tools"
           EXE_NAME="Ivy.Tendril"
@@ -460,12 +472,14 @@ jobs:
 
           # Export macOS environment variables for signing & notarization
           if [[ "${{ matrix.rid }}" == osx-* ]]; then
-            security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/app-signing.keychain-db"
-            export VPK_SIGN_APP_IDENTITY="${{ secrets.MACOS_SIGN_APP_IDENTITY }}"
-            export VPK_SIGN_INSTALL_IDENTITY="${{ secrets.MACOS_SIGN_INSTALL_IDENTITY }}"
-            export VPK_NOTARY_PROFILE="tendril-notary"
-            export VPK_KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
-            export VPK_SIGN_DISABLE_DEEP="true"
+            if [[ "$IS_PRODUCTION" == "true" ]]; then
+              security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/app-signing.keychain-db"
+              export VPK_SIGN_APP_IDENTITY="${{ secrets.MACOS_SIGN_APP_IDENTITY }}"
+              export VPK_SIGN_INSTALL_IDENTITY="${{ secrets.MACOS_SIGN_INSTALL_IDENTITY }}"
+              export VPK_NOTARY_PROFILE="tendril-notary"
+              export VPK_KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
+              export VPK_SIGN_DISABLE_DEEP="true"
+            fi
 
             APP_DIR="./publish/desktop/Ivy Tendril.app"
             rm -rf "$APP_DIR"
@@ -551,45 +565,47 @@ jobs:
               fi
             done
 
-            # Create a temporary entitlements file for JIT support in bundled runtimes
-            echo '<?xml version="1.0" encoding="UTF-8"?>
-            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-            <plist version="1.0">
-            <dict>
-                <key>com.apple.security.cs.allow-jit</key>
-                <true/>
-                <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
-                <true/>
-                <key>com.apple.security.cs.disable-library-validation</key>
-                <true/>
-                <key>com.apple.security.device.audio-input</key>
-                <true/>
-            </dict>
-            </plist>' | sed 's/^            //' > "$RUNNER_TEMP/entitlements.plist"
+            if [[ "$IS_PRODUCTION" == "true" ]]; then
+              # Create a temporary entitlements file for JIT support in bundled runtimes
+              echo '<?xml version="1.0" encoding="UTF-8"?>
+              <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+              <plist version="1.0">
+              <dict>
+                  <key>com.apple.security.cs.allow-jit</key>
+                  <true/>
+                  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+                  <true/>
+                  <key>com.apple.security.cs.disable-library-validation</key>
+                  <true/>
+                  <key>com.apple.security.device.audio-input</key>
+                  <true/>
+              </dict>
+              </plist>' | sed 's/^              //' > "$RUNNER_TEMP/entitlements.plist"
 
-            # Pre-sign native Mach-O binaries in the runner's keychain (inside-out order)
-            echo "Pre-signing internal binaries to avoid codesign --deep errors on nested SDK folders..."
-            # 1. Sign all native dynamic libraries/files first (excluding the main executable)
-            find "$APP_DIR" -depth -type f ! -name "Ivy.Tendril" | while read -r file; do
-              if file "$file" | grep -q "Mach-O"; then
-                if file -b "$file" | grep -q "executable"; then
-                  echo "Signing internal executable: $file"
-                  codesign --force --options runtime --entitlements "$RUNNER_TEMP/entitlements.plist" --timestamp --keychain "$RUNNER_TEMP/app-signing.keychain-db" --sign "$VPK_SIGN_APP_IDENTITY" "$file"
-                else
-                  echo "Signing library: $file"
-                  codesign --force --options runtime --timestamp --keychain "$RUNNER_TEMP/app-signing.keychain-db" --sign "$VPK_SIGN_APP_IDENTITY" "$file"
+              # Pre-sign native Mach-O binaries in the runner's keychain (inside-out order)
+              echo "Pre-signing internal binaries to avoid codesign --deep errors on nested SDK folders..."
+              # 1. Sign all native dynamic libraries/files first (excluding the main executable)
+              find "$APP_DIR" -depth -type f ! -name "Ivy.Tendril" | while read -r file; do
+                if file "$file" | grep -q "Mach-O"; then
+                  if file -b "$file" | grep -q "executable"; then
+                    echo "Signing internal executable: $file"
+                    codesign --force --options runtime --entitlements "$RUNNER_TEMP/entitlements.plist" --timestamp --keychain "$RUNNER_TEMP/app-signing.keychain-db" --sign "$VPK_SIGN_APP_IDENTITY" "$file"
+                  else
+                    echo "Signing library: $file"
+                    codesign --force --options runtime --timestamp --keychain "$RUNNER_TEMP/app-signing.keychain-db" --sign "$VPK_SIGN_APP_IDENTITY" "$file"
+                  fi
                 fi
+              done
+
+              # 2. Sign the main executable last
+              MAIN_EXE_PATH="$APP_DIR/Contents/MacOS/Ivy.Tendril"
+              if [ -f "$MAIN_EXE_PATH" ]; then
+                echo "Signing main executable with entitlements: $MAIN_EXE_PATH"
+                codesign --force --options runtime --entitlements "$RUNNER_TEMP/entitlements.plist" --timestamp --keychain "$RUNNER_TEMP/app-signing.keychain-db" --sign "$VPK_SIGN_APP_IDENTITY" "$MAIN_EXE_PATH"
               fi
-            done
 
-            # 2. Sign the main executable last
-            MAIN_EXE_PATH="$APP_DIR/Contents/MacOS/Ivy.Tendril"
-            if [ -f "$MAIN_EXE_PATH" ]; then
-              echo "Signing main executable with entitlements: $MAIN_EXE_PATH"
-              codesign --force --options runtime --entitlements "$RUNNER_TEMP/entitlements.plist" --timestamp --keychain "$RUNNER_TEMP/app-signing.keychain-db" --sign "$VPK_SIGN_APP_IDENTITY" "$MAIN_EXE_PATH"
+              rm -f "$RUNNER_TEMP/entitlements.plist"
             fi
-
-            rm -f "$RUNNER_TEMP/entitlements.plist"
 
             PACK_DIR="$APP_DIR"
           fi
@@ -609,6 +625,8 @@ jobs:
 
       - name: Inject Postinstall Script into macOS Package
         if: startsWith(matrix.rid, 'osx-')
+        env:
+          IS_PRODUCTION: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode) }}
         run: |
           # Unpack the generated .pkg
           pkgutil --expand releases/IvyTendril-${{ matrix.rid }}-Setup.pkg expanded-pkg
@@ -631,25 +649,31 @@ jobs:
           exit 0' | sed 's/^          //' > expanded-pkg/1.pkg/Scripts/postinstall
           chmod +x expanded-pkg/1.pkg/Scripts/postinstall
           
-          # Repack the package
-          pkgutil --flatten expanded-pkg releases/IvyTendril-${{ matrix.rid }}-Setup-Unsigned.pkg
-          rm -rf expanded-pkg
+          if [[ "$IS_PRODUCTION" == "true" ]]; then
+            # Repack the package
+            pkgutil --flatten expanded-pkg releases/IvyTendril-${{ matrix.rid }}-Setup-Unsigned.pkg
+            rm -rf expanded-pkg
 
-          # Re-sign the repacked package
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/app-signing.keychain-db"
-          productsign --sign "${{ secrets.MACOS_SIGN_INSTALL_IDENTITY }}" --keychain "$RUNNER_TEMP/app-signing.keychain-db" releases/IvyTendril-${{ matrix.rid }}-Setup-Unsigned.pkg releases/IvyTendril-${{ matrix.rid }}-Setup.pkg
-          rm releases/IvyTendril-${{ matrix.rid }}-Setup-Unsigned.pkg
+            # Re-sign the repacked package
+            security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$RUNNER_TEMP/app-signing.keychain-db"
+            productsign --sign "${{ secrets.MACOS_SIGN_INSTALL_IDENTITY }}" --keychain "$RUNNER_TEMP/app-signing.keychain-db" releases/IvyTendril-${{ matrix.rid }}-Setup-Unsigned.pkg releases/IvyTendril-${{ matrix.rid }}-Setup.pkg
+            rm releases/IvyTendril-${{ matrix.rid }}-Setup-Unsigned.pkg
 
-          # Notarize the repacked package
-          echo "Submitting package for notarization..."
-          xcrun notarytool submit releases/IvyTendril-${{ matrix.rid }}-Setup.pkg \
-            --keychain "$RUNNER_TEMP/app-signing.keychain-db" \
-            --keychain-profile "tendril-notary" \
-            --wait
+            # Notarize the repacked package
+            echo "Submitting package for notarization..."
+            xcrun notarytool submit releases/IvyTendril-${{ matrix.rid }}-Setup.pkg \
+              --keychain "$RUNNER_TEMP/app-signing.keychain-db" \
+              --keychain-profile "tendril-notary" \
+              --wait
 
-          # Staple the notarization ticket to the package
-          echo "Stapling notarization ticket..."
-          xcrun stapler staple releases/IvyTendril-${{ matrix.rid }}-Setup.pkg
+            # Staple the notarization ticket to the package
+            echo "Stapling notarization ticket..."
+            xcrun stapler staple releases/IvyTendril-${{ matrix.rid }}-Setup.pkg
+          else
+            # Repack directly into setup pkg without signing/notarizing
+            pkgutil --flatten expanded-pkg releases/IvyTendril-${{ matrix.rid }}-Setup.pkg
+            rm -rf expanded-pkg
+          fi
 
       - name: Rename Installer Setup Packages
         run: |
@@ -668,13 +692,13 @@ jobs:
           cd ..
 
       - name: Prepare Windows installer for signing
-        if: startsWith(matrix.rid, 'win-')
+        if: startsWith(matrix.rid, 'win-') && (github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode))
         run: |
           mkdir -p unsigned_releases signed_releases
           find releases -maxdepth 1 -type f \( -name "*.exe" \) -exec cp {} unsigned_releases/ \;
 
       - name: Sign Windows installer
-        if: startsWith(matrix.rid, 'win-')
+        if: startsWith(matrix.rid, 'win-') && (github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode))
         uses: sslcom/esigner-codesign@develop
         with:
           command: batch_sign
@@ -687,7 +711,7 @@ jobs:
           output_path: signed_releases
 
       - name: Overwrite origin with signed installer
-        if: startsWith(matrix.rid, 'win-')
+        if: startsWith(matrix.rid, 'win-') && (github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode))
         run: |
           cp -f signed_releases/*.exe releases/
 
@@ -734,6 +758,7 @@ jobs:
   deploy-docs:
     needs: [publish-nuget, publish-desktop]
     runs-on: ubuntu-latest
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
     environment: production
     env:
       RESOURCE_GROUP: ${{ vars.RESOURCE_GROUP }}

@@ -30,8 +30,20 @@ public record ChatSessionModel(
     string AgentId,
     string ModelId,
     List<ChatMessageModel> Messages,
-    string? Effort = null
+    string? Effort = null,
+    List<string>? SpawnedJobIds = null,
+    string? Kind = null,
+    string? PlanFolderName = null
 );
+
+public static class ChatSessionKinds
+{
+    public const string Chat = "chat";
+    public const string Terminal = "terminal";
+
+    public static bool IsTerminal(this ChatSessionModel session) =>
+        string.Equals(session.Kind, Terminal, StringComparison.OrdinalIgnoreCase);
+}
 
 public interface IChatHistoryService
 {
@@ -39,11 +51,13 @@ public interface IChatHistoryService
     event EventHandler? GeneratingSessionsChanged;
     IReadOnlyList<ChatSessionModel> GetSessions();
     ChatSessionModel? GetSession(string id);
-    ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null);
+    ChatSessionModel CreateSession(string agentId, string modelId, string? title = null, string? effort = null, string? kind = null, string? planFolderName = null);
     void SaveSession(ChatSessionModel session);
     void DeleteSession(string id);
     void RenameSession(string id, string newTitle);
     ChatMessageModel AddMessage(string sessionId, string role, string content, string? agentId = null, string? modelId = null, string? rawStream = null, string? effort = null);
+    ChatMessageModel? UpdateMessage(string sessionId, string messageId, string content, string? rawStream = null, bool flushImmediately = true, bool touchUpdatedAt = true);
+    void FlushSession(string sessionId);
     void SetSessionGenerating(string sessionId, bool isGenerating);
     void ClearAllGeneratingSessions();
     IReadOnlySet<string> GetGeneratingSessionIds();
@@ -55,4 +69,8 @@ public interface IChatHistoryService
     bool RemoveQueuedMessage(string sessionId, string queueId);
     bool UpdateQueuedMessage(string sessionId, string queueId, string prompt);
     void ClearQueuedMessages(string sessionId);
+    void AddSpawnedJob(string sessionId, string jobId);
+    void RemoveSpawnedJobs(string sessionId, IEnumerable<string> jobIds);
+    IReadOnlyList<string> GetSpawnedJobs(string sessionId);
+    bool ApplyQuestionAnswers(string sessionId, string messageId, IReadOnlyDictionary<string, string[]> answers);
 }

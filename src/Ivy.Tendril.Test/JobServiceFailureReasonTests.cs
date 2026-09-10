@@ -440,4 +440,42 @@ public class JobServiceFailureReasonTests : IDisposable
         Assert.Equal(JobStatus.Completed, job.Status);
         Assert.Null(job.StatusMessage);
     }
+
+    [Fact]
+    public void CompleteJob_ZeroExitCode_WithSkillsBudgetWarningEvent_RemainsCompleted()
+    {
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+        var planFolder = CreateValidPlanFolder();
+        // CreateTestJob, not StartJob: this ctor has no IConfigService, so a real launch would fail the
+        // job before CompleteJob ever ran ("No agent program found").
+        var id = service.CreateTestJob(new ExecutePlanArgs(planFolder));
+        var job = service.GetJob(id)!;
+        job.OutputLines.Enqueue(
+            """{"kind":"error","timestamp":"2026-09-07T12:00:00Z","message":"Skill descriptions were shortened to fit the 2% skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.","is_retryable":false,"is_auth_error":false}""");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Completed, job.Status);
+        Assert.Null(job.StatusMessage);
+    }
+
+    [Fact]
+    public void CompleteJob_ZeroExitCode_WithSkillsBudgetWarningAfterRealError_MarksAsFailed()
+    {
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+        var id = service.CreateTestJob(new ExecutePlanArgs(Path.GetTempPath()));
+        var job = service.GetJob(id)!;
+        job.OutputLines.Enqueue(
+            """{"kind":"error","timestamp":"2026-09-07T11:59:00Z","message":"Access to Meta Llama models is not allowed from unsupported regions","is_retryable":false,"is_auth_error":false}""");
+        job.OutputLines.Enqueue(
+            """{"kind":"error","timestamp":"2026-09-07T12:00:00Z","message":"Skill descriptions were shortened to fit the 2% skills context budget.","is_retryable":false,"is_auth_error":false}""");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Contains("Access to Meta Llama models", job.StatusMessage);
+        Assert.DoesNotContain("skill", job.StatusMessage, StringComparison.OrdinalIgnoreCase);
+    }
 }

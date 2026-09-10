@@ -38,6 +38,7 @@ public class PlanReaderService(
     private readonly TimeCache<List<Recommendation>> _recommendationsCache = new(TimeSpan.FromMinutes(2));
 
     private IPlanDatabaseService? _database;
+    internal IPlanDatabaseService? Database => _database;
     private volatile bool _useDatabaseForReads;
 
     public string PlansDirectory => config.PlanFolder;
@@ -350,6 +351,15 @@ public class PlanReaderService(
         PlanCommandHelpers.WritePlan(planFolder, plan, planWatcherService);
     }
 
+    public void SetChatSessionId(string folderName, string chatSessionId)
+    {
+        var planFolder = Path.Combine(PlansDirectory, folderName);
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+        plan.ChatSessionId = chatSessionId;
+        plan.Updated = DateTime.UtcNow;
+        PlanCommandHelpers.WritePlan(planFolder, plan, planWatcherService);
+    }
+
     /// <summary>
     ///     Creates a new revision file for a plan and updates the plan's timestamp.
     /// </summary>
@@ -628,6 +638,26 @@ public class PlanReaderService(
             }
 
             return result;
+        }
+
+        return [];
+    }
+
+    public List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50)
+    {
+        if (_useDatabaseForReads && _database != null)
+        {
+            return _database.GetRecentMergedPrs(limit);
+        }
+
+        return [];
+    }
+
+    public List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7)
+    {
+        if (_useDatabaseForReads && _database != null)
+        {
+            return _database.GetRecentPlanCosts(days);
         }
 
         return [];
@@ -1099,7 +1129,9 @@ public class PlanReaderService(
                 planYaml.Updated,
                 planYaml.InitialPrompt,
                 planYaml.SourceUrl,
-                planYaml.PartialDelivery
+                planYaml.PartialDelivery,
+                planYaml.ChatSessionId,
+                planYaml.AllocatedPorts
             );
 
             var latestContent = ReadLatestRevisionFromFileSystem(folderName);

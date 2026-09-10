@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect } from "react";
 import { BrandIcon } from "./brandIcons";
-import { ShellWidgetProps, isEditableTarget, isModKey, modKeyLabel } from "./types";
+import { ShellWidgetProps, isEditableTarget, isModKey, isMac } from "./types";
+import { ShellTooltip } from "./ShellTooltip";
+import { Kbd } from "../ui/Kbd";
 import "./shell.css";
 
 interface ShellAgentButtonProps extends ShellWidgetProps {
@@ -12,8 +14,8 @@ interface ShellAgentButtonProps extends ShellWidgetProps {
 
 /**
  * The coding-agent row: clicking it opens the latest agent session, and
- * Cmd/Ctrl+shortcutKey starts a new one. The shortcut is ignored while typing
- * so it never fights select-all in inputs.
+ * Cmd+Opt+shortcutKey (macOS) / Ctrl+Alt+shortcutKey (Windows/Linux) starts a
+ * new one. The shortcut is ignored while typing.
  */
 export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
   id,
@@ -34,11 +36,13 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // shortcutKey is a single letter, so the Key prefix composes correctly
       if (
         isModKey(e) &&
+        e.altKey &&
         !e.shiftKey &&
-        !e.altKey &&
-        e.key.toLowerCase() === shortcutKey.toLowerCase() &&
+        (e.code === `Key${shortcutKey.toUpperCase()}` ||
+          e.key.toLowerCase() === shortcutKey.toLowerCase()) &&
         !isEditableTarget(e)
       ) {
         e.preventDefault();
@@ -49,27 +53,26 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [fireNewChat, shortcutKey]);
 
+  const hintKeys = isMac() ? ["⌘", "⌥", shortcutKey] : ["Ctrl", "Alt", shortcutKey];
+  const shortcutBadge = isMac() ? `⌘+${shortcutKey}` : `Ctrl+${shortcutKey}`;
+
   return (
     <div className="tsh-agent-wrap">
-      <button
-        className="tsh-agent"
-        data-active={isActive}
-        onClick={fireOpen}
-        title={label}
-      >
-        <span className="tsh-agent-brand">
-          <span className="tsh-agent-icon">
-            <BrandIcon name={icon} size={16} />
+      <ShellTooltip content={label} shortcut={shortcutBadge} side="right">
+        <button className="tsh-agent" data-active={isActive} onClick={fireOpen} aria-label={label}>
+          <span className="tsh-row">
+            <span className="tsh-agent-brand">
+              <span className="tsh-agent-icon">
+                <BrandIcon name={icon} size={16} />
+              </span>
+              <span className="tsh-agent-label">{label}</span>
+            </span>
+            <span className="tsh-agent-actions">
+              <Kbd keys={hintKeys} variant="bare" className="tsh-kbd" />
+            </span>
           </span>
-          <span className="tsh-agent-label">{label}</span>
-        </span>
-        <span className="tsh-agent-actions">
-          <span className="tsh-kbd">
-            <span>{modKeyLabel()}</span>
-            <span>{shortcutKey}</span>
-          </span>
-        </span>
-      </button>
+        </button>
+      </ShellTooltip>
     </div>
   );
 };

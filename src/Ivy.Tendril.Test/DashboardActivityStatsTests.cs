@@ -116,4 +116,130 @@ public class DashboardActivityStatsTests : IDisposable
 
         Assert.Equal(4m, stats.PrevWeekAvgCostPerPlan);
     }
+
+    [Fact]
+    public void GetActivityStats_PrevWeekAvg_IgnoresPlansThatCouldNotBePriced()
+    {
+        // An unpriceable plan in the divisor would halve the average and report a figure nobody spent.
+        var inWindow = DateTime.UtcNow.Date.AddDays(-10);
+
+        _db.UpsertPlan(CreateTestPlan(1500, PlanStatus.Review, inWindow, inWindow));
+        _db.UpsertPlan(CreateTestPlan(1501, PlanStatus.Review, inWindow, inWindow));
+        _db.UpsertCosts(1500, [new CostEntry("CreatePlan", 100, 4m, inWindow)]);
+        _db.UpsertCosts(1501, [new CostEntry("CreatePlan", 100, null, inWindow)]);
+
+        Assert.Equal(4m, _db.GetActivityStats().PrevWeekAvgCostPerPlan);
+    }
+
+    [Fact]
+    public void GetActivityStats_MonthOfOnlyUnknownCosts_ReportsZeroWithoutThrowing()
+    {
+        // SUM over a group of NULLs is NULL, and the reader's Convert.ToDecimal would throw on it.
+        var now = DateTime.UtcNow;
+        _db.UpsertPlan(CreateTestPlan(1500, PlanStatus.Completed, now, now));
+        _db.UpsertCosts(1500, [new CostEntry("ExecutePlan", 150_000, null, now)]);
+
+        var stats = _db.GetActivityStats(monthsBack: 3);
+
+        Assert.Equal(0m, stats.Months[^1].Cost);
+        // The tokens survive even though the cost does not: they are what the backfill prices from.
+        Assert.Equal(150_000, stats.Months[^1].Tokens);
+    }
+
+    [Fact]
+    public void GetHourlyTokenBurn_WindowOfOnlyUnknownCosts_DoesNotThrow()
+    {
+        var now = DateTime.UtcNow;
+        _db.UpsertPlan(CreateTestPlan(1500, PlanStatus.Completed, now, now));
+        _db.UpsertCosts(1500, [new CostEntry("ExecutePlan", 150_000, null, now)]);
+
+        var burn = _db.GetHourlyTokenBurn();
+
+        Assert.Equal(0m, Assert.Single(burn).Cost);
+    }
+
+    [Fact]
+    public void GetActivityStats_DailyCosts_BucketByTheCostRowTimestampNotThePlanUpdate()
+    {
+        // A plan touched today whose spend happened five days ago belongs on the day it was spent,
+        // otherwise a long-running plan dumps weeks of cost onto one day and the forecast reads wrong.
+        var now = DateTime.UtcNow;
+        var fiveDaysAgo = now.Date.AddDays(-5);
+        _db.UpsertPlan(CreateTestPlan(1500, PlanStatus.Completed, now.AddDays(-6), now));
+        _db.UpsertCosts(1500, [new CostEntry("ExecutePlan", 1000, 7m, fiveDaysAgo)]);
+
+        var dailyCosts = _db.GetActivityStats().DailyCosts;
+
+        Assert.NotNull(dailyCosts);
+        var day = Assert.Single(dailyCosts);
+        Assert.Equal(DateOnly.FromDateTime(fiveDaysAgo), day.Date);
+        Assert.Equal(7m, day.Cost);
+        Assert.Equal(1000, day.Tokens);
+    }
+
+    [Fact]
+    public void GetActivityStats_DailyCosts_NullTimestampFallsBackToThePlanUpdate()
+    {
+        var updated = DateTime.UtcNow.Date.AddDays(-3);
+        _db.UpsertPlan(CreateTestPlan(1500, PlanStatus.Completed, updated, updated));
+        _db.UpsertCosts(1500, [new CostEntry("ExecutePlan", 1000, 7m, null)]);
+
+        var dailyCosts = _db.GetActivityStats().DailyCosts;
+
+        Assert.NotNull(dailyCosts);
+        Assert.Equal(DateOnly.FromDateTime(updated), Assert.Single(dailyCosts).Date);
+    }
+
+    [Fact]
+    public void GetActivityStats_DailyCosts_IncludeAnExecutingPlan()
+    {
+        // The in-flight case the state-filtered monthly query drops. Money an Executing plan has spent
+        // is already spent, and leaving it out is a large part of why the monthly figures read low.
+        var now = DateTime.UtcNow;
+        _db.UpsertPlan(CreateTestPlan(1500, PlanStatus.Executing, now, now));
+        _db.UpsertCosts(1500, [new CostEntry("ExecutePlan", 1000, 12m, now)]);
+
+        var stats = _db.GetActivityStats();
+
+        Assert.NotNull(stats.DailyCosts);
+        Assert.Equal(12m, Assert.Single(stats.DailyCosts).Cost);
+        // Contrast: the monthly series still excludes it, which is the behaviour being worked around.
+        Assert.Equal(0m, stats.Months[^1].Cost);
+    }
+
+    [Fact]
+    public void GetActivityStats_DailyDataStart_IsTheEarliestRecordedDay()
+    {
+        // What separates "a day that cost nothing" from "a day we have no records for". Without it every
+        // rolling average would silently divide over days that never existed.
+        var oldest = DateTime.UtcNow.Date.AddDays(-200);
+        _db.UpsertPlan(CreateTestPlan(1500, PlanStatus.Completed, oldest, oldest));
+        _db.UpsertPlan(CreateTestPlan(1501, PlanStatus.Completed, DateTime.UtcNow, DateTime.UtcNow));
+        _db.UpsertCosts(1501, [new CostEntry("ExecutePlan", 100, 3m, DateTime.UtcNow)]);
+
+        Assert.Equal(DateOnly.FromDateTime(oldest), _db.GetActivityStats().DailyDataStart);
+    }
+
+    [Fact]
+    public void GetActivityStats_DailyDataStart_IsNullOnAnEmptyDatabase()
+    {
+        Assert.Null(_db.GetActivityStats().DailyDataStart);
+    }
+
+    [Fact]
+    public void GetActivityStats_DailySeries_ReachBackPastTheOldSixtyDayWindow()
+    {
+        // The trend chart plots a year of days and compares against the year before it, so a two hundred
+        // day old row has to survive the cutoff the forecast used to set.
+        var longAgo = DateTime.UtcNow.Date.AddDays(-200);
+        _db.UpsertPlan(CreateTestPlan(1500, PlanStatus.Completed, longAgo, longAgo));
+        _db.UpsertCosts(1500, [new CostEntry("ExecutePlan", 900, 6m, longAgo)]);
+
+        var stats = _db.GetActivityStats();
+
+        Assert.NotNull(stats.DailyCosts);
+        Assert.Equal(6m, Assert.Single(stats.DailyCosts, d => d.Date == DateOnly.FromDateTime(longAgo)).Cost);
+        Assert.NotNull(stats.DailyPlans);
+        Assert.Equal(1, stats.DailyPlans[DateOnly.FromDateTime(longAgo)]);
+    }
 }

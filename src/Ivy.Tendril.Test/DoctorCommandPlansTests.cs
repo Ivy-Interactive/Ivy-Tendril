@@ -499,6 +499,106 @@ public class DoctorCommandPlansTests : IDisposable
         Assert.Equal(Path.Combine(laundered, "Verification", "PreExecution.md"), found[0].ReportPath);
     }
 
+    // Plan 00216: the sweep for PRs a plan records but did not open. The head branch is the ownership
+    // record, so every case below injects one instead of asking gh for it.
+    private static string CompletedWithPr(string prUrl) =>
+        $"""
+         state: Completed
+         project: Tendril
+         title: Test Plan
+         repos:
+         - /dummy/repo
+         commits: []
+         prs:
+           - {prUrl}
+         """;
+
+    private static Func<string, DoctorCommand.PrHeadLookup> HeadBranches(Dictionary<string, string> heads) =>
+        url => heads.TryGetValue(url, out var head)
+            ? new DoctorCommand.PrHeadLookup(true, head, "")
+            : new DoctorCommand.PrHeadLookup(false, "",
+                "GraphQL: Could not resolve to a PullRequest with the number of 61");
+
+    [Fact]
+    public void FindMisattributedPrCandidates_HeadBranchNamesAnotherPlan_IsFlagged()
+    {
+        const string url = "https://github.com/SpaceCorps/components-storybook/pull/61";
+        CreatePlan("00077-CitedAForeignPr", CompletedWithPr(url));
+
+        var report = DoctorCommand.FindMisattributedPrCandidates(
+            DoctorCommand.ScanPlans(_plansDir),
+            HeadBranches(new Dictionary<string, string> { [url] = "tendril/00173-RouteAlertBlockquote" }));
+
+        Assert.Equal(1, report.UrlsChecked);
+        Assert.Empty(report.Unresolved);
+        var flagged = Assert.Single(report.Misattributed);
+        Assert.Equal("00077", flagged.PlanId);
+        Assert.Equal(url, flagged.Url);
+        Assert.Equal("00173", flagged.NamedPlanId);
+    }
+
+    [Fact]
+    public void FindMisattributedPrCandidates_HeadBranchNamesTheRecordingPlan_IsClean()
+    {
+        const string url = "https://github.com/SpaceCorps/components-storybook/pull/19";
+        CreatePlan("00077-OwnPr", CompletedWithPr(url));
+
+        var report = DoctorCommand.FindMisattributedPrCandidates(
+            DoctorCommand.ScanPlans(_plansDir),
+            HeadBranches(new Dictionary<string, string> { [url] = "tendril/00077-OwnPr" }));
+
+        Assert.Equal(1, report.UrlsChecked);
+        Assert.Empty(report.Misattributed);
+        Assert.Empty(report.Unresolved);
+    }
+
+    [Fact]
+    public void FindMisattributedPrCandidates_NonTendrilHeadBranch_IsClean()
+    {
+        // A PR opened by hand names no plan in its head branch, so there is no ownership to compare.
+        const string url = "https://github.com/Ivy-Interactive/Ivy-Tendril/pull/2344";
+        CreatePlan("00080-HandOpenedPr", CompletedWithPr(url));
+
+        var report = DoctorCommand.FindMisattributedPrCandidates(
+            DoctorCommand.ScanPlans(_plansDir),
+            HeadBranches(new Dictionary<string, string> { [url] = "fix/typo-in-readme" }));
+
+        Assert.Empty(report.Misattributed);
+        Assert.Empty(report.Unresolved);
+    }
+
+    [Fact]
+    public void FindMisattributedPrCandidates_UnresolvableUrl_IsReportedApart()
+    {
+        const string url = "https://github.com/SpaceCorps/components-storybook/pull/61";
+        CreatePlan("00077-PhantomPr", CompletedWithPr(url));
+
+        var report = DoctorCommand.FindMisattributedPrCandidates(
+            DoctorCommand.ScanPlans(_plansDir),
+            HeadBranches([]));
+
+        Assert.Empty(report.Misattributed);
+        var unresolved = Assert.Single(report.Unresolved);
+        Assert.Equal("00077", unresolved.PlanId);
+        Assert.Equal(url, unresolved.Url);
+        Assert.Contains("Could not resolve to a PullRequest", unresolved.Reason);
+    }
+
+    [Fact]
+    public void FindMisattributedPrCandidates_DoesNotMutatePlanYaml()
+    {
+        const string url = "https://github.com/SpaceCorps/components-storybook/pull/61";
+        var planDir = CreatePlan("00077-HistoricalRecord", CompletedWithPr(url));
+        var yamlPath = Path.Combine(planDir, "plan.yaml");
+        var before = File.ReadAllText(yamlPath);
+
+        DoctorCommand.FindMisattributedPrCandidates(
+            DoctorCommand.ScanPlans(_plansDir),
+            HeadBranches(new Dictionary<string, string> { [url] = "tendril/00173-RouteAlertBlockquote" }));
+
+        Assert.Equal(before, File.ReadAllText(yamlPath));
+    }
+
     private static void WritePreExecutionReport(string planDir, string result)
     {
         var verificationDir = Path.Combine(planDir, "Verification");

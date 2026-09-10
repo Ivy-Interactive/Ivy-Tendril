@@ -12,10 +12,15 @@ public record ShellSidebarSection : WidgetBase<ShellSidebarSection>
     [Prop] public List<ShellSectionItemDto> Items { get; init; } = new();
     [Prop] public string? SelectedId { get; init; }
     [Prop] public bool Searchable { get; init; }
+    [Prop] public string? SearchLabel { get; init; }
     [Prop] public string? EmptyText { get; init; }
+    [Prop] public string? NewLabel { get; init; }
+    [Prop] public bool Collapsible { get; init; } = true;
+    [Prop] public bool CollapsedMenu { get; init; }
 
     [Event] public EventHandler<Event<ShellSidebarSection, string>>? OnSelectItem { get; init; }
     [Event] public EventHandler<Event<ShellSidebarSection>>? OnSearch { get; init; }
+    [Event] public EventHandler<Event<ShellSidebarSection>>? OnNew { get; init; }
 }
 
 public static class ShellSidebarSectionExtensions
@@ -32,6 +37,9 @@ public static class ShellSidebarSectionExtensions
     public static ShellSidebarSection Searchable(this ShellSidebarSection w, bool searchable = true) =>
         w with { Searchable = searchable };
 
+    public static ShellSidebarSection SearchLabel(this ShellSidebarSection w, string? searchLabel) =>
+        w with { SearchLabel = searchLabel };
+
     public static ShellSidebarSection EmptyText(this ShellSidebarSection w, string? emptyText) =>
         w with { EmptyText = emptyText };
 
@@ -40,4 +48,16 @@ public static class ShellSidebarSectionExtensions
 
     public static ShellSidebarSection OnSearch(this ShellSidebarSection w, Action handler) =>
         w with { OnSearch = new(_ => { handler(); return ValueTask.CompletedTask; }) };
+
+    public static ShellSidebarSection NewLabel(this ShellSidebarSection w, string? newLabel) =>
+        w with { NewLabel = newLabel };
+
+    public static ShellSidebarSection Collapsible(this ShellSidebarSection w, bool collapsible = true) =>
+        w with { Collapsible = collapsible };
+
+    public static ShellSidebarSection CollapsedMenu(this ShellSidebarSection w, bool collapsedMenu = true) =>
+        w with { CollapsedMenu = collapsedMenu };
+
+    public static ShellSidebarSection OnNew(this ShellSidebarSection w, Action? handler) =>
+        handler == null ? w : w with { OnNew = new(_ => { handler(); return ValueTask.CompletedTask; }) };
 }

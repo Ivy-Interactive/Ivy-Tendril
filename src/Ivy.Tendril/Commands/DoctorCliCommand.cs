@@ -30,6 +30,10 @@ public class PlanDoctorSettings : CommandSettings
     [Description("Check worktrees only")]
     public bool WorktreesOnly { get; init; }
 
+    [CommandOption("--prs")]
+    [Description("Resolve every recorded PR with gh and report the ones another plan opened (needs network)")]
+    public bool CheckPrs { get; init; }
+
     public override Spectre.Console.ValidationResult Validate()
     {
         return CliValidation.ValidateOneOf(State, "--state", CliValidation.ValidStates);
@@ -58,6 +62,7 @@ public class PlanDoctorCommand : Command<PlanDoctorSettings>
             args.Add(settings.State);
         }
         if (settings.WorktreesOnly) args.Add("--worktrees");
+        if (settings.CheckPrs) args.Add("--prs");
 
         return DoctorCommand.DoctorPlansInternal(args.ToArray());
     }
