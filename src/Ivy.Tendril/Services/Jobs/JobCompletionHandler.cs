@@ -309,7 +309,7 @@ internal class JobCompletionHandler
                     }
 
                     if (jobPlanFolder != null)
-                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, usage.Tokens, usage.Cost, usage.Model);
+                        PlanYamlHelper.LogCostToCsv(jobPlanFolder, jobType, usage.Tokens, usage.Cost, usage.Model, usage.CostSource);
                 }
             }
             catch (Exception ex)
@@ -410,7 +410,7 @@ internal class JobCompletionHandler
 
         var jobPlanFolder = job.TypedArgs?.PlanFolder;
         if (jobPlanFolder != null)
-            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, usage.Tokens, usage.Cost, usage.Model);
+            PlanYamlHelper.LogCostToCsv(jobPlanFolder, job.Type, usage.Tokens, usage.Cost, usage.Model, usage.CostSource);
     }
 
     /// <summary>
