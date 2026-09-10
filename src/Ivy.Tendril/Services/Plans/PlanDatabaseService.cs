@@ -314,6 +314,51 @@ public class PlanDatabaseService : IPlanDatabaseService
         }
     }
 
+    public string? ResolveCostSource(int planId, string promptware, string? folderPath = null, string? folderName = null)
+    {
+        using (new ReadLockHandle(_lock))
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT j.CostSource
+                FROM Jobs j
+                WHERE j.CostSource IS NOT NULL
+                  AND j.Type = @promptware
+                  AND (
+                      j.ReportedPlanId = @planIdText
+                      OR (@folderPath IS NOT NULL AND j.PlanFile = @folderPath)
+                      OR (@folderName IS NOT NULL AND j.PlanFile = @folderName)
+                      OR j.PlanFile LIKE '%' || @planIdPadded || '%'
+                  )
+                ORDER BY j.CompletedAt DESC
+                LIMIT 1;
+                """;
+            cmd.Parameters.AddWithValue("@promptware", promptware);
+            cmd.Parameters.AddWithValue("@planIdText", planId.ToString(CultureInfo.InvariantCulture));
+            cmd.Parameters.AddWithValue("@folderPath", (object?)folderPath ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@folderName", (object?)folderName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@planIdPadded", planId.ToString("D5", CultureInfo.InvariantCulture));
+
+            var result = cmd.ExecuteScalar();
+            if (result is string source && !string.IsNullOrWhiteSpace(source))
+                return source;
+
+            using var costsCmd = _connection.CreateCommand();
+            costsCmd.CommandText = """
+                SELECT CostSource FROM Costs
+                WHERE PlanId = @planId AND Promptware = @promptware AND CostSource IS NOT NULL
+                LIMIT 1;
+                """;
+            costsCmd.Parameters.AddWithValue("@planId", planId);
+            costsCmd.Parameters.AddWithValue("@promptware", promptware);
+            var costsResult = costsCmd.ExecuteScalar();
+            if (costsResult is string costSource && !string.IsNullOrWhiteSpace(costSource))
+                return costSource;
+
+            return null;
+        }
+    }
+
     public List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null)
     {
         using (new ReadLockHandle(_lock))
