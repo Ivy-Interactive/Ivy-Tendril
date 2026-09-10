@@ -38,6 +38,10 @@ export interface ShellSectionItemDto {
 export interface ShellTabDto {
   id: string;
   title: string;
+  /** The page tab cannot be closed: it is how the user gets back to the page behind the sessions. */
+  closable?: boolean;
+  /** Lucide icon name; defaults to the terminal glyph used by session tabs. */
+  icon?: string;
 }
 
 export const isMac = (): boolean =>

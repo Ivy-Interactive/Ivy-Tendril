@@ -12,4 +12,8 @@ public record ShellBadgeDto(string Label, string Kind = "neutral", string? Color
 
 public record ShellSectionItemDto(string Id, string Title, string? Tag = null, List<ShellBadgeDto>? Badges = null, string? Icon = null, string? State = null);
 
-public record ShellTabDto(string Id, string Title);
+/// <summary>
+///     One entry in the shell's bottom tab strip. <c>Closable</c> is false for the
+///     page tab, which represents the page behind the session panes and is always present.
+/// </summary>
+public record ShellTabDto(string Id, string Title, bool Closable = true, string? Icon = null);
