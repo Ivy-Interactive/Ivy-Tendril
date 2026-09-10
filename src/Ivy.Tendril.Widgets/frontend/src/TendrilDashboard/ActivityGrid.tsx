@@ -90,7 +90,7 @@ export const ActivityGrid: React.FC<ActivityGridProps> = ({ months }) => {
         </div>
         <div className="tdb-activity-labels">
           {months.map((month, monthIndex) => (
-            <div className="tdb-activity-label" key={monthIndex}>
+            <div className="tdb-activity-label" key={monthIndex} title={month.label}>
               {(months.length - 1 - monthIndex) % step === 0 ? month.label : ""}
             </div>
           ))}

@@ -77,4 +77,25 @@ describe("ActivityGrid monthly columns", () => {
     expect(labels[7]).toBe("");
     expect(labels.filter((l) => l !== "")).toHaveLength(5);
   });
+
+  it("renders 16 monthly columns and labels with the final month labelled and titled", () => {
+    const months = Array.from({ length: 16 }, (_, i) => ({
+      label: `M${i + 1}`,
+      weeks: [1, 2, 0, 1],
+    }));
+    const { container } = render(<ActivityGrid months={months} />);
+
+    const cols = container.querySelectorAll(".tdb-activity-col");
+    expect(cols).toHaveLength(16);
+
+    const labels = container.querySelectorAll(".tdb-activity-label");
+    expect(labels).toHaveLength(16);
+
+    // Final month (index 15) is always labelled
+    expect(labels[15].textContent).toBe("M16");
+    expect(labels[15].getAttribute("title")).toBe("M16");
+    // Penultimate month (index 14) is alternating/blank but carries title
+    expect(labels[14].textContent).toBe("");
+    expect(labels[14].getAttribute("title")).toBe("M15");
+  });
 });

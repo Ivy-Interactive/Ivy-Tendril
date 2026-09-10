@@ -72,6 +72,29 @@ describe("dashboard.css side block and git activity layout", () => {
     expect(css).not.toContain(".tdb-activity-weekdays");
     expect(css).not.toContain(".tdb-activity-months-row");
   });
+
+  it("constrains width on side body and tip wrap with min-width: 0 and max-width: 100%", () => {
+    expect(css).toMatch(/\.tdb-side-body\s*\{[^}]*min-width:\s*0;/);
+    expect(css).toMatch(/\.tdb-side-body\s*\{[^}]*max-width:\s*100%;/);
+    expect(css).toMatch(/\.tdb-tip-wrap\s*\{[^}]*min-width:\s*0;/);
+    expect(css).toMatch(/\.tdb-tip-wrap\s*\{[^}]*max-width:\s*100%;/);
+  });
+
+  it("constrains scroll container with min-width: 0 and overflow-x: auto", () => {
+    expect(css).toMatch(/\.tdb-activity-scroll\s*\{[^}]*min-width:\s*0;/);
+    expect(css).toMatch(/\.tdb-activity-scroll\s*\{[^}]*max-width:\s*100%;/);
+    expect(css).toMatch(/\.tdb-activity-scroll\s*\{[^}]*overflow-x:\s*auto;/);
+  });
+
+  it("allows activity columns to shrink flexibly to fit 16 months", () => {
+    expect(css).toMatch(/\.tdb-activity-col\s*\{[^}]*flex:\s*1\s+1\s+0;/);
+    expect(css).toMatch(/\.tdb-activity-col\s*\{[^}]*min-width:\s*9px;/);
+    expect(css).toMatch(/\.tdb-activity\s*\{[^}]*gap:\s*5px;/);
+  });
+
+  it("aligns the trailing activity label to the right to prevent clipping", () => {
+    expect(css).toMatch(/\.tdb-activity-label:last-child\s*\{[^}]*text-align:\s*right;/);
+  });
 });
 
 describe("dashboard.css rolling average curve and legend", () => {
