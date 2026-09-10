@@ -139,15 +139,22 @@ public static class AgentLaunchHelper
         var resolvedEffort = effortOverride ?? ResolveEffort(config, runner, agentId);
         var env = GetEnvironment(config, agentId);
 
-        var jobTimeoutMinutes = config.Settings.JobTimeout;
-        var totalTimeout = jobTimeoutMinutes > 0
-            ? TimeSpan.FromMinutes(jobTimeoutMinutes)
+        var effectiveChatTimeoutMinutes = config.Settings.ChatTimeout > 0
+            ? config.Settings.ChatTimeout
+            : config.Settings.JobTimeout;
+
+        var totalTimeout = effectiveChatTimeoutMinutes > 0
+            ? TimeSpan.FromMinutes(effectiveChatTimeoutMinutes)
             : TimeSpan.FromMinutes(30);
+
+        var idleTimeout = config.Settings.StaleOutputTimeout > 0
+            ? TimeSpan.FromMinutes(config.Settings.StaleOutputTimeout)
+            : (TimeSpan?)null;
 
         var timeoutPolicy = new TimeoutPolicy
         {
             TotalTimeout = totalTimeout,
-            IdleTimeout = TimeoutPolicy.Default.IdleTimeout,
+            IdleTimeout = idleTimeout,
             StartupTimeout = TimeoutPolicy.Default.StartupTimeout,
         };
 

@@ -11,6 +11,7 @@ public class AdvancedSetupView : ViewBase
         var client = UseService<IClientProvider>();
 
         var jobTimeout = UseState(config.Settings.JobTimeout);
+        var chatTimeout = UseState(config.Settings.ChatTimeout);
         var staleOutputTimeout = UseState(config.Settings.StaleOutputTimeout);
         var maxConcurrentJobs = UseState(config.Settings.MaxConcurrentJobs);
         var editorCommand = UseState(config.Settings.Editor.Command);
@@ -18,6 +19,7 @@ public class AdvancedSetupView : ViewBase
         var beta = UseState(config.Settings.Beta);
 
         var hasChanges = jobTimeout.Value != config.Settings.JobTimeout
+                         || chatTimeout.Value != config.Settings.ChatTimeout
                          || staleOutputTimeout.Value != config.Settings.StaleOutputTimeout
                          || maxConcurrentJobs.Value != config.Settings.MaxConcurrentJobs
                          || editorCommand.Value != config.Settings.Editor.Command
@@ -30,6 +32,9 @@ public class AdvancedSetupView : ViewBase
                    | Text.Block("Timeouts").Bold()
                    | jobTimeout.ToNumberInput().Min(1).Max(120).Suffix("min")
                        .WithField().Label("Job Timeout")
+                   | chatTimeout.ToNumberInput().Min(0).Max(480).Suffix("min")
+                       .WithField().Label("Chat Timeout")
+                       .Description("Total timeout for interactive chat sessions. Set to 0 to use Job Timeout.")
                    | staleOutputTimeout.ToNumberInput().Min(1).Max(60).Suffix("min")
                        .WithField().Label("Stale Output Timeout")
                    | maxConcurrentJobs.ToNumberInput().Min(1).Max(512)
@@ -51,6 +56,7 @@ public class AdvancedSetupView : ViewBase
                        .OnClick(() =>
                        {
                            config.Settings.JobTimeout = jobTimeout.Value;
+                           config.Settings.ChatTimeout = chatTimeout.Value;
                            config.Settings.StaleOutputTimeout = staleOutputTimeout.Value;
                            config.Settings.MaxConcurrentJobs = maxConcurrentJobs.Value;
                            config.Settings.Editor.Command = editorCommand.Value;
