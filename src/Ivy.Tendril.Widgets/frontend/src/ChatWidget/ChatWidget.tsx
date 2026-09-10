@@ -13,6 +13,7 @@ import {
   Sparkles,
   Square,
   Trash2,
+  Upload,
   X,
   XCircle,
 } from "lucide-react";
@@ -524,24 +525,58 @@ export function ChatWidget({
     }
   };
 
+  const dragCounterRef = useRef(0);
+
+  useEffect(() => {
+    const handleWindowDragOver = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    const handleWindowDrop = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current = 0;
+      setIsDragging(false);
+    };
+
+    window.addEventListener("dragover", handleWindowDragOver);
+    window.addEventListener("drop", handleWindowDrop);
+
+    return () => {
+      window.removeEventListener("dragover", handleWindowDragOver);
+      window.removeEventListener("drop", handleWindowDrop);
+    };
+  }, []);
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    setIsDragging(true);
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
-    setIsDragging(true);
+    if (dragCounterRef.current === 0) dragCounterRef.current = 1;
+    if (!isDragging) setIsDragging(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(false);
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
   };
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    dragCounterRef.current = 0;
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
       await addFiles(e.dataTransfer.files);
     }
   };
@@ -562,8 +597,24 @@ export function ChatWidget({
   const title = (activeSession && pendingRenames[activeSession.id]) || activeSession?.title || "New Chat";
 
   return (
-    <div className="chat-widget-root" data-embedded={embedded}>
+    <div
+      className={`chat-widget-root ${isDragging ? "dragging" : ""}`}
+      data-embedded={embedded}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <input ref={fileInputRef} type="file" multiple style={{ display: "none" }} onChange={handleFileSelect} />
+
+      {isDragging && (
+        <div className="chat-drop-overlay" aria-hidden="true">
+          <div className="chat-drop-overlay-content">
+            <Upload size={36} className="chat-drop-overlay-icon" />
+            <span className="chat-drop-overlay-text">Drop files here to attach to message</span>
+          </div>
+        </div>
+      )}
 
       {embedded ? (
         activeSession &&
@@ -785,10 +836,6 @@ export function ChatWidget({
 
           <div
             className={`chat-input-box ${isDragging ? "dragging" : ""} ${isPayloadOversized ? "oversized" : ""}`}
-            onDragEnter={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
           >
             {isPayloadOversized && (
               <div className="chat-payload-warning" role="alert">
