@@ -279,11 +279,11 @@ public class CodingAgentSetupView : ViewBase
 
         object? WindowMetric(AgentUsageWindow w)
         {
-            var p = w.UsedPercent;
+            var p = w.RemainingPercent ?? (w.UsedPercent.HasValue ? 100.0 - w.UsedPercent.Value : null);
             var valueColor = p switch
             {
-                >= 90f => Colors.Destructive,
-                >= 75f => Colors.Warning,
+                <= 10f => Colors.Destructive,
+                <= 25f => Colors.Warning,
                 _ => (Colors?)null
             };
 

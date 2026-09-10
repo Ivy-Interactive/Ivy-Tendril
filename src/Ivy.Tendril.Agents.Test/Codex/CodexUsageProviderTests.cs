@@ -46,11 +46,13 @@ public class CodexUsageProviderTests : IDisposable
         var primary = snapshot.Windows[0];
         Assert.Equal(300, primary.WindowMinutes);
         Assert.Equal(25.5, primary.UsedPercent);
+        Assert.Equal(74.5, primary.RemainingPercent);
         Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1789391057), primary.ResetsAt);
 
         var secondary = snapshot.Windows[1];
         Assert.Equal(10080, secondary.WindowMinutes);
         Assert.Equal(50.0, secondary.UsedPercent);
+        Assert.Equal(50.0, secondary.RemainingPercent);
         Assert.Equal(DateTimeOffset.FromUnixTimeSeconds(1789400000), secondary.ResetsAt);
     }
 

@@ -143,6 +143,7 @@ public sealed class CodexUsageProvider : IAgentUsageProvider
         {
             WindowMinutes = windowMinutes,
             UsedPercent = usedPercent,
+            RemainingPercent = usedPercent.HasValue ? 100.0 - usedPercent.Value : null,
             ResetsAt = resetsAt,
         };
     }

@@ -40,15 +40,21 @@ public class AntigravityUsageProviderTests
         // 5h window (300m) - Gemini is lower (0.9858 < 1.0)
         var w5h = snapshot.Windows.Single(w => w.WindowMinutes == 300);
         var expectedUsed5h = (1.0 - 0.985869824886322) * 100.0;
+        var expectedRemaining5h = 0.985869824886322 * 100.0;
         Assert.NotNull(w5h.UsedPercent);
         Assert.Equal(expectedUsed5h, w5h.UsedPercent.Value, precision: 4);
+        Assert.NotNull(w5h.RemainingPercent);
+        Assert.Equal(expectedRemaining5h, w5h.RemainingPercent.Value, precision: 4);
         Assert.Equal(DateTimeOffset.Parse("2026-09-09T15:06:03Z"), w5h.ResetsAt);
 
         // Weekly window (10080m) - Gemini is lower (0.73099 < 1.0)
         var wWeekly = snapshot.Windows.Single(w => w.WindowMinutes == 10080);
         var expectedUsedWeekly = (1.0 - 0.7309908270835876) * 100.0;
+        var expectedRemainingWeekly = 0.7309908270835876 * 100.0;
         Assert.NotNull(wWeekly.UsedPercent);
         Assert.Equal(expectedUsedWeekly, wWeekly.UsedPercent.Value, precision: 4);
+        Assert.NotNull(wWeekly.RemainingPercent);
+        Assert.Equal(expectedRemainingWeekly, wWeekly.RemainingPercent.Value, precision: 4);
         Assert.Equal(DateTimeOffset.Parse("2026-09-11T05:39:20Z"), wWeekly.ResetsAt);
 
         // Note tags the losing group

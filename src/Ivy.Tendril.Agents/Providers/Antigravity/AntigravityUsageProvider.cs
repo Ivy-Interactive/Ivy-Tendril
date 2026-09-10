@@ -96,11 +96,13 @@ public sealed class AntigravityUsageProvider : IAgentUsageProvider
             {
                 var worst = wg.OrderBy(b => b.RemainingFraction).First();
                 var usedPercent = (1.0 - worst.RemainingFraction) * 100.0;
+                var remainingPercent = worst.RemainingFraction * 100.0;
 
                 windows.Add(new AgentUsageWindow
                 {
                     WindowMinutes = worst.WindowMinutes,
                     UsedPercent = usedPercent,
+                    RemainingPercent = remainingPercent,
                     ResetsAt = worst.ResetTime,
                 });
 
