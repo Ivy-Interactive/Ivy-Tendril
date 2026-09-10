@@ -218,6 +218,39 @@ public class ThemeRegistryTests
     }
 
     [Fact]
+    public void ForestTheme_DarkColors_DestructiveUsesBlackForeground()
+    {
+        var dark = TendrilThemes.Forest.IvyTheme.Colors!.Dark!;
+
+        Assert.Equal("#f43f5e", dark.Destructive, ignoreCase: true);
+        Assert.Equal("#000000", dark.DestructiveForeground, ignoreCase: true);
+
+        var contrastRatio = CalculateContrastRatio(dark.Destructive!, dark.DestructiveForeground!);
+        Assert.True(contrastRatio >= 4.5,
+            $"Forest dark mode destructive contrast ratio is {contrastRatio:F2}:1, expected at least 4.5:1.");
+    }
+
+    [Theory]
+    [InlineData("dracula")]
+    [InlineData("valentine")]
+    [InlineData("hellokitty")]
+    public void LightThemes_WithRoseDestructive_UseAccessibleForeground(string themeId)
+    {
+        var theme = TendrilThemes.GetTheme(themeId);
+        Assert.NotNull(theme);
+
+        var light = theme.IvyTheme?.Colors?.Light;
+        Assert.NotNull(light);
+
+        Assert.Equal("#f43f5e", light.Destructive, ignoreCase: true);
+        Assert.Equal("#000000", light.DestructiveForeground, ignoreCase: true);
+
+        var contrastRatio = CalculateContrastRatio(light.Destructive!, light.DestructiveForeground!);
+        Assert.True(contrastRatio >= 4.5,
+            $"Theme '{themeId}' light mode destructive contrast ratio is {contrastRatio:F2}:1, expected at least 4.5:1.");
+    }
+
+    [Fact]
     public void CreateDefaultIvyTheme_DoesNotMutateIvyDefault()
     {
         TendrilThemes.CreateDefaultIvyTheme();

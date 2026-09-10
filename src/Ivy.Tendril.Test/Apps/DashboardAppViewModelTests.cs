@@ -254,9 +254,9 @@ public class DashboardAppViewModelTests
             .Single(k => k.Label == "Forecast This Month");
 
         // 60 over 10 days times 31 = $186 API projection and total projection
-        Assert.Equal("$186 API", forecast.Value);
-        Assert.Equal("$186 total", forecast.SubValue);
-        Assert.Equal("0% subsidized via subscription", forecast.Hint);
+        Assert.Equal("$186", forecast.Value);
+        Assert.Null(forecast.SubValue);
+        Assert.Null(forecast.Hint);
     }
 
     [Fact]
@@ -275,8 +275,8 @@ public class DashboardAppViewModelTests
         var forecast = DashboardApp.BuildKpis(stats, activity, [], today)
             .Single(k => k.Label == "Forecast This Month");
 
-        Assert.Equal("$0 API", forecast.Value);
-        Assert.Equal("$186 total", forecast.SubValue);
+        Assert.Equal("$0", forecast.Value);
+        Assert.Null(forecast.SubValue);
         Assert.Equal("100% subsidized via subscription", forecast.Hint);
     }
 
@@ -300,8 +300,8 @@ public class DashboardAppViewModelTests
         // Total: 100 over 10 days * 31 = $310 total
         // API: 30 over 10 days * 31 = $93.00 API (< 100 formats with decimals)
         // Subsidized tokens: 7000 out of 10000 = 70%
-        Assert.Equal("$93.00 API", forecast.Value);
-        Assert.Equal("$310 total", forecast.SubValue);
+        Assert.Equal("$93.00", forecast.Value);
+        Assert.Null(forecast.SubValue);
         Assert.Equal("70% subsidized via subscription", forecast.Hint);
     }
 

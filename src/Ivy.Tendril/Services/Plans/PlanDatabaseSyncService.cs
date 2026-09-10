@@ -1,6 +1,7 @@
 using Ivy.Tendril.Helpers;
 using System.Diagnostics;
 using System.Globalization;
+using System.Text;
 using Ivy.Tendril.Models;
 using Microsoft.Extensions.Logging;
 
@@ -183,6 +184,7 @@ public class PlanDatabaseSyncService : IDisposable
             }
 
             var costs = new List<CostEntry>();
+            var needsFileUpgrade = false;
             foreach (var line in lines.Skip(1))
             {
                 var parts = line.Split(',');
@@ -207,6 +209,18 @@ public class PlanDatabaseSyncService : IDisposable
                 // Fifth column since costs.csv v3; files written before it have three or four.
                 var costSource = parts.Length > 4 && !string.IsNullOrWhiteSpace(parts[4]) ? parts[4].Trim() : null;
 
+                if (costSource == null)
+                {
+                    costSource = _database.ResolveCostSource(
+                        plan.Id,
+                        promptware,
+                        plan.FolderPath,
+                        Path.GetFileName(plan.FolderPath));
+
+                    if (costSource != null || parts.Length < 5)
+                        needsFileUpgrade = true;
+                }
+
                 DateTime? timestamp = null;
                 if (logsByPromptware.TryGetValue(promptware, out var queue) && queue.Count > 0)
                 {
@@ -218,10 +232,34 @@ public class PlanDatabaseSyncService : IDisposable
             }
 
             _database.UpsertCosts(plan.Id, costs);
+
+            if (needsFileUpgrade && costs.Count > 0)
+            {
+                RewriteCostsCsv(costsPath, costs);
+            }
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to sync costs for plan {PlanId}", plan.Id);
+        }
+    }
+
+    private void RewriteCostsCsv(string costsPath, List<CostEntry> costs)
+    {
+        try
+        {
+            var sb = new StringBuilder();
+            sb.Append("Promptware,Tokens,Cost,Model,CostSource\n");
+            foreach (var cost in costs)
+            {
+                var costField = cost.Cost?.ToString("F4", CultureInfo.InvariantCulture) ?? "";
+                sb.Append($"{cost.Promptware},{cost.Tokens},{costField},{cost.Model ?? ""},{cost.CostSource ?? ""}\n");
+            }
+            FileHelper.WriteAllText(costsPath, sb.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to upgrade costs.csv at {Path}", costsPath);
         }
     }
 

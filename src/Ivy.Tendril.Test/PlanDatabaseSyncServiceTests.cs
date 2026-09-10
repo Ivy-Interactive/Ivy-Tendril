@@ -1,4 +1,6 @@
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Jobs;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -119,23 +121,56 @@ public class PlanDatabaseSyncServiceTests : IDisposable
     ///     Reads the synced Costs rows straight out of SQLite. Null and 0 are the whole point here and
     ///     no aggregate on the service can tell them apart, so the rows are inspected directly.
     /// </summary>
-    private List<(string Promptware, int Tokens, decimal? Cost, string? Model)> ReadCostRows(int planId)
+    private List<(string Promptware, int Tokens, decimal? Cost, string? Model, string? CostSource)> ReadCostRows(int planId)
     {
         using var connection = new SqliteConnection($"Data Source={_dbPath}");
         connection.Open();
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT Promptware, Tokens, Cost, Model FROM Costs WHERE PlanId = @p ORDER BY Id";
+        cmd.CommandText = "SELECT Promptware, Tokens, Cost, Model, CostSource FROM Costs WHERE PlanId = @p ORDER BY Id";
         cmd.Parameters.AddWithValue("@p", planId);
 
-        var rows = new List<(string, int, decimal?, string?)>();
+        var rows = new List<(string, int, decimal?, string?, string?)>();
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
             rows.Add((
                 reader.GetString(0),
                 reader.GetInt32(1),
                 reader.IsDBNull(2) ? null : reader.GetDecimal(2),
-                reader.IsDBNull(3) ? null : reader.GetString(3)));
+                reader.IsDBNull(3) ? null : reader.GetString(3),
+                reader.IsDBNull(4) ? null : reader.GetString(4)));
         return rows;
+    }
+
+    [Fact]
+    public void PerformInitialSync_LegacyFourColumnFile_ResolvesCostSourceFromJobsAndUpgradesFile()
+    {
+        CreateCostPlan("01500-CostPlan",
+            "Promptware,Tokens,Cost,Model\nExecutePlan,50000,1.5000,gemini-3.8-flash\n");
+
+        var job = new JobItem
+        {
+            Id = "job-1500",
+            Type = "ExecutePlan",
+            PlanFile = "01500-CostPlan",
+            ReportedPlanId = "1500",
+            Project = "Tendril",
+            Status = JobStatus.Completed,
+            Provider = "antigravity",
+            CostSource = JobCostSources.Estimated,
+            CompletedAt = DateTime.UtcNow
+        };
+        _database.UpsertJob(job);
+
+        _syncService.PerformInitialSync();
+
+        var rows = ReadCostRows(1500);
+        Assert.Single(rows);
+        Assert.Equal("estimated", rows[0].CostSource);
+
+        var csvPath = Path.Combine(_planReader.PlansDirectory, "01500-CostPlan", "costs.csv");
+        var lines = File.ReadAllLines(csvPath);
+        Assert.Equal("Promptware,Tokens,Cost,Model,CostSource", lines[0]);
+        Assert.Equal("ExecutePlan,50000,1.5000,gemini-3.8-flash,estimated", lines[1]);
     }
 
     [Fact]

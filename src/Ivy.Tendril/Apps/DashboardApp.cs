@@ -290,22 +290,23 @@ public class DashboardApp : ViewBase
         if (forecast.CalendarProjection is not { } totalProjection)
             return new DashboardKpiDto(label, "-", Hint: "No cost data in the last 30 days", Id: "forecastMonth");
 
-        if (forecast.ApiCalendarProjection is { } apiProjection && forecast.TotalApiSpend > 0)
+        if (forecast.SubsidizedTokenPercent > 0)
         {
+            var apiVal = forecast.ApiCalendarProjection is { } apiProjection && forecast.TotalApiSpend > 0
+                ? FormatCost(apiProjection)
+                : "$0";
+
             return new DashboardKpiDto(
                 label,
-                $"{FormatCost(apiProjection)} API",
+                apiVal,
                 Hint: $"{forecast.SubsidizedTokenPercent:0}% subsidized via subscription",
-                Id: "forecastMonth",
-                SubValue: $"{FormatCost(totalProjection)} total");
+                Id: "forecastMonth");
         }
 
         return new DashboardKpiDto(
             label,
-            "$0 API",
-            Hint: "100% subsidized via subscription",
-            Id: "forecastMonth",
-            SubValue: $"{FormatCost(totalProjection)} total");
+            FormatCost(totalProjection),
+            Id: "forecastMonth");
     }
 
     private static (decimal Last, decimal Previous) LastTwo(

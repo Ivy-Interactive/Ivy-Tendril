@@ -22,6 +22,7 @@ public interface IPlanDatabaseService : IDisposable
     decimal GetPlanTotalCost(int planId);
     int GetPlanTotalTokens(int planId);
     List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null);
+    string? ResolveCostSource(int planId, string promptware, string? folderPath = null, string? folderName = null) => null;
 
     // Recommendations
     List<Recommendation> GetRecommendations();
