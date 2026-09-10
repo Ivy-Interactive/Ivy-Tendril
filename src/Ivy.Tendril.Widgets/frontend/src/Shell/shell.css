@@ -1106,6 +1106,12 @@
   opacity: 0.6;
 }
 
+/* The page tab has no close button, so it needn't reserve a 200px column for one. */
+.tsh-tab[data-closable="false"] {
+  width: auto;
+  max-width: 200px;
+}
+
 .tsh-tab-icon {
   width: 16px;
   height: 16px;

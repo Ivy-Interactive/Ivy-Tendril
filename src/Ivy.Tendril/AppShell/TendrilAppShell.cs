@@ -82,6 +82,44 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
            && index >= 0
            && index < tabCount;
 
+    /// <summary>
+    ///     The bottom strip's entries: a non-closable page tab first, then the session tabs.
+    ///     The page tab is what makes a session escapable - without it, opening a review action
+    ///     hides the page with no way back but closing every session (issue #2245).
+    /// </summary>
+    internal static List<ShellTabDto> BuildStripTabs(
+        string pageTitle, string? pageIcon, IEnumerable<(string Id, string Title)> sessionTabs)
+    {
+        var strip = new List<ShellTabDto> { new(PageTabId, pageTitle, Closable: false, Icon: pageIcon) };
+        strip.AddRange(sessionTabs.Select(t => new ShellTabDto(t.Id, t.Title)));
+        return strip;
+    }
+
+    /// <summary>
+    ///     The strip's selected id: the active session's, or the page tab when no session is
+    ///     showing. A terminal pane is not in the strip (it is reached from the Chats list), so
+    ///     it selects nothing rather than falsely marking the page tab as current.
+    /// </summary>
+    /// <summary>
+    ///     The page tab's title: the selected sidebar row when the page has one (so the strip
+    ///     reads "#74 Draft | #74 Run Tests" rather than the generic "Plans"), else the app's
+    ///     own title. A row whose title is blank falls back too.
+    /// </summary>
+    internal static string PageTabTitle(string appTitle, ShellSidebarListState? sidebarList)
+    {
+        if (sidebarList?.SelectedId is not { Length: > 0 } selectedId) return appTitle;
+
+        var selectedRow = sidebarList.Items.FirstOrDefault(i => i.Id == selectedId);
+        return selectedRow?.Title is { Length: > 0 } rowTitle ? rowTitle : appTitle;
+    }
+
+    internal static string? SelectedStripTabId(ImmutableArray<TabState> tabs, int? selectedIndex)
+    {
+        if (selectedIndex is not { } index || index < 0 || index >= tabs.Length) return PageTabId;
+        var tab = tabs[index];
+        return string.Equals(tab.AppId, AgentAppId, StringComparison.OrdinalIgnoreCase) ? null : tab.Id;
+    }
+
     internal static MenuItem[] BuildHelpMenuItems(bool isBeta, IClientProvider? client, INavigator? navigator)
     {
         var items = new List<MenuItem>
@@ -123,6 +161,10 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
     private const string AgentAppId = "agent";
     private const string ChatAppId = "chat";
     private const string InboxAppId = "inbox";
+
+    // Identifies the strip's leading tab, which reveals the page behind the session panes.
+    // Session tab ids are Guids or chat session ids, so the "$" prefix cannot collide.
+    internal const string PageTabId = "$page";
 
     private static readonly HashSet<string> SidebarSectionAppIds = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -677,6 +719,49 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             RedirectToAppIfNotError(new NavigateArgs(tab.AppId), tabId: tab.Id);
         }
 
+        // The page tab is named after the page it reveals - preferring the selected sidebar row,
+        // so it names the plan and not just "Plans" - falling back to "Home" when the shell is
+        // showing the wallpaper (no page opened yet this session). GetAppOrDefault matches how
+        // SetAppTitle and HandleCreateNewTab resolve a descriptor; currentApp always holds a
+        // real app id, so the "or default" arm is unreachable here.
+        (string Title, string? Icon) PageTabDisplay()
+        {
+            if (currentApp.Value?.AppId is not { } pageAppId) return ("Home", null);
+
+            var (title, icon) = BrandedAppDisplay(appRepository.GetAppOrDefault(pageAppId));
+            var pageList = sidebarList.Value is { } published
+                           && string.Equals(published.AppId, pageAppId, StringComparison.OrdinalIgnoreCase)
+                ? published
+                : null;
+            return (PageTabTitle(title, pageList), icon?.ToString());
+        }
+
+        // Reveals whatever sits behind the session panes: the open page, or the wallpaper
+        // (with the sidebar reopened, since there is nothing else left to navigate from).
+        // Shared by the page tab and by closing the last session so the two cannot drift.
+        void RevealPageBehindSessions()
+        {
+            if (currentApp.Value is { } page)
+            {
+                SetAppTitle(page.AppId);
+                RedirectToAppIfNotError(new NavigateArgs(page.AppId, page.AppArgs));
+                return;
+            }
+
+            client.SetTitle(serverArgs.Metadata.Title);
+            client.Redirect("/");
+            sidebarOpen.Set(true);
+        }
+
+        // Leaves every session pane mounted, so a review action's terminal keeps running
+        // while the reviewer goes back to the plan.
+        void ShowPage()
+        {
+            if (selectedIndex.Value == null) return;
+            selectedIndex.Set((int?)null);
+            RevealPageBehindSessions();
+        }
+
         void OnTabClose(int closedIndex)
         {
             if (!CheckTabExists(closedIndex)) return;
@@ -713,17 +798,9 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 SetTabTitle(tab);
                 RedirectToAppIfNotError(new NavigateArgs(tab.AppId), tabId: tab.Id);
             }
-            else if (currentApp.Value is { } page)
-            {
-                // The page is still open behind the sessions; reveal it again.
-                SetAppTitle(page.AppId);
-                RedirectToAppIfNotError(new NavigateArgs(page.AppId, page.AppArgs));
-            }
             else
             {
-                client.SetTitle(serverArgs.Metadata.Title);
-                client.Redirect("/");
-                sidebarOpen.Set(true);
+                RevealPageBehindSessions();
             }
         }
 
@@ -938,12 +1015,20 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             .ToArray();
 
         // Terminal panes are reached from the Chats list, so the strip only shows the other
-        // session tabs (review actions).
+        // session tabs (review actions). It is led by a non-closable tab for the page hidden
+        // behind them, so opening a review action no longer strands the reviewer on its
+        // terminal until every session is closed (issue #2245).
         var stripTabs = tabs.Value.Where(t => !IsAgentTab(t)).ToList();
+        var (pageTabTitle, pageTabIcon) = PageTabDisplay();
+
         var tabsWidget = new ShellTabs()
-            .Tabs(stripTabs.Select(t => new ShellTabDto(t.Id, t.Title)).ToList())
-            .SelectedId(selectedIndex.Value is { } si && CheckTabExists(si) ? tabs.Value[si].Id : null)
-            .OnSelect(tabId => SelectSession(FindTabIndexById(tabId)))
+            .Tabs(BuildStripTabs(pageTabTitle, pageTabIcon, stripTabs.Select(t => (t.Id, t.Title))))
+            .SelectedId(SelectedStripTabId(tabs.Value, selectedIndex.Value))
+            .OnSelect(tabId =>
+            {
+                if (tabId == PageTabId) ShowPage();
+                else SelectSession(FindTabIndexById(tabId));
+            })
             .OnClose(tabId => OnTabClose(FindTabIndexById(tabId)))
             .OnNew(StartNewChat);
 
@@ -1015,6 +1100,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 tabs: tabsWidget,
                 hidden: [selectInputWarmup, closeTabShortcut])
             .Collapsed(!sidebarOpen.Value)
+            // Counts session tabs only: the page tab never keeps the strip alive on its own.
+            // ShellTabs applies the same rule to its own markup - keep the two in step.
             .HasTabs(stripTabs.Count > 0)
             .ActiveSessionIndex(selectedIndex.Value)
             .OnCollapsedChanged(collapsed =>
