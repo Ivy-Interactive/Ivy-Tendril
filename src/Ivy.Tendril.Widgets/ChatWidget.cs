@@ -112,6 +112,7 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Prop] public List<ChatJobDto>? RunningJobs { get; init; }
     [Prop] public string? Greeting { get; init; }
     [Prop] public string? Headline { get; init; }
+    [Prop] public List<string> SamplePrompts { get; init; } = new();
 
     /// <summary>Hosted inside another page (the plan chat panel): no title bar, a tighter composer.</summary>
     [Prop] public bool Embedded { get; init; }

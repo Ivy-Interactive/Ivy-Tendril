@@ -3,6 +3,7 @@ using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Chat;
 using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Widgets;
 
@@ -130,6 +131,8 @@ public class PlanChatView(PlanFile plan) : ViewBase
             streamVersion.Set(v => v + 1);
         }
 
+        var samplePrompts = ChatSamplePromptProvider.GetPromptsForPlan(plan);
+
         return new Chat.ContentView(
             session,
             activeSessionId,
@@ -152,7 +155,8 @@ public class PlanChatView(PlanFile plan) : ViewBase
             SendMessage,
             id => activeSessionId.Set(id),
             startNewChat: () => { },
-            embedded: true);
+            embedded: true,
+            samplePrompts: samplePrompts);
 
         string DefaultAgent(ChatSessionModel? sess) =>
             sess?.AgentId ?? configService.Settings.CodingAgent ?? "claude";

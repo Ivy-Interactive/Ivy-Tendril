@@ -10,6 +10,7 @@ using Ivy.Tendril.Apps.Chat.Dialogs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Chat;
 using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Widgets;
 
@@ -37,11 +38,13 @@ public class ContentView(
     Action<ChatSendMessageDto> sendMessage,
     Action<string> selectSession,
     Action startNewChat,
-    bool embedded = false) : ViewBase
+    bool embedded = false,
+    List<string>? samplePrompts = null) : ViewBase
 {
     internal IState<string> SelectedAgentState => selectedAgent;
     internal IState<string> SelectedModelState => selectedModel;
     internal IState<string> SelectedEffortState => selectedEffort;
+    internal List<string>? SamplePrompts => samplePrompts;
 
     /// <summary>The plan a job event names, by folder, numeric id or zero-padded id.</summary>
     internal static PlanFile? FindPlan(IPlanReaderService planService, string planId)
@@ -102,6 +105,20 @@ public class ContentView(
                 .Select(ChatApp.ToJobDto).ToList()
             : new List<ChatJobDto>();
 
+        var resolvedPrompts = samplePrompts;
+        if (resolvedPrompts == null)
+        {
+            PlanFile? attachedPlan = null;
+            if (activeSession != null && !string.IsNullOrEmpty(activeSession.PlanFolderName) && planService != null)
+            {
+                attachedPlan = FindPlan(planService, activeSession.PlanFolderName);
+            }
+
+            resolvedPrompts = attachedPlan != null
+                ? ChatSamplePromptProvider.GetPromptsForPlan(attachedPlan)
+                : ChatSamplePromptProvider.GetPromptsForGeneralChat(configService, planService, jobService);
+        }
+
         var chatWidget = new ChatWidget
         {
             ActiveSessionId = activeSessionId.Value,
@@ -121,6 +138,7 @@ public class ContentView(
             Greeting = greeting,
             Headline = headline,
             Embedded = embedded,
+            SamplePrompts = resolvedPrompts,
 
             OnSelectSession = e =>
             {
