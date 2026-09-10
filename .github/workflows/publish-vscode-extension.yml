@@ -1,0 +1,128 @@
+name: Publish VS Code Extension
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version override (e.g. 0.1.1). Defaults to version in package.json if empty.'
+        required: false
+        type: string
+        default: ''
+      test-mode:
+        description: 'Run in test mode (build, test, package, and upload artifacts without publishing)'
+        required: false
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'vscode-v*'
+
+jobs:
+  publish-vscode-extension:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: extensions/vscode
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: extensions/vscode/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run typecheck
+        run: npm run typecheck
+
+      - name: Build extension and tests
+        run: npm run build
+
+      - name: Run tests
+        run: npm test
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref_type }}" == "tag" ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            VERSION="${TAG#vscode-v}"
+            VERSION="${VERSION#v}"
+          elif [ -n "${{ inputs.version }}" ]; then
+            INPUT_VER="${{ inputs.version }}"
+            VERSION="${INPUT_VER#v}"
+          else
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+          echo "Resolved version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Package extension (.vsix)
+        run: |
+          npx --yes @vscode/vsce package --no-git-tag-version --allow-missing-repository --skip-license -o ivy-tendril-${{ steps.version.outputs.version }}.vsix
+
+      - name: Upload VS Code Extension Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tendril-vscode-extension-${{ steps.version.outputs.version }}
+          path: extensions/vscode/*.vsix
+
+      - name: Upload VSIX to Release Assets
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="vscode-v${{ steps.version.outputs.version }}"
+          if ! gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release $TAG does not exist yet; creating release..."
+            gh release create "$TAG" --repo "${{ github.repository }}" --title "VS Code Extension v${{ steps.version.outputs.version }}" --generate-notes
+          fi
+          gh release upload "$TAG" *.vsix --repo "${{ github.repository }}" --clobber
+
+      - name: Publish to Visual Studio Code Marketplace
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -n "$VSCE_PAT" ]; then
+            npx --yes @vscode/vsce publish --packagePath *.vsix --skip-duplicate
+          else
+            echo "VSCE_PAT secret is not set; skipping Visual Studio Code Marketplace publishing."
+          fi
+
+      - name: Publish to Open VSX Registry (Optional)
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -n "$OVSX_PAT" ]; then
+            npx --yes ovsx publish *.vsix --skip-duplicate
+          else
+            echo "OVSX_PAT secret is not set; skipping Open VSX publishing."
+          fi
+
+      - name: Extension publish summary
+        if: always()
+        run: |
+          echo "## Ivy Tendril VS Code Extension" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Version: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.test-mode }}" = "true" ]; then
+            echo "> **Test Mode**: Dry run only. Extension packaged and uploaded as artifact, but publishing and release asset upload were skipped." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Marketplace**: [Ivy Tendril](https://marketplace.visualstudio.com/items?itemName=ivy-interactive.ivy-tendril)" >> $GITHUB_STEP_SUMMARY
+          fi

@@ -23,18 +23,20 @@ This skill automates the release preparation and deployment process for Ivy Tend
 6. **Creates a Pull Request** from `development` into `main`.
 7. **Merges the PR** into `main` (if mergeable).
 8. **Synchronizes the branches** by merging `main` back into `development`.
-9. **Triggers the GitHub release workflow** (`publish-tendril.yml`) on `main` (or on a test branch like `development` with `test-mode` enabled).
+9. **Triggers the GitHub release workflow** (`publish-tendril.yml`) on `main` (or on a test branch like `development` with `test-mode` enabled), publishing NuGet packages and desktop installers.
 
 ## Prerequisites
 
 - **GitHub CLI** (`gh`) must be installed and authenticated with PR and workflow write access.
 - **PowerShell 7** (`pwsh`) must be installed on the system.
+- **VSCE_PAT Secret**: Repository secret containing a Personal Access Token with Marketplace (Manage) permissions to publish the VS Code extension to the Visual Studio Code Marketplace.
+- **OVSX_PAT Secret** (optional): Repository secret containing an access token to publish the VS Code extension to the Eclipse Open VSX Registry.
 
 ---
 
 ## Step-by-Step Workflow
 
-### Phase 1 — Create Release Prep Branch
+### Phase 1: Create Release Prep Branch
 Ensure the workspace is clean and up to date, then check out a temporary package update branch from `development`:
 ```bash
 git checkout development
@@ -42,13 +44,13 @@ git pull origin development
 git checkout -b release/update-packages
 ```
 
-### Phase 2 — Update Ivy packages
+### Phase 2: Update Ivy packages
 Run the PowerShell update script. This script temporarily disables local `IvySource` references to allow NuGet resolution, finds all package references starting with `Ivy` or `Ivy.*` in all project files, runs `dotnet add` to update them to their latest versions, and restores the original settings when finished:
 ```bash
 pwsh src/.releases/UpdateIvyPackages.ps1
 ```
 
-### Phase 3 — Verify Build
+### Phase 3: Verify Build
 Verify that the package updates do not break compilation. Run builds with `IvySource` set to `false` to verify NuGet package resolution:
 ```bash
 dotnet build src/Ivy.Tendril/Ivy.Tendril.csproj /p:IvySource=false
@@ -56,7 +58,7 @@ dotnet build src/Ivy.Tendril/Ivy.Tendril.csproj /p:IvySource=false
 
 If the build fails, abort the process and notify the developer. Do not proceed to commit.
 
-### Phase 4 — Merge to Development and Increment Version
+### Phase 4: Merge to Development and Increment Version
 If the build succeeds, commit the changes and merge the branch back into `development`:
 ```bash
 git add .
@@ -79,13 +81,13 @@ git commit -m "chore: bump patch version for release"
 git push origin development
 ```
 
-### Phase 5 — Create and Merge PR into Main
+### Phase 5: Create and Merge PR into Main
 Generate a Pull Request to merge the updated `development` branch into `main`:
 ```bash
 gh pr create --base main --head development --title "Release: Merge development into main" --body "Automated release PR created by Tendril Release Skill."
 ```
 
-Once the PR is created, wait for/trigger the merge:
+Once the PR is created, wait for or trigger the merge:
 - **If checks are required or you want to queue it**:
   ```bash
   gh pr merge --merge --auto
@@ -95,8 +97,8 @@ Once the PR is created, wait for/trigger the merge:
   gh pr merge --merge
   ```
 
-### Phase 6 — Sync Main Back into Development
-Keep the branches perfectly in sync by merging `main` back into `development` after the PR is merged:
+### Phase 6: Sync Main Back into Development
+Keep the branches in sync by merging `main` back into `development` after the PR is merged:
 ```bash
 git checkout main
 git pull origin main
@@ -105,11 +107,17 @@ git merge main --no-ff -m "Merge branch 'main' into development to sync"
 git push origin development
 ```
 
-### Phase 7 — Trigger Release Workflow
+### Phase 7: Trigger Release Workflow
 Trigger the release Action workflow (`publish-tendril.yml`) on `main`:
 ```bash
 gh workflow run publish-tendril.yml --ref main
 ```
+
+The release workflow executes the following pipeline jobs:
+- `version`: Resolves the release version from git tags or `src/Directory.Build.props`.
+- `publish-nuget`: Packs, signs, and pushes NuGet packages to nuget.org.
+- `publish-desktop`: Builds and packages native desktop installers (Windows, macOS, Linux).
+- `upload-release-assets`: Downloads desktop installers and publishes them to the GitHub release.
 
 #### Test Mode Deployment
 To run a test deployment dry run (which compiles, packages, and uploads unsigned NuGet and desktop installer artifacts to the workflow run, while skipping all signing, notarization, NuGet push, GitHub release creation, Docker image push, and Azure production docs deployment), trigger the workflow with `test-mode` set to `true` (this can be run on `development` or `main`):
@@ -122,10 +130,48 @@ In test mode (`test-mode=true`):
 - It compiles, packages, and uploads unsigned NuGet and desktop installer artifacts to the workflow run.
 - It completely skips all signing (SSL.com NuGet and Windows signing, Apple codesign and productsign), Apple notarization, NuGet push, GitHub release creation, Docker image push, and Azure production docs deployment.
 
-Confirm that the workflow has been dispatched by showing the URL/logs:
+Confirm that the workflow has been dispatched by showing the URL or logs:
 ```bash
 gh run list --workflow=publish-tendril.yml --limit 1
 ```
+
+---
+
+### Phase 8: Publish VS Code Extension (Standalone Workflow)
+The VS Code extension has a decoupled release cadence and is published independently via `.github/workflows/publish-vscode-extension.yml`.
+
+#### Production Release
+Trigger via git tag:
+```bash
+git tag vscode-v0.1.1
+git push origin vscode-v0.1.1
+```
+
+Or trigger via GitHub CLI:
+```bash
+gh workflow run publish-vscode-extension.yml --ref development -f version=0.1.1
+```
+
+The workflow executes:
+1. Installs dependencies and runs typecheck (`npm run typecheck`).
+2. Builds the extension and runs tests (`npm test`).
+3. Resolves and synchronizes the version in `package.json`.
+4. Packages the extension into `.vsix` using `@vscode/vsce`.
+5. Uploads the `.vsix` artifact to the workflow run.
+6. Creates or updates GitHub release `vscode-v<version>` with the `.vsix` asset.
+7. Publishes to the Visual Studio Code Marketplace using `VSCE_PAT`.
+8. Publishes to the Open VSX Registry using `OVSX_PAT` if provided.
+
+#### Test Mode (Dry Run)
+To verify extension typechecking, testing, and `.vsix` packaging without publishing to marketplaces or creating release assets:
+```bash
+gh workflow run publish-vscode-extension.yml --ref development -f test-mode=true
+```
+
+In test mode (`test-mode=true`):
+- Runs typecheck, build, unit tests, and `.vsix` packaging.
+- Uploads the generated `.vsix` as a workflow artifact.
+- Skips GitHub release creation, asset upload, Visual Studio Code Marketplace publishing, and Open VSX publishing.
 
 ---
 
