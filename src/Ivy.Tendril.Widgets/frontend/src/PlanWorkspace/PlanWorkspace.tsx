@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Ellipsis, ExternalLink, FileCheck2, FileQuestion, LoaderCircle, LucideIcon } from "lucide-react";
-import { ShellTooltip } from "../Shell/ShellTooltip";
+import { Badge, StatusDot } from "../ui/Badge";
+import { IconButton } from "../ui/IconButton";
+import { Kbd } from "../ui/Kbd";
+import { Tooltip } from "../ui/Tooltip";
 import { useOutsideClick } from "../ChatWidget/useOutsideClick";
 import { ActionIcon } from "./icons";
 import { shortcutKeys, useActionShortcuts } from "./shortcuts";
@@ -20,35 +23,25 @@ const COMPACT_WIDTH = 560;
 const EMPTY_ACTIONS: PlanActionDto[] = [];
 const EMPTY_EVENTS: string[] = [];
 
-const Kbd: React.FC<{ shortcut?: string; className?: string }> = ({ shortcut, className = "" }) => {
-  if (!shortcut) return null;
-  const keys = shortcutKeys(shortcut);
-  if (keys.length === 0) return null;
-  return (
-    <span className={`pws-kbd ${className}`.trim()} aria-hidden="true">
-      {keys.map((key, index) => (
-        <span key={`${key}-${index}`}>{key}</span>
-      ))}
-    </span>
-  );
-};
-
 const IconAction: React.FC<{ action: PlanActionDto; onFire: (tag: string) => void }> = ({ action, onFire }) => (
-  <ShellTooltip content={action.label} shortcut={action.shortcut ? shortcutKeys(action.shortcut) : undefined} side="bottom">
-    <button
-      type="button"
-      className="pws-icon-btn"
-      data-active={!!action.active}
-      data-tag={action.tag}
-      aria-label={action.label}
-      aria-pressed={action.active ? true : undefined}
-      disabled={action.disabled || action.loading}
-      onClick={() => onFire(action.tag)}
-    >
-      {action.loading ? <LoaderCircle size={16} className="pws-spin" /> : <ActionIcon icon={action.icon} />}
-      {action.badge && <span className="pws-icon-badge">{action.badge}</span>}
-    </button>
-  </ShellTooltip>
+  <IconButton
+    className="pws-icon-btn"
+    label={action.label}
+    shortcut={action.shortcut ? shortcutKeys(action.shortcut) : undefined}
+    tooltipSide="bottom"
+    active={!!action.active}
+    data-tag={action.tag}
+    aria-pressed={action.active ? true : undefined}
+    disabled={action.disabled || action.loading}
+    onClick={() => onFire(action.tag)}
+  >
+    {action.loading ? <LoaderCircle size={16} className="pws-spin" /> : <ActionIcon icon={action.icon} />}
+    {action.badge && (
+      <Badge numeric className="pws-icon-badge">
+        {action.badge}
+      </Badge>
+    )}
+  </IconButton>
 );
 
 const LabeledButton: React.FC<{ action: PlanActionDto; primary?: boolean; onFire: (tag: string) => void }> = ({
@@ -62,13 +55,16 @@ const LabeledButton: React.FC<{ action: PlanActionDto; primary?: boolean; onFire
     data-tag={action.tag}
     disabled={action.disabled || action.loading}
     aria-busy={action.loading || undefined}
-    title={action.label}
     onClick={() => onFire(action.tag)}
   >
     {action.loading ? <LoaderCircle size={16} className="pws-spin" /> : <ActionIcon icon={action.icon} />}
     <span className="pws-btn-label">{action.label}</span>
-    {action.badge && <span className="pws-btn-badge">{action.badge}</span>}
-    <Kbd shortcut={action.shortcut} className="pws-btn-kbd" />
+    {action.badge && (
+      <Badge numeric className="pws-btn-badge">
+        {action.badge}
+      </Badge>
+    )}
+    {action.shortcut && <Kbd keys={shortcutKeys(action.shortcut)} variant="bare" className="pws-btn-kbd" />}
   </button>
 );
 
@@ -94,19 +90,17 @@ const OverflowMenu: React.FC<OverflowMenuProps> = ({ items, onFire }) => {
 
   return (
     <div className="pws-menu-wrap" ref={wrapRef}>
-      <ShellTooltip content="More" side="bottom" enabled={!open}>
-        <button
-          type="button"
-          className="pws-icon-btn"
-          aria-label="More actions"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          data-active={open}
-          onClick={() => setOpen((value) => !value)}
-        >
-          <Ellipsis size={16} />
-        </button>
-      </ShellTooltip>
+      <IconButton
+        label="More actions"
+        tooltip="More"
+        tooltipSide="bottom"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        active={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Ellipsis size={16} />
+      </IconButton>
       {open && (
         <div className="pws-menu" role="menu" aria-label="More actions">
           {items.map((item) => (
@@ -127,7 +121,7 @@ const OverflowMenu: React.FC<OverflowMenuProps> = ({ items, onFire }) => {
                 <ActionIcon icon={item.icon} size={14} />
               </span>
               <span className="pws-menu-item-label">{item.label}</span>
-              <Kbd shortcut={item.shortcut} />
+              {item.shortcut && <Kbd keys={shortcutKeys(item.shortcut)} variant="bare" className="pws-menu-kbd" />}
             </button>
           ))}
         </div>
@@ -165,21 +159,20 @@ const TabTool: React.FC<TabToolProps> = ({ icon: Icon, label, panel, open, indic
 
   return (
     <div className="pws-tool-wrap" ref={wrapRef}>
-      <ShellTooltip content={label} side="bottom" enabled={!open}>
-        <button
-          type="button"
-          className="pws-tool-btn"
-          aria-label={label}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          data-active={open}
-          data-indicator={indicator}
-          onClick={onToggle}
-        >
-          <Icon size={16} />
-          {indicator && <span className="pws-tool-dot" aria-hidden="true" />}
-        </button>
-      </ShellTooltip>
+      <IconButton
+        size="sm"
+        className="pws-tool-btn"
+        label={label}
+        tooltipSide="bottom"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        active={open}
+        data-indicator={indicator}
+        onClick={onToggle}
+      >
+        <Icon size={16} />
+        {indicator && <StatusDot tone="warning" className="pws-tool-dot" />}
+      </IconButton>
       {open && (
         <div className="pws-dropdown" role="group" aria-label={label}>
           <div className="pws-dropdown-title">{label}</div>
@@ -383,7 +376,11 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
                     onClick={() => emit("OnTabSelect", tab.id)}
                   >
                     <span>{tab.label}</span>
-                    {tab.badge && <span className="pws-tab-badge">{tab.badge}</span>}
+                    {tab.badge && (
+                      <Badge numeric className="pws-tab-badge">
+                        {tab.badge}
+                      </Badge>
+                    )}
                   </button>
                 ))}
               </div>
@@ -419,17 +416,18 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
 
         {showChat && (
           <>
-            <div
-              className="pws-resizer"
-              role="separator"
-              aria-orientation="vertical"
-              aria-label="Resize chat"
-              aria-valuenow={width}
-              aria-valuemin={MIN_CHAT_WIDTH}
-              title="Drag to resize, double-click to reset"
-              onPointerDown={startResize}
-              onDoubleClick={resetWidth}
-            />
+            <Tooltip content="Drag to resize, double-click to reset" side="left">
+              <div
+                className="pws-resizer"
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize chat"
+                aria-valuenow={width}
+                aria-valuemin={MIN_CHAT_WIDTH}
+                onPointerDown={startResize}
+                onDoubleClick={resetWidth}
+              />
+            </Tooltip>
             <aside className="pws-chat" aria-label="Plan chat">
               {slots?.Chat}
             </aside>

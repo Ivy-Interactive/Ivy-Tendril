@@ -2,6 +2,7 @@ import React, { useCallback, useEffect } from "react";
 import { BrandIcon } from "./brandIcons";
 import { ShellWidgetProps, isEditableTarget, isModKey, isMac } from "./types";
 import { ShellTooltip } from "./ShellTooltip";
+import { Kbd } from "../ui/Kbd";
 import "./shell.css";
 
 interface ShellAgentButtonProps extends ShellWidgetProps {
@@ -66,11 +67,7 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
             <span className="tsh-agent-label">{label}</span>
           </span>
           <span className="tsh-agent-actions">
-            <span className="tsh-kbd">
-              {hintKeys.map((k) => (
-                <span key={k}>{k}</span>
-              ))}
-            </span>
+            <Kbd keys={hintKeys} variant="bare" className="tsh-kbd" />
           </span>
         </button>
       </ShellTooltip>
