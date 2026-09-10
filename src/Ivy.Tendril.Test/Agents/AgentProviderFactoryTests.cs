@@ -232,6 +232,95 @@ public class AgentProviderFactoryTests
     }
 
     [Fact]
+    public void Resolve_CodexWithDefaultModel_ResolvesToCliDefaultProfile()
+    {
+        var runner = CreateRunner();
+        var settings = CreateSettings(
+            "codex",
+            codingAgents: new List<AgentConfig>
+            {
+                new()
+                {
+                    Name = "codex",
+                    Profiles = new List<AgentProfileConfig>
+                    {
+                        new() { Name = "deep", Model = "default", Effort = "high" }
+                    }
+                }
+            },
+            promptwares: new Dictionary<string, PromptwareConfig>
+            {
+                ["_default"] = new() { Profile = "deep" }
+            });
+
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "Test");
+
+        Assert.Equal("codex", resolution.AgentId);
+        Assert.Equal("gpt-5.6-sol", resolution.Model);
+        Assert.Equal("high", resolution.Effort);
+    }
+
+    [Theory]
+    [InlineData("balanced", "gpt-5.6-terra", "medium")]
+    [InlineData("quick", "gpt-5.6-luna", "low")]
+    public void Resolve_CodexWithDefaultModel_ResolvesBalancedAndQuick(string profile, string expectedModel, string expectedEffort)
+    {
+        var runner = CreateRunner();
+        var settings = CreateSettings(
+            "codex",
+            codingAgents: new List<AgentConfig>
+            {
+                new()
+                {
+                    Name = "codex",
+                    Profiles = new List<AgentProfileConfig>
+                    {
+                        new() { Name = profile, Model = "default", Effort = "default" }
+                    }
+                }
+            },
+            promptwares: new Dictionary<string, PromptwareConfig>
+            {
+                ["_default"] = new() { Profile = profile }
+            });
+
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "Test");
+
+        Assert.Equal("codex", resolution.AgentId);
+        Assert.Equal(expectedModel, resolution.Model);
+        Assert.Equal(expectedEffort, resolution.Effort);
+    }
+
+    [Fact]
+    public void Resolve_CodexWithExplicitModel_PreservesExplicitModel()
+    {
+        var runner = CreateRunner();
+        var settings = CreateSettings(
+            "codex",
+            codingAgents: new List<AgentConfig>
+            {
+                new()
+                {
+                    Name = "codex",
+                    Profiles = new List<AgentProfileConfig>
+                    {
+                        new() { Name = "deep", Model = "o3", Effort = "high" }
+                    }
+                }
+            },
+            promptwares: new Dictionary<string, PromptwareConfig>
+            {
+                ["_default"] = new() { Profile = "deep" }
+            });
+
+        var resolution = AgentProviderFactory.Resolve(runner, settings, "Test");
+
+        Assert.Equal("codex", resolution.AgentId);
+        Assert.Equal("o3", resolution.Model);
+        Assert.Equal("high", resolution.Effort);
+    }
+
+    [Fact]
     public void Resolve_MatchesCapitalizedAgentName_ClaudeCode()
     {
         var runner = CreateRunner();
