@@ -890,6 +890,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .Searchable(list.Searchable)
                 .SearchLabel(list.SearchLabel)
                 .NewLabel(list.NewLabel)
+                .ShowCount(list.ShowCount)
+                .CollapsedBadges(list.CollapsedBadges)
                 .OnSelectItem(itemId =>
                     OpenApp(new NavigateArgs(capturedList.AppId, capturedList.BuildSelectArgs(itemId))))
                 .OnSearch(list.OnSearch ?? showPlanSearchDialog)

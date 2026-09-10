@@ -59,17 +59,19 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
     <div className="tsh-agent-wrap">
       <ShellTooltip content={label} shortcut={shortcutBadge} side="right">
         <button className="tsh-agent" data-active={isActive} onClick={fireOpen} aria-label={label}>
-          <span className="tsh-agent-brand">
-            <span className="tsh-agent-icon">
-              <BrandIcon name={icon} size={16} />
+          <span className="tsh-row">
+            <span className="tsh-agent-brand">
+              <span className="tsh-agent-icon">
+                <BrandIcon name={icon} size={16} />
+              </span>
+              <span className="tsh-agent-label">{label}</span>
             </span>
-            <span className="tsh-agent-label">{label}</span>
-          </span>
-          <span className="tsh-agent-actions">
-            <span className="tsh-kbd">
-              {hintKeys.map((k) => (
-                <span key={k}>{k}</span>
-              ))}
+            <span className="tsh-agent-actions">
+              <span className="tsh-kbd">
+                {hintKeys.map((k) => (
+                  <span key={k}>{k}</span>
+                ))}
+              </span>
             </span>
           </span>
         </button>

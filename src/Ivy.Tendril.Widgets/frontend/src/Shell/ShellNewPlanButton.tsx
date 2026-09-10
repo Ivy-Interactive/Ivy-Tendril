@@ -31,14 +31,16 @@ export const ShellNewPlanButton: React.FC<ShellNewPlanButtonProps> = ({
     <div className="tsh-newplan-wrap">
       <ShellTooltip content={label} shortcut={hintKeys} enabled={collapsed} side="right">
         <button className="tsh-newplan" onClick={fire} aria-label={label}>
-          <span className="tsh-newplan-label-group">
-            <Plus size={16} />
-            <span className="tsh-newplan-label">{label}</span>
-          </span>
-          <span className="tsh-kbd">
-            {hintKeys.map((key) => (
-              <span key={key}>{key}</span>
-            ))}
+          <span className="tsh-row">
+            <span className="tsh-newplan-label-group">
+              <Plus size={16} />
+              <span className="tsh-newplan-label">{label}</span>
+            </span>
+            <span className="tsh-kbd">
+              {hintKeys.map((key) => (
+                <span key={key}>{key}</span>
+              ))}
+            </span>
           </span>
         </button>
       </ShellTooltip>

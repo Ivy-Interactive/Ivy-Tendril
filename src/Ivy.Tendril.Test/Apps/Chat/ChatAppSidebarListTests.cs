@@ -38,6 +38,15 @@ public class ChatAppSidebarListTests
     }
 
     [Fact]
+    public void BuildSidebarList_OptsIntoTheCollapsedRailCountAndBadges()
+    {
+        var list = ChatApp.BuildSidebarList([Session("a", "First")], null, new HashSet<string>(), new HashSet<string>(), () => { });
+
+        Assert.True(list.ShowCount);
+        Assert.True(list.CollapsedBadges);
+    }
+
+    [Fact]
     public void BuildSidebarList_MarksTerminalSessionsAndExposesNewChat()
     {
         var sessions = new List<ChatSessionModel>

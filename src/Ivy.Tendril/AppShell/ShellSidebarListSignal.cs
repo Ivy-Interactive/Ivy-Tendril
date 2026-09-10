@@ -14,6 +14,8 @@ namespace Ivy.Tendril.AppShell;
 ///     which is right for every plan list and wrong for anything else.
 /// </param>
 /// <param name="SearchLabel">The search icon's tooltip, e.g. "Search chats"; null reads "Search plans".</param>
+/// <param name="ShowCount">Puts the row count on the collapsed rail's list button.</param>
+/// <param name="CollapsedBadges">Keeps the row badges in the collapsed rail's flyout.</param>
 public record ShellSidebarListState(
     string AppId,
     string Title,
@@ -24,7 +26,9 @@ public record ShellSidebarListState(
     Action? OnSearch = null,
     string? SearchLabel = null,
     Action? OnNew = null,
-    string? NewLabel = null);
+    string? NewLabel = null,
+    bool ShowCount = false,
+    bool CollapsedBadges = false);
 
 [Signal(BroadcastType.AppShell)]
 public class ShellSidebarListSignal : AbstractSignal<ShellSidebarListState, Unit> { }
