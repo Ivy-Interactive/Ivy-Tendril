@@ -209,26 +209,18 @@ describe("PlanWorkspace", () => {
     expect(screen.getByText("CO")).toBeInTheDocument();
   });
 
-  it("renders project badges to the left of topbar actions with label and color attribute", () => {
+  it("renders project badges to the left of topbar actions", () => {
     renderWorkspace(vi.fn(), {
-      projects: [
-        { label: "tendril", color: "Amber" },
-        { label: "ivy-framework" },
-      ],
+      slots: {
+        ProjectBadges: [<span key="1" data-testid="test-badge">tendril</span>],
+      },
     });
 
-    const badge1 = screen.getByTitle("tendril");
-    expect(badge1).toBeInTheDocument();
-    expect(badge1).toHaveTextContent("tendril");
-    expect(badge1).toHaveAttribute("data-color", "amber");
-    expect(badge1).toHaveClass("pws-project-badge");
+    const badge = screen.getByTestId("test-badge");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent("tendril");
 
-    const badge2 = screen.getByTitle("ivy-framework");
-    expect(badge2).toBeInTheDocument();
-    expect(badge2).toHaveTextContent("ivy-framework");
-    expect(badge2).toHaveClass("pws-project-badge");
-
-    const badgesContainer = badge1.closest(".pws-project-badges");
+    const badgesContainer = badge.closest(".pws-project-badges");
     expect(badgesContainer).toBeInTheDocument();
     const topbarRight = badgesContainer?.parentElement;
     expect(topbarRight).toHaveClass("pws-topbar-right");
