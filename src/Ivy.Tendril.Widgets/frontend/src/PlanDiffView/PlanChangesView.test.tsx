@@ -17,28 +17,24 @@ function diffFor(path: string, body: string[]): string {
 const files: ChangedFile[] = [
   {
     filePath: "src/App/zeta.cs",
-    status: "M",
     diff: diffFor("src/App/zeta.cs", ["@@ -1 +1 @@", "-old zeta", "+new zeta"]),
     additions: 1,
     deletions: 1,
   },
   {
     filePath: "src/App/Alpha.cs",
-    status: "A",
     diff: diffFor("src/App/Alpha.cs", ["@@ -0,0 +1 @@", "+alpha"]),
     additions: 1,
     deletions: 0,
   },
   {
     filePath: "README.md",
-    status: "M",
     diff: diffFor("README.md", ["@@ -1 +1 @@", "-a", "+b"]),
     additions: 1,
     deletions: 1,
   },
   {
     filePath: "docs/guide/old.md",
-    status: "D",
     diff: diffFor("docs/guide/old.md", ["@@ -1 +0,0 @@", "-gone"]),
     additions: 0,
     deletions: 1,
@@ -55,7 +51,7 @@ describe("buildFileTree", () => {
   });
 
   it("orders names like C# OrdinalIgnoreCase, so the mobile picker and the diff pane agree", () => {
-    const named = (path: string): ChangedFile => ({ filePath: path, status: "M", diff: "", additions: 0, deletions: 0 });
+    const named = (path: string): ChangedFile => ({ filePath: path, diff: "", additions: 0, deletions: 0 });
     const tree = buildFileTree([named("_util.cs"), named("alpha.cs"), named("Beta.cs"), named("[id].tsx")]);
     expect(tree.files.map((f) => f.filePath)).toEqual(["alpha.cs", "Beta.cs", "[id].tsx", "_util.cs"]);
   });

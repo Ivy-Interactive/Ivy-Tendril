@@ -6,7 +6,6 @@ import "./plan-diff.css";
 
 export interface ChangedFile {
   filePath: string;
-  status: string;
   diff: string;
   additions: number;
   deletions: number;
@@ -33,6 +32,7 @@ export interface TreeFolder {
 }
 
 const INDENT_PX = 12;
+const ROW_LEAD_PX = 4;
 
 function compareNames(a: string, b: string): number {
   const left = a.toUpperCase();
@@ -122,7 +122,7 @@ function TreeRows({ node, depth, selectedPath, collapsed, onToggleFolder, onSele
               aria-level={depth + 1}
               tabIndex={0}
               className="ivy-changes-tree-row"
-              style={{ paddingLeft: depth * INDENT_PX }}
+              style={{ paddingLeft: ROW_LEAD_PX + depth * INDENT_PX }}
               title={target.path}
               onClick={() => onToggleFolder(target.path)}
               onKeyDown={(e) => {
@@ -158,7 +158,7 @@ function TreeRows({ node, depth, selectedPath, collapsed, onToggleFolder, onSele
             aria-level={depth + 1}
             tabIndex={0}
             className={`ivy-changes-tree-row${isSelected ? " ivy-changes-tree-row-selected" : ""}`}
-            style={{ paddingLeft: depth * INDENT_PX }}
+            style={{ paddingLeft: ROW_LEAD_PX + depth * INDENT_PX }}
             title={file.filePath}
             onClick={() => onSelectFile(file.filePath)}
             onKeyDown={(e) => {

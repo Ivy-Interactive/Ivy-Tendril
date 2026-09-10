@@ -144,11 +144,11 @@ class DemoApp : ViewBase
     }
 
     private static ChangedFileDto Modified(string path, int additions, int deletions, string hunk) =>
-        new(path, "M", $"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n{hunk}\n", additions, deletions);
+        new(path, $"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n{hunk}\n", additions, deletions);
 
     private static ChangedFileDto Added(string path, int additions, string hunk) =>
-        new(path, "A", $"diff --git a/{path} b/{path}\nnew file mode 100644\n--- /dev/null\n+++ b/{path}\n{hunk}\n", additions, 0);
+        new(path, $"diff --git a/{path} b/{path}\nnew file mode 100644\n--- /dev/null\n+++ b/{path}\n{hunk}\n", additions, 0);
 
     private static ChangedFileDto Deleted(string path, int deletions, string hunk) =>
-        new(path, "D", $"diff --git a/{path} b/{path}\ndeleted file mode 100644\n--- a/{path}\n+++ /dev/null\n{hunk}\n", 0, deletions);
+        new(path, $"diff --git a/{path} b/{path}\ndeleted file mode 100644\n--- a/{path}\n+++ /dev/null\n{hunk}\n", 0, deletions);
 }

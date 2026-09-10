@@ -1,6 +1,6 @@
 namespace Ivy.Tendril.Widgets;
 
-public record ChangedFileDto(string FilePath, string Status, string Diff, int Additions, int Deletions);
+public record ChangedFileDto(string FilePath, string Diff, int Additions, int Deletions);
 
 [ExternalWidget(
     "frontend/dist/ivy-tendril-widgets.js",

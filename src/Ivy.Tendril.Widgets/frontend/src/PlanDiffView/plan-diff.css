@@ -248,8 +248,11 @@ td.diff-gutter-empty::after {
   overflow: auto;
 }
 
-.ivy-changes-diffs .ivy-diff-file {
+.ivy-changes-diffs > .ivy-diff-view {
   flex-shrink: 0;
+}
+
+.ivy-changes-diffs .ivy-diff-file {
   margin-bottom: 0;
 }
 
@@ -261,7 +264,7 @@ td.diff-gutter-empty::after {
   width: 100%;
   min-width: 0;
   margin: 1px 0;
-  padding: 0.25rem 0.5rem 0.25rem 0.25rem;
+  padding: 0.25rem 0.5rem 0.25rem 0;
   border-radius: 0.375rem;
   color: var(--foreground);
   cursor: pointer;

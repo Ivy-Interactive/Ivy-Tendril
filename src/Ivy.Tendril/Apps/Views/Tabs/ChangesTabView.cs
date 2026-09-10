@@ -92,7 +92,7 @@ public class ChangesTabView(
         var changedFiles = fileDiffs.Select(fd =>
         {
             var counts = PlanContentHelpers.CountDiffLines(fd.Diff);
-            return new ChangedFileDto(fd.FilePath, fd.Status, fd.Diff, counts.Additions, counts.Deletions);
+            return new ChangedFileDto(fd.FilePath, fd.Diff, counts.Additions, counts.Deletions);
         }).ToList();
 
         var changesView = new PlanChangesView
