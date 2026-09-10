@@ -464,6 +464,82 @@ describe("ChatWidget File Uploads and Attachments", () => {
     });
   });
 
+  it("activates dragging state and renders drop overlay when dragging over the root widget or message area", () => {
+    const { container } = render(<ChatWidget id="test-chat" />);
+    const root = container.querySelector(".chat-widget-root")!;
+    expect(root).toBeInTheDocument();
+
+    // Drag enter on root
+    fireEvent.dragEnter(root, {
+      dataTransfer: { dropEffect: "none" },
+    });
+    expect(root).toHaveClass("dragging");
+    expect(screen.getByText("Drop files here to attach to message")).toBeInTheDocument();
+
+    // Drag leave on root
+    fireEvent.dragLeave(root);
+    expect(root).not.toHaveClass("dragging");
+    expect(screen.queryByText("Drop files here to attach to message")).not.toBeInTheDocument();
+
+    // Drag over messages container activates overlay
+    const messagesArea = container.querySelector(".chat-thread") || root;
+    fireEvent.dragEnter(messagesArea, {
+      dataTransfer: { dropEffect: "none" },
+    });
+    expect(root).toHaveClass("dragging");
+    expect(screen.getByText("Drop files here to attach to message")).toBeInTheDocument();
+  });
+
+  it("supports dropping a file anywhere on the chat widget to add attachment", async () => {
+    const { container } = render(<ChatWidget id="test-chat" />);
+    const root = container.querySelector(".chat-widget-root")!;
+    const messagesArea = container.querySelector(".chat-thread") || root;
+
+    // Drag over chat area
+    fireEvent.dragEnter(messagesArea, {
+      dataTransfer: { dropEffect: "none" },
+    });
+    expect(root).toHaveClass("dragging");
+
+    // Drop file on messages area
+    const droppedFile = new File(["test docx content"], "specs.docx", { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+    fireEvent.drop(messagesArea, {
+      dataTransfer: { files: [droppedFile] },
+    });
+    expect(root).not.toHaveClass("dragging");
+    expect(screen.queryByText("Drop files here to attach to message")).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText("specs.docx")).toBeInTheDocument();
+      expect(screen.getByText("DOCX")).toBeInTheDocument();
+    });
+  });
+
+  it("calls preventDefault on dragover and drop events to block browser file navigation", () => {
+    const { container } = render(<ChatWidget id="test-chat" />);
+    const root = container.querySelector(".chat-widget-root")!;
+
+    // Drag over root prevents default
+    const dragOverEvent = new Event("dragover", { bubbles: true, cancelable: true });
+    root.dispatchEvent(dragOverEvent);
+    expect(dragOverEvent.defaultPrevented).toBe(true);
+
+    // Drop on root prevents default
+    const dropEvent = new Event("drop", { bubbles: true, cancelable: true });
+    root.dispatchEvent(dropEvent);
+    expect(dropEvent.defaultPrevented).toBe(true);
+
+    // Window-level dragover prevents default
+    const windowDragOverEvent = new Event("dragover", { bubbles: true, cancelable: true });
+    window.dispatchEvent(windowDragOverEvent);
+    expect(windowDragOverEvent.defaultPrevented).toBe(true);
+
+    // Window-level drop prevents default
+    const windowDropEvent = new Event("drop", { bubbles: true, cancelable: true });
+    window.dispatchEvent(windowDropEvent);
+    expect(windowDropEvent.defaultPrevented).toBe(true);
+  });
+
   it("supports removing an attached file via its thumbnail remove button", async () => {
     render(<ChatWidget id="test-chat" />);
     const textarea = screen.getByPlaceholderText(/Ask/i);
