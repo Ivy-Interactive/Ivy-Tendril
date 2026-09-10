@@ -236,6 +236,15 @@ public class ContentView(
             refreshPlans, copyToClipboard, showUpdateDialog, showDeleteDialog, showCreateIssueDialog, showShareModal,
             hasActiveExpandJob, hasActiveSplitJob));
 
+        if (!isShareMode && !isEditing.Value)
+        {
+            PlanNeighborShortcuts.Add(actions, allPlans, currentIndex, plan =>
+            {
+                selectedPlanState.Set(plan);
+                nav.Navigate(typeof(PlansApp), new PlansAppArgs(plan.FolderName));
+            });
+        }
+
         var activeAnnotationCount = annotations.Value.Count(a => !a.IsResolved);
         if (!isShareMode && !isEditing.Value)
         {

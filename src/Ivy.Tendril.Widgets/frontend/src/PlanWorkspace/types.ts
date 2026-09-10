@@ -46,6 +46,7 @@ export interface PlanWorkspaceProps {
   menuItems?: PlanActionDto[];
   primary?: PlanActionDto | null;
   secondary?: PlanActionDto[];
+  shortcuts?: PlanActionDto[];
   tabs?: PlanTabDto[];
   selectedTab?: string | null;
   chatWidth?: number;

@@ -15,6 +15,7 @@ public sealed class PlanWorkspaceActions
     public List<PlanActionDto> MenuItems { get; } = [];
     public PlanActionDto? Primary { get; private set; }
     public List<PlanActionDto> Secondary { get; } = [];
+    public List<PlanActionDto> Shortcuts { get; } = [];
 
     public PlanWorkspaceActions Action(
         string tag, string label, Icons icon, Action handler,
@@ -52,6 +53,13 @@ public sealed class PlanWorkspaceActions
         return this;
     }
 
+    public PlanWorkspaceActions Shortcut(string tag, string label, string shortcut, Action handler)
+    {
+        Shortcuts.Add(new PlanActionDto(tag, label, Shortcut: shortcut));
+        _handlers[tag] = handler;
+        return this;
+    }
+
     public void Dispatch(string tag)
     {
         if (_handlers.TryGetValue(tag, out var handler))
@@ -59,5 +67,5 @@ public sealed class PlanWorkspaceActions
     }
 
     public PlanWorkspace ApplyTo(PlanWorkspace workspace) =>
-        workspace.Actions(Actions).MenuItems(MenuItems).Primary(Primary).Secondary(Secondary).OnAction(Dispatch);
+        workspace.Actions(Actions).MenuItems(MenuItems).Primary(Primary).Secondary(Secondary).Shortcuts(Shortcuts).OnAction(Dispatch);
 }

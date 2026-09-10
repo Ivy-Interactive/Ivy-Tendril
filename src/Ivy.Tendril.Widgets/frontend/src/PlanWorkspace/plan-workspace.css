@@ -587,7 +587,7 @@
   width: var(--pws-chat-width);
   min-width: 0;
   min-height: 0;
-  padding: 14px 16px;
+  padding: 0 16px 14px;
   border-left: 1px solid var(--pws-border);
   background: var(--pws-bg);
 }
@@ -614,7 +614,7 @@
   flex: 0 0 42%;
   width: auto;
   min-height: 220px;
-  padding: 10px 12px 12px;
+  padding: 0 12px 12px;
   border-left: none;
   border-top: 1px solid var(--pws-border);
 }

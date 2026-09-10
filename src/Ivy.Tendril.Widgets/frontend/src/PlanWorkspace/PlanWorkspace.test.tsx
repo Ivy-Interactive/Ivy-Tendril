@@ -108,6 +108,63 @@ describe("PlanWorkspace", () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
+  it("answers keys while focus is stuck in a hidden editable, and stays quiet while itself hidden", () => {
+    // jsdom has no checkVisibility; hidden = an inline visibility:hidden on the element or an ancestor.
+    const hiddenBy = (el: Element | null): boolean =>
+      !!el && ((el as HTMLElement).style?.visibility === "hidden" || hiddenBy(el.parentElement));
+    Element.prototype.checkVisibility = function (this: Element) {
+      return !hiddenBy(this);
+    };
+    try {
+      const handler = vi.fn();
+      const { unmount } = renderWorkspace(handler);
+      const pane = document.createElement("div");
+      pane.style.visibility = "hidden";
+      pane.innerHTML = '<div class="xterm"><textarea aria-label="stuck terminal"></textarea></div>';
+      document.body.appendChild(pane);
+
+      fireEvent.keyDown(screen.getByLabelText("stuck terminal"), { key: "Backspace" });
+      expect(handler).toHaveBeenCalledWith("OnAction", "w", ["Delete"]);
+      pane.remove();
+      unmount();
+
+      handler.mockClear();
+      const wrapper = document.createElement("div");
+      wrapper.style.visibility = "hidden";
+      document.body.appendChild(wrapper);
+      render(
+        <PlanWorkspace id="w" actions={actions} events={["OnAction"]} eventHandler={handler} slots={{ Content: [] }} />,
+        { container: wrapper },
+      );
+      fireEvent.keyDown(document.body, { key: "e" });
+      expect(handler).not.toHaveBeenCalled();
+      wrapper.remove();
+    } finally {
+      delete (Element.prototype as { checkVisibility?: unknown }).checkVisibility;
+    }
+  });
+
+  it("binds keyboard-only shortcuts without rendering them", () => {
+    const handler = vi.fn();
+    const shortcuts = [
+      { tag: "PreviousPlan", label: "Previous plan", shortcut: "ArrowLeft" },
+      { tag: "NextPlan", label: "Next plan", shortcut: "ArrowRight" },
+    ];
+    renderWorkspace(handler, { shortcuts, slots: { Content: [<textarea key="t" aria-label="editor" />] } });
+
+    expect(screen.queryByText("Next plan")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Next plan")).not.toBeInTheDocument();
+
+    fireEvent.keyDown(document.body, { key: "ArrowRight" });
+    expect(handler).toHaveBeenCalledWith("OnAction", "w", ["NextPlan"]);
+    fireEvent.keyDown(document.body, { key: "ArrowLeft" });
+    expect(handler).toHaveBeenCalledWith("OnAction", "w", ["PreviousPlan"]);
+
+    handler.mockClear();
+    fireEvent.keyDown(screen.getByLabelText("editor"), { key: "ArrowRight" });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it("opens the verifications and questions dropdowns from the tab strip corner", () => {
     renderWorkspace();
     expect(screen.queryByText("verification rows")).not.toBeInTheDocument();
@@ -236,6 +293,8 @@ describe("shortcuts", () => {
     expect(shortcutKeys("E")).toEqual(["E"]);
     expect(shortcutKeys("Backspace")).toEqual(["⌫"]);
     expect(shortcutKeys("Ctrl+Enter")).toEqual(["Ctrl", "↵"]);
+    expect(shortcutKeys("ArrowLeft")).toEqual(["←"]);
+    expect(shortcutKeys("ArrowRight")).toEqual(["→"]);
   });
 
   it("matches plain keys case-insensitively and rejects extra modifiers", () => {

@@ -33,8 +33,8 @@ public sealed record ReviewActionsContext(
     Action ShowShareModal);
 
 /// <summary>
-///     What the Review page can do with a plan, laid out for the workspace top bar: Reset to Draft,
-///     Request Changes and Share as icons, the rest in the overflow menu. "Discuss with {agent}"
+///     What the Review page can do with a plan, laid out for the workspace top bar: Request Changes
+///     and Share as icons, the rest in the overflow menu. "Discuss with {agent}"
 ///     opens the conversation in the plan's chat panel.
 /// </summary>
 public static class ReviewActions
@@ -89,15 +89,15 @@ public static class ReviewActions
                 .Action("CopyPath", "Copy Path", Icons.Copy, CopyPath);
         }
 
-        actions
-            .Action("ResetToDraft", "Reset to Draft", Icons.RotateCcw, ctx.ShowResetToDraftDialog, "r")
-            .Action("RequestChanges", "Request Changes", Icons.MessageSquare, ctx.ShowSuggestChangesDialog, "c",
-                badge: ctx.CommentCount > 0 ? ctx.CommentCount.ToString() : null);
+        actions.Action("RequestChanges", "Request Changes", Icons.MessageSquare, ctx.ShowSuggestChangesDialog, "c",
+            badge: ctx.CommentCount > 0 ? ctx.CommentCount.ToString() : null);
 
         if (ctx.IsBeta)
             actions.Action("Share", "Share", Icons.Share2, SharePlan);
 
-        actions.Menu("Discard", "Discard", Icons.Trash, ctx.ShowDiscardDialog, "Backspace", danger: true);
+        actions
+            .Menu("ResetToDraft", "Reset to Draft", Icons.RotateCcw, ctx.ShowResetToDraftDialog, "r")
+            .Menu("Discard", "Discard", Icons.Trash, ctx.ShowDiscardDialog, "Backspace", danger: true);
 
         if (ctx.ChatService != null && ctx.ChatExecution != null)
         {
