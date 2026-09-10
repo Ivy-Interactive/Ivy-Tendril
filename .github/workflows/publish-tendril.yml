@@ -727,8 +727,96 @@ jobs:
             releases/RELEASES
             releases/releases.*.json
 
+  publish-vscode-extension:
+    needs: version
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: extensions/vscode
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run typecheck
+        run: npm run typecheck
+
+      - name: Build extension and tests
+        run: npm run build
+
+      - name: Run tests
+        run: npm test
+
+      - name: Sync version
+        run: |
+          npm version ${{ needs.version.outputs.version }} --no-git-tag-version --allow-same-version
+
+      - name: Package extension (.vsix)
+        run: |
+          npx --yes @vscode/vsce package --no-git-tag-version --allow-missing-repository --skip-license -o ivy-tendril-${{ needs.version.outputs.version }}.vsix
+
+      - name: Upload VS Code Extension Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tendril-vscode-extension-${{ needs.version.outputs.version }}
+          path: extensions/vscode/*.vsix
+
+      - name: Upload VSIX to Release Assets
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ needs.version.outputs.version }}"
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            TAG="${{ github.event.release.tag_name }}"
+          fi
+          if ! gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release $TAG does not exist yet; creating release..."
+            gh release create "$TAG" --repo "${{ github.repository }}" --generate-notes
+          fi
+          gh release upload "$TAG" *.vsix --repo "${{ github.repository }}" --clobber
+
+      - name: Publish to Visual Studio Code Marketplace
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          if [ -n "$VSCE_PAT" ]; then
+            npx --yes @vscode/vsce publish --packagePath *.vsix --skip-duplicate
+          else
+            echo "VSCE_PAT secret is not set; skipping Visual Studio Code Marketplace publishing."
+          fi
+
+      - name: Publish to Open VSX Registry (Optional)
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: |
+          if [ -n "$OVSX_PAT" ]; then
+            npx --yes ovsx publish *.vsix --skip-duplicate
+          else
+            echo "OVSX_PAT secret is not set; skipping Open VSX publishing."
+          fi
+
+      - name: Extension publish summary
+        if: always()
+        run: |
+          echo "## Ivy Tendril VS Code Extension" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Version: ${{ needs.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Marketplace**: [Ivy Tendril](https://marketplace.visualstudio.com/items?itemName=ivy-interactive.ivy-tendril)" >> $GITHUB_STEP_SUMMARY
+
   upload-release-assets:
-    needs: [version, publish-nuget, publish-desktop]
+    needs: [version, publish-nuget, publish-desktop, publish-vscode-extension]
     runs-on: ubuntu-latest
     if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.test-mode)
     steps:
@@ -736,6 +824,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: tendril-installer-*
+          merge-multiple: true
+
+      - name: Download VS Code extension artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tendril-vscode-extension-*
           merge-multiple: true
 
       - name: Create or Upload to Release

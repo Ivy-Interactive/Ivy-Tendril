@@ -23,12 +23,14 @@ This skill automates the release preparation and deployment process for Ivy Tend
 6. **Creates a Pull Request** from `development` into `main`.
 7. **Merges the PR** into `main` (if mergeable).
 8. **Synchronizes the branches** by merging `main` back into `development`.
-9. **Triggers the GitHub release workflow** (`publish-tendril.yml`) on `main` (or on a test branch like `development` with `test-mode` enabled).
+9. **Triggers the GitHub release workflow** (`publish-tendril.yml`) on `main` (or on a test branch like `development` with `test-mode` enabled), publishing NuGet packages, desktop installers, and the VS Code extension.
 
 ## Prerequisites
 
 - **GitHub CLI** (`gh`) must be installed and authenticated with PR and workflow write access.
 - **PowerShell 7** (`pwsh`) must be installed on the system.
+- **VSCE_PAT Secret**: Repository secret containing a Personal Access Token with Marketplace (Manage) permissions to publish the VS Code extension to the Visual Studio Code Marketplace.
+- **OVSX_PAT Secret** (optional): Repository secret containing an access token to publish the VS Code extension to the Eclipse Open VSX Registry.
 
 ---
 
@@ -105,22 +107,30 @@ git merge main --no-ff -m "Merge branch 'main' into development to sync"
 git push origin development
 ```
 
-### Phase 7 — Trigger Release Workflow
+### Phase 7: Trigger Release Workflow
 Trigger the release Action workflow (`publish-tendril.yml`) on `main`:
 ```bash
 gh workflow run publish-tendril.yml --ref main
 ```
 
+The release workflow executes the following pipeline jobs:
+- `version`: Resolves the release version from git tags or `src/Directory.Build.props`.
+- `publish-nuget`: Packs, signs, and pushes NuGet packages to nuget.org.
+- `publish-desktop`: Builds and packages native desktop installers (Windows, macOS, Linux).
+- `publish-vscode-extension`: Runs typechecking, builds, tests, packages into `.vsix`, uploads to release assets, and publishes to Visual Studio Code Marketplace and Open VSX.
+- `upload-release-assets`: Downloads desktop installers and VS Code extension artifacts and publishes them to the GitHub release.
+
 #### Test Mode Deployment
-To run a test deployment dry run (which compiles, packages, and uploads unsigned NuGet and desktop installer artifacts to the workflow run, while skipping all signing, notarization, NuGet push, GitHub release creation, Docker image push, and Azure production docs deployment), trigger the workflow with `test-mode` set to `true` (this can be run on `development` or `main`):
+To run a test deployment dry run (which compiles, packages, and uploads unsigned NuGet, desktop installer, and VS Code extension artifacts to the workflow run, while skipping all signing, notarization, publishing, and docs deployment), trigger the workflow with `test-mode` set to `true` (this can be run on `development` or `main`):
 ```bash
 gh workflow run publish-tendril.yml --ref development -f test-mode=true
 ```
 
 In test mode (`test-mode=true`):
 - It performs a side-effect-free release dry run.
-- It compiles, packages, and uploads unsigned NuGet and desktop installer artifacts to the workflow run.
-- It completely skips all signing (SSL.com NuGet and Windows signing, Apple codesign and productsign), Apple notarization, NuGet push, GitHub release creation, Docker image push, and Azure production docs deployment.
+- It compiles, packages, and uploads unsigned NuGet, desktop installer, and VS Code extension (.vsix) artifacts to the workflow run.
+- It runs typecheck, unit tests, version synchronization, and packaging for the VS Code extension.
+- It completely skips all signing (SSL.com NuGet and Windows signing, Apple codesign and productsign), Apple notarization, NuGet push, VS Code Marketplace publishing, Open VSX publishing, GitHub release creation and asset uploads, Docker image push, and Azure production docs deployment.
 
 Confirm that the workflow has been dispatched by showing the URL/logs:
 ```bash
