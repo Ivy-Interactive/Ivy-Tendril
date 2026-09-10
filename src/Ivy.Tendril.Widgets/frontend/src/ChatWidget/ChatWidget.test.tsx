@@ -2353,3 +2353,111 @@ describe("ChatWidget embedded mode", () => {
     expect(screen.queryByRole("button", { name: "Chat options" })).not.toBeInTheDocument();
   });
 });
+
+describe("ChatWidget Markdown Code Blocks", () => {
+  beforeEach(() => {
+    window.ResizeObserver = class {
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = vi.fn();
+    } as any;
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+  });
+
+  it("renders assistant markdown code blocks inside pmv-code-block with copy button", () => {
+    const session: ChatSessionDto = {
+      id: "s-code",
+      title: "Code block test",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [
+        {
+          id: "m-user",
+          role: "user",
+          content: "Show me a code snippet",
+          timestamp: "",
+        },
+        {
+          id: "m-assistant",
+          role: "assistant",
+          content: "Here is a TypeScript snippet:\n\n```typescript\nconst greeting = 'hello world';\nconsole.log(greeting);\n```\n\nAnd here is an untagged block:\n\n```\necho 'plain text block'\n```\n\nAnd an inline `const foo = 42;` value.",
+          timestamp: "",
+        },
+      ],
+    };
+
+    const { container } = render(<ChatWidget id="test-chat" activeSessionId="s-code" sessions={[session]} />);
+
+    const assistantRow = container.querySelector(".chat-message-row.assistant");
+    expect(assistantRow).toBeInTheDocument();
+
+    const markdownBody = assistantRow?.querySelector(".chat-markdown-body");
+    expect(markdownBody).toBeInTheDocument();
+
+    const codeBlocks = assistantRow?.querySelectorAll(".pmv-code-block");
+    expect(codeBlocks?.length).toBe(2);
+
+    // Verify first code block (tagged)
+    const firstBlock = codeBlocks?.[0];
+    expect(firstBlock).toBeInTheDocument();
+    expect(firstBlock?.querySelector("button.pmv-code-copy")).toBeInTheDocument();
+    expect(firstBlock?.querySelector("pre")).toBeInTheDocument();
+    expect(firstBlock?.textContent).toContain("const greeting = 'hello world';");
+
+    // Verify second code block (untagged)
+    const secondBlock = codeBlocks?.[1];
+    expect(secondBlock).toBeInTheDocument();
+    expect(secondBlock?.querySelector("button.pmv-code-copy")).toBeInTheDocument();
+    expect(secondBlock?.querySelector("pre")).toBeInTheDocument();
+    expect(secondBlock?.querySelector("pre code")).toBeInTheDocument();
+    expect(secondBlock?.textContent).toContain("echo 'plain text block'");
+
+    // Verify inline code is rendered as standalone code tag outside pmv-code-block
+    const allCodeTags = assistantRow?.querySelectorAll("code");
+    const inlineCode = Array.from(allCodeTags || []).find((el) => el.textContent === "const foo = 42;");
+    expect(inlineCode).toBeInTheDocument();
+    expect(inlineCode?.closest(".pmv-code-block")).toBeNull();
+  });
+
+  it("renders assistant streaming turns with code blocks inside pmv-code-block", () => {
+    const rawStream = JSON.stringify({
+      kind: "text",
+      text: "Streaming code block:\n\n```python\ndef add(a, b):\n    return a + b\n```",
+      delta: false,
+    });
+
+    const session: ChatSessionDto = {
+      id: "s-stream",
+      title: "Streaming code block test",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [
+        {
+          id: "m-stream-assistant",
+          role: "assistant",
+          content: "",
+          rawStream,
+          timestamp: "",
+        },
+      ],
+    };
+
+    const { container } = render(<ChatWidget id="test-chat" activeSessionId="s-stream" sessions={[session]} />);
+
+    const assistantRow = container.querySelector(".chat-message-row.assistant");
+    expect(assistantRow).toBeInTheDocument();
+
+    const turn = assistantRow?.querySelector(".chat-turn");
+    expect(turn).toBeInTheDocument();
+
+    const codeBlock = assistantRow?.querySelector(".pmv-code-block");
+    expect(codeBlock).toBeInTheDocument();
+    expect(codeBlock?.querySelector("button.pmv-code-copy")).toBeInTheDocument();
+    expect(codeBlock?.textContent).toContain("def add(a, b):");
+  });
+});
+
