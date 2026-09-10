@@ -123,3 +123,28 @@ describe("TrendChart rolling average curve", () => {
     expect(screen.queryByText(/7-day average/)).not.toBeInTheDocument();
   });
 });
+
+describe("TrendChart x-axis tick suppression", () => {
+  beforeEach(() => {
+    Element.prototype.getBoundingClientRect = vi.fn(
+      () => ({ width: CHART_WIDTH, height: 236, top: 0, left: 0, right: CHART_WIDTH, bottom: 236, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect,
+    );
+    globalThis.ResizeObserver = class {
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = vi.fn();
+    } as unknown as typeof ResizeObserver;
+  });
+
+  it("suppresses ticks that are too close to the pinned final tick to prevent overlapping", () => {
+    const dates = days(26);
+    const { container } = renderChart({ dates });
+
+    const axisTexts = Array.from(container.querySelectorAll("text.tdb-axis-text")).map(
+      (t) => t.textContent,
+    );
+    expect(axisTexts).toContain("Sep 6");
+    expect(axisTexts).not.toContain("Sep 5");
+  });
+});
+

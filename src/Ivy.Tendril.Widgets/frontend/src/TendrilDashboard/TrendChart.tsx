@@ -196,7 +196,8 @@ export const TrendChart: React.FC<TrendChartProps> = ({
           {dates.map((date, i) => {
             const maxVisible = Math.max(4, Math.floor(plotWidth / 60));
             const step = n > maxVisible ? Math.ceil((n - 1) / maxVisible) : 1;
-            const isVisible = i === 0 || i === n - 1 || i % step === 0;
+            const isCloseToEnd = i !== n - 1 && (n - 1) - i < step * 0.5;
+            const isVisible = i === 0 || i === n - 1 || (i % step === 0 && !isCloseToEnd);
             if (!isVisible) return null;
             return (
               <text
