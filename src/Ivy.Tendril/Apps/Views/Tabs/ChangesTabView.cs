@@ -89,73 +89,56 @@ public class ChangesTabView(
         }
 
         var root = BuildFileTree(fileDiffs);
-        var treeItems = ChildItems(root);
         var sortedFileDiffs = SortByTreeOrder(fileDiffs, root);
 
-        var tree = new Tree(treeItems)
-            .OnSelect(e =>
-            {
-                var path = e.Value?.ToString();
-                if (path is null) return;
-                client.Redirect($"#{path}");
-            });
-
-        var diffsLayout = Layout.Vertical().Gap(1).Width(Size.Grow().Min(Size.Px(0))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)));
-        for (var i = 0; i < sortedFileDiffs.Count; i++)
+        var changedFiles = sortedFileDiffs.Select(fd =>
         {
-            var fileDiff = sortedFileDiffs[i];
-            var path = fileDiff.FilePath;
-            diffsLayout |= new PlanDiffView
-            {
-                Key = $"{selectedPlan.Id}:{path}",
-                Diff = fileDiff.Diff,
-                FilePath = path,
-                Collapsible = true,
-                Comments = draftComments.Value.Where(c => c.FilePath == path).ToList(),
-                CurrentAuthor = shareContext.IsShareMode ? shareContext.Persona : null,
-                OnAddComment = async e =>
-                {
-                    var comment = e.Value;
-                    if (string.IsNullOrEmpty(comment.Author) && shareContext.IsShareMode)
-                    {
-                        comment = comment with { Author = shareContext.Persona };
-                    }
-                    var list = new List<DraftComment>(draftComments.Value) { comment };
-                    draftComments.Set(list);
-                    await draftDiffCommentService.SaveDraftCommentsAsync(selectedPlan.FolderPath, list);
-                },
-                OnUpdateComment = async e =>
-                {
-                    var c = e.Value;
-                    var list = new List<DraftComment>(draftComments.Value);
-                    var idx = list.FindIndex(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
-                    if (idx >= 0)
-                    {
-                        list[idx] = c;
-                        draftComments.Set(list);
-                        await draftDiffCommentService.SaveDraftCommentsAsync(selectedPlan.FolderPath, list);
-                    }
-                },
-                OnDeleteComment = async e =>
-                {
-                    var c = e.Value;
-                    var list = new List<DraftComment>(draftComments.Value);
-                    list.RemoveAll(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
-                    draftComments.Set(list);
-                    await draftDiffCommentService.SaveDraftCommentsAsync(selectedPlan.FolderPath, list);
-                },
-                OnDirectEdit = async e =>
-                {
-                    await HandleDirectEdit(e.Value);
-                }
-            }.Width(Size.Full());
-        }
+            var counts = PlanContentHelpers.CountDiffLines(fd.Diff);
+            return new ChangedFileDto(fd.FilePath, fd.Status, fd.Diff, counts.Additions, counts.Deletions);
+        }).ToList();
 
-        var treePanel = new Box(Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0))) | tree)
-            .Width(SidebarLayout.DefaultWidth)
-            .Height(Size.Full().Min(Size.Px(0)))
-            .Padding(2, 2, 0, 2)
-            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
+        var changesView = new PlanChangesView
+        {
+            Key = $"changes:{selectedPlan.Id}",
+            Files = changedFiles,
+            Comments = draftComments.Value,
+            CurrentAuthor = shareContext.IsShareMode ? shareContext.Persona : null,
+            OnAddComment = async e =>
+            {
+                var comment = e.Value;
+                if (string.IsNullOrEmpty(comment.Author) && shareContext.IsShareMode)
+                {
+                    comment = comment with { Author = shareContext.Persona };
+                }
+                var list = new List<DraftComment>(draftComments.Value) { comment };
+                draftComments.Set(list);
+                await draftDiffCommentService.SaveDraftCommentsAsync(selectedPlan.FolderPath, list);
+            },
+            OnUpdateComment = async e =>
+            {
+                var c = e.Value;
+                var list = new List<DraftComment>(draftComments.Value);
+                var idx = list.FindIndex(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
+                if (idx >= 0)
+                {
+                    list[idx] = c;
+                    draftComments.Set(list);
+                    await draftDiffCommentService.SaveDraftCommentsAsync(selectedPlan.FolderPath, list);
+                }
+            },
+            OnDeleteComment = async e =>
+            {
+                var c = e.Value;
+                var list = new List<DraftComment>(draftComments.Value);
+                list.RemoveAll(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
+                draftComments.Set(list);
+                await draftDiffCommentService.SaveDraftCommentsAsync(selectedPlan.FolderPath, list);
+            },
+            OnDirectEdit = async e =>
+            {
+                await HandleDirectEdit(e.Value);
+            }
+        }.Width(Size.Full()).Height(Size.Full());
 
         var mobileFilePicker = MobileItemPicker.Build(
                 $"Jump to file ({sortedFileDiffs.Count})",
@@ -185,8 +168,7 @@ public class ChangesTabView(
 
         // Padding order is (left, top, right, bottom).
         var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(2, 0, 4, 4)
-            | treePanel
-            | diffsLayout;
+            | changesView;
 
         var outer = Layout.Vertical().Height(Size.Full().Min(Size.Px(0)));
         if (mismatchBanner != null)
@@ -296,25 +278,6 @@ public class ChangesTabView(
         return root;
     }
 
-    private static MenuItem[] ChildItems(TreeNode node)
-    {
-        var items = new List<MenuItem>();
-        foreach (var folder in node.Folders.Values.OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            items.Add(FolderItem(folder));
-        }
-        foreach (var file in node.Files.OrderBy(f => Path.GetFileName(f.FilePath), StringComparer.OrdinalIgnoreCase))
-        {
-            var (icon, color) = PlanContentHelpers.GetFileStatusIconAndColor(file.Status);
-            items.Add(new MenuItem(Path.GetFileName(file.FilePath))
-                .Icon(icon)
-                .Color(color)
-                .Tag(file.FilePath)
-                .Tooltip(file.FilePath));
-        }
-        return items.ToArray();
-    }
-
     private static List<string> FlattenTreeOrder(TreeNode node)
     {
         var result = new List<string>();
@@ -339,49 +302,6 @@ public class ChangesTabView(
             .Where(lookup.ContainsKey)
             .Select(p => lookup[p])
             .ToList();
-    }
-
-    private static MenuItem FolderItem(TreeNode node)
-    {
-        var label = node.Name;
-        while (node.Files.Count == 0 && node.Folders.Count == 1)
-        {
-            var only = node.Folders.Values.First();
-            label = $"{label}/{only.Name}";
-            node = only;
-        }
-
-        var item = new MenuItem(label, ChildItems(node)).Icon(Icons.Folder).Expanded();
-        var folderColor = GetFolderColor(node);
-        return folderColor is not null ? item.Color(folderColor.Value) : item;
-    }
-
-    private static Colors? GetFolderColor(TreeNode node)
-    {
-        var hasAdded = false;
-        var hasDeleted = false;
-        var hasOther = false;
-        CollectStatuses(node);
-        if (!hasAdded && !hasDeleted && !hasOther) return null;
-        if (hasAdded && !hasDeleted && !hasOther) return Colors.Success;
-        if (hasDeleted && !hasAdded && !hasOther) return Colors.Destructive;
-        return Colors.Neutral;
-
-        void CollectStatuses(TreeNode n)
-        {
-            foreach (var f in n.Files)
-            {
-                switch (f.Status)
-                {
-                    case "A": hasAdded = true; break;
-                    case "D": hasDeleted = true; break;
-                    default: hasOther = true; break;
-                }
-                if (hasAdded && hasDeleted) return;
-            }
-            foreach (var folder in n.Folders.Values)
-                CollectStatuses(folder);
-        }
     }
 
     private sealed class TreeNode(string name)
