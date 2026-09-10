@@ -340,4 +340,30 @@ describe("TendrilDashboard pull requests week/month toggle", () => {
     expect(screen.getByText("Apr")).toBeInTheDocument();
     expect(screen.queryByText("Aug 24")).not.toBeInTheDocument();
   });
+
+  it("renders weekly labels with formatted two-line date wrapping while remaining accessible", () => {
+    render(
+      <TendrilDashboard
+        id="dash"
+        eventHandler={vi.fn()}
+        pullRequests={monthlyPrs}
+        pullRequestsWeekly={weeklyPrs}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Week" }));
+
+    const labelAug3 = screen.getByText("Aug 3");
+    const labelAug10 = screen.getByText("Aug 10");
+    const labelSep7 = screen.getByText("Sep 7");
+
+    expect(labelAug3).toBeInTheDocument();
+    expect(labelAug10).toBeInTheDocument();
+    expect(labelSep7).toBeInTheDocument();
+
+    expect(labelAug3.textContent).toBe("Aug\n3");
+    expect(labelAug10.textContent).toBe("Aug\n10");
+    expect(labelSep7.textContent).toBe("Sep\n7");
+  });
 });
+

@@ -132,3 +132,24 @@ describe("dashboard.css side tabs", () => {
     expect(css).toMatch(/\.tdb-side-tab\s*\{[^}]*border-radius:\s*6px;/);
   });
 });
+
+describe("dashboard.css pull request bars layout and alignment", () => {
+  it("defines centered text alignment, controlled line height, and consistent min-height for bar labels", () => {
+    expect(css).toContain(".tdb-bar-label {");
+    expect(css).toMatch(/\.tdb-bar-label\s*\{[^}]*text-align:\s*center;/);
+    expect(css).toMatch(/\.tdb-bar-label\s*\{[^}]*line-height:\s*1\.2;/);
+    expect(css).toMatch(/\.tdb-bar-label\s*\{[^}]*min-height:\s*28px;/);
+    expect(css).toMatch(/\.tdb-bar-label\s*\{[^}]*white-space:\s*pre-line;/);
+  });
+
+  it("uses a compact gap on .tdb-bars-plot to prevent horizontal overflow", () => {
+    expect(css).toContain(".tdb-bars-plot {");
+    expect(css).toMatch(/\.tdb-bars-plot\s*\{[^}]*gap:\s*8px;/);
+  });
+
+  it("sets min-width 0 on .tdb-bar-item and aligns Y-axis zero tick with 36px padding-bottom", () => {
+    expect(css).toMatch(/\.tdb-bar-item\s*\{[^}]*min-width:\s*0;/);
+    expect(css).toMatch(/\.tdb-bars-y\s*\{[^}]*padding-bottom:\s*36px;/);
+  });
+});
+

@@ -45,7 +45,7 @@ export const PillBars: React.FC<PillBarsProps> = ({ items }) => {
                   onMouseLeave={hideTip}
                 />
               </div>
-              <span className="tdb-bar-label">{item.label}</span>
+              <span className="tdb-bar-label">{item.label.replace(" ", "\n")}</span>
             </div>
           ))}
         </div>
