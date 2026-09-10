@@ -1628,8 +1628,8 @@ public class JobService : IJobService
     internal void WriteJobLog(JobItem job)
         => _completionHandler.WriteJobLog(job);
 
-    internal static void LogCostToCsv(string planFolder, string jobType, int tokens, decimal? cost, string? model = null)
-        => PlanYamlHelper.LogCostToCsv(planFolder, jobType, tokens, cost, model);
+    internal static void LogCostToCsv(string planFolder, string jobType, int tokens, decimal? cost, string? model = null, string? costSource = null)
+        => PlanYamlHelper.LogCostToCsv(planFolder, jobType, tokens, cost, model, costSource);
 
     /// <summary>
     /// Writes a cost <see cref="Services.Telemetry.CostBackfillService" /> worked out after the fact

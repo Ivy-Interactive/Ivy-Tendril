@@ -14,7 +14,6 @@
   --pws-cta-bg: var(--primary, #000000);
   --pws-cta-fg: var(--primary-foreground, #ffffff);
   --pws-danger: var(--destructive, #ef4444);
-  --pws-indicator: var(--warning, #d97706);
   --pws-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.18), 0 4px 12px -2px rgba(0, 0, 0, 0.1);
   --pws-chat-width: 420px;
 
@@ -140,49 +139,16 @@
   align-items: center;
 }
 
+/* The icon actions are the shared icon button; the widget only positions the count it carries. */
 .pws-icon-btn {
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--pws-fg);
-  cursor: pointer;
-  transition: background-color 120ms ease;
-}
-
-.pws-icon-btn:hover:not(:disabled) {
-  background: var(--pws-hover-bg);
-}
-
-.pws-icon-btn[data-active="true"] {
-  background: var(--pws-active-bg);
-}
-
-.pws-icon-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
 }
 
 .pws-icon-badge {
   position: absolute;
-  top: 2px;
-  right: 2px;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 4px;
-  border-radius: 7px;
-  background: var(--pws-cta-bg);
-  color: var(--pws-cta-fg);
-  font-size: 10px;
-  font-weight: 600;
-  line-height: 14px;
-  text-align: center;
+  top: -3px;
+  right: -3px;
+  pointer-events: none;
 }
 
 .pws-btn {
@@ -226,33 +192,11 @@
   cursor: default;
 }
 
-.pws-btn-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background: var(--pws-cta-bg);
-  color: var(--pws-cta-fg);
-  font-size: 11px;
-  font-weight: 600;
-}
-
+/* A count on the CTA reads on its dark surface; elsewhere the shared badge is used as is. */
 .pws-btn--primary .pws-btn-badge {
+  border-color: transparent;
   background: color-mix(in srgb, var(--pws-cta-fg) 22%, transparent);
-}
-
-.pws-kbd {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: -0.24px;
-  opacity: 0.8;
-  white-space: nowrap;
+  color: var(--pws-cta-fg);
 }
 
 .pws-btn-kbd {
@@ -362,7 +306,7 @@
   text-overflow: ellipsis;
 }
 
-.pws-menu-item .pws-kbd {
+.pws-menu-kbd {
   margin-left: 12px;
   opacity: 0.55;
 }
@@ -441,20 +385,6 @@
   opacity: 1;
 }
 
-.pws-tab-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background: var(--pws-active-bg);
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1;
-}
-
 .pws-tab-tools {
   display: flex;
   align-items: center;
@@ -467,41 +397,20 @@
   position: relative;
 }
 
+/* The tab tools are the shared small icon button; an unseen question keeps one held open. */
 .pws-tool-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--pws-fg);
-  opacity: 0.75;
-  cursor: pointer;
-  transition: background-color 120ms ease, opacity 120ms ease;
+  position: relative;
 }
 
-.pws-tool-btn:hover,
-.pws-tool-btn[data-active="true"],
 .pws-tool-btn[data-indicator="true"] {
   background: var(--pws-active-bg);
   opacity: 1;
-}
-
-.pws-tool-btn {
-  position: relative;
 }
 
 .pws-tool-dot {
   position: absolute;
   top: 2px;
   right: 2px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--pws-indicator);
   box-shadow: 0 0 0 2px var(--pws-bg);
 }
 

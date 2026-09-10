@@ -182,44 +182,72 @@ public class KpiBreakdownSheet(
     private object BuildForecastMonthBreakdown()
     {
         var forecast = CostForecastCalculator.Project(activity.DailyCosts ?? [], today);
-        var mtdSpend = activity.DailyCosts?
+        var mtdRecords = (activity.DailyCosts ?? [])
             .Where(d => d.Date.Year == today.Year && d.Date.Month == today.Month)
-            .Sum(d => d.Cost) ?? 0m;
+            .ToList();
+        var mtdTotalSpend = mtdRecords.Sum(d => d.Cost);
+        var mtdApiSpend = mtdRecords.Sum(d => d.ApiCost);
+        var mtdSubsidizedSpend = mtdRecords.Sum(d => d.SubsidizedCost);
         var daysInMonth = DateTime.DaysInMonth(today.Year, today.Month);
         var daysRemaining = Math.Max(0, daysInMonth - today.Day);
+
+        var calloutMessage = forecast.SubsidizedTokenPercent > 0
+            ? $"Forecast This Month projects month-end spend using daily activity over the last 30 days. {forecast.SubsidizedTokenPercent:0}% of tokens in this window were subsidized via subscription ({FormatCost(forecast.TotalSubsidizedSpend)} equivalent value) with {FormatCost(forecast.TotalApiSpend)} in direct API charges."
+            : "Forecast This Month projects month-end spend using daily activity over the last 30 days. Direct API projections estimate billed out-of-pocket spend, while total projections reflect overall token market value.";
 
         var details = new
         {
             Metric = "Forecast This Month",
-            MonthToDateSpend = FormatCost(mtdSpend),
-            DaysRemainingInMonth = $"{daysRemaining} day(s)",
-            DaysInCurrentMonth = $"{daysInMonth} day(s)",
+            DirectApiCalendarProjection = forecast.ApiCalendarProjection.HasValue ? FormatCost(forecast.ApiCalendarProjection.Value) : "$0",
+            DirectApiActivityProjection = forecast.ApiActivityProjection.HasValue ? FormatCost(forecast.ApiActivityProjection.Value) : "$0",
+            TotalCalendarProjection = forecast.CalendarProjection.HasValue ? FormatCost(forecast.CalendarProjection.Value) : "No data",
+            TotalActivityProjection = forecast.ActivityProjection.HasValue ? FormatCost(forecast.ActivityProjection.Value) : "No data",
+            SubsidizedTokenShare = $"{forecast.SubsidizedTokenPercent:0}% of tokens",
+            SubsidizedCostShare = $"{forecast.SubsidizedCostPercent:0}% of value",
+            MonthToDateApiSpend = FormatCost(mtdApiSpend),
+            MonthToDateSubsidizedValue = FormatCost(mtdSubsidizedSpend),
+            MonthToDateTotalSpend = FormatCost(mtdTotalSpend),
             ObservedCalendarDays = $"{forecast.CalendarDays} day(s)",
             ActiveSpendDays = $"{forecast.ActivityDays} day(s)",
-            TotalSpendInWindow = FormatCost(forecast.TotalSpend),
-            CalendarBasisProjection = forecast.CalendarProjection.HasValue ? FormatCost(forecast.CalendarProjection.Value) : "No data",
-            ActivityBasisProjection = forecast.ActivityProjection.HasValue ? FormatCost(forecast.ActivityProjection.Value) : "No data"
+            DaysRemainingInMonth = $"{daysRemaining} day(s)",
+            DaysInCurrentMonth = $"{daysInMonth} day(s)"
         }
             .ToDetails()
             .Label(x => x.Metric, "Metric")
-            .Label(x => x.MonthToDateSpend, "Month-to-Date Spend")
-            .Label(x => x.DaysRemainingInMonth, "Days Remaining")
-            .Label(x => x.DaysInCurrentMonth, "Days in Month")
+            .Label(x => x.DirectApiCalendarProjection, "Direct API Forecast (Calendar Basis)")
+            .Label(x => x.DirectApiActivityProjection, "Direct API Forecast (Activity Basis)")
+            .Label(x => x.TotalCalendarProjection, "Total Forecast (Calendar Basis)")
+            .Label(x => x.TotalActivityProjection, "Total Forecast (Activity Basis)")
+            .Label(x => x.SubsidizedTokenShare, "Subsidized Token Share")
+            .Label(x => x.SubsidizedCostShare, "Subsidized Value Share")
+            .Label(x => x.MonthToDateApiSpend, "Month-to-Date Direct API Spend")
+            .Label(x => x.MonthToDateSubsidizedValue, "Month-to-Date Subsidized Value")
+            .Label(x => x.MonthToDateTotalSpend, "Month-to-Date Total Market Value")
             .Label(x => x.ObservedCalendarDays, "Calendar Days in Window")
             .Label(x => x.ActiveSpendDays, "Active Days with Spend")
-            .Label(x => x.TotalSpendInWindow, "Total Window Spend")
-            .Label(x => x.CalendarBasisProjection, "Calendar Basis (Lower Bound)")
-            .Label(x => x.ActivityBasisProjection, "Activity Basis (Upper Bound)");
+            .Label(x => x.DaysRemainingInMonth, "Days Remaining")
+            .Label(x => x.DaysInCurrentMonth, "Days in Month");
 
         var cutoff = DateOnly.FromDateTime(today.AddDays(-29));
         var daily = (activity.DailyCosts ?? [])
             .Where(d => d.Date >= cutoff)
             .OrderByDescending(d => d.Date)
-            .Select(d => new DailyCostRow
+            .Select(d =>
             {
-                Date = d.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-                Spend = FormatCost(d.Cost),
-                Tokens = FormatHelper.FormatCount(d.Tokens)
+                var totalTokens = d.Tokens > 0 ? d.Tokens : d.ApiTokens + d.SubsidizedTokens;
+                var subPct = totalTokens > 0
+                    ? (double)d.SubsidizedTokens / totalTokens * 100.0
+                    : (d.Cost > 0 ? (double)(d.SubsidizedCost / d.Cost) * 100.0 : 0.0);
+
+                return new DailyCostRow
+                {
+                    Date = d.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    TotalSpend = FormatCost(d.Cost),
+                    ApiSpend = FormatCost(d.ApiCost),
+                    SubsidizedSpend = FormatCost(d.SubsidizedCost),
+                    TotalTokens = FormatHelper.FormatCount(totalTokens),
+                    SubsidizedPercent = $"{subPct:0}%"
+                };
             })
             .ToList();
 
@@ -229,8 +257,11 @@ public class KpiBreakdownSheet(
                 .AsQueryable()
                 .ToDataTable(x => x.Date)
                 .Header(x => x.Date, "Date")
-                .Header(x => x.Spend, "Daily Spend")
-                .Header(x => x.Tokens, "Tokens")
+                .Header(x => x.TotalSpend, "Total Spend")
+                .Header(x => x.ApiSpend, "API Spend")
+                .Header(x => x.SubsidizedSpend, "Subsidized Spend")
+                .Header(x => x.TotalTokens, "Total Tokens")
+                .Header(x => x.SubsidizedPercent, "Subsidized %")
                 .Width(Size.Full())
                 .Height(Size.Px(360))
                 .Config(c =>
@@ -242,7 +273,7 @@ public class KpiBreakdownSheet(
                 });
 
         return Layout.Vertical().Gap(4)
-               | Callout.Info("Forecast This Month projects month-end spend using daily activity over the last 30 days. Dual projections indicate uncertainty: Calendar Basis assumes idle days continue at the observed rate, while Activity Basis projects from active spend days only.", "Dual Projections")
+               | Callout.Info(calloutMessage, "Usage & Subsidized Analysis")
                | details
                | (Layout.Vertical().Gap(2)
                   | Text.H4("Daily Spend (Last 30 Days)")
@@ -355,8 +386,11 @@ public class KpiBreakdownSheet(
     private sealed record DailyCostRow
     {
         public required string Date { get; init; }
-        public required string Spend { get; init; }
-        public required string Tokens { get; init; }
+        public required string TotalSpend { get; init; }
+        public required string ApiSpend { get; init; }
+        public required string SubsidizedSpend { get; init; }
+        public required string TotalTokens { get; init; }
+        public required string SubsidizedPercent { get; init; }
     }
 
     private sealed record PlanCostRow

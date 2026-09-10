@@ -23,7 +23,15 @@ public record CostForecast(
     decimal? ActivityProjection,
     int ActivityDays,
     decimal TotalSpend,
-    int DaysInMonth);
+    int DaysInMonth,
+    decimal? ApiCalendarProjection = null,
+    decimal? ApiActivityProjection = null,
+    decimal TotalApiSpend = 0m,
+    decimal TotalSubsidizedSpend = 0m,
+    long TotalApiTokens = 0,
+    long TotalSubsidizedTokens = 0,
+    double SubsidizedTokenPercent = 0,
+    double SubsidizedCostPercent = 0);
 
 /// <summary>
 ///     Projects a month's spend from a daily series. Pure on purpose: no clock of its own, no
@@ -55,9 +63,32 @@ public static class CostForecastCalculator
         var window = dailyCosts.Where(d => d.Date >= cutoff).ToList();
         var spendDays = window.Where(d => d.Cost != 0m).ToList();
         var totalSpend = window.Sum(d => d.Cost);
+        var totalApiSpend = window.Sum(d => d.ApiCost);
+        var totalSubsidizedSpend = window.Sum(d => d.SubsidizedCost);
+        var totalApiTokens = window.Sum(d => d.ApiTokens);
+        var totalSubsidizedTokens = window.Sum(d => d.SubsidizedTokens);
+        var totalTokens = window.Sum(d => Math.Max(d.Tokens, d.ApiTokens + d.SubsidizedTokens));
+        var subsidizedTokenPercent = totalTokens > 0 ? (double)totalSubsidizedTokens / totalTokens * 100.0 : 0.0;
+        var subsidizedCostPercent = totalSpend > 0 ? (double)(totalSubsidizedSpend / totalSpend) * 100.0 : 0.0;
 
         if (spendDays.Count == 0)
-            return new CostForecast(null, 0, null, 0, totalSpend, daysInMonth);
+        {
+            return new CostForecast(
+                null,
+                0,
+                null,
+                0,
+                totalSpend,
+                daysInMonth,
+                null,
+                null,
+                totalApiSpend,
+                totalSubsidizedSpend,
+                totalApiTokens,
+                totalSubsidizedTokens,
+                subsidizedTokenPercent,
+                subsidizedCostPercent);
+        }
 
         // Floored at 1: a series whose first record is a few hours old must divide by one day rather
         // than by a fraction, which would project an absurd month. Measured from the earliest day on
@@ -67,12 +98,28 @@ public static class CostForecastCalculator
         var calendarDays = Math.Max(1, elapsed);
         var activityDays = spendDays.Count;
 
+        var apiSpendDays = window.Where(d => d.ApiCost != 0m).ToList();
+        decimal? apiCalendarProjection = apiSpendDays.Count > 0
+            ? totalApiSpend / calendarDays * daysInMonth
+            : null;
+        decimal? apiActivityProjection = apiSpendDays.Count > 0
+            ? totalApiSpend / apiSpendDays.Count * daysInMonth
+            : null;
+
         return new CostForecast(
             totalSpend / calendarDays * daysInMonth,
             calendarDays,
             totalSpend / activityDays * daysInMonth,
             activityDays,
             totalSpend,
-            daysInMonth);
+            daysInMonth,
+            apiCalendarProjection,
+            apiActivityProjection,
+            totalApiSpend,
+            totalSubsidizedSpend,
+            totalApiTokens,
+            totalSubsidizedTokens,
+            subsidizedTokenPercent,
+            subsidizedCostPercent);
     }
 }

@@ -683,23 +683,6 @@
   margin-bottom: 0;
 }
 
-.pmv-resolved-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.1rem 0.35rem;
-  font-size: 0.625rem;
-  font-weight: 600;
-  border-radius: 0.25rem;
-  background: hsl(142 71% 45% / 0.15);
-  color: hsl(142 76% 36%);
-  border: 1px solid hsl(142 71% 45% / 0.25);
-}
-
-:root.dark .pmv-resolved-badge {
-  color: hsl(142 76% 56%);
-}
-
 .pmv-annotation-highlight.pmv-annotation-resolved {
   background: hsl(142 60% 70% / 0.35);
   opacity: 0.7;
@@ -745,15 +728,6 @@
 
 .pmv-selection-toolbar-kbd {
   margin-left: 0.25rem;
-  padding: 0.0625rem 0.25rem;
-  border-radius: 0.1875rem;
-  border: 1px solid var(--border);
-  background: var(--muted);
-  color: var(--muted-foreground);
-  font-family: inherit;
-  font-size: 0.6875rem;
-  line-height: 1.2;
-  white-space: nowrap;
 }
 
 /* ─── Diagram renderers (Mermaid + Graphviz) ─────────────────────────── */
@@ -1051,30 +1025,7 @@
   margin: 0 0.125rem;
 }
 
-.pmv-search-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 0.25rem;
-  border: none;
-  background: transparent;
-  color: var(--foreground);
-  cursor: pointer;
-  padding: 0;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.pmv-search-btn:hover:not(:disabled) {
-  background: var(--muted);
-}
-
-.pmv-search-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
+/* The shared icon button (ui.css); only the inline SVG needs a size here. */
 .pmv-search-btn svg {
   width: 1rem;
   height: 1rem;

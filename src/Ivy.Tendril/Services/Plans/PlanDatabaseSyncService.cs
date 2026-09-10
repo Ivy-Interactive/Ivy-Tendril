@@ -204,6 +204,9 @@ public class PlanDatabaseSyncService : IDisposable
                 // Fourth column since costs.csv v2; files written before it have three.
                 var model = parts.Length > 3 && !string.IsNullOrWhiteSpace(parts[3]) ? parts[3].Trim() : null;
 
+                // Fifth column since costs.csv v3; files written before it have three or four.
+                var costSource = parts.Length > 4 && !string.IsNullOrWhiteSpace(parts[4]) ? parts[4].Trim() : null;
+
                 DateTime? timestamp = null;
                 if (logsByPromptware.TryGetValue(promptware, out var queue) && queue.Count > 0)
                 {
@@ -211,7 +214,7 @@ public class PlanDatabaseSyncService : IDisposable
                     timestamp = ExtractCompletedTimestamp(logEntry.Path);
                 }
 
-                costs.Add(new CostEntry(promptware, tokens, cost, timestamp, model));
+                costs.Add(new CostEntry(promptware, tokens, cost, timestamp, model, costSource));
             }
 
             _database.UpsertCosts(plan.Id, costs);

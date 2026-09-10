@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import { createPortal } from "react-dom";
 import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { BrandIcon } from "../Shell/brandIcons";
+import { Tooltip } from "../ui/Tooltip";
 import type { AgentOptionDto, EffortOptionDto, ModelOptionDto } from "./types";
 
 export interface AgentPickerProps {
@@ -33,22 +34,24 @@ const PanelSelect: React.FC<{
   options: SelectOption[];
   onChange: (value: string) => void;
 }> = ({ title, value, options, onChange }) => (
-  <label className="chat-panel-select" title={title}>
-    <select
-      className="chat-panel-select-native"
-      aria-label={title}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      {!options.some((option) => option.value === value) && <option value={value}>{value || "Default"}</option>}
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
-    <ChevronDown size={16} className="chat-panel-select-chevron" aria-hidden="true" />
-  </label>
+  <Tooltip content={title}>
+    <label className="chat-panel-select">
+      <select
+        className="chat-panel-select-native"
+        aria-label={title}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {!options.some((option) => option.value === value) && <option value={value}>{value || "Default"}</option>}
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown size={16} className="chat-panel-select-chevron" aria-hidden="true" />
+    </label>
+  </Tooltip>
 );
 
 const DEFAULT_EFFORTS: SelectOption[] = [{ value: "default", label: "Default" }];
@@ -208,21 +211,22 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
 
   return (
     <>
-      <button
-        ref={triggerRef}
-        type="button"
-        className="chat-agent-trigger"
-        data-open={open}
-        data-compact={compact}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={`Agent: ${label}`}
-        title="Agent, model and effort"
-        onClick={toggleMenu}
-      >
-        <BrandIcon name={selected?.icon} size={16} className="chat-agent-trigger-icon" />
-        {!compact && <span className="chat-agent-trigger-label">{label}</span>}
-      </button>
+      <Tooltip content="Agent, model and effort">
+        <button
+          ref={triggerRef}
+          type="button"
+          className="chat-agent-trigger"
+          data-open={open}
+          data-compact={compact}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={`Agent: ${label}`}
+          onClick={toggleMenu}
+        >
+          <BrandIcon name={selected?.icon} size={16} className="chat-agent-trigger-icon" />
+          {!compact && <span className="chat-agent-trigger-label">{label}</span>}
+        </button>
+      </Tooltip>
 
       {open &&
         createPortal(
@@ -259,20 +263,21 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
                     <BrandIcon name={agent.icon} size={16} className="chat-agent-row-icon" />
                     <span className="chat-agent-row-label">{agent.label}</span>
                     {hasSettings(settings) && (
-                      <button
-                        type="button"
-                        className="chat-agent-row-options"
-                        aria-label={`${agent.label} options`}
-                        aria-expanded={optionsOpen}
-                        title="Model and effort"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleOptions(agent.id);
-                        }}
-                        onKeyDown={(e) => e.stopPropagation()}
-                      >
-                        <SlidersHorizontal size={14} />
-                      </button>
+                      <Tooltip content="Model and effort">
+                        <button
+                          type="button"
+                          className="chat-agent-row-options"
+                          aria-label={`${agent.label} options`}
+                          aria-expanded={optionsOpen}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleOptions(agent.id);
+                          }}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          <SlidersHorizontal size={14} />
+                        </button>
+                      </Tooltip>
                     )}
                   </div>
                 );

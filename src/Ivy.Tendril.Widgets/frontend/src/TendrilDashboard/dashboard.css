@@ -253,6 +253,13 @@
   white-space: nowrap;
 }
 
+.tdb-kpi-subvalue {
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
 .tdb-kpi-delta {
   display: flex;
   align-items: center;

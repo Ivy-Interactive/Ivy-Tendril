@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 import { useShell } from "./ShellContext";
 import { ShellWidgetProps, isMac } from "./types";
 import { ShellTooltip } from "./ShellTooltip";
+import { Kbd } from "../ui/Kbd";
 import "./shell.css";
 
 interface ShellNewPlanButtonProps extends ShellWidgetProps {
@@ -35,11 +36,7 @@ export const ShellNewPlanButton: React.FC<ShellNewPlanButtonProps> = ({
             <Plus size={16} />
             <span className="tsh-newplan-label">{label}</span>
           </span>
-          <span className="tsh-kbd">
-            {hintKeys.map((key) => (
-              <span key={key}>{key}</span>
-            ))}
-          </span>
+          <Kbd keys={hintKeys} variant="bare" className="tsh-kbd" />
         </button>
       </ShellTooltip>
     </div>

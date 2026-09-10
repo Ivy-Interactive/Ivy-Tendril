@@ -47,7 +47,14 @@ public record DashboardActivityStats(
 ///     One day's spend. Days with no <c>Costs</c> row are absent rather than present as zero, so a
 ///     reader of the series can tell "no activity" from "activity that cost nothing".
 /// </summary>
-public record DashboardDailyCost(DateOnly Date, decimal Cost, long Tokens);
+public record DashboardDailyCost(
+    DateOnly Date,
+    decimal Cost,
+    long Tokens,
+    decimal ApiCost = 0m,
+    long ApiTokens = 0,
+    decimal SubsidizedCost = 0m,
+    long SubsidizedTokens = 0);
 
 public record DashboardMonthStats(
     int Year,
