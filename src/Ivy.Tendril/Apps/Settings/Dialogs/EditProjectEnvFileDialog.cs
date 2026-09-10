@@ -38,10 +38,7 @@ internal class EditProjectEnvFileDialog(
             _ => isOpen.Set(false),
             new DialogHeader(isNew ? "Add Environment File" : "Edit Environment File"),
             new DialogBody(
-                Layout.Vertical()
-                | editPath.ToTextInput("e.g. apps/web/.env").WithField().Label("Path").Required()
-                | editTemplate.ToTextInput("e.g. .env.example").WithField().Label("Template")
-                | editOverrides.ToCodeInput("PORT=${ports.backend}").Height(Size.Units(40)).WithField().Label("Overrides")
+                BuildForm(editPath, editTemplate, editOverrides)
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => isOpen.Set(false)),
@@ -101,5 +98,13 @@ internal class EditProjectEnvFileDialog(
         foreach (var (key, value) in overrides)
             sb.Append(key).Append('=').Append(value).Append('\n');
         return sb.ToString().TrimEnd('\n');
+    }
+
+    internal static LayoutView BuildForm(IState<string> editPath, IState<string> editTemplate, IState<string> editOverrides)
+    {
+        return Layout.Vertical()
+            | editPath.ToTextInput("e.g. apps/web/.env").WithField().Label("Path").Required().Help("Relative path to the environment file recreated inside the plan worktree (e.g. apps/web/.env).")
+            | editTemplate.ToTextInput("e.g. .env.example").WithField().Label("Template").Help("Optional base template file (e.g. .env.example) copied into the worktree before applying overrides.")
+            | editOverrides.ToCodeInput("PORT=${ports.backend}").Height(Size.Units(40)).WithField().Label("Overrides").Help("KEY=VALUE override lines supporting ${ports.<name>}, ${env.<VAR>}, and %VAR% placeholder substitutions.");
     }
 }

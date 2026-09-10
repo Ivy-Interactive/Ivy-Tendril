@@ -1,3 +1,4 @@
+using Ivy;
 using Ivy.Tendril.Apps.Inbox;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -15,6 +16,7 @@ public class AssignedIssuesAutoImportService : IStartable, IDisposable
     private readonly IPlanReaderService _planReader;
     private readonly IJobService _jobService;
     private readonly ILogger<AssignedIssuesAutoImportService> _logger;
+    private readonly IQueryService _queryService;
     private readonly SemaphoreSlim _syncLock = new(1, 1);
     private Timer? _timer;
 
@@ -23,20 +25,22 @@ public class AssignedIssuesAutoImportService : IStartable, IDisposable
         IGithubService githubService,
         IPlanReaderService planReader,
         IJobService jobService,
-        ILogger<AssignedIssuesAutoImportService> logger)
+        ILogger<AssignedIssuesAutoImportService> logger,
+        IQueryService queryService)
     {
         _config = config;
         _githubService = githubService;
         _planReader = planReader;
         _jobService = jobService;
         _logger = logger;
+        _queryService = queryService;
     }
 
     public void Start()
     {
         var intervalMinutes = Math.Max(1, _config.Settings.Inbox.CheckIntervalMinutes);
         var interval = TimeSpan.FromMinutes(intervalMinutes);
-        _timer = new Timer(_ => _ = RunSyncAsync(), null, TimeSpan.FromSeconds(15), interval);
+        _timer = new Timer(_ => _ = RunSyncAsync(), null, TimeSpan.FromSeconds(90), interval);
     }
 
     public void Dispose()
@@ -78,6 +82,8 @@ public class AssignedIssuesAutoImportService : IStartable, IDisposable
                 _logger.LogWarning("Failed to fetch assigned GitHub issues: {Error}", error);
                 return;
             }
+
+            _queryService.InvalidateByTag(GithubService.MyIssuesQueryTag);
 
             if (issues == null || issues.Count == 0)
                 return;

@@ -258,6 +258,7 @@ public class TendrilSettings
 {
     public string CodingAgent { get; set; } = "claude";
     public int JobTimeout { get; set; } = 30;
+    public int ChatTimeout { get; set; } = 0;
     public int StaleOutputTimeout { get; set; } = 10;
     public int GitTimeout { get; set; } = 10;
     public int MaxConcurrentJobs { get; set; } = 20;
@@ -289,6 +290,9 @@ public class TendrilSettings
     public string ChatMode { get; set; } = ChatModes.Chat;
     public bool Beta { get; set; } = false;
     public string? DismissedUpdateVersion { get; set; }
+    public string? LastChatModel { get; set; }
+    public string? LastChatAgent { get; set; }
+    public string? LastChatEffort { get; set; }
 
     public List<LevelConfig> Levels { get; set; } = new()
     {
@@ -585,6 +589,14 @@ public class ConfigService : IConfigService, IDisposable
             _logger.LogWarning("JobTimeout {Value} is out of bounds (1-480 minutes). Using default 30.",
                 Settings.JobTimeout);
             Settings.JobTimeout = 30;
+        }
+
+        // ChatTimeout: 0-480 minutes (0 = use JobTimeout)
+        if (Settings.ChatTimeout < 0 || Settings.ChatTimeout > 480)
+        {
+            _logger.LogWarning("ChatTimeout {Value} is out of bounds (0-480 minutes). Using default 0.",
+                Settings.ChatTimeout);
+            Settings.ChatTimeout = 0;
         }
 
         // StaleOutputTimeout: 1-60 minutes

@@ -73,7 +73,7 @@ All tools are prefixed with `tendril_` and provide the same capabilities as the 
 
 | Tool | Parameters | Description |
 |------|------------|-------------|
-| `tendril_get_config` | `key` | Get a top-level config value. Supported keys: `codingAgent`, `jobTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate` |
+| `tendril_get_config` | `key` | Get a top-level config value. Supported keys: `codingAgent`, `jobTimeout`, `chatTimeout`, `staleOutputTimeout`, `gitTimeout`, `maxConcurrentJobs`, `planTemplate` |
 | `tendril_set_config` | `key`, `value` | Set a top-level config value. Integer fields are bounds-checked; `planTemplate` may be long or multiline. Same keys as `tendril_get_config` |
 
 ## Claude Code Configuration

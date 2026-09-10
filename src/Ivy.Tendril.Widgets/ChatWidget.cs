@@ -106,6 +106,9 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Prop] public string? Greeting { get; init; }
     [Prop] public string? Headline { get; init; }
 
+    /// <summary>Hosted inside another page (the plan chat panel): no title bar, a tighter composer.</summary>
+    [Prop] public bool Embedded { get; init; }
+
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnSelectSession { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnDeleteSession { get; init; }
     [Event] public Func<Event<ChatWidget, string[]>, ValueTask>? OnRenameSession { get; init; }

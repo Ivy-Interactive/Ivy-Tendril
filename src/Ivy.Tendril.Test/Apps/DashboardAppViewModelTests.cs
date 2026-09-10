@@ -92,47 +92,6 @@ public class DashboardAppViewModelTests
     }
 
     [Fact]
-    public void BuildTrend_ComparesTheSameCalendarDayAYearEarlier()
-    {
-        var today = new DateTime(2026, 9, 6);
-        var dataStart = new DateOnly(2025, 1, 1);
-        var activity = new DashboardActivityStats(
-            [], 0m, DailyCosts(dataStart, new DateOnly(2026, 9, 6), Unique), null, dataStart);
-
-        var trend = DashboardApp.BuildTrend(activity, today);
-
-        Assert.NotNull(trend);
-        // A year before the last displayed day, read by date rather than by bucket offset.
-        Assert.Equal((double)Unique(new DateOnly(2025, 9, 6)), trend.PrevCost[^1]);
-
-        // The comparison day for 2026-01-01 is exactly the first recorded day, so it is known.
-        var firstOfYear = trend.Dates.IndexOf("2026-01-01");
-        Assert.Equal((double)Unique(dataStart), trend.PrevCost[firstOfYear]);
-
-        // One day earlier the comparison falls before any record: unknown, not zero.
-        Assert.Null(trend.PrevCost[firstOfYear - 1]);
-        Assert.Null(trend.PrevCost[0]);
-    }
-
-    [Fact]
-    public void BuildTrend_MapsLeapDayOntoTheTwentyEighth()
-    {
-        // 2027 has no 29th of February. Clamping to the 28th is the calendar behaviour wanted, and the
-        // alternative (a gap in the comparison every fourth year) would read as missing data.
-        var today = new DateTime(2028, 3, 1);
-        var dataStart = new DateOnly(2026, 1, 1);
-        var activity = new DashboardActivityStats(
-            [], 0m, DailyCosts(dataStart, new DateOnly(2028, 3, 1), Unique), null, dataStart);
-
-        var trend = DashboardApp.BuildTrend(activity, today);
-
-        Assert.NotNull(trend);
-        var leapDay = trend.Dates.IndexOf("2028-02-29");
-        Assert.True(leapDay >= 0, "the displayed range should contain the leap day");
-        Assert.Equal((double)Unique(new DateOnly(2027, 2, 28)), trend.PrevCost[leapDay]);
-    }
-
-    [Fact]
     public void BuildTrend_WithoutADailySeries_IsAbsent()
     {
         // No monthly fallback: monthly buckets cannot carry a 7 day average or a date axis, so the card
@@ -160,7 +119,6 @@ public class DashboardAppViewModelTests
         Assert.All(trend.Plans, plans => Assert.Equal(0d, plans));
         Assert.All(trend.RollingCost, rolling => Assert.Null(rolling));
         Assert.All(trend.RollingPlans, rolling => Assert.Null(rolling));
-        Assert.All(trend.PrevCost, prev => Assert.Null(prev));
     }
 
     [Fact]
@@ -317,7 +275,7 @@ public class DashboardAppViewModelTests
     }
 
     [Fact]
-    public void BuildWeeklyTrend_Projects28DaysWithComparison()
+    public void BuildWeeklyTrend_Projects28Days()
     {
         var today = new DateTime(2026, 9, 6);
         var dailyCosts = new List<DashboardDailyCost>
@@ -341,8 +299,6 @@ public class DashboardAppViewModelTests
         Assert.Equal(28, trend.Dates.Count);
         Assert.Equal(28, trend.Cost.Count);
         Assert.Equal(28, trend.Plans.Count);
-        Assert.Equal(28, trend.PrevCost.Count);
-        Assert.Equal(28, trend.PrevPlans.Count);
         Assert.Equal(28, trend.RollingCost.Count);
 
         // 27 days before today through today, as dates rather than labels.
@@ -353,10 +309,6 @@ public class DashboardAppViewModelTests
         Assert.Equal(5.0, trend.Plans[^1]);
         // Zero-filled: Sept 4 has no rows at all and is present as 0, not missing.
         Assert.Equal(0d, trend.Cost[trend.Dates.IndexOf("2026-09-04")]);
-
-        // Sept 6 compared to 28 days earlier (Aug 9)
-        Assert.Equal(12.50, trend.PrevCost[^1]);
-        Assert.Equal(2.0, trend.PrevPlans[^1]);
 
         // Records begin Aug 9 (the fallback for a mock with no DailyDataStart).
         // Leading dates have expanding averages rather than null.
@@ -466,5 +418,105 @@ public class DashboardAppViewModelTests
     public void GetKpiSheetTitle_ReturnsExpectedTitle(string key, string expected)
     {
         Assert.Equal(expected, DashboardApp.GetKpiSheetTitle(key));
+    }
+
+    [Fact]
+    public void BuildWeeklyPullRequests_BucketsIntoTrailingWeeks()
+    {
+        var today = new DateTime(2026, 9, 9, 12, 0, 0, DateTimeKind.Utc);
+        var prDays = new List<(DateOnly Date, int Count)>
+        {
+            // Outside trailing 6 weeks: should not be counted
+            (new DateOnly(2026, 7, 1), 10),
+            // Week 1: Aug 3 to Aug 9
+            (new DateOnly(2026, 8, 4), 3),
+            (new DateOnly(2026, 8, 9), 2),
+            // Week 2: Aug 10 to Aug 16 has 0 PRs
+            // Week 3: Aug 17 to Aug 23
+            (new DateOnly(2026, 8, 20), 4),
+            // Week 4: Aug 24 to Aug 30
+            (new DateOnly(2026, 8, 24), 7),
+            // Week 5: Aug 31 to Sep 6
+            (new DateOnly(2026, 8, 31), 1),
+            (new DateOnly(2026, 9, 5), 2),
+            // Week 6: Sep 7 to Sep 13
+            (new DateOnly(2026, 9, 8), 6)
+        };
+
+        var result = DashboardApp.BuildWeeklyPullRequests(prDays, today, 6);
+
+        Assert.Equal(6, result.Count);
+        Assert.Equal("Aug 3", result[0].Label);
+        Assert.Equal(5, result[0].Value);
+        Assert.Equal(2026, result[0].Year);
+        Assert.Equal(8, result[0].Month);
+        Assert.Equal(3, result[0].Day);
+        Assert.Equal("2026-08-03", result[0].Date);
+
+        Assert.Equal("Aug 10", result[1].Label);
+        Assert.Equal(0, result[1].Value);
+        Assert.Equal(2026, result[1].Year);
+        Assert.Equal(8, result[1].Month);
+        Assert.Equal(10, result[1].Day);
+        Assert.Equal("2026-08-10", result[1].Date);
+
+        Assert.Equal("Aug 17", result[2].Label);
+        Assert.Equal(4, result[2].Value);
+        Assert.Equal(2026, result[2].Year);
+        Assert.Equal(8, result[2].Month);
+        Assert.Equal(17, result[2].Day);
+        Assert.Equal("2026-08-17", result[2].Date);
+
+        Assert.Equal("Aug 24", result[3].Label);
+        Assert.Equal(7, result[3].Value);
+        Assert.Equal(2026, result[3].Year);
+        Assert.Equal(8, result[3].Month);
+        Assert.Equal(24, result[3].Day);
+        Assert.Equal("2026-08-24", result[3].Date);
+
+        Assert.Equal("Aug 31", result[4].Label);
+        Assert.Equal(3, result[4].Value);
+        Assert.Equal(2026, result[4].Year);
+        Assert.Equal(8, result[4].Month);
+        Assert.Equal(31, result[4].Day);
+        Assert.Equal("2026-08-31", result[4].Date);
+
+        Assert.Equal("Sep 7", result[5].Label);
+        Assert.Equal(6, result[5].Value);
+        Assert.Equal(2026, result[5].Year);
+        Assert.Equal(9, result[5].Month);
+        Assert.Equal(7, result[5].Day);
+        Assert.Equal("2026-09-07", result[5].Date);
+    }
+
+    [Fact]
+    public void BuildMonthlyPullRequests_PopulatesStructuredDateFields()
+    {
+        var months = new List<DashboardMonthStats>
+        {
+            new(2026, 4, 10, 8, 100m, 1000),
+            new(2026, 5, 12, 15, 150m, 1500),
+            new(2026, 6, 8, 6, 80m, 800),
+            new(2026, 7, 14, 12, 120m, 1200),
+            new(2026, 8, 18, 20, 200m, 2000),
+            new(2026, 9, 7, 5, 60m, 600),
+        };
+
+        var result = DashboardApp.BuildMonthlyPullRequests(months, 6);
+
+        Assert.Equal(6, result.Count);
+        Assert.Equal("Apr", result[0].Label);
+        Assert.Equal(8, result[0].Value);
+        Assert.Equal(2026, result[0].Year);
+        Assert.Equal(4, result[0].Month);
+        Assert.Equal(1, result[0].Day);
+        Assert.Equal("2026-04-01", result[0].Date);
+
+        Assert.Equal("Sep", result[5].Label);
+        Assert.Equal(5, result[5].Value);
+        Assert.Equal(2026, result[5].Year);
+        Assert.Equal(9, result[5].Month);
+        Assert.Equal(1, result[5].Day);
+        Assert.Equal("2026-09-01", result[5].Date);
     }
 }

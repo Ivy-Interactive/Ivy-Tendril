@@ -23,10 +23,8 @@ const renderChart = (props: Partial<React.ComponentProps<typeof TrendChart>> = {
     <TrendChart
       dates={dates}
       values={props.values ?? dates.map((_, i) => 100 + i * 10)}
-      previous={props.previous}
       rolling={props.rolling}
       currentName={props.currentName ?? "Last 4 weeks"}
-      previousName={props.previousName ?? "Previous 4 weeks"}
       formatTick={props.formatTick ?? ((v) => `$${v}`)}
       formatValue={props.formatValue ?? formatCurrencyValue}
     />,
@@ -56,6 +54,15 @@ describe("TrendChart rolling average curve", () => {
 
     expect(container.querySelectorAll(".tdb-trend-avg-curve")).toHaveLength(1);
     expect(container.querySelectorAll(".tdb-trend-avg-line")).toHaveLength(0);
+  });
+
+  it("does not render the comparison curve", () => {
+    const dates = days(30);
+    const values = dates.map((_, i) => 100 + i * 10);
+
+    const { container } = renderChart({ dates, values });
+
+    expect(container.querySelectorAll(".tdb-trend-compare")).toHaveLength(0);
   });
 
   it("draws an expanding average curve when rolling series is omitted", () => {
@@ -116,3 +123,28 @@ describe("TrendChart rolling average curve", () => {
     expect(screen.queryByText(/7-day average/)).not.toBeInTheDocument();
   });
 });
+
+describe("TrendChart x-axis tick suppression", () => {
+  beforeEach(() => {
+    Element.prototype.getBoundingClientRect = vi.fn(
+      () => ({ width: CHART_WIDTH, height: 236, top: 0, left: 0, right: CHART_WIDTH, bottom: 236, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect,
+    );
+    globalThis.ResizeObserver = class {
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = vi.fn();
+    } as unknown as typeof ResizeObserver;
+  });
+
+  it("suppresses ticks that are too close to the pinned final tick to prevent overlapping", () => {
+    const dates = days(26);
+    const { container } = renderChart({ dates });
+
+    const axisTexts = Array.from(container.querySelectorAll("text.tdb-axis-text")).map(
+      (t) => t.textContent,
+    );
+    expect(axisTexts).toContain("Sep 6");
+    expect(axisTexts).not.toContain("Sep 5");
+  });
+});
+

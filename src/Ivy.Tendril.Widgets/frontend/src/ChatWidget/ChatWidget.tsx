@@ -13,6 +13,7 @@ import {
   Sparkles,
   Square,
   Trash2,
+  Upload,
   X,
   XCircle,
 } from "lucide-react";
@@ -25,7 +26,7 @@ import type {
 import { BlockMarkdown } from "../BlockMarkdown";
 import { AgentPicker } from "./AgentPicker";
 import { AssistantTurn } from "./AssistantTurn";
-import { ChatHeader } from "./ChatHeader";
+import { ChatHeader, JobsMenu } from "./ChatHeader";
 import { Badge, CountBadge } from "../ui/Badge";
 import { IconButton } from "../ui/IconButton";
 import {
@@ -122,6 +123,7 @@ export function ChatWidget({
   runningJobs = [],
   greeting,
   headline = "What Are We Producing Today?",
+  embedded = false,
   events = [],
   eventHandler,
 }: ChatWidgetProps) {
@@ -525,24 +527,58 @@ export function ChatWidget({
     }
   };
 
+  const dragCounterRef = useRef(0);
+
+  useEffect(() => {
+    const handleWindowDragOver = (e: DragEvent) => {
+      e.preventDefault();
+    };
+    const handleWindowDrop = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current = 0;
+      setIsDragging(false);
+    };
+
+    window.addEventListener("dragover", handleWindowDragOver);
+    window.addEventListener("drop", handleWindowDrop);
+
+    return () => {
+      window.removeEventListener("dragover", handleWindowDragOver);
+      window.removeEventListener("drop", handleWindowDrop);
+    };
+  }, []);
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    setIsDragging(true);
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
-    setIsDragging(true);
+    if (dragCounterRef.current === 0) dragCounterRef.current = 1;
+    if (!isDragging) setIsDragging(true);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(false);
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
   };
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    dragCounterRef.current = 0;
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
       await addFiles(e.dataTransfer.files);
     }
   };
@@ -563,32 +599,67 @@ export function ChatWidget({
   const title = (activeSession && pendingRenames[activeSession.id]) || activeSession?.title || "New Chat";
 
   return (
-    <div className="chat-widget-root">
+    <div
+      className={`chat-widget-root ${isDragging ? "dragging" : ""}`}
+      data-embedded={embedded}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <input ref={fileInputRef} type="file" multiple style={{ display: "none" }} onChange={handleFileSelect} />
 
-      <ChatHeader
-        key={activeSessionId ?? "none"}
-        title={title}
-        editable={!!activeSession}
-        jobs={headerJobs}
-        spawned={sessionSpawnedJobs.length > 0}
-        onRename={(t) => {
-          if (!activeSession) return;
-          setPendingRenames((prev) => ({ ...prev, [activeSession.id]: t }));
-          // One array argument: the host maps a single argument onto the event's string[] value.
-          emit("OnRenameSession", [activeSession.id, t]);
-        }}
-        onDelete={() => activeSession && emit("OnDeleteSession", activeSession.id)}
-        onNewChat={() => emit("OnCreateSession")}
-        onReviewJobs={() =>
-          activeSession &&
-          emit("OnSendMessage", {
-            prompt: "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
-            attachments: [],
-            sessionId: activeSession.id,
-          })
-        }
-      />
+      {isDragging && (
+        <div className="chat-drop-overlay" aria-hidden="true">
+          <div className="chat-drop-overlay-content">
+            <Upload size={36} className="chat-drop-overlay-icon" />
+            <span className="chat-drop-overlay-text">Drop files here to attach to message</span>
+          </div>
+        </div>
+      )}
+
+      {embedded ? (
+        activeSession &&
+        headerJobs.length > 0 && (
+          <div className="chat-header chat-header--embedded">
+            <JobsMenu
+              jobs={headerJobs}
+              spawned={sessionSpawnedJobs.length > 0}
+              onReview={() =>
+                emit("OnSendMessage", {
+                  prompt: "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
+                  attachments: [],
+                  sessionId: activeSession.id,
+                })
+              }
+            />
+          </div>
+        )
+      ) : (
+        <ChatHeader
+          key={activeSessionId ?? "none"}
+          title={title}
+          editable={!!activeSession}
+          jobs={headerJobs}
+          spawned={sessionSpawnedJobs.length > 0}
+          onRename={(t) => {
+            if (!activeSession) return;
+            setPendingRenames((prev) => ({ ...prev, [activeSession.id]: t }));
+            // One array argument: the host maps a single argument onto the event's string[] value.
+            emit("OnRenameSession", [activeSession.id, t]);
+          }}
+          onDelete={() => activeSession && emit("OnDeleteSession", activeSession.id)}
+          onNewChat={() => emit("OnCreateSession")}
+          onReviewJobs={() =>
+            activeSession &&
+            emit("OnSendMessage", {
+              prompt: "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
+              attachments: [],
+              sessionId: activeSession.id,
+            })
+          }
+        />
+      )}
 
       <div ref={messagesContainerRef} className="chat-messages-container">
         <div className="chat-thread" data-empty={!hasThreadContent}>
@@ -745,10 +816,6 @@ export function ChatWidget({
 
           <div
             className={`chat-input-box ${isDragging ? "dragging" : ""} ${isPayloadOversized ? "oversized" : ""}`}
-            onDragEnter={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
           >
             {isPayloadOversized && (
               <div className="chat-payload-warning" role="alert">
@@ -791,7 +858,7 @@ export function ChatWidget({
                 label="Attach file"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <Paperclip size={20} />
+                <Paperclip size={embedded ? 16 : 20} />
               </IconButton>
 
               <textarea
@@ -817,6 +884,7 @@ export function ChatWidget({
                   onAgentChange={(agentId) => emit("OnAgentChanged", agentId)}
                   onModelChange={(modelId) => emit("OnModelChanged", modelId)}
                   onEffortChange={(effortId) => emit("OnEffortChanged", effortId)}
+                  compact={embedded}
                 />
 
                 <IconButton
@@ -825,11 +893,11 @@ export function ChatWidget({
                   onClick={toggleVoiceRecording}
                 >
                   {voiceStatus === "connecting" || voiceStatus === "processing" ? (
-                    <LoaderCircle size={20} className="spin" />
+                    <LoaderCircle size={embedded ? 16 : 20} className="spin" />
                   ) : voiceStatus === "recording" ? (
-                    <Square size={20} />
+                    <Square size={embedded ? 16 : 20} />
                   ) : (
-                    <Mic size={20} />
+                    <Mic size={embedded ? 16 : 20} />
                   )}
                 </IconButton>
 

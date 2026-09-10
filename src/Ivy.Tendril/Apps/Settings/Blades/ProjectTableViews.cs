@@ -432,7 +432,10 @@ public class ProjectPortsTableView(
     public override object? Build()
     {
         var current = ports.Value;
-        if (current.Count == 0) return null;
+        if (current.Count == 0)
+        {
+            return Text.Block("No service ports configured. Define named ports for dynamic port allocation across concurrent plan reviews.").Muted().Small();
+        }
 
         var rows = current.Select((p, i) => new PortRow(p.Key, p.Value.DefaultPort, p.Value.Description, i)).ToList();
 
@@ -471,7 +474,10 @@ public class ProjectEnvFilesTableView(
     public override object? Build()
     {
         var list = envFiles.Value;
-        if (list.Count == 0) return null;
+        if (list.Count == 0)
+        {
+            return Text.Block("No environment files configured. Define environment files to materialize .env templates and inject variables into plan worktrees.").Muted().Small();
+        }
 
         var rows = list
             .Select((f, i) => new EnvFileRow(f.Path, f.Template ?? "", string.Join(", ", f.Overrides.Keys), i))

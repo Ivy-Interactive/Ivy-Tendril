@@ -50,6 +50,8 @@ public static class FirmwareCompiler
 
         Complete your task and present the user with a summary.
 
+        **Background tasks:** You run in non-interactive batch mode. If a command exceeds the tool timeout and is moved to a background task, ending your turn with text and no tool call does not actually get you notified when it finishes - wait for it inside a tool call (for example a Bash command that polls the task output file or blocks on the process until it exits), or re-run the work as a shorter command. Prefer commands that finish inside the tool timeout over ones you have to wait on.
+
         ## Reflection
 
         Every execution needs to end with a reflection step. This is your opportunity to improve over time. What did we learn during this session? Save reflections using the CLI:

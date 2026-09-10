@@ -19,6 +19,7 @@ import { ShellSidebarSection } from "./Shell/ShellSidebarSection";
 import { ShellSettingsButton } from "./Shell/ShellSettingsButton";
 import { ShellTabs } from "./Shell/ShellTabs";
 import { TendrilQuestions } from "./TendrilQuestions/TendrilQuestions";
+import { PlanWorkspace } from "./PlanWorkspace/PlanWorkspace";
 import {
   TendrilBadge,
   TendrilIconButton,
@@ -60,6 +61,7 @@ if (typeof window !== "undefined") {
     TendrilBadge,
     TendrilIconButton,
     TendrilStatusLine,
+    PlanWorkspace,
   };
 }
 
@@ -90,4 +92,5 @@ export {
   TendrilBadge,
   TendrilIconButton,
   TendrilStatusLine,
+  PlanWorkspace,
 };

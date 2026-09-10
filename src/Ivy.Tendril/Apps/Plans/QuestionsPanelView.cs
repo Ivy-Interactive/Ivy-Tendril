@@ -3,8 +3,8 @@ using Ivy.Tendril.Widgets;
 namespace Ivy.Tendril.Apps.Plans;
 
 /// <summary>
-///     Sticky-sidebar card indexing every question in the plan, so a long revision stays navigable.
-///     Clicking an entry scrolls its block into view.
+///     The Questions dropdown in the tab strip: an index of every question in the plan, so a long
+///     revision stays navigable. Clicking an entry scrolls its block into view.
 ///     <para>
 ///         An entry is struck through and muted once it carries an answer — what stays live is what
 ///         still wants a human. An <c>optional: true</c> question says so beside its title and stays
@@ -12,7 +12,7 @@ namespace Ivy.Tendril.Apps.Plans;
 ///         dealt with it.
 ///     </para>
 /// </summary>
-public class QuestionsCardView(
+public class QuestionsPanelView(
     IReadOnlyList<QuestionSummary> questions,
     Action<string> onSelect) : ViewBase
 {
@@ -42,11 +42,9 @@ public class QuestionsCardView(
 
         var answered = questions.Count(q => q.HasAnswer);
 
-        return new Card(
-            Layout.Vertical().Gap(2)
-            //| Text.Muted($"{answered} of {questions.Count} answered")
-            | inner
-        ).Header("Questions").Width(Size.Px(280));
+        return Layout.Vertical().Gap(2).Width(Size.Full())
+               | Text.Muted($"{answered} of {questions.Count} answered").Small()
+               | inner;
     }
 
     /// <summary>The question itself, falling back to its eyebrow and then to its id.</summary>

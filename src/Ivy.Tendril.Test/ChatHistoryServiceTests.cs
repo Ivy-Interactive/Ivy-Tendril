@@ -690,4 +690,38 @@ public class ChatHistoryServiceTests
                 Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void CreateSession_RecordsLastChatModelAndAgentInSettings()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var configService = new ConfigService(new TendrilSettings(), tempDir);
+            var service = new ChatHistoryService(configService);
+
+            Assert.Null(configService.Settings.LastChatAgent);
+            Assert.Null(configService.Settings.LastChatModel);
+            Assert.Null(configService.Settings.LastChatEffort);
+
+            service.CreateSession("antigravity", "gemini-3.8-flash", effort: "high");
+
+            Assert.Equal("antigravity", configService.Settings.LastChatAgent);
+            Assert.Equal("gemini-3.8-flash", configService.Settings.LastChatModel);
+            Assert.Equal("high", configService.Settings.LastChatEffort);
+
+            // Verify persisted to disk
+            var reloaded = new ConfigService(new TendrilSettings(), tempDir);
+            reloaded.ReloadSettings();
+            Assert.Equal("antigravity", reloaded.Settings.LastChatAgent);
+            Assert.Equal("gemini-3.8-flash", reloaded.Settings.LastChatModel);
+            Assert.Equal("high", reloaded.Settings.LastChatEffort);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
 }

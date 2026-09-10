@@ -1,3 +1,4 @@
+using Ivy;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Git;
@@ -49,7 +50,7 @@ public class AssignedIssuesAutoImportServiceTests : IDisposable
         var jobService = new TestJobService();
         var logger = NullLogger<AssignedIssuesAutoImportService>.Instance;
 
-        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger);
+        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger, new FakeQueryService());
 
         await service.RunSyncAsync();
 
@@ -76,7 +77,7 @@ public class AssignedIssuesAutoImportServiceTests : IDisposable
         var jobService = new TestJobService();
         var logger = NullLogger<AssignedIssuesAutoImportService>.Instance;
 
-        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger);
+        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger, new FakeQueryService());
 
         await service.RunSyncAsync();
 
@@ -115,7 +116,7 @@ public class AssignedIssuesAutoImportServiceTests : IDisposable
         var jobService = new TestJobService();
         var logger = NullLogger<AssignedIssuesAutoImportService>.Instance;
 
-        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger);
+        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger, new FakeQueryService());
 
         await service.RunSyncAsync();
 
@@ -155,7 +156,7 @@ public class AssignedIssuesAutoImportServiceTests : IDisposable
         var jobService = new TestJobService();
         var logger = NullLogger<AssignedIssuesAutoImportService>.Instance;
 
-        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger);
+        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger, new FakeQueryService());
 
         await service.RunSyncAsync();
 
@@ -216,7 +217,7 @@ public class AssignedIssuesAutoImportServiceTests : IDisposable
         var jobService = new TestJobService();
         var logger = NullLogger<AssignedIssuesAutoImportService>.Instance;
 
-        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger);
+        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger, new FakeQueryService());
 
         await service.RunSyncAsync();
 
@@ -257,7 +258,7 @@ public class AssignedIssuesAutoImportServiceTests : IDisposable
         var planReader = new FakePlanReaderService();
         var logger = NullLogger<AssignedIssuesAutoImportService>.Instance;
 
-        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger);
+        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger, new FakeQueryService());
 
         await service.RunSyncAsync();
 
@@ -285,7 +286,7 @@ public class AssignedIssuesAutoImportServiceTests : IDisposable
         var jobService = new TestJobService();
         var logger = NullLogger<AssignedIssuesAutoImportService>.Instance;
 
-        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger);
+        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger, new FakeQueryService());
 
         await service.TriggerManualCheckAsync();
 
@@ -295,9 +296,127 @@ public class AssignedIssuesAutoImportServiceTests : IDisposable
         Assert.Single(files601);
     }
 
+    [Fact]
+    public async Task RunSyncAsync_WhenSuccessful_InvalidatesMyIssuesQueryTagOnce()
+    {
+        var config = CreateConfigService(autoAccept: true);
+        var github = new TestGithubService
+        {
+            IssuesToReturn = [new GitHubIssue(101, "Issue 1", "Body", [], ["user1"], "owner/repo", "https://github.com/owner/repo/issues/101")]
+        };
+        var planReader = new FakePlanReaderService();
+        var jobService = new TestJobService();
+        var logger = NullLogger<AssignedIssuesAutoImportService>.Instance;
+        var queryService = new FakeQueryService();
+
+        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger, queryService);
+
+        await service.RunSyncAsync();
+
+        Assert.Single(queryService.InvalidatedTags);
+        Assert.Equal(GithubService.MyIssuesQueryTag, queryService.InvalidatedTags[0]);
+    }
+
+    [Fact]
+    public async Task RunSyncAsync_WhenSyncFails_DoesNotInvalidateQueryTag()
+    {
+        var config = CreateConfigService(autoAccept: true);
+        var github = new TestGithubService
+        {
+            ErrorToReturn = "Failed to fetch issues"
+        };
+        var planReader = new FakePlanReaderService();
+        var jobService = new TestJobService();
+        var logger = NullLogger<AssignedIssuesAutoImportService>.Instance;
+        var queryService = new FakeQueryService();
+
+        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger, queryService);
+
+        await service.RunSyncAsync();
+
+        Assert.Empty(queryService.InvalidatedTags);
+    }
+
+    [Fact]
+    public async Task RunSyncAsync_WhenDisabled_DoesNotInvalidateQueryTag()
+    {
+        var config = CreateConfigService(autoAccept: false);
+        var github = new TestGithubService
+        {
+            IssuesToReturn = [new GitHubIssue(101, "Issue 1", "Body", [], ["user1"], "owner/repo", "https://github.com/owner/repo/issues/101")]
+        };
+        var planReader = new FakePlanReaderService();
+        var jobService = new TestJobService();
+        var logger = NullLogger<AssignedIssuesAutoImportService>.Instance;
+        var queryService = new FakeQueryService();
+
+        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger, queryService);
+
+        await service.RunSyncAsync();
+
+        Assert.Empty(queryService.InvalidatedTags);
+    }
+
+    [Fact]
+    public async Task RunSyncAsync_WhenAlreadyInProgress_DoesNotInvalidateQueryTag()
+    {
+        var config = CreateConfigService(autoAccept: true);
+        var tcs = new TaskCompletionSource<(List<GitHubIssue>, string?)>();
+        var github = new BlockingGithubService(tcs.Task);
+        var planReader = new FakePlanReaderService();
+        var jobService = new TestJobService();
+        var logger = NullLogger<AssignedIssuesAutoImportService>.Instance;
+        var queryService = new FakeQueryService();
+
+        var service = new AssignedIssuesAutoImportService(config, github, planReader, jobService, logger, queryService);
+
+        var firstSync = service.RunSyncAsync();
+
+        await service.RunSyncAsync();
+
+        Assert.Empty(queryService.InvalidatedTags);
+
+        tcs.SetResult(([], null));
+        await firstSync;
+
+        Assert.Single(queryService.InvalidatedTags);
+    }
+
+    private sealed class FakeQueryService : IQueryService
+    {
+        public List<object> InvalidatedTags { get; } = [];
+
+        public void InvalidateByTag(object tag) => InvalidatedTags.Add(tag);
+        public void RevalidateByTag(object tag) { }
+        public void Invalidate(Func<object, bool> predicate) { }
+        public void Revalidate(Func<object, bool> predicate) { }
+        public void Clear() { }
+    }
+
+    private sealed class BlockingGithubService(Task<(List<GitHubIssue>, string?)> waitTask) : IGithubService
+    {
+        public List<RepoConfig> GetRepos() => [];
+        public RepoConfig? GetRepoConfigFromPathCached(string repoPath) => null;
+        public ProjectConfig? FindProjectForGithubRepo(string ownerRepo) => null;
+        public IReadOnlyList<string> GetResolvedGithubRepos(ProjectConfig project) => [];
+        public Task<(List<string> assignees, string? error)> GetAssigneesAsync(string owner, string repo) =>
+            Task.FromResult((new List<string>(), (string?)null));
+        public Task<(List<string> labels, string? error)> GetLabelsAsync(string owner, string repo) =>
+            Task.FromResult((new List<string>(), (string?)null));
+        public Task<(Dictionary<string, PrInfo> statuses, string? error)> GetPrStatusesAsync(string owner, string repo) =>
+            Task.FromResult((new Dictionary<string, PrInfo>(), (string?)null));
+        public Task<(List<GitHubIssue> issues, string? error)> SearchIssuesAsync(IssueSearchRequest request) =>
+            Task.FromResult((new List<GitHubIssue>(), (string?)null));
+        public async Task<(List<GitHubIssue> issues, string? error)> GetMyAssignedIssuesAsync() =>
+            await waitTask;
+        public Task<(List<GitHubReviewItem> prs, string? error)> GetReviewRequestsAsync() =>
+            Task.FromResult((new List<GitHubReviewItem>(), (string?)null));
+    }
+
     private sealed class TestGithubService : IGithubService
     {
         public List<GitHubIssue> IssuesToReturn { get; set; } = [];
+        public string? ErrorToReturn { get; set; }
         public int CallCount { get; private set; }
         public Dictionary<string, ProjectConfig> ProjectMap { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -318,7 +437,7 @@ public class AssignedIssuesAutoImportServiceTests : IDisposable
         public Task<(List<GitHubIssue> issues, string? error)> GetMyAssignedIssuesAsync()
         {
             CallCount++;
-            return Task.FromResult((IssuesToReturn, (string?)null));
+            return Task.FromResult((IssuesToReturn, ErrorToReturn));
         }
         public Task<(List<GitHubReviewItem> prs, string? error)> GetReviewRequestsAsync() =>
             Task.FromResult((new List<GitHubReviewItem>(), (string?)null));

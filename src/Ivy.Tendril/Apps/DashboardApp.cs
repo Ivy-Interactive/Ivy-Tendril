@@ -135,10 +135,8 @@ public class DashboardApp : ViewBase
             .Kpis(BuildKpis(stats, activity, prDays, today))
             .Trend(BuildTrend(activity, today))
             .TrendWeekly(BuildWeeklyTrend(activity, today))
-            .PullRequests(activity.Months
-                .TakeLast(6)
-                .Select(m => new DashboardMonthValueDto(MonthLabel(m.Month), m.PrsMerged))
-                .ToList())
+            .PullRequests(BuildMonthlyPullRequests(activity.Months))
+            .PullRequestsWeekly(BuildWeeklyPullRequests(prDays, today))
             .Activity(BuildActivityMonths(prDays, firstActivityMonth))
             .Jobs(BuildActiveJobs(jobs, planService))
             .OnDrafts(() => navigator.Navigate<PlansApp>())
@@ -201,6 +199,46 @@ public class DashboardApp : ViewBase
 
     private static string MonthLabel(int month) =>
         CultureInfo.InvariantCulture.DateTimeFormat.GetAbbreviatedMonthName(month);
+
+    internal static List<DashboardMonthValueDto> BuildMonthlyPullRequests(
+        IEnumerable<DashboardMonthStats> months, int count = 6)
+    {
+        return months
+            .TakeLast(count)
+            .Select(m => new DashboardMonthValueDto(
+                MonthLabel(m.Month),
+                m.PrsMerged,
+                m.Year,
+                m.Month,
+                1,
+                $"{m.Year:D4}-{m.Month:D2}-01"))
+            .ToList();
+    }
+
+    internal static List<DashboardMonthValueDto> BuildWeeklyPullRequests(
+        List<(DateOnly Date, int Count)> prDays, DateTime today, int weeks = 6)
+    {
+        var daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
+        var currentWeekMonday = DateOnly.FromDateTime(today).AddDays(-daysSinceMonday);
+        var result = new List<DashboardMonthValueDto>(weeks);
+
+        for (var i = weeks - 1; i >= 0; i--)
+        {
+            var weekStart = currentWeekMonday.AddDays(-i * 7);
+            var weekEnd = weekStart.AddDays(6);
+            var count = prDays.Where(p => p.Date >= weekStart && p.Date <= weekEnd).Sum(p => p.Count);
+            var label = $"{MonthLabel(weekStart.Month)} {weekStart.Day}";
+            result.Add(new DashboardMonthValueDto(
+                label,
+                count,
+                weekStart.Year,
+                weekStart.Month,
+                weekStart.Day,
+                weekStart.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
+        }
+
+        return result;
+    }
 
     internal static List<DashboardKpiDto> BuildKpis(
         DashboardModels stats,
@@ -287,24 +325,21 @@ public class DashboardApp : ViewBase
     internal const int TrendDailyWindowDays = 28;
 
     /// <summary>
-    ///     The last twelve months as daily points, compared against the same calendar day a year
-    ///     earlier. Null when no daily series is available.
+    ///     The last twelve months as daily points. Null when no daily series is available.
     /// </summary>
     internal static DashboardTrendDto? BuildTrend(
         DashboardActivityStats activity, DateTime? todayOverride = null) =>
-        BuildDailyTrend(activity, TrendDailyShownDays, date => date.AddYears(-1), todayOverride);
+        BuildDailyTrend(activity, TrendDailyShownDays, todayOverride);
 
     /// <summary>
-    ///     The last four weeks as daily points, compared against the 28 days before them. Null when no
-    ///     daily series is available.
+    ///     The last four weeks as daily points. Null when no daily series is available.
     /// </summary>
     internal static DashboardTrendDto? BuildWeeklyTrend(
         DashboardActivityStats activity, DateTime? todayOverride = null) =>
-        BuildDailyTrend(activity, TrendDailyWindowDays, date => date.AddDays(-TrendDailyWindowDays), todayOverride);
+        BuildDailyTrend(activity, TrendDailyWindowDays, todayOverride);
 
     /// <summary>
-    ///     One trend card's worth of contiguous daily points ending today, each with a date-aligned
-    ///     comparison and a rolling 7 day mean.
+    ///     One trend card's worth of contiguous daily points ending today, with a rolling 7 day mean.
     /// </summary>
     /// <remarks>
     ///     Returns null when neither daily series is present rather than falling back to weekly or
@@ -315,7 +350,6 @@ public class DashboardApp : ViewBase
     internal static DashboardTrendDto? BuildDailyTrend(
         DashboardActivityStats activity,
         int days,
-        Func<DateOnly, DateOnly> comparisonDate,
         DateTime? todayOverride = null)
     {
         if (activity.DailyCosts == null && activity.DailyPlans == null)
@@ -337,24 +371,10 @@ public class DashboardApp : ViewBase
         double CostAt(DateOnly date) => costsByDay.GetValueOrDefault(date, 0.0);
         double PlansAt(DateOnly date) => plansByDay.GetValueOrDefault(date, 0);
 
-        var prevCost = new List<double?>(days);
-        var prevPlans = new List<double?>(days);
-        foreach (var date in dates)
-        {
-            // Note that Feb 29 maps to Feb 28 a year earlier, which is the calendar behaviour wanted.
-            var prev = comparisonDate(date);
-            // Before the first recorded day the comparison is unknown, not zero.
-            var known = dataStart != null && prev >= dataStart.Value;
-            prevCost.Add(known && activity.DailyCosts != null ? CostAt(prev) : null);
-            prevPlans.Add(known && activity.DailyPlans != null ? PlansAt(prev) : null);
-        }
-
         return new DashboardTrendDto(
             dates.Select(d => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).ToList(),
             dates.Select(CostAt).ToList(),
             dates.Select(PlansAt).ToList(),
-            prevCost,
-            prevPlans,
             RollingAverageCalculator.Compute(dates, CostAt, dataStart),
             RollingAverageCalculator.Compute(dates, PlansAt, dataStart));
     }

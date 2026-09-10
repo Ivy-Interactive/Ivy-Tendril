@@ -1,3 +1,5 @@
+import { debugLog } from "./debug-log";
+
 export type VoiceStatus = "idle" | "connecting" | "recording" | "processing";
 
 export const INSECURE_CONTEXT_ERROR =
@@ -47,13 +49,14 @@ export class VoiceRecorder {
   private audioContext: AudioContext | null = null;
   private workletNode: AudioWorkletNode | null = null;
   private stream: MediaStream | null = null;
+  private chunksSent = 0;
 
   constructor(options: VoiceRecorderOptions) {
     this.options = options;
   }
 
   async start() {
-    console.log("[VoiceRecorder] start() initiated");
+    debugLog("[VoiceRecorder] start() initiated");
     this.options.onStatusChange("connecting");
 
     // Feature-detect before constructing anything, so an unsupported browser is not
@@ -70,22 +73,22 @@ export class VoiceRecorder {
       // Initialize AudioContext synchronously within the user gesture event handler
       // to prevent modern browsers from blocking/suspending the audio context.
       this.audioContext = new AudioContext({ sampleRate: 24000 });
-      console.log("[VoiceRecorder] AudioContext created, state:", this.audioContext.state);
+      debugLog("[VoiceRecorder] AudioContext created, state:", this.audioContext.state);
       if (this.audioContext.state === "suspended") {
         await this.audioContext.resume();
-        console.log("[VoiceRecorder] AudioContext resumed, state:", this.audioContext.state);
+        debugLog("[VoiceRecorder] AudioContext resumed, state:", this.audioContext.state);
       }
 
       this.stream = await navigator.mediaDevices.getUserMedia({
         audio: { sampleRate: 24000, channelCount: 1, echoCancellation: true },
       });
-      console.log("[VoiceRecorder] Microphone stream acquired successfully");
+      debugLog("[VoiceRecorder] Microphone stream acquired successfully");
 
-      console.log("[VoiceRecorder] Connecting to WebSocket endpoint:", this.options.endpoint);
+      debugLog("[VoiceRecorder] Connecting to WebSocket endpoint:", this.options.endpoint);
       this.ws = new WebSocket(this.options.endpoint);
 
       this.ws.onopen = () => {
-        console.log("[VoiceRecorder] WebSocket open. Sending start message.");
+        debugLog("[VoiceRecorder] WebSocket open. Sending start message.");
         const startMsg: any = {
           type: "start",
           format: "pcm16",
@@ -100,7 +103,7 @@ export class VoiceRecorder {
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log("[VoiceRecorder] Received WebSocket message:", data.type, data);
+          debugLog("[VoiceRecorder] Received WebSocket message:", data.type, data);
           if (data.type === "ready") {
             this.options.onStatusChange("recording");
             if (this.stream && this.ws) {
@@ -111,7 +114,7 @@ export class VoiceRecorder {
               });
             }
           } else if (data.type === "result") {
-            console.log("[VoiceRecorder] Transcription result:", data.text);
+            debugLog("[VoiceRecorder] Transcription result:", data.text);
             this.options.onResult(data.text);
             this.cleanup();
           } else if (data.type === "error") {
@@ -131,7 +134,7 @@ export class VoiceRecorder {
       };
 
       this.ws.onclose = (evt) => {
-        console.log(
+        debugLog(
           `[VoiceRecorder] WebSocket closed: code=${evt.code}, reason=${evt.reason || "No reason"}, wasClean=${evt.wasClean}`,
         );
         if (!evt.wasClean && evt.code !== 1000 && evt.code !== 1005) {
@@ -161,21 +164,21 @@ export class VoiceRecorder {
   }
 
   private async beginPcmCapture(stream: MediaStream, ws: WebSocket) {
-    console.log("[VoiceRecorder] beginPcmCapture initiated");
+    this.chunksSent = 0;
+    debugLog("[VoiceRecorder] beginPcmCapture initiated");
     if (!this.audioContext) {
       this.audioContext = new AudioContext({ sampleRate: 24000 });
     }
     if (this.audioContext.state === "suspended") {
       await this.audioContext.resume();
     }
-    console.log("[VoiceRecorder] Loading audio worklet module...");
+    debugLog("[VoiceRecorder] Loading audio worklet module...");
     await this.audioContext.audioWorklet.addModule(pcmWorkletUrl());
-    console.log("[VoiceRecorder] Audio worklet module loaded successfully");
+    debugLog("[VoiceRecorder] Audio worklet module loaded successfully");
 
     const source = this.audioContext.createMediaStreamSource(stream);
     this.workletNode = new AudioWorkletNode(this.audioContext, "pcm-capture");
 
-    let chunkCount = 0;
     this.workletNode.port.onmessage = (event) => {
       const msg = event.data;
       if (msg.type === "volume" && this.options.onVolumeChange) {
@@ -183,24 +186,22 @@ export class VoiceRecorder {
       } else if (msg.type === "pcm16") {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(msg.buffer);
-          chunkCount++;
-          if (chunkCount % 10 === 0) {
-            console.log(`[VoiceRecorder] Sent ${chunkCount} PCM16 audio chunks to server`);
-          }
+          this.chunksSent++;
         }
       }
     };
 
     source.connect(this.workletNode);
     this.workletNode.connect(this.audioContext.destination);
-    console.log("[VoiceRecorder] Audio graph connected and recording started");
+    debugLog("[VoiceRecorder] Audio graph connected and recording started");
   }
 
   stop() {
-    console.log("[VoiceRecorder] stop() initiated");
+    debugLog("[VoiceRecorder] stop() initiated");
+    debugLog(`[VoiceRecorder] Sent ${this.chunksSent} PCM16 audio chunks to server`);
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       try {
-        console.log("[VoiceRecorder] Sending stop signal to WebSocket");
+        debugLog("[VoiceRecorder] Sending stop signal to WebSocket");
         this.ws.send(JSON.stringify({ type: "stop" }));
       } catch (err) {
         console.error("[VoiceRecorder] Error sending stop signal:", err);
@@ -209,19 +210,19 @@ export class VoiceRecorder {
     }
 
     if (this.workletNode) {
-      console.log("[VoiceRecorder] Disconnecting AudioWorkletNode");
+      debugLog("[VoiceRecorder] Disconnecting AudioWorkletNode");
       this.workletNode.disconnect();
       this.workletNode = null;
     }
 
     if (this.audioContext) {
-      console.log("[VoiceRecorder] Closing AudioContext");
+      debugLog("[VoiceRecorder] Closing AudioContext");
       this.audioContext.close().catch(() => {});
       this.audioContext = null;
     }
 
     if (this.stream) {
-      console.log("[VoiceRecorder] Stopping media stream tracks");
+      debugLog("[VoiceRecorder] Stopping media stream tracks");
       this.stream.getTracks().forEach((track) => track.stop());
       this.stream = null;
     }
@@ -232,10 +233,10 @@ export class VoiceRecorder {
     if (!socket) return;
     this.ws = null;
 
-    console.log("[VoiceRecorder] Cleaning up session");
+    debugLog("[VoiceRecorder] Cleaning up session");
     this.stop();
     if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
-      console.log("[VoiceRecorder] Closing WebSocket connection");
+      debugLog("[VoiceRecorder] Closing WebSocket connection");
       socket.close();
     }
     this.options.onStatusChange("idle");

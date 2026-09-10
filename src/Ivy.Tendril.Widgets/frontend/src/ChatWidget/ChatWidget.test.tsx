@@ -464,6 +464,82 @@ describe("ChatWidget File Uploads and Attachments", () => {
     });
   });
 
+  it("activates dragging state and renders drop overlay when dragging over the root widget or message area", () => {
+    const { container } = render(<ChatWidget id="test-chat" />);
+    const root = container.querySelector(".chat-widget-root")!;
+    expect(root).toBeInTheDocument();
+
+    // Drag enter on root
+    fireEvent.dragEnter(root, {
+      dataTransfer: { dropEffect: "none" },
+    });
+    expect(root).toHaveClass("dragging");
+    expect(screen.getByText("Drop files here to attach to message")).toBeInTheDocument();
+
+    // Drag leave on root
+    fireEvent.dragLeave(root);
+    expect(root).not.toHaveClass("dragging");
+    expect(screen.queryByText("Drop files here to attach to message")).not.toBeInTheDocument();
+
+    // Drag over messages container activates overlay
+    const messagesArea = container.querySelector(".chat-thread") || root;
+    fireEvent.dragEnter(messagesArea, {
+      dataTransfer: { dropEffect: "none" },
+    });
+    expect(root).toHaveClass("dragging");
+    expect(screen.getByText("Drop files here to attach to message")).toBeInTheDocument();
+  });
+
+  it("supports dropping a file anywhere on the chat widget to add attachment", async () => {
+    const { container } = render(<ChatWidget id="test-chat" />);
+    const root = container.querySelector(".chat-widget-root")!;
+    const messagesArea = container.querySelector(".chat-thread") || root;
+
+    // Drag over chat area
+    fireEvent.dragEnter(messagesArea, {
+      dataTransfer: { dropEffect: "none" },
+    });
+    expect(root).toHaveClass("dragging");
+
+    // Drop file on messages area
+    const droppedFile = new File(["test docx content"], "specs.docx", { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+    fireEvent.drop(messagesArea, {
+      dataTransfer: { files: [droppedFile] },
+    });
+    expect(root).not.toHaveClass("dragging");
+    expect(screen.queryByText("Drop files here to attach to message")).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText("specs.docx")).toBeInTheDocument();
+      expect(screen.getByText("DOCX")).toBeInTheDocument();
+    });
+  });
+
+  it("calls preventDefault on dragover and drop events to block browser file navigation", () => {
+    const { container } = render(<ChatWidget id="test-chat" />);
+    const root = container.querySelector(".chat-widget-root")!;
+
+    // Drag over root prevents default
+    const dragOverEvent = new Event("dragover", { bubbles: true, cancelable: true });
+    root.dispatchEvent(dragOverEvent);
+    expect(dragOverEvent.defaultPrevented).toBe(true);
+
+    // Drop on root prevents default
+    const dropEvent = new Event("drop", { bubbles: true, cancelable: true });
+    root.dispatchEvent(dropEvent);
+    expect(dropEvent.defaultPrevented).toBe(true);
+
+    // Window-level dragover prevents default
+    const windowDragOverEvent = new Event("dragover", { bubbles: true, cancelable: true });
+    window.dispatchEvent(windowDragOverEvent);
+    expect(windowDragOverEvent.defaultPrevented).toBe(true);
+
+    // Window-level drop prevents default
+    const windowDropEvent = new Event("drop", { bubbles: true, cancelable: true });
+    window.dispatchEvent(windowDropEvent);
+    expect(windowDropEvent.defaultPrevented).toBe(true);
+  });
+
   it("supports removing an attached file via its thumbnail remove button", async () => {
     render(<ChatWidget id="test-chat" />);
     const textarea = screen.getByPlaceholderText(/Ask/i);
@@ -1789,6 +1865,47 @@ describe("ChatWidget Running Jobs Badge and Spinner", () => {
     const pulseDot = badge.querySelector(".chat-jobs-pulse-dot");
     expect(pulseDot).toBeInTheDocument();
   });
+
+  it("renders running jobs badge to the left of action buttons in DOM order", () => {
+    const session: ChatSessionDto = {
+      id: "sess-order",
+      title: "Session Order",
+      agentId: "agent-1",
+      modelId: "model-1",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+    };
+    const runningJobs = [
+      { id: "job-1", type: "CreatePlan", status: "Running", planTitle: "Test Plan" },
+    ];
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-order"
+        sessions={[session]}
+        runningJobs={runningJobs}
+      />
+    );
+
+    const badge = screen.getByRole("button", { name: /View running jobs/i });
+    const newChatBtn = screen.getByRole("button", { name: /New chat/i });
+    const chatOptionsBtn = screen.getByRole("button", { name: /Chat options/i });
+
+    expect(badge).toBeInTheDocument();
+    expect(newChatBtn).toBeInTheDocument();
+    expect(chatOptionsBtn).toBeInTheDocument();
+
+    const actionsContainer = badge.closest(".chat-header-actions");
+    expect(actionsContainer).toBeInTheDocument();
+    expect(actionsContainer).toContainElement(badge);
+    expect(actionsContainer).toContainElement(newChatBtn);
+    expect(actionsContainer).toContainElement(chatOptionsBtn);
+
+    expect(badge.compareDocumentPosition(newChatBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(newChatBtn.compareDocumentPosition(chatOptionsBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
 
 
@@ -2264,3 +2381,158 @@ describe("ChatWidget voice input", () => {
     expect(errorBanner()).toBeNull();
   });
 });
+
+describe("ChatWidget embedded mode", () => {
+  beforeEach(() => {
+    window.ResizeObserver = class {
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = vi.fn();
+    } as any;
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+  });
+
+  it("drops the title bar and shows the plan greeting above the headline", () => {
+    const { container } = render(
+      <ChatWidget
+        id="embedded"
+        embedded
+        greeting="#59 Revamp the User Authentication Experience"
+        headline="Ask Tendril to Change Anything"
+      />,
+    );
+
+    expect(container.querySelector(".chat-widget-root")).toHaveAttribute("data-embedded", "true");
+    expect(container.querySelector(".chat-header")).toBeNull();
+    expect(screen.queryByRole("button", { name: "New chat" })).not.toBeInTheDocument();
+    expect(screen.getByText("#59 Revamp the User Authentication Experience")).toBeInTheDocument();
+    expect(screen.getByText("Ask Tendril to Change Anything")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Ask Tendril anything/)).toBeInTheDocument();
+  });
+
+  it("keeps the jobs menu reachable without the title bar", () => {
+    const session: ChatSessionDto = {
+      id: "s1",
+      title: "Plan chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [{ id: "m1", role: "user", content: "hi", timestamp: "" }],
+      spawnedJobs: [{ id: "00148", type: "ExecutePlan", status: "Running" }],
+    };
+    const { container } = render(<ChatWidget id="embedded" embedded activeSessionId="s1" sessions={[session]} />);
+
+    expect(container.querySelector(".chat-header--embedded")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "View running jobs" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Chat options" })).not.toBeInTheDocument();
+  });
+});
+
+describe("ChatWidget Markdown Code Blocks", () => {
+  beforeEach(() => {
+    window.ResizeObserver = class {
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = vi.fn();
+    } as any;
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+  });
+
+  it("renders assistant markdown code blocks inside pmv-code-block with copy button", () => {
+    const session: ChatSessionDto = {
+      id: "s-code",
+      title: "Code block test",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [
+        {
+          id: "m-user",
+          role: "user",
+          content: "Show me a code snippet",
+          timestamp: "",
+        },
+        {
+          id: "m-assistant",
+          role: "assistant",
+          content: "Here is a TypeScript snippet:\n\n```typescript\nconst greeting = 'hello world';\nconsole.log(greeting);\n```\n\nAnd here is an untagged block:\n\n```\necho 'plain text block'\n```\n\nAnd an inline `const foo = 42;` value.",
+          timestamp: "",
+        },
+      ],
+    };
+
+    const { container } = render(<ChatWidget id="test-chat" activeSessionId="s-code" sessions={[session]} />);
+
+    const assistantRow = container.querySelector(".chat-message-row.assistant");
+    expect(assistantRow).toBeInTheDocument();
+
+    const markdownBody = assistantRow?.querySelector(".chat-markdown-body");
+    expect(markdownBody).toBeInTheDocument();
+
+    const codeBlocks = assistantRow?.querySelectorAll(".pmv-code-block");
+    expect(codeBlocks?.length).toBe(2);
+
+    // Verify first code block (tagged)
+    const firstBlock = codeBlocks?.[0];
+    expect(firstBlock).toBeInTheDocument();
+    expect(firstBlock?.querySelector("button.pmv-code-copy")).toBeInTheDocument();
+    expect(firstBlock?.querySelector("pre")).toBeInTheDocument();
+    expect(firstBlock?.textContent).toContain("const greeting = 'hello world';");
+
+    // Verify second code block (untagged)
+    const secondBlock = codeBlocks?.[1];
+    expect(secondBlock).toBeInTheDocument();
+    expect(secondBlock?.querySelector("button.pmv-code-copy")).toBeInTheDocument();
+    expect(secondBlock?.querySelector("pre")).toBeInTheDocument();
+    expect(secondBlock?.querySelector("pre code")).toBeInTheDocument();
+    expect(secondBlock?.textContent).toContain("echo 'plain text block'");
+
+    // Verify inline code is rendered as standalone code tag outside pmv-code-block
+    const allCodeTags = assistantRow?.querySelectorAll("code");
+    const inlineCode = Array.from(allCodeTags || []).find((el) => el.textContent === "const foo = 42;");
+    expect(inlineCode).toBeInTheDocument();
+    expect(inlineCode?.closest(".pmv-code-block")).toBeNull();
+  });
+
+  it("renders assistant streaming turns with code blocks inside pmv-code-block", () => {
+    const rawStream = JSON.stringify({
+      kind: "text",
+      text: "Streaming code block:\n\n```python\ndef add(a, b):\n    return a + b\n```",
+      delta: false,
+    });
+
+    const session: ChatSessionDto = {
+      id: "s-stream",
+      title: "Streaming code block test",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [
+        {
+          id: "m-stream-assistant",
+          role: "assistant",
+          content: "",
+          rawStream,
+          timestamp: "",
+        },
+      ],
+    };
+
+    const { container } = render(<ChatWidget id="test-chat" activeSessionId="s-stream" sessions={[session]} />);
+
+    const assistantRow = container.querySelector(".chat-message-row.assistant");
+    expect(assistantRow).toBeInTheDocument();
+
+    const turn = assistantRow?.querySelector(".chat-turn");
+    expect(turn).toBeInTheDocument();
+
+    const codeBlock = assistantRow?.querySelector(".pmv-code-block");
+    expect(codeBlock).toBeInTheDocument();
+    expect(codeBlock?.querySelector("button.pmv-code-copy")).toBeInTheDocument();
+    expect(codeBlock?.textContent).toContain("def add(a, b):");
+  });
+});
+

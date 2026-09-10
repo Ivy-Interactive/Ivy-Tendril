@@ -34,10 +34,7 @@ internal class EditProjectPortDialog(
             _ => isOpen.Set(false),
             new DialogHeader(isNew ? "Add Port" : "Edit Port"),
             new DialogBody(
-                Layout.Vertical()
-                | editName.ToTextInput("e.g. backend").WithField().Label("Name").Required()
-                | editPort.ToNumberInput().Min(1).Max(65535).WithField().Label("Default Port").Required()
-                | editDescription.ToTextInput("What listens here...").WithField().Label("Description")
+                BuildForm(editName, editPort, editDescription)
             ),
             new DialogFooter(
                 new Button("Cancel").Outline().OnClick(() => isOpen.Set(false)),
@@ -65,5 +62,13 @@ internal class EditProjectPortDialog(
                 })
             )
         ).Width(Size.Rem(30));
+    }
+
+    internal static LayoutView BuildForm(IState<string> editName, IState<int> editPort, IState<string> editDescription)
+    {
+        return Layout.Vertical()
+            | editName.ToTextInput("e.g. backend").WithField().Label("Name").Required().Help("Port identifier referenced in environment overrides via ${ports.<name>} placeholders.")
+            | editPort.ToNumberInput().Min(1).Max(65535).WithField().Label("Default Port").Required().Help("Preferred port to allocate. If already in use by another plan or process, Tendril dynamically falls back to an available free port.")
+            | editDescription.ToTextInput("What listens here...").WithField().Label("Description").Help("Optional summary of the service listening on this port.");
     }
 }

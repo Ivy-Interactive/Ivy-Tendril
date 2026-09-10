@@ -351,6 +351,15 @@ public class PlanReaderService(
         PlanCommandHelpers.WritePlan(planFolder, plan, planWatcherService);
     }
 
+    public void SetChatSessionId(string folderName, string chatSessionId)
+    {
+        var planFolder = Path.Combine(PlansDirectory, folderName);
+        var plan = PlanCommandHelpers.ReadPlan(planFolder);
+        plan.ChatSessionId = chatSessionId;
+        plan.Updated = DateTime.UtcNow;
+        PlanCommandHelpers.WritePlan(planFolder, plan, planWatcherService);
+    }
+
     /// <summary>
     ///     Creates a new revision file for a plan and updates the plan's timestamp.
     /// </summary>

@@ -21,6 +21,7 @@ public sealed record AgentPtyConfig
     public bool AppendSystemPrompt { get; init; }
     public PermissionMode PermissionMode { get; init; } = PermissionMode.FullAuto;
     public string? SessionId { get; init; }
+    public bool Resume { get; init; }
 
     /// <summary>
     /// Initial task to deliver to the agent. Passed as a command-line argument (positional or

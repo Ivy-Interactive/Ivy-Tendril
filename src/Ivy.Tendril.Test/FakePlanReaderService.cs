@@ -50,6 +50,13 @@ internal class FakePlanReaderService : IPlanReaderService
     {
     }
 
+    public (string FolderName, string ChatSessionId)? LastChatSessionAssignment { get; private set; }
+
+    public void SetChatSessionId(string folderName, string chatSessionId)
+    {
+        LastChatSessionAssignment = (folderName, chatSessionId);
+    }
+
     public void SetVerificationStatus(string folderName, string name, VerificationStatus status)
     {
     }

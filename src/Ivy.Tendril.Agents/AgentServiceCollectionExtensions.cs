@@ -57,7 +57,8 @@ public static class AgentServiceCollectionExtensions
                 new AntigravityFailureAnalyzer(),
                 new AntigravitySessionCostParser(),
                 new AntigravityPty(),
-                new AntigravityModelCatalog());
+                new AntigravityModelCatalog(),
+                new AntigravityUsageProvider());
             runner.Register(
                 new ClaudeCli(),
                 new ClaudeEventParser(),
@@ -73,7 +74,8 @@ public static class AgentServiceCollectionExtensions
                 new CodexFailureAnalyzer(),
                 new CodexSessionCostParser(),
                 new CodexPty(),
-                new CodexModelCatalog());
+                new CodexModelCatalog(),
+                new CodexUsageProvider());
             runner.Register(
                 new CopilotCli(),
                 new CopilotEventParser(),
