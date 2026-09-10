@@ -92,6 +92,8 @@ class DemoApp : ViewBase
     public override object Build()
     {
         var client = UseService<IClientProvider>();
+        var showTree = UseState(true);
+        var hideFormatting = UseState(true);
         var comments = UseState(() => new List<DraftComment>
         {
             new("src/Ivy.Tendril.Test/PlanChatTests.cs", "I8", "Give this test a real assertion.", 8, "Reviewer"),
@@ -102,6 +104,7 @@ class DemoApp : ViewBase
             Key = "demo",
             Files = Files,
             Comments = comments.Value,
+            ShowTree = showTree.Value,
             OnAddComment = e =>
             {
                 comments.Set([.. comments.Value, e.Value]);
@@ -125,7 +128,18 @@ class DemoApp : ViewBase
             },
         }.Width(Size.Full()).Height(Size.Full());
 
-        return Layout.Vertical().Height(Size.Full().Min(Size.Px(0))).Padding(4)
+        var toolbar = Layout.Horizontal().Gap(1).Height(Size.Auto())
+            | new TendrilIconButton(showTree.Value ? "Hide file tree" : "Show file tree", "ListTree")
+                .Size(TendrilIconButtonSize.Md)
+                .Active(showTree.Value)
+                .OnClick(() => showTree.Set(!showTree.Value))
+            | new TendrilIconButton(hideFormatting.Value ? "Show formatting changes" : "Hide formatting changes", "EyeOff")
+                .Size(TendrilIconButtonSize.Md)
+                .Active(hideFormatting.Value)
+                .OnClick(() => hideFormatting.Set(!hideFormatting.Value));
+
+        return Layout.Vertical().Gap(2).Height(Size.Full().Min(Size.Px(0))).Padding(4)
+            | toolbar
             | view;
     }
 

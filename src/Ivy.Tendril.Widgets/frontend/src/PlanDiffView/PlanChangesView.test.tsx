@@ -150,7 +150,7 @@ describe("PlanChangesView", () => {
     expect(within(readme).queryByText("alpha note")).toBeNull();
     expect(within(alpha).getByText("alpha note")).toBeInTheDocument();
 
-    fireEvent.click(within(readme).getByRole("button", { name: "Delete" }));
+    fireEvent.click(within(readme).getByRole("button", { name: "Delete comment" }));
     expect(eventHandler).toHaveBeenCalledWith("OnDeleteComment", "pcv", [
       { filePath: "README.md", changeKey: "I1", content: "readme note", lineNumber: 1 },
     ]);
@@ -188,6 +188,23 @@ describe("PlanChangesView", () => {
     fireEvent.change(select, { target: { value: "README.md" } });
     expect(select.value).toBe("README.md");
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the tree when showTree is false but keeps the diffs", () => {
+    render(<PlanChangesView id="pcv" eventHandler={vi.fn()} files={files} showTree={false} />);
+    expect(screen.queryByRole("tree")).toBeNull();
+    expect(document.querySelectorAll(".ivy-changes-diffs .ivy-diff-file")).toHaveLength(4);
+  });
+
+  it("draws folders with only a chevron and files with only the code icon", () => {
+    render(<PlanChangesView id="pcv" eventHandler={vi.fn()} files={files} />);
+    const folder = screen.getByRole("treeitem", { name: "src/App" });
+    expect(folder.querySelectorAll("svg")).toHaveLength(1);
+    expect(folder.querySelector(".ivy-changes-tree-chevron")).not.toBeNull();
+    const file = screen.getByRole("treeitem", { name: /zeta\.cs/ });
+    expect(file.querySelectorAll("svg")).toHaveLength(1);
+    expect(file.querySelector(".ivy-changes-tree-icon")).not.toBeNull();
+    expect(file.querySelector(".ivy-changes-tree-chevron")).toBeNull();
   });
 
   it("shows an empty state without files", () => {

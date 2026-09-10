@@ -38,6 +38,7 @@ public class ChangesTabView(
         var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
         var draftDiffCommentService = UseService<Ivy.Tendril.Services.Plans.IPlanDiffCommentService>();
         var hideFormatting = UseState(true);
+        var showTree = UseState(true);
 
         var (suggestChangesDialog, showSuggestChangesDialog) = UseTrigger((isOpen) =>
         {
@@ -100,6 +101,7 @@ public class ChangesTabView(
             Files = changedFiles,
             Comments = draftComments.Value,
             CurrentAuthor = shareContext.IsShareMode ? shareContext.Persona : null,
+            ShowTree = showTree.Value,
             OnAddComment = async e =>
             {
                 var comment = e.Value;
@@ -137,8 +139,20 @@ public class ChangesTabView(
             }
         }.Width(Size.Full()).Height(Size.Full());
 
-        var leftSide = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-            | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
+        var treeButton = new TendrilIconButton(showTree.Value ? "Hide file tree" : "Show file tree", "ListTree")
+            .Size(TendrilIconButtonSize.Md)
+            .Active(showTree.Value)
+            .OnClick(() => showTree.Set(!showTree.Value));
+
+        var formattingButton = new TendrilIconButton(
+                hideFormatting.Value ? "Show formatting changes" : "Hide formatting changes", "EyeOff")
+            .Size(TendrilIconButtonSize.Md)
+            .Active(hideFormatting.Value)
+            .OnClick(() => hideFormatting.Set(!hideFormatting.Value));
+
+        var leftSide = Layout.Horizontal().Gap(1).AlignContent(Align.Left)
+            | treeButton
+            | formattingButton;
 
         if (hideFormatting.Value && hiddenCount > 0)
             leftSide |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();

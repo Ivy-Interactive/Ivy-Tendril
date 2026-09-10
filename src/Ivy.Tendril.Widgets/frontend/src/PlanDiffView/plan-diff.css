@@ -240,9 +240,17 @@ td.diff-gutter-empty::after {
 
 .ivy-changes-diffs {
   flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   min-width: 0;
   min-height: 0;
   overflow: auto;
+}
+
+.ivy-changes-diffs .ivy-diff-file {
+  flex-shrink: 0;
+  margin-bottom: 0;
 }
 
 .ivy-changes-tree-row {
@@ -253,9 +261,7 @@ td.diff-gutter-empty::after {
   width: 100%;
   min-width: 0;
   margin: 1px 0;
-  padding-top: 0.25rem;
-  padding-bottom: 0.25rem;
-  padding-right: 0.5rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.25rem;
   border-radius: 0.375rem;
   color: var(--foreground);
   cursor: pointer;
@@ -282,7 +288,6 @@ td.diff-gutter-empty::after {
 .ivy-changes-tree-chevron {
   width: 0.875rem;
   height: 0.875rem;
-  margin-left: 0.25rem;
   flex-shrink: 0;
   color: var(--muted-foreground);
 }
@@ -291,6 +296,7 @@ td.diff-gutter-empty::after {
   width: 0.875rem;
   height: 0.875rem;
   flex-shrink: 0;
+  color: var(--foreground);
 }
 
 .ivy-changes-tree-name {

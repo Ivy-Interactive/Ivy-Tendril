@@ -16,6 +16,8 @@ public record PlanChangesView : WidgetBase<PlanChangesView>
 
     [Prop] public string? CurrentAuthor { get; init; }
 
+    [Prop] public bool ShowTree { get; init; } = true;
+
     [Event] public Func<Event<PlanChangesView, DraftComment>, ValueTask>? OnAddComment { get; init; }
 
     [Event] public Func<Event<PlanChangesView, DraftComment>, ValueTask>? OnDeleteComment { get; init; }
@@ -41,6 +43,9 @@ public static class PlanChangesViewExtensions
 
     public static PlanChangesView CurrentAuthor(this PlanChangesView w, string? currentAuthor) =>
         w with { CurrentAuthor = currentAuthor };
+
+    public static PlanChangesView ShowTree(this PlanChangesView w, bool showTree = true) =>
+        w with { ShowTree = showTree };
 
     public static PlanChangesView OnAddComment(
         this PlanChangesView w,
