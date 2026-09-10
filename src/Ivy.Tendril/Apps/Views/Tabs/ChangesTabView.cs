@@ -38,6 +38,7 @@ public class ChangesTabView(
         var shareContext = UseService<Ivy.Tendril.Services.Share.IShareContext>();
         var draftDiffCommentService = UseService<Ivy.Tendril.Services.Plans.IPlanDiffCommentService>();
         var hideFormatting = UseState(true);
+        var showTree = UseState(true);
 
         var (suggestChangesDialog, showSuggestChangesDialog) = UseTrigger((isOpen) =>
         {
@@ -88,85 +89,70 @@ public class ChangesTabView(
             hiddenCount = allFileDiffs.Count - fileDiffs.Count;
         }
 
-        var root = BuildFileTree(fileDiffs);
-        var treeItems = ChildItems(root);
-        var sortedFileDiffs = SortByTreeOrder(fileDiffs, root);
-
-        var tree = new Tree(treeItems)
-            .OnSelect(e =>
-            {
-                var path = e.Value?.ToString();
-                if (path is null) return;
-                client.Redirect($"#{path}");
-            });
-
-        var diffsLayout = Layout.Vertical().Gap(1).Width(Size.Grow().Min(Size.Px(0))).Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0)));
-        for (var i = 0; i < sortedFileDiffs.Count; i++)
+        var changedFiles = fileDiffs.Select(fd =>
         {
-            var fileDiff = sortedFileDiffs[i];
-            var path = fileDiff.FilePath;
-            diffsLayout |= new PlanDiffView
+            var counts = PlanContentHelpers.CountDiffLines(fd.Diff);
+            return new ChangedFileDto(fd.FilePath, fd.Diff, counts.Additions, counts.Deletions);
+        }).ToList();
+
+        var changesView = new PlanChangesView
+        {
+            Key = $"changes:{selectedPlan.Id}",
+            Files = changedFiles,
+            Comments = draftComments.Value,
+            CurrentAuthor = shareContext.IsShareMode ? shareContext.Persona : null,
+            ShowTree = showTree.Value,
+            OnAddComment = async e =>
             {
-                Key = $"{selectedPlan.Id}:{path}",
-                Diff = fileDiff.Diff,
-                FilePath = path,
-                Collapsible = true,
-                Comments = draftComments.Value.Where(c => c.FilePath == path).ToList(),
-                CurrentAuthor = shareContext.IsShareMode ? shareContext.Persona : null,
-                OnAddComment = async e =>
+                var comment = e.Value;
+                if (string.IsNullOrEmpty(comment.Author) && shareContext.IsShareMode)
                 {
-                    var comment = e.Value;
-                    if (string.IsNullOrEmpty(comment.Author) && shareContext.IsShareMode)
-                    {
-                        comment = comment with { Author = shareContext.Persona };
-                    }
-                    var list = new List<DraftComment>(draftComments.Value) { comment };
-                    draftComments.Set(list);
-                    await draftDiffCommentService.SaveDraftCommentsAsync(selectedPlan.FolderPath, list);
-                },
-                OnUpdateComment = async e =>
-                {
-                    var c = e.Value;
-                    var list = new List<DraftComment>(draftComments.Value);
-                    var idx = list.FindIndex(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
-                    if (idx >= 0)
-                    {
-                        list[idx] = c;
-                        draftComments.Set(list);
-                        await draftDiffCommentService.SaveDraftCommentsAsync(selectedPlan.FolderPath, list);
-                    }
-                },
-                OnDeleteComment = async e =>
-                {
-                    var c = e.Value;
-                    var list = new List<DraftComment>(draftComments.Value);
-                    list.RemoveAll(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
-                    draftComments.Set(list);
-                    await draftDiffCommentService.SaveDraftCommentsAsync(selectedPlan.FolderPath, list);
-                },
-                OnDirectEdit = async e =>
-                {
-                    await HandleDirectEdit(e.Value);
+                    comment = comment with { Author = shareContext.Persona };
                 }
-            }.Width(Size.Full());
-        }
+                var list = new List<DraftComment>(draftComments.Value) { comment };
+                draftComments.Set(list);
+                await draftDiffCommentService.SaveDraftCommentsAsync(selectedPlan.FolderPath, list);
+            },
+            OnUpdateComment = async e =>
+            {
+                var c = e.Value;
+                var list = new List<DraftComment>(draftComments.Value);
+                var idx = list.FindIndex(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
+                if (idx >= 0)
+                {
+                    list[idx] = c;
+                    draftComments.Set(list);
+                    await draftDiffCommentService.SaveDraftCommentsAsync(selectedPlan.FolderPath, list);
+                }
+            },
+            OnDeleteComment = async e =>
+            {
+                var c = e.Value;
+                var list = new List<DraftComment>(draftComments.Value);
+                list.RemoveAll(dc => dc.FilePath == c.FilePath && dc.ChangeKey == c.ChangeKey);
+                draftComments.Set(list);
+                await draftDiffCommentService.SaveDraftCommentsAsync(selectedPlan.FolderPath, list);
+            },
+            OnDirectEdit = async e =>
+            {
+                await HandleDirectEdit(e.Value);
+            }
+        }.Width(Size.Full()).Height(Size.Full());
 
-        var treePanel = new Box(Layout.Vertical().Scroll(Scroll.Auto).Height(Size.Full().Min(Size.Px(0))) | tree)
-            .Width(SidebarLayout.DefaultWidth)
-            .Height(Size.Full().Min(Size.Px(0)))
-            .Padding(2, 2, 0, 2)
-            .HideOn(Breakpoint.Mobile, Breakpoint.Tablet);
+        var treeButton = new TendrilIconButton(showTree.Value ? "Hide file tree" : "Show file tree", "ListTree")
+            .Size(TendrilIconButtonSize.Md)
+            .Active(showTree.Value)
+            .OnClick(() => showTree.Set(!showTree.Value));
 
-        var mobileFilePicker = MobileItemPicker.Build(
-                $"Jump to file ({sortedFileDiffs.Count})",
-                sortedFileDiffs,
-                fd => fd.FilePath,
-                _ => false,
-                fd => client.Redirect($"#{fd.FilePath}"))
-            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
+        var formattingButton = new TendrilIconButton(
+                hideFormatting.Value ? "Show formatting changes" : "Hide formatting changes", "EyeOff")
+            .Size(TendrilIconButtonSize.Md)
+            .Active(hideFormatting.Value)
+            .OnClick(() => hideFormatting.Set(!hideFormatting.Value));
 
-        var leftSide = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
-            | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
+        var leftSide = Layout.Horizontal().Gap(1).AlignContent(Align.Left)
+            | treeButton
+            | formattingButton;
 
         if (hideFormatting.Value && hiddenCount > 0)
             leftSide |= Text.Muted($"{fileDiffs.Count} of {allFileDiffs.Count} files (hiding {hiddenCount} formatting-only)").Small();
@@ -185,14 +171,12 @@ public class ChangesTabView(
 
         // Padding order is (left, top, right, bottom).
         var mainLayout = Layout.Horizontal().Height(Size.Full().Min(Size.Px(0))).Padding(2, 0, 4, 4)
-            | treePanel
-            | diffsLayout;
+            | changesView;
 
         var outer = Layout.Vertical().Height(Size.Full().Min(Size.Px(0)));
         if (mismatchBanner != null)
             outer |= mismatchBanner;
         outer |= toolbar;
-        outer |= mobileFilePicker;
         outer |= mainLayout;
         outer |= suggestChangesDialog;
         return outer;
@@ -272,122 +256,5 @@ public class ChangesTabView(
         var output = process.StandardOutput.ReadToEnd();
         process.WaitForExit(10000); // 10s timeout
         return (process.ExitCode, output);
-    }
-
-    private static TreeNode BuildFileTree(IReadOnlyList<PlanContentHelpers.FileDiff> fileDiffs)
-    {
-        var root = new TreeNode("");
-        foreach (var fd in fileDiffs)
-        {
-            var segments = fd.FilePath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-            var node = root;
-            for (var i = 0; i < segments.Length - 1; i++)
-            {
-                var seg = segments[i];
-                if (!node.Folders.TryGetValue(seg, out var child))
-                {
-                    child = new TreeNode(seg);
-                    node.Folders[seg] = child;
-                }
-                node = child;
-            }
-            node.Files.Add(fd);
-        }
-        return root;
-    }
-
-    private static MenuItem[] ChildItems(TreeNode node)
-    {
-        var items = new List<MenuItem>();
-        foreach (var folder in node.Folders.Values.OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            items.Add(FolderItem(folder));
-        }
-        foreach (var file in node.Files.OrderBy(f => Path.GetFileName(f.FilePath), StringComparer.OrdinalIgnoreCase))
-        {
-            var (icon, color) = PlanContentHelpers.GetFileStatusIconAndColor(file.Status);
-            items.Add(new MenuItem(Path.GetFileName(file.FilePath))
-                .Icon(icon)
-                .Color(color)
-                .Tag(file.FilePath)
-                .Tooltip(file.FilePath));
-        }
-        return items.ToArray();
-    }
-
-    private static List<string> FlattenTreeOrder(TreeNode node)
-    {
-        var result = new List<string>();
-        FlattenTreeOrderRecursive(node, result);
-        return result;
-    }
-
-    private static void FlattenTreeOrderRecursive(TreeNode node, List<string> result)
-    {
-        foreach (var folder in node.Folders.Values.OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
-            FlattenTreeOrderRecursive(folder, result);
-        foreach (var file in node.Files.OrderBy(f => Path.GetFileName(f.FilePath), StringComparer.OrdinalIgnoreCase))
-            result.Add(file.FilePath);
-    }
-
-    private static List<PlanContentHelpers.FileDiff> SortByTreeOrder(
-        IReadOnlyList<PlanContentHelpers.FileDiff> fileDiffs, TreeNode root)
-    {
-        var orderedPaths = FlattenTreeOrder(root);
-        var lookup = fileDiffs.ToDictionary(fd => fd.FilePath);
-        return orderedPaths
-            .Where(lookup.ContainsKey)
-            .Select(p => lookup[p])
-            .ToList();
-    }
-
-    private static MenuItem FolderItem(TreeNode node)
-    {
-        var label = node.Name;
-        while (node.Files.Count == 0 && node.Folders.Count == 1)
-        {
-            var only = node.Folders.Values.First();
-            label = $"{label}/{only.Name}";
-            node = only;
-        }
-
-        var item = new MenuItem(label, ChildItems(node)).Icon(Icons.Folder).Expanded();
-        var folderColor = GetFolderColor(node);
-        return folderColor is not null ? item.Color(folderColor.Value) : item;
-    }
-
-    private static Colors? GetFolderColor(TreeNode node)
-    {
-        var hasAdded = false;
-        var hasDeleted = false;
-        var hasOther = false;
-        CollectStatuses(node);
-        if (!hasAdded && !hasDeleted && !hasOther) return null;
-        if (hasAdded && !hasDeleted && !hasOther) return Colors.Success;
-        if (hasDeleted && !hasAdded && !hasOther) return Colors.Destructive;
-        return Colors.Neutral;
-
-        void CollectStatuses(TreeNode n)
-        {
-            foreach (var f in n.Files)
-            {
-                switch (f.Status)
-                {
-                    case "A": hasAdded = true; break;
-                    case "D": hasDeleted = true; break;
-                    default: hasOther = true; break;
-                }
-                if (hasAdded && hasDeleted) return;
-            }
-            foreach (var folder in n.Folders.Values)
-                CollectStatuses(folder);
-        }
-    }
-
-    private sealed class TreeNode(string name)
-    {
-        public string Name { get; } = name;
-        public Dictionary<string, TreeNode> Folders { get; } = new(StringComparer.OrdinalIgnoreCase);
-        public List<PlanContentHelpers.FileDiff> Files { get; } = new();
     }
 }

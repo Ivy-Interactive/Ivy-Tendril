@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, ChevronRight } from "lucide-react";
 import { BrandIcon } from "../Shell/brandIcons";
+import { Tooltip } from "../ui/Tooltip";
 import type { AgentOptionDto, EffortOptionDto, ModelOptionDto } from "./types";
 
 export interface AgentPickerProps {
@@ -35,17 +36,19 @@ const PanelSelect: React.FC<{
   const current = options.find((option) => option.value === value)?.label ?? (value || "Default");
 
   return (
-    <div className="chat-panel-select" title={title} data-open={open}>
-      <button
-        type="button"
-        className="chat-panel-select-trigger"
-        aria-label={title}
-        aria-expanded={open}
-        onClick={() => setOpen((state) => !state)}
-      >
-        <span className="chat-panel-select-value">{current}</span>
-        <ChevronDown size={16} className="chat-panel-select-chevron" />
-      </button>
+    <div className="chat-panel-select" data-open={open}>
+      <Tooltip content={title}>
+        <button
+          type="button"
+          className="chat-panel-select-trigger"
+          aria-label={title}
+          aria-expanded={open}
+          onClick={() => setOpen((state) => !state)}
+        >
+          <span className="chat-panel-select-value">{current}</span>
+          <ChevronDown size={16} className="chat-panel-select-chevron" />
+        </button>
+      </Tooltip>
       {open && (
         <div className="chat-panel-select-list">
           {options.map((option) => (
@@ -190,21 +193,22 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
 
   return (
     <>
-      <button
-        ref={triggerRef}
-        type="button"
-        className="chat-agent-trigger"
-        data-open={open}
-        data-compact={compact}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={`Agent: ${label}`}
-        title="Agent, model and effort"
-        onClick={toggleMenu}
-      >
-        <BrandIcon name={selected?.icon} size={16} className="chat-agent-trigger-icon" />
-        {!compact && <span className="chat-agent-trigger-label">{label}</span>}
-      </button>
+      <Tooltip content="Agent, model and effort">
+        <button
+          ref={triggerRef}
+          type="button"
+          className="chat-agent-trigger"
+          data-open={open}
+          data-compact={compact}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={`Agent: ${label}`}
+          onClick={toggleMenu}
+        >
+          <BrandIcon name={selected?.icon} size={16} className="chat-agent-trigger-icon" />
+          {!compact && <span className="chat-agent-trigger-label">{label}</span>}
+        </button>
+      </Tooltip>
 
       {open &&
         createPortal(

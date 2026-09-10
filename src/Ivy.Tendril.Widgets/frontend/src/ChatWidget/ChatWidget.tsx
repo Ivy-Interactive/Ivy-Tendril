@@ -27,6 +27,8 @@ import { BlockMarkdown } from "../BlockMarkdown";
 import { AgentPicker } from "./AgentPicker";
 import { AssistantTurn } from "./AssistantTurn";
 import { ChatHeader, JobsMenu } from "./ChatHeader";
+import { Badge, CountBadge } from "../ui/Badge";
+import { IconButton } from "../ui/IconButton";
 import {
   ComposerAttachmentCard,
   MessageAttachmentChip,
@@ -730,19 +732,17 @@ export function ChatWidget({
               <div className="chat-queued-header">
                 <div className="chat-queued-header-left">
                   <span className="chat-queued-title">Queued Messages</span>
-                  <span className="chat-queued-badge">{queuedMessages.length}</span>
+                  <CountBadge count={queuedMessages.length} className="chat-queued-badge" />
                   <span className="chat-queued-subtitle">Sends after agent finishes working</span>
                 </div>
                 <div className="chat-queued-header-right">
-                  <button
-                    type="button"
-                    className="chat-queued-toggle-btn"
+                  <IconButton
+                    size="sm"
+                    label={collapsedQueue ? "Expand queued messages" : "Collapse queued messages"}
                     onClick={() => setCollapsedQueue(!collapsedQueue)}
-                    title={collapsedQueue ? "Expand queued messages" : "Collapse queued messages"}
-                    aria-label={collapsedQueue ? "Expand queued messages" : "Collapse queued messages"}
                   >
                     <ChevronDown className={`chat-queued-chevron ${collapsedQueue ? "collapsed" : ""}`} size={16} />
-                  </button>
+                  </IconButton>
                 </div>
               </div>
 
@@ -763,24 +763,17 @@ export function ChatWidget({
                             }}
                             autoFocus
                           />
-                          <button
-                            type="button"
-                            className="chat-queued-item-btn save"
-                            onClick={() => handleSaveEditQueued(q.id)}
-                            title="Save"
-                            aria-label="Save"
-                          >
+                          <IconButton size="sm" label="Save" onClick={() => handleSaveEditQueued(q.id)}>
                             <Check size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            className="chat-queued-item-btn cancel"
+                          </IconButton>
+                          <IconButton
+                            size="sm"
+                            variant="danger"
+                            label="Cancel"
                             onClick={handleCancelEditQueued}
-                            title="Cancel"
-                            aria-label="Cancel"
                           >
                             <X size={14} />
-                          </button>
+                          </IconButton>
                         </div>
                       ) : (
                         <>
@@ -790,40 +783,27 @@ export function ChatWidget({
                                 ? `${q.attachments.length} attachment${q.attachments.length > 1 ? "s" : ""}`
                                 : "")}
                             {q.attachments && q.attachments.length > 0 && (
-                              <span className="chat-queued-item-att-count">
+                              <Badge numeric className="chat-queued-item-att-count">
                                 <Paperclip size={11} />
                                 {q.attachments.length}
-                              </span>
+                              </Badge>
                             )}
                           </div>
                           <div className="chat-queued-item-actions">
-                            <button
-                              type="button"
-                              className="chat-queued-item-btn send"
-                              onClick={() => handleSendQueuedNow(q.id)}
-                              title="Send now"
-                              aria-label="Send now"
-                            >
+                            <IconButton size="sm" label="Send now" onClick={() => handleSendQueuedNow(q.id)}>
                               <ArrowRight size={15} />
-                            </button>
-                            <button
-                              type="button"
-                              className="chat-queued-item-btn edit"
-                              onClick={() => handleStartEditQueued(q)}
-                              title="Edit message"
-                              aria-label="Edit message"
-                            >
+                            </IconButton>
+                            <IconButton size="sm" label="Edit message" onClick={() => handleStartEditQueued(q)}>
                               <Pencil size={15} />
-                            </button>
-                            <button
-                              type="button"
-                              className="chat-queued-item-btn delete"
+                            </IconButton>
+                            <IconButton
+                              size="sm"
+                              variant="danger"
+                              label="Delete message"
                               onClick={() => handleDeleteQueued(q.id)}
-                              title="Delete message"
-                              aria-label="Delete message"
                             >
                               <Trash2 size={15} />
-                            </button>
+                            </IconButton>
                           </div>
                         </>
                       )}
@@ -849,15 +829,14 @@ export function ChatWidget({
             {voiceError && (
               <div className="chat-voice-error" role="alert">
                 <span>{voiceError}</span>
-                <button
-                  type="button"
-                  className="chat-voice-error-close"
-                  title="Dismiss"
-                  aria-label="Dismiss voice input error"
+                <IconButton
+                  size="sm"
+                  label="Dismiss voice input error"
+                  tooltip="Dismiss"
                   onClick={dismissVoiceError}
                 >
                   <X size={14} />
-                </button>
+                </IconButton>
               </div>
             )}
 
@@ -874,15 +853,13 @@ export function ChatWidget({
             )}
 
             <div className="chat-input-row">
-              <button
-                type="button"
-                className="chat-icon-btn chat-attach-btn"
-                title="Attach file"
-                aria-label="Attach file"
+              <IconButton
+                className="chat-attach-btn"
+                label="Attach file"
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Paperclip size={embedded ? 16 : 20} />
-              </button>
+              </IconButton>
 
               <textarea
                 ref={textareaRef}
@@ -910,11 +887,9 @@ export function ChatWidget({
                   compact={embedded}
                 />
 
-                <button
-                  type="button"
-                  className={`chat-icon-btn chat-voice-btn chat-voice-${voiceStatus}`}
-                  title="Voice input"
-                  aria-label="Voice input"
+                <IconButton
+                  className={`chat-voice-btn chat-voice-${voiceStatus}`}
+                  label="Voice input"
                   onClick={toggleVoiceRecording}
                 >
                   {voiceStatus === "connecting" || voiceStatus === "processing" ? (
@@ -924,41 +899,37 @@ export function ChatWidget({
                   ) : (
                     <Mic size={embedded ? 16 : 20} />
                   )}
-                </button>
+                </IconButton>
 
                 {effectiveIsStreaming ? (
                   <>
-                    <button
-                      type="button"
+                    <IconButton
                       className="chat-stop-btn"
+                      label="Stop agent"
                       onClick={handleCancelStream}
-                      title="Stop agent"
-                      aria-label="Stop agent"
                     >
                       <Square size={12} fill="currentColor" />
-                    </button>
-                    <button
-                      type="button"
-                      className="chat-send-btn"
+                    </IconButton>
+                    <IconButton
+                      variant="solid"
+                      label="Queue message"
+                      tooltip={sendTitle}
                       disabled={isSendDisabled}
                       onClick={handleSendMessage}
-                      title={sendTitle}
-                      aria-label="Queue message"
                     >
                       <ListPlus size={16} />
-                    </button>
+                    </IconButton>
                   </>
                 ) : (
-                  <button
-                    type="button"
-                    className="chat-send-btn"
+                  <IconButton
+                    variant="solid"
+                    label="Send message"
+                    tooltip={sendTitle}
                     disabled={isSendDisabled}
                     onClick={handleSendMessage}
-                    title={sendTitle}
-                    aria-label="Send message"
                   >
                     <SendHorizontal size={16} />
-                  </button>
+                  </IconButton>
                 )}
               </div>
             </div>

@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, List, X } from "lucide-react";
 import { ShellSectionItemDto } from "./types";
 import { ShellSectionItems } from "./ShellSectionItems";
+import { Badge } from "../ui/Badge";
+import { IconButton } from "../ui/IconButton";
 import "./shell.css";
 
 const OPEN_DELAY_MS = 120;
@@ -171,7 +173,9 @@ export const ShellRailList: React.FC<ShellRailListProps> = ({
         onClick={togglePinned}
       >
         <List size={16} />
-        <span className="tsh-nav-badge tsh-rail-list-count">{count}</span>
+        <Badge numeric className="tsh-nav-badge tsh-rail-list-count">
+          {count}
+        </Badge>
       </button>
       {open &&
         position &&
@@ -190,28 +194,33 @@ export const ShellRailList: React.FC<ShellRailListProps> = ({
           >
             <div className="tsh-rail-menu-bar">
               <span className="tsh-rail-menu-steps">
-                <button
-                  className="tsh-rail-menu-arrow"
+                <IconButton
+                  label="Previous"
+                  size="sm"
                   onClick={() => step(-1)}
                   disabled={!canStepBack}
-                  aria-label="Previous"
                 >
                   <ChevronLeft size={14} />
-                </button>
-                <button
-                  className="tsh-rail-menu-arrow"
+                </IconButton>
+                <IconButton
+                  label="Next"
+                  size="sm"
                   onClick={() => step(1)}
                   disabled={!canStepForward}
-                  aria-label="Next"
                 >
                   <ChevronRight size={14} />
-                </button>
+                </IconButton>
               </span>
               {title && <span className="tsh-rail-menu-title">{title}</span>}
               {pinned && (
-                <button className="tsh-rail-menu-close" onClick={closeMenu} aria-label="Close">
+                <IconButton
+                  label="Close"
+                  size="sm"
+                  className="tsh-rail-menu-close"
+                  onClick={closeMenu}
+                >
                   <X size={14} />
-                </button>
+                </IconButton>
               )}
             </div>
             <ShellSectionItems

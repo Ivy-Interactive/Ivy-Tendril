@@ -10,7 +10,7 @@ import { ContentInput } from "./ContentInput";
 describe("ContentInput", () => {
   it("enables the submit button when only a file is attached (no text)", () => {
     render(<ContentInput id="civ-1" value=" [file: /tmp/foo.png]" />);
-    const submitButton = screen.getByTitle("Send");
+    const submitButton = screen.getByRole("button", { name: "Send" });
     expect(submitButton).toBeEnabled();
   });
 
@@ -18,7 +18,7 @@ describe("ContentInput", () => {
     const onIvyEvent = vi.fn();
     render(<ContentInput id="civ-1" value=" [file: /tmp/foo.png]" onIvyEvent={onIvyEvent} />);
 
-    const submitButton = screen.getByTitle("Send");
+    const submitButton = screen.getByRole("button", { name: "Send" });
     fireEvent.click(submitButton);
 
     expect(onIvyEvent).toHaveBeenCalledWith(
@@ -34,7 +34,7 @@ describe("ContentInput", () => {
 
   it("keeps the submit button disabled when there is no text and no file", () => {
     render(<ContentInput id="civ-1" value="" />);
-    const submitButton = screen.getByTitle("Send");
+    const submitButton = screen.getByRole("button", { name: "Send" });
     expect(submitButton).toBeDisabled();
   });
 
@@ -82,7 +82,7 @@ describe("ContentInput", () => {
     const onIvyEvent = vi.fn();
     render(<ContentInput id="civ-1" value="" onIvyEvent={onIvyEvent} transcriptionUrl="ws://test" />);
 
-    const micButton = screen.getByTitle("Voice input transcription");
+    const micButton = screen.getByRole("button", { name: "Voice input transcription" });
     fireEvent.click(micButton);
 
     await vi.waitFor(() => {
@@ -110,7 +110,7 @@ describe("ContentInput", () => {
 
     render(<ContentInput id="civ-1" value="" transcriptionUrl="ws://test" />);
 
-    const micButton = screen.getByTitle("Voice input transcription");
+    const micButton = screen.getByRole("button", { name: "Voice input transcription" });
     fireEvent.click(micButton);
 
     await vi.waitFor(() => {
@@ -133,7 +133,7 @@ describe("ContentInput", () => {
 
     render(<ContentInput id="civ-1" value="" transcriptionUrl="ws://test" />);
 
-    const micButton = screen.getByTitle("Voice input transcription");
+    const micButton = screen.getByRole("button", { name: "Voice input transcription" });
     fireEvent.click(micButton);
 
     await vi.waitFor(() => {
@@ -161,7 +161,7 @@ describe("ContentInput", () => {
 
     render(<ContentInput id="civ-1" value="" transcriptionUrl="ws://test" />);
 
-    const micButton = screen.getByTitle("Voice input transcription");
+    const micButton = screen.getByRole("button", { name: "Voice input transcription" });
     fireEvent.click(micButton);
 
     await vi.waitFor(() => {
@@ -184,7 +184,7 @@ describe("ContentInput", () => {
 
     render(<ContentInput id="civ-1" value="" transcriptionUrl="ws://test" />);
 
-    const micButton = screen.getByTitle("Voice input transcription");
+    const micButton = screen.getByRole("button", { name: "Voice input transcription" });
     fireEvent.click(micButton);
 
     await vi.waitFor(() => {

@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from "react";
 import { ChevronRight, Coins, LoaderCircle, Timer } from "lucide-react";
-import { parseEventWireStream } from "../AgentViewer/parse-events";
+import { parseEventWires, presentEventWires } from "../AgentViewer/parse-events";
 import { deriveStatus } from "../AgentViewer/status";
-import { AnimatedStatus } from "../AgentViewer/animated-status";
+import { deriveStreamMetrics } from "../AgentViewer/stream-metrics";
+import { StatusLine } from "../ui/StatusLine";
+import { Tooltip } from "../ui/Tooltip";
 import { ToolUseCard } from "../AgentViewer/tool-use-card";
 import type { PresentationEvent, ResultWire, ToolUsePresentation } from "../AgentViewer/types";
 import { BlockMarkdown } from "../BlockMarkdown";
@@ -78,25 +80,29 @@ const TurnMeta: React.FC<{ wire: ResultWire }> = ({ wire }) => {
 
   if (wire.duration_ms != null && wire.duration_ms > 0) {
     items.push(
-      <span key="duration" className="chat-turn-meta-item" title="Duration">
-        <Timer size={14} />
-        {formatDuration(wire.duration_ms)}
-      </span>,
+      <Tooltip key="duration" content="Duration">
+        <span className="chat-turn-meta-item">
+          <Timer size={14} />
+          {formatDuration(wire.duration_ms)}
+        </span>
+      </Tooltip>,
     );
   }
   if (usage != null && (usage.input_tokens > 0 || usage.output_tokens > 0)) {
     items.push(
-      <span key="tokens" className="chat-turn-meta-item" title="Tokens in / out">
-        <Coins size={14} />
-        {formatTokens(usage.input_tokens)} / {formatTokens(usage.output_tokens)}
-      </span>,
+      <Tooltip key="tokens" content="Tokens in / out">
+        <span className="chat-turn-meta-item">
+          <Coins size={14} />
+          {formatTokens(usage.input_tokens)} / {formatTokens(usage.output_tokens)}
+        </span>
+      </Tooltip>,
     );
   }
   if (usage?.cost_usd != null && usage.cost_usd > 0) {
     items.push(
-      <span key="cost" className="chat-turn-meta-item" title="Cost">
-        {formatCost(usage.cost_usd)}
-      </span>,
+      <Tooltip key="cost" content="Cost">
+        <span className="chat-turn-meta-item">{formatCost(usage.cost_usd)}</span>
+      </Tooltip>,
     );
   }
 
@@ -162,9 +168,12 @@ export interface AssistantTurnProps {
  * (while streaming) or the duration and token figures of the finished run.
  */
 export const AssistantTurn: React.FC<AssistantTurnProps> = ({ stream, live = false }) => {
-  const events = useMemo(() => (stream ? parseEventWireStream(stream) : []), [stream]);
+  /* One parse per stream update; the turn, its status and its metrics all derive from it. */
+  const wires = useMemo(() => (stream ? parseEventWires(stream) : []), [stream]);
+  const events = useMemo(() => presentEventWires(wires), [wires]);
   const turn = useMemo(() => summarizeTurn(events), [events]);
-  const complete = useMemo(() => deriveStatus(events).complete, [events]);
+  const status = useMemo(() => deriveStatus(events), [events]);
+  const metrics = useMemo(() => deriveStreamMetrics(wires), [wires]);
 
   return (
     <div className="chat-turn">
@@ -180,9 +189,14 @@ export const AssistantTurn: React.FC<AssistantTurnProps> = ({ stream, live = fal
           </div>
         ),
       )}
-      {live && !complete && (
+      {live && !status.complete && (
         <div className="aov-shell chat-turn-status">
-          <AnimatedStatus statusText="Thinking" isComplete={false} />
+          <StatusLine
+            statusText={status.text}
+            startedAt={metrics.startedAt}
+            tokens={metrics.tokens}
+            tokensEstimated={metrics.tokensEstimated}
+          />
         </div>
       )}
       {!live && turn.result && <TurnMeta wire={turn.result} />}

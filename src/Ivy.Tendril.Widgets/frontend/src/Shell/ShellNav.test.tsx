@@ -231,7 +231,7 @@ describe("ShellNav tooltips", () => {
     const tooltip = screen.getByRole("tooltip");
     expect(tooltip).toBeInTheDocument();
     expect(tooltip).toHaveTextContent("Plans");
-    expect(document.querySelector(".tsh-tooltip-content")).toBeInTheDocument();
+    expect(document.querySelector(".tui-tooltip-content")).toBeInTheDocument();
     vi.useRealTimers();
   });
 

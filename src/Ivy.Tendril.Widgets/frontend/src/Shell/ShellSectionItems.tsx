@@ -1,6 +1,7 @@
 import React from "react";
 import { MessageCircle, SquareTerminal } from "lucide-react";
 import { ShellSectionItemDto } from "./types";
+import { Badge } from "../ui/Badge";
 import "./shell.css";
 
 /** Maps a `ShellSectionItemDto.icon` name to its lucide component; unknown names render nothing. */
@@ -51,9 +52,9 @@ export const ShellSectionItems: React.FC<ShellSectionItemsProps> = ({
           {badges && badges.length > 0 && (
             <span className="tsh-section-item-badges">
               {badges.map((badge, i) => (
-                <span key={i} className="tsh-badge" data-kind={badge.kind}>
+                <Badge key={i} kind={badge.kind}>
                   {badge.label}
-                </span>
+                </Badge>
               ))}
             </span>
           )}
