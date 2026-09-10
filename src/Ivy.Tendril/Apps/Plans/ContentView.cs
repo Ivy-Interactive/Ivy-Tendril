@@ -333,7 +333,7 @@ public class ContentView(
                 questionsPanel)
             .PlanId($"#{selectedPlan.Id}")
             .Title(selectedPlan.Title)
-            .Projects(ProjectHelper.BuildProjectBadges(selectedPlan.Project, config))
+            .ProjectBadges(ProjectHelper.BuildBadges(selectedPlan.Project, config))
             .Meta(BuildMeta(selectedPlan, currentIndex, allPlans.Count))
             .Source(
                 string.IsNullOrEmpty(selectedPlan.SourceUrl) ? null : selectedPlan.SourceUrl,
