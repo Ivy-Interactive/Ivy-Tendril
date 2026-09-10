@@ -14,6 +14,10 @@ namespace Ivy.Tendril.AppShell;
 ///     which is right for every plan list and wrong for anything else.
 /// </param>
 /// <param name="SearchLabel">The search icon's tooltip, e.g. "Search chats"; null reads "Search plans".</param>
+/// <param name="CollapsedMenu">
+///     Folds the collapsed rail's list into one button with a flyout, instead of the
+///     narrow ID chips a plan list shows there.
+/// </param>
 public record ShellSidebarListState(
     string AppId,
     string Title,
@@ -24,7 +28,8 @@ public record ShellSidebarListState(
     Action? OnSearch = null,
     string? SearchLabel = null,
     Action? OnNew = null,
-    string? NewLabel = null);
+    string? NewLabel = null,
+    bool CollapsedMenu = false);
 
 [Signal(BroadcastType.AppShell)]
 public class ShellSidebarListSignal : AbstractSignal<ShellSidebarListState, Unit> { }

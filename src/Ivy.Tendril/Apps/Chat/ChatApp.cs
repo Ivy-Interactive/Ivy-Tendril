@@ -70,7 +70,8 @@ public class ChatApp : ViewBase
             OnSearch: openSearch,
             SearchLabel: "Search chats",
             OnNew: startNewChat,
-            NewLabel: startNewChat != null ? "New chat" : null);
+            NewLabel: startNewChat != null ? "New chat" : null,
+            CollapsedMenu: true);
     }
 
     public override object Build()

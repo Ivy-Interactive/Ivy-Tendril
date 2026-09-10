@@ -16,6 +16,7 @@ public record ShellSidebarSection : WidgetBase<ShellSidebarSection>
     [Prop] public string? EmptyText { get; init; }
     [Prop] public string? NewLabel { get; init; }
     [Prop] public bool Collapsible { get; init; } = true;
+    [Prop] public bool CollapsedMenu { get; init; }
 
     [Event] public EventHandler<Event<ShellSidebarSection, string>>? OnSelectItem { get; init; }
     [Event] public EventHandler<Event<ShellSidebarSection>>? OnSearch { get; init; }
@@ -53,6 +54,9 @@ public static class ShellSidebarSectionExtensions
 
     public static ShellSidebarSection Collapsible(this ShellSidebarSection w, bool collapsible = true) =>
         w with { Collapsible = collapsible };
+
+    public static ShellSidebarSection CollapsedMenu(this ShellSidebarSection w, bool collapsedMenu = true) =>
+        w with { CollapsedMenu = collapsedMenu };
 
     public static ShellSidebarSection OnNew(this ShellSidebarSection w, Action? handler) =>
         handler == null ? w : w with { OnNew = new(_ => { handler(); return ValueTask.CompletedTask; }) };

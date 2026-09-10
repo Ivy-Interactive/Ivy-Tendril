@@ -454,6 +454,74 @@ describe("ShellSidebarSection", () => {
     vi.useRealTimers();
   });
 
+  it("folds the collapsed list into a single rail button when collapsedMenu is set", () => {
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellSidebarSection
+          id="sec-1"
+          title="Chats"
+          items={mockItems}
+          collapsedMenu
+          eventHandler={vi.fn()}
+        />
+      </ShellContext.Provider>,
+    );
+
+    expect(container.querySelectorAll("button.tsh-rail-list-toggle")).toHaveLength(1);
+    expect(container.querySelector(".tsh-rail-list")).toBeNull();
+    expect(screen.getByRole("button", { name: "Show Chats" })).toBeInTheDocument();
+    expect(screen.queryByText("Plan A")).not.toBeInTheDocument();
+  });
+
+  it("keeps the ID chips on the collapsed rail without collapsedMenu", () => {
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellSidebarSection id="sec-1" title="Plans" items={mockItems} eventHandler={vi.fn()} />
+      </ShellContext.Provider>,
+    );
+
+    expect(container.querySelector("button.tsh-rail-list-toggle")).toBeNull();
+    expect(container.querySelectorAll("button.tsh-rail-item")).toHaveLength(2);
+  });
+
+  it("omits the rail list button when a collapsedMenu list is empty", () => {
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellSidebarSection
+          id="sec-1"
+          title="Chats"
+          items={[]}
+          searchable={true}
+          collapsedMenu
+          eventHandler={vi.fn()}
+        />
+      </ShellContext.Provider>,
+    );
+
+    expect(container.querySelector("button.tsh-rail-list-toggle")).toBeNull();
+  });
+
+  it("selects an item picked from the rail flyout", () => {
+    const eventHandler = vi.fn();
+    render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellSidebarSection
+          id="sec-1"
+          title="Chats"
+          items={mockItems}
+          collapsedMenu
+          events={["OnSelectItem"]}
+          eventHandler={eventHandler}
+        />
+      </ShellContext.Provider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show Chats" }));
+    fireEvent.click(screen.getByText("Plan B"));
+
+    expect(eventHandler).toHaveBeenCalledWith("OnSelectItem", "sec-1", ["00002-PlanB"]);
+  });
+
   it("renders full list view with titles and tags when collapsible is false even if collapsed in context", () => {
     const chatItems: ShellSectionItemDto[] = [
       { id: "chat-1", title: "General Discussion", tag: "Sep 10" },

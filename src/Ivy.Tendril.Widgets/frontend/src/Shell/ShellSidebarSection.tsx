@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect } from "react";
-import { MessageCircle, Plus, Search, SquareTerminal } from "lucide-react";
+import { MessageCircle, Plus, Search } from "lucide-react";
 import { useShell } from "./ShellContext";
 import {
   ShellSectionItemDto,
@@ -8,18 +8,14 @@ import {
   isModKey,
   modKeyLabel,
 } from "./types";
+import { ShellSectionItems, sectionItemIcons } from "./ShellSectionItems";
+import { ShellRailList } from "./ShellRailList";
 import { ShellTooltip } from "./ShellTooltip";
 import { Badge } from "../ui/Badge";
 import { Kbd } from "../ui/Kbd";
 import "./shell.css";
 
 const SEARCH_SHORTCUT_KEY = "K";
-
-/** Maps a `ShellSectionItemDto.icon` name to its lucide component; unknown names render nothing. */
-const sectionItemIcons: Record<string, React.FC<{ size?: number }>> = {
-  Terminal: SquareTerminal,
-  MessageCircle: MessageCircle,
-};
 
 interface ShellSidebarSectionProps extends ShellWidgetProps {
   title?: string;
@@ -32,12 +28,16 @@ interface ShellSidebarSectionProps extends ShellWidgetProps {
   /** Shows a "+" button in the header (e.g. "New chat"); fires OnNew. */
   newLabel?: string;
   collapsible?: boolean;
+  /** Folds the collapsed rail's list into one button with a flyout; chat lists opt in. */
+  collapsedMenu?: boolean;
 }
 
 /**
  * The contextual list under the nav: plans for Review/Drafts, recommendations,
- * etc. Published by the active app. In the collapsed rail the list shrinks to
- * narrow ID chips (the row tags, e.g. "#40") with the search button above.
+ * etc. Published by the active app. In the collapsed rail plan lists shrink to
+ * narrow ID chips (the row tags, e.g. "#40") with the search button above; lists
+ * that set collapsedMenu (chats) instead fold into a single button that floats
+ * the list back over the content (see ShellRailList).
  * Without a list (other apps, or an app whose list is empty) the header slot
  * holds a full-width Search button instead of the title, and Cmd/Ctrl+K opens
  * the search from anywhere in the shell.
@@ -54,6 +54,7 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
   emptyText,
   newLabel,
   collapsible = true,
+  collapsedMenu = false,
 }) => {
   const select = (itemId: string) => {
     if (events.includes("OnSelectItem")) eventHandler("OnSelectItem", id, [itemId]);
@@ -108,45 +109,56 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
             </button>
           </ShellTooltip>
         )}
-        <div className="tsh-rail-list">
-          {items.map((item) => {
-            const RailIcon = (item.icon && sectionItemIcons[item.icon]) || MessageCircle;
-            return (
-              <ShellTooltip
-                key={item.id}
-                side="right"
-                className="tsh-rail-tooltip"
-                content={
-                  <div>
-                    <div className="tsh-rail-tooltip-title">{item.title}</div>
-                    {item.badges && item.badges.length > 0 && (
-                      <div className="tsh-rail-tooltip-badges">
-                        {item.badges.map((badge, i) => (
-                          <Badge key={i} kind={badge.kind}>
-                            {badge.label}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                }
-              >
-                <button
-                  className="tsh-rail-item"
-                  data-selected={item.id === selectedId}
-                  onClick={() => select(item.id)}
-                  aria-label={item.title}
+        {collapsedMenu ? (
+          items.length > 0 && (
+            <ShellRailList
+              title={title}
+              items={items}
+              selectedId={selectedId}
+              onSelect={select}
+            />
+          )
+        ) : (
+          <div className="tsh-rail-list">
+            {items.map((item) => {
+              const RailIcon = (item.icon && sectionItemIcons[item.icon]) || MessageCircle;
+              return (
+                <ShellTooltip
+                  key={item.id}
+                  side="right"
+                  className="tsh-rail-tooltip"
+                  content={
+                    <div>
+                      <div className="tsh-rail-tooltip-title">{item.title}</div>
+                      {item.badges && item.badges.length > 0 && (
+                        <div className="tsh-rail-tooltip-badges">
+                          {item.badges.map((badge, i) => (
+                            <Badge key={i} kind={badge.kind}>
+                              {badge.label}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  }
                 >
-                  {item.tag ? (
-                    <span className="tsh-rail-item-text">{item.tag}</span>
-                  ) : (
-                    <RailIcon size={16} />
-                  )}
-                </button>
-              </ShellTooltip>
-            );
-          })}
-        </div>
+                  <button
+                    className="tsh-rail-item"
+                    data-selected={item.id === selectedId}
+                    onClick={() => select(item.id)}
+                    aria-label={item.title}
+                  >
+                    {item.tag ? (
+                      <span className="tsh-rail-item-text">{item.tag}</span>
+                    ) : (
+                      <RailIcon size={16} />
+                    )}
+                  </button>
+                </ShellTooltip>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   }
@@ -161,11 +173,13 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
               onClick={openSearch}
               aria-label={searchLabel}
             >
-              <span className="tsh-section-search-button-main">
-                <Search size={16} />
-                <span className="tsh-section-search-button-label">Search</span>
+              <span className="tsh-row">
+                <span className="tsh-section-search-button-main">
+                  <Search size={16} />
+                  <span className="tsh-section-search-button-label">Search</span>
+                </span>
+                <Kbd keys={[modKeyLabel(), SEARCH_SHORTCUT_KEY]} variant="bare" className="tsh-kbd" />
               </span>
-              <Kbd keys={[modKeyLabel(), SEARCH_SHORTCUT_KEY]} variant="bare" className="tsh-kbd" />
             </button>
           </ShellTooltip>
         </div>
@@ -191,39 +205,12 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
           </span>
         </div>
       )}
-      <div className="tsh-section-list">
-        {items.length === 0 && emptyText && <div className="tsh-section-empty">{emptyText}</div>}
-        {items.map((item) => {
-          const ItemIcon = item.icon ? sectionItemIcons[item.icon] : undefined;
-          return (
-            <button
-              key={item.id}
-              className="tsh-section-item"
-              data-selected={item.id === selectedId}
-              onClick={() => select(item.id)}
-            >
-              <span className="tsh-section-item-top">
-                {ItemIcon && (
-                  <span className="tsh-section-item-icon">
-                    <ItemIcon size={14} />
-                  </span>
-                )}
-                <span className="tsh-section-item-title">{item.title}</span>
-                {item.tag && <span className="tsh-section-item-tag">{item.tag}</span>}
-              </span>
-              {item.badges && item.badges.length > 0 && (
-                <span className="tsh-section-item-badges">
-                  {item.badges.map((badge, i) => (
-                    <Badge key={i} kind={badge.kind}>
-                      {badge.label}
-                    </Badge>
-                  ))}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <ShellSectionItems
+        items={items}
+        selectedId={selectedId}
+        emptyText={emptyText}
+        onSelect={select}
+      />
     </div>
   );
 };
