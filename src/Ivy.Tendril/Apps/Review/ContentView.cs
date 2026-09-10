@@ -310,7 +310,7 @@ public class ContentView(
                 page.Toolbar)
             .PlanId($"#{selectedPlan.Id}")
             .Title(selectedPlan.Title)
-            .Projects(ProjectHelper.BuildProjectBadges(selectedPlan.Project, config))
+            .ProjectBadges(ProjectHelper.BuildBadges(selectedPlan.Project, config))
             .Meta($"{currentIndex + 1}/{allPlans.Count} plans")
             .Source(
                 string.IsNullOrEmpty(selectedPlan.SourceUrl) ? null : selectedPlan.SourceUrl,

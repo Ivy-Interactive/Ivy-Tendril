@@ -24,17 +24,13 @@ export interface PlanTabDto {
   badge?: string;
 }
 
-export interface PlanProjectBadgeDto {
-  label: string;
-  color?: string;
-}
-
 export interface PlanWorkspaceSlots {
   Content?: React.ReactNode[];
   Chat?: React.ReactNode[];
   Verifications?: React.ReactNode[];
   Questions?: React.ReactNode[];
   Toolbar?: React.ReactNode[];
+  ProjectBadges?: React.ReactNode[];
 }
 
 export interface PlanWorkspaceProps {
@@ -46,7 +42,6 @@ export interface PlanWorkspaceProps {
   sourceLabel?: string;
   persona?: string;
   personaInitials?: string;
-  projects?: PlanProjectBadgeDto[];
   actions?: PlanActionDto[];
   menuItems?: PlanActionDto[];
   primary?: PlanActionDto | null;

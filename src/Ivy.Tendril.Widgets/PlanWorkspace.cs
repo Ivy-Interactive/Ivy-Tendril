@@ -1,3 +1,4 @@
+using Ivy;
 using Ivy.Core;
 
 namespace Ivy.Tendril.Widgets;
@@ -23,8 +24,6 @@ public record PlanActionDto(
 
 public record PlanTabDto(string Id, string Label, string? Badge = null);
 
-public record PlanProjectBadgeDto(string Label, string? Color = null);
-
 /// <summary>
 ///     The plan page frame shared by the Drafts and Review apps: a title bar with icon actions and a
 ///     primary button, a tab strip whose trailing corner holds the Verifications and Questions
@@ -42,6 +41,7 @@ public record PlanProjectBadgeDto(string Label, string? Color = null);
 [Slot("Verifications")]
 [Slot("Questions")]
 [Slot("Toolbar")]
+[Slot("ProjectBadges")]
 public record PlanWorkspace : WidgetBase<PlanWorkspace>
 {
     public PlanWorkspace(
@@ -49,18 +49,20 @@ public record PlanWorkspace : WidgetBase<PlanWorkspace>
         object? chat = null,
         object? verifications = null,
         object? questions = null,
-        object? toolbar = null)
-        : base(BuildSlots(content, chat, verifications, questions, toolbar))
+        object? toolbar = null,
+        object? projectBadges = null)
+        : base(BuildSlots(content, chat, verifications, questions, toolbar, projectBadges))
     {
     }
 
-    private static object[] BuildSlots(object? content, object? chat, object? verifications, object? questions, object? toolbar) =>
+    private static object[] BuildSlots(object? content, object? chat, object? verifications, object? questions, object? toolbar, object? projectBadges) =>
     [
         content != null ? new Slot("Content", content) : new Slot("Content"),
         chat != null ? new Slot("Chat", chat) : new Slot("Chat"),
         verifications != null ? new Slot("Verifications", verifications) : new Slot("Verifications"),
         questions != null ? new Slot("Questions", questions) : new Slot("Questions"),
-        toolbar != null ? new Slot("Toolbar", toolbar) : new Slot("Toolbar")
+        toolbar != null ? new Slot("Toolbar", toolbar) : new Slot("Toolbar"),
+        projectBadges != null ? new Slot("ProjectBadges", projectBadges) : new Slot("ProjectBadges")
     ];
 
     [Prop] public string PlanId { get; init; } = string.Empty;
@@ -70,7 +72,6 @@ public record PlanWorkspace : WidgetBase<PlanWorkspace>
     [Prop] public string? SourceLabel { get; init; }
     [Prop] public string? Persona { get; init; }
     [Prop] public string? PersonaInitials { get; init; }
-    [Prop] public List<PlanProjectBadgeDto> Projects { get; init; } = [];
     [Prop] public List<PlanActionDto> Actions { get; init; } = [];
     [Prop] public List<PlanActionDto> MenuItems { get; init; } = [];
     [Prop] public PlanActionDto? Primary { get; init; }
@@ -100,11 +101,29 @@ public static class PlanWorkspaceExtensions
     public static PlanWorkspace Persona(this PlanWorkspace w, string? persona, string? initials) =>
         w with { Persona = persona, PersonaInitials = initials };
 
-    public static PlanWorkspace Project(this PlanWorkspace w, string? label, string? color = null) =>
-        string.IsNullOrWhiteSpace(label) ? w : w with { Projects = [new PlanProjectBadgeDto(label, color)] };
+    public static PlanWorkspace ProjectBadges(this PlanWorkspace w, object? badges)
+    {
+        var others = w.Children.Where(c => c is not Slot s || s.Name != "ProjectBadges");
+        var children = badges switch
+        {
+            null => others.ToArray(),
+            System.Collections.IEnumerable enumerable and not string and not WidgetBase =>
+                others.Append(new Slot("ProjectBadges", enumerable.Cast<object>().ToArray())).ToArray(),
+            _ => others.Append(new Slot("ProjectBadges", badges)).ToArray()
+        };
+        return w with { Children = children };
+    }
 
-    public static PlanWorkspace Projects(this PlanWorkspace w, IEnumerable<PlanProjectBadgeDto> projects) =>
-        w with { Projects = projects.ToList() };
+    public static PlanWorkspace ProjectBadges(this PlanWorkspace w, IEnumerable<Badge> badges) =>
+        w.ProjectBadges((object)badges);
+
+    public static PlanWorkspace Project(this PlanWorkspace w, string? label, Colors? color = null)
+    {
+        if (string.IsNullOrWhiteSpace(label)) return w;
+        var badge = new Badge(label).Variant(BadgeVariant.Outline);
+        if (color.HasValue) badge = badge.Color(color.Value);
+        return w.ProjectBadges(badge);
+    }
 
     public static PlanWorkspace Actions(this PlanWorkspace w, IEnumerable<PlanActionDto> actions) =>
         w with { Actions = actions.ToList() };
