@@ -4,12 +4,36 @@
   "description": "Visual Studio Code integration for Ivy Tendril, plan management and autonomous execution system",
   "version": "0.1.0",
   "publisher": "ivy-interactive",
+  "icon": "resources/icon.png",
+  "license": "SEE LICENSE IN LICENSE",
+  "pricing": "Free",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ivy-Interactive/Ivy-Tendril.git",
+    "directory": "extensions/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/Ivy-Interactive/Ivy-Tendril/issues"
+  },
+  "homepage": "https://github.com/Ivy-Interactive/Ivy-Tendril",
+  "keywords": [
+    "tendril",
+    "ai",
+    "agent",
+    "planning",
+    "orchestration",
+    "git-worktrees",
+    "ivy",
+    "workflow"
+  ],
   "engines": {
     "vscode": "^1.90.0"
   },
   "categories": [
-    "Other",
-    "Programming Languages"
+    "AI",
+    "Machine Learning",
+    "Programming Languages",
+    "Other"
   ],
   "main": "./out/extension.js",
   "activationEvents": [
