@@ -14,6 +14,7 @@ import {
 import { useShell } from "./ShellContext";
 import { ShellNavItemDto, ShellWidgetProps } from "./types";
 import { ShellTooltip } from "./ShellTooltip";
+import { Badge } from "../ui/Badge";
 import "./shell.css";
 
 interface ShellNavProps extends ShellWidgetProps {
@@ -165,10 +166,10 @@ export const ShellNav: React.FC<ShellNavProps> = ({
                 <span className="tsh-nav-label">{item.label}</span>
               </span>
               {item.badge && (
-                <span className="tsh-nav-badge">
+                <Badge numeric className="tsh-nav-badge">
                   {/* The rail fits two digits beside the icon; larger counts cap at 99. */}
                   {collapsed && item.badge.length > 2 ? "99" : item.badge}
-                </span>
+                </Badge>
               )}
             </button>
           </ShellTooltip>

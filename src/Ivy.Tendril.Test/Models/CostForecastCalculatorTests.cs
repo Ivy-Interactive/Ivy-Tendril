@@ -160,4 +160,114 @@ public class CostForecastCalculatorTests
             Assert.True(result.CalendarProjection <= result.ActivityProjection);
         }
     }
+
+    [Fact]
+    public void HundredPercentApiSpend_ComputesIdenticalDualProjectionsAndZeroSubsidized()
+    {
+        var daily = new List<DashboardDailyCost>
+        {
+            new(new DateOnly(2026, 8, 31), 20m, 2000, ApiCost: 20m, ApiTokens: 2000),
+            new(new DateOnly(2026, 8, 30), 10m, 1000, ApiCost: 10m, ApiTokens: 1000)
+        };
+
+        var result = CostForecastCalculator.Project(daily, August);
+
+        Assert.Equal(2, result.CalendarDays);
+        Assert.Equal(2, result.ActivityDays);
+        Assert.Equal(30m / 2 * 31, result.CalendarProjection);
+        Assert.Equal(30m / 2 * 31, result.ActivityProjection);
+        Assert.Equal(result.CalendarProjection, result.ApiCalendarProjection);
+        Assert.Equal(result.ActivityProjection, result.ApiActivityProjection);
+        Assert.Equal(30m, result.TotalApiSpend);
+        Assert.Equal(0m, result.TotalSubsidizedSpend);
+        Assert.Equal(3000, result.TotalApiTokens);
+        Assert.Equal(0, result.TotalSubsidizedTokens);
+        Assert.Equal(0.0, result.SubsidizedTokenPercent);
+        Assert.Equal(0.0, result.SubsidizedCostPercent);
+    }
+
+    [Fact]
+    public void HundredPercentSubsidized_ComputesTotalProjectionWithNullApiProjection()
+    {
+        var daily = new List<DashboardDailyCost>
+        {
+            new(new DateOnly(2026, 8, 31), 25m, 5000, ApiCost: 0m, ApiTokens: 0, SubsidizedCost: 25m, SubsidizedTokens: 5000),
+            new(new DateOnly(2026, 8, 30), 15m, 3000, ApiCost: 0m, ApiTokens: 0, SubsidizedCost: 15m, SubsidizedTokens: 3000)
+        };
+
+        var result = CostForecastCalculator.Project(daily, August);
+
+        Assert.Equal(2, result.CalendarDays);
+        Assert.Equal(2, result.ActivityDays);
+        Assert.NotNull(result.CalendarProjection);
+        Assert.NotNull(result.ActivityProjection);
+        Assert.Null(result.ApiCalendarProjection);
+        Assert.Null(result.ApiActivityProjection);
+        Assert.Equal(0m, result.TotalApiSpend);
+        Assert.Equal(40m, result.TotalSubsidizedSpend);
+        Assert.Equal(0, result.TotalApiTokens);
+        Assert.Equal(8000, result.TotalSubsidizedTokens);
+        Assert.Equal(100.0, result.SubsidizedTokenPercent);
+        Assert.Equal(100.0, result.SubsidizedCostPercent);
+    }
+
+    [Fact]
+    public void MixedUsage_CalculatesAccurateSubsidizedPercentsAndDualProjections()
+    {
+        var daily = new List<DashboardDailyCost>
+        {
+            // Day 1: 10 API spend (1000 tokens), 30 subsidized value (3000 tokens) -> Total 40 cost, 4000 tokens
+            new(new DateOnly(2026, 8, 31), 40m, 4000, ApiCost: 10m, ApiTokens: 1000, SubsidizedCost: 30m, SubsidizedTokens: 3000),
+            // Day 2: 0 API spend, 10 subsidized value (1000 tokens) -> Total 10 cost, 1000 tokens
+            new(new DateOnly(2026, 8, 30), 10m, 1000, ApiCost: 0m, ApiTokens: 0, SubsidizedCost: 10m, SubsidizedTokens: 1000)
+        };
+
+        var result = CostForecastCalculator.Project(daily, August);
+
+        Assert.Equal(2, result.CalendarDays);
+        Assert.Equal(2, result.ActivityDays);
+        Assert.Equal(50m, result.TotalSpend);
+        Assert.Equal(10m, result.TotalApiSpend);
+        Assert.Equal(40m, result.TotalSubsidizedSpend);
+        Assert.Equal(1000, result.TotalApiTokens);
+        Assert.Equal(4000, result.TotalSubsidizedTokens);
+
+        // 4000 subsidized out of 5000 total tokens = 80%
+        Assert.Equal(80.0, result.SubsidizedTokenPercent);
+        // 40 subsidized out of 50 total spend = 80%
+        Assert.Equal(80.0, result.SubsidizedCostPercent);
+
+        // Total projections
+        Assert.Equal(50m / 2 * 31, result.CalendarProjection);
+        Assert.Equal(50m / 2 * 31, result.ActivityProjection);
+
+        // API projections: 10 API spend across 2 calendar days, 1 active API day
+        Assert.Equal(10m / 2 * 31, result.ApiCalendarProjection);
+        Assert.Equal(10m / 1 * 31, result.ApiActivityProjection);
+    }
+
+    [Fact]
+    public void EmptyAndZeroCostWindows_HandleSubsidizedFieldsSafely()
+    {
+        var emptyResult = CostForecastCalculator.Project([], August);
+        Assert.Null(emptyResult.CalendarProjection);
+        Assert.Null(emptyResult.ApiCalendarProjection);
+        Assert.Equal(0m, emptyResult.TotalSpend);
+        Assert.Equal(0m, emptyResult.TotalApiSpend);
+        Assert.Equal(0m, emptyResult.TotalSubsidizedSpend);
+        Assert.Equal(0, emptyResult.SubsidizedTokenPercent);
+        Assert.Equal(0, emptyResult.SubsidizedCostPercent);
+
+        var zeroDaily = new List<DashboardDailyCost>
+        {
+            new(new DateOnly(2026, 8, 31), 0m, 0),
+            new(new DateOnly(2026, 8, 30), 0m, 0)
+        };
+        var zeroResult = CostForecastCalculator.Project(zeroDaily, August);
+        Assert.Null(zeroResult.CalendarProjection);
+        Assert.Null(zeroResult.ApiCalendarProjection);
+        Assert.Equal(0m, zeroResult.TotalSpend);
+        Assert.Equal(0, zeroResult.SubsidizedTokenPercent);
+        Assert.Equal(0, zeroResult.SubsidizedCostPercent);
+    }
 }

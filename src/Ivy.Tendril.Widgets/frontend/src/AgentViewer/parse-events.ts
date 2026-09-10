@@ -1,10 +1,10 @@
 import type { EventWire, PresentationEvent, ToolUsePresentation } from "./types";
 
-export function parseEventWireStream(jsonStream: string): PresentationEvent[] {
-  const lines = jsonStream.split("\n");
+/** The stream's raw events, one JSON object per line; malformed lines are skipped. */
+export function parseEventWires(jsonStream: string): EventWire[] {
   const events: EventWire[] = [];
 
-  for (const line of lines) {
+  for (const line of jsonStream.split("\n")) {
     const trimmed = line.trim();
     if (trimmed.length === 0) continue;
     try {
@@ -17,6 +17,15 @@ export function parseEventWireStream(jsonStream: string): PresentationEvent[] {
     }
   }
 
+  return events;
+}
+
+export function parseEventWireStream(jsonStream: string): PresentationEvent[] {
+  return presentEventWires(parseEventWires(jsonStream));
+}
+
+/** Folds raw events into what the components render. */
+export function presentEventWires(events: EventWire[]): PresentationEvent[] {
   const toolMap = new Map<string, ToolUsePresentation>();
   const out: PresentationEvent[] = [];
   let pendingText: string | null = null;

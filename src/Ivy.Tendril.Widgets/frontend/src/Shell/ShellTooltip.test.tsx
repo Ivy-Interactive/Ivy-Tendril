@@ -75,7 +75,7 @@ describe("ShellTooltip", () => {
     const tooltip = screen.getByRole("tooltip");
     expect(tooltip).toBeInTheDocument();
     expect(tooltip).toHaveTextContent("Helpful information");
-    expect(document.querySelector(".tsh-tooltip-content")).toBeInTheDocument();
+    expect(document.querySelector(".tui-tooltip-content")).toBeInTheDocument();
   });
 
   it("displays tooltip content on focus", () => {
@@ -106,7 +106,7 @@ describe("ShellTooltip", () => {
     const tooltip = screen.getByRole("tooltip");
     expect(tooltip).toBeInTheDocument();
     expect(tooltip).toHaveTextContent("Open plans");
-    const kbd = tooltip.querySelector(".tsh-tooltip-kbd");
+    const kbd = tooltip.querySelector(".tui-kbd");
     expect(kbd).toBeInTheDocument();
     expect(kbd?.textContent).toBe("⌘\u2009⌥\u2009N");
   });

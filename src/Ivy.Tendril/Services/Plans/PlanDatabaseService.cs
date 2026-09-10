@@ -569,8 +569,8 @@ public class PlanDatabaseService : IPlanDatabaseService
 
             using var insertCmd = _connection.CreateCommand();
             insertCmd.CommandText = """
-                                    INSERT INTO Costs (PlanId, Promptware, Tokens, Cost, Model, LogTimestamp)
-                                    VALUES (@planId, @promptware, @tokens, @cost, @model, @logTimestamp)
+                                    INSERT INTO Costs (PlanId, Promptware, Tokens, Cost, Model, LogTimestamp, CostSource)
+                                    VALUES (@planId, @promptware, @tokens, @cost, @model, @logTimestamp, @costSource)
                                     """;
             insertCmd.Parameters.AddWithValue("@planId", planId);
             insertCmd.Parameters.AddWithValue("@promptware", string.Empty);
@@ -578,6 +578,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             insertCmd.Parameters.AddWithValue("@cost", DBNull.Value);
             insertCmd.Parameters.AddWithValue("@model", DBNull.Value);
             insertCmd.Parameters.AddWithValue("@logTimestamp", DBNull.Value);
+            insertCmd.Parameters.AddWithValue("@costSource", DBNull.Value);
 
             foreach (var cost in costs)
             {
@@ -591,6 +592,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                 insertCmd.Parameters["@logTimestamp"].Value = cost.LogTimestamp.HasValue
                     ? cost.LogTimestamp.Value.ToString("O", CultureInfo.InvariantCulture)
                     : DBNull.Value;
+                insertCmd.Parameters["@costSource"].Value = (object?)cost.CostSource ?? DBNull.Value;
                 insertCmd.ExecuteNonQuery();
             }
         }

@@ -10,7 +10,8 @@ public record DashboardKpiDto(
     string? Delta = null,
     string? Direction = null,
     string? Hint = null,
-    string? Id = null);
+    string? Id = null,
+    string? SubValue = null);
 
 public record DashboardMonthValueDto(
     string Label,

@@ -60,7 +60,7 @@ public class AboutSetupView : ViewBase
         var isCheckingUpdates = UseState(false);
 
         var tendrilVersion = typeof(Program).Assembly.GetName().Version?.ToString(3) ?? "1.0.0";
-        var ivyVersion = typeof(ViewBase).Assembly.GetName().Version?.ToString(3) ?? "1.3.21";
+        var ivyVersion = typeof(ViewBase).Assembly.GetName().Version?.ToString(3) ?? "1.4.0";
         var osDescription = RuntimeInformation.OSDescription;
         var osArch = RuntimeInformation.OSArchitecture.ToString();
         var processArch = RuntimeInformation.ProcessArchitecture.ToString();

@@ -31,6 +31,12 @@ describe("dashboard.css KPI grid", () => {
     expect(css).toMatch(/\.tdb-kpi-hint\s*\{[^}]*opacity: 0\.7;/);
   });
 
+  it("styles the subvalue alongside the primary value", () => {
+    expect(css).toContain(".tdb-kpi-subvalue {");
+    expect(css).toMatch(/\.tdb-kpi-subvalue\s*\{[^}]*font-size:\s*13px;/);
+    expect(css).toMatch(/\.tdb-kpi-subvalue\s*\{[^}]*opacity:\s*0\.75;/);
+  });
+
   it("defines cursor pointer, transition, hover, and focus-visible on .tdb-kpi", () => {
     expect(css).toMatch(/\.tdb-kpi\s*\{[^}]*cursor:\s*pointer;/);
     expect(css).toMatch(/\.tdb-kpi\s*\{[^}]*transition:\s*[^;]*transform/);

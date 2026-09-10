@@ -236,16 +236,16 @@ public class DashboardAppViewModelTests
     }
 
     [Fact]
-    public void BuildKpis_ForecastComputesCalendarProjection()
+    public void BuildKpis_ForecastWithDirectApiSpend_ShowsApiHeadlineAndTotalSubValue()
     {
         // August 2026 has 31 days. Ten days of history, three of which cost anything: the calendar
         // basis divides by 10.
         var today = new DateTime(2026, 8, 31);
         var dailyCosts = new List<DashboardDailyCost>
         {
-            new(DateOnly.FromDateTime(today.AddDays(-9)), 10m, 1000),
-            new(DateOnly.FromDateTime(today.AddDays(-5)), 20m, 2000),
-            new(DateOnly.FromDateTime(today), 30m, 3000)
+            new(DateOnly.FromDateTime(today.AddDays(-9)), 10m, 1000, ApiCost: 10m, ApiTokens: 1000),
+            new(DateOnly.FromDateTime(today.AddDays(-5)), 20m, 2000, ApiCost: 20m, ApiTokens: 2000),
+            new(DateOnly.FromDateTime(today), 30m, 3000, ApiCost: 30m, ApiTokens: 3000)
         };
         var stats = new DashboardModels(1, 0, 0, 0, 1, 0, 0m, [], []);
         var activity = new DashboardActivityStats([], 0, dailyCosts);
@@ -253,9 +253,56 @@ public class DashboardAppViewModelTests
         var forecast = DashboardApp.BuildKpis(stats, activity, [], today)
             .Single(k => k.Label == "Forecast This Month");
 
-        // 60 over 10 days times 31, rounded by FormatCost above 100.
-        Assert.Equal("$186", forecast.Value);
-        Assert.Null(forecast.Hint);
+        // 60 over 10 days times 31 = $186 API projection and total projection
+        Assert.Equal("$186 API", forecast.Value);
+        Assert.Equal("$186 total", forecast.SubValue);
+        Assert.Equal("0% subsidized via subscription", forecast.Hint);
+    }
+
+    [Fact]
+    public void BuildKpis_ForecastWithSubsidizedUsage_ShowsZeroApiAndSubsidizedHint()
+    {
+        var today = new DateTime(2026, 8, 31);
+        var dailyCosts = new List<DashboardDailyCost>
+        {
+            new(DateOnly.FromDateTime(today.AddDays(-9)), 10m, 1000, SubsidizedCost: 10m, SubsidizedTokens: 1000),
+            new(DateOnly.FromDateTime(today.AddDays(-5)), 20m, 2000, SubsidizedCost: 20m, SubsidizedTokens: 2000),
+            new(DateOnly.FromDateTime(today), 30m, 3000, SubsidizedCost: 30m, SubsidizedTokens: 3000)
+        };
+        var stats = new DashboardModels(1, 0, 0, 0, 1, 0, 0m, [], []);
+        var activity = new DashboardActivityStats([], 0, dailyCosts);
+
+        var forecast = DashboardApp.BuildKpis(stats, activity, [], today)
+            .Single(k => k.Label == "Forecast This Month");
+
+        Assert.Equal("$0 API", forecast.Value);
+        Assert.Equal("$186 total", forecast.SubValue);
+        Assert.Equal("100% subsidized via subscription", forecast.Hint);
+    }
+
+    [Fact]
+    public void BuildKpis_ForecastWithMixedUsage_ShowsDirectApiAndSubsidizedPercentage()
+    {
+        var today = new DateTime(2026, 8, 31);
+        var dailyCosts = new List<DashboardDailyCost>
+        {
+            // Day 1: 10 API spend (1000 tokens), 10 subsidized value (1000 tokens) -> 20 total, 2000 tokens
+            new(DateOnly.FromDateTime(today.AddDays(-9)), 20m, 2000, ApiCost: 10m, ApiTokens: 1000, SubsidizedCost: 10m, SubsidizedTokens: 1000),
+            // Day 2: 20 API spend (2000 tokens), 60 subsidized value (6000 tokens) -> 80 total, 8000 tokens
+            new(DateOnly.FromDateTime(today), 80m, 8000, ApiCost: 20m, ApiTokens: 2000, SubsidizedCost: 60m, SubsidizedTokens: 6000)
+        };
+        var stats = new DashboardModels(1, 0, 0, 0, 1, 0, 0m, [], []);
+        var activity = new DashboardActivityStats([], 0, dailyCosts);
+
+        var forecast = DashboardApp.BuildKpis(stats, activity, [], today)
+            .Single(k => k.Label == "Forecast This Month");
+
+        // Total: 100 over 10 days * 31 = $310 total
+        // API: 30 over 10 days * 31 = $93.00 API (< 100 formats with decimals)
+        // Subsidized tokens: 7000 out of 10000 = 70%
+        Assert.Equal("$93.00 API", forecast.Value);
+        Assert.Equal("$310 total", forecast.SubValue);
+        Assert.Equal("70% subsidized via subscription", forecast.Hint);
     }
 
     [Fact]
