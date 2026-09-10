@@ -45,8 +45,10 @@ export const ShellSettingsButton: React.FC<ShellSettingsButtonProps> = ({
           if (events.includes("OnClick")) eventHandler("OnClick", id, []);
         }}
       >
-        <Icon size={16} />
-        {showLabel && <span className="tsh-settings-label">{label}</span>}
+        <span className="tsh-row">
+          <Icon size={16} />
+          {showLabel && <span className="tsh-settings-label">{label}</span>}
+        </span>
       </button>
     </ShellTooltip>
   );

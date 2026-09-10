@@ -41,6 +41,14 @@ public class ChatAppSidebarListTests
     }
 
     [Fact]
+    public void BuildSidebarList_FoldsIntoTheCollapsedRailMenu()
+    {
+        var list = ChatApp.BuildSidebarList([Session("a", "First")], null, new HashSet<string>(), new HashSet<string>(), () => { });
+
+        Assert.True(list.CollapsedMenu);
+    }
+
+    [Fact]
     public void BuildSidebarList_MarksTerminalSessionsAndExposesNewChat()
     {
         var sessions = new List<ChatSessionModel>

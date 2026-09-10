@@ -159,18 +159,20 @@ export const ShellNav: React.FC<ShellNavProps> = ({
               onClick={() => select(item.id)}
               aria-label={item.label}
             >
-              <span className="tsh-nav-item-main">
-                <span className="tsh-nav-icon">
-                  <NavIcon icon={item.icon} label={item.label} />
+              <span className="tsh-row">
+                <span className="tsh-nav-item-main">
+                  <span className="tsh-nav-icon">
+                    <NavIcon icon={item.icon} label={item.label} />
+                  </span>
+                  <span className="tsh-nav-label">{item.label}</span>
                 </span>
-                <span className="tsh-nav-label">{item.label}</span>
+                {item.badge && (
+                  <Badge numeric className="tsh-nav-badge">
+                    {/* The rail fits two digits beside the icon; larger counts cap at 99. */}
+                    {collapsed && item.badge.length > 2 ? "99" : item.badge}
+                  </Badge>
+                )}
               </span>
-              {item.badge && (
-                <Badge numeric className="tsh-nav-badge">
-                  {/* The rail fits two digits beside the icon; larger counts cap at 99. */}
-                  {collapsed && item.badge.length > 2 ? "99" : item.badge}
-                </Badge>
-              )}
             </button>
           </ShellTooltip>
         ))}
