@@ -21,6 +21,17 @@ public class ProjectInputStepView(
     bool disableSkipWhenCannotContinue = false,
     bool showHeader = true) : ViewBase
 {
+    public const string BackgroundButtonLabel = "Background";
+
+    public static Button BuildBackgroundButton(bool canContinue, Action onClick)
+    {
+        return new Button(BackgroundButtonLabel)
+            .Outline()
+            .Large()
+            .Disabled(!canContinue)
+            .OnClick(onClick);
+    }
+
     public override object Build()
     {
         var config = UseService<IConfigService>();
@@ -79,7 +90,7 @@ public class ProjectInputStepView(
             | new Spacer()
             | (onBack != null ? (object)new Button("Back").Outline().Large().Icon(Icons.ArrowLeft).OnClick(onBack) : null!)
             | (isBeta
-                ? (object)new Button("Background (beta)").Outline().Large().Disabled(!canContinue).OnClick(handleBgJob)
+                ? (object)BuildBackgroundButton(canContinue, handleBgJob)
                 : null!)
             | new Button(nextButtonText).Secondary().Large().Icon(Icons.ArrowRight, Align.Right)
                 .Disabled(!canContinue)
