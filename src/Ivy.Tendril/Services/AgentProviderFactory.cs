@@ -170,14 +170,16 @@ public static class AgentProviderFactory
             {
                 if (string.IsNullOrEmpty(model) &&
                     cli.Capabilities.HasFlag(AgentCapabilities.ModelSelection) &&
-                    !string.IsNullOrEmpty(defaultProfile.Model))
+                    !string.IsNullOrEmpty(defaultProfile.Model) &&
+                    !defaultProfile.Model.Equals("default", StringComparison.OrdinalIgnoreCase))
                 {
                     model = defaultProfile.Model;
                 }
 
                 if (string.IsNullOrEmpty(effort) &&
                     cli.Capabilities.HasFlag(AgentCapabilities.EffortControl) &&
-                    !string.IsNullOrEmpty(defaultProfile.Effort))
+                    !string.IsNullOrEmpty(defaultProfile.Effort) &&
+                    !defaultProfile.Effort.Equals("default", StringComparison.OrdinalIgnoreCase))
                 {
                     effort = defaultProfile.Effort;
                 }
