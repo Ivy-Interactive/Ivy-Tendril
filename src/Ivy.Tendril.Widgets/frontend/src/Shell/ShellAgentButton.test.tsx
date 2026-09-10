@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { ShellAgentButton } from "./ShellAgentButton";
 
@@ -91,5 +91,31 @@ describe("ShellAgentButton", () => {
     expect(spans[0].textContent).toBe("Ctrl");
     expect(spans[1].textContent).toBe("Alt");
     expect(spans[2].textContent).toBe("A");
+  });
+
+  it("renders tooltip with three-key shortcut on hover", () => {
+    vi.useFakeTimers();
+    render(
+      <ShellAgentButton
+        id="agent"
+        events={["OnNewChat"]}
+        eventHandler={vi.fn()}
+        label="Claude Code"
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "Claude Code" });
+    fireEvent.pointerMove(button);
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toBeInTheDocument();
+    expect(tooltip).toHaveTextContent("Claude Code");
+    const kbd = tooltip.querySelector(".tui-kbd");
+    expect(kbd).toBeInTheDocument();
+    expect(kbd?.textContent).toBe("Ctrl+Alt+A");
+    vi.useRealTimers();
   });
 });
