@@ -453,4 +453,30 @@ describe("ShellSidebarSection", () => {
     expect(tooltip).toHaveTextContent("Active");
     vi.useRealTimers();
   });
+
+  it("renders full list view with titles and tags when collapsible is false even if collapsed in context", () => {
+    const chatItems: ShellSectionItemDto[] = [
+      { id: "chat-1", title: "General Discussion", tag: "Sep 10" },
+      { id: "chat-2", title: "Bug Triage", tag: "Sep 9" },
+    ];
+
+    const { container } = render(
+      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+        <ShellSidebarSection
+          id="sec-non-collapsible"
+          title="Search Results"
+          items={chatItems}
+          collapsible={false}
+          eventHandler={vi.fn()}
+        />
+      </ShellContext.Provider>,
+    );
+
+    expect(container.querySelector(".tsh-section-rail")).toBeNull();
+    expect(container.querySelector(".tsh-section-list")).toBeInTheDocument();
+    expect(screen.getByText("General Discussion")).toBeInTheDocument();
+    expect(screen.getByText("Sep 10")).toBeInTheDocument();
+    expect(screen.getByText("Bug Triage")).toBeInTheDocument();
+    expect(screen.getByText("Sep 9")).toBeInTheDocument();
+  });
 });

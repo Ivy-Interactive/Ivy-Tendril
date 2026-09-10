@@ -93,4 +93,26 @@ describe("TendrilShell", () => {
     expect(window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY)).toBe("false");
     expect(eventHandler).toHaveBeenCalledWith("OnCollapsedChanged", "shell-1", [false]);
   });
+
+  it("content in slots.Content receives collapsed: false even when sidebar is collapsed", () => {
+    let observedCollapsed: boolean | undefined;
+    const TestContent = () => {
+      const { collapsed } = useShell();
+      observedCollapsed = collapsed;
+      return <div data-testid="test-content">Content (collapsed={String(collapsed)})</div>;
+    };
+
+    render(
+      <TendrilShell
+        id="shell-test"
+        collapsed={true}
+        eventHandler={vi.fn()}
+        slots={{
+          Content: <TestContent />,
+        }}
+      />
+    );
+
+    expect(observedCollapsed).toBe(false);
+  });
 });
