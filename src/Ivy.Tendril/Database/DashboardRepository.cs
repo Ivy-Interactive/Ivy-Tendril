@@ -269,7 +269,12 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
             {
                 cmd.CommandText = """
                     SELECT DATE(COALESCE(c.LogTimestamp, p.Updated)) AS d,
-                           COALESCE(SUM(c.Cost), 0), COALESCE(SUM(c.Tokens), 0)
+                           COALESCE(SUM(c.Cost), 0),
+                           COALESCE(SUM(c.Tokens), 0),
+                           COALESCE(SUM(CASE WHEN c.CostSource IN ('agent', 'computed') OR (c.CostSource IS NULL AND c.Cost > 0) THEN c.Cost ELSE 0 END), 0),
+                           COALESCE(SUM(CASE WHEN c.CostSource IN ('agent', 'computed') OR (c.CostSource IS NULL AND c.Cost > 0) THEN c.Tokens ELSE 0 END), 0),
+                           COALESCE(SUM(CASE WHEN c.CostSource = 'estimated' THEN c.Cost ELSE 0 END), 0),
+                           COALESCE(SUM(CASE WHEN c.CostSource = 'estimated' OR (c.CostSource IS NULL AND (c.Cost IS NULL OR c.Cost = 0)) THEN c.Tokens ELSE 0 END), 0)
                     FROM Costs c JOIN Plans p ON p.Id = c.PlanId
                     WHERE COALESCE(c.LogTimestamp, p.Updated) >= @cutoff
                     GROUP BY d ORDER BY d
@@ -284,7 +289,11 @@ public class DashboardRepository(SqliteConnection connection, ReaderWriterLockSl
                     dailyCosts.Add(new DashboardDailyCost(
                         day,
                         Convert.ToDecimal(r.GetValue(1), CultureInfo.InvariantCulture),
-                        Convert.ToInt64(r.GetValue(2), CultureInfo.InvariantCulture)));
+                        Convert.ToInt64(r.GetValue(2), CultureInfo.InvariantCulture),
+                        Convert.ToDecimal(r.GetValue(3), CultureInfo.InvariantCulture),
+                        Convert.ToInt64(r.GetValue(4), CultureInfo.InvariantCulture),
+                        Convert.ToDecimal(r.GetValue(5), CultureInfo.InvariantCulture),
+                        Convert.ToInt64(r.GetValue(6), CultureInfo.InvariantCulture)));
                 }
             }
 
