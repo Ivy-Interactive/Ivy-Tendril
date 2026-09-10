@@ -12,6 +12,10 @@ export interface DashboardKpiDto {
 export interface DashboardMonthValueDto {
   label: string;
   value: number;
+  year?: number;
+  month?: number;
+  day?: number;
+  date?: string;
 }
 
 export interface DashboardActivityDayDto {

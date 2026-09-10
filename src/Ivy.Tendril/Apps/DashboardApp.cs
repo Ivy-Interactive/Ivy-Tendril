@@ -135,10 +135,7 @@ public class DashboardApp : ViewBase
             .Kpis(BuildKpis(stats, activity, prDays, today))
             .Trend(BuildTrend(activity, today))
             .TrendWeekly(BuildWeeklyTrend(activity, today))
-            .PullRequests(activity.Months
-                .TakeLast(6)
-                .Select(m => new DashboardMonthValueDto(MonthLabel(m.Month), m.PrsMerged))
-                .ToList())
+            .PullRequests(BuildMonthlyPullRequests(activity.Months))
             .PullRequestsWeekly(BuildWeeklyPullRequests(prDays, today))
             .Activity(BuildActivityMonths(prDays, firstActivityMonth))
             .Jobs(BuildActiveJobs(jobs, planService))
@@ -203,6 +200,21 @@ public class DashboardApp : ViewBase
     private static string MonthLabel(int month) =>
         CultureInfo.InvariantCulture.DateTimeFormat.GetAbbreviatedMonthName(month);
 
+    internal static List<DashboardMonthValueDto> BuildMonthlyPullRequests(
+        IEnumerable<DashboardMonthStats> months, int count = 6)
+    {
+        return months
+            .TakeLast(count)
+            .Select(m => new DashboardMonthValueDto(
+                MonthLabel(m.Month),
+                m.PrsMerged,
+                m.Year,
+                m.Month,
+                1,
+                $"{m.Year:D4}-{m.Month:D2}-01"))
+            .ToList();
+    }
+
     internal static List<DashboardMonthValueDto> BuildWeeklyPullRequests(
         List<(DateOnly Date, int Count)> prDays, DateTime today, int weeks = 6)
     {
@@ -216,7 +228,13 @@ public class DashboardApp : ViewBase
             var weekEnd = weekStart.AddDays(6);
             var count = prDays.Where(p => p.Date >= weekStart && p.Date <= weekEnd).Sum(p => p.Count);
             var label = $"{MonthLabel(weekStart.Month)} {weekStart.Day}";
-            result.Add(new DashboardMonthValueDto(label, count));
+            result.Add(new DashboardMonthValueDto(
+                label,
+                count,
+                weekStart.Year,
+                weekStart.Month,
+                weekStart.Day,
+                weekStart.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
         }
 
         return result;

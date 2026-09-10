@@ -12,7 +12,13 @@ public record DashboardKpiDto(
     string? Hint = null,
     string? Id = null);
 
-public record DashboardMonthValueDto(string Label, double Value);
+public record DashboardMonthValueDto(
+    string Label,
+    double Value,
+    int? Year = null,
+    int? Month = null,
+    int? Day = null,
+    string? Date = null);
 
 public record DashboardActivityDayDto(string Date, int Count);
 
