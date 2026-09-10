@@ -21,23 +21,19 @@ interface ShellRailListProps {
   title?: string;
   items: ShellSectionItemDto[];
   selectedId?: string;
-  showCount?: boolean;
-  showBadges?: boolean;
   onSelect: (itemId: string) => void;
 }
 
 /**
- * The collapsed rail's single entry to the plan/chat list. Hovering it floats the
- * full list over the content; clicking pins the flyout open until the X, Escape or
- * a click outside dismisses it. The bar's arrows step the selection through the
+ * The collapsed rail's single entry to the chat list. Hovering it floats the full
+ * list over the content; clicking pins the flyout open until the X, Escape or a
+ * click outside dismisses it. The bar's arrows step the selection through the
  * list without leaving the menu.
  */
 export const ShellRailList: React.FC<ShellRailListProps> = ({
   title,
   items,
   selectedId,
-  showCount = false,
-  showBadges = false,
   onSelect,
 }) => {
   const [open, setOpen] = useState(false);
@@ -160,7 +156,6 @@ export const ShellRailList: React.FC<ShellRailListProps> = ({
   };
 
   const count = items.length > 99 ? "99" : String(items.length);
-  const showBadge = showCount && items.length > 0;
 
   return (
     <>
@@ -176,11 +171,7 @@ export const ShellRailList: React.FC<ShellRailListProps> = ({
         onClick={togglePinned}
       >
         <List size={16} />
-        {showBadge ? (
-          <span className="tsh-nav-badge tsh-rail-list-count">{count}</span>
-        ) : (
-          <ChevronRight className="tsh-rail-list-chevron" size={10} />
-        )}
+        <span className="tsh-nav-badge tsh-rail-list-count">{count}</span>
       </button>
       {open &&
         position &&
@@ -226,7 +217,6 @@ export const ShellRailList: React.FC<ShellRailListProps> = ({
             <ShellSectionItems
               items={items}
               selectedId={selectedId}
-              showBadges={showBadges}
               className="tsh-rail-menu-list"
               onSelect={selectItem}
             />

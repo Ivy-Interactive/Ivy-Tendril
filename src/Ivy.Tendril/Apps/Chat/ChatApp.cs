@@ -71,8 +71,7 @@ public class ChatApp : ViewBase
             SearchLabel: "Search chats",
             OnNew: startNewChat,
             NewLabel: startNewChat != null ? "New chat" : null,
-            ShowCount: true,
-            CollapsedBadges: true);
+            CollapsedMenu: true);
     }
 
     public override object Build()

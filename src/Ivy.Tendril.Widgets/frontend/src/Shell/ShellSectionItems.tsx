@@ -4,7 +4,7 @@ import { ShellSectionItemDto } from "./types";
 import "./shell.css";
 
 /** Maps a `ShellSectionItemDto.icon` name to its lucide component; unknown names render nothing. */
-const sectionItemIcons: Record<string, React.FC<{ size?: number }>> = {
+export const sectionItemIcons: Record<string, React.FC<{ size?: number }>> = {
   Terminal: SquareTerminal,
   MessageCircle: MessageCircle,
 };

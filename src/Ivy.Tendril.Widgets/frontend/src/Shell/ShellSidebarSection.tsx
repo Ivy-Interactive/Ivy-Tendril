@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect } from "react";
-import { Plus, Search } from "lucide-react";
+import { MessageCircle, Plus, Search } from "lucide-react";
 import { useShell } from "./ShellContext";
 import {
   ShellSectionItemDto,
@@ -8,7 +8,7 @@ import {
   isModKey,
   modKeyLabel,
 } from "./types";
-import { ShellSectionItems } from "./ShellSectionItems";
+import { ShellSectionItems, sectionItemIcons } from "./ShellSectionItems";
 import { ShellRailList } from "./ShellRailList";
 import { ShellTooltip } from "./ShellTooltip";
 import "./shell.css";
@@ -26,17 +26,16 @@ interface ShellSidebarSectionProps extends ShellWidgetProps {
   /** Shows a "+" button in the header (e.g. "New chat"); fires OnNew. */
   newLabel?: string;
   collapsible?: boolean;
-  /** Puts the item count on the collapsed rail's list button; chat lists opt in. */
-  showCount?: boolean;
-  /** Keeps item badges in the collapsed rail's flyout; plan lists drop them. */
-  collapsedBadges?: boolean;
+  /** Folds the collapsed rail's list into one button with a flyout; chat lists opt in. */
+  collapsedMenu?: boolean;
 }
 
 /**
  * The contextual list under the nav: plans for Review/Drafts, recommendations,
- * etc. Published by the active app. In the collapsed rail the whole list folds
- * into a single button that floats it back over the content (see ShellRailList),
- * with the search and new buttons stacked above it.
+ * etc. Published by the active app. In the collapsed rail plan lists shrink to
+ * narrow ID chips (the row tags, e.g. "#40") with the search button above; lists
+ * that set collapsedMenu (chats) instead fold into a single button that floats
+ * the list back over the content (see ShellRailList).
  * Without a list (other apps, or an app whose list is empty) the header slot
  * holds a full-width Search button instead of the title, and Cmd/Ctrl+K opens
  * the search from anywhere in the shell.
@@ -53,8 +52,7 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
   emptyText,
   newLabel,
   collapsible = true,
-  showCount = false,
-  collapsedBadges = false,
+  collapsedMenu = false,
 }) => {
   const select = (itemId: string) => {
     if (events.includes("OnSelectItem")) eventHandler("OnSelectItem", id, [itemId]);
@@ -109,15 +107,55 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
             </button>
           </ShellTooltip>
         )}
-        {items.length > 0 && (
-          <ShellRailList
-            title={title}
-            items={items}
-            selectedId={selectedId}
-            showCount={showCount}
-            showBadges={collapsedBadges}
-            onSelect={select}
-          />
+        {collapsedMenu ? (
+          items.length > 0 && (
+            <ShellRailList
+              title={title}
+              items={items}
+              selectedId={selectedId}
+              onSelect={select}
+            />
+          )
+        ) : (
+          <div className="tsh-rail-list">
+            {items.map((item) => {
+              const RailIcon = (item.icon && sectionItemIcons[item.icon]) || MessageCircle;
+              return (
+                <ShellTooltip
+                  key={item.id}
+                  side="right"
+                  className="tsh-rail-tooltip"
+                  content={
+                    <div>
+                      <div className="tsh-rail-tooltip-title">{item.title}</div>
+                      {item.badges && item.badges.length > 0 && (
+                        <div className="tsh-rail-tooltip-badges">
+                          {item.badges.map((badge, i) => (
+                            <span key={i} className="tsh-badge" data-kind={badge.kind}>
+                              {badge.label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  }
+                >
+                  <button
+                    className="tsh-rail-item"
+                    data-selected={item.id === selectedId}
+                    onClick={() => select(item.id)}
+                    aria-label={item.title}
+                  >
+                    {item.tag ? (
+                      <span className="tsh-rail-item-text">{item.tag}</span>
+                    ) : (
+                      <RailIcon size={16} />
+                    )}
+                  </button>
+                </ShellTooltip>
+              );
+            })}
+          </div>
         )}
       </div>
     );

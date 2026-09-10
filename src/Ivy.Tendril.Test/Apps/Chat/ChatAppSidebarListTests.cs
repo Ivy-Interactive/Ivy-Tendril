@@ -38,12 +38,11 @@ public class ChatAppSidebarListTests
     }
 
     [Fact]
-    public void BuildSidebarList_OptsIntoTheCollapsedRailCountAndBadges()
+    public void BuildSidebarList_FoldsIntoTheCollapsedRailMenu()
     {
         var list = ChatApp.BuildSidebarList([Session("a", "First")], null, new HashSet<string>(), new HashSet<string>(), () => { });
 
-        Assert.True(list.ShowCount);
-        Assert.True(list.CollapsedBadges);
+        Assert.True(list.CollapsedMenu);
     }
 
     [Fact]

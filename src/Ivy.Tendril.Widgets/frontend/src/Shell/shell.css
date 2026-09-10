@@ -5,6 +5,7 @@
 .tsh-root,
 .tsh-section,
 .tsh-rail-menu,
+.tsh-rail-tooltip,
 .tsh-tooltip-content {
   /* Every token derives from the host theme's variables so alternate themes
      (Retro, etc.) recolor the shell; the literals are only fallbacks for when
@@ -69,6 +70,7 @@
 .dark .tsh-root,
 .dark .tsh-section,
 .dark .tsh-rail-menu,
+.dark .tsh-rail-tooltip,
 .dark .tsh-tooltip-content {
   /* Dark theme swaps these two roles relative to light: the shell backdrop
      takes the lighter grey and the content frame sits darker inside it, so the
@@ -666,9 +668,9 @@
   margin-top: 0;
 }
 
-/* Collapsed rail variant: the new/search buttons and a single list button that
-   floats the whole list back over the content (ShellRailList). Row padding
-   matches the nav's, so every rail icon shares the nav icons' axis. */
+/* Collapsed rail variant: the new and search buttons, then the list itself -
+   plan lists keep their narrow ID chips, chats fold into the single list button
+   below. Row padding matches the nav's, so every rail icon shares its axis. */
 .tsh-section-rail {
   align-items: stretch;
 }
@@ -703,6 +705,67 @@
   color: var(--tsh-row-active-fg);
 }
 
+.tsh-rail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+.tsh-rail-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  flex-shrink: 0;
+  width: 100%;
+  padding: 6px 2px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tsh-fg);
+  opacity: 0.6;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  /* Plan IDs run #0000-#1000 and share a leading "#", so a right-side ellipsis
+     would hide the digits that actually differ. RTL direction moves the
+     ellipsis to the left; the inner span is isolated back to LTR so the digits
+     keep their real order and only the head is clipped ("…123", not "321…"). */
+  direction: rtl;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition:
+    opacity 150ms ease,
+    background-color 150ms ease;
+}
+
+.tsh-rail-item-text {
+  unicode-bidi: isolate;
+  direction: ltr;
+}
+
+.tsh-rail-item:hover {
+  opacity: 1;
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+.tsh-rail-item[data-selected="true"] {
+  opacity: 1;
+  background: var(--tsh-row-active);
+  color: var(--tsh-row-active-fg);
+}
+
+/* Chats instead fold into one button that floats the list back over the
+   content (ShellRailList). */
 .tsh-rail-list-toggle {
   position: relative;
 }
@@ -713,21 +776,7 @@
   color: var(--tsh-row-active-fg);
 }
 
-/* The chevron and the count share the sliver of rail right of the icon, so the
-   count replaces the chevron on the lists that carry one. */
-.tsh-rail-list-chevron {
-  position: absolute;
-  top: 50%;
-  right: 2px;
-  transform: translateY(-50%);
-  opacity: 0.7;
-  transition: transform 150ms ease;
-}
-
-.tsh-rail-list-toggle[data-open="true"] .tsh-rail-list-chevron {
-  transform: translateY(-50%) rotate(180deg);
-}
-
+/* Rides the top-right corner of the icon, like the nav rows' counts. */
 .tsh-rail-list-count {
   position: absolute;
   top: 2px;
@@ -920,6 +969,48 @@
   border-color: var(--border, #27272a);
   background: color-mix(in srgb, var(--muted, #27272a) 40%, transparent);
   color: var(--card-foreground, #f8f8f8);
+}
+
+/* Hover flyout for a rail plan chip: title plus the row badges. Fixed-position
+   (portaled to <body>) so the sidebar's overflow:hidden cannot clip it. */
+.tsh-rail-tooltip {
+  position: fixed;
+  transform: translateY(-50%);
+  z-index: 60;
+  max-width: 260px;
+  padding: 6px 12px;
+  border: 1px solid var(--border, #e0e0e0);
+  border-radius: var(--radius-selectors, 6px);
+  background: var(--card, #ffffff);
+  color: var(--card-foreground, #000000);
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
+  pointer-events: none;
+  font-family: var(--font-sans, "Geist", sans-serif);
+  animation: tsh-tooltip-in 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dark .tsh-rail-tooltip {
+  background: var(--card, #0a0a0a);
+  color: var(--card-foreground, #f8f8f8);
+  border-color: var(--border, #27272a);
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.4),
+    0 2px 4px -2px rgb(0 0 0 / 0.4);
+}
+
+.tsh-rail-tooltip-title {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.tsh-rail-tooltip-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
 }
 
 .tsh-section-header {

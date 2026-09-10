@@ -128,25 +128,14 @@ describe("ShellRailList", () => {
     expect(screen.getByText("Plan A")).toBeInTheDocument();
   });
 
-  it("counts the rows in a pill only when the list opts in", () => {
-    const { container, unmount } = renderRailList();
-    expect(container.querySelector(".tsh-rail-list-count")).toBeNull();
-    expect(container.querySelector(".tsh-rail-list-chevron")).toBeInTheDocument();
-    unmount();
-
-    const { container: counted } = renderRailList({ showCount: true });
-    expect(counted.querySelector(".tsh-rail-list-count")).toHaveTextContent("3");
-    expect(counted.querySelector(".tsh-rail-list-chevron")).toBeNull();
+  it("counts the rows in a pill on the button", () => {
+    const { container } = renderRailList();
+    expect(container.querySelector(".tsh-rail-list-count")).toHaveTextContent("3");
   });
 
-  it("drops item badges unless the list opts into them", () => {
-    const { toggle, unmount } = renderRailList();
+  it("keeps the item badges in the flyout", () => {
+    const { toggle } = renderRailList();
     hover(toggle);
-    expect(screen.queryByText("Draft")).not.toBeInTheDocument();
-    unmount();
-
-    const { toggle: withBadges } = renderRailList({ showBadges: true });
-    hover(withBadges);
     expect(screen.getByText("Draft")).toBeInTheDocument();
   });
 });
