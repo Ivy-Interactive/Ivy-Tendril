@@ -4,6 +4,7 @@ import { parseEventWires, presentEventWires } from "../AgentViewer/parse-events"
 import { deriveStatus } from "../AgentViewer/status";
 import { deriveStreamMetrics } from "../AgentViewer/stream-metrics";
 import { StatusLine } from "../ui/StatusLine";
+import { Tooltip } from "../ui/Tooltip";
 import { ToolUseCard } from "../AgentViewer/tool-use-card";
 import type { PresentationEvent, ResultWire, ToolUsePresentation } from "../AgentViewer/types";
 import { BlockMarkdown } from "../BlockMarkdown";
@@ -79,25 +80,29 @@ const TurnMeta: React.FC<{ wire: ResultWire }> = ({ wire }) => {
 
   if (wire.duration_ms != null && wire.duration_ms > 0) {
     items.push(
-      <span key="duration" className="chat-turn-meta-item" title="Duration">
-        <Timer size={14} />
-        {formatDuration(wire.duration_ms)}
-      </span>,
+      <Tooltip key="duration" content="Duration">
+        <span className="chat-turn-meta-item">
+          <Timer size={14} />
+          {formatDuration(wire.duration_ms)}
+        </span>
+      </Tooltip>,
     );
   }
   if (usage != null && (usage.input_tokens > 0 || usage.output_tokens > 0)) {
     items.push(
-      <span key="tokens" className="chat-turn-meta-item" title="Tokens in / out">
-        <Coins size={14} />
-        {formatTokens(usage.input_tokens)} / {formatTokens(usage.output_tokens)}
-      </span>,
+      <Tooltip key="tokens" content="Tokens in / out">
+        <span className="chat-turn-meta-item">
+          <Coins size={14} />
+          {formatTokens(usage.input_tokens)} / {formatTokens(usage.output_tokens)}
+        </span>
+      </Tooltip>,
     );
   }
   if (usage?.cost_usd != null && usage.cost_usd > 0) {
     items.push(
-      <span key="cost" className="chat-turn-meta-item" title="Cost">
-        {formatCost(usage.cost_usd)}
-      </span>,
+      <Tooltip key="cost" content="Cost">
+        <span className="chat-turn-meta-item">{formatCost(usage.cost_usd)}</span>
+      </Tooltip>,
     );
   }
 

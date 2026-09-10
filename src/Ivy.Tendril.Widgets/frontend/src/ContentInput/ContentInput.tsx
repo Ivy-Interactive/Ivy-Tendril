@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { StatusDot } from "../ui/Badge";
 import { Kbd } from "../ui/Kbd";
 import { Tooltip } from "../ui/Tooltip";
 import * as pdfjsLib from "pdfjs-dist";
@@ -855,7 +856,7 @@ export const ContentInput: React.FC<ContentInputProps> = ({
             <div className={`civ-voice-container ${voiceStatus !== "idle" ? "active" : ""}`}>
               {voiceStatus !== "idle" && (
                 <div className="civ-recording-bar">
-                  <span className="civ-dot-pulse" />
+                  <StatusDot tone="danger" pulse className="civ-dot-pulse" />
                   <span className="civ-timer">{formatTime(duration)}</span>
                   <div className="civ-equalizer">
                     {bars.map((h, i) => (

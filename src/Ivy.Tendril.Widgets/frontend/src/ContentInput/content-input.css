@@ -307,14 +307,6 @@
   padding-right: 4px;
 }
 
-.civ-dot-pulse {
-  width: 6px;
-  height: 6px;
-  background: var(--civ-error);
-  border-radius: 50%;
-  animation: flashPulse 1s infinite alternate;
-}
-
 .civ-timer {
   font-size: 0.75rem;
   font-weight: 600;
@@ -519,18 +511,6 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes flashPulse {
-  from {
-    opacity: 0.3;
-    transform: scale(0.8);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1.1);
   }
 }
 

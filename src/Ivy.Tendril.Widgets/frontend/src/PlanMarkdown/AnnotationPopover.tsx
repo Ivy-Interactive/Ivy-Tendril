@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { getInitials, type MarkdownAnnotation } from "./annotationUtils";
+import { Badge } from "../ui/Badge";
 import { Kbd } from "../ui/Kbd";
 import { Tooltip } from "../ui/Tooltip";
 
@@ -172,9 +173,9 @@ export const EditAnnotationPopover: React.FC<EditAnnotationPopoverProps> = ({
           </div>
         )}
         {isResolved && (
-          <span className="pmv-resolved-badge">
+          <Badge kind="success" className="pmv-resolved-badge">
             ✓ Resolved
-          </span>
+          </Badge>
         )}
       </div>
       <div className="pmv-popover-quote">

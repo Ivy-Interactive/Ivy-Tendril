@@ -19,7 +19,7 @@ import { ShellSidebarSection } from "./Shell/ShellSidebarSection";
 import { ShellSettingsButton } from "./Shell/ShellSettingsButton";
 import { ShellTabs } from "./Shell/ShellTabs";
 import { TendrilQuestions } from "./TendrilQuestions/TendrilQuestions";
-import { PlanWorkspace } from "./PlanWorkspace/PlanWorkspace";
+import { PlanWorkspace as PlanWorkspaceBase } from "./PlanWorkspace/PlanWorkspace";
 import {
   TendrilBadge,
   TendrilIconButton,
@@ -28,10 +28,11 @@ import {
   TendrilTooltip,
 } from "./ui";
 
-/* The two surfaces that host rows of tooltips own the scope their tooltips share; every other
+/* The surfaces that host rows of tooltips own the scope their tooltips share; every other
    widget either sits inside one of them or brings its own, per tooltip. */
 const ChatWidget = withTooltipScope(ChatWidgetBase);
 const TendrilShell = withTooltipScope(TendrilShellBase);
+const PlanWorkspace = withTooltipScope(PlanWorkspaceBase);
 
 if (typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).IvyTendrilWidgets = {

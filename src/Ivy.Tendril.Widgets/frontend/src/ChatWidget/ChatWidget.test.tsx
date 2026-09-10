@@ -380,11 +380,11 @@ describe("ChatWidget Queued Messages UI", () => {
 
     // The effort select lives in the agent picker's side panel for the selected agent.
     fireEvent.click(screen.getByRole("button", { name: /^Agent:/i }));
-    const effortTrigger = screen.getByTitle("Effort Level");
+    const effortTrigger = screen.getByRole("button", { name: "Effort Level" });
     expect(effortTrigger).toBeInTheDocument();
     expect(screen.getByText("High")).toBeInTheDocument();
 
-    fireEvent.click(effortTrigger.querySelector("button")!);
+    fireEvent.click(effortTrigger);
     const maxOption = screen.getByRole("button", { name: /Max/i });
     fireEvent.click(maxOption);
 
@@ -2069,10 +2069,10 @@ describe("ChatWidget redesign", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Codex" }));
     expect(handleEvent).toHaveBeenLastCalledWith("OnAgentChanged", "test-chat", ["codex"]);
 
-    fireEvent.click(screen.getByTitle("Model").querySelector("button")!);
+    fireEvent.click(screen.getByRole("button", { name: "Model" }));
     fireEvent.click(screen.getByRole("button", { name: "GPT-5" }));
     expect(handleEvent).toHaveBeenCalledWith("OnModelChanged", "test-chat", ["gpt-5"]);
-    expect(screen.queryByTitle("Effort Level")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Effort Level" })).not.toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();

@@ -148,9 +148,9 @@ export const ComposerAttachmentCard: React.FC<ComposerAttachmentCardProps> = ({ 
       )}
 
       {att.uploadStatus === "failed" && (
-        <div className="chat-thumbnail-failed-badge" title={att.error || "Upload failed"}>
-          Failed
-        </div>
+        <Tooltip content={att.error || "Upload failed"}>
+          <div className="chat-thumbnail-failed-badge">Failed</div>
+        </Tooltip>
       )}
 
       <Tooltip content="Remove file">

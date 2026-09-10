@@ -36,17 +36,19 @@ const PanelSelect: React.FC<{
   const current = options.find((option) => option.value === value)?.label ?? (value || "Default");
 
   return (
-    <div className="chat-panel-select" title={title} data-open={open}>
-      <button
-        type="button"
-        className="chat-panel-select-trigger"
-        aria-label={title}
-        aria-expanded={open}
-        onClick={() => setOpen((state) => !state)}
-      >
-        <span className="chat-panel-select-value">{current}</span>
-        <ChevronDown size={16} className="chat-panel-select-chevron" />
-      </button>
+    <div className="chat-panel-select" data-open={open}>
+      <Tooltip content={title}>
+        <button
+          type="button"
+          className="chat-panel-select-trigger"
+          aria-label={title}
+          aria-expanded={open}
+          onClick={() => setOpen((state) => !state)}
+        >
+          <span className="chat-panel-select-value">{current}</span>
+          <ChevronDown size={16} className="chat-panel-select-chevron" />
+        </button>
+      </Tooltip>
       {open && (
         <div className="chat-panel-select-list">
           {options.map((option) => (
