@@ -288,7 +288,7 @@ public class CodingAgentSetupView : ViewBase
             };
 
             var valueText = Text.Block(p is { } pct
-                ? $"{pct:0.#}%"
+                ? $"{pct:0.#}% remaining"
                 : $"{UsageWindowCalculator.FormatTokens(w.TotalTokens)} tokens").Small();
 
             if (valueColor.HasValue)
@@ -302,7 +302,7 @@ public class CodingAgentSetupView : ViewBase
                     : new Progress((int)Math.Round(progVal)).Small())
                 : null;
 
-            return Layout.Vertical().Gap(0).Width(Size.Units(36))
+            return Layout.Vertical().Gap(0).Width(Size.Units(38))
                 | Text.Muted($"{UsageWindowCalculator.FormatWindow(w.WindowMinutes)} window").Small()
                 | valueText
                 | (progress != null ? progress : null!)
