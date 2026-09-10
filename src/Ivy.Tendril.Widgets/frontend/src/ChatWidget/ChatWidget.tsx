@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowRight,
   Check,
@@ -54,6 +54,33 @@ export type {
   ModelOptionDto,
 } from "./types";
 export { MAX_PAYLOAD_BYTES, formatFileSize } from "./attachments";
+
+const SINGLE_LINE_HEIGHT = 32;
+
+/**
+ * Whether the prompt needs more than one line beside the composer's buttons. It is measured at
+ * the width the textarea has inline, whichever layout is showing, so the composer does not flip
+ * back and forth once the toolbar has moved above the text and widened it.
+ */
+const needsMultipleLines = (textarea: HTMLTextAreaElement, row: HTMLElement | null): boolean => {
+  if (!textarea.value) return false;
+  if (textarea.value.includes("\n")) return true;
+  // Before the composer has a width nothing can be measured; the placeholder would wrap.
+  if (!row || row.clientWidth === 0) return false;
+  const siblings = Array.from(row.children).filter((child) => child !== textarea) as HTMLElement[];
+  const gap = parseFloat(getComputedStyle(row).columnGap) || 0;
+  const inlineWidth = row.clientWidth - siblings.reduce((sum, child) => sum + child.offsetWidth, 0) - gap * siblings.length;
+  if (inlineWidth <= 0) return false;
+  const previous = { flex: textarea.style.flex, width: textarea.style.width, height: textarea.style.height };
+  textarea.style.flex = "0 0 auto";
+  textarea.style.width = `${Math.max(inlineWidth, 0)}px`;
+  textarea.style.height = "auto";
+  const wraps = textarea.scrollHeight > SINGLE_LINE_HEIGHT;
+  textarea.style.flex = previous.flex;
+  textarea.style.width = previous.width;
+  textarea.style.height = previous.height;
+  return wraps;
+};
 
 const newOptimisticMessage = (content: string, agentId: string, modelId: string): ChatMessageDto => ({
   id: `opt-${Date.now()}-${Math.random()}`,
@@ -137,8 +164,10 @@ export function ChatWidget({
   const [optimisticStreaming, setOptimisticStreaming] = useState<string | null>(null);
   const [activeLightboxImage, setActiveLightboxImage] = useState<{ url: string; title: string } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [multiline, setMultiline] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputRowRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -173,13 +202,38 @@ export function ChatWidget({
     [eventHandler, events, id],
   );
 
+  const syncMultiline = useCallback(() => {
+    const el = textareaRef.current;
+    if (el) setMultiline(needsMultipleLines(el, inputRowRef.current));
+  }, []);
+
   const adjustTextareaHeight = useCallback(() => {
     const el = textareaRef.current;
     if (el) {
+      syncMultiline();
       el.style.height = "auto";
       el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
     }
-  }, []);
+  }, [syncMultiline]);
+
+  // The toolbar moving above or back beside the text changes the textarea's width, so its
+  // height follows; on mount the textarea keeps its stylesheet height.
+  const shownMultilineRef = useRef(multiline);
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el || shownMultilineRef.current === multiline) return;
+    shownMultilineRef.current = multiline;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, [multiline]);
+
+  useEffect(() => {
+    const row = inputRowRef.current;
+    if (!row || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => syncMultiline());
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [syncMultiline]);
 
   const {
     voiceStatus,
@@ -430,6 +484,7 @@ export function ChatWidget({
 
     emit("OnSendMessage", payload);
     setPromptText("");
+    setMultiline(false);
     clearAttachments();
     if (textareaRef.current) textareaRef.current.style.height = "auto";
   };
@@ -625,6 +680,7 @@ export function ChatWidget({
             <JobsMenu
               jobs={headerJobs}
               spawned={sessionSpawnedJobs.length > 0}
+              onOpenPlan={openPlan}
               onReview={() =>
                 emit("OnSendMessage", {
                   prompt: "All spawned jobs have completed. Please review their outcomes with me and suggest next steps.",
@@ -852,7 +908,7 @@ export function ChatWidget({
               </div>
             )}
 
-            <div className="chat-input-row">
+            <div ref={inputRowRef} className="chat-input-row" data-multiline={multiline}>
               <IconButton
                 className="chat-attach-btn"
                 label="Attach file"

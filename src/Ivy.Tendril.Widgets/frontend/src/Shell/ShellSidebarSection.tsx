@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect } from "react";
-import { MessageCircle, Plus, Search, SquareTerminal } from "lucide-react";
+import { CircleCheck, LoaderCircle, MessageCircle, Plus, Search, SquareTerminal } from "lucide-react";
 import { useShell } from "./ShellContext";
 import {
+  ShellItemState,
   ShellSectionItemDto,
   ShellWidgetProps,
   isEditableTarget,
@@ -20,6 +21,14 @@ const sectionItemIcons: Record<string, React.FC<{ size?: number }>> = {
   Terminal: SquareTerminal,
   MessageCircle: MessageCircle,
 };
+
+const STATE_LABELS: Record<ShellItemState, string> = { working: "Working", completed: "Completed" };
+
+const ItemStateIcon: React.FC<{ state: ShellItemState }> = ({ state }) => (
+  <span className="tsh-section-item-state" data-state={state} role="img" aria-label={STATE_LABELS[state]}>
+    {state === "working" ? <LoaderCircle size={12} className="tsh-spin" /> : <CircleCheck size={12} />}
+  </span>
+);
 
 interface ShellSidebarSectionProps extends ShellWidgetProps {
   title?: string;
@@ -122,7 +131,7 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
                     {item.badges && item.badges.length > 0 && (
                       <div className="tsh-rail-tooltip-badges">
                         {item.badges.map((badge, i) => (
-                          <Badge key={i} kind={badge.kind}>
+                          <Badge key={i} kind={badge.kind} color={badge.color}>
                             {badge.label}
                           </Badge>
                         ))}
@@ -208,13 +217,14 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
                     <ItemIcon size={14} />
                   </span>
                 )}
+                {item.state && <ItemStateIcon state={item.state} />}
                 <span className="tsh-section-item-title">{item.title}</span>
                 {item.tag && <span className="tsh-section-item-tag">{item.tag}</span>}
               </span>
               {item.badges && item.badges.length > 0 && (
                 <span className="tsh-section-item-badges">
                   {item.badges.map((badge, i) => (
-                    <Badge key={i} kind={badge.kind}>
+                    <Badge key={i} kind={badge.kind} color={badge.color}>
                       {badge.label}
                     </Badge>
                   ))}

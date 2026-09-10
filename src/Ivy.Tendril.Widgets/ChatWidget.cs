@@ -22,7 +22,8 @@ public record ChatJobDto(
     string Status,
     string? PlanId = null,
     string? PlanTitle = null,
-    string? StatusMessage = null
+    string? StatusMessage = null,
+    string? TypeColor = null
 );
 
 public record ChatSessionDto(

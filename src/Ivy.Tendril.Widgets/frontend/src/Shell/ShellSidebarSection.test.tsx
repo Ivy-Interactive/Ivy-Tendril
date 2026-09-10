@@ -139,6 +139,40 @@ describe("ShellSidebarSection", () => {
     expect(screen.queryByText("Search")).not.toBeInTheDocument();
   });
 
+  it("shows a state icon left of the title for rows that carry one", () => {
+    const items: ShellSectionItemDto[] = [
+      { id: "c1", title: "Working chat", state: "working" },
+      { id: "c2", title: "Finished chat", state: "completed" },
+      { id: "c3", title: "Idle chat" },
+    ];
+    render(
+      <ShellSidebarSection id="sec-1" title="Chats" items={items} events={["OnSelectItem"]} eventHandler={vi.fn()} />,
+    );
+
+    const working = screen.getByRole("img", { name: "Working" });
+    expect(working).toHaveAttribute("data-state", "working");
+    expect(working.closest(".tsh-section-item")).toHaveTextContent("Working chat");
+    expect(screen.getByRole("img", { name: "Completed" })).toHaveAttribute("data-state", "completed");
+    expect(
+      screen.getByText("Idle chat").closest(".tsh-section-item")?.querySelector(".tsh-section-item-state"),
+    ).toBeNull();
+    expect(document.querySelector(".tui-badge")).toBeNull();
+  });
+
+  it("tints a badge with the host color it names", () => {
+    const items: ShellSectionItemDto[] = [
+      { id: "p1", title: "Plan", badges: [{ label: "ExecutePlan", kind: "color", color: "Blue" }] },
+    ];
+    const { container } = render(
+      <ShellSidebarSection id="sec-1" title="Plans" items={items} eventHandler={vi.fn()} />,
+    );
+
+    const badge = container.querySelector(".tui-badge") as HTMLElement;
+    expect(badge).toHaveTextContent("ExecutePlan");
+    expect(badge).toHaveAttribute("data-kind", "color");
+    expect(badge.style.getPropertyValue("--tui-badge-color")).toBe("var(--blue, currentColor)");
+  });
+
   it("opens search on Cmd/Ctrl+K, but not while typing in an input", () => {
     const eventHandler = vi.fn();
     render(

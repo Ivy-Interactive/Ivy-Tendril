@@ -65,9 +65,9 @@ class DemoApp : ViewBase
     {
         var jobs = new List<ChatJobDto>
         {
-            new("00148", "ExecutePlan", "Completed", "00059", "Add dark mode toggle to vault theme settings", "Completed successfully"),
-            new("00149", "CreatePr", "Completed", "00059", "Add dark mode toggle to vault theme settings", "PR #2431 opened"),
-            new("00150", "ExecutePlan", "Completed", "00060", "Persist theme choice per user", "Completed successfully"),
+            new("00148", "ExecutePlan", "Completed", "00059", "Add dark mode toggle to vault theme settings", "Completed successfully", "Blue"),
+            new("00149", "CreatePr", "Completed", "00059", "Add dark mode toggle to vault theme settings", "PR #2431 opened", "Green"),
+            new("00150", "ExecutePlan", "Completed", "00060", "Persist theme choice per user", "Completed successfully", "Blue"),
         };
 
         var full = new ChatSessionDto(

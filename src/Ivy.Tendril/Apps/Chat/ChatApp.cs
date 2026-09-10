@@ -29,17 +29,23 @@ public class ChatApp : ViewBase
     internal static string? PlanTag(ChatSessionModel session) =>
         string.IsNullOrEmpty(session.PlanFolderName) ? null : $"#{TendrilAppShell.FormatPlanId(session.PlanFolderName)}";
 
-    internal static ChatJobDto ToJobDto(JobItem job) =>
-        new(job.Id, job.Type, job.Status.ToString(), job.ReportedPlanId, job.ReportedPlanTitle, job.StatusMessage);
+    internal static ChatJobDto ToJobDto(JobItem job) => new(
+        job.Id,
+        job.Type,
+        job.Status.ToString(),
+        job.ReportedPlanId,
+        job.ReportedPlanTitle,
+        job.StatusMessage,
+        Constants.JobTypeColors.TryGetValue(job.Type, out var color) ? color.ToString() : null);
 
-    internal static List<ShellBadgeDto>? BuildRowBadges(
+    internal static string? BuildRowState(
         ChatSessionModel session,
         string? selectedId,
         IReadOnlySet<string> generatingIds,
         IReadOnlySet<string> completedIds)
     {
-        if (generatingIds.Contains(session.Id)) return [ShellBadgeDto.Warning("Working")];
-        if (completedIds.Contains(session.Id) && session.Id != selectedId) return [ShellBadgeDto.Success("Completed")];
+        if (generatingIds.Contains(session.Id)) return "working";
+        if (completedIds.Contains(session.Id) && session.Id != selectedId) return "completed";
         return null;
     }
 
@@ -60,8 +66,8 @@ public class ChatApp : ViewBase
                 s.Id,
                 DisplayTitle(s),
                 PlanTag(s),
-                BuildRowBadges(s, selectedId, generatingIds, completedIds),
-                Icon: s.IsTerminal() ? "Terminal" : null))
+                Icon: s.IsTerminal() ? "Terminal" : null,
+                State: BuildRowState(s, selectedId, generatingIds, completedIds)))
             .ToList();
         return new ShellSidebarListState(
             "chat", "Chats", items, selectedId,
@@ -421,9 +427,9 @@ public class ChatApp : ViewBase
         );
     }
 
-    internal static string ResolveModel(IReadOnlyList<(string Id, string DisplayName)> models, params string?[] preferred)
+    internal static string ResolveModel(IReadOnlyList<(string Id, string DisplayName)> models, params string?[]? preferred)
     {
-        foreach (var candidate in preferred)
+        foreach (var candidate in preferred ?? [])
         {
             if (string.IsNullOrEmpty(candidate)) continue;
             var match = models.FirstOrDefault(m => m.Id.Equals(candidate, StringComparison.OrdinalIgnoreCase));
@@ -432,9 +438,9 @@ public class ChatApp : ViewBase
         return models.Count > 0 ? models[0].Id : "default";
     }
 
-    internal static string ResolveEffort(IReadOnlyList<EffortOptionDto> efforts, params string?[] preferred)
+    internal static string ResolveEffort(IReadOnlyList<EffortOptionDto> efforts, params string?[]? preferred)
     {
-        foreach (var candidate in preferred)
+        foreach (var candidate in preferred ?? [])
         {
             if (string.IsNullOrEmpty(candidate)) continue;
             var match = efforts.FirstOrDefault(e => e.Id.Equals(candidate, StringComparison.OrdinalIgnoreCase));

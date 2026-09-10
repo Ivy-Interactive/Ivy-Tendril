@@ -150,6 +150,9 @@
   --tui-badge-danger-bg: color-mix(in srgb, var(--destructive, #f9c0c0) 18%, var(--card, #ffffff));
   --tui-badge-danger-fg: color-mix(in srgb, var(--destructive, #7f1d1d) 40%, var(--foreground, #000000));
   --tui-badge-border: color-mix(in srgb, var(--foreground, #000000) 30%, transparent);
+  /* A badge in a host colour gets the same pale fill the status kinds use. */
+  --tui-badge-color-mix-bg: 18%;
+  --tui-badge-color-mix-fg: 60%;
 
   display: inline-flex;
   align-items: center;
@@ -176,6 +179,8 @@
   --tui-badge-danger-bg: color-mix(in srgb, var(--destructive, #7f1d1d) 28%, var(--card, #000000));
   --tui-badge-danger-fg: color-mix(in srgb, var(--destructive, #f9c0c0) 40%, var(--foreground, #ffffff));
   --tui-badge-border: color-mix(in srgb, var(--foreground, #ffffff) 25%, transparent);
+  --tui-badge-color-mix-bg: 28%;
+  --tui-badge-color-mix-fg: 60%;
 }
 
 /* A count reads as a number, not a word: fixed width so it does not jitter as it ticks. */
@@ -189,7 +194,8 @@
 .tui-badge[data-kind="project"],
 .tui-badge[data-kind="success"],
 .tui-badge[data-kind="warning"],
-.tui-badge[data-kind="danger"] {
+.tui-badge[data-kind="danger"],
+.tui-badge[data-kind="color"] {
   border-color: var(--tui-badge-border);
 }
 
@@ -211,6 +217,11 @@
 .tui-badge[data-kind="danger"] {
   background: var(--tui-badge-danger-bg);
   color: var(--tui-badge-danger-fg);
+}
+
+.tui-badge[data-kind="color"] {
+  background: color-mix(in srgb, var(--tui-badge-color) var(--tui-badge-color-mix-bg), var(--card, #ffffff));
+  color: color-mix(in srgb, var(--tui-badge-color) var(--tui-badge-color-mix-fg), var(--foreground, #000000));
 }
 
 .tui-dot {

@@ -1136,3 +1136,32 @@
   background: var(--tsh-row-active);
   color: var(--tsh-row-active-fg);
 }
+
+@keyframes tsh-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tsh-spin {
+  animation: tsh-spin 1.2s linear infinite;
+}
+
+.tsh-section-item-state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 16px;
+  color: var(--tsh-fg);
+  opacity: 0.6;
+}
+
+.tsh-section-item-state[data-state="completed"] {
+  color: color-mix(in srgb, var(--success, #1f4924) 60%, var(--tsh-fg));
+  opacity: 1;
+}

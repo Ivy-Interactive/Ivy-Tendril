@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Ivy.Tendril.Apps.Chat;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Widgets;
 using Xunit;
 
 namespace Ivy.Tendril.Test.Apps.Chat;
@@ -17,7 +19,7 @@ public class ChatAppSidebarListTests
         var sessions = new List<ChatSessionModel> { Session("a", "First"), Session("b", "") };
         var searched = false;
 
-        var list = ChatApp.BuildSidebarList(sessions, "a", new HashSet<string>(), new HashSet<string>(), () => searched = true);
+        var list = ChatApp.BuildSidebarList(sessions, "a", new HashSet<string> { "b" }, new HashSet<string>(), () => searched = true);
 
         Assert.Equal("chat", list.AppId);
         Assert.Equal("Chats", list.Title);
@@ -25,8 +27,9 @@ public class ChatAppSidebarListTests
         Assert.True(list.Searchable);
         Assert.Equal("Search chats", list.SearchLabel);
         Assert.Collection(list.Items,
-            item => Assert.Equal(("a", "First"), (item.Id, item.Title)),
-            item => Assert.Equal(("b", "New Chat"), (item.Id, item.Title)));
+            item => Assert.Equal(("a", "First", (string?)null), (item.Id, item.Title, item.State)),
+            item => Assert.Equal(("b", "New Chat", "working"), (item.Id, item.Title, item.State)));
+        Assert.All(list.Items, item => Assert.Null(item.Badges));
 
         var args = Assert.IsType<ChatAppArgs>(list.BuildSelectArgs("b"));
         Assert.Equal("b", args.SessionId);
@@ -58,19 +61,37 @@ public class ChatAppSidebarListTests
     }
 
     [Fact]
-    public void BuildRowBadges_FlagsWorkingAndUnseenCompletedSessionsOnly()
+    public void BuildRowState_FlagsWorkingAndUnseenCompletedSessionsOnly()
     {
         var generating = new HashSet<string> { "gen" };
         var completed = new HashSet<string> { "done", "current" };
 
-        var working = ChatApp.BuildRowBadges(Session("gen", "x"), "current", generating, completed);
-        var finished = ChatApp.BuildRowBadges(Session("done", "x"), "current", generating, completed);
-        var active = ChatApp.BuildRowBadges(Session("current", "x"), "current", generating, completed);
-        var idle = ChatApp.BuildRowBadges(Session("idle", "x"), "current", generating, completed);
+        Assert.Equal("working", ChatApp.BuildRowState(Session("gen", "x"), "current", generating, completed));
+        Assert.Equal("completed", ChatApp.BuildRowState(Session("done", "x"), "current", generating, completed));
+        Assert.Null(ChatApp.BuildRowState(Session("current", "x"), "current", generating, completed));
+        Assert.Null(ChatApp.BuildRowState(Session("idle", "x"), "current", generating, completed));
+    }
 
-        Assert.Equal(("Working", "warning"), (working![0].Label, working[0].Kind));
-        Assert.Equal(("Completed", "success"), (finished![0].Label, finished[0].Kind));
-        Assert.Null(active);
-        Assert.Null(idle);
+    [Fact]
+    public void ToJobDto_CarriesTheBackendColorOfKnownJobTypes()
+    {
+        var execute = ChatApp.ToJobDto(new JobItem { Id = "00148", Type = Constants.JobTypes.ExecutePlan, Status = JobStatus.Completed, ReportedPlanId = "00059" });
+        var custom = ChatApp.ToJobDto(new JobItem { Id = "00149", Type = "Promptware", Status = JobStatus.Running });
+
+        Assert.Equal(("00148", "ExecutePlan", "Completed", "00059", "Blue"), (execute.Id, execute.Type, execute.Status, execute.PlanId, execute.TypeColor));
+        Assert.Null(custom.TypeColor);
+    }
+
+    [Fact]
+    public void ResolveModelAndEffort_FallBackWhenThePreferenceIsUnknown()
+    {
+        var models = new List<(string Id, string DisplayName)> { ("opus", "Opus"), ("sonnet", "Sonnet") };
+        var efforts = new List<EffortOptionDto> { new("default", "Default"), new("max", "Max") };
+
+        Assert.Equal("sonnet", ChatApp.ResolveModel(models, "Sonnet"));
+        Assert.Equal("opus", ChatApp.ResolveModel(models, "gone"));
+        Assert.Equal("opus", ChatApp.ResolveModel(models, null));
+        Assert.Equal("max", ChatApp.ResolveEffort(efforts, "max"));
+        Assert.Equal("default", ChatApp.ResolveEffort(efforts, "ultra"));
     }
 }

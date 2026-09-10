@@ -20,6 +20,8 @@ export interface ChatJobDto {
   planId?: string;
   planTitle?: string;
   statusMessage?: string;
+  /** The Ivy color name the host assigns the job type (e.g. "Blue" for ExecutePlan). */
+  typeColor?: string;
 }
 
 export interface ChatSessionDto {

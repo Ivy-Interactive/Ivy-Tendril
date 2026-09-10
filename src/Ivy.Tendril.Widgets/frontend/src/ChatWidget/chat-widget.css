@@ -322,13 +322,22 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
+  width: 100%;
   padding: 8px 10px;
+  border: none;
   border-radius: 8px;
   background: var(--tch-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
   transition: background-color 120ms ease;
 }
 
-.chat-jobs-dropdown-item:hover {
+button.chat-jobs-dropdown-item {
+  cursor: pointer;
+}
+
+button.chat-jobs-dropdown-item:hover {
   background: var(--tch-surface-hover);
 }
 
@@ -363,17 +372,6 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-}
-
-.chat-job-type {
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: var(--tch-bg);
-  border: 1px solid var(--tch-border);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
 }
 
 .chat-job-id {
@@ -523,7 +521,6 @@
 
 .chat-user-prompt-text {
   align-self: stretch;
-  padding-left: 8px;
   white-space: pre-wrap;
 }
 
@@ -701,7 +698,7 @@
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  width: 60%;
+  width: 100%;
   color: var(--tch-fg);
 }
 
@@ -1059,6 +1056,26 @@ button.chat-system-event-plan {
   align-items: flex-end;
   gap: 12px;
   min-height: 32px;
+}
+
+/* More than one line of text: the buttons line up as a toolbar above it and the text takes the
+   whole width. */
+.chat-input-row[data-multiline="true"] {
+  flex-wrap: wrap;
+}
+
+.chat-input-row[data-multiline="true"] .chat-attach-btn {
+  order: 0;
+}
+
+.chat-input-row[data-multiline="true"] .chat-input-tools {
+  order: 1;
+  margin-left: auto;
+}
+
+.chat-input-row[data-multiline="true"] .chat-textarea {
+  order: 2;
+  flex-basis: 100%;
 }
 
 .chat-attach-btn {
