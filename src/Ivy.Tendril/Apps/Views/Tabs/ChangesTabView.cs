@@ -137,15 +137,6 @@ public class ChangesTabView(
             }
         }.Width(Size.Full()).Height(Size.Full());
 
-        var sortedFileDiffs = SortByTreeOrder(fileDiffs, BuildFileTree(fileDiffs));
-        var mobileFilePicker = MobileItemPicker.Build(
-                $"Jump to file ({sortedFileDiffs.Count})",
-                sortedFileDiffs,
-                fd => fd.FilePath,
-                _ => false,
-                fd => client.Redirect($"#{fd.FilePath}"))
-            .ShowOn(Breakpoint.Mobile, Breakpoint.Tablet);
-
         var leftSide = Layout.Horizontal().Gap(2).AlignContent(Align.Left)
             | hideFormatting.ToSwitchInput(label: "Hide formatting changes");
 
@@ -172,7 +163,6 @@ public class ChangesTabView(
         if (mismatchBanner != null)
             outer |= mismatchBanner;
         outer |= toolbar;
-        outer |= mobileFilePicker;
         outer |= mainLayout;
         outer |= suggestChangesDialog;
         return outer;
@@ -252,60 +242,5 @@ public class ChangesTabView(
         var output = process.StandardOutput.ReadToEnd();
         process.WaitForExit(10000); // 10s timeout
         return (process.ExitCode, output);
-    }
-
-    private static TreeNode BuildFileTree(IReadOnlyList<PlanContentHelpers.FileDiff> fileDiffs)
-    {
-        var root = new TreeNode("");
-        foreach (var fd in fileDiffs)
-        {
-            var segments = fd.FilePath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-            var node = root;
-            for (var i = 0; i < segments.Length - 1; i++)
-            {
-                var seg = segments[i];
-                if (!node.Folders.TryGetValue(seg, out var child))
-                {
-                    child = new TreeNode(seg);
-                    node.Folders[seg] = child;
-                }
-                node = child;
-            }
-            node.Files.Add(fd);
-        }
-        return root;
-    }
-
-    private static List<string> FlattenTreeOrder(TreeNode node)
-    {
-        var result = new List<string>();
-        FlattenTreeOrderRecursive(node, result);
-        return result;
-    }
-
-    private static void FlattenTreeOrderRecursive(TreeNode node, List<string> result)
-    {
-        foreach (var folder in node.Folders.Values.OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
-            FlattenTreeOrderRecursive(folder, result);
-        foreach (var file in node.Files.OrderBy(f => Path.GetFileName(f.FilePath), StringComparer.OrdinalIgnoreCase))
-            result.Add(file.FilePath);
-    }
-
-    private static List<PlanContentHelpers.FileDiff> SortByTreeOrder(
-        IReadOnlyList<PlanContentHelpers.FileDiff> fileDiffs, TreeNode root)
-    {
-        var orderedPaths = FlattenTreeOrder(root);
-        var lookup = fileDiffs.ToDictionary(fd => fd.FilePath);
-        return orderedPaths
-            .Where(lookup.ContainsKey)
-            .Select(p => lookup[p])
-            .ToList();
-    }
-
-    private sealed class TreeNode(string name)
-    {
-        public string Name { get; } = name;
-        public Dictionary<string, TreeNode> Folders { get; } = new(StringComparer.OrdinalIgnoreCase);
-        public List<PlanContentHelpers.FileDiff> Files { get; } = new();
     }
 }

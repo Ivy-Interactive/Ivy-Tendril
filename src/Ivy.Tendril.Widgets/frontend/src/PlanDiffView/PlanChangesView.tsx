@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, File, FileCode, FileMinus, FilePlus, FileText, Folder } from "lucide-react";
-import { PlanDiffView, getBasename, type DraftComment, type IvyEventHandler } from "./PlanDiffView";
+import { PlanDiffView, getBasename, useIsNarrow, type DraftComment, type IvyEventHandler } from "./PlanDiffView";
 import { getWidth, getHeight } from "../styles";
 import "./plan-diff.css";
 
@@ -32,7 +32,6 @@ export interface TreeFolder {
 }
 
 const INDENT_PX = 12;
-export const TREE_VIEWPORT_QUERY = "(min-width: 1024px)";
 
 const CODE_EXTENSIONS = new Set([
   "cs", "js", "cjs", "mjs", "jsx", "ts", "mts", "cts", "tsx", "py", "html", "htm", "css", "scss",
@@ -82,25 +81,6 @@ export function flattenTreeOrder(node: TreeFolder): ChangedFile[] {
   for (const folder of node.folders) result.push(...flattenTreeOrder(folder));
   result.push(...node.files);
   return result;
-}
-
-export function useTreeViewport(): boolean {
-  const [matches, setMatches] = useState(() =>
-    typeof window === "undefined" || typeof window.matchMedia !== "function"
-      ? true
-      : window.matchMedia(TREE_VIEWPORT_QUERY).matches
-  );
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const query = window.matchMedia(TREE_VIEWPORT_QUERY);
-    const update = () => setMatches(query.matches);
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-
-  return matches;
 }
 
 export function collapseFolderChain(folder: TreeFolder): { label: string; node: TreeFolder } {
@@ -259,7 +239,7 @@ export const PlanChangesView: React.FC<PlanChangesViewProps> = ({
   currentAuthor,
 }) => {
   const dispatchEvent = eventHandler || onIvyEvent;
-  const showTree = useTreeViewport();
+  const [containerRef, isNarrow] = useIsNarrow();
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -296,15 +276,15 @@ export const PlanChangesView: React.FC<PlanChangesViewProps> = ({
 
   if (orderedFiles.length === 0) {
     return (
-      <div style={style} className="text-[var(--muted-foreground)] p-4 text-sm">
+      <div ref={containerRef} style={style} className="text-[var(--muted-foreground)] p-4 text-sm">
         No file changes.
       </div>
     );
   }
 
   return (
-    <div style={style} className="ivy-changes-view">
-      {showTree && (
+    <div ref={containerRef} style={style} className={`ivy-changes-view${isNarrow ? " ivy-changes-view-narrow" : ""}`}>
+      {!isNarrow && (
         <div role="tree" aria-label="Changed files" className="ivy-changes-tree">
           <TreeRows
             node={tree}
@@ -314,6 +294,28 @@ export const PlanChangesView: React.FC<PlanChangesViewProps> = ({
             onToggleFolder={toggleFolder}
             onSelectFile={selectFile}
           />
+        </div>
+      )}
+      {isNarrow && (
+        <div className="ivy-changes-jump">
+          <span className="text-xs text-[var(--muted-foreground)] shrink-0">{orderedFiles.length} files</span>
+          <select
+            aria-label="Jump to file"
+            className="flex-1 min-w-0 text-xs px-2 py-1 rounded bg-[var(--background)] text-[var(--foreground)] border border-[var(--border)]"
+            value={selectedPath ?? ""}
+            onChange={(e) => {
+              if (e.target.value) selectFile(e.target.value);
+            }}
+          >
+            <option value="" disabled>
+              Jump to file…
+            </option>
+            {orderedFiles.map((file) => (
+              <option key={file.filePath} value={file.filePath}>
+                {file.filePath}
+              </option>
+            ))}
+          </select>
         </div>
       )}
       <div className="ivy-changes-diffs">

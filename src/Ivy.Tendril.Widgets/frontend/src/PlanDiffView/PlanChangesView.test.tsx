@@ -4,7 +4,6 @@ import "@testing-library/jest-dom";
 
 import {
   PlanChangesView,
-  TREE_VIEWPORT_QUERY,
   buildFileTree,
   collapseFolderChain,
   flattenTreeOrder,
@@ -80,7 +79,7 @@ describe("buildFileTree", () => {
 
 describe("PlanChangesView", () => {
   afterEach(() => {
-    delete (window as { matchMedia?: unknown }).matchMedia;
+    delete (window as { ResizeObserver?: unknown }).ResizeObserver;
   });
 
   it("renders the tree beside one diff per file in tree order", () => {
@@ -157,24 +156,38 @@ describe("PlanChangesView", () => {
     ]);
   });
 
-  it("hides the tree below the desktop viewport, where the host shows its mobile file picker", () => {
-    const listeners: Array<() => void> = [];
-    let matches = false;
-    window.matchMedia = vi.fn((query: string) => ({
-      get matches() {
-        return query === TREE_VIEWPORT_QUERY && matches;
-      },
-      addEventListener: (_: string, cb: () => void) => listeners.push(cb),
-      removeEventListener: vi.fn(),
-    })) as unknown as typeof window.matchMedia;
+  it("swaps the tree for a jump-to-file dropdown when the container is narrow", async () => {
+    const callbacks: Array<(entries: Array<{ contentRect: { width: number } }>) => void> = [];
+    window.ResizeObserver = class {
+      constructor(cb: (entries: Array<{ contentRect: { width: number } }>) => void) {
+        callbacks.push(cb);
+      }
+      observe() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
 
     render(<PlanChangesView id="pcv" eventHandler={vi.fn()} files={files} />);
-    expect(screen.queryByRole("tree")).toBeNull();
-    expect(document.querySelectorAll(".ivy-changes-diffs .ivy-diff-file")).toHaveLength(4);
-
-    matches = true;
-    act(() => listeners.forEach((cb) => cb()));
     expect(screen.getByRole("tree", { name: "Changed files" })).toBeInTheDocument();
+
+    await act(async () => {
+      callbacks.forEach((cb) => cb([{ contentRect: { width: 500 } }]));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    });
+
+    expect(screen.queryByRole("tree")).toBeNull();
+    const select = screen.getByRole("combobox", { name: "Jump to file" }) as HTMLSelectElement;
+    expect([...select.options].slice(1).map((o) => o.value)).toEqual([
+      "docs/guide/old.md",
+      "src/App/Alpha.cs",
+      "src/App/zeta.cs",
+      "README.md",
+    ]);
+
+    fireEvent.change(select, { target: { value: "README.md" } });
+    expect(select.value).toBe("README.md");
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
   });
 
   it("shows an empty state without files", () => {
