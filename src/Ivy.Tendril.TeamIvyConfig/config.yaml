@@ -683,15 +683,15 @@ codingAgents:
   environmentVariables: {}
   profiles:
   - name: deep
-    model: default
+    model: gpt-5.6-sol
     effort: high
     arguments: ''
   - name: balanced
-    model: default
+    model: gpt-5.6-terra
     effort: medium
     arguments: ''
   - name: quick
-    model: default
+    model: gpt-5.6-luna
     effort: low
     arguments: ''
 - name: opencode
