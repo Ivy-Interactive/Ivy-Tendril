@@ -16,12 +16,6 @@ public record PlanChangesView : WidgetBase<PlanChangesView>
 
     [Prop] public string? CurrentAuthor { get; init; }
 
-    [Prop] public DiffViewType ViewType { get; init; } = DiffViewType.Unified;
-
-    [Prop] public bool WordWrap { get; init; } = true;
-
-    [Prop] public int TreeWidth { get; init; } = 256;
-
     [Event] public Func<Event<PlanChangesView, DraftComment>, ValueTask>? OnAddComment { get; init; }
 
     [Event] public Func<Event<PlanChangesView, DraftComment>, ValueTask>? OnDeleteComment { get; init; }
@@ -47,15 +41,6 @@ public static class PlanChangesViewExtensions
 
     public static PlanChangesView CurrentAuthor(this PlanChangesView w, string? currentAuthor) =>
         w with { CurrentAuthor = currentAuthor };
-
-    public static PlanChangesView ViewType(this PlanChangesView w, DiffViewType type) =>
-        w with { ViewType = type };
-
-    public static PlanChangesView WordWrap(this PlanChangesView w, bool wrap = true) =>
-        w with { WordWrap = wrap };
-
-    public static PlanChangesView TreeWidth(this PlanChangesView w, int width) =>
-        w with { TreeWidth = width };
 
     public static PlanChangesView OnAddComment(
         this PlanChangesView w,

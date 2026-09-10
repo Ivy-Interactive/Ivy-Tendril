@@ -1,10 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, File, FileCode, FileMinus, FilePlus, FileText, Folder } from "lucide-react";
-import { PlanDiffView, useIsNarrow } from "./PlanDiffView";
+import { PlanDiffView, getBasename, type DraftComment, type IvyEventHandler } from "./PlanDiffView";
 import { getWidth, getHeight } from "../styles";
 import "./plan-diff.css";
-
-type IvyEventHandler = (eventName: string, widgetId: string, args: any[]) => void;
 
 export interface ChangedFile {
   filePath: string;
@@ -12,15 +10,6 @@ export interface ChangedFile {
   diff: string;
   additions: number;
   deletions: number;
-}
-
-interface DraftComment {
-  filePath: string;
-  changeKey: string;
-  content: string;
-  lineNumber: number;
-  author?: string;
-  isResolved?: boolean;
 }
 
 interface PlanChangesViewProps {
@@ -33,9 +22,6 @@ interface PlanChangesViewProps {
   files?: ChangedFile[];
   comments?: DraftComment[];
   currentAuthor?: string;
-  viewType?: "Unified" | "Split";
-  wordWrap?: boolean;
-  treeWidth?: number;
 }
 
 export interface TreeFolder {
@@ -46,7 +32,7 @@ export interface TreeFolder {
 }
 
 const INDENT_PX = 12;
-const DEFAULT_TREE_WIDTH = 256;
+export const TREE_VIEWPORT_QUERY = "(min-width: 1024px)";
 
 const CODE_EXTENSIONS = new Set([
   "cs", "js", "cjs", "mjs", "jsx", "ts", "mts", "cts", "tsx", "py", "html", "htm", "css", "scss",
@@ -56,12 +42,9 @@ const CODE_EXTENSIONS = new Set([
 const TEXT_EXTENSIONS = new Set(["md", "markdown", "txt", "rst"]);
 
 function compareNames(a: string, b: string): number {
-  return a.localeCompare(b, undefined, { sensitivity: "base" });
-}
-
-function basename(path: string): string {
-  const parts = path.split("/");
-  return parts[parts.length - 1] || path;
+  const left = a.toUpperCase();
+  const right = b.toUpperCase();
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function normalizePath(path: string): string {
@@ -90,7 +73,7 @@ export function buildFileTree(files: ChangedFile[]): TreeFolder {
 
 function sortTree(node: TreeFolder) {
   node.folders.sort((a, b) => compareNames(a.name, b.name));
-  node.files.sort((a, b) => compareNames(basename(a.filePath), basename(b.filePath)));
+  node.files.sort((a, b) => compareNames(getBasename(a.filePath), getBasename(b.filePath)));
   for (const folder of node.folders) sortTree(folder);
 }
 
@@ -99,6 +82,25 @@ export function flattenTreeOrder(node: TreeFolder): ChangedFile[] {
   for (const folder of node.folders) result.push(...flattenTreeOrder(folder));
   result.push(...node.files);
   return result;
+}
+
+export function useTreeViewport(): boolean {
+  const [matches, setMatches] = useState(() =>
+    typeof window === "undefined" || typeof window.matchMedia !== "function"
+      ? true
+      : window.matchMedia(TREE_VIEWPORT_QUERY).matches
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const query = window.matchMedia(TREE_VIEWPORT_QUERY);
+    const update = () => setMatches(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  return matches;
 }
 
 export function collapseFolderChain(folder: TreeFolder): { label: string; node: TreeFolder } {
@@ -148,7 +150,7 @@ function FileIcon({ file }: { file: ChangedFile }) {
   const className = `ivy-changes-tree-icon ${toneClass(file.status === "A" ? "success" : file.status === "D" ? "destructive" : null)}`;
   if (file.status === "A") return <FilePlus className={className} />;
   if (file.status === "D") return <FileMinus className={className} />;
-  const ext = basename(file.filePath).split(".").pop()?.toLowerCase() || "";
+  const ext = getBasename(file.filePath).split(".").pop()?.toLowerCase() || "";
   if (CODE_EXTENSIONS.has(ext)) return <FileCode className={className} />;
   if (TEXT_EXTENSIONS.has(ext)) return <FileText className={className} />;
   return <File className={className} />;
@@ -237,7 +239,7 @@ function TreeRows({ node, depth, selectedPath, collapsed, onToggleFolder, onSele
           >
             <span className="ivy-changes-tree-chevron" aria-hidden="true" />
             <FileIcon file={file} />
-            <span className="ivy-changes-tree-name">{basename(file.filePath)}</span>
+            <span className="ivy-changes-tree-name">{getBasename(file.filePath)}</span>
             <FileStats additions={file.additions} deletions={file.deletions} />
           </div>
         );
@@ -255,12 +257,9 @@ export const PlanChangesView: React.FC<PlanChangesViewProps> = ({
   files = [],
   comments = [],
   currentAuthor,
-  viewType = "Unified",
-  wordWrap = true,
-  treeWidth = DEFAULT_TREE_WIDTH,
 }) => {
   const dispatchEvent = eventHandler || onIvyEvent;
-  const [containerRef, isNarrow] = useIsNarrow();
+  const showTree = useTreeViewport();
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -297,16 +296,16 @@ export const PlanChangesView: React.FC<PlanChangesViewProps> = ({
 
   if (orderedFiles.length === 0) {
     return (
-      <div ref={containerRef} style={style} className="text-[var(--muted-foreground)] p-4 text-sm">
+      <div style={style} className="text-[var(--muted-foreground)] p-4 text-sm">
         No file changes.
       </div>
     );
   }
 
   return (
-    <div ref={containerRef} style={style} className="ivy-changes-view">
-      {!isNarrow && (
-        <div role="tree" aria-label="Changed files" className="ivy-changes-tree" style={{ width: treeWidth }}>
+    <div style={style} className="ivy-changes-view">
+      {showTree && (
+        <div role="tree" aria-label="Changed files" className="ivy-changes-tree">
           <TreeRows
             node={tree}
             depth={0}
@@ -326,8 +325,6 @@ export const PlanChangesView: React.FC<PlanChangesViewProps> = ({
             diff={file.diff}
             filePath={file.filePath}
             collapsible
-            viewType={viewType}
-            wordWrap={wordWrap}
             comments={commentsByFile[file.filePath] ?? []}
             currentAuthor={currentAuthor}
           />

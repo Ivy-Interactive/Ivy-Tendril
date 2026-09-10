@@ -88,10 +88,7 @@ public class ChangesTabView(
             hiddenCount = allFileDiffs.Count - fileDiffs.Count;
         }
 
-        var root = BuildFileTree(fileDiffs);
-        var sortedFileDiffs = SortByTreeOrder(fileDiffs, root);
-
-        var changedFiles = sortedFileDiffs.Select(fd =>
+        var changedFiles = fileDiffs.Select(fd =>
         {
             var counts = PlanContentHelpers.CountDiffLines(fd.Diff);
             return new ChangedFileDto(fd.FilePath, fd.Status, fd.Diff, counts.Additions, counts.Deletions);
@@ -140,6 +137,7 @@ public class ChangesTabView(
             }
         }.Width(Size.Full()).Height(Size.Full());
 
+        var sortedFileDiffs = SortByTreeOrder(fileDiffs, BuildFileTree(fileDiffs));
         var mobileFilePicker = MobileItemPicker.Build(
                 $"Jump to file ({sortedFileDiffs.Count})",
                 sortedFileDiffs,

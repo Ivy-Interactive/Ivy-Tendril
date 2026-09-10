@@ -216,6 +216,7 @@ td.diff-gutter-empty::after {
 
 .ivy-changes-tree {
   flex: 0 0 auto;
+  width: 16rem;
   min-height: 0;
   overflow: auto;
   padding: 0 0.75rem 2.5rem 0;

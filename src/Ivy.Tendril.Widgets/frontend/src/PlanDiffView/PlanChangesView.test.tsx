@@ -1,8 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { act, render, screen, fireEvent, within } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
-import { PlanChangesView, buildFileTree, collapseFolderChain, flattenTreeOrder, type ChangedFile } from "./PlanChangesView";
+import {
+  PlanChangesView,
+  TREE_VIEWPORT_QUERY,
+  buildFileTree,
+  collapseFolderChain,
+  flattenTreeOrder,
+  type ChangedFile,
+} from "./PlanChangesView";
 
 function diffFor(path: string, body: string[]): string {
   return [`diff --git a/${path} b/${path}`, `--- a/${path}`, `+++ b/${path}`, ...body, ""].join("\n");
@@ -48,6 +55,12 @@ describe("buildFileTree", () => {
     expect(app.files.map((f) => f.filePath)).toEqual(["src/App/Alpha.cs", "src/App/zeta.cs"]);
   });
 
+  it("orders names like C# OrdinalIgnoreCase, so the mobile picker and the diff pane agree", () => {
+    const named = (path: string): ChangedFile => ({ filePath: path, status: "M", diff: "", additions: 0, deletions: 0 });
+    const tree = buildFileTree([named("_util.cs"), named("alpha.cs"), named("Beta.cs"), named("[id].tsx")]);
+    expect(tree.files.map((f) => f.filePath)).toEqual(["alpha.cs", "Beta.cs", "[id].tsx", "_util.cs"]);
+  });
+
   it("collapses single-child folder chains into one label", () => {
     const tree = buildFileTree(files);
     const docs = tree.folders[0];
@@ -66,6 +79,10 @@ describe("buildFileTree", () => {
 });
 
 describe("PlanChangesView", () => {
+  afterEach(() => {
+    delete (window as { matchMedia?: unknown }).matchMedia;
+  });
+
   it("renders the tree beside one diff per file in tree order", () => {
     render(<PlanChangesView id="pcv" eventHandler={vi.fn()} files={files} />);
 
@@ -138,6 +155,26 @@ describe("PlanChangesView", () => {
     expect(eventHandler).toHaveBeenCalledWith("OnDeleteComment", "pcv", [
       { filePath: "README.md", changeKey: "I1", content: "readme note", lineNumber: 1 },
     ]);
+  });
+
+  it("hides the tree below the desktop viewport, where the host shows its mobile file picker", () => {
+    const listeners: Array<() => void> = [];
+    let matches = false;
+    window.matchMedia = vi.fn((query: string) => ({
+      get matches() {
+        return query === TREE_VIEWPORT_QUERY && matches;
+      },
+      addEventListener: (_: string, cb: () => void) => listeners.push(cb),
+      removeEventListener: vi.fn(),
+    })) as unknown as typeof window.matchMedia;
+
+    render(<PlanChangesView id="pcv" eventHandler={vi.fn()} files={files} />);
+    expect(screen.queryByRole("tree")).toBeNull();
+    expect(document.querySelectorAll(".ivy-changes-diffs .ivy-diff-file")).toHaveLength(4);
+
+    matches = true;
+    act(() => listeners.forEach((cb) => cb()));
+    expect(screen.getByRole("tree", { name: "Changed files" })).toBeInTheDocument();
   });
 
   it("shows an empty state without files", () => {

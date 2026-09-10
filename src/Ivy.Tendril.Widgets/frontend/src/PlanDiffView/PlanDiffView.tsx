@@ -3,7 +3,7 @@ import { parseDiff, Diff, Hunk, getChangeKey, tokenize, type ChangeData, type Hu
 import "react-diff-view/style/index.css";
 import "./plan-diff.css";
 import Markdown from "react-markdown";
-type IvyEventHandler = (eventName: string, widgetId: string, args: any[]) => void;
+export type IvyEventHandler = (eventName: string, widgetId: string, args: any[]) => void;
 import { getWidth, getHeight } from "../styles";
 import { getMarkdownPlugins } from "../math";
 import { MessageSquare } from "lucide-react";
@@ -124,7 +124,7 @@ export function getLanguageFromFilePath(filePath: string): string {
 /** Container width (px) below which the diff is too cramped for a side-by-side (split) view. */
 export const NARROW_BREAKPOINT = 768;
 
-interface DraftComment {
+export interface DraftComment {
   filePath: string;
   changeKey: string;
   content: string;
@@ -160,7 +160,7 @@ function getLineNumber(change: ChangeData | null): number {
   return change.lineNumber;
 }
 
-function getBasename(path: string): string {
+export function getBasename(path: string): string {
   const parts = path.split("/");
   return parts[parts.length - 1] || path;
 }
