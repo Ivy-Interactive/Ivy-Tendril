@@ -905,8 +905,8 @@ export function ChatWidget({
                   efforts={efforts}
                   supportsEffort={supportsEffort}
                   onAgentChange={(agentId) => emit("OnAgentChanged", agentId)}
-                  onModelChange={(modelId) => emit("OnModelChanged", modelId)}
-                  onEffortChange={(effortId) => emit("OnEffortChanged", effortId)}
+                  onModelChange={(agentId, modelId) => emit("OnModelChanged", [agentId, modelId])}
+                  onEffortChange={(agentId, effortId) => emit("OnEffortChanged", [agentId, effortId])}
                   compact={embedded}
                 />
 

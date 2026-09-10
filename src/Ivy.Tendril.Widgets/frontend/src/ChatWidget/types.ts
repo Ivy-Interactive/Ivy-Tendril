@@ -53,6 +53,11 @@ export interface AgentOptionDto {
   /** The agent's model catalog, so the picker can offer models before the agent is selected. */
   models?: ModelOptionDto[];
   supportsEffort?: boolean;
+  /** The model and effort remembered for this agent; they apply whenever it is selected. */
+  selectedModel?: string;
+  selectedEffort?: string;
+  /** The efforts the remembered model supports, "default" first. */
+  efforts?: EffortOptionDto[];
 }
 
 export interface ChatAttachmentDto {

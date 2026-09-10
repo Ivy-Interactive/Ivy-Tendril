@@ -81,6 +81,7 @@ public class ChatApp : ViewBase
         var executionService = UseService<IChatExecutionService>();
         var agentRunner = UseService<IAgentRunner>();
         Context.TryUseService<IJobService>(out var jobService);
+        Context.TryUseService<IChatAgentPreferences>(out var preferences);
         var navigator = UseNavigation();
         var sidebarListSignal = Context.UseSignal<ShellSidebarListSignal, ShellSidebarListState, Unit>();
         var activeSessionId = UseState<string?>(() => InitialSession()?.Id);
@@ -100,19 +101,16 @@ public class ChatApp : ViewBase
         {
             var sess = InitialSession();
             if (!string.IsNullOrEmpty(sess?.ModelId)) return sess.ModelId;
-            var initialModels = GetModelsForAgent(agentRunner, selectedAgent.Value);
-            var lastModel = configService.Settings.LastChatModel;
-            if (!string.IsNullOrEmpty(lastModel) && initialModels.Any(m => string.Equals(m.Id, lastModel, StringComparison.OrdinalIgnoreCase)))
-            {
-                return initialModels.First(m => string.Equals(m.Id, lastModel, StringComparison.OrdinalIgnoreCase)).Id;
-            }
-            return initialModels.Count > 0 ? initialModels[0].Id : "default";
+            return ResolveModel(
+                GetModelsForAgent(agentRunner, selectedAgent.Value),
+                preferences?.Get(selectedAgent.Value).ModelId,
+                configService.Settings.LastChatModel);
         });
         var selectedEffort = UseState(() =>
         {
             var sess = InitialSession();
             if (sess != null) return sess.Effort ?? "default";
-            return configService.Settings.LastChatEffort ?? "default";
+            return preferences?.Get(selectedAgent.Value).Effort ?? configService.Settings.LastChatEffort ?? "default";
         });
         var initialHandled = UseRef(false);
         var streamVersion = UseState(0);
@@ -213,19 +211,15 @@ public class ChatApp : ViewBase
         var isSessionGenerating = currentSessionId != null && executionService.IsGenerating(currentSessionId);
         var streamSnapshot = isSessionGenerating ? executionService.GetStreamSnapshot(currentSessionId!) : string.Empty;
 
-        var agentDtos = BuildAgentDtos(agentRunner, configService);
-
         var currentModelOptions = GetModelsForAgent(agentRunner, selectedAgent.Value);
-        var effectiveModel = currentModelOptions.Any(m => m.Id.Equals(selectedModel.Value, StringComparison.OrdinalIgnoreCase))
-            ? selectedModel.Value
-            : (currentModelOptions.Count > 0 ? currentModelOptions[0].Id : selectedModel.Value);
+        var effectiveModel = ResolveModel(currentModelOptions, selectedModel.Value);
         var modelDtos = currentModelOptions.Select(m => new ModelOptionDto(m.Id, m.DisplayName)).ToList();
 
         var supportsEffort = DoesAgentSupportEffort(agentRunner, selectedAgent.Value);
         var currentEffortOptions = GetEffortsForAgentAndModel(agentRunner, selectedAgent.Value, effectiveModel);
-        var effectiveEffort = currentEffortOptions.Any(e => e.Id.Equals(selectedEffort.Value, StringComparison.OrdinalIgnoreCase))
-            ? selectedEffort.Value
-            : "default";
+        var effectiveEffort = ResolveEffort(currentEffortOptions, selectedEffort.Value);
+
+        var agentDtos = BuildAgentDtos(agentRunner, configService, preferences, selectedAgent.Value, effectiveModel, effectiveEffort);
 
         // Compact DTO serialization: only serialize full message history for the active session,
         // preventing massive SignalR payload bloat when a user has hundreds of sessions.
@@ -427,7 +421,39 @@ public class ChatApp : ViewBase
         );
     }
 
-    internal static List<AgentOptionDto> BuildAgentDtos(IAgentRunner agentRunner, IConfigService configService)
+    internal static string ResolveModel(IReadOnlyList<(string Id, string DisplayName)> models, params string?[] preferred)
+    {
+        foreach (var candidate in preferred)
+        {
+            if (string.IsNullOrEmpty(candidate)) continue;
+            var match = models.FirstOrDefault(m => m.Id.Equals(candidate, StringComparison.OrdinalIgnoreCase));
+            if (match.Id != null) return match.Id;
+        }
+        return models.Count > 0 ? models[0].Id : "default";
+    }
+
+    internal static string ResolveEffort(IReadOnlyList<EffortOptionDto> efforts, params string?[] preferred)
+    {
+        foreach (var candidate in preferred)
+        {
+            if (string.IsNullOrEmpty(candidate)) continue;
+            var match = efforts.FirstOrDefault(e => e.Id.Equals(candidate, StringComparison.OrdinalIgnoreCase));
+            if (match != null) return match.Id;
+        }
+        return "default";
+    }
+
+    /// <summary>
+    ///     Every agent carries the model and effort remembered for it, so the picker can show and
+    ///     change them without selecting the agent; the selected agent shows the live selection.
+    /// </summary>
+    internal static List<AgentOptionDto> BuildAgentDtos(
+        IAgentRunner agentRunner,
+        IConfigService configService,
+        IChatAgentPreferences? preferences = null,
+        string? selectedAgent = null,
+        string? selectedModel = null,
+        string? selectedEffort = null)
     {
         var registeredAgentIds = agentRunner.RegisteredAgents;
         if (registeredAgentIds.Count == 0)
@@ -438,10 +464,21 @@ public class ChatApp : ViewBase
         return registeredAgentIds.Select(agentId =>
         {
             var (label, icon) = AgentBranding.For(agentId, agentRunner, configService);
-            var agentModels = GetModelsForAgent(agentRunner, agentId)
-                .Select(m => new ModelOptionDto(m.Id, m.DisplayName))
-                .ToList();
-            return new AgentOptionDto(agentId, label, icon.ToString(), agentModels, DoesAgentSupportEffort(agentRunner, agentId));
+            var isSelected = agentId.Equals(selectedAgent, StringComparison.OrdinalIgnoreCase);
+            var preference = preferences?.Get(agentId) ?? new ChatAgentPreference();
+            var agentModels = GetModelsForAgent(agentRunner, agentId);
+            var model = ResolveModel(agentModels, isSelected ? selectedModel : preference.ModelId);
+            var agentEfforts = GetEffortsForAgentAndModel(agentRunner, agentId, model);
+            var effort = ResolveEffort(agentEfforts, isSelected ? selectedEffort : preference.Effort);
+            return new AgentOptionDto(
+                agentId,
+                label,
+                icon.ToString(),
+                agentModels.Select(m => new ModelOptionDto(m.Id, m.DisplayName)).ToList(),
+                DoesAgentSupportEffort(agentRunner, agentId),
+                model,
+                effort,
+                agentEfforts);
         }).ToList();
     }
 

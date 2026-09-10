@@ -58,6 +58,7 @@ public class ContentView(
         var configService = UseService<IConfigService>();
         Context.TryUseService<IJobService>(out var jobService);
         Context.TryUseService<IPlanReaderService>(out var planService);
+        Context.TryUseService<IChatAgentPreferences>(out var preferences);
         var navigator = UseNavigation();
         var deletingSessionId = UseState<string?>(null);
 
@@ -163,36 +164,50 @@ public class ContentView(
             },
             OnAgentChanged = e =>
             {
+                if (string.IsNullOrEmpty(e.Value)) return ValueTask.CompletedTask;
+                var preference = preferences?.Get(e.Value) ?? new ChatAgentPreference();
+                var model = ChatApp.ResolveModel(ChatApp.GetModelsForAgent(agentRunner, e.Value), preference.ModelId);
+                var effort = ChatApp.ResolveEffort(ChatApp.GetEffortsForAgentAndModel(agentRunner, e.Value, model), preference.Effort);
                 selectedAgent.Set(e.Value);
-                var newModels = ChatApp.GetModelsForAgent(agentRunner, e.Value);
-                string? initialModel = null;
-                if (newModels.Count > 0)
-                {
-                    initialModel = newModels[0].Id;
-                    selectedModel.Set(initialModel);
-                }
-                selectedEffort.Set("default");
+                selectedModel.Set(model);
+                selectedEffort.Set(effort);
                 configService.Settings.LastChatAgent = e.Value;
-                if (initialModel != null)
-                {
-                    configService.Settings.LastChatModel = initialModel;
-                }
+                configService.Settings.LastChatModel = model;
+                configService.Settings.LastChatEffort = effort;
                 configService.SaveSettings();
                 return ValueTask.CompletedTask;
             },
+            // A model or effort is remembered for the agent it was chosen for; only a choice for
+            // the selected agent changes the live selection, the rest just needs a re-render.
             OnModelChanged = e =>
             {
-                selectedModel.Set(e.Value);
-                selectedEffort.Set("default");
-                configService.Settings.LastChatModel = e.Value;
-                configService.Settings.LastChatAgent = selectedAgent.Value;
+                if (e.Value is not [var agentId, var modelId]) return ValueTask.CompletedTask;
+                preferences?.SetModel(agentId, modelId);
+                if (!agentId.Equals(selectedAgent.Value, StringComparison.OrdinalIgnoreCase))
+                {
+                    sessionVersion.Set(v => v + 1);
+                    return ValueTask.CompletedTask;
+                }
+                var effort = ChatApp.ResolveEffort(ChatApp.GetEffortsForAgentAndModel(agentRunner, agentId, modelId), selectedEffort.Value);
+                selectedModel.Set(modelId);
+                selectedEffort.Set(effort);
+                configService.Settings.LastChatAgent = agentId;
+                configService.Settings.LastChatModel = modelId;
+                configService.Settings.LastChatEffort = effort;
                 configService.SaveSettings();
                 return ValueTask.CompletedTask;
             },
             OnEffortChanged = e =>
             {
-                selectedEffort.Set(e.Value);
-                configService.Settings.LastChatEffort = e.Value;
+                if (e.Value is not [var agentId, var effort]) return ValueTask.CompletedTask;
+                preferences?.SetEffort(agentId, effort);
+                if (!agentId.Equals(selectedAgent.Value, StringComparison.OrdinalIgnoreCase))
+                {
+                    sessionVersion.Set(v => v + 1);
+                    return ValueTask.CompletedTask;
+                }
+                selectedEffort.Set(effort);
+                configService.Settings.LastChatEffort = effort;
                 configService.SaveSettings();
                 return ValueTask.CompletedTask;
             },

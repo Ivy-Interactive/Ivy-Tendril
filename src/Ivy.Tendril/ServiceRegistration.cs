@@ -23,6 +23,7 @@ internal static class ServiceRegistration
         server.Services.AddSingleton<IConfigService>(configService);
         server.Services.AddSingleton<ConfigService>(configService);
         server.Services.AddSingleton<IChatHistoryService, ChatHistoryService>();
+        server.Services.AddSingleton<IChatAgentPreferences, ChatAgentPreferences>();
         server.Services.AddSingleton<IChatSessionNamingService, ChatSessionNamingService>();
         server.Services.AddSingleton<ChatExecutionService>();
         server.Services.AddSingleton<IChatExecutionService>(sp =>
