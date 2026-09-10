@@ -163,6 +163,15 @@ describe("PlanWorkspace", () => {
     handler.mockClear();
     fireEvent.keyDown(screen.getByLabelText("editor"), { key: "ArrowRight" });
     expect(handler).not.toHaveBeenCalled();
+
+    // A menu, list or tab strip that moves its own focus with the arrows keeps them.
+    const menu = document.createElement("div");
+    menu.setAttribute("role", "menu");
+    menu.innerHTML = '<div role="menuitem" tabindex="0" aria-label="row"></div>';
+    document.body.appendChild(menu);
+    fireEvent.keyDown(screen.getByLabelText("row"), { key: "ArrowRight" });
+    expect(handler).not.toHaveBeenCalled();
+    menu.remove();
   });
 
   it("opens the verifications and questions dropdowns from the tab strip corner", () => {

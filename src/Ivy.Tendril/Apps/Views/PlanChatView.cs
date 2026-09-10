@@ -92,7 +92,7 @@ public class PlanChatView(PlanFile plan) : ViewBase
             selectedEffort.Set(DefaultEffort(session));
         }
 
-        var agentId = session?.AgentId ?? selectedAgent.Value;
+        var agentId = selectedAgent.Value;
         var modelOptions = ChatApp.GetModelsForAgent(agentRunner, agentId);
         var effectiveModel = ChatApp.ResolveModel(modelOptions, selectedModel.Value);
         var modelDtos = modelOptions.Select(m => new ModelOptionDto(m.Id, m.DisplayName)).ToList();

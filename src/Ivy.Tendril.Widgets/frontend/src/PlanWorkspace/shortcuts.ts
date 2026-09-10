@@ -87,6 +87,10 @@ const isVisible = (element: Element): boolean => {
   return true;
 };
 
+/** Composite widgets that move their own focus with the arrow keys keep them. */
+const ARROW_OWNER =
+  '[role="menu"], [role="menubar"], [role="listbox"], [role="tablist"], [role="radiogroup"], [role="slider"], [role="tree"], [role="grid"]';
+
 /**
  * Binds every action's shortcut on the document while nothing editable has focus and no dialog is
  * open, the way the framework's `ShortcutKey` did for the buttons this widget replaces.
@@ -104,6 +108,7 @@ export const useActionShortcuts = (
       const root = rootRef?.current;
       if (root && !isVisible(root)) return;
       if (e.target instanceof Element && isEditableTarget(e) && isVisible(e.target)) return;
+      if (e.key.startsWith("Arrow") && e.target instanceof Element && e.target.closest(ARROW_OWNER)) return;
       const hit = bindings.find((binding) => binding.shortcut && !binding.disabled && matchesShortcut(e, binding.shortcut));
       if (!hit) return;
       e.preventDefault();
