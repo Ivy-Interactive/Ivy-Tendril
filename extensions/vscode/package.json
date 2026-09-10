@@ -1,0 +1,113 @@
+{
+  "name": "ivy-tendril",
+  "displayName": "Ivy Tendril",
+  "description": "Visual Studio Code integration for Ivy Tendril, plan management and autonomous execution system",
+  "version": "0.1.0",
+  "publisher": "ivy-interactive",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "tendril.openDashboard",
+        "title": "Tendril: Open Dashboard"
+      },
+      {
+        "command": "tendril.openWorktree",
+        "title": "Tendril: Open Worktree"
+      },
+      {
+        "command": "tendril.startServer",
+        "title": "Tendril: Start Server"
+      },
+      {
+        "command": "tendril.stopServer",
+        "title": "Tendril: Stop Server"
+      },
+      {
+        "command": "tendril.restartServer",
+        "title": "Tendril: Restart Server"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tendril-sidebar",
+          "title": "Tendril",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "tendril-sidebar": [
+        {
+          "id": "tendril.quickAccess",
+          "name": "Quick Access"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Tendril",
+      "properties": {
+        "tendril.executablePath": {
+          "type": "string",
+          "default": "tendril",
+          "description": "Path to the tendril executable (defaults to tendril in PATH)."
+        },
+        "tendril.server.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start tendril --web if not already running."
+        },
+        "tendril.server.stopOnExit": {
+          "type": "boolean",
+          "default": false,
+          "description": "Stop the spawned Tendril server when VS Code closes."
+        },
+        "tendril.server.port": {
+          "type": "number",
+          "default": 0,
+          "description": "Preferred port for spawned server (default: 0 for auto-assign)."
+        },
+        "tendril.server.pollTimeout": {
+          "type": "number",
+          "default": 15000,
+          "description": "Milliseconds to wait for .master file creation on server spawn."
+        },
+        "tendril.homeDirectory": {
+          "type": "string",
+          "default": "",
+          "description": "Override for TENDRIL_HOME (defaults to process.env.TENDRIL_HOME or ~/.tendril)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "node esbuild.js --production",
+    "build": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "typecheck": "tsc --noEmit",
+    "compile": "tsc -p ./",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^10.0.8",
+    "@types/node": "^20.17.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^2.4.1",
+    "esbuild": "^0.24.0",
+    "glob": "^10.4.5",
+    "mocha": "^10.7.3",
+    "typescript": "^5.6.3"
+  }
+}
