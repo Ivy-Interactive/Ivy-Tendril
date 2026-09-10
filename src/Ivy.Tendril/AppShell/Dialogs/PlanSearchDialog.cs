@@ -63,6 +63,7 @@ public class PlanSearchDialog(IState<bool> dialogOpen) : ViewBase
 
                 body |= new ShellSidebarSection()
                     .Items(items)
+                    .Collapsible(false)
                     .OnSelectItem(folderName =>
                     {
                         if (!resultsByFolder.TryGetValue(folderName, out var plan)) return;

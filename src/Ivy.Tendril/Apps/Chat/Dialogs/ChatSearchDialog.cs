@@ -1,4 +1,5 @@
 using Ivy;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Widgets;
 
@@ -15,6 +16,24 @@ public class ChatSearchDialog(
     Action<string> selectSession) : ViewBase
 {
     private const int MaxResults = 15;
+
+    internal static ShellSidebarSection BuildResultsSection(
+        IEnumerable<ChatSessionModel> sessions,
+        Action<string> onSelect)
+    {
+        var items = sessions
+            .Select(s => new ShellSectionItemDto(
+                s.Id,
+                ChatApp.DisplayTitle(s),
+                s.UpdatedAt.ToLocalTime().ToString("MMM d"),
+                Icon: s.IsTerminal() ? "Terminal" : null))
+            .ToList();
+
+        return new ShellSidebarSection()
+            .Items(items)
+            .Collapsible(false)
+            .OnSelectItem(onSelect);
+    }
 
     public override object Build()
     {
@@ -35,17 +54,11 @@ public class ChatSearchDialog(
         }
         else
         {
-            var items = results
-                .Select(s => new ShellSectionItemDto(s.Id, ChatApp.DisplayTitle(s), s.UpdatedAt.ToLocalTime().ToString("MMM d")))
-                .ToList();
-
-            body |= new ShellSidebarSection()
-                .Items(items)
-                .OnSelectItem(sessionId =>
-                {
-                    dialogOpen.Set(false);
-                    selectSession(sessionId);
-                });
+            body |= BuildResultsSection(results, sessionId =>
+            {
+                dialogOpen.Set(false);
+                selectSession(sessionId);
+            });
         }
 
         return new Dialog(
