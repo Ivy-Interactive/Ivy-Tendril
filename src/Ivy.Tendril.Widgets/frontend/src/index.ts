@@ -7,6 +7,7 @@ import { SortableVerificationList } from "./SortableVerificationList";
 import { ContentInput } from "./ContentInput/ContentInput";
 import { BadgeSelect } from "./BadgeSelect";
 import { PlanDiffView } from "./PlanDiffView/PlanDiffView";
+import { PlanChangesView } from "./PlanDiffView/PlanChangesView";
 import { ChatWidget as ChatWidgetBase } from "./ChatWidget/ChatWidget";
 import { TerminalSessionHeader } from "./ChatWidget/TerminalSessionHeader";
 import { WebViewer } from "./WebViewer";
@@ -45,6 +46,7 @@ if (typeof window !== "undefined") {
     ContentInput,
     BadgeSelect,
     PlanDiffView,
+    PlanChangesView,
     ChatWidget,
     TerminalSessionHeader,
     WebViewer,
@@ -76,6 +78,7 @@ export {
   ContentInput,
   BadgeSelect,
   PlanDiffView,
+  PlanChangesView,
   ChatWidget,
   TerminalSessionHeader,
   WebViewer,

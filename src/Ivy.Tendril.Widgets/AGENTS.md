@@ -11,6 +11,8 @@ TendrilProcessViewer.cs
 TendrilUi.cs          The shared primitives as external widgets (see "Shared primitives")
 PlanWorkspace.cs      The Drafts/Review page frame: title bar actions, tabs with the Verifications and
                       Questions dropdowns, slot for the tab content, resizable chat panel (ChatWidget Embedded)
+PlanDiffView.cs       One file's git diff with draft comments
+PlanChangesView.cs    The review Changes tab body: file tree and the PlanDiffView list in one container
 frontend/             React/Vite bundle (npm run build → dist/)
   src/ui/             Tooltip, Kbd, Badge, IconButton, StatusLine + ui.css
 
@@ -21,6 +23,7 @@ frontend/             React/Vite bundle (npm run build → dist/)
     TendrilProcessViewer/  DemoApp
     ChatWidget/       DemoApp (mocked conversation: attachments, tool calls, job event, questions, streaming toggle)
     PlanWorkspace/    DemoApp (top bar actions and shortcuts, tabs, dropdown panels, embedded chat, drag-to-resize)
+    PlanChangesView/  DemoApp (added/modified/deleted files in a tree beside their diffs, a draft comment)
     TendrilQuestions/ DemoApp (every question case of the plan schema)
     WebViewer/        DemoApp (inspector), SideBySideApp (two viewers on one page)
     Ui/               GalleryApp (every shared primitive and its variants)
