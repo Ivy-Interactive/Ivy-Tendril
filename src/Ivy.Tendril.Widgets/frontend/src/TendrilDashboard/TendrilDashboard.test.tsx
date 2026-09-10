@@ -365,5 +365,52 @@ describe("TendrilDashboard pull requests week/month toggle", () => {
     expect(labelAug10.textContent).toBe("Aug\n10");
     expect(labelSep7.textContent).toBe("Sep\n7");
   });
+
+  it("renders bars with proper aria-label incorporating structured date fields", () => {
+    const structuredMonthlyPrs: DashboardMonthValueDto[] = [
+      { label: "Aug", value: 15, year: 2026, month: 8, day: 1, date: "2026-08-01" },
+      { label: "Sep", value: 1, year: 2026, month: 9, day: 1, date: "2026-09-01" },
+    ];
+
+    const structuredWeeklyPrs: DashboardMonthValueDto[] = [
+      { label: "Aug 24", value: 7, year: 2026, month: 8, day: 24, date: "2026-08-24" },
+      { label: "Aug 31", value: 1, year: 2026, month: 8, day: 31, date: "2026-08-31" },
+    ];
+
+    render(
+      <TendrilDashboard
+        id="dash"
+        eventHandler={vi.fn()}
+        pullRequests={structuredMonthlyPrs}
+        pullRequestsWeekly={structuredWeeklyPrs}
+      />,
+    );
+
+    expect(screen.getByLabelText("August 2026: 15 pull requests merged")).toBeInTheDocument();
+    expect(screen.getByLabelText("September 2026: 1 pull request merged")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Week" }));
+
+    expect(screen.getByLabelText("Week of August 24, 2026: 7 pull requests merged")).toBeInTheDocument();
+    expect(screen.getByLabelText("Week of August 31, 2026: 1 pull request merged")).toBeInTheDocument();
+  });
+
+  it("renders accessible labels with backward compatibility when structured date fields are absent", () => {
+    render(
+      <TendrilDashboard
+        id="dash"
+        eventHandler={vi.fn()}
+        pullRequests={monthlyPrs}
+        pullRequestsWeekly={weeklyPrs}
+      />,
+    );
+
+    expect(screen.getByLabelText("Aug: 20 pull requests merged")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Week" }));
+
+    expect(screen.getByLabelText("Aug 24: 5 pull requests merged")).toBeInTheDocument();
+  });
 });
+
 

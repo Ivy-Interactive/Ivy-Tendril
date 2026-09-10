@@ -448,20 +448,75 @@ public class DashboardAppViewModelTests
         Assert.Equal(6, result.Count);
         Assert.Equal("Aug 3", result[0].Label);
         Assert.Equal(5, result[0].Value);
+        Assert.Equal(2026, result[0].Year);
+        Assert.Equal(8, result[0].Month);
+        Assert.Equal(3, result[0].Day);
+        Assert.Equal("2026-08-03", result[0].Date);
 
         Assert.Equal("Aug 10", result[1].Label);
         Assert.Equal(0, result[1].Value);
+        Assert.Equal(2026, result[1].Year);
+        Assert.Equal(8, result[1].Month);
+        Assert.Equal(10, result[1].Day);
+        Assert.Equal("2026-08-10", result[1].Date);
 
         Assert.Equal("Aug 17", result[2].Label);
         Assert.Equal(4, result[2].Value);
+        Assert.Equal(2026, result[2].Year);
+        Assert.Equal(8, result[2].Month);
+        Assert.Equal(17, result[2].Day);
+        Assert.Equal("2026-08-17", result[2].Date);
 
         Assert.Equal("Aug 24", result[3].Label);
         Assert.Equal(7, result[3].Value);
+        Assert.Equal(2026, result[3].Year);
+        Assert.Equal(8, result[3].Month);
+        Assert.Equal(24, result[3].Day);
+        Assert.Equal("2026-08-24", result[3].Date);
 
         Assert.Equal("Aug 31", result[4].Label);
         Assert.Equal(3, result[4].Value);
+        Assert.Equal(2026, result[4].Year);
+        Assert.Equal(8, result[4].Month);
+        Assert.Equal(31, result[4].Day);
+        Assert.Equal("2026-08-31", result[4].Date);
 
         Assert.Equal("Sep 7", result[5].Label);
         Assert.Equal(6, result[5].Value);
+        Assert.Equal(2026, result[5].Year);
+        Assert.Equal(9, result[5].Month);
+        Assert.Equal(7, result[5].Day);
+        Assert.Equal("2026-09-07", result[5].Date);
+    }
+
+    [Fact]
+    public void BuildMonthlyPullRequests_PopulatesStructuredDateFields()
+    {
+        var months = new List<DashboardMonthStats>
+        {
+            new(2026, 4, 10, 8, 100m, 1000),
+            new(2026, 5, 12, 15, 150m, 1500),
+            new(2026, 6, 8, 6, 80m, 800),
+            new(2026, 7, 14, 12, 120m, 1200),
+            new(2026, 8, 18, 20, 200m, 2000),
+            new(2026, 9, 7, 5, 60m, 600),
+        };
+
+        var result = DashboardApp.BuildMonthlyPullRequests(months, 6);
+
+        Assert.Equal(6, result.Count);
+        Assert.Equal("Apr", result[0].Label);
+        Assert.Equal(8, result[0].Value);
+        Assert.Equal(2026, result[0].Year);
+        Assert.Equal(4, result[0].Month);
+        Assert.Equal(1, result[0].Day);
+        Assert.Equal("2026-04-01", result[0].Date);
+
+        Assert.Equal("Sep", result[5].Label);
+        Assert.Equal(5, result[5].Value);
+        Assert.Equal(2026, result[5].Year);
+        Assert.Equal(9, result[5].Month);
+        Assert.Equal(1, result[5].Day);
+        Assert.Equal("2026-09-01", result[5].Date);
     }
 }
