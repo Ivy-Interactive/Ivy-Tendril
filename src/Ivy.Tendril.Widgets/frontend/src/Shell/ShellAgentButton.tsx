@@ -54,11 +54,10 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
   }, [fireNewChat, shortcutKey]);
 
   const hintKeys = isMac() ? ["⌘", "⌥", shortcutKey] : ["Ctrl", "Alt", shortcutKey];
-  const shortcutBadge = isMac() ? `⌘+${shortcutKey}` : `Ctrl+${shortcutKey}`;
 
   return (
     <div className="tsh-agent-wrap">
-      <ShellTooltip content={label} shortcut={shortcutBadge} side="right">
+      <ShellTooltip content={label} shortcut={hintKeys} side="right">
         <button className="tsh-agent" data-active={isActive} onClick={fireOpen} aria-label={label}>
           <span className="tsh-row">
             <span className="tsh-agent-brand">
