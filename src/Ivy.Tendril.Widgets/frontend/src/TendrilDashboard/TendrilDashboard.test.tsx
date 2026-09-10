@@ -268,6 +268,24 @@ describe("TendrilDashboard KPI card interactions and accessibility", () => {
 
     expect(eventHandler).toHaveBeenCalledWith("OnSelectKpi", "dash", ["dailyPrs"]);
   });
+
+  it("renders subValue when provided on a KPI card", () => {
+    const kpisWithSubValue = [
+      { id: "forecastMonth", label: "Forecast This Month", value: "$42.50", subValue: "$85.00 total", hint: "50% subsidized" },
+    ];
+
+    render(
+      <TendrilDashboard
+        id="dash"
+        eventHandler={vi.fn()}
+        kpis={kpisWithSubValue}
+      />,
+    );
+
+    const subValueEl = screen.getByText("$85.00 total");
+    expect(subValueEl).toBeInTheDocument();
+    expect(subValueEl).toHaveClass("tdb-kpi-subvalue");
+  });
 });
 
 describe("TendrilDashboard pull requests week/month toggle", () => {
