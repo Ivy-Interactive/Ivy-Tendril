@@ -77,4 +77,4 @@ public interface IPlanDatabaseService : IDisposable
 ///     What the tokens went on, carried through the CSV because <c>PurgeOldJobs</c> drops the
 ///     <c>Jobs</c> row long before the plan folder is archived. Null for a pre v2 file.
 /// </param>
-public record CostEntry(string Promptware, int Tokens, decimal? Cost, DateTime? LogTimestamp, string? Model = null);
+public record CostEntry(string Promptware, int Tokens, decimal? Cost, DateTime? LogTimestamp, string? Model = null, string? CostSource = null);

@@ -165,6 +165,7 @@ export const TendrilDashboard: React.FC<TendrilDashboardProps> = ({
                       <div className="tdb-kpi-label">{kpi.label}</div>
                       <div className="tdb-kpi-row">
                         <span className="tdb-kpi-value">{kpi.value}</span>
+                        {kpi.subValue && <span className="tdb-kpi-subvalue">{kpi.subValue}</span>}
                         {kpi.delta && (
                           <span className="tdb-kpi-delta">
                             {kpi.delta}

@@ -202,17 +202,17 @@ internal static class PlanYamlHelper
     ///         the aggregates skip it instead of averaging a zero in.
     ///     </para>
     /// </summary>
-    internal static void LogCostToCsv(string planFolder, string jobType, int tokens, decimal? cost, string? model = null)
+    internal static void LogCostToCsv(string planFolder, string jobType, int tokens, decimal? cost, string? model = null, string? costSource = null)
     {
         if (!Directory.Exists(planFolder)) return;
 
         var csvPath = Path.Combine(planFolder, "costs.csv");
         // An existing file keeps whatever header it was created with, including the 3 column one: the
         // parser reads by position and tolerates a short header with long rows appended under it.
-        if (!File.Exists(csvPath)) FileHelper.WriteAllText(csvPath, "Promptware,Tokens,Cost,Model\n");
+        if (!File.Exists(csvPath)) FileHelper.WriteAllText(csvPath, "Promptware,Tokens,Cost,Model,CostSource\n");
 
         var costField = cost?.ToString("F4", System.Globalization.CultureInfo.InvariantCulture) ?? "";
-        var line = $"{jobType},{tokens},{costField},{model}\n";
+        var line = $"{jobType},{tokens},{costField},{model},{costSource}\n";
         FileHelper.AppendAllText(csvPath, line);
     }
 

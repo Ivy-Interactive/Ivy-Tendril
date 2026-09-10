@@ -86,6 +86,24 @@ public class KpiBreakdownSheetTests
     }
 
     [Fact]
+    public void KpiBreakdownSheet_RendersForecastMonthBreakdown_WithSubsidizedAnalysis()
+    {
+        var dailyCosts = new List<DashboardDailyCost>
+        {
+            new(new DateOnly(2026, 8, 31), 40.00m, 4000, ApiCost: 10m, ApiTokens: 1000, SubsidizedCost: 30m, SubsidizedTokens: 3000),
+            new(new DateOnly(2026, 8, 25), 20.00m, 2000, ApiCost: 0m, ApiTokens: 0, SubsidizedCost: 20m, SubsidizedTokens: 2000)
+        };
+        var activity = new DashboardActivityStats([], 0m, dailyCosts);
+        var sheet = new KpiBreakdownSheet("forecastMonth", _stats, activity, _prDays, _today, _fakeService);
+        var result = sheet.Build();
+
+        Assert.NotNull(result);
+        var tableContent = ExtractTableContent(result);
+        Assert.NotNull(tableContent);
+        Assert.StartsWith("DataTableBuilder", tableContent.GetType().Name);
+    }
+
+    [Fact]
     public void KpiBreakdownSheet_RendersAvgCostPlanBreakdown()
     {
         var sheet = new KpiBreakdownSheet("avgCostPlan", _stats, _activity, _prDays, _today, _fakeService);

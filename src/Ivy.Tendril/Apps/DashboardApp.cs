@@ -287,10 +287,25 @@ public class DashboardApp : ViewBase
         const string label = "Forecast This Month";
 
         var forecast = CostForecastCalculator.Project(dailyCosts ?? [], today);
-        if (forecast.CalendarProjection is not { } projection)
+        if (forecast.CalendarProjection is not { } totalProjection)
             return new DashboardKpiDto(label, "-", Hint: "No cost data in the last 30 days", Id: "forecastMonth");
 
-        return new DashboardKpiDto(label, FormatCost(projection), Id: "forecastMonth");
+        if (forecast.ApiCalendarProjection is { } apiProjection && forecast.TotalApiSpend > 0)
+        {
+            return new DashboardKpiDto(
+                label,
+                $"{FormatCost(apiProjection)} API",
+                Hint: $"{forecast.SubsidizedTokenPercent:0}% subsidized via subscription",
+                Id: "forecastMonth",
+                SubValue: $"{FormatCost(totalProjection)} total");
+        }
+
+        return new DashboardKpiDto(
+            label,
+            "$0 API",
+            Hint: "100% subsidized via subscription",
+            Id: "forecastMonth",
+            SubValue: $"{FormatCost(totalProjection)} total");
     }
 
     private static (decimal Last, decimal Previous) LastTwo(
