@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./agent-output.css";
 import type { EventHandler, PresentationEvent } from "./types";
 import { getHeight, getWidth } from "../styles";
@@ -30,6 +30,11 @@ function buildSuppressIndices(events: PresentationEvent[]): Set<number> {
   return indices;
 }
 
+type StreamSubscriber = (
+  streamId: string,
+  onData: (data: unknown) => void,
+) => () => void;
+
 interface AgentViewerProps {
   id: string;
   width?: string;
@@ -37,6 +42,8 @@ interface AgentViewerProps {
   eventHandler: EventHandler;
   events?: string[];
   jsonStream?: string;
+  stream?: { id: string };
+  subscribeToStream?: StreamSubscriber;
   autoScroll?: boolean;
   showThinking?: boolean;
   showSystemEvents?: boolean;
@@ -52,6 +59,8 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
   eventHandler,
   events: enabledEvents = [],
   jsonStream,
+  stream,
+  subscribeToStream,
   autoScroll = true,
   showThinking = false,
   showSystemEvents = false,
@@ -59,9 +68,35 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
   statusLabelOverride,
   groupToolCalls = false,
 }) => {
+  const [streamedLines, setStreamedLines] = useState<string[]>([]);
+  const completedSentRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setStreamedLines([]);
+    completedSentRef.current = null;
+  }, [jsonStream, stream?.id]);
+
+  useEffect(() => {
+    if (!stream?.id || !subscribeToStream) return;
+    const unsubscribe = subscribeToStream(stream.id, (data) => {
+      const line = typeof data === "string" ? data : JSON.stringify(data);
+      if (line) {
+        setStreamedLines((prev) => [...prev, line]);
+      }
+    });
+    return unsubscribe;
+  }, [stream?.id, subscribeToStream]);
+
+  const combinedStream = useMemo(() => {
+    const parts: string[] = [];
+    if (jsonStream) parts.push(jsonStream);
+    if (streamedLines.length > 0) parts.push(streamedLines.join("\n"));
+    return parts.join("\n");
+  }, [jsonStream, streamedLines]);
+
   /* One parse per stream update: the presentation events and the run's metrics are two
      derivations of the same wires. */
-  const wires = useMemo(() => (jsonStream ? parseEventWires(jsonStream) : []), [jsonStream]);
+  const wires = useMemo(() => (combinedStream ? parseEventWires(combinedStream) : []), [combinedStream]);
   const parsedEvents = useMemo<PresentationEvent[]>(() => presentEventWires(wires), [wires]);
 
   const derived = useMemo(() => deriveStatus(parsedEvents), [parsedEvents]);
@@ -87,7 +122,11 @@ export const AgentViewer: React.FC<AgentViewerProps> = ({
   useEffect(() => {
     const last = parsedEvents[parsedEvents.length - 1];
     if (last && last.kind === "result") {
-      handleComplete(JSON.stringify(last.wire));
+      const serialized = JSON.stringify(last.wire);
+      if (completedSentRef.current !== serialized) {
+        completedSentRef.current = serialized;
+        handleComplete(serialized);
+      }
     }
   }, [parsedEvents, handleComplete]);
 
