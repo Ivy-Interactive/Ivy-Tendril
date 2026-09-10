@@ -150,5 +150,19 @@ export function useSpeechInput(
 
   const dismissVoiceError = useCallback(() => setVoiceError(null), []);
 
-  return { voiceStatus, voiceError, dismissVoiceError, toggle };
+  // Ends dictation for good: whatever is still being transcribed is dropped, so a message sent
+  // mid-sentence is not followed by its own words landing in the emptied composer.
+  const stop = useCallback(() => {
+    const recognition = recognitionRef.current;
+    if (recognition) {
+      recognition.onresult = null;
+      recognition.stop();
+      recognitionRef.current = null;
+    }
+    recorderRef.current?.stop();
+    recorderRef.current = null;
+    setVoiceStatus("idle");
+  }, []);
+
+  return { voiceStatus, voiceError, dismissVoiceError, toggle, stop };
 }

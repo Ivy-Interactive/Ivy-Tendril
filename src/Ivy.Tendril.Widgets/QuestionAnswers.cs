@@ -334,22 +334,118 @@ public static class QuestionAnswers
         return count;
     }
 
+    /// <summary>
+    ///     The body as written, then with the repairs a block an agent typed by hand may need: text
+    ///     fields quoted, and a key repeated within one mapping reduced to its last occurrence. The
+    ///     widget reads those blocks, so the answer has to land in the same text.
+    /// </summary>
+    private static IEnumerable<string> BodyCandidates(string body)
+    {
+        yield return body;
+
+        var sanitized = SanitizeQuestionYaml(body);
+        if (sanitized != body)
+            yield return sanitized;
+
+        var deduplicated = DropRepeatedKeys(body);
+        if (deduplicated == body)
+            yield break;
+
+        yield return deduplicated;
+        var both = SanitizeQuestionYaml(deduplicated);
+        if (both != deduplicated)
+            yield return both;
+    }
+
+    private static readonly Regex MappingLineRegex = new(@"^( *)(- +)?(?:([A-Za-z0-9_.\-]+):(?: |$))?", RegexOptions.Compiled);
+
+    /// <summary>
+    ///     Drops the earlier of two identical keys in one mapping, with the value block under it, so
+    ///     the last value wins as it does when the widget reads the block. A repeat whose first
+    ///     occurrence opens a list item keeps that one instead: the dash is part of the line.
+    /// </summary>
+    internal static string DropRepeatedKeys(string body)
+    {
+        var lines = body.Split('\n');
+        var removed = new bool[lines.Length];
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var (key, keyIndent, _) = MappingLine(lines[i]);
+            if (key is null)
+                continue;
+
+            for (var j = i - 1; j >= 0; j--)
+            {
+                if (removed[j] || IsBlankOrComment(lines[j]))
+                    continue;
+
+                var (otherKey, otherIndent, startsItem) = MappingLine(lines[j]);
+                if (otherIndent > keyIndent)
+                    continue;
+                if (otherIndent < keyIndent)
+                    break;
+
+                if (otherKey == key)
+                {
+                    if (startsItem)
+                        removed[i] = true;
+                    else
+                        RemoveWithValue(lines, removed, j);
+                    break;
+                }
+
+                if (startsItem)
+                    break;
+            }
+        }
+
+        return removed.Any(r => r)
+            ? string.Join("\n", lines.Where((_, index) => !removed[index]))
+            : body;
+    }
+
+    private static (string? Key, int Indent, bool StartsItem) MappingLine(string line)
+    {
+        var match = MappingLineRegex.Match(line);
+        var dash = match.Groups[2].Value;
+        var key = match.Groups[3].Success ? match.Groups[3].Value : null;
+        return (key, match.Groups[1].Length + dash.Length, dash.Length > 0);
+    }
+
+    private static bool IsBlankOrComment(string line)
+    {
+        var trimmed = line.TrimStart();
+        return trimmed.Length == 0 || trimmed.StartsWith('#');
+    }
+
+    private static void RemoveWithValue(string[] lines, bool[] removed, int index)
+    {
+        removed[index] = true;
+        var indent = IndentOfLine(lines[index]);
+        for (var k = index + 1; k < lines.Length; k++)
+        {
+            if (lines[k].Trim().Length == 0)
+                continue;
+            if (IndentOfLine(lines[k]) <= indent)
+                break;
+            removed[k] = true;
+        }
+    }
+
     private static bool TryEditBody(string body, QuestionAnswer answer, out string edited)
     {
         edited = body;
 
         var targetBody = body;
-        var questions = QuestionNodesRaw(body);
-        if (questions is null)
+        List<YamlNode>? questions = null;
+        foreach (var candidate in BodyCandidates(body))
         {
-            var sanitized = SanitizeQuestionYaml(body);
-            if (sanitized != body)
+            questions = QuestionNodesRaw(candidate);
+            if (questions is not null)
             {
-                questions = QuestionNodesRaw(sanitized);
-                if (questions is not null)
-                {
-                    targetBody = sanitized;
-                }
+                targetBody = candidate;
+                break;
             }
         }
 

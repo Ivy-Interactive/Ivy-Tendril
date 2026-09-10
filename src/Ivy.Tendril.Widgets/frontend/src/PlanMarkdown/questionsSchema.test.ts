@@ -383,3 +383,27 @@ describe("resilience to unquoted colons and formatting", () => {
     expect(parsed.questions[0].options?.[0].description).toContain("title: not a real title");
   });
 });
+
+describe("parseQuestions with a repeated key", () => {
+  it("keeps the last value of a key an agent wrote twice in one question", () => {
+    const parsed = parseQuestions(
+      [
+        "questions:",
+        "  - id: approach",
+        "    title: How should we proceed?",
+        "    other: false",
+        "    options:",
+        "      - title: Meta task",
+        "        value: meta",
+        "    other: true",
+        "",
+      ].join("\n"),
+    );
+
+    expect(parsed.kind).toBe("questions");
+    if (parsed.kind !== "questions") return;
+    expect(parsed.questions).toHaveLength(1);
+    expect(parsed.questions[0].other).toBe(true);
+    expect(parsed.questions[0].options?.map((option) => option.value)).toEqual(["meta"]);
+  });
+});

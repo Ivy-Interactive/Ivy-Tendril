@@ -328,6 +328,62 @@
   }
 }
 
+/* ─── Minimal row (chat): no fill, the status dot gives way to the chevron on hover ─ */
+.aov-tool--minimal {
+  padding: 2px 0;
+}
+
+/* The chat thread scrolls as a whole; a header pinned to its top would ride over the body. */
+.aov-tool--minimal .aov-tool-header {
+  position: static;
+}
+
+.aov-tool--minimal:hover,
+.aov-tool--minimal.open,
+.aov-tool--minimal.open > .aov-tool-header {
+  background: transparent;
+}
+
+.aov-tool-mark {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.aov-tool-mark > .aov-tool-status,
+.aov-tool-mark > .aov-tool-chevron {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+}
+
+.aov-tool-mark > .aov-tool-chevron {
+  visibility: hidden;
+  transform: rotate(-90deg);
+}
+
+.aov-tool-mark > .aov-tool-chevron.open {
+  transform: none;
+}
+
+.aov-tool--minimal .aov-tool-header:hover .aov-tool-status,
+.aov-tool--minimal .aov-tool-header:focus-visible .aov-tool-status {
+  visibility: hidden;
+}
+
+.aov-tool--minimal .aov-tool-header:hover .aov-tool-chevron,
+.aov-tool--minimal .aov-tool-header:focus-visible .aov-tool-chevron {
+  visibility: visible;
+}
+
+.aov-tool--minimal .aov-tool-body {
+  padding: 4px 0 6px;
+}
+
 /* ─── Tool use group (collapsed by default) ────────────────────────────────── */
 .aov-tool-group {
   position: relative;

@@ -19,11 +19,13 @@ class DemoApp : ViewBase
 
     private static readonly string FinishedTurn = Jsonl(
         new { kind = "session_init", timestamp = "2026-09-08T09:00:00Z", session_id = "s1", model = "fable-5-1" },
+        new { kind = "text", timestamp = "2026-09-08T09:00:00Z", text = "Let me check how the dashboard tokens are defined before I start the plan.", delta = false },
         new { kind = "thinking", timestamp = "2026-09-08T09:00:01Z", content = "The vault theme settings page lives under Apps/Settings; the dashboard already defines tdb- tokens for light and dark." },
         new { kind = "tool_call", timestamp = "2026-09-08T09:00:02Z", tool_use_id = "tu1", tool_name = "Grep", input = new { pattern = "tdb-", path = "src" } },
         new { kind = "tool_result", timestamp = "2026-09-08T09:00:03Z", tool_use_id = "tu1", output = "src/Ivy.Tendril.Widgets/frontend/src/TendrilDashboard/dashboard.css:7:  --tdb-bg: var(--background, #ffffff);", is_error = false },
         new { kind = "tool_call", timestamp = "2026-09-08T09:00:04Z", tool_use_id = "tu2", tool_name = "Read", input = new { file_path = "src/Ivy.Tendril/Apps/Settings/VaultSetupView.cs" } },
         new { kind = "tool_result", timestamp = "2026-09-08T09:00:05Z", tool_use_id = "tu2", output = "public class VaultSetupView : ViewBase\n{\n    public override object Build() { ... }\n}", is_error = false },
+        new { kind = "text", timestamp = "2026-09-08T09:00:05Z", text = "The tokens are all there, so the toggle only needs to flip the theme class. Starting the plan now.", delta = false },
         new { kind = "tool_call", timestamp = "2026-09-08T09:00:06Z", tool_use_id = "tu3", tool_name = "Bash", input = new { command = "tendril job start --plan 00059 --chat-session sess-full", description = "Start plan 00059" } },
         new { kind = "tool_result", timestamp = "2026-09-08T09:00:07Z", tool_use_id = "tu3", output = "Job 00148 started for plan 00059", is_error = false },
         new { kind = "text", timestamp = "2026-09-08T09:00:08Z", text = "Plan 00059 started. The dark mode toggle is in and using the existing tdb- tokens, so it should pick up light/dark theming automatically.", delta = false },

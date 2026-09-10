@@ -1,5 +1,5 @@
 import { parseDocument } from "yaml";
-import { sanitizeQuestionYaml } from "./questionsSchema";
+import { TOLERANT_YAML, sanitizeQuestionYaml } from "./questionsSchema";
 
 /**
  * Locating `questions` fences in markdown source, and editing them in place.
@@ -287,11 +287,11 @@ export function setAnswer(
   }
 
   const dedented = dedent(block.body, block.indent);
-  let doc = parseDocument(dedented);
+  let doc = parseDocument(dedented, TOLERANT_YAML);
   let path = doc.errors.length === 0 ? answerPath(doc.toJS(), questionId) : null;
   if (!path) {
     const sanitized = sanitizeQuestionYaml(dedented);
-    const sanitizedDoc = parseDocument(sanitized);
+    const sanitizedDoc = parseDocument(sanitized, TOLERANT_YAML);
     const sanitizedPath = answerPath(sanitizedDoc.toJS(), questionId);
     if (sanitizedPath) {
       doc = sanitizedDoc;

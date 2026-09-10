@@ -58,6 +58,29 @@ public class QuestionAnswersTests
     // -------------------------------------------------------------------------------------------
 
     [Fact]
+    public void TryApply_TakesTheLastValueOfAKeyWrittenTwiceInOneQuestion()
+    {
+        const string markdown = """
+            ```questions
+            questions:
+              - id: approach
+                title: How should we proceed?
+                other: false
+                options:
+                  - title: Meta task
+                    value: meta
+                other: true
+            ```
+            """;
+
+        Assert.True(QuestionAnswers.TryApply(markdown, new QuestionAnswer("approach", ["meta"]), out var updated));
+
+        Assert.Contains("answer: meta", updated);
+        Assert.Contains("other: true", updated);
+        Assert.DoesNotContain("other: false", updated);
+    }
+
+    [Fact]
     public void Apply_AddsScalarAnswerToSingleSelectQuestion()
     {
         var updated = Apply(Markdown, "retry-scope", "per-session");

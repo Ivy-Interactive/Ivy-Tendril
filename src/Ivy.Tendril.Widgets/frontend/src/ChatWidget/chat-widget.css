@@ -633,16 +633,12 @@ button.chat-jobs-dropdown-item:hover {
 .chat-tools-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-top: 8px;
-  padding: 8px;
-  border-radius: 8px;
-  background: var(--tch-surface);
+  margin-top: 4px;
   font-size: 13px;
 }
 
 .chat-tools-thinking {
-  padding: 4px 6px;
+  padding: 4px 0;
   color: var(--tch-muted);
 }
 

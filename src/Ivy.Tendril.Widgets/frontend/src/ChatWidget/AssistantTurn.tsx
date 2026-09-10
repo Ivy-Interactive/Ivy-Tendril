@@ -14,58 +14,76 @@ export type ActivityEntry =
   | { kind: "tool"; tool: ToolUsePresentation }
   | { kind: "thinking"; text: string };
 
-export type TurnBlock = { kind: "text"; text: string } | { kind: "error"; message: string };
+export type ActivityGroup = { kind: "activity"; entries: ActivityEntry[]; toolCount: number };
+
+export type TurnSegment = ActivityGroup | { kind: "text"; text: string } | { kind: "error"; message: string };
 
 export interface TurnSummary {
-  /** Tool calls and thinking in stream order; the collapsed activity list. */
-  activity: ActivityEntry[];
+  /**
+   * The turn in stream order: prose, failures, and the tool calls (with their thinking) that ran
+   * between them, each run of calls folded into one collapsed line.
+   */
+  segments: TurnSegment[];
   toolCount: number;
-  /** What the reader sees expanded: the agent's prose and any failure. */
-  blocks: TurnBlock[];
   result?: ResultWire;
 }
 
 /**
- * Folds one agent turn into the shape the chat shows: every tool call behind one collapsed line,
- * the prose in order, and the final response once. A text immediately followed by a result that
+ * Folds one agent turn into the shape the chat shows: the prose in order with the tool calls
+ * where they happened, and the final response once. A text immediately followed by a result that
  * carries a response is that response repeated, so only the result's copy is kept.
  */
 export function summarizeTurn(events: PresentationEvent[]): TurnSummary {
-  const activity: ActivityEntry[] = [];
-  const blocks: TurnBlock[] = [];
+  const segments: TurnSegment[] = [];
   let result: ResultWire | undefined;
   let toolCount = 0;
 
+  const currentActivity = (): ActivityGroup => {
+    const last = segments[segments.length - 1];
+    if (last?.kind === "activity") return last;
+    const group: ActivityGroup = { kind: "activity", entries: [], toolCount: 0 };
+    segments.push(group);
+    return group;
+  };
+
   events.forEach((event, index) => {
     switch (event.kind) {
-      case "tool-use":
-        activity.push({ kind: "tool", tool: event.tool });
+      case "tool-use": {
+        const group = currentActivity();
+        group.entries.push({ kind: "tool", tool: event.tool });
+        group.toolCount++;
         toolCount++;
         break;
+      }
       case "thinking":
-        if (event.text.trim()) activity.push({ kind: "thinking", text: event.text });
+        if (event.text.trim()) currentActivity().entries.push({ kind: "thinking", text: event.text });
         break;
       case "assistant-text": {
         const next = events[index + 1];
         const repeatedByResult =
           next?.kind === "result" && Boolean(next.wire.response && next.wire.response.trim().length > 0);
-        if (!repeatedByResult && event.text.trim()) blocks.push({ kind: "text", text: event.text });
+        if (!repeatedByResult && event.text.trim()) segments.push({ kind: "text", text: event.text });
         break;
       }
       case "result":
         result = event.wire;
-        if (event.wire.response?.trim()) blocks.push({ kind: "text", text: event.wire.response });
-        if (!event.wire.is_success) blocks.push({ kind: "error", message: event.wire.error || "The agent run failed." });
+        if (event.wire.response?.trim()) segments.push({ kind: "text", text: event.wire.response });
+        if (!event.wire.is_success) segments.push({ kind: "error", message: event.wire.error || "The agent run failed." });
         break;
       case "error":
-        blocks.push({ kind: "error", message: event.message });
+        segments.push({ kind: "error", message: event.message });
         break;
       default:
         break;
     }
   });
 
-  return { activity, toolCount, blocks, result };
+  // Thinking with no tool call beside it has no line to sit under.
+  return {
+    segments: segments.filter((segment) => segment.kind !== "activity" || segment.toolCount > 0),
+    toolCount,
+    result,
+  };
 }
 
 export const formatDuration = (ms: number): string => `${(ms / 1000).toFixed(1)}s`;
@@ -110,7 +128,8 @@ const TurnMeta: React.FC<{ wire: ResultWire }> = ({ wire }) => {
   return <div className="chat-turn-meta">{items}</div>;
 };
 
-const ActivityDisclosure: React.FC<{ activity: ActivityEntry[]; toolCount: number }> = ({ activity, toolCount }) => {
+const ActivityDisclosure: React.FC<{ group: ActivityGroup }> = ({ group }) => {
+  const { entries: activity, toolCount } = group;
   const [open, setOpen] = useState(false);
   const running = activity.some((entry) => entry.kind === "tool" && entry.tool.result === undefined);
   const failed = activity.some((entry) => entry.kind === "tool" && entry.tool.isError);
@@ -136,6 +155,7 @@ const ActivityDisclosure: React.FC<{ activity: ActivityEntry[]; toolCount: numbe
             entry.kind === "tool" ? (
               <ToolUseCard
                 key={entry.tool.toolUseId || index}
+                minimal
                 tool={{
                   name: entry.tool.name,
                   input: entry.tool.input,
@@ -164,8 +184,9 @@ export interface AssistantTurnProps {
 }
 
 /**
- * One assistant turn: the collapsed tool-call line, the prose, and either the animated status
- * (while streaming) or the duration and token figures of the finished run.
+ * One assistant turn: the prose with each run of tool calls collapsed into a line where it
+ * happened, and either the animated status (while streaming) or the duration and token figures
+ * of the finished run.
  */
 export const AssistantTurn: React.FC<AssistantTurnProps> = ({ stream, live = false }) => {
   /* One parse per stream update; the turn, its status and its metrics all derive from it. */
@@ -177,15 +198,16 @@ export const AssistantTurn: React.FC<AssistantTurnProps> = ({ stream, live = fal
 
   return (
     <div className="chat-turn">
-      {turn.toolCount > 0 && <ActivityDisclosure activity={turn.activity} toolCount={turn.toolCount} />}
-      {turn.blocks.map((block, index) =>
-        block.kind === "text" ? (
+      {turn.segments.map((segment, index) =>
+        segment.kind === "activity" ? (
+          <ActivityDisclosure key={index} group={segment} />
+        ) : segment.kind === "text" ? (
           <div key={index} className="chat-markdown-body">
-            <BlockMarkdown content={block.text} />
+            <BlockMarkdown content={segment.text} />
           </div>
         ) : (
           <div key={index} className="chat-turn-error" role="alert">
-            {block.message}
+            {segment.message}
           </div>
         ),
       )}

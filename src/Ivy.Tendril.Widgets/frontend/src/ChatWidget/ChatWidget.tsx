@@ -240,6 +240,7 @@ export function ChatWidget({
     voiceError,
     dismissVoiceError,
     toggle: toggleVoiceRecording,
+    stop: stopVoiceRecording,
   } = useSpeechInput(promptText, setPromptText, adjustTextareaHeight, transcriptionUrl);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
@@ -452,6 +453,8 @@ export function ChatWidget({
     const trimmed = promptText.trim();
     if (!trimmed && attachments.length === 0) return;
     if (isPayloadOversized || isUploading) return;
+
+    stopVoiceRecording();
 
     const payloadAttachments = attachments
       .filter((att) => att.uploadStatus !== "failed")
