@@ -329,12 +329,12 @@ public class ProjectDetailView(
             | new Button("Add Verification").Icon(Icons.Plus).Outline().OnClick(() => showVerificationTrigger(null))
 
             // Section 5: Ports
-            | Text.H4("Ports").Bold()
+            | BuildPortsHeader()
             | new ProjectPortsTableView(ports, name => showPortTrigger(name))
             | new Button("Add Port").Icon(Icons.Plus).Outline().OnClick(() => showPortTrigger(null))
 
             // Section 6: Environment Files
-            | Text.H4("Environment Files").Bold()
+            | BuildEnvFilesHeader()
             | new ProjectEnvFilesTableView(envFiles, idx => showEnvFileTrigger(idx))
             | new Button("Add Environment File").Icon(Icons.Plus).Outline().OnClick(() => showEnvFileTrigger(null))
 
@@ -467,5 +467,19 @@ public class ProjectDetailView(
                 return false;
         }
         return true;
+    }
+
+    internal static object BuildPortsHeader()
+    {
+        return Layout.Horizontal().AlignContent(Align.Left)
+            | Text.H4("Ports").Bold()
+            | Icons.Info.ToIcon().Color(Colors.Muted).WithTooltip("Named service ports dynamically allocated in plan worktrees to enable concurrent reviews without port conflicts.");
+    }
+
+    internal static object BuildEnvFilesHeader()
+    {
+        return Layout.Horizontal().AlignContent(Align.Left)
+            | Text.H4("Environment Files").Bold()
+            | Icons.Info.ToIcon().Color(Colors.Muted).WithTooltip("Environment files recreated in plan worktrees from templates and variable overrides.");
     }
 }
