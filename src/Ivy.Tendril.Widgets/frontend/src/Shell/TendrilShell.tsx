@@ -95,13 +95,15 @@ export const TendrilShell: React.FC<TendrilShellProps> = ({
     activeSessionIndex != null && activeSessionIndex >= 0 && activeSessionIndex < sessionPanes.length;
 
   return (
-    <ShellContext.Provider value={{ collapsed, toggle }}>
-      <div className="tsh-root remove-parent-padding" data-collapsed={collapsed}>
+    <div className="tsh-root remove-parent-padding" data-collapsed={collapsed}>
+      <ShellContext.Provider value={{ collapsed, toggle }}>
         <div className="tsh-sidebar">
           <div className="tsh-sidebar-header">{slots?.SidebarHeader}</div>
           <div className="tsh-sidebar-body">{slots?.SidebarBody}</div>
           <div className="tsh-sidebar-footer">{slots?.SidebarFooter}</div>
         </div>
+      </ShellContext.Provider>
+      <ShellContext.Provider value={{ collapsed: false, toggle }}>
         <div className="tsh-main">
           <div className="tsh-container">
             <div className="tsh-frame" data-has-tabs={hasTabs}>
@@ -121,8 +123,8 @@ export const TendrilShell: React.FC<TendrilShellProps> = ({
             {hasTabs && slots?.Tabs && <div className="tsh-tabs-row">{slots.Tabs}</div>}
           </div>
         </div>
-        {slots?.Hidden && <div style={{ display: "none" }}>{slots.Hidden}</div>}
-      </div>
-    </ShellContext.Provider>
+      </ShellContext.Provider>
+      {slots?.Hidden && <div style={{ display: "none" }}>{slots.Hidden}</div>}
+    </div>
   );
 };

@@ -29,6 +29,7 @@ interface ShellSidebarSectionProps extends ShellWidgetProps {
   emptyText?: string;
   /** Shows a "+" button in the header (e.g. "New chat"); fires OnNew. */
   newLabel?: string;
+  collapsible?: boolean;
 }
 
 /**
@@ -50,6 +51,7 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
   searchLabel = "Search plans",
   emptyText,
   newLabel,
+  collapsible = true,
 }) => {
   const select = (itemId: string) => {
     if (events.includes("OnSelectItem")) eventHandler("OnSelectItem", id, [itemId]);
@@ -87,7 +89,7 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
   const hasHeader = !!title || searchable;
   const showSearchButton = searchable && (!title || (items.length === 0 && !newLabel));
 
-  if (collapsed) {
+  if (collapsible && collapsed) {
     return (
       <div className="tsh-section tsh-section-rail">
         {newLabel && (
