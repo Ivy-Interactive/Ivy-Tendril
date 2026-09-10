@@ -242,14 +242,20 @@ export function sanitizeQuestionYaml(body: string): string {
  * reach here — this parser only ever sees one fence — and belongs in the C# validator, the one
  * component with the whole document in view.
  */
+/**
+ * Reading options shared by every parse of a block: a key an agent repeated within one mapping
+ * (`other: true` written twice) keeps its last value instead of failing the whole block.
+ */
+export const TOLERANT_YAML = { uniqueKeys: false } as const;
+
 export function parseQuestions(body: string): ParsedQuestions {
   let raw: unknown;
   let usedSanitization = false;
   try {
-    raw = parse(body);
+    raw = parse(body, TOLERANT_YAML);
   } catch {
     try {
-      raw = parse(sanitizeQuestionYaml(body));
+      raw = parse(sanitizeQuestionYaml(body), TOLERANT_YAML);
       usedSanitization = true;
     } catch {
       return { kind: "invalid" };
@@ -261,7 +267,7 @@ export function parseQuestions(body: string): ParsedQuestions {
     try {
       const sanitized = sanitizeQuestionYaml(body);
       if (sanitized !== body) {
-        raw = parse(sanitized);
+        raw = parse(sanitized, TOLERANT_YAML);
         list = questionList(raw);
       }
     } catch {

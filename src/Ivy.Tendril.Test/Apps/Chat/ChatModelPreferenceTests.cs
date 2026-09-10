@@ -20,12 +20,14 @@ public class ChatModelPreferenceTests
     private static IServiceProvider CreateServiceProvider(
         IConfigService configService,
         IChatHistoryService chatService,
-        IAgentRunner agentRunner)
+        IAgentRunner agentRunner,
+        IChatAgentPreferences? preferences = null)
     {
         var services = new ServiceCollection();
         services.AddSingleton(configService);
         services.AddSingleton(chatService);
         services.AddSingleton(agentRunner);
+        if (preferences != null) services.AddSingleton(preferences);
         services.AddSingleton<IEventSerializer>(new JsonEventSerializer());
 
         var appContext = (Ivy.AppContext)Activator.CreateInstance(
@@ -178,7 +180,8 @@ public class ChatModelPreferenceTests
             var config = new TendrilSettings { CodingAgent = "claude" };
             var configService = new ConfigService(config, tempDir);
             var chatService = new ChatHistoryService(configService);
-            var sp = CreateServiceProvider(configService, chatService, agentRunner);
+            var preferences = new ChatAgentPreferences(configService);
+            var sp = CreateServiceProvider(configService, chatService, agentRunner, preferences);
             var ctx = new Ivy.Core.Hooks.ViewContext(() => { }, null, sp);
 
             var (app, _) = CreateChatHost(sp);
@@ -208,16 +211,24 @@ public class ChatModelPreferenceTests
             var codexModels = ChatApp.GetModelsForAgent(agentRunner, "codex");
             Assert.Equal(codexModels[0].Id, configService.Settings.LastChatModel);
 
-            // 2. Change Model
+            // 2. Change Model for the selected agent
             Assert.NotNull(chatWidget.OnModelChanged);
-            await chatWidget.OnModelChanged(new Event<Ivy.Tendril.Widgets.ChatWidget, string>("OnModelChanged", chatWidget, "custom-codex-model"));
+            await chatWidget.OnModelChanged(new Event<Ivy.Tendril.Widgets.ChatWidget, string[]>("OnModelChanged", chatWidget, ["codex", "custom-codex-model"]));
             Assert.Equal("custom-codex-model", configService.Settings.LastChatModel);
             Assert.Equal("codex", configService.Settings.LastChatAgent);
+            Assert.Equal("custom-codex-model", preferences.Get("codex").ModelId);
+
+            // A model chosen for another agent is remembered for it without touching the live selection
+            await chatWidget.OnModelChanged(new Event<Ivy.Tendril.Widgets.ChatWidget, string[]>("OnModelChanged", chatWidget, ["claude", "sonnet"]));
+            Assert.Equal("custom-codex-model", configService.Settings.LastChatModel);
+            Assert.Equal("custom-codex-model", contentView.SelectedModelState.Value);
+            Assert.Equal("sonnet", preferences.Get("claude").ModelId);
 
             // 3. Change Effort
             Assert.NotNull(chatWidget.OnEffortChanged);
-            await chatWidget.OnEffortChanged(new Event<Ivy.Tendril.Widgets.ChatWidget, string>("OnEffortChanged", chatWidget, "low"));
+            await chatWidget.OnEffortChanged(new Event<Ivy.Tendril.Widgets.ChatWidget, string[]>("OnEffortChanged", chatWidget, ["codex", "low"]));
             Assert.Equal("low", configService.Settings.LastChatEffort);
+            Assert.Equal("low", preferences.Get("codex").Effort);
 
             // 4. Verify disk persistence
             var reloaded = new ConfigService(new TendrilSettings(), tempDir);

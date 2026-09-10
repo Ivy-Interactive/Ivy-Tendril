@@ -322,13 +322,22 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
+  width: 100%;
   padding: 8px 10px;
+  border: none;
   border-radius: 8px;
   background: var(--tch-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
   transition: background-color 120ms ease;
 }
 
-.chat-jobs-dropdown-item:hover {
+button.chat-jobs-dropdown-item {
+  cursor: pointer;
+}
+
+button.chat-jobs-dropdown-item:hover {
   background: var(--tch-surface-hover);
 }
 
@@ -363,17 +372,6 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-}
-
-.chat-job-type {
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: var(--tch-bg);
-  border: 1px solid var(--tch-border);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
 }
 
 .chat-job-id {
@@ -512,7 +510,7 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 10px;
-  max-width: 60%;
+  max-width: 80%;
   padding: 16px;
   border-radius: 16px 0 16px 16px;
   background: var(--tch-bubble-bg);
@@ -523,7 +521,6 @@
 
 .chat-user-prompt-text {
   align-self: stretch;
-  padding-left: 8px;
   white-space: pre-wrap;
 }
 
@@ -636,16 +633,12 @@
 .chat-tools-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-top: 8px;
-  padding: 8px;
-  border-radius: 8px;
-  background: var(--tch-surface);
+  margin-top: 4px;
   font-size: 13px;
 }
 
 .chat-tools-thinking {
-  padding: 4px 6px;
+  padding: 4px 0;
   color: var(--tch-muted);
 }
 
@@ -701,7 +694,7 @@
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  width: 60%;
+  width: 100%;
   color: var(--tch-fg);
 }
 
@@ -1061,6 +1054,26 @@ button.chat-system-event-plan {
   min-height: 32px;
 }
 
+/* More than one line of text: the buttons line up as a toolbar above it and the text takes the
+   whole width. */
+.chat-input-row[data-multiline="true"] {
+  flex-wrap: wrap;
+}
+
+.chat-input-row[data-multiline="true"] .chat-attach-btn {
+  order: 0;
+}
+
+.chat-input-row[data-multiline="true"] .chat-input-tools {
+  order: 1;
+  margin-left: auto;
+}
+
+.chat-input-row[data-multiline="true"] .chat-textarea {
+  order: 2;
+  flex-basis: 100%;
+}
+
 .chat-attach-btn {
   margin-left: -6px;
   opacity: 0.85;
@@ -1198,12 +1211,6 @@ button.chat-system-event-plan {
 
 /* ---------- Agent picker (portalled) ---------- */
 
-.chat-agent-layer {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-
 .chat-agent-menu,
 .chat-agent-panel {
   display: flex;
@@ -1225,19 +1232,22 @@ button.chat-system-event-plan {
   align-items: center;
   gap: 8px;
   height: 32px;
-  padding: 0 8px 0 8px;
-  border: none;
+  padding: 0 4px 0 8px;
   border-radius: 6px;
-  background: transparent;
   color: var(--tch-fg);
-  font: inherit;
-  text-align: left;
   white-space: nowrap;
   cursor: pointer;
+  outline: none;
 }
 
-.chat-agent-row[data-active="true"] {
+.chat-agent-row[data-selected="true"] {
   background: var(--tch-surface);
+}
+
+.chat-agent-row:hover,
+.chat-agent-row:focus-visible,
+.chat-agent-row[data-options-open="true"] {
+  background: var(--tch-surface-hover);
 }
 
 .chat-agent-row[data-selected="true"] .chat-agent-row-label {
@@ -1254,84 +1264,99 @@ button.chat-system-event-plan {
   text-overflow: ellipsis;
 }
 
-.chat-agent-row-chevron {
+/* The row's options button shows on hover, on keyboard focus and while its panel is open. */
+.chat-agent-row-options {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
   color: var(--tch-muted);
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.chat-agent-row:hover .chat-agent-row-options,
+.chat-agent-row:focus-within .chat-agent-row-options,
+.chat-agent-row[data-options-open="true"] .chat-agent-row-options {
+  opacity: 1;
+}
+
+.chat-agent-row-options:hover,
+.chat-agent-row-options[aria-expanded="true"] {
+  background: var(--tch-surface-hover);
+  color: var(--tch-fg);
 }
 
 .chat-agent-panel {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 8px);
   gap: 6px;
   padding: 8px;
 }
 
-.chat-panel-select {
-  display: flex;
-  flex-direction: column;
+.chat-agent-panel-title {
+  padding: 0 2px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--tch-muted);
+  white-space: nowrap;
 }
 
-.chat-panel-select-trigger {
+.chat-panel-select {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+}
+
+/* The browser draws the list itself, floating over the page. */
+.chat-panel-select-native {
+  width: 100%;
   height: 30px;
-  padding: 0 10px;
+  padding: 0 30px 0 10px;
   border: 1px solid var(--tch-border);
   border-radius: 6px;
   background: var(--tch-popover);
   color: var(--tch-fg);
   font: inherit;
+  appearance: none;
+  -webkit-appearance: none;
   cursor: pointer;
-}
-
-.chat-panel-select-trigger:hover,
-.chat-panel-select[data-open="true"] .chat-panel-select-trigger {
-  background: var(--tch-surface);
-}
-
-.chat-panel-select-value {
+  outline: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.chat-panel-select-chevron {
-  flex-shrink: 0;
-  color: var(--tch-muted);
-}
-
-.chat-panel-select-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-height: 220px;
-  margin-top: 4px;
-  padding: 4px;
-  border: 1px solid var(--tch-border);
-  border-radius: 8px;
-  background: var(--tch-popover);
-  overflow-y: auto;
-}
-
-.chat-panel-select-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--tch-fg);
-  font: inherit;
-  text-align: left;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.chat-panel-select-item:hover,
-.chat-panel-select-item[data-selected="true"] {
+.chat-panel-select-native:hover {
   background: var(--tch-surface);
+}
+
+.chat-panel-select-native:focus-visible {
+  border-color: var(--tch-fg);
+}
+
+.dark .chat-panel-select-native {
+  color-scheme: dark;
+}
+
+.chat-panel-select-chevron {
+  position: absolute;
+  right: 8px;
+  color: var(--tch-muted);
+  pointer-events: none;
 }
 
 /* ---------- Composer attachments ---------- */

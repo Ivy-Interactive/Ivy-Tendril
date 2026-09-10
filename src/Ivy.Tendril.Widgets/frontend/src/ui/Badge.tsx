@@ -1,10 +1,16 @@
 import React from "react";
 import "./ui.css";
 
-export type BadgeKind = "neutral" | "project" | "success" | "warning" | "danger";
+export type BadgeKind = "neutral" | "project" | "success" | "warning" | "danger" | "color";
+
+/** An Ivy `Colors` name resolves to the theme variable the framework publishes for it. */
+const ivyColorVar = (name: string): string =>
+  `var(--${name.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase()}, currentColor)`;
 
 export interface BadgeProps {
   kind?: BadgeKind;
+  /** An Ivy color name the host assigned (e.g. "Blue"); it tints the badge and overrides `kind`. */
+  color?: string;
   children: React.ReactNode;
   /** Numeric styling: a fixed minimum width and tabular figures, so a ticking count is steady. */
   numeric?: boolean;
@@ -17,6 +23,7 @@ export interface BadgeProps {
 /** A small label chip: the bundle's one badge shape, tinted by kind. */
 export const Badge: React.FC<BadgeProps> = ({
   kind = "neutral",
+  color,
   children,
   numeric = false,
   className = "",
@@ -25,7 +32,8 @@ export const Badge: React.FC<BadgeProps> = ({
 }) => (
   <span
     className={`tui-badge ${numeric ? "tui-badge--count" : ""} ${className}`.replace(/\s+/g, " ").trim()}
-    data-kind={kind}
+    data-kind={color ? "color" : kind}
+    style={color ? ({ "--tui-badge-color": ivyColorVar(color) } as React.CSSProperties) : undefined}
     title={title}
     aria-label={ariaLabel}
   >

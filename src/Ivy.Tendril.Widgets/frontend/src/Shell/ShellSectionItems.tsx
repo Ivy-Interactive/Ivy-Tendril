@@ -1,8 +1,16 @@
 import React from "react";
-import { MessageCircle, SquareTerminal } from "lucide-react";
-import { ShellSectionItemDto } from "./types";
+import { CircleCheck, LoaderCircle, MessageCircle, SquareTerminal } from "lucide-react";
+import { ShellItemState, ShellSectionItemDto } from "./types";
 import { Badge } from "../ui/Badge";
 import "./shell.css";
+
+const STATE_LABELS: Record<ShellItemState, string> = { working: "Working", completed: "Completed" };
+
+const ItemStateIcon: React.FC<{ state: ShellItemState }> = ({ state }) => (
+  <span className="tsh-section-item-state" data-state={state} role="img" aria-label={STATE_LABELS[state]}>
+    {state === "working" ? <LoaderCircle size={12} className="tsh-spin" /> : <CircleCheck size={12} />}
+  </span>
+);
 
 /** Maps a `ShellSectionItemDto.icon` name to its lucide component; unknown names render nothing. */
 export const sectionItemIcons: Record<string, React.FC<{ size?: number }>> = {
@@ -46,13 +54,14 @@ export const ShellSectionItems: React.FC<ShellSectionItemsProps> = ({
                 <ItemIcon size={14} />
               </span>
             )}
+            {item.state && <ItemStateIcon state={item.state} />}
             <span className="tsh-section-item-title">{item.title}</span>
             {item.tag && <span className="tsh-section-item-tag">{item.tag}</span>}
           </span>
           {badges && badges.length > 0 && (
             <span className="tsh-section-item-badges">
               {badges.map((badge, i) => (
-                <Badge key={i} kind={badge.kind}>
+                <Badge key={i} kind={badge.kind} color={badge.color}>
                   {badge.label}
                 </Badge>
               ))}

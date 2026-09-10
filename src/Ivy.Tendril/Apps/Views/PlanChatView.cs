@@ -25,6 +25,7 @@ public class PlanChatView(PlanFile plan) : ViewBase
         var agentRunner = UseService<IAgentRunner>();
         Context.TryUseService<IPlanReaderService>(out var planService);
         Context.TryUseService<IJobService>(out var jobService);
+        Context.TryUseService<IChatAgentPreferences>(out var preferences);
 
         var sessionVersion = UseState(0);
         var streamVersion = UseState(0);
@@ -32,7 +33,7 @@ public class PlanChatView(PlanFile plan) : ViewBase
         var syncedSessionId = UseState<string?>(() => activeSessionId.Value);
         var selectedAgent = UseState(() => DefaultAgent(chatService.GetSession(activeSessionId.Value ?? "")));
         var selectedModel = UseState(() => DefaultModel(chatService.GetSession(activeSessionId.Value ?? "")));
-        var selectedEffort = UseState(() => chatService.GetSession(activeSessionId.Value ?? "")?.Effort ?? "default");
+        var selectedEffort = UseState(() => DefaultEffort(chatService.GetSession(activeSessionId.Value ?? "")));
 
         UseEffect(() =>
         {
@@ -88,20 +89,16 @@ public class PlanChatView(PlanFile plan) : ViewBase
             syncedSessionId.Set(session?.Id);
             selectedAgent.Set(DefaultAgent(session));
             selectedModel.Set(DefaultModel(session));
-            selectedEffort.Set(session?.Effort ?? "default");
+            selectedEffort.Set(DefaultEffort(session));
         }
 
-        var agentId = session?.AgentId ?? selectedAgent.Value;
+        var agentId = selectedAgent.Value;
         var modelOptions = ChatApp.GetModelsForAgent(agentRunner, agentId);
-        var effectiveModel = modelOptions.Any(m => m.Id.Equals(selectedModel.Value, StringComparison.OrdinalIgnoreCase))
-            ? selectedModel.Value
-            : modelOptions.Count > 0 ? modelOptions[0].Id : selectedModel.Value;
+        var effectiveModel = ChatApp.ResolveModel(modelOptions, selectedModel.Value);
         var modelDtos = modelOptions.Select(m => new ModelOptionDto(m.Id, m.DisplayName)).ToList();
         var supportsEffort = ChatApp.DoesAgentSupportEffort(agentRunner, agentId);
         var effortOptions = ChatApp.GetEffortsForAgentAndModel(agentRunner, agentId, effectiveModel);
-        var effectiveEffort = effortOptions.Any(e => e.Id.Equals(selectedEffort.Value, StringComparison.OrdinalIgnoreCase))
-            ? selectedEffort.Value
-            : "default";
+        var effectiveEffort = ChatApp.ResolveEffort(effortOptions, selectedEffort.Value);
 
         var isGenerating = session != null && executionService.IsGenerating(session.Id);
         var streamSnapshot = isGenerating ? executionService.GetStreamSnapshot(session!.Id) : string.Empty;
@@ -141,7 +138,7 @@ public class PlanChatView(PlanFile plan) : ViewBase
             selectedModel,
             selectedEffort,
             sessionDtos,
-            ChatApp.BuildAgentDtos(agentRunner, configService),
+            ChatApp.BuildAgentDtos(agentRunner, configService, preferences, agentId, effectiveModel, effectiveEffort),
             modelDtos,
             effortOptions,
             supportsEffort,
@@ -163,8 +160,14 @@ public class PlanChatView(PlanFile plan) : ViewBase
         string DefaultModel(ChatSessionModel? sess)
         {
             if (!string.IsNullOrEmpty(sess?.ModelId)) return sess.ModelId;
-            var models = ChatApp.GetModelsForAgent(agentRunner, DefaultAgent(sess));
-            return models.Count > 0 ? models[0].Id : "default";
+            var agent = DefaultAgent(sess);
+            return ChatApp.ResolveModel(ChatApp.GetModelsForAgent(agentRunner, agent), preferences?.Get(agent).ModelId);
+        }
+
+        string DefaultEffort(ChatSessionModel? sess)
+        {
+            if (!string.IsNullOrEmpty(sess?.Effort)) return sess.Effort;
+            return preferences?.Get(DefaultAgent(sess)).Effort ?? "default";
         }
     }
 }

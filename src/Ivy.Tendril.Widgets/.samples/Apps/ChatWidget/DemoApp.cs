@@ -19,11 +19,13 @@ class DemoApp : ViewBase
 
     private static readonly string FinishedTurn = Jsonl(
         new { kind = "session_init", timestamp = "2026-09-08T09:00:00Z", session_id = "s1", model = "fable-5-1" },
+        new { kind = "text", timestamp = "2026-09-08T09:00:00Z", text = "Let me check how the dashboard tokens are defined before I start the plan.", delta = false },
         new { kind = "thinking", timestamp = "2026-09-08T09:00:01Z", content = "The vault theme settings page lives under Apps/Settings; the dashboard already defines tdb- tokens for light and dark." },
         new { kind = "tool_call", timestamp = "2026-09-08T09:00:02Z", tool_use_id = "tu1", tool_name = "Grep", input = new { pattern = "tdb-", path = "src" } },
         new { kind = "tool_result", timestamp = "2026-09-08T09:00:03Z", tool_use_id = "tu1", output = "src/Ivy.Tendril.Widgets/frontend/src/TendrilDashboard/dashboard.css:7:  --tdb-bg: var(--background, #ffffff);", is_error = false },
         new { kind = "tool_call", timestamp = "2026-09-08T09:00:04Z", tool_use_id = "tu2", tool_name = "Read", input = new { file_path = "src/Ivy.Tendril/Apps/Settings/VaultSetupView.cs" } },
         new { kind = "tool_result", timestamp = "2026-09-08T09:00:05Z", tool_use_id = "tu2", output = "public class VaultSetupView : ViewBase\n{\n    public override object Build() { ... }\n}", is_error = false },
+        new { kind = "text", timestamp = "2026-09-08T09:00:05Z", text = "The tokens are all there, so the toggle only needs to flip the theme class. Starting the plan now.", delta = false },
         new { kind = "tool_call", timestamp = "2026-09-08T09:00:06Z", tool_use_id = "tu3", tool_name = "Bash", input = new { command = "tendril job start --plan 00059 --chat-session sess-full", description = "Start plan 00059" } },
         new { kind = "tool_result", timestamp = "2026-09-08T09:00:07Z", tool_use_id = "tu3", output = "Job 00148 started for plan 00059", is_error = false },
         new { kind = "text", timestamp = "2026-09-08T09:00:08Z", text = "Plan 00059 started. The dark mode toggle is in and using the existing tdb- tokens, so it should pick up light/dark theming automatically.", delta = false },
@@ -65,9 +67,9 @@ class DemoApp : ViewBase
     {
         var jobs = new List<ChatJobDto>
         {
-            new("00148", "ExecutePlan", "Completed", "00059", "Add dark mode toggle to vault theme settings", "Completed successfully"),
-            new("00149", "CreatePr", "Completed", "00059", "Add dark mode toggle to vault theme settings", "PR #2431 opened"),
-            new("00150", "ExecutePlan", "Completed", "00060", "Persist theme choice per user", "Completed successfully"),
+            new("00148", "ExecutePlan", "Completed", "00059", "Add dark mode toggle to vault theme settings", "Completed successfully", "Blue"),
+            new("00149", "CreatePr", "Completed", "00059", "Add dark mode toggle to vault theme settings", "PR #2431 opened", "Green"),
+            new("00150", "ExecutePlan", "Completed", "00060", "Persist theme choice per user", "Completed successfully", "Blue"),
         };
 
         var full = new ChatSessionDto(
@@ -97,34 +99,52 @@ class DemoApp : ViewBase
         var streaming = UseState(false);
         var activeId = UseState(FullSessionId);
         var selectedAgent = UseState("claude");
-        var selectedModel = UseState("fable-5-1");
-        var selectedEffort = UseState("max");
+        var remembered = UseState(() => new Dictionary<string, (string Model, string Effort)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["claude"] = ("fable-5-1", "max"),
+        });
 
         // src/logo.png, resolved from the build output so the demo does not depend on the working directory.
         var mockupPath = Path.GetFullPath(Path.Combine(System.AppContext.BaseDirectory, "..", "..", "..", "..", "..", "logo.png"));
 
-        var claudeModels = new List<ModelOptionDto> { new("fable-5-1", "Fable 5.1"), new("opus-5", "Opus 5"), new("sonnet-5", "Sonnet 5") };
+        var efforts = new List<EffortOptionDto> { new("default", "Default"), new("low", "Low"), new("medium", "Medium"), new("high", "High"), new("max", "Max") };
+
+        AgentOptionDto Agent(string id, string label, string icon, List<ModelOptionDto> agentModels, bool supportsEffort = false)
+        {
+            var (model, effort) = remembered.Value.TryGetValue(id, out var choice) ? choice : (agentModels[0].Id, "default");
+            return new AgentOptionDto(id, label, icon, agentModels, supportsEffort, model, effort, supportsEffort ? efforts : null);
+        }
+
         var agents = new List<AgentOptionDto>
         {
-            new("claude", "Claude Code", "ClaudeCode", claudeModels, SupportsEffort: true),
-            new("codex", "ChatGPT", "OpenAI", [new("gpt-5-6", "GPT-5.6"), new("gpt-5-6-mini", "GPT-5.6 mini")]),
-            new("grok", "Grok Build", "Terminal", [new("grok-5", "Grok 5")]),
-            new("gemini", "Gemini CLI", "Gemini", [new("gemini-3-8-pro", "Gemini 3.8 Pro"), new("gemini-3-8-flash", "Gemini 3.8 Flash")]),
+            Agent("claude", "Claude Code", "ClaudeCode", [new("fable-5-1", "Fable 5.1"), new("opus-5", "Opus 5"), new("sonnet-5", "Sonnet 5")], supportsEffort: true),
+            Agent("codex", "ChatGPT", "OpenAI", [new("gpt-5-6", "GPT-5.6"), new("gpt-5-6-mini", "GPT-5.6 mini")]),
+            Agent("grok", "Grok Build", "Terminal", [new("grok-5", "Grok 5")]),
+            Agent("gemini", "Gemini CLI", "Gemini", [new("gemini-3-8-pro", "Gemini 3.8 Pro"), new("gemini-3-8-flash", "Gemini 3.8 Flash")]),
         };
-        var models = agents.First(a => a.Id == selectedAgent.Value).Models ?? [];
-        var efforts = new List<EffortOptionDto> { new("default", "Default"), new("low", "Low"), new("medium", "Medium"), new("high", "High"), new("max", "Max") };
+        var current = agents.First(a => a.Id == selectedAgent.Value);
+
+        void Remember(string agentId, string? model = null, string? effort = null)
+        {
+            var agent = agents.First(a => a.Id == agentId);
+            var next = new Dictionary<string, (string Model, string Effort)>(remembered.Value, StringComparer.OrdinalIgnoreCase)
+            {
+                [agentId] = (model ?? agent.SelectedModel ?? "default", effort ?? agent.SelectedEffort ?? "default"),
+            };
+            remembered.Set(next);
+        }
 
         var chat = new ChatWidgetControl
         {
             ActiveSessionId = activeId.Value,
             Sessions = BuildSessions(mockupPath),
             Agents = agents,
-            Models = models,
-            Efforts = efforts,
+            Models = current.Models ?? [],
+            Efforts = current.Efforts ?? [new("default", "Default")],
             SelectedAgent = selectedAgent.Value,
-            SelectedModel = selectedModel.Value,
-            SelectedEffort = selectedEffort.Value,
-            SupportsEffort = selectedAgent.Value == "claude",
+            SelectedModel = current.SelectedModel ?? "default",
+            SelectedEffort = current.SelectedEffort ?? "default",
+            SupportsEffort = current.SupportsEffort,
             IsStreaming = streaming.Value,
             StreamingText = streaming.Value ? LiveTurn : null,
             Greeting = "Good Evening, Joel!",
@@ -134,15 +154,9 @@ class DemoApp : ViewBase
             OnCreateSession = _ => { activeId.Set(EmptySessionId); client.Toast("New chat", "OnCreateSession").Info(); return ValueTask.CompletedTask; },
             OnDeleteSession = e => { client.Toast(e.Value, "OnDeleteSession").Warning(); return ValueTask.CompletedTask; },
             OnRenameSession = e => { client.Toast(string.Join(" -> ", e.Value), "OnRenameSession").Info(); return ValueTask.CompletedTask; },
-            OnAgentChanged = e =>
-            {
-                selectedAgent.Set(e.Value);
-                selectedModel.Set(agents.First(a => a.Id == e.Value).Models?[0].Id ?? "default");
-                selectedEffort.Set("default");
-                return ValueTask.CompletedTask;
-            },
-            OnModelChanged = e => { selectedModel.Set(e.Value); return ValueTask.CompletedTask; },
-            OnEffortChanged = e => { selectedEffort.Set(e.Value); return ValueTask.CompletedTask; },
+            OnAgentChanged = e => { selectedAgent.Set(e.Value); return ValueTask.CompletedTask; },
+            OnModelChanged = e => { Remember(e.Value[0], model: e.Value[1]); return ValueTask.CompletedTask; },
+            OnEffortChanged = e => { Remember(e.Value[0], effort: e.Value[1]); return ValueTask.CompletedTask; },
             OnAnswerQuestion = e => { client.Toast(e.Value.ResponseText, "OnAnswerQuestion").Success(); return ValueTask.CompletedTask; },
             OnOpenPlan = e => { client.Toast($"Plan {e.Value}", "OnOpenPlan").Info(); return ValueTask.CompletedTask; },
         }

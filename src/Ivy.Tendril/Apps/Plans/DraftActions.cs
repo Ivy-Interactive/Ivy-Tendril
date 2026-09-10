@@ -38,8 +38,8 @@ public sealed record DraftActionsContext(
     bool HasActiveSplitJob);
 
 /// <summary>
-///     What the Drafts page can do with a plan, laid out for the workspace top bar: Edit, Update,
-///     Expand and Share as icons, everything else in the overflow menu. "Discuss with {agent}" opens
+///     What the Drafts page can do with a plan, laid out for the workspace top bar: Update and
+///     Share as icons, everything else in the overflow menu. "Discuss with {agent}" opens
 ///     the conversation in the plan's chat panel. Edit mode and share mode each replace the set with
 ///     their own.
 /// </summary>
@@ -133,15 +133,14 @@ public static class DraftActions
             ctx.RefreshPlans();
         }
 
-        actions
-            .Action("Edit", "Edit", Icons.Pencil, () => ctx.IsEditing.Set(true), "E")
-            .Action("Update", "Update", Icons.WandSparkles, ctx.ShowUpdateDialog, "U")
-            .Action("Expand", "Expand", Icons.Expand, StartExpand, "P", disabled: ctx.HasActiveExpandJob);
+        actions.Action("Update", "Update", Icons.WandSparkles, ctx.ShowUpdateDialog, "U");
 
         if (ctx.IsBeta)
             actions.Action("Share", "Share", Icons.Share2, SharePlan);
 
         actions
+            .Menu("Edit", "Edit", Icons.Pencil, () => ctx.IsEditing.Set(true), "E")
+            .Menu("Expand", "Expand", Icons.Expand, StartExpand, "P", disabled: ctx.HasActiveExpandJob)
             .Menu("Split", "Split", Icons.Scissors, StartSplit, disabled: ctx.HasActiveSplitJob)
             .Menu("Delete", "Delete", Icons.Trash, ctx.ShowDeleteDialog, "Backspace", danger: true)
             .Menu("CreateIssue", "Create Issue", Icons.Github, ctx.ShowCreateIssueDialog);

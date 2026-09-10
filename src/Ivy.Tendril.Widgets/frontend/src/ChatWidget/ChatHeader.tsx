@@ -30,9 +30,11 @@ interface JobsMenuProps {
   jobs: ChatJobDto[];
   spawned: boolean;
   onReview: () => void;
+  /** A job that reported a plan becomes a button that opens it. */
+  onOpenPlan?: (planId: string) => void;
 }
 
-export const JobsMenu: React.FC<JobsMenuProps> = ({ jobs, spawned, onReview }) => {
+export const JobsMenu: React.FC<JobsMenuProps> = ({ jobs, spawned, onReview, onOpenPlan }) => {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
@@ -109,8 +111,10 @@ export const JobsMenu: React.FC<JobsMenuProps> = ({ jobs, spawned, onReview }) =
           </div>
 
           <div className="chat-jobs-dropdown-list">
-            {jobs.map((job) => (
-              <div key={job.id} className={`chat-jobs-dropdown-item ${job.status.toLowerCase()}`}>
+            {jobs.map((job) => {
+              const className = `chat-jobs-dropdown-item ${job.status.toLowerCase()}`;
+              const content = (
+                <>
                 <div className="chat-job-status-indicator">
                   {isRunningJob(job) && <LoaderCircle size={13} className="spin" />}
                   {isCompletedJob(job) && <CheckCircle2 size={13} />}
@@ -119,7 +123,7 @@ export const JobsMenu: React.FC<JobsMenuProps> = ({ jobs, spawned, onReview }) =
                 </div>
                 <div className="chat-job-details">
                   <div className="chat-job-meta">
-                    <span className="chat-job-type">{job.type}</span>
+                    <Badge color={job.typeColor}>{job.type}</Badge>
                     <span className="chat-job-id">{job.id}</span>
                     {job.planTitle && (
                       <span className="chat-job-plan-title" title={job.planTitle}>
@@ -133,8 +137,31 @@ export const JobsMenu: React.FC<JobsMenuProps> = ({ jobs, spawned, onReview }) =
                     </div>
                   )}
                 </div>
-              </div>
-            ))}
+                </>
+              );
+              const planId = job.planId;
+              if (onOpenPlan && planId) {
+                return (
+                  <button
+                    key={job.id}
+                    type="button"
+                    className={className}
+                    title="Open plan"
+                    onClick={() => {
+                      setOpen(false);
+                      onOpenPlan(planId);
+                    }}
+                  >
+                    {content}
+                  </button>
+                );
+              }
+              return (
+                <div key={job.id} className={className}>
+                  {content}
+                </div>
+              );
+            })}
           </div>
 
           {allFinished && (

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { AssistantTurn, formatDuration, summarizeTurn } from "./AssistantTurn";
 import { parseEventWireStream } from "../AgentViewer/parse-events";
@@ -16,8 +16,31 @@ describe("summarizeTurn", () => {
       ]),
     );
     const turn = summarizeTurn(events);
-    expect(turn.blocks).toEqual([{ kind: "text", text: "Hello world" }]);
+    expect(turn.segments).toEqual([{ kind: "text", text: "Hello world" }]);
     expect(turn.toolCount).toBe(0);
+  });
+
+  it("places each run of tool calls where it happened between the prose", () => {
+    const events = parseEventWireStream(
+      wire([
+        { kind: "text", timestamp: "t1", text: "Looking around.", delta: false },
+        { kind: "tool_call", timestamp: "t2", tool_use_id: "a", tool_name: "Grep", input: { pattern: "x" } },
+        { kind: "tool_result", timestamp: "t3", tool_use_id: "a", output: "none", is_error: false },
+        { kind: "text", timestamp: "t4", text: "Nothing there, trying the tests.", delta: false },
+        { kind: "tool_call", timestamp: "t5", tool_use_id: "b", tool_name: "Read", input: { file_path: "/a.ts" } },
+        { kind: "tool_call", timestamp: "t6", tool_use_id: "c", tool_name: "Bash", input: { command: "pnpm test" } },
+        { kind: "text", timestamp: "t7", text: "All green.", delta: false },
+      ]),
+    );
+    const turn = summarizeTurn(events);
+    expect(turn.segments.map((segment) => (segment.kind === "activity" ? `tools:${segment.toolCount}` : segment.kind))).toEqual([
+      "text",
+      "tools:1",
+      "text",
+      "tools:2",
+      "text",
+    ]);
+    expect(turn.toolCount).toBe(3);
   });
 
   it("keeps intermediate prose, counts tools, and interleaves thinking in the activity", () => {
@@ -31,10 +54,11 @@ describe("summarizeTurn", () => {
       ]),
     );
     const turn = summarizeTurn(events);
-    expect(turn.activity.map((entry) => entry.kind)).toEqual(["thinking", "tool"]);
     expect(turn.toolCount).toBe(1);
-    expect(turn.blocks).toEqual([
+    // The thinking came before the prose, so it has no tool call of its own to sit under.
+    expect(turn.segments).toEqual([
       { kind: "text", text: "Checking the repo." },
+      { kind: "activity", toolCount: 1, entries: [{ kind: "tool", tool: expect.objectContaining({ name: "Grep" }) }] },
       { kind: "error", message: "rate limited" },
     ]);
   });
@@ -72,6 +96,21 @@ describe("AssistantTurn", () => {
     expect(screen.getByText("3.1s")).toBeInTheDocument();
     expect(screen.getByText("1,200 / 80")).toBeInTheDocument();
     expect(screen.getByText("$0.042")).toBeInTheDocument();
+  });
+
+  it("renders the tool rows without card chrome, the chevron sharing the status dot's slot", () => {
+    const stream = wire([
+      { kind: "tool_call", timestamp: "t1", tool_use_id: "a", tool_name: "Read", input: { file_path: "/a.ts" } },
+      { kind: "tool_result", timestamp: "t2", tool_use_id: "a", output: "ok", is_error: false },
+    ]);
+    const { container } = render(<AssistantTurn stream={stream} />);
+    fireEvent.click(screen.getByRole("button", { name: /1 tool call$/ }));
+
+    const row = container.querySelector(".aov-tool") as HTMLElement;
+    expect(row).toHaveClass("aov-tool--minimal");
+    const mark = row.querySelector(".aov-tool-mark") as HTMLElement;
+    expect(mark.querySelector(".aov-tool-status--success")).toBeInTheDocument();
+    expect(mark.querySelector(".aov-tool-chevron")).toBeInTheDocument();
   });
 
   it("renders an empty live stream as the starting status only", () => {

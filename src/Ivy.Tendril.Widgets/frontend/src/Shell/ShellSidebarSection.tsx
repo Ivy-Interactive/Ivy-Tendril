@@ -133,7 +133,7 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
                       {item.badges && item.badges.length > 0 && (
                         <div className="tsh-rail-tooltip-badges">
                           {item.badges.map((badge, i) => (
-                            <Badge key={i} kind={badge.kind}>
+                            <Badge key={i} kind={badge.kind} color={badge.color}>
                               {badge.label}
                             </Badge>
                           ))}

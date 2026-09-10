@@ -22,7 +22,8 @@ public record ChatJobDto(
     string Status,
     string? PlanId = null,
     string? PlanTitle = null,
-    string? StatusMessage = null
+    string? StatusMessage = null,
+    string? TypeColor = null
 );
 
 public record ChatSessionDto(
@@ -40,15 +41,21 @@ public record ChatSessionDto(
 
 public record ModelOptionDto(string Id, string DisplayName);
 
+public record EffortOptionDto(string Id, string DisplayName);
+
 /// <param name="Icon">The <c>Icons</c> enum name of the agent's brand mark, e.g. <c>ClaudeCode</c>.</param>
 /// <param name="Models">The agent's catalog, so the picker can offer a model before the agent is selected.</param>
+/// <param name="SelectedModel">The model remembered for this agent; it applies whenever the agent is selected.</param>
+/// <param name="Efforts">The efforts the remembered model supports, "default" first.</param>
 public record AgentOptionDto(
     string Id,
     string Label,
     string? Icon = null,
     List<ModelOptionDto>? Models = null,
-    bool SupportsEffort = false);
-public record EffortOptionDto(string Id, string DisplayName);
+    bool SupportsEffort = false,
+    string? SelectedModel = null,
+    string? SelectedEffort = null,
+    List<EffortOptionDto>? Efforts = null);
 
 public record ChatAttachmentDto(
     string Name,
@@ -116,8 +123,8 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Event] public Func<Event<ChatWidget, ChatSendMessageDto>, ValueTask>? OnSendMessage { get; init; }
     [Event] public Func<Event<ChatWidget, object>, ValueTask>? OnCancelStream { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnAgentChanged { get; init; }
-    [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnModelChanged { get; init; }
-    [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnEffortChanged { get; init; }
+    [Event] public Func<Event<ChatWidget, string[]>, ValueTask>? OnModelChanged { get; init; }
+    [Event] public Func<Event<ChatWidget, string[]>, ValueTask>? OnEffortChanged { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnDeleteQueuedMessage { get; init; }
     [Event] public Func<Event<ChatWidget, string[]>, ValueTask>? OnUpdateQueuedMessage { get; init; }
     [Event] public Func<Event<ChatWidget, string>, ValueTask>? OnSendQueuedNow { get; init; }

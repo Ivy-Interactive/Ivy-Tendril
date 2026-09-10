@@ -68,11 +68,6 @@ const OptionCard: React.FC<OptionCardProps> = ({ option, selected, multiple, gro
         {option.title}
         {option.recommended && <span className="tq-option-recommended">Recommended</span>}
       </span>
-      {!multiple && selected && (
-        <span className="tq-option-check" aria-hidden="true">
-          <Check size={16} />
-        </span>
-      )}
     </label>
     {option.description && (
       <div className="tq-option-description">
@@ -214,11 +209,6 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
                 </span>
               )}
               <span className="tq-option-title">Other</span>
-              {!question.multiple && otherActive && (
-                <span className="tq-option-check" aria-hidden="true">
-                  <Check size={16} />
-                </span>
-              )}
             </label>
             {showOther && textInput}
           </div>

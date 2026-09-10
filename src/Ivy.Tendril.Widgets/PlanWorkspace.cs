@@ -76,6 +76,7 @@ public record PlanWorkspace : WidgetBase<PlanWorkspace>
     [Prop] public List<PlanActionDto> MenuItems { get; init; } = [];
     [Prop] public PlanActionDto? Primary { get; init; }
     [Prop] public List<PlanActionDto> Secondary { get; init; } = [];
+    [Prop] public List<PlanActionDto> Shortcuts { get; init; } = [];
     [Prop] public List<PlanTabDto> Tabs { get; init; } = [];
     [Prop] public string? SelectedTab { get; init; }
     [Prop] public int ChatWidth { get; init; } = 420;
@@ -135,6 +136,9 @@ public static class PlanWorkspaceExtensions
 
     public static PlanWorkspace Secondary(this PlanWorkspace w, IEnumerable<PlanActionDto> secondary) =>
         w with { Secondary = secondary.ToList() };
+
+    public static PlanWorkspace Shortcuts(this PlanWorkspace w, IEnumerable<PlanActionDto> shortcuts) =>
+        w with { Shortcuts = shortcuts.ToList() };
 
     public static PlanWorkspace Tabs(this PlanWorkspace w, IEnumerable<PlanTabDto> tabs) => w with { Tabs = tabs.ToList() };
     public static PlanWorkspace SelectedTab(this PlanWorkspace w, string? tabId) => w with { SelectedTab = tabId };

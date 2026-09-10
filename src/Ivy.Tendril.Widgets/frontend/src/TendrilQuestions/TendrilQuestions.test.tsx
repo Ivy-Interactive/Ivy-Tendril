@@ -177,7 +177,7 @@ describe("TendrilQuestions widget", () => {
 });
 
 describe("QuestionsForm", () => {
-  it("stacks several questions and marks the selected single-select card with a check", () => {
+  it("stacks several questions and marks the selected single-select card without an icon", () => {
     const onAnswer = vi.fn();
     const questions = [...questionsOf(singleSelect), ...questionsOf(freeText)];
     const { container } = render(
@@ -188,7 +188,7 @@ describe("QuestionsForm", () => {
     const selected = screen.getByText("Open a PR").closest(".tq-option") as HTMLElement;
     expect(selected).toHaveAttribute("data-selected", "true");
     expect(within(selected).getByRole("radio")).toBeChecked();
-    expect(selected.querySelector(".tq-option-check")).toBeInTheDocument();
+    expect(selected.querySelector("svg")).toBeNull();
   });
 
   it("summarises skipped optional questions and typed answers", () => {

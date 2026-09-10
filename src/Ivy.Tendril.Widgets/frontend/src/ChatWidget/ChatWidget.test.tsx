@@ -206,7 +206,7 @@ describe("ChatWidget redesign", () => {
     expect(handleEvent).toHaveBeenCalledWith("OnDeleteSession", "test-chat", ["sess-123"]);
   });
 
-  it("renders effort picker and emits OnEffortChanged when changed", () => {
+  it("renders effort picker and emits OnEffortChanged for the selected agent when changed", () => {
     const handleEvent = vi.fn();
     const efforts = [
       { id: "default", displayName: "Default" },
@@ -219,24 +219,27 @@ describe("ChatWidget redesign", () => {
       <ChatWidget
         id="test-chat"
         efforts={efforts}
+        selectedAgent="claude"
         selectedEffort="high"
         supportsEffort={true}
         events={["OnEffortChanged"]}
         eventHandler={handleEvent}
-      />,
+      />
     );
 
-    // The effort select lives in the agent picker's side panel for the selected agent.
+    // The effort select lives in the selected agent's options panel, behind its row's options button.
     fireEvent.click(screen.getByRole("button", { name: /^Agent:/i }));
-    const effortTrigger = screen.getByRole("button", { name: "Effort Level" });
-    expect(effortTrigger).toBeInTheDocument();
-    expect(screen.getByText("High")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "claude options" }));
+    const effortSelect = screen.getByLabelText("Effort Level");
+    expect(effortSelect).toHaveValue("high");
 
-    fireEvent.click(effortTrigger);
-    const maxOption = screen.getByRole("button", { name: /Max/i });
-    fireEvent.click(maxOption);
+    fireEvent.change(effortSelect, { target: { value: "max" } });
 
-    expect(handleEvent).toHaveBeenCalledWith("OnEffortChanged", "test-chat", ["max"]);
+    expect(handleEvent).toHaveBeenCalledWith(
+      "OnEffortChanged",
+      "test-chat",
+      [["claude", "max"]]
+    );
   });
 
   it("collapses a turn's tool calls behind one line and lists them with their in/out on demand", () => {
@@ -357,52 +360,57 @@ describe("ChatWidget redesign", () => {
     expect(handleEvent).toHaveBeenCalledWith("OnOpenPlan", "test-chat", ["00059"]);
   });
 
-  it("lets the agent picker switch agent and pick a model for another agent in one motion", () => {
+  it("selects an agent from the picker and remembers a model or effort per agent from its options panel", () => {
     const handleEvent = vi.fn();
     const agents = [
       { id: "claude", label: "Claude Code", icon: "ClaudeCode", supportsEffort: true },
-      {
-        id: "codex",
-        label: "Codex",
-        icon: "OpenAI",
-        models: [{ id: "gpt-5", displayName: "GPT-5" }],
-      },
+      { id: "codex", label: "Codex", icon: "OpenAI", models: [{ id: "gpt-5", displayName: "GPT-5" }], selectedModel: "gpt-5" },
     ];
     render(
       <ChatWidget
         id="test-chat"
         agents={agents}
         models={[{ id: "opus", displayName: "Opus" }]}
-        efforts={[
-          { id: "default", displayName: "Default" },
-          { id: "max", displayName: "Max" },
-        ]}
+        efforts={[{ id: "default", displayName: "Default" }, { id: "max", displayName: "Max" }]}
         selectedAgent="claude"
         selectedModel="opus"
         selectedEffort="max"
         events={["OnAgentChanged", "OnModelChanged", "OnEffortChanged"]}
         eventHandler={handleEvent}
-      />,
+      />
     );
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Agent: Claude Code" }));
 
-    expect(screen.getByRole("menuitem", { name: "Claude Code" })).toHaveAttribute(
-      "data-selected",
-      "true",
-    );
-    expect(screen.getByText("Opus")).toBeInTheDocument();
-    expect(screen.getByText("Max")).toBeInTheDocument();
+    expect(screen.getByRole("menuitemradio", { name: "Claude Code" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByLabelText("Model")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("menuitem", { name: "Codex" }));
+    // A row's options button opens that agent's panel; its model is remembered without selecting it.
+    fireEvent.click(screen.getByRole("button", { name: "Codex options" }));
+    expect(screen.getByRole("group", { name: "Codex settings" })).toBeInTheDocument();
+    const codexModel = screen.getByLabelText("Model");
+    expect(codexModel).toHaveValue("gpt-5");
+    expect(codexModel.tagName).toBe("SELECT");
+    fireEvent.change(codexModel, { target: { value: "gpt-5" } });
+    expect(handleEvent).toHaveBeenCalledWith("OnModelChanged", "test-chat", [["codex", "gpt-5"]]);
+    expect(handleEvent).not.toHaveBeenCalledWith("OnAgentChanged", expect.anything(), expect.anything());
+    expect(screen.queryByLabelText("Effort Level")).not.toBeInTheDocument();
+
+    // The selected agent's panel shows the host's model and effort; an effort change is remembered for it.
+    fireEvent.click(screen.getByRole("button", { name: "Claude Code options" }));
+    expect(screen.getByLabelText("Model")).toHaveValue("opus");
+    expect(screen.getByLabelText("Effort Level")).toHaveValue("max");
+    fireEvent.change(screen.getByLabelText("Effort Level"), { target: { value: "default" } });
+    expect(handleEvent).toHaveBeenCalledWith("OnEffortChanged", "test-chat", [["claude", "default"]]);
+
+    // Clicking a row selects that agent and closes the menu.
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Codex" }));
     expect(handleEvent).toHaveBeenLastCalledWith("OnAgentChanged", "test-chat", ["codex"]);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Model" }));
-    fireEvent.click(screen.getByRole("button", { name: "GPT-5" }));
-    expect(handleEvent).toHaveBeenCalledWith("OnModelChanged", "test-chat", ["gpt-5"]);
-    expect(screen.queryByRole("button", { name: "Effort Level" })).not.toBeInTheDocument();
-
+    fireEvent.click(screen.getByRole("button", { name: "Agent: Claude Code" }));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });

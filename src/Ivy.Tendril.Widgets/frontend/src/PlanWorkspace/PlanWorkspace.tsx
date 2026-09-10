@@ -196,6 +196,7 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
   menuItems = EMPTY_ACTIONS,
   primary,
   secondary = EMPTY_ACTIONS,
+  shortcuts = EMPTY_ACTIONS,
   tabs = [],
   selectedTab,
   chatWidth = 420,
@@ -265,10 +266,10 @@ export const PlanWorkspace: React.FC<PlanWorkspaceProps> = ({
   const menu = useMemo(() => (compact ? [...actions, ...menuItems] : menuItems), [compact, actions, menuItems]);
 
   const bindings = useMemo<ShortcutBinding[]>(
-    () => [...actions, ...menuItems, ...secondary, ...(primary ? [primary] : [])],
-    [actions, menuItems, secondary, primary],
+    () => [...actions, ...menuItems, ...secondary, ...(primary ? [primary] : []), ...shortcuts],
+    [actions, menuItems, secondary, primary, shortcuts],
   );
-  useActionShortcuts(bindings, fire, events.includes("OnAction"));
+  useActionShortcuts(bindings, fire, events.includes("OnAction"), rootRef);
 
   const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
     const root = rootRef.current;

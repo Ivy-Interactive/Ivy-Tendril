@@ -288,7 +288,14 @@ public class ContentView(
             showResetToDraftDialog, showSuggestChangesDialog, showDiscardDialog, showShareModal));
 
         if (!isShareMode)
+        {
             AddPrimaryAction(actions, selectedPlan, context, showCreatePrDialog, showDiscardDialog);
+            PlanNeighborShortcuts.Add(actions, allPlans, currentIndex, plan =>
+            {
+                selectedPlanState.Set(plan);
+                nav.Navigate(typeof(ReviewApp), new ReviewAppArgs(plan.FolderName));
+            });
+        }
 
         Action discussInChat = chatService != null && chatExecution != null
             ? () => PlanChatSessions.Send(chatService, chatExecution, planService, agentRunner, config, selectedPlan,
