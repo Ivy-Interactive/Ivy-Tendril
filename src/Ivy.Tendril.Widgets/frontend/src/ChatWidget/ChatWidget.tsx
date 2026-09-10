@@ -150,6 +150,7 @@ export function ChatWidget({
   runningJobs = [],
   greeting,
   headline = "What Are We Producing Today?",
+  samplePrompts = [],
   embedded = false,
   events = [],
   eventHandler,
@@ -642,6 +643,12 @@ export function ChatWidget({
     }
   };
 
+  const handleSelectSamplePrompt = (prompt: string) => {
+    setPromptText(prompt);
+    adjustTextareaHeight();
+    textareaRef.current?.focus();
+  };
+
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setPromptText(e.target.value);
     adjustTextareaHeight();
@@ -779,6 +786,21 @@ export function ChatWidget({
             <div className="chat-empty-state">
               {greeting && <div className="chat-empty-greeting">{greeting}</div>}
               <div className="chat-empty-headline">{headline}</div>
+              {samplePrompts && samplePrompts.length > 0 && (
+                <div className="chat-sample-prompts">
+                  {samplePrompts.map((prompt, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      className="chat-sample-prompt-card"
+                      onClick={() => handleSelectSamplePrompt(prompt)}
+                    >
+                      <Sparkles className="chat-sample-prompt-icon" size={16} />
+                      <span className="chat-sample-prompt-text">{prompt}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           <div ref={spacerRef} className="chat-scroll-spacer" aria-hidden="true" />
@@ -871,6 +893,22 @@ export function ChatWidget({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {hasThreadContent && samplePrompts && samplePrompts.length > 0 && (
+            <div className="chat-sample-prompts-bar">
+              {samplePrompts.map((prompt, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  className="chat-sample-prompt-chip"
+                  onClick={() => handleSelectSamplePrompt(prompt)}
+                >
+                  <Sparkles className="chat-sample-prompt-chip-icon" size={13} />
+                  <span className="chat-sample-prompt-chip-text">{prompt}</span>
+                </button>
+              ))}
             </div>
           )}
 

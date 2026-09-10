@@ -482,6 +482,93 @@ button.chat-jobs-dropdown-item:hover {
   color: var(--tch-fg);
 }
 
+.chat-sample-prompts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  width: 100%;
+  max-width: 680px;
+  margin-top: 24px;
+}
+
+.chat-sample-prompt-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--tch-border);
+  border-radius: 10px;
+  background: var(--tch-surface);
+  color: var(--tch-fg);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.chat-sample-prompt-card:hover {
+  background: var(--tch-surface-hover);
+  border-color: color-mix(in srgb, var(--tch-border) 60%, var(--tch-fg));
+}
+
+.chat-sample-prompt-card .chat-sample-prompt-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--tch-muted);
+}
+
+.chat-sample-prompt-card:hover .chat-sample-prompt-icon {
+  color: var(--tch-fg);
+}
+
+.chat-sample-prompt-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-sample-prompts-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  overflow-x: auto;
+  padding: 0 0 8px;
+  scrollbar-width: thin;
+}
+
+.chat-sample-prompt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--tch-border);
+  border-radius: 9999px;
+  background: var(--tch-surface);
+  color: var(--tch-muted);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.chat-sample-prompt-chip:hover {
+  background: var(--tch-surface-hover);
+  color: var(--tch-fg);
+  border-color: color-mix(in srgb, var(--tch-border) 60%, var(--tch-fg));
+}
+
+.chat-sample-prompt-chip-icon {
+  flex-shrink: 0;
+}
+
+.chat-sample-prompt-chip-text {
+  white-space: nowrap;
+}
+
 .chat-message-row {
   display: flex;
   width: 100%;
@@ -1776,6 +1863,19 @@ button.chat-system-event-plan {
   font-size: 20px;
   font-weight: 500;
   line-height: 26px;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-sample-prompts {
+  grid-template-columns: 1fr;
+  max-width: 100%;
+  margin-top: 16px;
+  gap: 8px;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-sample-prompt-card {
+  padding: 8px 10px;
+  font-size: 12px;
+  border-radius: 8px;
 }
 
 .chat-widget-root[data-embedded="true"] .chat-footer {
