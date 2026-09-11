@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { ChevronRight, Coins, LoaderCircle, Timer } from "lucide-react";
 import { parseEventWires, presentEventWires } from "../AgentViewer/parse-events";
 import { deriveStatus } from "../AgentViewer/status";
+import { useHeldStatus } from "../AgentViewer/useHeldStatus";
 import { deriveStreamMetrics } from "../AgentViewer/stream-metrics";
 import { StatusLine } from "../ui/StatusLine";
 import { Tooltip } from "../ui/Tooltip";
@@ -193,7 +194,8 @@ export const AssistantTurn: React.FC<AssistantTurnProps> = ({ stream, live = fal
   const wires = useMemo(() => (stream ? parseEventWires(stream) : []), [stream]);
   const events = useMemo(() => presentEventWires(wires), [wires]);
   const turn = useMemo(() => summarizeTurn(events), [events]);
-  const status = useMemo(() => deriveStatus(events), [events]);
+  const derived = useMemo(() => deriveStatus(events), [events]);
+  const status = useHeldStatus(derived);
   const metrics = useMemo(() => deriveStreamMetrics(wires), [wires]);
 
   return (

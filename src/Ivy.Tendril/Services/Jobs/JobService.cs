@@ -1182,6 +1182,28 @@ public class JobService : IJobService
             _planReaderService.ResetVerificationsForRetry(folderName);
 
         _planReaderService.TransitionState(folderName, target.Value);
+
+        if (job.TypedArgs is ExecutePlanArgs or CreatePrArgs)
+            DeletePlanChatSession(folderName);
+    }
+
+    /// <summary>
+    ///     Drops the side chat that belongs to a plan once the plan has been progressed. The
+    ///     conversation is about deciding whether to execute the draft or open the PR, so it has
+    ///     served its purpose and would otherwise linger in the chat list (#2530). Only a session
+    ///     that records this plan is removed: a plan's <c>chatSessionId</c> may still point at the
+    ///     general chat that created it, which must survive.
+    /// </summary>
+    private void DeletePlanChatSession(string folderName)
+    {
+        if (_chatHistoryService == null || string.IsNullOrEmpty(folderName)) return;
+
+        foreach (var session in _chatHistoryService.GetSessions()
+                     .Where(s => string.Equals(s.PlanFolderName, folderName, StringComparison.OrdinalIgnoreCase))
+                     .ToList())
+        {
+            _chatHistoryService.DeleteSession(session.Id);
+        }
     }
 
     private string? ResolvePlanChatSessionId(string planFolder)

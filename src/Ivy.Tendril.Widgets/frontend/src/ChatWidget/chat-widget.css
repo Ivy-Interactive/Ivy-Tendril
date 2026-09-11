@@ -24,6 +24,8 @@
   --tch-danger: var(--destructive, #ef4444);
   --tch-success: color-mix(in srgb, var(--success, #16a34a) 70%, var(--foreground, #000000));
   --tch-thread-width: 775px;
+  /* Inset of the embedded (plan panel) rows; the panel itself adds no horizontal padding. */
+  --tch-embedded-inset: 16px;
   --tch-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.18), 0 4px 12px -2px rgba(0, 0, 0, 0.1);
   --tch-mono: var(--font-mono, "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace);
 
@@ -1744,15 +1746,17 @@ button.chat-system-event-plan {
    The panel that hosts the widget draws the frame, so the widget drops its title bar and the
    composer takes the prototype's tighter measurements (16px icons, 28px buttons). */
 
+/* The panel gives the widget its full width so the message list scrolls edge to edge; each row
+   carries the inset itself, which keeps the scrollbar off the text. */
 .chat-widget-root[data-embedded="true"] .chat-header--embedded {
   justify-content: flex-end;
   height: auto;
-  padding: 0 0 8px;
+  padding: 0 var(--tch-embedded-inset) 8px;
   border-bottom: none;
 }
 
 .chat-widget-root[data-embedded="true"] .chat-thread {
-  padding: 0;
+  padding: 0 var(--tch-embedded-inset);
 }
 
 .chat-widget-root[data-embedded="true"] .chat-empty-state {
@@ -1779,7 +1783,7 @@ button.chat-system-event-plan {
 }
 
 .chat-widget-root[data-embedded="true"] .chat-footer {
-  padding: 12px 0 0;
+  padding: 12px var(--tch-embedded-inset) 0;
 }
 
 .chat-widget-root[data-embedded="true"] .chat-input-box {
