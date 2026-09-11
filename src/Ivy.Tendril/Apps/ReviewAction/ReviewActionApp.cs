@@ -94,6 +94,7 @@ public class ReviewActionApp : ViewBase
             .Stream(ptyHandle.Stream)
             .OnInput(ptyHandle.HandleInput)
             .OnResize(ptyHandle.HandleResize)
+            .OnLinkClick(TerminalLinkHelper.OpenTerminalLink)
             .Closed(ptyHandle.Closed)
             .AllowClipboard()
             .Loading($"Starting {action.Name}...")
