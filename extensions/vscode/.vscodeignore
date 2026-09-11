@@ -7,4 +7,5 @@ tsconfig.json
 esbuild.js
 .gitignore
 .vscodeignore
-package-lock.json
+pnpm-lock.yaml
+.npmrc
