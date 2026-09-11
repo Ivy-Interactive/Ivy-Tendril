@@ -202,6 +202,23 @@ describe("ShellAgentButton", () => {
       fireEvent.click(row);
       expect(container.querySelector(".tsh-agent-pin .lucide-pin-off")).toBeInTheDocument();
       expect(container.querySelector(".tsh-agent-pin .lucide-pin")).toBeNull();
+      fireEvent.click(row);
+      expect(container.querySelector(".tsh-agent-pin .lucide-pin")).toBeInTheDocument();
+      expect(container.querySelector(".tsh-agent-pin .lucide-pin-off")).toBeNull();
+    });
+
+    it("keeps a pinned flyout open while a row menu is used", () => {
+      const { row, eventHandler } = renderOnRail({
+        events: ["OnSelectItem", "OnRenameItem", "OnDeleteItem"],
+      });
+      fireEvent.click(row);
+      fireEvent.click(screen.getByRole("button", { name: "Chat two options" }));
+      const menuItem = screen.getByRole("menuitem", { name: /Delete/ });
+      fireEvent.pointerDown(menuItem);
+      expect(screen.getByText("Chat one")).toBeInTheDocument();
+      fireEvent.click(menuItem);
+      expect(eventHandler).toHaveBeenCalledWith("OnDeleteItem", "agent", ["c2"]);
+      expect(screen.getByText("Chat one")).toBeInTheDocument();
     });
 
     it("offers rename and delete on flyout rows when the host listens", () => {

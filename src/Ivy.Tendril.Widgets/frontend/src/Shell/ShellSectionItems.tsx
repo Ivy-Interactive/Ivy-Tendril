@@ -34,6 +34,7 @@ interface ItemMenuProps {
   item: ShellSectionItemDto;
   onRename?: () => void;
   onDelete?: () => void;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -41,13 +42,16 @@ interface ItemMenuProps {
  * the menu is open. The menu is portaled and fixed so the scrolling list cannot
  * clip it, and it closes on Escape, a click outside, or a pick.
  */
-const ItemMenu: React.FC<ItemMenuProps> = ({ item, onRename, onDelete }) => {
+const ItemMenu: React.FC<ItemMenuProps> = ({ item, onRename, onDelete, onOpenChange }) => {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; right: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => {
+    setOpen(false);
+    buttonRef.current?.focus();
+  }, []);
 
   const toggle = () => {
     const button = buttonRef.current;
@@ -61,26 +65,46 @@ const ItemMenu: React.FC<ItemMenuProps> = ({ item, onRename, onDelete }) => {
   };
 
   useEffect(() => {
+    onOpenChange?.(open);
+  }, [open, onOpenChange]);
+
+  useEffect(() => {
     if (!open) return;
+    menuRef.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") {
+        close();
+        return;
+      }
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      const items = [...(menuRef.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? [])];
+      if (items.length === 0) return;
+      e.preventDefault();
+      const current = items.indexOf(document.activeElement as HTMLElement);
+      const delta = e.key === "ArrowDown" ? 1 : -1;
+      items[(current + delta + items.length) % items.length].focus();
     };
     const onPointerDown = (e: Event) => {
       const target = e.target as Node | null;
       if (!target) return;
       if (menuRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
-      close();
+      setOpen(false);
     };
+    const onScroll = () => setOpen(false);
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
     };
   }, [open, close]);
 
   const pick = (action?: () => void) => {
-    close();
+    setOpen(false);
     action?.();
   };
 
@@ -172,6 +196,8 @@ interface ShellSectionItemsProps {
   /** Rows gain an options menu when either of these is given. */
   onRename?: (itemId: string, title: string) => void;
   onDelete?: (itemId: string) => void;
+  /** True while a row menu is open or a row is being renamed; a floating host should not close over it. */
+  onInteractionChange?: (active: boolean) => void;
 }
 
 /** The plan/chat rows, shared by the expanded sidebar list and the rail's flyout menu. */
@@ -184,9 +210,20 @@ export const ShellSectionItems: React.FC<ShellSectionItemsProps> = ({
   onSelect,
   onRename,
   onDelete,
+  onInteractionChange,
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const hasMenu = !!onRename || !!onDelete;
+
+  useEffect(() => {
+    if (editingId != null && !items.some((item) => item.id === editingId)) setEditingId(null);
+  }, [items, editingId]);
+
+  const interacting = editingId != null || menuOpenId != null;
+  useEffect(() => {
+    onInteractionChange?.(interacting);
+  }, [interacting, onInteractionChange]);
 
   return (
     <div className={`tsh-section-list ${className}`.trim()}>
@@ -251,6 +288,7 @@ export const ShellSectionItems: React.FC<ShellSectionItemsProps> = ({
                 item={item}
                 onRename={onRename ? () => setEditingId(item.id) : undefined}
                 onDelete={onDelete ? () => onDelete(item.id) : undefined}
+                onOpenChange={(open) => setMenuOpenId((current) => (open ? item.id : current === item.id ? null : current))}
               />
             )}
           </div>

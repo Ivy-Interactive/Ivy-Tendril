@@ -64,6 +64,7 @@ export const ShellRailFlyout: React.FC<ShellRailFlyoutProps> = ({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<number | null>(null);
+  const [rowInteracting, setRowInteracting] = useState(false);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current != null) {
@@ -113,9 +114,9 @@ export const ShellRailFlyout: React.FC<ShellRailFlyoutProps> = ({
 
   const scheduleClose = useCallback(() => {
     clearTimer();
-    if (pinned) return;
+    if (pinned || rowInteracting) return;
     timerRef.current = window.setTimeout(() => setOpen(false), CLOSE_DELAY_MS);
-  }, [clearTimer, pinned]);
+  }, [clearTimer, pinned, rowInteracting]);
 
   const togglePinned = useCallback(() => {
     if (pinned) {
@@ -148,6 +149,7 @@ export const ShellRailFlyout: React.FC<ShellRailFlyoutProps> = ({
       const target = e.target as Node | null;
       if (!target) return;
       if (menuRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
+      if (target instanceof Element && target.closest(".tsh-item-menu")) return;
       closeMenu();
     };
     window.addEventListener("keydown", onKeyDown);
@@ -249,6 +251,7 @@ export const ShellRailFlyout: React.FC<ShellRailFlyoutProps> = ({
               onSelect={selectItem}
               onRename={onRename}
               onDelete={onDelete}
+              onInteractionChange={setRowInteracting}
             />
           </div>,
           document.body,

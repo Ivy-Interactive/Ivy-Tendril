@@ -62,7 +62,6 @@ public class ContentView(
         Context.TryUseService<IChatAgentPreferences>(out var preferences);
         var navigator = UseNavigation();
         var localDeletingSessionId = UseState<string?>(null);
-        var deletingSessionId = sharedDeletingSessionId ?? localDeletingSessionId;
 
         var upload = UseUpload(async (fileUpload, stream, ct) =>
         {
@@ -81,6 +80,7 @@ public class ContentView(
 
         _ = sessionVersion.Value;
 
+        var deletingSessionId = sharedDeletingSessionId ?? localDeletingSessionId;
         var sessionToDelete = deletingSessionId.Value != null
             ? chatService.GetSession(deletingSessionId.Value) ?? activeSession
             : activeSession;
