@@ -67,6 +67,13 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
     if (events.includes("OnNew")) eventHandler("OnNew", id, []);
   }, [events, eventHandler, id]);
 
+  const renameItem = events.includes("OnRenameItem")
+    ? (itemId: string, title: string) => eventHandler("OnRenameItem", id, [[itemId, title]])
+    : undefined;
+  const deleteItem = events.includes("OnDeleteItem")
+    ? (itemId: string) => eventHandler("OnDeleteItem", id, [itemId])
+    : undefined;
+
   useEffect(() => {
     if (!searchable) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -193,6 +200,8 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
         selectedId={selectedId}
         emptyText={emptyText}
         onSelect={select}
+        onRename={renameItem}
+        onDelete={deleteItem}
       />
     </div>
   );

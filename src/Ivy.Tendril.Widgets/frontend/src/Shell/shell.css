@@ -5,6 +5,7 @@
 .tsh-root,
 .tsh-section,
 .tsh-rail-menu,
+.tsh-item-menu,
 .tsh-rail-tooltip {
   /* Every token derives from the host theme's variables so alternate themes
      (Retro, etc.) recolor the shell; the literals are only fallbacks for when
@@ -50,6 +51,7 @@
 .dark .tsh-root,
 .dark .tsh-section,
 .dark .tsh-rail-menu,
+.dark .tsh-item-menu,
 .dark .tsh-rail-tooltip {
   /* Dark theme swaps these two roles relative to light: the shell backdrop
      takes the lighter grey and the content frame sits darker inside it, so the
@@ -76,7 +78,8 @@
 
 .tsh-root *,
 .tsh-section *,
-.tsh-rail-menu * {
+.tsh-rail-menu *,
+.tsh-item-menu * {
   box-sizing: border-box;
 }
 
@@ -216,20 +219,19 @@
 
 /* ---------- Sidebar header ---------- */
 
+/* The brand row is exactly the logo's 32px tall, so 1px of top padding puts its
+   centre (sidebar padding 16 + 1 + 16) level with the content header's (frame
+   padding 8 + border 1 + 48 / 2). 4px of side padding centres the logo on the
+   rail, on the same axis as the 16px row icons. */
 .tsh-header {
   display: flex;
-  padding: 8px 4px 0;
+  padding: 1px 4px 0;
   overflow: hidden;
 }
 
-.tsh-root[data-collapsed="true"] .tsh-header {
-  padding-top: 0;
-}
-
-/* 4px of header padding centres the 32px logo on the rail, on the same axis as
-   the 16px row icons below it. */
 .tsh-header-row {
-  align-items: flex-start;
+  align-items: center;
+  height: 32px;
   width: calc(var(--tsh-sidebar-content) - 8px);
 }
 
@@ -255,14 +257,14 @@
 .tsh-header-title {
   font-size: 16px;
   font-weight: 600;
-  line-height: 21px;
+  line-height: 18px;
   color: var(--tsh-fg);
 }
 
 .tsh-header-version {
   font-size: 14px;
   font-weight: 400;
-  line-height: 18px;
+  line-height: 14px;
   color: var(--tsh-fg);
   opacity: 0.6;
 }
@@ -274,7 +276,6 @@
   flex-shrink: 0;
   width: 24px;
   height: 24px;
-  margin-top: -2px;
   margin-right: -4px;
   border: none;
   background: transparent;
@@ -620,11 +621,13 @@
    centre) so it stays inside the rail's clip, whatever the sidebar measures. */
 .tsh-root[data-collapsed="true"] .tsh-nav-badge {
   position: absolute;
-  top: 2px;
-  left: 20px;
+  top: 0;
+  left: 24px;
   right: auto;
-  min-width: 14px;
-  padding: 1px 3px;
+  min-width: 13px;
+  padding: 1px 2px;
+  font-size: 9px;
+  line-height: 12px;
   z-index: 1;
 }
 
@@ -956,6 +959,94 @@
   justify-content: space-between;
   gap: 8px;
   width: 100%;
+}
+
+/* Rows with an options menu: the ellipsis sits over the row's right edge and
+   only shows while the row is hovered, focused, or its menu is open. */
+.tsh-section-item-wrap {
+  position: relative;
+}
+
+.tsh-section-item-wrap .tsh-section-item {
+  padding-right: 32px;
+}
+
+.tsh-section-item-menu-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0;
+}
+
+.tsh-section-item-wrap:hover .tsh-section-item-menu-btn,
+.tsh-section-item-wrap:focus-within .tsh-section-item-menu-btn,
+.tsh-section-item-menu-btn[aria-expanded="true"] {
+  opacity: 1;
+}
+
+.tsh-section-item[data-editing="true"] {
+  cursor: default;
+}
+
+.tsh-section-item-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0 4px;
+  margin: -1px 0;
+  border: 1px solid var(--tsh-border);
+  border-radius: 4px;
+  background: var(--tsh-surface);
+  color: var(--tsh-fg-title);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  outline: none;
+}
+
+.tsh-section-item-input:focus {
+  border-color: var(--tsh-fg);
+}
+
+.tsh-item-menu {
+  position: fixed;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+  padding: 4px;
+  border: 1px solid var(--tsh-border);
+  border-radius: 10px;
+  background: var(--tsh-popover);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+  animation: tui-tooltip-in 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: var(--font-sans, "Geist", sans-serif);
+}
+
+.tsh-item-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tsh-fg);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tsh-item-menu-item:hover {
+  background: var(--tsh-row-active);
+}
+
+.tsh-item-menu-item--danger {
+  color: var(--destructive, #ef4444);
 }
 
 .tsh-section-item-icon {

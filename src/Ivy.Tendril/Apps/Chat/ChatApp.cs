@@ -59,7 +59,9 @@ public class ChatApp : ViewBase
         IReadOnlySet<string> generatingIds,
         IReadOnlySet<string> completedIds,
         Action openSearch,
-        Action? startNewChat = null)
+        Action? startNewChat = null,
+        Action<string, string>? renameSession = null,
+        Action<string>? deleteSession = null)
     {
         var items = sessions
             .Select(s => new ShellSectionItemDto(
@@ -77,7 +79,9 @@ public class ChatApp : ViewBase
             SearchLabel: "Search chats",
             OnNew: startNewChat,
             NewLabel: startNewChat != null ? "New chat" : null,
-            CollapsedMenu: true);
+            CollapsedMenu: true,
+            OnRename: renameSession,
+            OnDelete: deleteSession);
     }
 
     public override object Build()
@@ -93,6 +97,7 @@ public class ChatApp : ViewBase
         var sidebarListSignal = Context.UseSignal<ShellSidebarListSignal, ShellSidebarListState, Unit>();
         var activeSessionId = UseState<string?>(() => InitialSession()?.Id);
         var sessionVersion = UseState(0);
+        var deletingSessionId = UseState<string?>(null);
         var selectedAgent = UseState(() =>
         {
             var sess = InitialSession();
@@ -303,7 +308,13 @@ public class ChatApp : ViewBase
             chatService.GetGeneratingSessionIds(),
             chatService.GetCompletedSessionIds(),
             showSearchDialog,
-            StartNewChat));
+            StartNewChat,
+            (id, title) =>
+            {
+                chatService.RenameSession(id, title);
+                sessionVersion.Set(v => v + 1);
+            },
+            id => deletingSessionId.Set(id)));
 
         var content = new ContentView(
             activeSession,
@@ -326,7 +337,8 @@ public class ChatApp : ViewBase
             agentRunner,
             SendMessage,
             SelectSession,
-            StartNewChat
+            StartNewChat,
+            sharedDeletingSessionId: deletingSessionId
         );
 
         return new Fragment(content, searchDialog);

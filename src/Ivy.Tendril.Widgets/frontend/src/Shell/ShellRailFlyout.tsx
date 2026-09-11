@@ -35,6 +35,8 @@ interface ShellRailFlyoutProps {
   onSelect: (itemId: string) => void;
   newLabel?: string;
   onNew?: () => void;
+  onRename?: (itemId: string, title: string) => void;
+  onDelete?: (itemId: string) => void;
   children: (trigger: RailFlyoutTrigger) => React.ReactNode;
 }
 
@@ -52,6 +54,8 @@ export const ShellRailFlyout: React.FC<ShellRailFlyoutProps> = ({
   onSelect,
   newLabel,
   onNew,
+  onRename,
+  onDelete,
   children,
 }) => {
   const [open, setOpen] = useState(false);
@@ -243,6 +247,8 @@ export const ShellRailFlyout: React.FC<ShellRailFlyoutProps> = ({
               emptyText={emptyText}
               className="tsh-rail-menu-list"
               onSelect={selectItem}
+              onRename={onRename}
+              onDelete={onDelete}
             />
           </div>,
           document.body,

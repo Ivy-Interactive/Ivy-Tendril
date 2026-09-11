@@ -341,6 +341,78 @@ describe("ShellSidebarSection", () => {
     expect(screen.getByRole("button", { name: /search plans/i })).toHaveClass("tsh-rail-search");
   });
 
+  it("shows no row options without rename or delete events", () => {
+    render(<ShellSidebarSection id="sec-1" title="Chats" items={mockItems} eventHandler={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /options$/ })).not.toBeInTheDocument();
+  });
+
+  it("deletes a row from its options menu with OnDeleteItem", () => {
+    const eventHandler = vi.fn();
+    render(
+      <ShellSidebarSection
+        id="sec-1"
+        title="Chats"
+        items={mockItems}
+        events={["OnSelectItem", "OnDeleteItem"]}
+        eventHandler={eventHandler}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Plan A options" }));
+    expect(screen.queryByRole("menuitem", { name: /Edit name/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: /Delete/ }));
+
+    expect(eventHandler).toHaveBeenCalledWith("OnDeleteItem", "sec-1", ["00001-PlanA"]);
+    expect(eventHandler).not.toHaveBeenCalledWith("OnSelectItem", "sec-1", expect.anything());
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("renames a row inline and emits OnRenameItem with one array argument", () => {
+    const eventHandler = vi.fn();
+    render(
+      <ShellSidebarSection
+        id="sec-1"
+        title="Chats"
+        items={mockItems}
+        events={["OnRenameItem"]}
+        eventHandler={eventHandler}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Plan A options" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Edit name/ }));
+
+    const input = screen.getByRole("textbox", { name: "Item name" });
+    expect(input).toHaveValue("Plan A");
+    fireEvent.change(input, { target: { value: "Renamed plan" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(eventHandler).toHaveBeenCalledWith("OnRenameItem", "sec-1", [["00001-PlanA", "Renamed plan"]]);
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("drops an inline rename on Escape", () => {
+    const eventHandler = vi.fn();
+    render(
+      <ShellSidebarSection
+        id="sec-1"
+        title="Chats"
+        items={mockItems}
+        events={["OnRenameItem"]}
+        eventHandler={eventHandler}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Plan A options" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Edit name/ }));
+    const input = screen.getByRole("textbox", { name: "Item name" });
+    fireEvent.change(input, { target: { value: "Nope" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    expect(eventHandler).not.toHaveBeenCalled();
+    expect(screen.getByText("Plan A")).toBeInTheDocument();
+  });
+
   it("renders the mapped icon for an item with icon: Terminal", () => {
     const itemsWithIcon: ShellSectionItemDto[] = [{ id: "term-1", title: "Terminal Session", icon: "Terminal" }];
     const { container } = render(

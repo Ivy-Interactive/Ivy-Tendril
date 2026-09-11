@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect } from "react";
-import { Pin } from "lucide-react";
+import { Pin, PinOff } from "lucide-react";
 import { BrandIcon } from "./brandIcons";
 import { useShell } from "./ShellContext";
 import { ShellSectionItemDto, ShellWidgetProps, isEditableTarget, isModKey } from "./types";
@@ -58,6 +58,13 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
     [events, eventHandler, id],
   );
 
+  const fireRename = events.includes("OnRenameItem")
+    ? (itemId: string, title: string) => eventHandler("OnRenameItem", id, [[itemId, title]])
+    : undefined;
+  const fireDelete = events.includes("OnDeleteItem")
+    ? (itemId: string) => eventHandler("OnDeleteItem", id, [itemId])
+    : undefined;
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       // shortcutKey is a single letter, so the Key prefix composes correctly
@@ -101,7 +108,7 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
             <BrandIcon name={icon} size={16} />
             {trigger && (
               <span className="tsh-agent-pin" aria-hidden="true">
-                <Pin size={16} />
+                {trigger.pinned ? <PinOff size={16} /> : <Pin size={16} />}
               </span>
             )}
           </span>
@@ -130,6 +137,8 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
           onSelect={fireSelect}
           newLabel="New chat"
           onNew={fireNewChat}
+          onRename={fireRename}
+          onDelete={fireDelete}
         >
           {renderButton}
         </ShellRailFlyout>

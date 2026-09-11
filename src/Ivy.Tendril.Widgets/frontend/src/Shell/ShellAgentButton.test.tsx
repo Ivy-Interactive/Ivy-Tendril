@@ -196,6 +196,24 @@ describe("ShellAgentButton", () => {
       expect(screen.queryByText("Chat one")).not.toBeInTheDocument();
     });
 
+    it("swaps the pin for a slashed pin while the list is pinned", () => {
+      const { row, container } = renderOnRail();
+      expect(container.querySelector(".tsh-agent-pin .lucide-pin")).toBeInTheDocument();
+      fireEvent.click(row);
+      expect(container.querySelector(".tsh-agent-pin .lucide-pin-off")).toBeInTheDocument();
+      expect(container.querySelector(".tsh-agent-pin .lucide-pin")).toBeNull();
+    });
+
+    it("offers rename and delete on flyout rows when the host listens", () => {
+      const { row, eventHandler } = renderOnRail({
+        events: ["OnSelectItem", "OnRenameItem", "OnDeleteItem"],
+      });
+      fireEvent.click(row);
+      fireEvent.click(screen.getByRole("button", { name: "Chat two options" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: /Delete/ }));
+      expect(eventHandler).toHaveBeenCalledWith("OnDeleteItem", "agent", ["c2"]);
+    });
+
     it("replaces the close button with a New chat button that fires OnNewChat", () => {
       const { row, eventHandler } = renderOnRail();
       fireEvent.click(row);

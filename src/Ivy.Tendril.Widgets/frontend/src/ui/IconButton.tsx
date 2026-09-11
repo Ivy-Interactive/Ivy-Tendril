@@ -26,22 +26,26 @@ export interface IconButtonProps
  * The bundle's one icon button: a square hit target with the shared hover surface and a shared
  * tooltip instead of a native `title`, so every icon control in the app behaves the same.
  */
-export const IconButton: React.FC<IconButtonProps> = ({
-  label,
-  children,
-  tooltip,
-  shortcut,
-  tooltipSide = "top",
-  size = "lg",
-  variant = "ghost",
-  active,
-  className = "",
-  type = "button",
-  ...rest
-}) => {
+export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
+  {
+    label,
+    children,
+    tooltip,
+    shortcut,
+    tooltipSide = "top",
+    size = "lg",
+    variant = "ghost",
+    active,
+    className = "",
+    type = "button",
+    ...rest
+  },
+  ref,
+) {
   const button = (
     <button
       {...rest}
+      ref={ref}
       type={type}
       className={`tui-icon-btn ${className}`.trim()}
       data-size={size}
@@ -66,4 +70,4 @@ export const IconButton: React.FC<IconButtonProps> = ({
       {button}
     </Tooltip>
   );
-};
+});
