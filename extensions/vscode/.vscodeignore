@@ -9,3 +9,5 @@ esbuild.js
 .vscodeignore
 pnpm-lock.yaml
 .npmrc
+.agents/**
+skills/**
