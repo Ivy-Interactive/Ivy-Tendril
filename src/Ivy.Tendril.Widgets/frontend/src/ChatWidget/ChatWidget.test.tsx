@@ -640,3 +640,119 @@ describe("ChatWidget Markdown Code Blocks", () => {
     expect(codeBlock?.textContent).toContain("def add(a, b):");
   });
 });
+
+describe("ChatWidget Sample Prompts", () => {
+  beforeEach(() => {
+    setupChatWidgetTestEnvironment();
+  });
+
+  it("renders sample prompt cards in empty state when samplePrompts prop is provided", () => {
+    const samplePrompts = [
+      "Explain the solution approach for this plan",
+      "Add unit tests to the plan's test section",
+    ];
+
+    const { container } = render(
+      <ChatWidget
+        id="test-chat"
+        samplePrompts={samplePrompts}
+      />,
+    );
+
+    const cardsContainer = container.querySelector(".chat-sample-prompts");
+    expect(cardsContainer).toBeInTheDocument();
+
+    const cards = container.querySelectorAll(".chat-sample-prompt-card");
+    expect(cards.length).toBe(2);
+    expect(cards[0].textContent).toContain("Explain the solution approach for this plan");
+    expect(cards[1].textContent).toContain("Add unit tests to the plan's test section");
+  });
+
+  it("renders sample prompt chips above composer when messages exist", () => {
+    const samplePrompts = [
+      "Explain the implementation changes made",
+      "Review the git diff for potential issues",
+    ];
+    const session: ChatSessionDto = {
+      id: "s-active",
+      title: "Active session",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [
+        {
+          id: "m-1",
+          role: "user",
+          content: "Hello",
+          timestamp: "",
+        },
+      ],
+    };
+
+    const { container } = render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="s-active"
+        sessions={[session]}
+        samplePrompts={samplePrompts}
+      />,
+    );
+
+    const emptyContainer = container.querySelector(".chat-empty-state");
+    expect(emptyContainer).toBeNull();
+
+    const chipsBar = container.querySelector(".chat-sample-prompts-bar");
+    expect(chipsBar).toBeInTheDocument();
+
+    const chips = container.querySelectorAll(".chat-sample-prompt-chip");
+    expect(chips.length).toBe(2);
+    expect(chips[0].textContent).toContain("Explain the implementation changes made");
+    expect(chips[1].textContent).toContain("Review the git diff for potential issues");
+  });
+
+  it("clicking a sample prompt populates the textarea and focuses the input", () => {
+    const samplePrompts = [
+      "Explain the solution approach for this plan",
+    ];
+
+    const { container } = render(
+      <ChatWidget
+        id="test-chat"
+        samplePrompts={samplePrompts}
+      />,
+    );
+
+    const textarea = container.querySelector(".chat-textarea") as HTMLTextAreaElement;
+    expect(textarea).toBeInTheDocument();
+    expect(textarea.value).toBe("");
+
+    const card = container.querySelector(".chat-sample-prompt-card") as HTMLButtonElement;
+    expect(card).toBeInTheDocument();
+
+    fireEvent.click(card);
+
+    expect(textarea.value).toBe("Explain the solution approach for this plan");
+    expect(document.activeElement).toBe(textarea);
+  });
+
+  it("embedded chat mode renders sample prompts correctly", () => {
+    const samplePrompts = [
+      "Explain the solution approach for this plan",
+    ];
+
+    const { container } = render(
+      <ChatWidget
+        id="test-chat"
+        embedded={true}
+        samplePrompts={samplePrompts}
+      />,
+    );
+
+    const root = container.querySelector(".chat-widget-root");
+    expect(root).toHaveAttribute("data-embedded", "true");
+
+    const cardsContainer = container.querySelector(".chat-sample-prompts");
+    expect(cardsContainer).toBeInTheDocument();
+  });
+});

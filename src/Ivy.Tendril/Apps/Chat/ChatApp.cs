@@ -14,7 +14,9 @@ using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Ivy.Tendril.Services.Chat;
 using Ivy.Tendril.Services.Jobs;
+using Ivy.Tendril.Services.Plans;
 using Ivy.Tendril.Widgets;
 
 namespace Ivy.Tendril.Apps.Chat;
@@ -88,6 +90,7 @@ public class ChatApp : ViewBase
         var executionService = UseService<IChatExecutionService>();
         var agentRunner = UseService<IAgentRunner>();
         Context.TryUseService<IJobService>(out var jobService);
+        Context.TryUseService<IPlanReaderService>(out var planService);
         Context.TryUseService<IChatAgentPreferences>(out var preferences);
         var navigator = UseNavigation();
         var sidebarListSignal = Context.UseSignal<ShellSidebarListSignal, ShellSidebarListState, Unit>();
@@ -305,6 +308,16 @@ public class ChatApp : ViewBase
             showSearchDialog,
             StartNewChat));
 
+        PlanFile? attachedPlan = null;
+        if (activeSession != null && !string.IsNullOrEmpty(activeSession.PlanFolderName) && planService != null)
+        {
+            attachedPlan = ContentView.FindPlan(planService, activeSession.PlanFolderName);
+        }
+
+        var samplePrompts = attachedPlan != null
+            ? ChatSamplePromptProvider.GetPromptsForPlan(attachedPlan)
+            : ChatSamplePromptProvider.GetPromptsForGeneralChat(configService, planService, jobService);
+
         var content = new ContentView(
             activeSession,
             activeSessionId,
@@ -326,7 +339,9 @@ public class ChatApp : ViewBase
             agentRunner,
             SendMessage,
             SelectSession,
-            StartNewChat
+            StartNewChat,
+            embedded: false,
+            samplePrompts: samplePrompts
         );
 
         return new Fragment(content, searchDialog);
