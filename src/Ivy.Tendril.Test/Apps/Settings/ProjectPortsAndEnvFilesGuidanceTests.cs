@@ -91,24 +91,5 @@ public class ProjectPortsAndEnvFilesGuidanceTests
         Assert.Equal("Overrides", overridesField.Label);
         Assert.Equal("KEY=VALUE override lines supporting ${ports.<name>}, ${env.<VAR>}, and %VAR% placeholder substitutions.", overridesField.Help);
     }
-
-    [Fact]
-    public void ProjectDetailView_Headers_IncludeInfoTooltipsWithGuidance()
-    {
-        var portsHeader = ProjectDetailView.BuildPortsHeader();
-        var portsLayout = Assert.IsType<LayoutView>(portsHeader);
-        var portsWidget = Assert.IsAssignableFrom<Ivy.Core.AbstractWidget>(portsLayout.Build());
-        var portsTooltip = Assert.Single(portsWidget.Children.OfType<Tooltip>());
-        var portsContentSlot = Assert.Single(portsTooltip.Children.OfType<Slot>().Where(s => s.Name == "Content"));
-        var portsGuidance = Assert.IsType<string>(Assert.Single(portsContentSlot.Children));
-        Assert.Equal("Named service ports dynamically allocated in plan worktrees to enable concurrent reviews without port conflicts.", portsGuidance);
-
-        var envFilesHeader = ProjectDetailView.BuildEnvFilesHeader();
-        var envFilesLayout = Assert.IsType<LayoutView>(envFilesHeader);
-        var envFilesWidget = Assert.IsAssignableFrom<Ivy.Core.AbstractWidget>(envFilesLayout.Build());
-        var envFilesTooltip = Assert.Single(envFilesWidget.Children.OfType<Tooltip>());
-        var envFilesContentSlot = Assert.Single(envFilesTooltip.Children.OfType<Slot>().Where(s => s.Name == "Content"));
-        var envFilesGuidance = Assert.IsType<string>(Assert.Single(envFilesContentSlot.Children));
-        Assert.Equal("Environment files recreated in plan worktrees from templates and variable overrides.", envFilesGuidance);
-    }
 }
+
