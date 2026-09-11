@@ -399,6 +399,19 @@ button.chat-jobs-dropdown-item:hover {
   text-overflow: ellipsis;
 }
 
+.chat-job-nav-icon {
+  margin-left: auto;
+  align-self: center;
+  flex-shrink: 0;
+  color: var(--tch-muted);
+  opacity: 0.5;
+  transition: opacity 120ms ease;
+}
+
+button.chat-jobs-dropdown-item:hover .chat-job-nav-icon {
+  opacity: 1;
+}
+
 .chat-jobs-dropdown-footer {
   display: flex;
   justify-content: flex-end;

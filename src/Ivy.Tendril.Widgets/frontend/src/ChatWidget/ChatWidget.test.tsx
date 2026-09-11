@@ -564,6 +564,68 @@ describe("ChatWidget embedded mode", () => {
     expect(screen.queryByText("Spawned Jobs (2)")).not.toBeInTheDocument();
   });
 
+  it("opens the plan a spawned job reported from the header jobs menu in embedded mode", () => {
+    const handleEvent = vi.fn();
+    const session: ChatSessionDto = {
+      id: "s1",
+      title: "Plan chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [{ id: "m1", role: "user", content: "hi", timestamp: "" }],
+      spawnedJobs: [
+        { id: "00148", type: "ExecutePlan", status: "Completed", planId: "00148", planTitle: "Add login" },
+      ],
+    };
+    render(
+      <ChatWidget
+        id="embedded-chat"
+        embedded
+        activeSessionId="s1"
+        sessions={[session]}
+        events={["OnOpenPlan"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "View running jobs" }));
+    fireEvent.click(screen.getByRole("button", { name: /Add login/ }));
+    expect(handleEvent).toHaveBeenCalledWith("OnOpenPlan", "embedded-chat", ["00148"]);
+  });
+
+  it("renders a job item without a planId as non-clickable without triggering onOpenPlan", () => {
+    const handleEvent = vi.fn();
+    const session: ChatSessionDto = {
+      id: "s1",
+      title: "Plan chat",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: "",
+      updatedAt: "",
+      messages: [{ id: "m1", role: "user", content: "hi", timestamp: "" }],
+      spawnedJobs: [
+        { id: "00149", type: "Promptware", status: "Running" },
+      ],
+    };
+    render(
+      <ChatWidget
+        id="chat"
+        activeSessionId="s1"
+        sessions={[session]}
+        events={["OnOpenPlan"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "View running jobs" }));
+    expect(screen.queryByRole("button", { name: /00149/ })).not.toBeInTheDocument();
+    expect(screen.getByText("00149")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("00149"));
+    expect(handleEvent).not.toHaveBeenCalledWith("OnOpenPlan", expect.anything(), expect.anything());
+  });
+
   it("shows the new-chat chord in the header button's tooltip", () => {
     vi.useFakeTimers();
     const session: ChatSessionDto = {
