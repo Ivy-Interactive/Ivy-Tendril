@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Onboarding;
 using Ivy.Tendril.Apps.Settings.Blades;
 using Ivy.Tendril.Apps.Settings.Dialogs;
@@ -23,7 +24,11 @@ public class ProjectDetailView(
 {
     public override object? Build()
     {
+        var nav = UseNavigation();
         Context.TryUseService<TendrilArgs>(out var tendrilArgs);
+
+        var isSyncingAllRepos = UseState(false);
+        var projectSyncError = UseState<(string RepoPath, string? BaseBranch, string Message, string? Details)?>(null);
 
         // Inline Name & Color Editing State
         var isEditingName = UseState(false);
@@ -309,13 +314,93 @@ public class ProjectDetailView(
             return draft with { Path = destPath };
         };
 
+        var repoSectionHeader = Layout.Horizontal().AlignContent(Align.Center).Width(Size.Full())
+            | Text.H4("Repositories").Bold()
+            | new Spacer()
+            | new Button("Sync Repositories").Icon(Icons.RefreshCw).Outline().Small()
+                .Loading(isSyncingAllRepos.Value)
+                .Disabled(isSyncingAllRepos.Value || repos.Value.Count == 0)
+                .OnClick(async () =>
+                {
+                    isSyncingAllRepos.Set(true);
+                    projectSyncError.Set(null);
+                    try
+                    {
+                        var proj = new ProjectConfig
+                        {
+                            Name = editName.Value,
+                            Repos = new List<RepoRef>(repos.Value)
+                        };
+                        var results = await ProjectSyncHelper.SyncProjectAsync(proj, tendrilHome: config.TendrilHome);
+                        var successCount = results.Count(r => r.Success);
+                        var failCount = results.Count(r => !r.Success);
+
+                        if (failCount == 0)
+                        {
+                            client.Toast(results.Count == 1
+                                ? "Successfully synchronized repository"
+                                : $"Successfully synchronized all {results.Count} repositories", "Synchronized");
+                        }
+                        else
+                        {
+                            var firstFail = results.First(r => !r.Success);
+                            projectSyncError.Set((firstFail.RepoPath, firstFail.BaseBranch, firstFail.Message, firstFail.GitErrorDetails));
+                            var failRepoName = RepoPathValidator.ExtractRepoName(firstFail.RepoPath) ?? firstFail.RepoPath;
+                            client.Toast(
+                                results.Count == 1
+                                    ? $"Failed to sync {failRepoName}: {firstFail.Message}"
+                                    : $"{successCount} repository synced, {failCount} failed",
+                                "Sync Failed",
+                                variant: ToastVariant.Destructive);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        client.Toast($"Sync error: {ex.Message}", "Sync Error", variant: ToastVariant.Destructive);
+                    }
+                    finally
+                    {
+                        isSyncingAllRepos.Set(false);
+                    }
+                });
+
+        object? projectSyncErrorAlert = null;
+        if (projectSyncError.Value != null)
+        {
+            var err = projectSyncError.Value.Value;
+            var failedRepoName = RepoPathValidator.ExtractRepoName(err.RepoPath) ?? err.RepoPath;
+            var diagnosticPrompt = ProjectSyncHelper.GenerateDiagnosticPrompt(err.RepoPath, err.BaseBranch, err.Details ?? err.Message);
+
+            var errorLayout = Layout.Vertical()
+                | (Layout.Horizontal().AlignContent(Align.Center).Width(Size.Full())
+                    | new Icon(Icons.TriangleAlert, Colors.Destructive)
+                    | Text.Block($"Sync failed for {failedRepoName}: {err.Message}").Bold().Color(Colors.Destructive)
+                    | new Spacer()
+                    | new Button().Icon(Icons.X).Outline().Small().OnClick(() => projectSyncError.Set(null)).WithTooltip("Dismiss"))
+                | (!string.IsNullOrWhiteSpace(err.Details)
+                    ? Text.Block(err.Details).Small()
+                    : null!)
+                | (Layout.Horizontal().AlignContent(Align.Center)
+                    | new Button("Fix with Agent").Icon(Icons.Bot).Small().OnClick(() =>
+                    {
+                        if (nav != null)
+                        {
+                            ChatLauncher.Open(nav, config, prompt: diagnosticPrompt, title: $"Fix sync: {failedRepoName}");
+                        }
+                    })
+                    | new Button("Dismiss").Outline().Small().OnClick(() => projectSyncError.Set(null)));
+
+            projectSyncErrorAlert = new Box(errorLayout).BorderColor(Colors.Destructive).Background(Colors.Muted).Width(Size.Full());
+        }
+
         var innerContent = Layout.Vertical().Width(Size.Full().Max(Size.Units(160)))
             // Section 1: Header (Color Picker + Name)
             | nameHeader
             | vaultBadge
 
             // Section 2: Repositories
-            | Text.H4("Repositories").Bold()
+            | repoSectionHeader
+            | (projectSyncErrorAlert ?? null!)
             | new ProjectRepoPickerView(repos, onAdd: cloneRemoteOnAdd, showBaseBranchPicker: true)
 
             // Section 3: Review Actions
