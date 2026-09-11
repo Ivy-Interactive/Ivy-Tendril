@@ -710,6 +710,7 @@ export function ChatWidget({
           }}
           onDelete={() => activeSession && emit("OnDeleteSession", activeSession.id)}
           onNewChat={() => emit("OnCreateSession")}
+          onOpenPlan={openPlan}
           onReviewJobs={() =>
             activeSession &&
             emit("OnSendMessage", {

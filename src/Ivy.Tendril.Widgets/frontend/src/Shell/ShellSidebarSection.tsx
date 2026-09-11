@@ -9,7 +9,6 @@ import {
   modKeyLabel,
 } from "./types";
 import { ShellSectionItems, sectionItemIcons } from "./ShellSectionItems";
-import { ShellRailList } from "./ShellRailList";
 import { ShellTooltip } from "./ShellTooltip";
 import { Badge } from "../ui/Badge";
 import { Kbd } from "../ui/Kbd";
@@ -28,7 +27,7 @@ interface ShellSidebarSectionProps extends ShellWidgetProps {
   /** Shows a "+" button in the header (e.g. "New chat"); fires OnNew. */
   newLabel?: string;
   collapsible?: boolean;
-  /** Folds the collapsed rail's list into one button with a flyout; chat lists opt in. */
+  /** Keeps the list off the collapsed rail (the shell's Chat row floats it instead); chat lists opt in. */
   collapsedMenu?: boolean;
 }
 
@@ -36,8 +35,8 @@ interface ShellSidebarSectionProps extends ShellWidgetProps {
  * The contextual list under the nav: plans for Review/Drafts, recommendations,
  * etc. Published by the active app. In the collapsed rail plan lists shrink to
  * narrow ID chips (the row tags, e.g. "#40") with the search button above; lists
- * that set collapsedMenu (chats) instead fold into a single button that floats
- * the list back over the content (see ShellRailList).
+ * that set collapsedMenu (chats) leave the rail to the search button alone, since
+ * the shell's Chat row floats that list back over the content (ShellRailFlyout).
  * Without a list (other apps, or an app whose list is empty) the header slot
  * holds a full-width Search button instead of the title, and Cmd/Ctrl+K opens
  * the search from anywhere in the shell.
@@ -95,13 +94,6 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
   if (collapsible && collapsed) {
     return (
       <div className="tsh-section tsh-section-rail">
-        {newLabel && (
-          <ShellTooltip content={newLabel} side="right">
-            <button className="tsh-rail-new" onClick={createNew} aria-label={newLabel}>
-              <Plus size={16} />
-            </button>
-          </ShellTooltip>
-        )}
         {searchable && (
           <ShellTooltip content={searchLabel} shortcut={shortcutHint} side="right">
             <button className="tsh-rail-search" onClick={openSearch} aria-label={searchLabel}>
@@ -109,16 +101,7 @@ export const ShellSidebarSection: React.FC<ShellSidebarSectionProps> = ({
             </button>
           </ShellTooltip>
         )}
-        {collapsedMenu ? (
-          items.length > 0 && (
-            <ShellRailList
-              title={title}
-              items={items}
-              selectedId={selectedId}
-              onSelect={select}
-            />
-          )
-        ) : (
+        {!collapsedMenu && (
           <div className="tsh-rail-list">
             {items.map((item) => {
               const RailIcon = (item.icon && sectionItemIcons[item.icon]) || MessageCircle;

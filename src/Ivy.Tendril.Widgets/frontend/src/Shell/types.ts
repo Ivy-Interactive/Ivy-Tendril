@@ -1,5 +1,6 @@
 export type { IvyEventHandler } from "../TendrilProcessViewer/types";
 import type { IvyEventHandler } from "../TendrilProcessViewer/types";
+import { isMac } from "../ui/shortcuts";
 
 export interface ShellWidgetProps {
   id: string;
@@ -44,10 +45,7 @@ export interface ShellTabDto {
   icon?: string;
 }
 
-export const isMac = (): boolean =>
-  typeof navigator !== "undefined" && /Mac|iP(hone|ad|od)/.test(navigator.platform);
-
-export const modKeyLabel = (): string => (isMac() ? "⌘" : "Ctrl");
+export { isMac, modKeyLabel } from "../ui/shortcuts";
 
 /** True when the keydown's modifier matches the platform's command key. */
 export const isModKey = (e: KeyboardEvent): boolean => (isMac() ? e.metaKey : e.ctrlKey);

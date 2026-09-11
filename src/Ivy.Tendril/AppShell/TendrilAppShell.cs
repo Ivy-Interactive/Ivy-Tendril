@@ -930,13 +930,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         void StartNewChat() => ChatLauncher.StartNew(navigator, config, chatService, agentRunner);
 
-        var chatButton = new ShellAgentButton()
-            .IsActive(chatIsActive)
-            .Label("Chat")
-            .Icon(Icons.MessageCircle.ToString())
-            .OnOpen(OpenChat)
-            .OnNewChat(StartNewChat);
-
         // Plan search is always reachable from the sidebar: apps without a list (and lists
         // with no rows) get the section's full-width Search button in place of the title.
         // A visible terminal pane shows the Chats list with its own row selected, whatever
@@ -978,6 +971,23 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             section = new ShellSidebarSection()
                 .Searchable()
                 .OnSearch(showPlanSearchDialog);
+        }
+
+        // The Chat row also carries the Chats list: on the collapsed rail it floats the list
+        // beside the row instead of the section rendering it.
+        var chatButton = new ShellAgentButton()
+            .IsActive(chatIsActive)
+            .Label("Chat")
+            .Icon(Icons.MessageCircle.ToString())
+            .OnOpen(OpenChat)
+            .OnNewChat(StartNewChat);
+        if (list is { CollapsedMenu: true })
+        {
+            var chatList = list;
+            chatButton = chatButton
+                .List(chatList.Title, chatList.Items, chatList.SelectedId)
+                .OnSelectItem(itemId =>
+                    OpenApp(new NavigateArgs(chatList.AppId, chatList.BuildSelectArgs(itemId))));
         }
 
         // Beta: the inbox moves out of the nav into the footer, beside an icon-only settings button.

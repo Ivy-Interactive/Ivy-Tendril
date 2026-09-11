@@ -18,6 +18,7 @@ import { useOutsideClick } from "./useOutsideClick";
 import { Badge, StatusDot } from "../ui/Badge";
 import { IconButton } from "../ui/IconButton";
 import { Tooltip } from "../ui/Tooltip";
+import { NEW_CHAT_SHORTCUT_KEY, modAltKeys } from "../ui/shortcuts";
 import type { ChatJobDto } from "./types";
 
 const isRunningJob = (job: ChatJobDto) => job.status === "Running" || job.status === "Pending";
@@ -196,6 +197,8 @@ export interface ChatHeaderProps {
   onDelete?: () => void;
   onNewChat: () => void;
   onReviewJobs?: () => void;
+  /** A spawned job that reported a plan opens it from the jobs menu. */
+  onOpenPlan?: (planId: string) => void;
 }
 
 /**
@@ -213,6 +216,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   onDelete,
   onNewChat,
   onReviewJobs,
+  onOpenPlan,
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitleText, setEditingTitleText] = useState("");
@@ -262,10 +266,15 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         {/* The jobs pill is conditional, so it sits left of the buttons: the buttons keep the
             same place whether or not any job is running. */}
         {editable && jobs.length > 0 && (
-          <JobsMenu jobs={jobs} spawned={spawned} onReview={() => onReviewJobs?.()} />
+          <JobsMenu
+            jobs={jobs}
+            spawned={spawned}
+            onReview={() => onReviewJobs?.()}
+            onOpenPlan={onOpenPlan}
+          />
         )}
         <div className="chat-header-icons">
-          <IconButton label="New chat" onClick={onNewChat}>
+          <IconButton label="New chat" shortcut={modAltKeys(NEW_CHAT_SHORTCUT_KEY)} onClick={onNewChat}>
             <MessageSquarePlus size={16} />
           </IconButton>
           {editable && (

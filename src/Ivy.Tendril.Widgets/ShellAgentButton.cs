@@ -19,8 +19,16 @@ public record ShellAgentButton : WidgetBase<ShellAgentButton>
     /// <summary>Highlights the row while an agent session is the visible pane.</summary>
     [Prop] public bool IsActive { get; init; }
 
+    /// <summary>The chat list, while an app publishes one; the collapsed rail floats it from this row.</summary>
+    [Prop] public List<ShellSectionItemDto>? Items { get; init; }
+
+    [Prop] public string? SelectedId { get; init; }
+
+    [Prop] public string? ListTitle { get; init; }
+
     [Event] public EventHandler<Event<ShellAgentButton>>? OnOpen { get; init; }
     [Event] public EventHandler<Event<ShellAgentButton>>? OnNewChat { get; init; }
+    [Event] public EventHandler<Event<ShellAgentButton, string>>? OnSelectItem { get; init; }
 }
 
 public static class ShellAgentButtonExtensions
@@ -39,4 +47,10 @@ public static class ShellAgentButtonExtensions
 
     public static ShellAgentButton OnNewChat(this ShellAgentButton w, Action handler) =>
         w with { OnNewChat = new(_ => { handler(); return ValueTask.CompletedTask; }) };
+
+    public static ShellAgentButton List(this ShellAgentButton w, string title, List<ShellSectionItemDto> items, string? selectedId) =>
+        w with { ListTitle = title, Items = items, SelectedId = selectedId };
+
+    public static ShellAgentButton OnSelectItem(this ShellAgentButton w, Action<string> handler) =>
+        w with { OnSelectItem = new(e => { handler(e.Value); return ValueTask.CompletedTask; }) };
 }
