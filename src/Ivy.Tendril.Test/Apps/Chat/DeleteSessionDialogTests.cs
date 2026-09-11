@@ -59,6 +59,7 @@ public class DeleteSessionDialogTests
         public void RemoveSpawnedJobs(string sessionId, IEnumerable<string> jobIds) { }
         public IReadOnlyList<string> GetSpawnedJobs(string sessionId) => [];
         public bool ApplyQuestionAnswers(string sessionId, string messageId, IReadOnlyDictionary<string, string[]> answers) => false;
+        public void PruneEmptySessions(string? activeSessionId = null) { }
     }
 
     private class TestState<T> : IState<T>

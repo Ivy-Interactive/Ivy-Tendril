@@ -73,4 +73,5 @@ public interface IChatHistoryService
     void RemoveSpawnedJobs(string sessionId, IEnumerable<string> jobIds);
     IReadOnlyList<string> GetSpawnedJobs(string sessionId);
     bool ApplyQuestionAnswers(string sessionId, string messageId, IReadOnlyDictionary<string, string[]> answers);
+    void PruneEmptySessions(string? activeSessionId = null);
 }

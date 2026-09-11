@@ -23,6 +23,7 @@ internal static class ChatLauncher
     {
         if (UsesTerminal(config)) return (typeof(AgentApp), new AgentAppArgs());
 
+        chats.PruneEmptySessions();
         var agent = config.Settings.CodingAgent ?? "claude";
         var models = ChatApp.GetModelsForAgent(runner, agent);
         var session = chats.CreateSession(agent, models.Count > 0 ? models[0].Id : "default", kind: ChatSessionKinds.Chat);

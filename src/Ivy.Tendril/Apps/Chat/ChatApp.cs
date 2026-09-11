@@ -209,6 +209,7 @@ public class ChatApp : ViewBase
                 executionService.StreamUpdated -= OnStreamUpdated;
                 executionService.SessionGeneratingChanged -= OnSessionGeneratingChanged;
                 if (jobService != null) jobService.JobsChanged -= OnJobsChanged;
+                chatService.PruneEmptySessions();
             });
         });
 
@@ -233,6 +234,7 @@ public class ChatApp : ViewBase
                 navigator.Navigate(typeof(AgentApp), new AgentAppArgs(SessionId: sessionId));
                 return;
             }
+            chatService.PruneEmptySessions(activeSessionId: sessionId);
             activeSessionId.Set(sessionId);
             chatService.ClearSessionCompleted(sessionId);
             if (sess != null)
@@ -278,6 +280,7 @@ public class ChatApp : ViewBase
                 navigator.Navigate(typeof(AgentApp), new AgentAppArgs());
                 return;
             }
+            chatService.PruneEmptySessions();
             var newSess = chatService.CreateSession(selectedAgent.Value, effectiveModel, effort: effectiveEffort, kind: ChatSessionKinds.Chat);
             SelectSession(newSess.Id);
         }

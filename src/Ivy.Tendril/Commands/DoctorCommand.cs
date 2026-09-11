@@ -329,6 +329,27 @@ public static class DoctorCommand
             if (hasStaleWorktrees)
                 healthIssues.Add("StaleWorktree");
 
+            var revisionsDir = Path.Combine(dir, "Revisions");
+            var hasRevisions = (Directory.Exists(revisionsDir) && Directory.GetFiles(revisionsDir, "*.md").Length > 0)
+                || (Directory.Exists(Path.Combine(dir, "revisions")) && Directory.GetFiles(Path.Combine(dir, "revisions"), "*.md").Length > 0);
+
+            if (state.Equals(nameof(PlanStatus.Draft), StringComparison.OrdinalIgnoreCase) && !hasRevisions)
+            {
+                var hasCommits = false;
+                var hasPrs = false;
+                if (File.Exists(yamlPath))
+                {
+                    var content = File.ReadAllText(yamlPath);
+                    hasCommits = HasYamlListItems(content, "commits");
+                    hasPrs = HasYamlListItems(content, "prs");
+                }
+
+                if (!hasCommits && !hasPrs)
+                {
+                    healthIssues.Add("Empty (no revisions)");
+                }
+            }
+
             var health = healthIssues.Count == 0 ? "OK" : string.Join(",", healthIssues);
 
             results.Add(new PlanHealthResult(id, title, state, worktreeCount, health, healthIssues.Count == 0, dir));
@@ -498,6 +519,15 @@ public static class DoctorCommand
 
         try
         {
+            if (healthResult.Health.Contains("Empty (no revisions)"))
+            {
+                if (Directory.Exists(planPath))
+                {
+                    Directory.Delete(planPath, true);
+                }
+                return new RepairResult(true, "pruned empty draft plan (no revisions)");
+            }
+
             if (healthResult.Health.Contains("YAML:"))
             {
                 var yamlPath = Path.Combine(planPath, "plan.yaml");
@@ -702,6 +732,9 @@ public static class DoctorCommand
             return null;
 
         var reasons = new List<string>();
+
+        if (healthResult.Health.Contains("Empty (no revisions)"))
+            reasons.Add("empty draft (no revisions)");
 
         if (healthResult.Health.Contains("YAML:Missing"))
             reasons.Add("no plan.yaml");
