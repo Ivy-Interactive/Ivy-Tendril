@@ -4,7 +4,7 @@ namespace Ivy.Tendril.Test;
 
 internal class FakePlanReaderService : IPlanReaderService
 {
-    public string PlansDirectory => "/tmp";
+    public string PlansDirectory { get; set; } = "/tmp";
     public bool IsDatabaseReady => true;
     public PlanFile? PlanToReturn { get; set; }
 #pragma warning disable CS0067

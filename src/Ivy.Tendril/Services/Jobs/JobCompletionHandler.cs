@@ -157,6 +157,10 @@ internal class JobCompletionHandler
         // A cancelled job that the completion path won the race for is handled here too.
         if (job.Status is JobStatus.Failed or JobStatus.Timeout || job.CancellationRequested)
         {
+            if (job.TypedArgs is CreatePlanArgs || job.Type == Constants.JobTypes.CreatePlan)
+            {
+                CleanupEmptyCreatePlan(job);
+            }
             RevertPlanStateToPrevious(job);
             return;
         }
@@ -780,45 +784,74 @@ internal class JobCompletionHandler
     private static string CanonicalPrKey(Match m) =>
         $"{m.Groups["owner"].Value}/{m.Groups["repo"].Value}#{m.Groups["number"].Value}".ToLowerInvariant();
 
-    private void VerifyCreatePlanResult(JobItem job)
+    internal void VerifyCreatePlanResult(JobItem job)
     {
         try
         {
-            var plansDir = _planReaderService?.PlansDirectory;
+            var plansDir = _planReaderService?.PlansDirectory
+                ?? (_configService != null ? Path.Combine(_configService.TendrilHome, "Plans") : null);
             if (plansDir == null || !Directory.Exists(plansDir)) return;
 
+            string? planFolder = null;
             if (TryVerifyByReportedId(job, plansDir) ||
                 TryVerifyByOutputRegex(job, plansDir) ||
                 TryVerifyByFilesystem(job, plansDir))
             {
-                if (!string.IsNullOrEmpty(job.ChatSessionId) && !string.IsNullOrEmpty(job.PlanFile))
-                {
-                    var planFolder = Path.IsPathRooted(job.PlanFile) ? job.PlanFile : Path.Combine(plansDir, job.PlanFile);
-                    PlanYamlHelper.UpdatePlanYamlFields(planFolder, ("chatSessionId", job.ChatSessionId));
-                    _planWatcherService?.NotifyChanged(planFolder);
-                    if (_planReaderService is PlanReaderService prs)
-                    {
-                        var plan = prs.ParseSinglePlanFolder(planFolder);
-                        if (plan != null)
-                        {
-                            (_database ?? prs.Database)?.UpsertPlan(plan);
-                        }
-                    }
-                    else if (_database != null)
-                    {
-                        var plan = _planReaderService?.GetPlanByFolder(planFolder);
-                        if (plan != null)
-                        {
-                            _database.UpsertPlan(plan);
-                        }
-                    }
-                }
+                planFolder = !string.IsNullOrEmpty(job.PlanFile)
+                    ? (Path.IsPathRooted(job.PlanFile) ? job.PlanFile : Path.Combine(plansDir, job.PlanFile))
+                    : null;
+            }
 
-                MoveAttachmentsToPlanFolder(job);
-                return;
+            if (planFolder != null && Directory.Exists(planFolder))
+            {
+                if (GetPlanRevisionCount(planFolder) > 0)
+                {
+                    if (!string.IsNullOrEmpty(job.ChatSessionId) && !string.IsNullOrEmpty(job.PlanFile))
+                    {
+                        PlanYamlHelper.UpdatePlanYamlFields(planFolder, ("chatSessionId", job.ChatSessionId));
+                        _planWatcherService?.NotifyChanged(planFolder);
+                        if (_planReaderService is PlanReaderService prs)
+                        {
+                            var plan = prs.ParseSinglePlanFolder(planFolder);
+                            if (plan != null)
+                            {
+                                (_database ?? prs.Database)?.UpsertPlan(plan);
+                            }
+                        }
+                        else if (_database != null)
+                        {
+                            var plan = _planReaderService?.GetPlanByFolder(planFolder);
+                            if (plan != null)
+                            {
+                                _database.UpsertPlan(plan);
+                            }
+                        }
+                    }
+
+                    MoveAttachmentsToPlanFolder(job);
+                    return;
+                }
+                else
+                {
+                    CleanupPlanFolderAndDatabase(planFolder);
+                    job.PlanFile = "";
+                }
             }
 
             if (IsDuplicatePlan(job)) return;
+
+            if (!string.IsNullOrEmpty(job.AllocatedPlanId))
+            {
+                var allocatedFolder = PlanYamlHelper.FindPlanFolderById(plansDir, job.AllocatedPlanId);
+                if (allocatedFolder != null)
+                {
+                    var fullAllocated = Path.IsPathRooted(allocatedFolder) ? allocatedFolder : Path.Combine(plansDir, allocatedFolder);
+                    if (GetPlanRevisionCount(fullAllocated) == 0)
+                    {
+                        CleanupPlanFolderAndDatabase(fullAllocated);
+                    }
+                }
+            }
 
             MarkCreatePlanFailed(job);
         }
@@ -947,11 +980,87 @@ internal class JobCompletionHandler
                 TryVerifyByOutputRegex(job, plansDir) ||
                 TryVerifyByFilesystem(job, plansDir))
             {
-                return true;
+                if (!string.IsNullOrEmpty(job.PlanFile))
+                {
+                    var fullPath = Path.IsPathRooted(job.PlanFile) ? job.PlanFile : Path.Combine(plansDir, job.PlanFile);
+                    if (GetPlanRevisionCount(fullPath) > 0)
+                        return true;
+                }
             }
         }
 
         return IsDuplicatePlan(job);
+    }
+
+    internal static int GetPlanRevisionCount(string planFolder)
+    {
+        var revisionsDir = Path.Combine(planFolder, "Revisions");
+        if (!Directory.Exists(revisionsDir))
+        {
+            revisionsDir = Path.Combine(planFolder, "revisions");
+        }
+        return Directory.Exists(revisionsDir)
+            ? Directory.GetFiles(revisionsDir, "*.md").Length
+            : 0;
+    }
+
+    internal void CleanupPlanFolderAndDatabase(string planFolder)
+    {
+        try
+        {
+            var folderName = Path.GetFileName(planFolder);
+            var match = Regex.Match(folderName, @"^(\d{5})-");
+            if (match.Success && int.TryParse(match.Groups[1].Value, out var planId))
+            {
+                var db = _database ?? (_planReaderService as PlanReaderService)?.Database;
+                db?.DeletePlan(planId);
+            }
+
+            if (Directory.Exists(planFolder))
+            {
+                Directory.Delete(planFolder, recursive: true);
+            }
+            _planWatcherService?.NotifyChanged(planFolder);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to clean up empty plan folder {Folder}", planFolder);
+        }
+    }
+
+    private void CleanupEmptyCreatePlan(JobItem job)
+    {
+        try
+        {
+            var plansDir = _planReaderService?.PlansDirectory
+                ?? (_configService != null ? Path.Combine(_configService.TendrilHome, "Plans") : null);
+            if (plansDir == null || !Directory.Exists(plansDir)) return;
+
+            var planId = job.ReportedPlanId ?? job.AllocatedPlanId;
+            if (string.IsNullOrEmpty(planId))
+            {
+                var outputText = string.Join("\n", job.OutputLines);
+                var planIdMatch = Regex.Match(outputText, @"PlanId:\s*([\w-]+)");
+                if (planIdMatch.Success) planId = planIdMatch.Groups[1].Value;
+            }
+
+            if (!string.IsNullOrEmpty(planId))
+            {
+                var folder = PlanYamlHelper.FindPlanFolderById(plansDir, planId);
+                if (folder != null)
+                {
+                    var fullPath = Path.IsPathRooted(folder) ? folder : Path.Combine(plansDir, folder);
+                    if (GetPlanRevisionCount(fullPath) == 0)
+                    {
+                        CleanupPlanFolderAndDatabase(fullPath);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to clean up empty CreatePlan on job failure for job {JobId}", job.Id);
+        }
     }
 
     private static bool TryVerifyByReportedId(JobItem job, string plansDir)

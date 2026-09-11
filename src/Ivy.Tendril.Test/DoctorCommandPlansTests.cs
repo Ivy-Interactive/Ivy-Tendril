@@ -60,6 +60,29 @@ public class DoctorCommandPlansTests : IDisposable
     }
 
     [Fact]
+    public void DoctorPlans_PlanWithNoRevisions_FlagsAsEmpty()
+    {
+        var draftYaml = """
+                        state: Draft
+                        project: TestProject
+                        title: Empty Draft Plan
+                        repos:
+                        - /dummy/repo
+                        commits: []
+                        prs: []
+                        """;
+        CreatePlan("00005-EmptyDraftPlan", draftYaml);
+
+        var results = DoctorCommand.ScanPlans(_plansDir);
+
+        Assert.Single(results);
+        Assert.Equal("00005", results[0].Id);
+        Assert.Equal("Draft", results[0].State);
+        Assert.False(results[0].IsHealthy);
+        Assert.Contains("Empty (no revisions)", results[0].Health);
+    }
+
+    [Fact]
     public void DoctorPlans_MissingYaml_ReportsError()
     {
         CreatePlan("00002-MissingYaml");
