@@ -92,6 +92,7 @@ public class ChatHistoryServiceTests
         try
         {
             var session = service.CreateSession("claude", "sonnet", "Old Title");
+            service.AddMessage(session.Id, "user", "Hello");
             var eventFired = false;
             service.SessionsChanged += (sender, args) => eventFired = true;
 
@@ -717,6 +718,127 @@ public class ChatHistoryServiceTests
             Assert.Equal("antigravity", reloaded.Settings.LastChatAgent);
             Assert.Equal("gemini-3.8-flash", reloaded.Settings.LastChatModel);
             Assert.Equal("high", reloaded.Settings.LastChatEffort);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void CreateSession_WithNoMessages_DoesNotPersistFileToDisk()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus", "Test Session");
+            var chatsDir = Path.Combine(tempDir, "Chats");
+            var sessionFile = Path.Combine(chatsDir, $"{session.Id}.json");
+            Assert.False(File.Exists(sessionFile));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void LoadSessionsFromDisk_DeletesAndExcludesZeroMessageFiles()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var chatsDir = Path.Combine(tempDir, "Chats");
+            Directory.CreateDirectory(chatsDir);
+
+            var emptySessionId = Guid.NewGuid().ToString("N");
+            var emptySession = new ChatSessionModel(
+                Id: emptySessionId,
+                Title: "Empty Chat",
+                CreatedAt: DateTimeOffset.UtcNow,
+                UpdatedAt: DateTimeOffset.UtcNow,
+                AgentId: "claude",
+                ModelId: "opus",
+                Messages: new List<ChatMessageModel>()
+            );
+            var emptyFilePath = Path.Combine(chatsDir, $"{emptySessionId}.json");
+            File.WriteAllText(emptyFilePath, System.Text.Json.JsonSerializer.Serialize(emptySession));
+
+            var validSessionId = Guid.NewGuid().ToString("N");
+            var validSession = new ChatSessionModel(
+                Id: validSessionId,
+                Title: "Valid Chat",
+                CreatedAt: DateTimeOffset.UtcNow,
+                UpdatedAt: DateTimeOffset.UtcNow,
+                AgentId: "claude",
+                ModelId: "opus",
+                Messages: new List<ChatMessageModel>
+                {
+                    new(Guid.NewGuid().ToString("N"), "user", "Hi", DateTimeOffset.UtcNow)
+                }
+            );
+            var validFilePath = Path.Combine(chatsDir, $"{validSessionId}.json");
+            File.WriteAllText(validFilePath, System.Text.Json.JsonSerializer.Serialize(validSession));
+
+            var configService = new ConfigService(new TendrilSettings(), tempDir);
+            var service = new ChatHistoryService(configService);
+
+            Assert.False(File.Exists(emptyFilePath));
+            Assert.True(File.Exists(validFilePath));
+
+            var sessions = service.GetSessions();
+            Assert.Single(sessions);
+            Assert.Equal(validSessionId, sessions[0].Id);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void AddMessage_PersistsSessionToDisk()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var session = service.CreateSession("claude", "opus");
+            var chatsDir = Path.Combine(tempDir, "Chats");
+            var sessionFile = Path.Combine(chatsDir, $"{session.Id}.json");
+            Assert.False(File.Exists(sessionFile));
+
+            service.AddMessage(session.Id, "user", "Hello");
+            Assert.True(File.Exists(sessionFile));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void PruneEmptySessions_RemovesUnusedZeroMessageSessions()
+    {
+        var (service, tempDir) = CreateTestService();
+        try
+        {
+            var empty1 = service.CreateSession("claude", "opus", "Empty 1");
+            var empty2 = service.CreateSession("claude", "opus", "Empty 2");
+            var active = service.CreateSession("claude", "opus", "Active");
+            var withMessages = service.CreateSession("claude", "opus", "Has Messages");
+            service.AddMessage(withMessages.Id, "user", "Hello");
+
+            service.PruneEmptySessions(activeSessionId: active.Id);
+
+            Assert.Null(service.GetSession(empty1.Id));
+            Assert.Null(service.GetSession(empty2.Id));
+            Assert.NotNull(service.GetSession(active.Id));
+            Assert.NotNull(service.GetSession(withMessages.Id));
         }
         finally
         {

@@ -255,6 +255,19 @@ public class ChatHistoryService : IChatHistoryService
                     var session = JsonSerializer.Deserialize<ChatSessionModel>(json, JsonOptions);
                     if (session != null && !string.IsNullOrEmpty(session.Id))
                     {
+                        if (session.Messages == null || session.Messages.Count == 0)
+                        {
+                            try
+                            {
+                                File.Delete(file);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.LogError(ex, "Failed to delete empty chat session file {File}", file);
+                            }
+                            continue;
+                        }
+
                         var cleanedTitle = CleanTitle(session.Title);
                         if (cleanedTitle != session.Title)
                         {
@@ -309,7 +322,10 @@ public class ChatHistoryService : IChatHistoryService
         );
 
         _sessions[id] = session;
-        PersistSessionToDisk(session);
+        if (session.Messages.Count > 0)
+        {
+            PersistSessionToDisk(session);
+        }
         if (_configService?.Settings != null)
         {
             if (!string.IsNullOrEmpty(agentId))
@@ -335,8 +351,11 @@ public class ChatHistoryService : IChatHistoryService
         if (session == null || string.IsNullOrEmpty(session.Id)) return;
         _sessions[session.Id] = session;
         CancelPendingPersist(session.Id);
-        _lastPersistTimes[session.Id] = DateTimeOffset.UtcNow;
-        PersistSessionToDisk(session);
+        if (session.Messages.Count > 0)
+        {
+            _lastPersistTimes[session.Id] = DateTimeOffset.UtcNow;
+            PersistSessionToDisk(session);
+        }
         SessionsChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -777,6 +796,7 @@ public class ChatHistoryService : IChatHistoryService
 
     private void PersistSessionToDisk(ChatSessionModel session)
     {
+        if (session == null || session.Messages == null || session.Messages.Count == 0) return;
         try
         {
             var filePath = Path.Combine(GetStorageDir(), $"{session.Id}.json");
@@ -786,6 +806,51 @@ public class ChatHistoryService : IChatHistoryService
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Failed to persist chat session {SessionId} to disk", session.Id);
+        }
+    }
+
+    public void PruneEmptySessions(string? activeSessionId = null)
+    {
+        bool changed = false;
+        foreach (var (id, session) in _sessions)
+        {
+            if (activeSessionId != null && string.Equals(id, activeSessionId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (_generatingSessions.ContainsKey(id))
+            {
+                continue;
+            }
+
+            if (session.Messages == null || session.Messages.Count == 0)
+            {
+                if (_sessions.TryRemove(id, out _))
+                {
+                    CancelPendingPersist(id);
+                    _lastPersistTimes.TryRemove(id, out _);
+                    _queuedMessages.TryRemove(id, out _);
+                    try
+                    {
+                        var filePath = Path.Combine(GetStorageDir(), $"{id}.json");
+                        if (File.Exists(filePath))
+                        {
+                            File.Delete(filePath);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "Failed to delete chat session file for {SessionId}", id);
+                    }
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed)
+        {
+            SessionsChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 }
