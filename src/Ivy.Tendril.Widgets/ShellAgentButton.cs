@@ -19,7 +19,6 @@ public record ShellAgentButton : WidgetBase<ShellAgentButton>
     /// <summary>Highlights the row while an agent session is the visible pane.</summary>
     [Prop] public bool IsActive { get; init; }
 
-    /// <summary>The chat list, while an app publishes one; the collapsed rail floats it from this row.</summary>
     [Prop] public List<ShellSectionItemDto>? Items { get; init; }
 
     [Prop] public string? SelectedId { get; init; }

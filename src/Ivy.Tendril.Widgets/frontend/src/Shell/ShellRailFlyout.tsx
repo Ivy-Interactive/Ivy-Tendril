@@ -18,7 +18,6 @@ interface MenuPosition {
   maxHeight: number;
 }
 
-/** What the flyout hands its trigger: spread the handlers onto the rail button. */
 export interface RailFlyoutTrigger {
   ref: React.RefObject<HTMLButtonElement | null>;
   open: boolean;
@@ -34,7 +33,6 @@ interface ShellRailFlyoutProps {
   selectedId?: string;
   emptyText?: string;
   onSelect: (itemId: string) => void;
-  /** Adds a "+" to the menu bar that fires onNew. */
   newLabel?: string;
   onNew?: () => void;
   children: (trigger: RailFlyoutTrigger) => React.ReactNode;
@@ -167,8 +165,6 @@ export const ShellRailFlyout: React.FC<ShellRailFlyoutProps> = ({
     onSelect(items[next].id);
   };
 
-  // A pick while merely hovering hands the pointer back to the content; a
-  // pinned menu stays where the user put it.
   const closeUnlessPinned = () => {
     if (pinned) return;
     clearTimer();

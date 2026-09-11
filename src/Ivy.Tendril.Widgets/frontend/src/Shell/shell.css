@@ -25,7 +25,6 @@
     color-mix(in srgb, var(--foreground, #000000) 6%, var(--background, #ffffff))
   );
   --tsh-row-active-fg: var(--foreground, #000000);
-  /* Count pills sit a shade below the sidebar and darken again on a hovered or active row. */
   --tsh-badge-bg: color-mix(in srgb, var(--tsh-fg) 8%, var(--tsh-bg));
   --tsh-badge-bg-active: color-mix(in srgb, var(--tsh-fg) 14%, var(--tsh-bg));
   --tsh-cta-bg: var(--primary, #000000);
@@ -433,11 +432,13 @@
 }
 
 .tsh-agent[data-has-list="true"]:hover .tsh-agent-icon > svg,
+.tsh-agent[data-has-list="true"]:focus-visible .tsh-agent-icon > svg,
 .tsh-agent[data-pinned="true"] .tsh-agent-icon > svg {
   opacity: 0;
 }
 
 .tsh-agent[data-has-list="true"]:hover .tsh-agent-pin,
+.tsh-agent[data-has-list="true"]:focus-visible .tsh-agent-pin,
 .tsh-agent[data-pinned="true"] .tsh-agent-pin {
   opacity: 1;
 }

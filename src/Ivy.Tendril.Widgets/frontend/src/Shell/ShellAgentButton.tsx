@@ -17,7 +17,6 @@ interface ShellAgentButtonProps extends ShellWidgetProps {
   icon?: string;
   shortcutKey?: string;
   isActive?: boolean;
-  /** The chat list, when the host publishes one: the collapsed rail floats it from this row. */
   items?: ShellSectionItemDto[];
   selectedId?: string;
   listTitle?: string;
@@ -79,7 +78,7 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
   }, [fireNewChat, shortcutKey]);
 
   const hintKeys = modAltKeys(shortcutKey);
-  const hasList = collapsed && items != null;
+  const hasList = collapsed && !!items?.length;
   const count = items && items.length > 99 ? "99" : String(items?.length ?? 0);
 
   const renderButton = (trigger?: RailFlyoutTrigger) => (

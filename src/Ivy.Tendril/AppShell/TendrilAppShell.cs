@@ -973,8 +973,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .OnSearch(showPlanSearchDialog);
         }
 
-        // The Chat row also carries the Chats list: on the collapsed rail it floats the list
-        // beside the row instead of the section rendering it.
         var chatButton = new ShellAgentButton()
             .IsActive(chatIsActive)
             .Label("Chat")
@@ -986,6 +984,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             var chatList = list;
             chatButton = chatButton
                 .List(chatList.Title, chatList.Items, chatList.SelectedId)
+                .OnNewChat(chatList.OnNew ?? StartNewChat)
                 .OnSelectItem(itemId =>
                     OpenApp(new NavigateArgs(chatList.AppId, chatList.BuildSelectArgs(itemId))));
         }

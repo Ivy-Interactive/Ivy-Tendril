@@ -1077,7 +1077,6 @@ button.chat-system-event-plan {
   flex-basis: 100%;
 }
 
-/* Attach and voice read at the agent picker's weight, so the composer's three tools match. */
 .chat-attach-btn {
   margin-left: -6px;
   opacity: 0.6;

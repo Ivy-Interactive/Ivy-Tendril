@@ -197,7 +197,6 @@ export interface ChatHeaderProps {
   onDelete?: () => void;
   onNewChat: () => void;
   onReviewJobs?: () => void;
-  /** A spawned job that reported a plan opens it from the jobs menu. */
   onOpenPlan?: (planId: string) => void;
 }
 

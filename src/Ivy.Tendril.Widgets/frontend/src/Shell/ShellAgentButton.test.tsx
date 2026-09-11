@@ -227,6 +227,13 @@ describe("ShellAgentButton", () => {
       vi.useRealTimers();
     });
 
+    it("keeps the plain row while the list is empty", () => {
+      const { container } = renderOnRail({ items: [] });
+      expect(container.querySelector(".tsh-agent-count")).toBeNull();
+      expect(container.querySelector(".tsh-agent-pin")).toBeNull();
+      expect(screen.getByRole("button", { name: "Chat" })).toHaveAttribute("data-has-list", "false");
+    });
+
     it("keeps the plain row when the sidebar is expanded", () => {
       const eventHandler = vi.fn();
       const { container } = render(
