@@ -1079,7 +1079,7 @@ button.chat-system-event-plan {
 
 .chat-attach-btn {
   margin-left: -6px;
-  opacity: 0.85;
+  opacity: 0.6;
 }
 
 .chat-textarea {
@@ -1148,7 +1148,7 @@ button.chat-system-event-plan {
 }
 
 .chat-voice-btn {
-  opacity: 0.8;
+  opacity: 0.6;
 }
 
 @keyframes chat-pulse {
@@ -1798,6 +1798,11 @@ button.chat-system-event-plan {
 
 .chat-widget-root[data-embedded="true"] .chat-attach-btn {
   margin-left: 0;
+}
+
+.chat-widget-root[data-embedded="true"] .chat-attach-btn,
+.chat-widget-root[data-embedded="true"] .chat-voice-btn {
+  opacity: 0.9;
 }
 
 .chat-widget-root[data-embedded="true"] .chat-textarea {

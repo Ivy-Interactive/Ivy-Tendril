@@ -5,6 +5,7 @@ using Ivy.Hooks.Pty;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Helpers;
 using Ivy.Tendril.Apps.Chat;
+using Ivy.Tendril.AppShell.Dialogs;
 using Ivy.Tendril.Apps.Chat.Dialogs;
 using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
@@ -26,6 +27,7 @@ public class AgentApp : ViewBase
         var agentRunner = UseService<IAgentRunner>();
         var chatService = UseService<IChatHistoryService>();
         Context.TryUseService<IJobService>(out var jobService);
+        Context.TryUseService<IPlanReaderService>(out var planService);
         var navigator = UseNavigation();
         var args = UseArgs<AgentAppArgs>();
         var sessionVersion = UseState(0);
@@ -125,7 +127,15 @@ public class AgentApp : ViewBase
             })
             .OnDeleteSession(id => deletingSessionId.Set(id))
             .OnCreateSession(() => ChatLauncher.StartNew(navigator, configService, chatService, agentRunner))
-            .OnReviewJobs(() => ptyHandle.HandleInput(ReviewJobsPrompt + "\r"));
+            .OnReviewJobs(() => ptyHandle.HandleInput(ReviewJobsPrompt + "\r"))
+            .OnOpenPlan(planId =>
+            {
+                if (planService == null) return;
+                var plan = ContentView.FindPlan(planService, planId);
+                if (plan == null) return;
+                var (app, appArgs) = PlanSearchDialog.ResolveTarget(plan);
+                navigator.Navigate(app, appArgs);
+            });
 
         var deleteDialog = new DeleteSessionDialog(deletingSessionId, session, chatService, null, sessionVersion);
 

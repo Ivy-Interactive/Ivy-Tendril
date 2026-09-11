@@ -29,7 +29,9 @@ public record ShellSidebarListState(
     string? SearchLabel = null,
     Action? OnNew = null,
     string? NewLabel = null,
-    bool CollapsedMenu = false);
+    bool CollapsedMenu = false,
+    Action<string, string>? OnRename = null,
+    Action<string>? OnDelete = null);
 
 [Signal(BroadcastType.AppShell)]
 public class ShellSidebarListSignal : AbstractSignal<ShellSidebarListState, Unit> { }

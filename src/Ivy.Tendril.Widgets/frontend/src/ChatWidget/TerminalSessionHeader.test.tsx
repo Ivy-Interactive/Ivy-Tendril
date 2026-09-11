@@ -60,6 +60,25 @@ describe("TerminalSessionHeader", () => {
     expect(handleEvent).toHaveBeenCalledWith("OnCreateSession", "term-header", []);
   });
 
+  it("emits OnOpenPlan when a spawned job that reported a plan is clicked", () => {
+    const handleEvent = vi.fn();
+    render(
+      <TerminalSessionHeader
+        id="term-header"
+        sessionId="sess-5"
+        jobs={[{ id: "00151", type: "ExecutePlan", status: "Completed", planId: "00151", planTitle: "Fix build" }]}
+        spawned
+        events={["OnOpenPlan"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /View running jobs/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Fix build/ }));
+
+    expect(handleEvent).toHaveBeenCalledWith("OnOpenPlan", "term-header", ["00151"]);
+  });
+
   it("renders the terminal variant host and header classes", () => {
     const { container } = render(<TerminalSessionHeader id="term-header" sessionId="sess-4" />);
     expect(container.querySelector(".chat-header-host.chat-header-host--terminal")).toBeInTheDocument();

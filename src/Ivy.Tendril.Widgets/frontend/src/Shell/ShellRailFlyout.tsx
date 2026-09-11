@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, List, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { ShellSectionItemDto } from "./types";
 import { ShellSectionItems } from "./ShellSectionItems";
-import { Badge } from "../ui/Badge";
 import { IconButton } from "../ui/IconButton";
 import "./shell.css";
 
@@ -19,24 +18,45 @@ interface MenuPosition {
   maxHeight: number;
 }
 
-interface ShellRailListProps {
+export interface RailFlyoutTrigger {
+  ref: React.RefObject<HTMLButtonElement | null>;
+  open: boolean;
+  pinned: boolean;
+  onPointerEnter: () => void;
+  onPointerLeave: () => void;
+  onClick: () => void;
+}
+
+interface ShellRailFlyoutProps {
   title?: string;
   items: ShellSectionItemDto[];
   selectedId?: string;
+  emptyText?: string;
   onSelect: (itemId: string) => void;
+  newLabel?: string;
+  onNew?: () => void;
+  onRename?: (itemId: string, title: string) => void;
+  onDelete?: (itemId: string) => void;
+  children: (trigger: RailFlyoutTrigger) => React.ReactNode;
 }
 
 /**
- * The collapsed rail's single entry to the chat list. Hovering it floats the full
- * list over the content; clicking pins the flyout open until the X, Escape or a
- * click outside dismisses it. The bar's arrows step the selection through the
- * list without leaving the menu.
+ * Floats a section list over the content next to a rail button. Hovering the
+ * trigger opens the list; clicking pins it open until Escape, a click outside
+ * or another click on the trigger dismisses it. The bar's arrows step the
+ * selection through the list without leaving the menu.
  */
-export const ShellRailList: React.FC<ShellRailListProps> = ({
+export const ShellRailFlyout: React.FC<ShellRailFlyoutProps> = ({
   title,
   items,
   selectedId,
+  emptyText,
   onSelect,
+  newLabel,
+  onNew,
+  onRename,
+  onDelete,
+  children,
 }) => {
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -44,6 +64,7 @@ export const ShellRailList: React.FC<ShellRailListProps> = ({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<number | null>(null);
+  const [rowInteracting, setRowInteracting] = useState(false);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current != null) {
@@ -93,9 +114,9 @@ export const ShellRailList: React.FC<ShellRailListProps> = ({
 
   const scheduleClose = useCallback(() => {
     clearTimer();
-    if (pinned) return;
+    if (pinned || rowInteracting) return;
     timerRef.current = window.setTimeout(() => setOpen(false), CLOSE_DELAY_MS);
-  }, [clearTimer, pinned]);
+  }, [clearTimer, pinned, rowInteracting]);
 
   const togglePinned = useCallback(() => {
     if (pinned) {
@@ -128,6 +149,7 @@ export const ShellRailList: React.FC<ShellRailListProps> = ({
       const target = e.target as Node | null;
       if (!target) return;
       if (menuRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
+      if (target instanceof Element && target.closest(".tsh-item-menu")) return;
       closeMenu();
     };
     window.addEventListener("keydown", onKeyDown);
@@ -149,34 +171,32 @@ export const ShellRailList: React.FC<ShellRailListProps> = ({
     onSelect(items[next].id);
   };
 
-  const selectItem = (itemId: string) => {
-    onSelect(itemId);
-    if (!pinned) {
-      clearTimer();
-      setOpen(false);
-    }
+  const closeUnlessPinned = () => {
+    if (pinned) return;
+    clearTimer();
+    setOpen(false);
   };
 
-  const count = items.length > 99 ? "99" : String(items.length);
+  const selectItem = (itemId: string) => {
+    onSelect(itemId);
+    closeUnlessPinned();
+  };
+
+  const createNew = () => {
+    onNew?.();
+    closeUnlessPinned();
+  };
 
   return (
     <>
-      <button
-        ref={buttonRef}
-        className="tsh-rail-list-toggle"
-        data-open={open}
-        data-pinned={pinned}
-        aria-label={title ? `Show ${title}` : "Show list"}
-        aria-expanded={open}
-        onPointerEnter={scheduleOpen}
-        onPointerLeave={scheduleClose}
-        onClick={togglePinned}
-      >
-        <List size={16} />
-        <Badge numeric className="tsh-nav-badge tsh-rail-list-count">
-          {count}
-        </Badge>
-      </button>
+      {children({
+        ref: buttonRef,
+        open,
+        pinned,
+        onPointerEnter: scheduleOpen,
+        onPointerLeave: scheduleClose,
+        onClick: togglePinned,
+      })}
       {open &&
         position &&
         createPortal(
@@ -212,22 +232,26 @@ export const ShellRailList: React.FC<ShellRailListProps> = ({
                 </IconButton>
               </span>
               {title && <span className="tsh-rail-menu-title">{title}</span>}
-              {pinned && (
+              {newLabel && onNew && (
                 <IconButton
-                  label="Close"
+                  label={newLabel}
                   size="sm"
-                  className="tsh-rail-menu-close"
-                  onClick={closeMenu}
+                  className="tsh-rail-menu-new"
+                  onClick={createNew}
                 >
-                  <X size={14} />
+                  <Plus size={14} />
                 </IconButton>
               )}
             </div>
             <ShellSectionItems
               items={items}
               selectedId={selectedId}
+              emptyText={emptyText}
               className="tsh-rail-menu-list"
               onSelect={selectItem}
+              onRename={onRename}
+              onDelete={onDelete}
+              onInteractionChange={setRowInteracting}
             />
           </div>,
           document.body,

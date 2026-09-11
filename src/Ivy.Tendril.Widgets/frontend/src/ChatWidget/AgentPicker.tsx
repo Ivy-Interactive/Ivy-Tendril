@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, Ellipsis } from "lucide-react";
 import { BrandIcon } from "../Shell/brandIcons";
 import { Tooltip } from "../ui/Tooltip";
 import type { AgentOptionDto, EffortOptionDto, ModelOptionDto } from "./types";
@@ -275,7 +275,7 @@ export const AgentPicker: React.FC<AgentPickerProps> = ({
                           }}
                           onKeyDown={(e) => e.stopPropagation()}
                         >
-                          <SlidersHorizontal size={14} />
+                          <Ellipsis size={14} />
                         </button>
                       </Tooltip>
                     )}

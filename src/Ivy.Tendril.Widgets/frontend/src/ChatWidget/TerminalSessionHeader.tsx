@@ -48,6 +48,7 @@ export const TerminalSessionHeader: React.FC<TerminalSessionHeaderProps> = ({
         onDelete={() => emit("OnDeleteSession", sessionId)}
         onNewChat={() => emit("OnCreateSession")}
         onReviewJobs={() => emit("OnReviewJobs")}
+        onOpenPlan={events.includes("OnOpenPlan") ? (planId) => emit("OnOpenPlan", planId) : undefined}
       />
     </div>
   );

@@ -322,8 +322,7 @@ describe("ShellSidebarSection", () => {
     expect(screen.queryByRole("button", { name: /^Search$/i })).not.toBeInTheDocument();
   });
 
-  it("renders the new-chat button on the collapsed rail", () => {
-    const eventHandler = vi.fn();
+  it("keeps the new-chat button off the collapsed rail", () => {
     render(
       <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
         <ShellSidebarSection
@@ -331,17 +330,87 @@ describe("ShellSidebarSection", () => {
           title="Chats"
           items={mockItems}
           newLabel="New chat"
-          events={["OnNew"]}
-          eventHandler={eventHandler}
+          searchable={true}
+          events={["OnNew", "OnSearch"]}
+          eventHandler={vi.fn()}
         />
       </ShellContext.Provider>,
     );
 
-    const railNewBtn = screen.getByRole("button", { name: "New chat" });
-    expect(railNewBtn).toHaveClass("tsh-rail-new");
+    expect(screen.queryByRole("button", { name: "New chat" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /search plans/i })).toHaveClass("tsh-rail-search");
+  });
 
-    fireEvent.click(railNewBtn);
-    expect(eventHandler).toHaveBeenCalledWith("OnNew", "sec-1", []);
+  it("shows no row options without rename or delete events", () => {
+    render(<ShellSidebarSection id="sec-1" title="Chats" items={mockItems} eventHandler={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /options$/ })).not.toBeInTheDocument();
+  });
+
+  it("deletes a row from its options menu with OnDeleteItem", () => {
+    const eventHandler = vi.fn();
+    render(
+      <ShellSidebarSection
+        id="sec-1"
+        title="Chats"
+        items={mockItems}
+        events={["OnSelectItem", "OnDeleteItem"]}
+        eventHandler={eventHandler}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Plan A options" }));
+    expect(screen.queryByRole("menuitem", { name: /Edit name/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: /Delete/ }));
+
+    expect(eventHandler).toHaveBeenCalledWith("OnDeleteItem", "sec-1", ["00001-PlanA"]);
+    expect(eventHandler).not.toHaveBeenCalledWith("OnSelectItem", "sec-1", expect.anything());
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("renames a row inline and emits OnRenameItem with one array argument", () => {
+    const eventHandler = vi.fn();
+    render(
+      <ShellSidebarSection
+        id="sec-1"
+        title="Chats"
+        items={mockItems}
+        events={["OnRenameItem"]}
+        eventHandler={eventHandler}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Plan A options" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Edit name/ }));
+
+    const input = screen.getByRole("textbox", { name: "Item name" });
+    expect(input).toHaveValue("Plan A");
+    fireEvent.change(input, { target: { value: "Renamed plan" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(eventHandler).toHaveBeenCalledWith("OnRenameItem", "sec-1", [["00001-PlanA", "Renamed plan"]]);
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("drops an inline rename on Escape", () => {
+    const eventHandler = vi.fn();
+    render(
+      <ShellSidebarSection
+        id="sec-1"
+        title="Chats"
+        items={mockItems}
+        events={["OnRenameItem"]}
+        eventHandler={eventHandler}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Plan A options" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Edit name/ }));
+    const input = screen.getByRole("textbox", { name: "Item name" });
+    fireEvent.change(input, { target: { value: "Nope" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    expect(eventHandler).not.toHaveBeenCalled();
+    expect(screen.getByText("Plan A")).toBeInTheDocument();
   });
 
   it("renders the mapped icon for an item with icon: Terminal", () => {
@@ -488,22 +557,23 @@ describe("ShellSidebarSection", () => {
     vi.useRealTimers();
   });
 
-  it("folds the collapsed list into a single rail button when collapsedMenu is set", () => {
+  it("keeps a collapsedMenu list off the collapsed rail, leaving only the search button", () => {
     const { container } = render(
       <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
         <ShellSidebarSection
           id="sec-1"
           title="Chats"
           items={mockItems}
+          searchable={true}
           collapsedMenu
           eventHandler={vi.fn()}
         />
       </ShellContext.Provider>,
     );
 
-    expect(container.querySelectorAll("button.tsh-rail-list-toggle")).toHaveLength(1);
     expect(container.querySelector(".tsh-rail-list")).toBeNull();
-    expect(screen.getByRole("button", { name: "Show Chats" })).toBeInTheDocument();
+    expect(container.querySelectorAll("button")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /search plans/i })).toHaveClass("tsh-rail-search");
     expect(screen.queryByText("Plan A")).not.toBeInTheDocument();
   });
 
@@ -514,46 +584,7 @@ describe("ShellSidebarSection", () => {
       </ShellContext.Provider>,
     );
 
-    expect(container.querySelector("button.tsh-rail-list-toggle")).toBeNull();
     expect(container.querySelectorAll("button.tsh-rail-item")).toHaveLength(2);
-  });
-
-  it("omits the rail list button when a collapsedMenu list is empty", () => {
-    const { container } = render(
-      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
-        <ShellSidebarSection
-          id="sec-1"
-          title="Chats"
-          items={[]}
-          searchable={true}
-          collapsedMenu
-          eventHandler={vi.fn()}
-        />
-      </ShellContext.Provider>,
-    );
-
-    expect(container.querySelector("button.tsh-rail-list-toggle")).toBeNull();
-  });
-
-  it("selects an item picked from the rail flyout", () => {
-    const eventHandler = vi.fn();
-    render(
-      <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
-        <ShellSidebarSection
-          id="sec-1"
-          title="Chats"
-          items={mockItems}
-          collapsedMenu
-          events={["OnSelectItem"]}
-          eventHandler={eventHandler}
-        />
-      </ShellContext.Provider>,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Show Chats" }));
-    fireEvent.click(screen.getByText("Plan B"));
-
-    expect(eventHandler).toHaveBeenCalledWith("OnSelectItem", "sec-1", ["00002-PlanB"]);
   });
 
   it("renders full list view with titles and tags when collapsible is false even if collapsed in context", () => {

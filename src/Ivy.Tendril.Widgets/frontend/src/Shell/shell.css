@@ -5,6 +5,7 @@
 .tsh-root,
 .tsh-section,
 .tsh-rail-menu,
+.tsh-item-menu,
 .tsh-rail-tooltip {
   /* Every token derives from the host theme's variables so alternate themes
      (Retro, etc.) recolor the shell; the literals are only fallbacks for when
@@ -25,7 +26,8 @@
     color-mix(in srgb, var(--foreground, #000000) 6%, var(--background, #ffffff))
   );
   --tsh-row-active-fg: var(--foreground, #000000);
-  --tsh-badge-bg-active: color-mix(in srgb, var(--accent, #e6e6e6) 45%, var(--background, #ffffff));
+  --tsh-badge-bg: color-mix(in srgb, var(--tsh-fg) 8%, var(--tsh-bg));
+  --tsh-badge-bg-active: color-mix(in srgb, var(--tsh-fg) 14%, var(--tsh-bg));
   --tsh-cta-bg: var(--primary, #000000);
   --tsh-cta-fg: var(--primary-foreground, #f8f8f8);
   --tsh-sidebar-width: 320px;
@@ -49,6 +51,7 @@
 .dark .tsh-root,
 .dark .tsh-section,
 .dark .tsh-rail-menu,
+.dark .tsh-item-menu,
 .dark .tsh-rail-tooltip {
   /* Dark theme swaps these two roles relative to light: the shell backdrop
      takes the lighter grey and the content frame sits darker inside it, so the
@@ -67,14 +70,16 @@
     color-mix(in srgb, var(--foreground, #f8f8f8) 8%, var(--background, #000000))
   );
   --tsh-row-active-fg: var(--foreground, #f8f8f8);
-  --tsh-badge-bg-active: color-mix(in srgb, var(--accent, #18181b) 55%, var(--background, #000000));
+  --tsh-badge-bg: color-mix(in srgb, var(--tsh-fg) 10%, var(--tsh-bg));
+  --tsh-badge-bg-active: color-mix(in srgb, var(--tsh-fg) 16%, var(--tsh-bg));
   --tsh-cta-bg: var(--primary, #f8f8f8);
   --tsh-cta-fg: var(--primary-foreground, #000000);
 }
 
 .tsh-root *,
 .tsh-section *,
-.tsh-rail-menu * {
+.tsh-rail-menu *,
+.tsh-item-menu * {
   box-sizing: border-box;
 }
 
@@ -159,7 +164,7 @@
   flex: 1;
   min-width: 0;
   min-height: 0;
-  padding: 12px 12px 12px 0;
+  padding: 8px 8px 8px 0;
 }
 
 /* One bordered rounded card holds the white content surface and, inside its
@@ -214,16 +219,19 @@
 
 /* ---------- Sidebar header ---------- */
 
+/* The brand row is exactly the logo's 32px tall, so 1px of top padding puts its
+   centre (sidebar padding 16 + 1 + 16) level with the content header's (frame
+   padding 8 + border 1 + 48 / 2). 4px of side padding centres the logo on the
+   rail, on the same axis as the 16px row icons. */
 .tsh-header {
   display: flex;
-  padding: 18px 4px 0;
+  padding: 1px 4px 0;
   overflow: hidden;
 }
 
-/* 4px of header padding centres the 32px logo on the rail, on the same axis as
-   the 16px row icons below it. */
 .tsh-header-row {
-  align-items: flex-start;
+  align-items: center;
+  height: 32px;
   width: calc(var(--tsh-sidebar-content) - 8px);
 }
 
@@ -249,14 +257,14 @@
 .tsh-header-title {
   font-size: 16px;
   font-weight: 600;
-  line-height: 21px;
+  line-height: 18px;
   color: var(--tsh-fg);
 }
 
 .tsh-header-version {
   font-size: 14px;
   font-weight: 400;
-  line-height: 18px;
+  line-height: 14px;
   color: var(--tsh-fg);
   opacity: 0.6;
 }
@@ -268,21 +276,16 @@
   flex-shrink: 0;
   width: 24px;
   height: 24px;
-  margin-top: -2px;
   margin-right: -4px;
   border: none;
   background: transparent;
   border-radius: 6px;
   color: var(--tsh-fg);
-  opacity: 0.6;
   cursor: pointer;
-  transition:
-    opacity 150ms ease,
-    background-color 150ms ease;
+  transition: background-color 150ms ease;
 }
 
 .tsh-header-toggle:hover {
-  opacity: 1;
   background: var(--tsh-row-active);
   color: var(--tsh-row-active-fg);
 }
@@ -390,6 +393,7 @@
 }
 
 .tsh-agent {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -406,9 +410,38 @@
 }
 
 .tsh-agent:hover,
-.tsh-agent[data-active="true"] {
+.tsh-agent[data-active="true"],
+.tsh-agent[data-open="true"] {
   background: var(--tsh-row-active);
   color: var(--tsh-row-active-fg);
+}
+
+/* On the rail the row floats the chat list (ShellRailFlyout): hovering swaps
+   the chat glyph for a pin, which stays while the list is pinned open. */
+.tsh-agent-pin {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.tsh-agent-icon > svg {
+  transition: opacity 150ms ease;
+}
+
+.tsh-agent[data-has-list="true"]:hover .tsh-agent-icon > svg,
+.tsh-agent[data-has-list="true"]:focus-visible .tsh-agent-icon > svg,
+.tsh-agent[data-pinned="true"] .tsh-agent-icon > svg {
+  opacity: 0;
+}
+
+.tsh-agent[data-has-list="true"]:hover .tsh-agent-pin,
+.tsh-agent[data-has-list="true"]:focus-visible .tsh-agent-pin,
+.tsh-agent[data-pinned="true"] .tsh-agent-pin {
+  opacity: 1;
 }
 
 .tsh-agent[data-active="true"] .tsh-agent-label {
@@ -424,6 +457,7 @@
 }
 
 .tsh-agent-icon {
+  position: relative;
   width: 16px;
   height: 16px;
   flex-shrink: 0;
@@ -532,11 +566,15 @@
 }
 
 /* The shared count badge (ui.css), plus the sidebar's collapse transition. */
-.tsh-nav-badge {
+.tsh-root .tsh-nav-badge {
   flex-shrink: 0;
+  background: var(--tsh-badge-bg);
 }
 
-.tsh-nav-item[data-active="true"] .tsh-nav-badge {
+.tsh-root .tsh-nav-item:hover .tsh-nav-badge,
+.tsh-root .tsh-nav-item[data-active="true"] .tsh-nav-badge,
+.tsh-root .tsh-agent:hover .tsh-agent-count,
+.tsh-root .tsh-agent[data-open="true"] .tsh-agent-count {
   background: var(--tsh-badge-bg-active);
   color: inherit;
 }
@@ -583,11 +621,13 @@
    centre) so it stays inside the rail's clip, whatever the sidebar measures. */
 .tsh-root[data-collapsed="true"] .tsh-nav-badge {
   position: absolute;
-  top: 2px;
-  left: 20px;
+  top: 0;
+  left: 24px;
   right: auto;
-  min-width: 14px;
-  padding: 1px 3px;
+  min-width: 13px;
+  padding: 1px 2px;
+  font-size: 9px;
+  line-height: 12px;
   z-index: 1;
 }
 
@@ -612,16 +652,14 @@
   margin-top: 0;
 }
 
-/* Collapsed rail variant: the new and search buttons, then the list itself -
-   plan lists keep their narrow ID chips, chats fold into the single list button
-   below. Row padding matches the nav's, so every rail icon shares its axis. */
+/* Collapsed rail variant: the search button, then the list itself - plan lists
+   keep their narrow ID chips, chat lists stay off the rail (the Chat row floats
+   them). Row padding matches the nav's, so every rail icon shares its axis. */
 .tsh-section-rail {
   align-items: stretch;
 }
 
-.tsh-rail-search,
-.tsh-rail-new,
-.tsh-rail-list-toggle {
+.tsh-rail-search {
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -633,18 +671,12 @@
   background: transparent;
   border-radius: 8px;
   color: var(--tsh-fg);
-  opacity: 0.6;
   cursor: pointer;
   overflow: hidden;
-  transition:
-    opacity 150ms ease,
-    background-color 150ms ease;
+  transition: background-color 150ms ease;
 }
 
-.tsh-rail-search:hover,
-.tsh-rail-new:hover,
-.tsh-rail-list-toggle:hover {
-  opacity: 1;
+.tsh-rail-search:hover {
   background: var(--tsh-row-active);
   color: var(--tsh-row-active-fg);
 }
@@ -708,29 +740,9 @@
   color: var(--tsh-row-active-fg);
 }
 
-/* Chats instead fold into one button that floats the list back over the
-   content (ShellRailList). */
-.tsh-rail-list-toggle {
-  position: relative;
-}
-
-.tsh-rail-list-toggle[data-open="true"] {
-  opacity: 1;
-  background: var(--tsh-row-active);
-  color: var(--tsh-row-active-fg);
-}
-
-/* Rides the top-right corner of the icon, like the nav rows' counts. */
-.tsh-rail-list-count {
-  position: absolute;
-  top: 2px;
-  left: 20px;
-  min-width: 14px;
-  padding: 1px 3px;
-}
-
-/* The flyout itself: portaled to <body> and fixed, so neither the sidebar's
-   overflow:hidden nor the content frame can clip it. */
+/* The chat list flyout (ShellRailFlyout), floated from the rail's Chat row:
+   portaled to <body> and fixed, so neither the sidebar's overflow:hidden nor
+   the content frame can clip it. */
 .tsh-rail-menu {
   position: fixed;
   z-index: 60;
@@ -780,7 +792,7 @@
   text-overflow: ellipsis;
 }
 
-.tsh-rail-menu-close {
+.tsh-rail-menu-new {
   margin-left: auto;
 }
 
@@ -828,7 +840,7 @@
 .tsh-section-header-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
 }
 
 .tsh-section-search,
@@ -843,16 +855,12 @@
   background: transparent;
   border-radius: 4px;
   color: var(--tsh-fg);
-  opacity: 0.7;
   cursor: pointer;
-  transition:
-    opacity 150ms ease,
-    background-color 150ms ease;
+  transition: background-color 150ms ease;
 }
 
 .tsh-section-search:hover,
 .tsh-section-new:hover {
-  opacity: 1;
   background: var(--tsh-row-active);
   color: var(--tsh-row-active-fg);
 }
@@ -890,12 +898,6 @@
   align-items: center;
   gap: var(--tsh-row-gap);
   min-width: 0;
-  opacity: 0.6;
-  transition: opacity 150ms ease;
-}
-
-.tsh-section-search-button:hover .tsh-section-search-button-main {
-  opacity: 1;
 }
 
 .tsh-section-search-button-label {
@@ -959,6 +961,94 @@
   width: 100%;
 }
 
+/* Rows with an options menu: the ellipsis sits over the row's right edge and
+   only shows while the row is hovered, focused, or its menu is open. */
+.tsh-section-item-wrap {
+  position: relative;
+}
+
+.tsh-section-item-wrap .tsh-section-item {
+  padding-right: 32px;
+}
+
+.tsh-section-item-menu-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0;
+}
+
+.tsh-section-item-wrap:hover .tsh-section-item-menu-btn,
+.tsh-section-item-wrap:focus-within .tsh-section-item-menu-btn,
+.tsh-section-item-menu-btn[aria-expanded="true"] {
+  opacity: 1;
+}
+
+.tsh-section-item[data-editing="true"] {
+  cursor: default;
+}
+
+.tsh-section-item-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0 4px;
+  margin: -1px 0;
+  border: 1px solid var(--tsh-border);
+  border-radius: 4px;
+  background: var(--tsh-surface);
+  color: var(--tsh-fg-title);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  outline: none;
+}
+
+.tsh-section-item-input:focus {
+  border-color: var(--tsh-fg);
+}
+
+.tsh-item-menu {
+  position: fixed;
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+  padding: 4px;
+  border: 1px solid var(--tsh-border);
+  border-radius: 10px;
+  background: var(--tsh-popover);
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+  animation: tui-tooltip-in 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: var(--font-sans, "Geist", sans-serif);
+}
+
+.tsh-item-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tsh-fg);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tsh-item-menu-item:hover {
+  background: var(--tsh-row-active);
+}
+
+.tsh-item-menu-item--danger {
+  color: var(--destructive, #ef4444);
+}
+
 .tsh-section-item-icon {
   flex-shrink: 0;
   opacity: 0.7;
@@ -1010,12 +1100,9 @@
   border-radius: 8px;
   background: transparent;
   color: var(--tsh-fg);
-  opacity: 0.6;
   cursor: pointer;
   overflow: hidden;
-  transition:
-    opacity 150ms ease,
-    background-color 150ms ease;
+  transition: background-color 150ms ease;
 }
 
 .tsh-settings .tsh-row {
@@ -1024,13 +1111,11 @@
 }
 
 .tsh-settings:hover {
-  opacity: 1;
   background: var(--tsh-row-active);
   color: var(--tsh-row-active-fg);
 }
 
 .tsh-settings[data-active="true"] {
-  opacity: 1;
   background: var(--tsh-row-active);
   color: var(--tsh-row-active-fg);
 }

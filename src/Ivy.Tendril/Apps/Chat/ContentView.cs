@@ -37,7 +37,8 @@ public class ContentView(
     Action<ChatSendMessageDto> sendMessage,
     Action<string> selectSession,
     Action startNewChat,
-    bool embedded = false) : ViewBase
+    bool embedded = false,
+    IState<string?>? sharedDeletingSessionId = null) : ViewBase
 {
     internal IState<string> SelectedAgentState => selectedAgent;
     internal IState<string> SelectedModelState => selectedModel;
@@ -60,7 +61,7 @@ public class ContentView(
         Context.TryUseService<IPlanReaderService>(out var planService);
         Context.TryUseService<IChatAgentPreferences>(out var preferences);
         var navigator = UseNavigation();
-        var deletingSessionId = UseState<string?>(null);
+        var localDeletingSessionId = UseState<string?>(null);
 
         var upload = UseUpload(async (fileUpload, stream, ct) =>
         {
@@ -79,6 +80,7 @@ public class ContentView(
 
         _ = sessionVersion.Value;
 
+        var deletingSessionId = sharedDeletingSessionId ?? localDeletingSessionId;
         var sessionToDelete = deletingSessionId.Value != null
             ? chatService.GetSession(deletingSessionId.Value) ?? activeSession
             : activeSession;

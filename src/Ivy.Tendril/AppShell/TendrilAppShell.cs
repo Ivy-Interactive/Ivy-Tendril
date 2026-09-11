@@ -309,6 +309,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         var chatService = UseService<IChatHistoryService>();
         Context.TryUseService<IChatSessionNamingService>(out var namingService);
         var sessionsVersion = UseState(0);
+        var deletingSessionId = UseState<string?>(null);
         var sessionsSignature = UseRef<string?>(null);
         Context.TryUseService<DesktopWindow>(out var desktopWindow);
         Context.TryUseService<TendrilArgs>(out var tendrilArgs);
@@ -930,13 +931,6 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         void StartNewChat() => ChatLauncher.StartNew(navigator, config, chatService, agentRunner);
 
-        var chatButton = new ShellAgentButton()
-            .IsActive(chatIsActive)
-            .Label("Chat")
-            .Icon(Icons.MessageCircle.ToString())
-            .OnOpen(OpenChat)
-            .OnNewChat(StartNewChat);
-
         // Plan search is always reachable from the sidebar: apps without a list (and lists
         // with no rows) get the section's full-width Search button in place of the title.
         // A visible terminal pane shows the Chats list with its own row selected, whatever
@@ -953,8 +947,20 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 chatService.GetGeneratingSessionIds(),
                 chatService.GetCompletedSessionIds(),
                 showChatSearchDialog,
-                StartNewChat);
+                StartNewChat,
+                (id, title) =>
+                {
+                    chatService.RenameSession(id, title);
+                    sessionsVersion.Set(v => v + 1);
+                },
+                id => deletingSessionId.Set(id));
         }
+        var deleteSessionDialog = new DeleteSessionDialog(
+            deletingSessionId,
+            deletingSessionId.Value != null ? chatService.GetSession(deletingSessionId.Value) : null,
+            chatService,
+            null,
+            sessionsVersion);
 
         ShellSidebarSection section;
         if (list != null)
@@ -971,13 +977,33 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
                 .OnSelectItem(itemId =>
                     OpenApp(new NavigateArgs(capturedList.AppId, capturedList.BuildSelectArgs(itemId))))
                 .OnSearch(list.OnSearch ?? showPlanSearchDialog)
-                .OnNew(list.OnNew);
+                .OnNew(list.OnNew)
+                .OnRenameItem(list.OnRename)
+                .OnDeleteItem(list.OnDelete);
         }
         else
         {
             section = new ShellSidebarSection()
                 .Searchable()
                 .OnSearch(showPlanSearchDialog);
+        }
+
+        var chatButton = new ShellAgentButton()
+            .IsActive(chatIsActive)
+            .Label("Chat")
+            .Icon(Icons.MessageCircle.ToString())
+            .OnOpen(OpenChat)
+            .OnNewChat(StartNewChat);
+        if (list is { CollapsedMenu: true })
+        {
+            var chatList = list;
+            chatButton = chatButton
+                .List(chatList.Title, chatList.Items, chatList.SelectedId)
+                .OnNewChat(chatList.OnNew ?? StartNewChat)
+                .OnRenameItem(chatList.OnRename)
+                .OnDeleteItem(chatList.OnDelete)
+                .OnSelectItem(itemId =>
+                    OpenApp(new NavigateArgs(chatList.AppId, chatList.BuildSelectArgs(itemId))));
         }
 
         // Beta: the inbox moves out of the nav into the footer, beside an icon-only settings button.
@@ -1113,7 +1139,8 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             shell,
             updateDialog,
             planSearchDialog,
-            chatSearchDialog
+            chatSearchDialog,
+            deleteSessionDialog
         );
     }
 
