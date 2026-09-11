@@ -29,14 +29,45 @@ public class ChatApp : ViewBase
     internal static string? PlanTag(ChatSessionModel session) =>
         string.IsNullOrEmpty(session.PlanFolderName) ? null : $"#{TendrilAppShell.FormatPlanId(session.PlanFolderName)}";
 
-    internal static ChatJobDto ToJobDto(JobItem job) => new(
-        job.Id,
-        job.Type,
-        job.Status.ToString(),
-        job.ReportedPlanId,
-        job.ReportedPlanTitle,
-        job.StatusMessage,
-        Constants.JobTypeColors.TryGetValue(job.Type, out var color) ? color.ToString() : null);
+    internal static ChatJobDto ToJobDto(JobItem job, IPlanReaderService? planService = null)
+    {
+        var planId = job.ResolvePlanId();
+        if (string.IsNullOrEmpty(planId) && !string.IsNullOrEmpty(job.PlanFile))
+        {
+            var extracted = PlanYamlHelper.ExtractPlanIdFromFolder(job.PlanFile);
+            if (!string.IsNullOrEmpty(extracted)) planId = extracted;
+        }
+        if (string.IsNullOrEmpty(planId) && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
+        {
+            var extracted = PlanYamlHelper.ExtractPlanIdFromFolder(job.TypedArgs.PlanFolder);
+            if (!string.IsNullOrEmpty(extracted)) planId = extracted;
+        }
+        var resolvedPlanId = string.IsNullOrEmpty(planId) ? null : planId;
+
+        var planTitle = job.ReportedPlanTitle;
+        if (string.IsNullOrWhiteSpace(planTitle) && resolvedPlanId != null && planService != null)
+        {
+            planTitle = ContentView.FindPlan(planService, resolvedPlanId)?.Title;
+        }
+        if (string.IsNullOrWhiteSpace(planTitle) && !string.IsNullOrEmpty(job.PlanFile))
+        {
+            planTitle = PlanYamlHelper.ExtractSafeTitleFromFolder(job.PlanFile);
+        }
+        if (string.IsNullOrWhiteSpace(planTitle) && !string.IsNullOrEmpty(job.TypedArgs?.PlanFolder))
+        {
+            planTitle = PlanYamlHelper.ExtractSafeTitleFromFolder(job.TypedArgs.PlanFolder);
+        }
+        var resolvedPlanTitle = string.IsNullOrWhiteSpace(planTitle) ? null : planTitle;
+
+        return new(
+            job.Id,
+            job.Type,
+            job.Status.ToString(),
+            resolvedPlanId,
+            resolvedPlanTitle,
+            job.StatusMessage,
+            Constants.JobTypeColors.TryGetValue(job.Type, out var color) ? color.ToString() : null);
+    }
 
     internal static string? BuildRowState(
         ChatSessionModel session,
@@ -92,6 +123,7 @@ public class ChatApp : ViewBase
         var executionService = UseService<IChatExecutionService>();
         var agentRunner = UseService<IAgentRunner>();
         Context.TryUseService<IJobService>(out var jobService);
+        Context.TryUseService<IPlanReaderService>(out var planService);
         Context.TryUseService<IChatAgentPreferences>(out var preferences);
         var navigator = UseNavigation();
         var sidebarListSignal = Context.UseSignal<ShellSidebarListSignal, ShellSidebarListState, Unit>();
@@ -236,7 +268,7 @@ public class ChatApp : ViewBase
         // Compact DTO serialization: only serialize full message history for the active session,
         // preventing massive SignalR payload bloat when a user has hundreds of sessions.
         var sessionDtos = sessions
-            .Select(s => ToSessionDto(s, s.Id == currentSessionId, executionService, jobService, chatService))
+            .Select(s => ToSessionDto(s, s.Id == currentSessionId, executionService, jobService, chatService, planService))
             .ToList();
 
         void StartNewChat()
@@ -353,7 +385,8 @@ public class ChatApp : ViewBase
         bool isActive,
         IChatExecutionService executionService,
         IJobService? jobService,
-        IChatHistoryService chatService)
+        IChatHistoryService chatService,
+        IPlanReaderService? planService = null)
     {
         var isGenerating = executionService.IsGenerating(s.Id);
         var status = isGenerating ? "generating" : "done";
@@ -410,7 +443,7 @@ public class ChatApp : ViewBase
                 {
                     var job = jobService.GetJob(jId);
                     if (job == null) return new ChatJobDto(jId, "Job", "Unknown");
-                    return ToJobDto(job);
+                    return ToJobDto(job, planService);
                 }).ToList();
             }
         }

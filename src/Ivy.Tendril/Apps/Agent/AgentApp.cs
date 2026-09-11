@@ -112,7 +112,7 @@ public class AgentApp : ViewBase
         var title = session != null ? ChatApp.DisplayTitle(session) : (args?.Title ?? agentLabel);
 
         var jobs = session != null
-            ? SessionJobs(jobService, session.Id).Select(ChatApp.ToJobDto).ToList()
+            ? SessionJobs(jobService, session.Id).Select(j => ChatApp.ToJobDto(j, planService)).ToList()
             : [];
 
         var header = new TerminalSessionHeader()

@@ -79,6 +79,27 @@ describe("TerminalSessionHeader", () => {
     expect(handleEvent).toHaveBeenCalledWith("OnOpenPlan", "term-header", ["00151"]);
   });
 
+  it("renders a job item without a planId as non-clickable and does not emit OnOpenPlan", () => {
+    const handleEvent = vi.fn();
+    render(
+      <TerminalSessionHeader
+        id="term-header"
+        sessionId="sess-6"
+        jobs={[{ id: "00152", type: "Promptware", status: "Running" }]}
+        spawned
+        events={["OnOpenPlan"]}
+        eventHandler={handleEvent}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /View running jobs/i }));
+    expect(screen.queryByRole("button", { name: /00152/ })).not.toBeInTheDocument();
+    expect(screen.getByText("00152")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("00152"));
+    expect(handleEvent).not.toHaveBeenCalledWith("OnOpenPlan", expect.anything(), expect.anything());
+  });
+
   it("renders the terminal variant host and header classes", () => {
     const { container } = render(<TerminalSessionHeader id="term-header" sessionId="sess-4" />);
     expect(container.querySelector(".chat-header-host.chat-header-host--terminal")).toBeInTheDocument();

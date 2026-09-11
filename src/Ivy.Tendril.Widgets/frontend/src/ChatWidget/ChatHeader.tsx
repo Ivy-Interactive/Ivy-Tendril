@@ -4,6 +4,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronRight,
   Cpu,
   Ellipsis,
   LoaderCircle,
@@ -114,6 +115,8 @@ export const JobsMenu: React.FC<JobsMenuProps> = ({ jobs, spawned, onReview, onO
           <div className="chat-jobs-dropdown-list">
             {jobs.map((job) => {
               const className = `chat-jobs-dropdown-item ${job.status.toLowerCase()}`;
+              const planId = job.planId;
+              const isClickable = Boolean(onOpenPlan && planId);
               const content = (
                 <>
                 <div className="chat-job-status-indicator">
@@ -138,10 +141,10 @@ export const JobsMenu: React.FC<JobsMenuProps> = ({ jobs, spawned, onReview, onO
                     </div>
                   )}
                 </div>
+                {isClickable && <ChevronRight size={14} className="chat-job-nav-icon" />}
                 </>
               );
-              const planId = job.planId;
-              if (onOpenPlan && planId) {
+              if (isClickable && planId) {
                 return (
                   <button
                     key={job.id}
@@ -150,7 +153,7 @@ export const JobsMenu: React.FC<JobsMenuProps> = ({ jobs, spawned, onReview, onO
                     title="Open plan"
                     onClick={() => {
                       setOpen(false);
-                      onOpenPlan(planId);
+                      onOpenPlan!(planId);
                     }}
                   >
                     {content}

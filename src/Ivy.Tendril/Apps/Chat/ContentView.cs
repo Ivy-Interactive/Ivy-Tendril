@@ -101,7 +101,7 @@ public class ContentView(
             ? jobService.GetJobs()
                 .Where(j => string.Equals(j.ChatSessionId, activeSessionId.Value, StringComparison.OrdinalIgnoreCase)
                          && (j.Status == JobStatus.Running || j.Status == JobStatus.Pending || j.Status == JobStatus.Queued))
-                .Select(ChatApp.ToJobDto).ToList()
+                .Select(j => ChatApp.ToJobDto(j, planService)).ToList()
             : new List<ChatJobDto>();
 
         var chatWidget = new ChatWidget
