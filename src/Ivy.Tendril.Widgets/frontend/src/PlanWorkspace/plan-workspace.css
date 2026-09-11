@@ -496,7 +496,9 @@
   width: var(--pws-chat-width);
   min-width: 0;
   min-height: 0;
-  padding: 0 16px 14px;
+  /* No horizontal padding: the embedded widget insets its own rows so the message list can
+     scroll at the panel's full width and the scrollbar sits by the edge, clear of the text. */
+  padding: 0 0 14px;
   border-left: 1px solid var(--pws-border);
   background: var(--pws-bg);
 }
@@ -523,7 +525,7 @@
   flex: 0 0 42%;
   width: auto;
   min-height: 220px;
-  padding: 0 12px 12px;
+  padding: 0 0 12px;
   border-left: none;
   border-top: 1px solid var(--pws-border);
 }
