@@ -18,7 +18,7 @@ Project and verification configuration is available via `tendril project list` a
 - **Stack detection.** Inspect the project's repositories to determine the tech stack.
     - Look for configuration files: `package.json`, `*.csproj`, `Cargo.toml`, `go.mod`, `requirements.txt`, `pyproject.toml`, etc.
     - If a `package.json` exists, identify the package manager: check if `pnpm-lock.yaml` is present, or if the `packageManager` field in `package.json` specifies `pnpm`. If not, check for `yarn.lock`. Otherwise, assume `npm`.
-    - Identify if the frontend uses Vite or Vite+ (`vite-plus`): check if `vite-plus` is listed in `package.json` dependencies or devDependencies, or if scripts call `vp`. If it uses Vite+ (`vite-plus`), use `vp` commands (e.g. `vp dev`). Otherwise, use `npm`/`pnpm`/`yarn` commands.
+    - Identify if the frontend uses Vite or Vite+ (`vite-plus`): check if `vite-plus` is listed in `package.json` dependencies or devDependencies, or if scripts call `vp`. If it uses Vite+ (`vite-plus`), use `vp` commands (e.g. `vp dev --open`). Otherwise, use `npm`/`pnpm`/`yarn` commands.
 - **Keep it minimal.** Only add verifications and review actions that are appropriate for the detected stack.
 
 ## Available CLI Commands
@@ -136,7 +136,7 @@ Never emit the Windows-only `start`; to open a file/URL use `Start-Process` on W
 
 Inspect each repo to determine how to run the application. For website projects, prefer commands that open the browser automatically:
 - **.NET project** with a runnable entry point: `dotnet run --project Worktrees/<RepoName>/<path-to-project> --browse --find-available-port`
-- **Vite+ (`vite-plus`) project**: `cd Worktrees/<RepoName>/<path-to-frontend> && vp install && vp dev`
+- **Vite+ (`vite-plus`) project**: `cd Worktrees/<RepoName>/<path-to-frontend> && vp install && vp dev --open`
 - **Vite project**:
     - Under `pnpm`: `cd Worktrees/<RepoName>/<path-to-frontend> && pnpm install && pnpm run dev -- --open`
     - Under `npm`: `cd Worktrees/<RepoName>/<path-to-frontend> && npm install && npm run dev -- --open`

@@ -19,7 +19,7 @@ Project and verification configuration is available via `tendril project list` a
 - **Stack detection.** Inspect the project's repositories to determine the tech stack.
   - Look for configuration files: `package.json`, `*.csproj`, `Cargo.toml`, `go.mod`, `requirements.txt`, `pyproject.toml`, etc.
   - If a `package.json` exists, identify the package manager: check if `pnpm-lock.yaml` is present, or if the `packageManager` field in `package.json` specifies `pnpm`. If not, check for `yarn.lock`. Otherwise, assume `npm`.
-  - Identify if the frontend uses Vite or Vite+ (`vite-plus`): check if `vite-plus` is listed in `package.json` dependencies or devDependencies, or if scripts call `vp`. If it uses Vite+ (`vite-plus`), use `vp` commands (e.g. `vp dev`). Otherwise, use `npm`/`pnpm`/`yarn` commands.
+  - Identify if the frontend uses Vite or Vite+ (`vite-plus`): check if `vite-plus` is listed in `package.json` dependencies or devDependencies, or if scripts call `vp`. If it uses Vite+ (`vite-plus`), use `vp` commands (e.g. `vp dev --open`). Otherwise, use `npm`/`pnpm`/`yarn` commands.
 - **Keep it minimal.** Only add verifications and review actions that are appropriate for the detected stack.
 
 ## Available CLI Commands
@@ -143,7 +143,7 @@ Never emit the Windows-only `start`; to open a file/URL use `Start-Process` on W
 
 #### Unified Monorepo Review Actions
 Detect when `project-analyzer` flags a workspace root (`isWorkspaceRoot: true`) or when the repository root contains monorepo orchestrators (such as Nx via `nx.json`, Turborepo via `turbo.json`, or a root `package.json` with workspace definitions and root `dev` or `start` scripts):
-- Configure a primary unified review action named "Fullstack" or "App" targeting the workspace root (e.g. `cd Worktrees/<RepoPath> && <packageManager> install && <packageManager> run dev`).
+- Configure a primary unified review action named "Fullstack" or "App" targeting the workspace root (e.g. `cd Worktrees/<RepoPath> && <packageManager> install && <packageManager> run dev`). When the command launches web frontends, include browser opening flags (e.g. `vp dev --open` or `-- --open`) so the browser preview launches automatically upon startup.
 - Granular review actions for individual applications or services can still be created alongside the unified one, giving reviewers the choice of launching the full system or individual components.
 
 #### Environment Template Bootstrapping
@@ -158,7 +158,7 @@ For commands executing in subdirectories or workspace roots (e.g. after `cd Work
 
 Inspect each repo to determine how to run the application. For website projects, prefer commands that open the browser automatically:
 - **.NET project** with a runnable entry point: `dotnet run --project Worktrees/<RepoName>/<path-to-project> --browse --find-available-port`
-- **Vite+ (`vite-plus`) project**: `cd Worktrees/<RepoName>/<path-to-frontend> && vp install && vp dev`
+- **Vite+ (`vite-plus`) project**: `cd Worktrees/<RepoName>/<path-to-frontend> && vp install && vp dev --open`
 - **Vite project**:
   - Under `pnpm`: `cd Worktrees/<RepoName>/<path-to-frontend> && pnpm install && pnpm run dev -- --open`
   - Under `npm`: `cd Worktrees/<RepoName>/<path-to-frontend> && npm install && npm run dev -- --open`
