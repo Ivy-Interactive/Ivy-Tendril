@@ -12,7 +12,7 @@ namespace Ivy.Tendril.Apps.Inbox;
 public record IssueRow
 {
     public string Id { get; init; } = "";
-    public bool Selected { get; init; }
+    public bool Selected { get; set; }
     public int Number { get; init; }
     public string Issue { get; init; } = "";
     public string Repository { get; init; } = "";
@@ -50,11 +50,73 @@ public class ContentView(
 {
     internal Func<Task> RefreshHandler => onRefresh;
 
+    public static DataTableCellUpdate CreateSelectedCellUpdate(int issueNumber, bool isSelected) =>
+        new(issueNumber.ToString(), nameof(IssueRow.Selected), isSelected);
+
+    public static DataTableCellUpdate CreateSelectedCellUpdate(string rowId, bool isSelected) =>
+        new(rowId, nameof(IssueRow.Selected), isSelected);
+
+    public static bool ToggleIssueSelection(
+        HashSet<int> selectedNumbers,
+        int issueNumber,
+        out HashSet<int> nextSelected,
+        out DataTableCellUpdate update)
+    {
+        var isSelected = !selectedNumbers.Contains(issueNumber);
+        nextSelected = new HashSet<int>(selectedNumbers);
+        if (isSelected)
+        {
+            nextSelected.Add(issueNumber);
+        }
+        else
+        {
+            nextSelected.Remove(issueNumber);
+        }
+
+        update = CreateSelectedCellUpdate(issueNumber, isSelected);
+        return isSelected;
+    }
+
+    public static List<DataTableCellUpdate> SelectAllIssues(
+        HashSet<int> selectedNumbers,
+        IEnumerable<GitHubIssue> issues,
+        out HashSet<int> nextSelected)
+    {
+        nextSelected = new HashSet<int>(selectedNumbers);
+        var updates = new List<DataTableCellUpdate>();
+        foreach (var issue in issues)
+        {
+            if (nextSelected.Add(issue.Number))
+            {
+                updates.Add(CreateSelectedCellUpdate(issue.Number, true));
+            }
+        }
+        return updates;
+    }
+
+    public static List<DataTableCellUpdate> DeselectAllIssues(
+        HashSet<int> selectedNumbers,
+        IEnumerable<GitHubIssue> issues,
+        out HashSet<int> nextSelected)
+    {
+        nextSelected = new HashSet<int>(selectedNumbers);
+        var updates = new List<DataTableCellUpdate>();
+        foreach (var issue in issues)
+        {
+            if (nextSelected.Remove(issue.Number))
+            {
+                updates.Add(CreateSelectedCellUpdate(issue.Number, false));
+            }
+        }
+        return updates;
+    }
+
     public override object Build()
     {
         var client = UseService<IClientProvider>();
         var openFile = UseState<string?>(null);
         var isAutoAcceptSettingsOpen = UseState(false);
+        var updateStream = UseStream<DataTableCellUpdate>();
 
         var (issueSheet, showIssueSheet) = UseTrigger<GitHubIssue>((isOpen, issue) =>
         {
@@ -160,6 +222,7 @@ public class ContentView(
                 showRepoBadge: true,
                 client: client,
                 showIssueSheet: showIssueSheet,
+                updateStream: updateStream,
                 isMyIssues: true,
                 openAutoAcceptSettings: () => isAutoAcceptSettingsOpen.Set(true)
             );
@@ -176,6 +239,7 @@ public class ContentView(
                 showRepoBadge: false,
                 client: client,
                 showIssueSheet: showIssueSheet,
+                updateStream: updateStream,
                 isMyIssues: false
             );
         }
@@ -317,6 +381,7 @@ public class ContentView(
         bool showRepoBadge,
         IClientProvider client,
         Action<GitHubIssue> showIssueSheet,
+        IWriteStream<DataTableCellUpdate> updateStream,
         bool isMyIssues = false,
         Action? openAutoAcceptSettings = null)
     {
@@ -334,18 +399,22 @@ public class ContentView(
 
         void SelectAll()
         {
-            var next = new HashSet<int>(selectedIssueNumbers.Value);
-            foreach (var i in allIssues) next.Add(i.Number);
+            var updates = SelectAllIssues(selectedIssueNumbers.Value, allIssues, out var next);
+            foreach (var update in updates)
+            {
+                updateStream.Write(update);
+            }
             selectedIssueNumbers.Set(next);
-            refreshToken.Refresh();
         }
 
         void DeselectAll()
         {
-            var next = new HashSet<int>(selectedIssueNumbers.Value);
-            foreach (var i in allIssues) next.Remove(i.Number);
+            var updates = DeselectAllIssues(selectedIssueNumbers.Value, allIssues, out var next);
+            foreach (var update in updates)
+            {
+                updateStream.Write(update);
+            }
             selectedIssueNumbers.Set(next);
-            refreshToken.Refresh();
         }
 
         var isAutoAcceptOn = config.Settings.Inbox.AutoAcceptAssignedIssues;
@@ -405,20 +474,56 @@ public class ContentView(
                 | new NoContentView("No Issues Found", "No issues match the selected view.");
         }
 
-        var rows = allIssues.Select(issue => new IssueRow
-        {
-            Id = issue.Number.ToString(),
-            Selected = selectedIssueNumbers.Value.Contains(issue.Number),
-            Number = issue.Number,
-            Issue = $"#{issue.Number} {issue.Title}",
-            Repository = issue.Repository ?? "",
-            Labels = issue.Labels,
-            Assignees = string.Join(", ", issue.Assignees.Where(a => !string.IsNullOrWhiteSpace(a)))
-        }).ToList();
+        var table = new IssuesTableView(
+            allIssues,
+            selectedIssueNumbers,
+            updateStream,
+            refreshToken,
+            showIssueSheet,
+            onFireOffIssues);
 
-        var dataTable = rows.AsQueryable()
+        return Layout.Vertical().Height(Size.Full())
+            | header
+            | table;
+    }
+}
+
+public class IssuesTableView(
+    IReadOnlyList<GitHubIssue> allIssues,
+    IState<HashSet<int>> selectedIssueNumbers,
+    IWriteStream<DataTableCellUpdate> updateStream,
+    RefreshToken refreshToken,
+    Action<GitHubIssue> showIssueSheet,
+    Func<IReadOnlyList<GitHubIssue>, Task> onFireOffIssues) : ViewBase
+{
+    public override object? Build()
+    {
+        var client = UseService<IClientProvider>();
+
+        var (rows, queryable) = UseMemo(() =>
+        {
+            var list = allIssues.Select(issue => new IssueRow
+            {
+                Id = issue.Number.ToString(),
+                Selected = selectedIssueNumbers.Value.Contains(issue.Number),
+                Number = issue.Number,
+                Issue = $"#{issue.Number} {issue.Title}",
+                Repository = issue.Repository ?? "",
+                Labels = issue.Labels,
+                Assignees = string.Join(", ", issue.Assignees.Where(a => !string.IsNullOrWhiteSpace(a)))
+            }).ToList();
+            return (list, list.AsQueryable());
+        }, allIssues);
+
+        foreach (var row in rows)
+        {
+            row.Selected = selectedIssueNumbers.Value.Contains(row.Number);
+        }
+
+        var dataTable = queryable
             .ToDataTable(t => t.Id)
             .RefreshToken(refreshToken)
+            .UpdateStream(updateStream)
             .Width(Size.Full())
             .Height(Size.Full())
             .Order(
@@ -456,10 +561,10 @@ public class ContentView(
                 var row = rows.FirstOrDefault(r => r.Id == id) ?? rows.ElementAtOrDefault(e.Value.RowIndex);
                 if (row != null)
                 {
-                    var next = new HashSet<int>(selectedIssueNumbers.Value);
-                    if (!next.Remove(row.Number)) next.Add(row.Number);
+                    var isSelected = ContentView.ToggleIssueSelection(selectedIssueNumbers.Value, row.Number, out var next, out var update);
                     selectedIssueNumbers.Set(next);
-                    refreshToken.Refresh();
+                    row.Selected = isSelected;
+                    updateStream.Write(update);
                 }
                 return ValueTask.CompletedTask;
             })
@@ -508,8 +613,6 @@ public class ContentView(
                 }
             });
 
-        return Layout.Vertical().Height(Size.Full())
-            | header
-            | dataTable;
+        return dataTable;
     }
 }

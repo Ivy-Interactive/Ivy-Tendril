@@ -275,6 +275,112 @@ public class InboxAppTests
         Assert.Equal(1, stubGithub.ReviewRequestsCallCount);
     }
 
+    [Fact]
+    public void CreateSelectedCellUpdate_FormsCorrectPayload()
+    {
+        var updateTrue = ContentView.CreateSelectedCellUpdate(123, true);
+        Assert.Equal("123", updateTrue.RowId);
+        Assert.Equal(nameof(IssueRow.Selected), updateTrue.ColumnName);
+        Assert.Equal(true, updateTrue.Value);
+
+        var updateFalse = ContentView.CreateSelectedCellUpdate(456, false);
+        Assert.Equal("456", updateFalse.RowId);
+        Assert.Equal("Selected", updateFalse.ColumnName);
+        Assert.Equal(false, updateFalse.Value);
+
+        var updateStringId = ContentView.CreateSelectedCellUpdate("789", true);
+        Assert.Equal("789", updateStringId.RowId);
+        Assert.Equal(nameof(IssueRow.Selected), updateStringId.ColumnName);
+        Assert.Equal(true, updateStringId.Value);
+    }
+
+    [Fact]
+    public void ToggleIssueSelection_UpdatesSelectionState_AndFormsUpdatePayload()
+    {
+        var initial = new HashSet<int> { 1, 2 };
+
+        // Select issue 3 (was not in initial set)
+        var isSelected = ContentView.ToggleIssueSelection(initial, 3, out var nextAfterSelect, out var selectUpdate);
+        Assert.True(isSelected);
+        Assert.Equal(new HashSet<int> { 1, 2, 3 }, nextAfterSelect);
+        Assert.Equal("3", selectUpdate.RowId);
+        Assert.Equal(nameof(IssueRow.Selected), selectUpdate.ColumnName);
+        Assert.Equal(true, selectUpdate.Value);
+
+        // Deselect issue 2 (was in nextAfterSelect set)
+        var isDeselected = ContentView.ToggleIssueSelection(nextAfterSelect, 2, out var nextAfterDeselect, out var deselectUpdate);
+        Assert.False(isDeselected);
+        Assert.Equal(new HashSet<int> { 1, 3 }, nextAfterDeselect);
+        Assert.Equal("2", deselectUpdate.RowId);
+        Assert.Equal(nameof(IssueRow.Selected), deselectUpdate.ColumnName);
+        Assert.Equal(false, deselectUpdate.Value);
+    }
+
+    [Fact]
+    public void SelectAllIssues_UpdatesSelectionState_AndEmitsOnlyUnselectedItems()
+    {
+        var issues = new List<GitHubIssue>
+        {
+            new(101, "Issue 1", null, [], []),
+            new(102, "Issue 2", null, [], []),
+            new(103, "Issue 3", null, [], [])
+        };
+
+        var initial = new HashSet<int> { 102 };
+
+        var updates = ContentView.SelectAllIssues(initial, issues, out var nextSelected);
+
+        Assert.Equal(new HashSet<int> { 101, 102, 103 }, nextSelected);
+        Assert.Equal(2, updates.Count);
+        Assert.Contains(updates, u => (string?)u.RowId == "101" && (bool)u.Value! && u.ColumnName == "Selected");
+        Assert.Contains(updates, u => (string?)u.RowId == "103" && (bool)u.Value! && u.ColumnName == "Selected");
+    }
+
+    [Fact]
+    public void DeselectAllIssues_UpdatesSelectionState_AndEmitsOnlySelectedItems()
+    {
+        var issues = new List<GitHubIssue>
+        {
+            new(101, "Issue 1", null, [], []),
+            new(102, "Issue 2", null, [], []),
+            new(103, "Issue 3", null, [], [])
+        };
+
+        var initial = new HashSet<int> { 101, 103 };
+
+        var updates = ContentView.DeselectAllIssues(initial, issues, out var nextSelected);
+
+        Assert.Empty(nextSelected);
+        Assert.Equal(2, updates.Count);
+        Assert.Contains(updates, u => (string?)u.RowId == "101" && !(bool)u.Value! && u.ColumnName == "Selected");
+        Assert.Contains(updates, u => (string?)u.RowId == "103" && !(bool)u.Value! && u.ColumnName == "Selected");
+    }
+
+    [Fact]
+    public void SelectionOperations_DoNotTriggerRefreshTokenRefresh()
+    {
+        var tokenState = new Ivy.Core.Hooks.State<(Guid, object?, bool)>((Guid.NewGuid(), null, false));
+        var refreshToken = new RefreshToken(tokenState);
+        var initialToken = refreshToken.Token;
+
+        var issues = new List<GitHubIssue>
+        {
+            new(1, "Test 1", null, [], []),
+            new(2, "Test 2", null, [], [])
+        };
+
+        var selected = new HashSet<int>();
+
+        ContentView.ToggleIssueSelection(selected, 1, out selected, out _);
+        Assert.Equal(initialToken, refreshToken.Token);
+
+        ContentView.SelectAllIssues(selected, issues, out selected);
+        Assert.Equal(initialToken, refreshToken.Token);
+
+        ContentView.DeselectAllIssues(selected, issues, out selected);
+        Assert.Equal(initialToken, refreshToken.Token);
+    }
+
     private sealed class StubGithubService(ProjectConfig? projectToReturn = null) : IGithubService
     {
         public int MyAssignedIssuesCallCount { get; private set; }
