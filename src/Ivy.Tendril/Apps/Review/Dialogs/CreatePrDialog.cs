@@ -106,9 +106,7 @@ public class CreatePrDialog(
                     .Disabled(!createPrMerge.Value)
                 | createPrIncludeArtifacts.ToBoolInput("Include Artifacts")
                 | createPrDraft.ToBoolInput("Create as Draft")
-                | createPrReviewers.ToSelectInput((assigneesQuery.Value ?? Array.Empty<string>()).ToOptions())
-                    .Placeholder("Select reviewers...")
-                    .WithField().Label("Reviewers")
+                | BuildReviewersField(createPrReviewers, assigneesQuery.Value ?? Array.Empty<string>())
                 | (assigneesError.Value is { } err
                     ? Text.Danger(err).Small()
                     : null)
@@ -204,5 +202,15 @@ public class CreatePrDialog(
             .Searchable(true)
             .Placeholder("Select target branch...")
             .WithField().Label("Target Branch");
+    }
+
+    public static object BuildReviewersField(
+        IState<string[]> createPrReviewers,
+        IReadOnlyList<string> assignees)
+    {
+        return createPrReviewers.ToSelectInput((assignees ?? Array.Empty<string>()).ToOptions())
+            .Searchable(true)
+            .Placeholder("Select reviewers...")
+            .WithField().Label("Reviewers");
     }
 }

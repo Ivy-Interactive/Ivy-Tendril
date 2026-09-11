@@ -59,4 +59,20 @@ public class CreatePrDialogTests
         var textInput = Assert.IsType<TextInput<string>>(Assert.Single(field.Children));
         Assert.Equal("custom-epic-branch", textInput.Value);
     }
+
+    [Fact]
+    public void BuildReviewersField_RendersSearchableSelect()
+    {
+        var reviewers = new State<string[]>(Array.Empty<string>());
+        var assignees = new[] { "alice", "bob", "charlie" };
+
+        var fieldObj = CreatePrDialog.BuildReviewersField(reviewers, assignees);
+
+        Assert.NotNull(fieldObj);
+        var field = Assert.IsType<Field>(fieldObj);
+        Assert.Equal("Reviewers", field.Label);
+
+        var select = Assert.IsType<SelectInput<string[]>>(Assert.Single(field.Children));
+        Assert.True(select.Searchable);
+    }
 }
