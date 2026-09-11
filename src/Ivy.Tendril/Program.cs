@@ -817,6 +817,8 @@ public class Program
             {
                 project.AddCommand<ProjectListCommand>("list")
                     .WithDescription("List all projects");
+                project.AddCommand<ProjectSyncCommand>("sync")
+                    .WithDescription("Synchronize project repositories from remote");
                 project.AddCommand<ProjectGetCommand>("get")
                     .WithDescription("Show details of a project");
                 project.AddCommand<ProjectAddCommand>("add")
