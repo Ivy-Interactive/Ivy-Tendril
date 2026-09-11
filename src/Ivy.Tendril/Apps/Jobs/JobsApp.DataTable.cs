@@ -76,9 +76,8 @@ public partial class JobsApp
             .Width(t => t.Cost, Size.Px(80))
             .Width(t => t.Tokens, Size.Px(80))
             .Width(t => t.StatusMessage, Size.Auto())
-            .Renderer(t => t.Status, new AnimatedStatusLabelDisplayRenderer
+            .Renderer(t => t.Status, new LabelsDisplayRenderer
             {
-                Mode = AnimatedStatusMode.Badge,
                 BadgeColorMapping = Constants.JobStatusColors.ToDictionary(
                     kvp => kvp.Key.ToString(),
                     kvp => kvp.Value.ToString()

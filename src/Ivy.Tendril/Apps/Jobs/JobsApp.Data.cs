@@ -10,7 +10,7 @@ public partial class JobsApp
     private Dictionary<string, string> BuildProjectColorMapping(IConfigService config) =>
         ProjectHelper.BuildColorMapping(config);
 
-    private List<JobItemRow> BuildJobRows(List<JobItem> jobs, IPlanReaderService planService)
+    internal static List<JobItemRow> BuildJobRows(List<JobItem> jobs, IPlanReaderService planService)
     {
         return jobs.Select(j =>
         {
@@ -21,7 +21,7 @@ public partial class JobsApp
             return new JobItemRow
             {
                 Id = j.Id,
-                Status = JobsApp.FormatStatusBadge(j.Status),
+                Status = j.Status.ToString(),
                 PlanId = planId,
                 Prompt = JobsApp.GetPromptDisplay(j, planService),
                 Type = j.Type,
@@ -110,7 +110,7 @@ public partial class JobsApp
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.Cost), FormatJobCost(j)),
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.Tokens), j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : ""),
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.AgentOutput), JobsApp.FormatAgentOutput(j)),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Status), JobsApp.FormatStatusBadge(j.Status)),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Status), j.Status.ToString()),
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.StatusMessage), JobsApp.GetStatusMessage(j))
             });
 

@@ -16,9 +16,7 @@ public class PlanJobsDataTableView(List<JobItem> jobs, Action<string> showDebug,
             .Select(j => new PlanJobRow
             {
                 Id = j.Id,
-                Status = j.Status == JobStatus.Running
-                    ? AnimatedStatusValue.Running(j.Status.ToString())
-                    : AnimatedStatusValue.Idle(j.Status.ToString()),
+                Status = j.Status.ToString(),
                 Type = j.Type,
                 Cost = j.Cost.HasValue ? FormatHelper.FormatCost(j.Cost.Value) : "",
                 Tokens = j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : "",
@@ -39,9 +37,8 @@ public class PlanJobsDataTableView(List<JobItem> jobs, Action<string> showDebug,
             .Width(t => t.Cost, Size.Px(80))
             .Width(t => t.Tokens, Size.Px(80))
             .Width(t => t.StatusMessage, Size.Auto())
-            .Renderer(t => t.Status, new AnimatedStatusLabelDisplayRenderer
+            .Renderer(t => t.Status, new LabelsDisplayRenderer
             {
-                Mode = AnimatedStatusMode.Badge,
                 BadgeColorMapping = Constants.JobStatusColors.ToDictionary(
                     kvp => kvp.Key.ToString(),
                     kvp => kvp.Value.ToString()
