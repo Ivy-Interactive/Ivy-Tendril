@@ -154,10 +154,36 @@ public static class AgentProviderFactory
                 cli.Capabilities.HasFlag(AgentCapabilities.ModelSelection))
                 model = profile.Model;
             if (!string.IsNullOrEmpty(profile.Effort) &&
+                !profile.Effort.Equals("default", StringComparison.OrdinalIgnoreCase) &&
                 cli.Capabilities.HasFlag(AgentCapabilities.EffortControl))
                 effort = profile.Effort;
             if (!string.IsNullOrWhiteSpace(profile.Arguments))
                 extraArgs.AddRange(SplitArgs(profile.Arguments));
+        }
+
+        var targetProfile = profile?.Name ?? profileName;
+        var tier = !string.IsNullOrEmpty(targetProfile) ? MapProfileTier(targetProfile) : null;
+        if (tier.HasValue && cli.DefaultProfiles != null)
+        {
+            var defaultProfile = cli.DefaultProfiles.FirstOrDefault(p => p.Tier == tier.Value);
+            if (defaultProfile != null)
+            {
+                if (string.IsNullOrEmpty(model) &&
+                    cli.Capabilities.HasFlag(AgentCapabilities.ModelSelection) &&
+                    !string.IsNullOrEmpty(defaultProfile.Model) &&
+                    !defaultProfile.Model.Equals("default", StringComparison.OrdinalIgnoreCase))
+                {
+                    model = defaultProfile.Model;
+                }
+
+                if (string.IsNullOrEmpty(effort) &&
+                    cli.Capabilities.HasFlag(AgentCapabilities.EffortControl) &&
+                    !string.IsNullOrEmpty(defaultProfile.Effort) &&
+                    !defaultProfile.Effort.Equals("default", StringComparison.OrdinalIgnoreCase))
+                {
+                    effort = defaultProfile.Effort;
+                }
+            }
         }
 
         // The applied profile is the one that was found, not the one that was asked for: an override
@@ -165,6 +191,14 @@ public static class AgentProviderFactory
         // recording the request rather than the fallback would misreport what the job ran under.
         return (model, effort, profile?.Name ?? "");
     }
+
+    private static ProfileTier? MapProfileTier(string profileName) => profileName.ToLowerInvariant() switch
+    {
+        "deep" => ProfileTier.Deep,
+        "balanced" => ProfileTier.Balanced,
+        "quick" => ProfileTier.Quick,
+        _ => null
+    };
 
     internal static string NormalizeAgentName(string name) => name.ToLowerInvariant() switch
     {

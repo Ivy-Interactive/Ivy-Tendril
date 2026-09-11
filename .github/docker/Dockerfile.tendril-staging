@@ -63,7 +63,7 @@ COPY --from=build --chown=tendril:tendril /root/.dotnet/tools /home/tendril/.dot
 # Copy published Tendril app from build stage
 COPY --from=build --chown=tendril:tendril /app /home/tendril/tendril-app
 
-# Copy Node.js from official image (avoids flaky apt mirrors — same pattern as Dockerfile.tendril-docs)
+# Copy Node.js from official image (avoids flaky apt mirrors, same pattern as root Dockerfile)
 COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
 COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \

@@ -1,9 +1,10 @@
-# Dockerfile.tendril-docs — builds and deploys Ivy.Tendril.Docs from source.
+# Dockerfile: builds and deploys Ivy.Tendril.Docs from source.
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 USER $APP_UID
 WORKDIR /app
 EXPOSE 5010
+ENV PORT=5010
 ENV DOTNET_TieredPGO=1
 ENV DOTNET_TC_QuickJitForLoops=1
 
