@@ -76,17 +76,6 @@ public partial class JobsApp
         return AnimatedStatusValue.Idle("-");
     }
 
-    /// <summary>
-    /// Encodes a <see cref="JobStatus"/> for the animated badge renderer.
-    /// Running jobs shimmer; everything else is a static badge.
-    /// </summary>
-    private static string FormatStatusBadge(JobStatus status)
-    {
-        var text = status.ToString();
-        return status == JobStatus.Running
-            ? AnimatedStatusValue.Running(text)
-            : AnimatedStatusValue.Idle(text);
-    }
 
     private static string FormatTimer(JobItem job)
     {
