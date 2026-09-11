@@ -91,6 +91,48 @@ public class ChatAppSidebarListTests
     }
 
     [Fact]
+    public void ToJobDto_ResolvesPlanIdAndFallbackTitle_WhenReportedPlanIdIsNull()
+    {
+        var job = new JobItem
+        {
+            Id = "00150",
+            Type = Constants.JobTypes.ExecutePlan,
+            Status = JobStatus.Running,
+            PlanFile = "01579-TestPlan"
+        };
+
+        var dto = ChatApp.ToJobDto(job);
+
+        Assert.Equal("01579", dto.PlanId);
+        Assert.Equal("TestPlan", dto.PlanTitle);
+    }
+
+    [Fact]
+    public void ToJobDto_ResolvesHumanReadablePlanTitle_WhenPlanServiceIsProvided()
+    {
+        var metadata = new PlanMetadata(
+            1579, "test-project", "Feature", "Human Readable Plan Title", PlanStatus.Executing,
+            [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null);
+        var planFile = new PlanFile(metadata, "", "/tmp/01579-TestPlan", "");
+        var planService = new FakePlanReaderService
+        {
+            Plans = [planFile]
+        };
+        var job = new JobItem
+        {
+            Id = "00151",
+            Type = Constants.JobTypes.ExecutePlan,
+            Status = JobStatus.Running,
+            PlanFile = "01579-TestPlan"
+        };
+
+        var dto = ChatApp.ToJobDto(job, planService);
+
+        Assert.Equal("01579", dto.PlanId);
+        Assert.Equal("Human Readable Plan Title", dto.PlanTitle);
+    }
+
+    [Fact]
     public void ResolveModelAndEffort_FallBackWhenThePreferenceIsUnknown()
     {
         var models = new List<(string Id, string DisplayName)> { ("opus", "Opus"), ("sonnet", "Sonnet") };
