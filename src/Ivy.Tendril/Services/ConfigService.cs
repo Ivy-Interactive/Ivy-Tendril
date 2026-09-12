@@ -243,6 +243,11 @@ public class InboxConfig
     public int CheckIntervalMinutes { get; set; } = 15;
 }
 
+public class SecuritySettings
+{
+    public List<string>? AllowedHosts { get; set; }
+}
+
 public static class ChatModes
 {
     public const string Chat = "chat";
@@ -270,6 +275,7 @@ public class TendrilSettings
     public LlmConfig? Llm { get; set; }
     public AuthConfig? Auth { get; set; }
     public ApiSettings? Api { get; set; }
+    public SecuritySettings? Security { get; set; }
     private InboxConfig _inbox = new();
     public InboxConfig Inbox
     {
