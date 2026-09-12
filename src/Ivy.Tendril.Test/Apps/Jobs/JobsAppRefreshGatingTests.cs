@@ -6,7 +6,7 @@ using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Microsoft.Reactive.Testing;
 
-namespace Ivy.Tendril.Test;
+namespace Ivy.Tendril.Test.Apps.Jobs;
 
 public class JobsAppRefreshGatingTests
 {
