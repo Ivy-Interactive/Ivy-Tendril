@@ -1245,6 +1245,212 @@ public class ChatExecutionServiceJobTrackingTests
         }
     }
 
+    /// <summary>
+    /// A plan edited directly from one chat has to reach the plan's other sessions, or the agent that
+    /// created the plan keeps reasoning from the version it last read (plan 00400, issue #2455).
+    /// </summary>
+    private sealed class PlanEditFanOutHarness : IDisposable
+    {
+        public string TempDir { get; }
+        public ChatHistoryService ChatService { get; }
+        public ChatExecutionService ExecService { get; }
+        public PlanDatabaseService Database { get; }
+
+        public PlanEditFanOutHarness(string? planChatSessionId = null, string planFolder = "00400-PlanEdits")
+        {
+            TempDir = Path.Combine(Path.GetTempPath(), "TendrilPlanEditFanOut_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(TempDir);
+
+            var configService = new ConfigService(new TendrilSettings { CodingAgent = "codex" }, TempDir);
+            ChatService = new ChatHistoryService(configService);
+
+            Database = new PlanDatabaseService(Path.Combine(TempDir, "test.db"), NullLogger<PlanDatabaseService>.Instance);
+            Plan = new PlanFile(
+                new PlanMetadata(400, "Tendril", "NiceToHave", "Notify The Master Agent", PlanStatus.Draft,
+                    [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null,
+                    ChatSessionId: planChatSessionId),
+                "# Notify",
+                Path.Combine(TempDir, planFolder),
+                "state: Draft");
+            Database.UpsertPlan(Plan);
+
+            var agentRunner = TestAgentRunner.Create();
+            ExecService = new ChatExecutionService(
+                configService,
+                ChatService,
+                agentRunner,
+                new ChatSessionNamingService(agentRunner, configService, ChatService, NullLogger<ChatSessionNamingService>.Instance),
+                new JsonEventSerializer(),
+                logger: null,
+                serviceProvider: null,
+                jobService: new FakeChatJobService(),
+                planReaderService: null,
+                database: Database);
+        }
+
+        public PlanFile Plan { get; }
+
+        public List<string> EditEvents(string sessionId) =>
+            ChatService.GetSession(sessionId)?.Messages
+                .Where(m => m.Role == "system" && m.Content.Contains("was edited directly"))
+                .Select(m => m.Content)
+                .ToList() ?? [];
+
+        /// <summary>
+        /// The first event puts the session into an execution, and a system event that arrives during
+        /// one is held back rather than added to the history. Waiting for the execution to drain is
+        /// what makes a second event observable at all.
+        /// </summary>
+        public async Task WaitForIdleAsync(string sessionId) =>
+            await WaitAsync(() => !ExecService.IsGenerating(sessionId), $"session {sessionId} to stop generating");
+
+        public async Task WaitForEventsAsync(string sessionId, int count) =>
+            await WaitAsync(() => EditEvents(sessionId).Count >= count, $"{count} edit event(s) in session {sessionId}");
+
+        private static async Task WaitAsync(Func<bool> condition, string what)
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(20);
+            while (DateTime.UtcNow < deadline)
+            {
+                if (condition()) return;
+                await Task.Delay(25);
+            }
+
+            Assert.Fail($"Timed out waiting for {what}");
+        }
+
+        public void Dispose()
+        {
+            ExecService.Dispose();
+            Database.Dispose();
+            if (Directory.Exists(TempDir))
+            {
+                try { Directory.Delete(TempDir, true); } catch { }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task NotifyPlanEdit_ReachesTheSidePanelSessionAndThePlansGeneralChatOnce()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var general = harness.ChatService.CreateSession("codex", "gpt-5.6-sol");
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+        harness.Database.UpsertPlan(harness.Plan with
+        {
+            Metadata = harness.Plan.Metadata with { ChatSessionId = general.Id }
+        });
+
+        await harness.ExecService.NotifyPlanEditAsync(
+            harness.Plan.FolderName,
+            "Solution changed (+12/-3 lines)",
+            reason: "the user dropped the CLI flag from scope",
+            revisionFile: "004.md");
+
+        await harness.WaitForEventsAsync(side.Id, 1);
+        await harness.WaitForEventsAsync(general.Id, 1);
+
+        Assert.Single(harness.EditEvents(side.Id));
+        Assert.Single(harness.EditEvents(general.Id));
+
+        var message = harness.EditEvents(side.Id)[0];
+        Assert.Contains("Solution changed (+12/-3 lines)", message);
+        Assert.Contains("the user dropped the CLI flag from scope", message);
+        Assert.Contains("Notify The Master Agent", message);
+    }
+
+    [Fact]
+    public async Task NotifyPlanEdit_DoesNotNotifyTheSessionThatMadeTheEdit()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var general = harness.ChatService.CreateSession("codex", "gpt-5.6-sol");
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+        harness.Database.UpsertPlan(harness.Plan with
+        {
+            Metadata = harness.Plan.Metadata with { ChatSessionId = general.Id }
+        });
+
+        await harness.ExecService.NotifyPlanEditAsync(
+            harness.Plan.FolderName,
+            "state set to Review",
+            reason: "ready for review",
+            sourceChatSessionId: side.Id);
+
+        await harness.WaitForEventsAsync(general.Id, 1);
+
+        Assert.Empty(harness.EditEvents(side.Id));
+        Assert.Single(harness.EditEvents(general.Id));
+    }
+
+    /// <summary>
+    /// The CLI reports best-effort and may be retried, so the same revision must not be announced
+    /// twice — while a later revision still has to get through.
+    /// </summary>
+    [Fact]
+    public async Task NotifyPlanEdit_DeduplicatesTheSameRevisionButNotTheNextOne()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "Tests added", revisionFile: "004.md");
+        await harness.WaitForEventsAsync(side.Id, 1);
+        await harness.WaitForIdleAsync(side.Id);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "Tests added", revisionFile: "004.md");
+        Assert.Single(harness.EditEvents(side.Id));
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "Tests changed (+1/-0 lines)", revisionFile: "005.md");
+        await harness.WaitForEventsAsync(side.Id, 2);
+
+        Assert.Equal(2, harness.EditEvents(side.Id).Count);
+    }
+
+    [Fact]
+    public async Task NotifyPlanEdit_WithNoSessionAttachedToThePlan_DoesNothing()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var unrelated = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: "00099-SomethingElse");
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "Problem changed (+1/-1 lines)");
+
+        Assert.Empty(harness.EditEvents(unrelated.Id));
+        Assert.False(harness.ExecService.IsGenerating(unrelated.Id));
+    }
+
+    [Fact]
+    public async Task NotifyPlanEdit_WithoutASummary_IsIgnored()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "   ");
+
+        Assert.Empty(harness.EditEvents(side.Id));
+    }
+
+    [Fact]
+    public void BuildPlanEditEvent_SaysWhatChangedAndWhy()
+    {
+        var plan = new PlanFile(
+            new PlanMetadata(400, "Tendril", "NiceToHave", "Notify The Master Agent", PlanStatus.Draft,
+                [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: null),
+            "# Notify", "/tmp/Plans/00400-Notify", "state: Draft");
+
+        var withReason = ChatExecutionService.BuildPlanEditEvent(
+            plan, plan.FolderName, "Solution changed (+2/-0 lines)", "the user dropped the CLI flag.");
+
+        Assert.StartsWith("[System Event] Plan 'Notify The Master Agent' (#00400) was edited directly", withReason);
+        Assert.Contains("Solution changed (+2/-0 lines). Reason: the user dropped the CLI flag.", withReason);
+
+        var withoutReason = ChatExecutionService.BuildPlanEditEvent(plan, plan.FolderName, "Tests added", null);
+        Assert.DoesNotContain("Reason:", withoutReason);
+        Assert.Contains("Tests added.", withoutReason);
+
+        // An unresolvable plan still has to produce a usable event — the folder name is what the CLI sent.
+        var unknown = ChatExecutionService.BuildPlanEditEvent(null, "00400-Notify", "Tests added", null);
+        Assert.Contains("Plan '00400-Notify' was edited directly", unknown);
+    }
+
     private class TestState<T> : IState<T>
     {
         private readonly T _initial;
