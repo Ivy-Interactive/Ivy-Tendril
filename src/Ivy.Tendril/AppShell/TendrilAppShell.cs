@@ -972,7 +972,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             OpenApp(new NavigateArgs(AgentAppId, resumed != null ? new AgentAppArgs(SessionId: resumed) : null));
         }
 
-        void StartNewChat() => ChatLauncher.StartNew(navigator, config, chatService, agentRunner);
+        void StartNewChat() => ChatLauncher.StartNew(navigator, config, chatService);
 
         // Plan search is always reachable from the sidebar: apps without a list (and lists
         // with no rows) get the section's full-width Search button in place of the title.
