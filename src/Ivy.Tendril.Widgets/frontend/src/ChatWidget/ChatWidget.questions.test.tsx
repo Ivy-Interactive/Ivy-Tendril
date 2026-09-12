@@ -220,7 +220,36 @@ describe("ChatWidget Interactive Question Draft Persistence", () => {
     expect(screen.getByRole("radio", { name: /Staging Environment/i })).toBeChecked();
   });
 
-  it("clears the draft on submit, so a later remount starts empty rather than re-offering the old selection", () => {
+  it("shows the submitted answer immediately on Submit instead of resetting to an empty form", () => {
+    const sessionA = sessionWith("sess-a", deployQuestion);
+    const sessionB = sessionWith("sess-b", "Just a plain message, no questions here.");
+    const handleEvent = vi.fn();
+
+    render(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-a"
+        sessions={[sessionA, sessionB]}
+        eventHandler={handleEvent}
+        events={["OnAnswerQuestion"]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: /Staging Environment/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Submit Response/i }));
+    expect(handleEvent).toHaveBeenCalled();
+
+    // Submitted to the host, but the message content itself is untouched — the host hasn't
+    // written the answer back yet.
+    expect(sessionA.messages[0].content).toBe(deployQuestion);
+
+    // The block shows the decision it was just given rather than an empty, re-enabled form.
+    expect(screen.queryByRole("radio", { name: /Staging Environment/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Submit Response/i })).toBeNull();
+    expect(screen.getByText("Staging Environment")).toBeInTheDocument();
+  });
+
+  it("keeps the submitted read-only view after a remount, and switches to the document once it carries the answer", () => {
     const sessionA = sessionWith("sess-a", deployQuestion);
     const sessionB = sessionWith("sess-b", "Just a plain message, no questions here.");
     const handleEvent = vi.fn();
@@ -237,7 +266,6 @@ describe("ChatWidget Interactive Question Draft Persistence", () => {
 
     fireEvent.click(screen.getByRole("radio", { name: /Staging Environment/i }));
     fireEvent.click(screen.getByRole("button", { name: /Submit Response/i }));
-    expect(handleEvent).toHaveBeenCalled();
 
     // Switch away and back to force a remount of the message row.
     rerender(
@@ -259,8 +287,83 @@ describe("ChatWidget Interactive Question Draft Persistence", () => {
       />,
     );
 
+    // The submitted decision is still on screen, not a reset form.
+    expect(screen.queryByRole("radio", { name: /Staging Environment/i })).toBeNull();
+    expect(screen.getByText("Staging Environment")).toBeInTheDocument();
+
+    // Once the host has echoed the answer into the message document, that document view takes
+    // over — the block never flips back to an editable form on the way.
+    const answeredSessionA = sessionWith(
+      "sess-a",
+      questionsFence(
+        "- id: deploy_target",
+        "  title: Which environment should we deploy to?",
+        "  options:",
+        "    - title: Staging Environment",
+        "      value: staging",
+        "    - title: Production Environment",
+        "      value: prod",
+        "  answer: staging",
+      ),
+    );
+    rerender(
+      <ChatWidget
+        id="test-chat"
+        activeSessionId="sess-a"
+        sessions={[answeredSessionA, sessionB]}
+        eventHandler={handleEvent}
+        events={["OnAnswerQuestion"]}
+      />,
+    );
+
+    expect(screen.queryByRole("radio", { name: /Staging Environment/i })).toBeNull();
+    expect(screen.getByText("Staging Environment")).toBeInTheDocument();
+  });
+
+  it("keeps a second message's block unaffected by the first one's submitted state", () => {
+    const firstMessageQuestion = questionsFence(
+      "- id: deploy_target",
+      "  title: Which environment should we deploy to?",
+      "  options:",
+      "    - title: Staging Environment",
+      "      value: staging",
+      "    - title: Production Environment",
+      "      value: prod",
+    );
+    const secondMessageQuestion = questionsFence(
+      "- id: deploy_target",
+      "  title: Which environment should we deploy to next?",
+      "  options:",
+      "    - title: Staging Environment",
+      "      value: staging",
+      "    - title: Production Environment",
+      "      value: prod",
+    );
+    const session: ChatSessionDto = {
+      id: "sess-multi",
+      title: "sess-multi",
+      agentId: "claude",
+      modelId: "opus",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [
+        { id: "msg-1", role: "assistant", content: firstMessageQuestion, timestamp: "12:00 PM" },
+        { id: "msg-2", role: "assistant", content: secondMessageQuestion, timestamp: "12:01 PM" },
+      ],
+    };
+
+    render(
+      <ChatWidget id="test-chat" activeSessionId="sess-multi" sessions={[session]} events={["OnAnswerQuestion"]} />,
+    );
+
+    const [firstRadio, secondRadio] = screen.getAllByRole("radio", { name: /Staging Environment/i });
+    fireEvent.click(firstRadio);
+    fireEvent.click(screen.getAllByRole("button", { name: /Submit Response/i })[0]);
+
+    // The first message's block is now the read-only submitted view; the second is untouched.
     expect(screen.getByRole("radio", { name: /Staging Environment/i })).not.toBeChecked();
     expect(screen.getByRole("button", { name: /Submit Response/i })).toBeDisabled();
+    expect(secondRadio).not.toBeChecked();
   });
 
   it("keeps two question blocks in one message independent when only one is answered", () => {
