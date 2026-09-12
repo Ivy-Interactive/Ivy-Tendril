@@ -296,6 +296,11 @@ public class InboxApp : ViewBase
         return sanitized.Length > 60 ? sanitized[..60].TrimEnd('-') : sanitized;
     }
 
+    public static string? ResolveIssueUrl(GitHubIssue issue) =>
+        issue.Url ?? (issue.Repository != null
+            ? $"https://github.com/{issue.Repository}/issues/{issue.Number}"
+            : null);
+
     public static string TruncateBody(string? body, int maxLength = 500)
     {
         if (string.IsNullOrWhiteSpace(body)) return "";

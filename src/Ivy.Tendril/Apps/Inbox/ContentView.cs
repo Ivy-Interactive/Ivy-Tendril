@@ -1,3 +1,4 @@
+using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Inbox.Dialogs;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Apps.Views.Sheets;
@@ -114,6 +115,7 @@ public class ContentView(
     public override object Build()
     {
         var client = UseService<IClientProvider>();
+        var nav = UseNavigation();
         var openFile = UseState<string?>(null);
         var isAutoAcceptSettingsOpen = UseState(false);
         var updateStream = UseStream<DataTableCellUpdate>();
@@ -223,6 +225,7 @@ public class ContentView(
                 client: client,
                 showIssueSheet: showIssueSheet,
                 updateStream: updateStream,
+                nav: nav,
                 isMyIssues: true,
                 openAutoAcceptSettings: () => isAutoAcceptSettingsOpen.Set(true)
             );
@@ -240,6 +243,7 @@ public class ContentView(
                 client: client,
                 showIssueSheet: showIssueSheet,
                 updateStream: updateStream,
+                nav: nav,
                 isMyIssues: false
             );
         }
@@ -382,6 +386,7 @@ public class ContentView(
         IClientProvider client,
         Action<GitHubIssue> showIssueSheet,
         IWriteStream<DataTableCellUpdate> updateStream,
+        INavigator nav,
         bool isMyIssues = false,
         Action? openAutoAcceptSettings = null)
     {
@@ -443,6 +448,16 @@ public class ContentView(
                 | new Button("Select All").Ghost().Small().OnClick(SelectAll)
                 | new Button("Deselect All").Ghost().Small().Disabled(selectedCount == 0).OnClick(DeselectAll)
                 | Text.Muted($"{selectedCount} of {allIssues.Count} selected").Small()
+                | new Button(selectedCount > 0 ? $"Open Chat ({selectedCount})" : "Open Chat")
+                    .Icon(Icons.MessageCircle)
+                    .Outline().Small()
+                    .Tooltip("Discuss the selected issues with the coding agent")
+                    .Disabled(selectedCount == 0)
+                    .OnClick(() => ChatLauncher.Open(
+                        nav,
+                        config,
+                        InboxChatPrompt.Build(selectedIssuesList),
+                        InboxChatPrompt.Title(selectedIssuesList)))
                 | new Button(selectedCount > 0 ? $"Fire off in Tendril ({selectedCount})" : "Fire off in Tendril")
                     .Icon(Icons.Zap)
                     .Primary().Small()
