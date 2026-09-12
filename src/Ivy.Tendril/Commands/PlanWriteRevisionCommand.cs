@@ -28,6 +28,14 @@ public class PlanWriteRevisionSettings : CommandSettings
     [CommandOption("--no-question-check")]
     public bool NoQuestionCheck { get; set; }
 
+    [Description("Why this edit was made — reported to the plan's other chat sessions")]
+    [CommandOption("--reason")]
+    public string? Reason { get; set; }
+
+    [Description("Chat session making the edit, so it is not notified about its own change")]
+    [CommandOption("--chat-session")]
+    public string? ChatSessionId { get; set; }
+
     public int SourceCount => CliValidation.CountSources(Stdin, FilePath, "");
 
     public override Spectre.Console.ValidationResult Validate()
@@ -68,10 +76,54 @@ public class PlanWriteRevisionCommand : Command<PlanWriteRevisionSettings>
 
         WarnAboutQuestionBlocks(questionWarnings);
 
+        ReportPlanEdit(planFolder, filePath, settings);
+
         if (!settings.NoDuplicateCheck)
             WarnAboutDuplicateCandidates(planFolder);
 
         return 0;
+    }
+
+    /// <summary>
+    ///     Tells the plan's other chat sessions what this revision changed and why. Runs after the
+    ///     write, so a master that is down or restarting costs a warning rather than the revision.
+    /// </summary>
+    private static void ReportPlanEdit(string planFolder, string filePath, PlanWriteRevisionSettings settings)
+    {
+        try
+        {
+            PlanEditEventReporter.WarnAboutMissingReason(settings.Reason);
+
+            PlanEditEventReporter.Report(
+                PathHelper.GetFileNameCrossPlatform(planFolder),
+                PlanEditSummary.Describe(ReadPreviousRevision(filePath), File.ReadAllText(filePath)),
+                settings.Reason,
+                settings.ChatSessionId,
+                Path.GetFileName(filePath));
+        }
+        catch (Exception ex)
+        {
+            // Advisory only, like the warnings around it: the revision is already on disk.
+            Console.Error.WriteLine($"Warning: could not describe the plan edit: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    ///     The <c>NNN.md</c> below the revision just written, or null when this was the first one.
+    ///     Numbering follows <see cref="RevisionWriter.NextRevisionNumber" />, so the predecessor of
+    ///     <c>004.md</c> is <c>003.md</c>.
+    /// </summary>
+    private static string? ReadPreviousRevision(string filePath)
+    {
+        if (!int.TryParse(Path.GetFileNameWithoutExtension(filePath), out var number) || number <= 1)
+            return null;
+
+        var directory = Path.GetDirectoryName(filePath);
+        if (string.IsNullOrEmpty(directory))
+            return null;
+
+        var previous = Path.Combine(directory, $"{number - 1:D3}.md");
+        return File.Exists(previous) ? File.ReadAllText(previous) : null;
     }
 
     /// <summary>

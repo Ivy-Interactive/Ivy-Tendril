@@ -157,7 +157,7 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `tendril plan list` | List plans (supports filters) |
 | `tendril plan create <title>` | Low-level create of the plan folder/yaml — **edit-only primitive, not for creating a plan from a chat request** (start a `CreatePlan` job instead) |
 | `tendril plan update <plan-id>` | Update plan from a file or stdin (--file/--stdin) |
-| `tendril plan set <plan-id> <field> <value>` | Set a plan field |
+| `tendril plan set <plan-id> <field> <value>` | Set a plan field (takes `--reason`, see below) |
 | `tendril plan get <plan-id> [field]` | Get plan data |
 | `tendril plan validate <plan-id>` | Validate plan health |
 | `tendril plan doctor` | Check all plans health |
@@ -169,10 +169,25 @@ Plan IDs accept: full path, folder name, zero-padded ID (e.g., `00015`), or bare
 | `tendril plan remove-related-plan <plan-id> <folder>` | Remove related plan |
 | `tendril plan add-depends-on <plan-id> <folder>` | Add dependency |
 | `tendril plan remove-depends-on <plan-id> <folder>` | Remove dependency |
-| `tendril plan write-revision <plan-id>` | Write revision from a file or stdin (--file/--stdin) — **only to edit an existing plan; never to create a new plan** (start a `CreatePlan` job instead) |
+| `tendril plan write-revision <plan-id>` | Write revision from a file or stdin (--file/--stdin) — **only to edit an existing plan; never to create a new plan** (start a `CreatePlan` job instead). Takes `--reason`, see below |
 | `tendril plan get-revision <plan-id> [--number <n>]` | Print revision content (latest by default, or a specific numbered revision) |
 | `tendril plan cleanup <plan-id>` | Remove worktrees |
-| `tendril plan set-verification <plan-id> <name> <status>` | Set verification status |
+| `tendril plan set-verification <plan-id> <name> <status>` | Set verification status (takes `--reason`, see below) |
+
+#### Say Why You Edited A Plan
+
+A plan can have more than one chat session open on it — the panel beside the plan and the general
+chat. When you edit a plan directly with `write-revision`, `set` or `set-verification`, the other
+sessions are told what changed, as a `[System Event]` in their history. Pass `--reason` so they are
+told *why* as well:
+
+```bash
+tendril plan write-revision 00123 --stdin --reason "user asked to drop the CLI flag from scope"
+```
+
+Without it the other agents see the diff and have to guess the intent, and you get a warning on
+stderr. `--chat-session <id>` names the session making the edit so it is not notified about its own
+change; inside a chat this defaults to `TENDRIL_CHAT_SESSION_ID`, so you rarely need to pass it.
 
 ### Plan Recommendation Commands
 

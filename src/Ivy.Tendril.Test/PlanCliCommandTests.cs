@@ -1512,6 +1512,34 @@ public class PlanCliCommandTests : IDisposable
         }
     }
 
+    /// <summary>
+    ///     Both streams at once, for a command whose result is on stdout and whose warnings are on
+    ///     stderr — a plan edit reports itself to the running instance and must warn without failing.
+    /// </summary>
+    private static (string Out, string Error) CaptureConsole(Action action)
+    {
+        lock (ConsoleLock)
+        {
+            var originalOut = Console.Out;
+            var originalError = Console.Error;
+            var outWriter = new StringWriter();
+            var errorWriter = new StringWriter();
+            Console.SetOut(outWriter);
+            Console.SetError(errorWriter);
+            try
+            {
+                action();
+            }
+            finally
+            {
+                Console.SetOut(originalOut);
+                Console.SetError(originalError);
+            }
+
+            return (outWriter.ToString(), errorWriter.ToString());
+        }
+    }
+
     // ==================== PlanAddWorktreeCommand ====================
 
     private CommandApp BuildPlanAddWorktreeApp()
@@ -1813,6 +1841,103 @@ public class PlanCliCommandTests : IDisposable
         var revisionsDir = Path.Combine(folder, "Revisions");
         if (Directory.Exists(revisionsDir))
             Assert.Empty(Directory.GetFiles(revisionsDir));
+    }
+
+    /// <summary>
+    ///     Reporting the edit is best-effort: no Tendril server is running in a test, and the revision
+    ///     is already on disk by the time the report is attempted, so this has to stay a warning on
+    ///     stderr with exit 0 (plan 00400).
+    /// </summary>
+    [Fact]
+    public void PlanWriteRevision_WithReason_StillWritesWhenNoServerIsRunning()
+    {
+        CreatePlanFolder("20303", "WriteRevReason");
+        var file = Path.Combine(_tempDir.Path, "revision-reason.md");
+        File.WriteAllText(file, "## Problem\n\nSomething.\n");
+
+        var app = BuildPlanWriteRevisionApp();
+        var exit = -1;
+        var (_, error) = CaptureConsole(() =>
+            exit = app.Run(["plan", "write-revision", "20303", "--file", file,
+                "--reason", "the user narrowed the scope", "--no-duplicate-check"]));
+
+        Assert.Equal(0, exit);
+        Assert.Contains("could not report the edit to plan 20303-WriteRevReason", error);
+        Assert.DoesNotContain("no --reason given", error);
+
+        var folder = PlanCommandHelpers.ResolvePlanFolder("20303");
+        var revisionPath = Directory.GetFiles(Path.Combine(folder, "Revisions")).Single();
+        Assert.Contains("Something.", File.ReadAllText(revisionPath));
+    }
+
+    /// <summary>
+    ///     An edit with no reason still gets announced, but the agent is told what it left out: the
+    ///     other sessions can see the diff for themselves, and only the editor knows why.
+    /// </summary>
+    [Fact]
+    public void PlanWriteRevision_WithoutReason_WarnsThatTheOtherSessionsWillNotKnowWhy()
+    {
+        CreatePlanFolder("20304", "WriteRevNoReason");
+        var file = Path.Combine(_tempDir.Path, "revision-no-reason.md");
+        File.WriteAllText(file, "## Problem\n\nSomething.\n");
+
+        var app = BuildPlanWriteRevisionApp();
+        var exit = -1;
+        var (_, error) = CaptureConsole(() =>
+            exit = app.Run(["plan", "write-revision", "20304", "--file", file, "--no-duplicate-check"]));
+
+        Assert.Equal(0, exit);
+        Assert.Contains("no --reason given", error);
+    }
+
+    // ==================== PlanSet / PlanSetVerification (--reason) ====================
+
+    private static CommandApp BuildPlanSetApp()
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IPlanWatcherService, NullPlanWatcherService>();
+
+        var app = new CommandApp(new TypeRegistrar(services));
+        app.Configure(config =>
+        {
+            config.PropagateExceptions();
+            config.AddBranch("plan", plan =>
+            {
+                plan.AddCommand<PlanSetCommand>("set");
+                plan.AddCommand<PlanSetVerificationCommand>("set-verification");
+            });
+        });
+        return app;
+    }
+
+    [Fact]
+    public void PlanSet_WithReason_AppliesTheFieldAndWarnsWhenNoServerIsRunning()
+    {
+        CreatePlanFolder("20305", "SetWithReason");
+
+        var app = BuildPlanSetApp();
+        var exit = -1;
+        var (_, error) = CaptureConsole(() =>
+            exit = app.Run(["plan", "set", "20305", "state", "Review", "--reason", "execution finished"]));
+
+        Assert.Equal(0, exit);
+        Assert.Equal("Review", ReadPlan("20305").State);
+        Assert.Contains("could not report the edit to plan 20305-SetWithReason", error);
+    }
+
+    [Fact]
+    public void PlanSetVerification_WithReason_AppliesTheStatusAndWarnsWhenNoServerIsRunning()
+    {
+        CreatePlanFolder("20306", "SetVerificationWithReason");
+
+        var app = BuildPlanSetApp();
+        var exit = -1;
+        var (_, error) = CaptureConsole(() =>
+            exit = app.Run(["plan", "set-verification", "20306", "DotnetBuild", "Pass", "--reason", "build is green"]));
+
+        Assert.Equal(0, exit);
+        Assert.Equal(VerificationStatus.Pass, ReadPlan("20306").Verifications.Single().Status);
+        Assert.Contains("could not report the edit to plan 20306-SetVerificationWithReason", error);
     }
 
     // ==================== PlanUpdate (--file / --stdin) ====================
