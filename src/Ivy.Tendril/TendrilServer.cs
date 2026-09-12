@@ -22,6 +22,7 @@ public static class TendrilServer
     {
         PathHelper.AugmentPath(forceShellPath: true);
         var server = new Server();
+        // LocalFileGuardMiddleware enforces Host, Origin, Sec-Fetch-Site, and file type restrictions
         server.DangerouslyAllowLocalFiles();
         server.UseCulture("en-US");
 #if DEBUG
@@ -92,6 +93,7 @@ public static class TendrilServer
                 });
             }
 
+            app.UseMiddleware<LocalFileGuardMiddleware>();
             app.UseMiddleware<ApiKeyAuthMiddleware>();
 
             if (!configService.NeedsOnboarding)
