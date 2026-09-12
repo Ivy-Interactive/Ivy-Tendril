@@ -326,6 +326,8 @@ public class ContentView(
             .Renderer(t => t.Repository, new LabelsDisplayRenderer())
             .Hidden(t => t.Id)
             .Hidden(t => t.Number)
+            .Filterable(t => t.Id, false)
+            .Filterable(t => t.Number, false)
             .Config(c =>
             {
                 c.AllowSorting = true;
@@ -369,7 +371,9 @@ public class ContentView(
 
         if (rows.All(r => string.IsNullOrEmpty(r.Branch)))
         {
-            dataTable = dataTable.Hidden(t => t.Branch);
+            dataTable = dataTable
+                .Hidden(t => t.Branch)
+                .Filterable(t => t.Branch, false);
         }
 
         return Layout.Vertical().Height(Size.Full())
@@ -559,6 +563,8 @@ public class IssuesTableView(
             .Renderer(t => t.Repository, new LabelsDisplayRenderer())
             .Hidden(t => t.Id)
             .Hidden(t => t.Number)
+            .Filterable(t => t.Id, false)
+            .Filterable(t => t.Number, false)
             .Config(c =>
             {
                 c.AllowSorting = true;
