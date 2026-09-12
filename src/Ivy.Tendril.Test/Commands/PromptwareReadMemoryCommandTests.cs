@@ -18,7 +18,7 @@ public class PromptwareReadMemoryCommandTests : IDisposable
 
     public void Dispose()
     {
-        Environment.SetEnvironmentVariable("TENDRIL_HOME", null);
+        TendrilHomeIsolation.Apply();
         if (Directory.Exists(_tempHome))
         {
             try { Directory.Delete(_tempHome, true); } catch { }
