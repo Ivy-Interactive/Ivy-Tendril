@@ -79,6 +79,16 @@ export function presentEventWires(events: EventWire[]): PresentationEvent[] {
         if (existing) {
           existing.result = evt.output ?? "";
           existing.isError = evt.is_error;
+        } else {
+          // Unmatched result - create a standalone presentation so the output is visible
+          const orphanTool: ToolUsePresentation = {
+            toolUseId: evt.tool_use_id,
+            name: evt.tool_name ?? "(unknown tool)",
+            result: evt.output ?? "",
+            isError: evt.is_error,
+          };
+          toolMap.set(evt.tool_use_id, orphanTool);
+          out.push({ kind: "tool-use", tool: orphanTool });
         }
         break;
       }

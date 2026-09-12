@@ -95,4 +95,20 @@ describe("parseEventWireStream", () => {
       expect(events[0].text).toBe("Valid assistant message");
     }
   });
+
+  it("creates orphan tool-use presentation for unmatched tool_result", () => {
+    const stream =
+      '{"kind":"tool_result","timestamp":"T","tool_use_id":"orphan-1","tool_name":"grep","output":"found matches","is_error":false}';
+
+    const events = parseEventWireStream(stream);
+    expect(events).toHaveLength(1);
+    const toolEvent = events.find((e) => e.kind === "tool-use");
+    expect(toolEvent).toBeDefined();
+    if (toolEvent?.kind === "tool-use") {
+      expect(toolEvent.tool.toolUseId).toBe("orphan-1");
+      expect(toolEvent.tool.name).toBe("grep");
+      expect(toolEvent.tool.result).toBe("found matches");
+      expect(toolEvent.tool.isError).toBe(false);
+    }
+  });
 });

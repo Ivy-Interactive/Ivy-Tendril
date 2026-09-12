@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Helpers;
 
 namespace Ivy.Tendril.Agents.Providers.Antigravity;
 
@@ -12,6 +13,8 @@ public sealed class AntigravityEventParser : IEventParser
     private static readonly IReadOnlyList<AgentEvent> Empty = Array.Empty<AgentEvent>();
     private const string StderrPrefix = "[stderr] ";
     private string? _currentModel;
+    private readonly Dictionary<string, string> _stepIdMap = new(); // step_index -> unique tool_use_id
+    private int _nextToolId;
 
     public IReadOnlyList<AgentEvent> ParseLine(string rawLine)
     {
@@ -100,13 +103,18 @@ public sealed class AntigravityEventParser : IEventParser
         }];
     }
 
-    private static IReadOnlyList<AgentEvent> ParseStepUpdate(JsonElement root, string rawLine)
+    private IReadOnlyList<AgentEvent> ParseStepUpdate(JsonElement root, string rawLine)
     {
         if (!root.TryGetProperty("step_update", out var su)) return Empty;
 
         var stepType = su.TryGetProperty("step_type", out var st) ? st.GetString() : null;
         var state = su.TryGetProperty("state", out var s) ? s.GetString() : null;
-        var stepIndex = su.TryGetProperty("step_index", out var idx) ? idx.GetInt32().ToString() : "0";
+
+        // Use TryGetInt32Defensive to handle both numeric and string step_index values
+        var stepIndexNum = su.TryGetProperty("step_index", out var idx)
+            ? idx.TryGetInt32Defensive()
+            : null;
+        var stepIndexKey = stepIndexNum?.ToString() ?? $"unknown_{_nextToolId++}";
 
         if (stepType == "tool")
         {
@@ -128,20 +136,33 @@ public sealed class AntigravityEventParser : IEventParser
 
             if (state == "ACTIVE")
             {
+                // Allocate a unique id for this step
+                var toolUseId = $"ag-tool-{_nextToolId++}";
+                _stepIdMap[stepIndexKey] = toolUseId;
+
                 return [new ToolCallEvent
                 {
                     Kind = AgentEventKind.ToolCall,
-                    ToolUseId = stepIndex,
+                    ToolUseId = toolUseId,
                     ToolName = toolName,
                     InputJson = paramsJson,
                     Description = description,
                     RawLine = rawLine,
                 }];
             }
-            else if (state == "DONE")
+            else if (state != null && state != "ACTIVE")
             {
+                // Any terminal state (DONE, CANCELLED, FAILED, TIMEOUT, etc.) closes the step
+                // Look up the tool id, or allocate one if a terminal state arrives without ACTIVE
+                var isOrphanResult = !_stepIdMap.TryGetValue(stepIndexKey, out var toolUseId);
+                if (isOrphanResult)
+                {
+                    toolUseId = $"ag-tool-{_nextToolId++}";
+                    _stepIdMap[stepIndexKey] = toolUseId;
+                }
+
                 string? output = null;
-                bool isError = false;
+                bool isError = state != "DONE";
 
                 if (su.TryGetProperty("tool_info", out var tiDone))
                 {
@@ -156,14 +177,40 @@ public sealed class AntigravityEventParser : IEventParser
                     }
                 }
 
-                return [new ToolResultEvent
+                // If output is still null and this isn't DONE, use the state name
+                if (output == null && state != "DONE")
+                {
+                    output = $"[{state}]";
+                }
+
+                var resultEvent = new ToolResultEvent
                 {
                     Kind = AgentEventKind.ToolResult,
-                    ToolUseId = stepIndex,
+                    ToolUseId = toolUseId,
+                    ToolName = toolName,
                     Output = output,
                     IsError = isError,
                     RawLine = rawLine,
-                }];
+                };
+
+                // If this is an orphan result (no preceding ACTIVE), emit both call and result
+                if (isOrphanResult)
+                {
+                    return [
+                        new ToolCallEvent
+                        {
+                            Kind = AgentEventKind.ToolCall,
+                            ToolUseId = toolUseId,
+                            ToolName = toolName,
+                            InputJson = paramsJson,
+                            Description = description,
+                            RawLine = rawLine,
+                        },
+                        resultEvent
+                    ];
+                }
+
+                return [resultEvent];
             }
         }
         else if (stepType == "thinking")

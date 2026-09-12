@@ -857,6 +857,70 @@ public class ChatExecutionServiceTests
             }
         }
     }
+
+    [Fact]
+    public async Task CancelAsync_WithUnclosedToolCall_ReconcilesSyntheticResult()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilChatReconcileTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var config = new TendrilSettings { CodingAgent = "codex" };
+            var configService = new ConfigService(config, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var agentRunner = TestAgentRunner.Create();
+            var serializer = new JsonEventSerializer();
+            var namingService = new ChatSessionNamingService(agentRunner, configService, chatService, NullLogger<ChatSessionNamingService>.Instance);
+
+            var execService = new ChatExecutionService(configService, chatService, agentRunner, namingService, serializer);
+
+            var sess = chatService.CreateSession("codex", "gpt-5.6-sol");
+
+            _ = execService.SendMessageAsync(sess.Id, "test reconciliation");
+            Assert.True(execService.IsGenerating(sess.Id));
+
+            // Emit a tool_call with no matching tool_result (simulates dropped result)
+            execService.EmitStreamLine(sess.Id, "{\"kind\":\"tool_call\",\"tool_use_id\":\"test-tool-1\",\"tool_name\":\"bash\",\"input\":{}}");
+
+            // Cancel execution to trigger reconciliation
+            await execService.CancelAsync(sess.Id);
+            Assert.False(execService.IsGenerating(sess.Id));
+
+            // Verify the persisted RawStream contains both the original tool_call and a synthetic tool_result
+            var persistedSession = chatService.GetSession(sess.Id);
+            Assert.NotNull(persistedSession);
+            var assistantMsg = persistedSession.Messages.Last();
+            Assert.NotNull(assistantMsg.RawStream);
+
+            // Parse the raw stream lines
+            var lines = assistantMsg.RawStream.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            var toolCallFound = false;
+            var toolResultFound = false;
+
+            foreach (var line in lines)
+            {
+                if (line.Contains("\"kind\":\"tool_call\"") && line.Contains("test-tool-1"))
+                {
+                    toolCallFound = true;
+                }
+                if (line.Contains("\"kind\":\"tool_result\"") && line.Contains("test-tool-1") && line.Contains("[Cancelled]"))
+                {
+                    toolResultFound = true;
+                }
+            }
+
+            Assert.True(toolCallFound, "Original tool_call should be in the stream");
+            Assert.True(toolResultFound, "Synthetic tool_result with [Cancelled] should be in the stream");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, true); } catch { }
+            }
+        }
+    }
 }
 
 
