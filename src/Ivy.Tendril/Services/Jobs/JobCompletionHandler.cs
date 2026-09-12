@@ -659,6 +659,26 @@ internal class JobCompletionHandler
         RegexOptions.Compiled);
 
     /// <summary>
+    ///     Anchored to a whole (trimmed) line, same rationale as <see cref="BarePrUrlPattern" />:
+    ///     rejects a `read`/`grep` result quoting the marker (line-number gutter, `path:line:`
+    ///     prefix) and the job-log form `- **PlanId:** 00075` (see JobLogWriter), leaving only what
+    ///     `tendril plan create` itself prints.
+    /// </summary>
+    internal static readonly Regex BarePlanIdPattern = new(
+        @"^PlanId:\s*(?<id>[\w-]+)$",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    ///     Matches a <see cref="ToolCallEvent" />'s <c>ToolName</c>/<c>InputJson</c> that invoked plan
+    ///     creation, so a correlated <see cref="ToolResultEvent" /> can be trusted even though the
+    ///     wire carries other tool calls too. Covers both the CLI (`tendril plan create ...` inside a
+    ///     Bash command) and the MCP tool (`mcp__tendril__plan_create`).
+    /// </summary>
+    internal static readonly Regex PlanCreateInvocationPattern = new(
+        @"\bplan[_ \t-]+create\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
     ///     Safety net for CreatePr. The agent is supposed to record each PR URL via
     ///     `tendril plan add-pr` and set the plan to Completed (Program.md step 6), but a rushed or
     ///     weak provider can stop after opening the PR and skip that closeout, leaving the PR
@@ -1040,13 +1060,7 @@ internal class JobCompletionHandler
                 ?? (_configService != null ? Path.Combine(_configService.TendrilHome, "Plans") : null);
             if (plansDir == null || !Directory.Exists(plansDir)) return;
 
-            var planId = job.ReportedPlanId ?? job.AllocatedPlanId;
-            if (string.IsNullOrEmpty(planId))
-            {
-                var outputText = string.Join("\n", job.OutputLines);
-                var planIdMatch = Regex.Match(outputText, @"PlanId:\s*([\w-]+)");
-                if (planIdMatch.Success) planId = planIdMatch.Groups[1].Value;
-            }
+            var planId = job.ReportedPlanId ?? job.AllocatedPlanId ?? ExtractReportedPlanId(job.OutputLines);
 
             if (!string.IsNullOrEmpty(planId))
             {
@@ -1089,15 +1103,67 @@ internal class JobCompletionHandler
         // PlanCreateCommand.Execute), but it always prints `PlanId: <id>` — resolve that ID to
         // its folder the same way TryVerifyByReportedId does, so this fallback still works
         // independently of the agent calling `tendril job status --plan-id`.
-        var outputText = string.Join("\n", job.OutputLines);
-        var planIdMatch = Regex.Match(outputText, @"PlanId:\s*([\w-]+)");
-        if (!planIdMatch.Success) return false;
+        var planId = ExtractReportedPlanId(job.OutputLines);
+        if (planId == null) return false;
 
-        var folder = PlanYamlHelper.FindPlanFolderById(plansDir, planIdMatch.Groups[1].Value);
+        var folder = PlanYamlHelper.FindPlanFolderById(plansDir, planId);
         if (folder == null) return false;
 
         job.PlanFile = folder;
         return true;
+    }
+
+    // Same class of false positive as IsDuplicatePlan below: OutputLines is the whole eventwire, not
+    // command output, so a bare regex over the joined text lets a `read`/`grep` result or a tool-call
+    // heredoc that merely quotes `PlanId: <id>` outrank the id the agent actually created. Scoped the
+    // same way — deserialize each entry and only trust event kinds that can genuinely carry it: a
+    // tool result correlated to a plan-create invocation (or, if the wire has no tool calls at all,
+    // any tool result), ranked above the agent's own prose (TextEvent/ResultEvent.Response).
+    internal static string? ExtractReportedPlanId(IEnumerable<string> outputLines)
+    {
+        var serializer = new JsonEventSerializer();
+        var planCreateToolUseIds = new HashSet<string>();
+        var sawAnyToolCall = false;
+        string? tier1 = null;
+        string? tier2 = null;
+
+        foreach (var entry in outputLines)
+        {
+            switch (serializer.Deserialize(entry))
+            {
+                case ToolCallEvent call:
+                    sawAnyToolCall = true;
+                    if (PlanCreateInvocationPattern.IsMatch(call.ToolName) ||
+                        (call.InputJson != null && PlanCreateInvocationPattern.IsMatch(call.InputJson)))
+                        planCreateToolUseIds.Add(call.ToolUseId);
+                    break;
+
+                case ToolResultEvent { IsError: false, Output: { } output } result
+                    when tier1 == null && (!sawAnyToolCall || planCreateToolUseIds.Contains(result.ToolUseId)):
+                    tier1 = FirstBarePlanId(output);
+                    break;
+
+                case TextEvent { Text: { } text }:
+                    tier2 ??= FirstBarePlanId(text);
+                    break;
+
+                case ResultEvent { Response: { } response }:
+                    tier2 ??= FirstBarePlanId(response);
+                    break;
+            }
+        }
+
+        return tier1 ?? tier2;
+    }
+
+    private static string? FirstBarePlanId(string text)
+    {
+        foreach (var line in text.Replace("\r", "").Split('\n'))
+        {
+            var m = BarePlanIdPattern.Match(line.Trim());
+            if (m.Success) return m.Groups["id"].Value;
+        }
+        return null;
     }
 
     // A duplicate rejection is a claim the agent makes about its own run, so only the agent's own
