@@ -1125,7 +1125,7 @@ public class JobService : IJobService
         }
 
         if (job.TypedArgs is ExecutePlanArgs or RetryPlanArgs or ExpandPlanArgs or UpdatePlanArgs or SplitPlanArgs)
-            _planReaderService?.FlushPendingWritesAsync().GetAwaiter().GetResult();
+            FlushPendingPlanWrites();
 
         // Snapshot the plan's pre-job state and perform the start transition in one
         // place (only once the job is actually starting, not while blocked) so
@@ -1145,6 +1145,29 @@ public class JobService : IJobService
         job.SlotReserved = true;
         LaunchJob(job);
         return id;
+    }
+
+    /// <summary>
+    ///     How long <see cref="FlushPendingPlanWrites" /> waits: one full plan-lock budget for the write
+    ///     that may be parked on the lock, plus a second for the write itself. Settable for tests.
+    /// </summary>
+    internal TimeSpan PlanWriteFlushTimeout { get; set; } = PlanFileLock.AcquireBudget + TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    ///     Lets queued plan.yaml writes land before the agent reads the file — bounded, rather than
+    ///     waiting however long it takes. A queued write can be parked on the cross-process plan lock
+    ///     behind a CLI process, and blocking on that indefinitely froze whichever thread started the
+    ///     job, which is the UI thread when the user clicks Execute (#2571). Past the budget the job
+    ///     starts anyway: the agent re-reads plan.yaml itself, so a stale read here is recoverable
+    ///     where a frozen workspace is not.
+    /// </summary>
+    private void FlushPendingPlanWrites()
+    {
+        var flush = _planReaderService?.FlushPendingWritesAsync();
+        if (flush == null || flush.Wait(PlanWriteFlushTimeout)) return;
+
+        _logger.LogWarning("Pending plan writes did not flush within {TimeoutMs}ms; starting the job anyway",
+            PlanWriteFlushTimeout.TotalMilliseconds);
     }
 
     /// <summary>

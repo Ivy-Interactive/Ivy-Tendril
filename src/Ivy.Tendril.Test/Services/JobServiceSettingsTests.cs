@@ -1,4 +1,7 @@
+using System.Diagnostics;
+using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Test.Services;
 
@@ -116,6 +119,49 @@ maxConcurrentJobs: 5
         }
         finally
         {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    /// <summary>
+    ///     Starting a plan job flushes queued plan.yaml writes first, so the agent reads what the user
+    ///     just changed. That wait has to be bounded: a queued write can be parked on the cross-process
+    ///     plan lock behind a CLI process, and waiting for it froze whichever thread started the job —
+    ///     the UI thread, when the user clicks Execute (#2571).
+    /// </summary>
+    [Fact]
+    public void StartJob_WhenPlanWritesNeverFlush_ReturnsWithinTheFlushTimeout()
+    {
+        var tempDir = CreateTempConfigFile("jobTimeout: 30\n");
+        var planFolder = Path.Combine(tempDir, "Plans", "00001-TestPlan");
+        Directory.CreateDirectory(planFolder);
+
+        var entries = new List<(LogLevel Level, string Message)>();
+        var planReader = new FakePlanReaderService { FlushTask = new TaskCompletionSource().Task };
+        // maxConcurrentJobs 0: the job reaches the flush and then parks in the queue, instead of
+        // launching an agent process.
+        var jobService = new JobService(
+            TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10), null, 0,
+            planReaderService: planReader,
+            logger: new CapturingLogger<JobService>(entries))
+        {
+            PlanWriteFlushTimeout = TimeSpan.FromMilliseconds(200)
+        };
+
+        try
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var jobId = jobService.StartJob(new ExecutePlanArgs(planFolder));
+            stopwatch.Stop();
+
+            Assert.Equal(JobStatus.Queued, jobService.GetJob(jobId)?.Status);
+            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(5),
+                $"StartJob waited {stopwatch.ElapsedMilliseconds}ms on a write queue that never drains");
+            Assert.Contains(entries, e => e.Level == LogLevel.Warning && e.Message.Contains("did not flush"));
+        }
+        finally
+        {
+            jobService.Dispose();
             Directory.Delete(tempDir, true);
         }
     }
