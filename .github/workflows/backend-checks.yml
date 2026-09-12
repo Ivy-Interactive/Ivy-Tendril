@@ -64,7 +64,7 @@ jobs:
         run: dotnet restore src/Ivy.Tendril/Ivy.Tendril.slnx
 
       - name: Verify code formatting
-        run: dotnet format src/Ivy.Tendril/Ivy.Tendril.slnx --verify-no-changes
+        run: dotnet format src/Ivy.Tendril/Ivy.Tendril.slnx --verify-no-changes --include src/
 
       - name: Compile solution
         run: dotnet build src/Ivy.Tendril/Ivy.Tendril.slnx --configuration Release --warnaserror

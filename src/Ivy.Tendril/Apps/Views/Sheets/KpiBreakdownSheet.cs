@@ -23,8 +23,8 @@ public class KpiBreakdownSheet(
     {
         return kpiKey switch
         {
-            "featuresShipped" => BuildFeaturesShippedBreakdown(),
-            "costPerFeature" => BuildCostPerFeatureBreakdown(),
+            "featuresShipped" or "dailyPrs" => BuildFeaturesShippedBreakdown(),
+            "costPerFeature" or "avgCostMonth" => BuildCostPerFeatureBreakdown(),
             "forecastMonth" => BuildForecastMonthBreakdown(),
             "usageWindow" => BuildUsageWindowBreakdown(),
             "avgCostPlan" => BuildAvgCostPlanBreakdown(),

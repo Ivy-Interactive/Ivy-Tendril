@@ -178,6 +178,9 @@ public class JobServiceRecoveredExecutionTests : IDisposable
         var createdFolder = Path.Combine(plansDir, "00001-TestPlan");
         Directory.CreateDirectory(createdFolder);
         File.WriteAllText(Path.Combine(createdFolder, "plan.yaml"), "title: Test\n");
+        var revisionsDir = Path.Combine(createdFolder, "Revisions");
+        Directory.CreateDirectory(revisionsDir);
+        File.WriteAllText(Path.Combine(revisionsDir, "001-revision.md"), "test revision");
 
         var config = new ConfigService(new TendrilSettings(), _tempDir.Path);
         var planReader = new PlanReaderService(config, NullLogger<PlanReaderService>.Instance);

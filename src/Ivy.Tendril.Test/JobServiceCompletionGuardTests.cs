@@ -319,7 +319,11 @@ public class JobServiceCompletionGuardTests : IDisposable
     {
         var service = CreateServiceWithPlanReader(_tempDir.Path);
         var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
-        Directory.CreateDirectory(Path.Combine(_tempDir.Path, "02353-FixLoginBug"));
+        var planFolder = Path.Combine(_tempDir.Path, "02353-FixLoginBug");
+        Directory.CreateDirectory(planFolder);
+        var revDir = Path.Combine(planFolder, "Revisions");
+        Directory.CreateDirectory(revDir);
+        File.WriteAllText(Path.Combine(revDir, "001-revision.md"), "test revision");
 
         var job = service.GetJob(id);
         Assert.NotNull(job);

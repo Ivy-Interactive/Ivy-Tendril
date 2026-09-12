@@ -7,5 +7,6 @@
     <IvySource Condition="'$(GITHUB_ACTIONS)' == 'true' or '$(Publishing)' == 'true'">false</IvySource>
     <!-- Ivy.Tendril.Widgets manages its own frontend build and embedding -->
     <IvyEnableExternalWidgets>false</IvyEnableExternalWidgets>
+    <RestorePackagesPath Condition="'$(RestorePackagesPath)' == '' and '$(HOME)' != '' and Exists('$(HOME)/.nuget/packages')">$(HOME)/.nuget/packages</RestorePackagesPath>
   </PropertyGroup>
 </Project>

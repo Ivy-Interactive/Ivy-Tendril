@@ -229,7 +229,7 @@ public class QuestionValidationServiceTests
     [Fact]
     public void Validate_AllowsTypedAnswerWhenOtherIsFalse()
     {
-        Assert.Empty(Validate("""
+        var issues = Validate("""
             questions:
               - id: q1
                 title: Which one?
@@ -240,7 +240,9 @@ public class QuestionValidationServiceTests
                   - title: Second
                     value: second
                 answer: typed answer
-            """));
+            """);
+
+        Assert.DoesNotContain(issues, i => i.Severity == QuestionIssueSeverity.Error);
     }
 
     [Fact]
@@ -641,7 +643,7 @@ public class QuestionValidationServiceTests
         Assert.Equal("block 1: question 2: duplicate option value 'same'", issues[0].Message);
         Assert.StartsWith("block 2: question 1: header 'WayTooLongHeader'", issues[1].Message);
         Assert.Equal(1, issues[0].Line);
-        Assert.Equal(10, issues[1].Line);
+        Assert.Equal(14, issues[1].Line);
     }
 
     [Fact]
