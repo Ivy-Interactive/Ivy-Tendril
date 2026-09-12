@@ -177,7 +177,7 @@ public class Program
         {
             try
             {
-                SetCurrentProcessExplicitAppUserModelID("Ivy Tendril");
+                SetCurrentProcessExplicitAppUserModelID(AppBrand.AppName);
             }
             catch { }
         }
@@ -399,12 +399,12 @@ public class Program
             var versionString = version?.ToString(3) ?? "1.1.12";
 
             var window = new DesktopWindow(server)
-                .Title("Ivy Tendril")
-                .AppId("Ivy Tendril")
+                .Title(AppBrand.AppName)
+                .AppId(AppBrand.AppName)
                 .Size(1800, 1200)
                 .UseDpiScaling(false)
                 .Icon(typeof(Program), iconResource)
-                .AboutName("Ivy Tendril")
+                .AboutName(AppBrand.AppName)
                 .AboutVersion(versionString)
                 .AboutCopyright("© 2026 Ivy Interactive")
                 .AboutWebsite("https://ivy.app")

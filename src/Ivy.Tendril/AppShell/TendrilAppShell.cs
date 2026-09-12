@@ -885,7 +885,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
 
         var versionString = typeof(TendrilAppShell).Assembly.GetName().Version!.ToString(3);
         var sidebarHeader = new ShellSidebarHeader()
-            .Title("Ivy Tendril")
+            .Title(AppBrand.AppName)
             .Version($"v {versionString}")
             .LogoUrl("/tendril/assets/Tendril.svg");
 
