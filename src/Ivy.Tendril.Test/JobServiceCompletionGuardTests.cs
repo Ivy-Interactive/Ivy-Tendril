@@ -512,6 +512,32 @@ public class JobServiceCompletionGuardTests : IDisposable
     }
 
     [Fact]
+    public void CompleteJob_CreatePlan_AcceptsPlanIdFromMcpPlanCreateToolResult()
+    {
+        var service = CreateServiceWithPlanReader(_tempDir.Path);
+        var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
+        var planFolder = Path.Combine(_tempDir.Path, "02353-FixLoginBug");
+        var revDir = Path.Combine(planFolder, "Revisions");
+        Directory.CreateDirectory(revDir);
+        File.WriteAllText(Path.Combine(revDir, "001-revision.md"), "test revision");
+
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        // The MCP tool name joins "plan" and "create" with an underscore on both sides
+        // ("tendril__plan_create"), which a leading \b in the invocation pattern would never match.
+        job.OutputLines.Enqueue(
+            """{"kind":"tool_call","tool_use_id":"t1","tool_name":"mcp__tendril__plan_create","input":{"title":"Fix login bug"}}""");
+        job.OutputLines.Enqueue(
+            """{"kind":"tool_result","tool_use_id":"t1","output":"PlanId: 02353\nDirectory: /plans/02353-FixLoginBug"}""");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal("02353-FixLoginBug", job.PlanFile);
+    }
+
+    [Fact]
     public void CompleteJob_CreatePlan_IgnoresPlanIdCitedMidSentence()
     {
         var service = CreateServiceWithPlanReader(_tempDir.Path);

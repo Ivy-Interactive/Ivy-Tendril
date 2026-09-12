@@ -672,10 +672,12 @@ internal class JobCompletionHandler
     ///     Matches a <see cref="ToolCallEvent" />'s <c>ToolName</c>/<c>InputJson</c> that invoked plan
     ///     creation, so a correlated <see cref="ToolResultEvent" /> can be trusted even though the
     ///     wire carries other tool calls too. Covers both the CLI (`tendril plan create ...` inside a
-    ///     Bash command) and the MCP tool (`mcp__tendril__plan_create`).
+    ///     Bash command) and the MCP tool (`mcp__tendril__plan_create`) — no leading `\b`, because
+    ///     the underscore joining `tendril__plan_create` is a word character on both sides, so a
+    ///     leading boundary would never match the MCP tool name at all.
     /// </summary>
     internal static readonly Regex PlanCreateInvocationPattern = new(
-        @"\bplan[_ \t-]+create\b",
+        @"plan[_ \t-]+create\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>
