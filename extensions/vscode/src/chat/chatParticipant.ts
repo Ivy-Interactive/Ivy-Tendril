@@ -1,8 +1,84 @@
 import * as vscode from 'vscode';
-import { IJobRunner } from '../jobs/jobRunner';
+import { IJobRunner, JobStreamEvent } from '../jobs/jobRunner';
 import { ServerManager } from '../server/serverManager';
 
 export const CHAT_PARTICIPANT_ID = 'tendril.chatParticipant';
+
+export async function streamJobProgress(
+  jobId: string,
+  response: vscode.ChatResponseStream,
+  jobRunner: IJobRunner,
+  token?: vscode.CancellationToken
+): Promise<void> {
+  const startTime = Date.now();
+  let discoveredPlanId: string | undefined;
+
+  const onEvent = (evt: JobStreamEvent) => {
+    if (token?.isCancellationRequested) {
+      return;
+    }
+
+    if (evt.planId || evt.plan_id) {
+      discoveredPlanId = String(evt.planId || evt.plan_id);
+    }
+
+    if (evt.tool_name) {
+      response.progress(`Running tool: ${evt.tool_name}...`);
+    } else if (evt.status_message || evt.message) {
+      response.progress(String(evt.status_message || evt.message));
+    } else if (evt.kind === 'thinking') {
+      response.progress('Thinking...');
+    }
+
+    if (evt.kind === 'text' && evt.text) {
+      response.markdown(evt.text);
+    } else if (evt.content && evt.kind !== 'thinking') {
+      response.markdown(evt.content);
+    } else if (evt.kind === 'tool_call' && evt.tool_name) {
+      response.markdown(`\n> 🔧 \`${evt.tool_name}\`\n\n`);
+    } else if (evt.kind === 'error' || (evt.kind === 'tool_result' && evt.is_error)) {
+      const errMsg = evt.message || evt.output || 'Unknown error';
+      response.markdown(`\n> ⚠️ **Error:** ${errMsg}\n\n`);
+    }
+  };
+
+  const finalStatus = await jobRunner.subscribeJobEvents(jobId, onEvent, token);
+
+  if (token?.isCancellationRequested) {
+    response.markdown(
+      '\n\n*(Stopped following job events. The job continues running in the background.)*'
+    );
+    return;
+  }
+
+  const elapsedSeconds = Math.max(1, Math.round((Date.now() - startTime) / 1000));
+  const planId = finalStatus.planId || discoveredPlanId;
+
+  let nextStep = '';
+  if (finalStatus.status === 'Completed' && planId) {
+    nextStep = `\n- **Next Command:** \`@tendril /run ${planId}\``;
+  } else if (finalStatus.status === 'Failed' && planId) {
+    nextStep = `\n- **Next Command:** \`@tendril /retry ${planId} <feedback>\``;
+  }
+
+  const statusBadge =
+    finalStatus.status === 'Completed'
+      ? 'Completed ✅'
+      : finalStatus.status === 'Failed'
+      ? 'Failed ❌'
+      : finalStatus.status;
+
+  const planInfo = planId ? `\n- **Plan:** \`${planId}\`` : '';
+
+  response.markdown(
+    `\n\n---\n### Job \`${jobId}\` ${statusBadge}\n` +
+      `- **Status:** ${finalStatus.status}\n` +
+      `- **Duration:** ${elapsedSeconds}s` +
+      planInfo +
+      nextStep +
+      '\n'
+  );
+}
 
 export async function handleChatRequest(
   request: vscode.ChatRequest,
@@ -51,6 +127,10 @@ export async function handleChatRequest(
           `- **Description:** ${prompt}\n\n` +
           (res.jobId ? `Use \`@tendril /status ${res.jobId}\` to monitor progress.` : '')
       );
+
+      if (res.jobId) {
+        await streamJobProgress(res.jobId, response, jobRunner, _token);
+      }
       break;
     }
 
@@ -75,6 +155,10 @@ export async function handleChatRequest(
         `${jobHeader}\n\n` +
           (res.jobId ? `Use \`@tendril /status ${res.jobId}\` to monitor execution.` : '')
       );
+
+      if (res.jobId) {
+        await streamJobProgress(res.jobId, response, jobRunner, _token);
+      }
       break;
     }
 
@@ -82,7 +166,10 @@ export async function handleChatRequest(
       await serverManager.ensureServerRunning();
 
       if (prompt) {
-        const jobId = prompt.split(/\s+/)[0];
+        const parts = prompt.split(/\s+/);
+        const jobId = parts[0];
+        const noFollow = parts.includes('--no-follow');
+
         response.progress(`Checking status for job ${jobId}...`);
         const status = await jobRunner.getJobStatus(jobId);
         response.markdown(
@@ -90,6 +177,13 @@ export async function handleChatRequest(
             `- **Status:** ${status.status}\n` +
             `- **Message:** ${status.message || 'No status message'}`
         );
+
+        if (
+          !noFollow &&
+          (status.status === 'Running' || status.status === 'Pending' || status.status === 'Queued')
+        ) {
+          await streamJobProgress(jobId, response, jobRunner, _token);
+        }
       } else {
         response.progress('Fetching active jobs...');
         const jobs = await jobRunner.listJobs();
@@ -137,6 +231,10 @@ export async function handleChatRequest(
           `- **Feedback:** ${feedback}\n\n` +
           (res.jobId ? `Use \`@tendril /status ${res.jobId}\` to monitor execution.` : '')
       );
+
+      if (res.jobId) {
+        await streamJobProgress(res.jobId, response, jobRunner, _token);
+      }
       break;
     }
 
