@@ -25,7 +25,7 @@ public class LocalFileGuardMiddlewareTests
         public Task InstallAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task ActivateAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task DeactivateAsync() => Task.CompletedTask;
-        public string? GetShareUrlForPlan(string planId, bool relative = false) => null;
+        public string GetShareUrlForPlan(string planId, bool relative = false) => "";
         public void Dispose() { }
     }
 
