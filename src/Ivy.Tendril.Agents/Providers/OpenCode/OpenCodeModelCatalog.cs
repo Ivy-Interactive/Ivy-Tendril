@@ -17,66 +17,79 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
         {
             Id = "moonshotai/Kimi-K3", DisplayName = "Kimi k3",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.OpenCode, Provider = "moonshot", IsDefault = true,
+            ContextWindow = 256_000, MaxOutputTokens = 32_000,
         },
         new()
         {
             Id = "kimi-k2", DisplayName = "Kimi k2",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.OpenCode, Provider = "moonshot",
+            ContextWindow = 128_000, MaxOutputTokens = 32_000,
         },
         new()
         {
             Id = "deepseek-v3", DisplayName = "DeepSeek V3",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.OpenCode, Provider = "deepseek",
+            ContextWindow = 64_000, MaxOutputTokens = 8_000,
         },
         new()
         {
             Id = "deepseek-r1", DisplayName = "DeepSeek R1",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.OpenCode, Provider = "deepseek",
+            ContextWindow = 64_000, MaxOutputTokens = 8_000,
         },
         new()
         {
             Id = "claude-fable-5", DisplayName = "Claude Fable 5",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
         },
         new()
         {
             Id = "claude-opus-5-1", DisplayName = "Claude Opus 5.1",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
         },
         new()
         {
             Id = "claude-opus-5", DisplayName = "Claude Opus 5",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
         },
         new()
         {
             Id = "claude-opus-4-7", DisplayName = "Claude Opus 4.7",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
         },
         new()
         {
             Id = "claude-sonnet-5-1", DisplayName = "Claude Sonnet 5.1",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
         },
         new()
         {
             Id = "claude-5.1", DisplayName = "Claude 5.1",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
         },
         new()
         {
             Id = "claude-sonnet-5", DisplayName = "Claude Sonnet 5",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
         },
         new()
         {
             Id = "claude-sonnet-4-6", DisplayName = "Claude Sonnet 4.6",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.Claude, Provider = "anthropic",
+            ContextWindow = 1_000_000, MaxOutputTokens = 128_000,
         },
         new()
         {
             Id = "gpt-5.5", DisplayName = "GPT-5.5",
             Capabilities = DefaultCaps, SupportedEfforts = EffortLevels.OpenCode, Provider = "openai",
+            ContextWindow = 400_000, MaxOutputTokens = 32_000,
         },
         new()
         {
@@ -122,6 +135,7 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
                 Provider = provider,
                 IsDefault = first,
                 ContextWindow = pricing?.ContextWindow,
+                MaxOutputTokens = pricing?.MaxOutput,
                 InputPerMillion = pricing?.Input ?? 0m,
                 OutputPerMillion = pricing?.Output ?? 0m,
                 CacheReadPerMillion = pricing?.CacheRead ?? 0m,
@@ -140,7 +154,35 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
         return slash > 0 ? modelId[..slash] : "opencode";
     }
 
-    private record KnownPricing(decimal Input, decimal Output, decimal CacheRead = 0m, decimal CacheWrite = 0m, int? ContextWindow = null);
+    private record KnownPricing(decimal Input, decimal Output, decimal CacheRead = 0m, decimal CacheWrite = 0m, int? ContextWindow = null, int? MaxOutput = null);
+
+    /// <summary>
+    /// Resolves the context and output token limits for a formatted model string (e.g.
+    /// <c>anthropic/claude-opus-5</c>), checking the static catalog first and falling back to
+    /// <see cref="LookupPricing"/>. Returns null when neither source has both values.
+    /// </summary>
+    internal static (int Context, int Output)? TryGetLimits(string formattedModel)
+    {
+        if (string.IsNullOrWhiteSpace(formattedModel))
+            return null;
+
+        var slash = formattedModel.IndexOf('/');
+        var bareModel = slash > 0 ? formattedModel[(slash + 1)..] : formattedModel;
+
+        var staticMatch = new OpenCodeModelCatalog().GetStaticModels().FirstOrDefault(m =>
+            m.ContextWindow is not null && m.MaxOutputTokens is not null &&
+            (string.Equals(m.Id, formattedModel, StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(m.Id, bareModel, StringComparison.OrdinalIgnoreCase)));
+
+        if (staticMatch is not null)
+            return (staticMatch.ContextWindow!.Value, staticMatch.MaxOutputTokens!.Value);
+
+        var pricing = LookupPricing(formattedModel);
+        if (pricing is { ContextWindow: not null, MaxOutput: not null })
+            return (pricing.ContextWindow.Value, pricing.MaxOutput.Value);
+
+        return null;
+    }
 
     private static KnownPricing? LookupPricing(string modelId)
     {
@@ -171,51 +213,51 @@ public sealed class OpenCodeModelCatalog : CachedModelCatalogProvider
     private static readonly (string Pattern, KnownPricing Pricing)[] KnownPricingTable =
     [
         // Anthropic
-        ("claude-fable-5",    new(10.00m, 50.00m, 1.00m, 12.50m, 1_000_000)),
-        ("claude-opus-5-1",   new(5.00m, 25.00m, 0.50m, 6.25m, 1_000_000)),
-        ("claude-opus-5.1",   new(5.00m, 25.00m, 0.50m, 6.25m, 1_000_000)),
-        ("claude-opus-5",     new(5.00m, 25.00m, 0.50m, 6.25m, 1_000_000)),
-        ("claude-sonnet-5-1", new(3.00m, 15.00m, 0.30m, 3.75m, 1_000_000)),
-        ("claude-sonnet-5.1", new(3.00m, 15.00m, 0.30m, 3.75m, 1_000_000)),
-        ("claude-5.1",        new(3.00m, 15.00m, 0.30m, 3.75m, 1_000_000)),
-        ("claude-sonnet-5",   new(3.00m, 15.00m, 0.30m, 3.75m, 1_000_000)),
-        ("claude-haiku-5-1",  new(1.00m, 5.00m, 0.10m, 1.25m, 200_000)),
-        ("claude-opus-4-7",   new(10.00m, 50.00m, 1.00m, 12.50m, 200_000)),
-        ("claude-opus-4-6",   new(5.00m, 25.00m, 0.50m, 6.25m, 200_000)),
-        ("claude-opus-4-5",   new(5.00m, 25.00m, 0.50m, 6.25m, 200_000)),
-        ("claude-opus-4-1",   new(15.00m, 75.00m, 1.50m, 18.75m, 200_000)),
-        ("claude-opus-4",     new(15.00m, 75.00m, 1.50m, 18.75m, 200_000)),
-        ("claude-sonnet-4-6", new(3.00m, 15.00m, 0.30m, 3.75m, 200_000)),
-        ("claude-sonnet-4-5", new(3.00m, 15.00m, 0.30m, 3.75m, 200_000)),
-        ("claude-sonnet-4",   new(3.00m, 15.00m, 0.30m, 3.75m, 200_000)),
-        ("claude-3.7-sonnet", new(3.00m, 15.00m, 0.30m, 3.75m, 200_000)),
-        ("claude-3.5-sonnet", new(3.00m, 15.00m, 0.30m, 3.75m, 200_000)),
-        ("claude-3.5-haiku",  new(0.80m, 4.00m, 0.08m, 1.00m, 200_000)),
-        ("claude-3-haiku",    new(0.25m, 1.25m, 0.03m, 0.30m, 200_000)),
-        ("claude-3-opus",     new(15.00m, 75.00m, 1.50m, 18.75m, 200_000)),
+        ("claude-fable-5",    new(10.00m, 50.00m, 1.00m, 12.50m, 1_000_000, 128_000)),
+        ("claude-opus-5-1",   new(5.00m, 25.00m, 0.50m, 6.25m, 1_000_000, 128_000)),
+        ("claude-opus-5.1",   new(5.00m, 25.00m, 0.50m, 6.25m, 1_000_000, 128_000)),
+        ("claude-opus-5",     new(5.00m, 25.00m, 0.50m, 6.25m, 1_000_000, 128_000)),
+        ("claude-sonnet-5-1", new(3.00m, 15.00m, 0.30m, 3.75m, 1_000_000, 128_000)),
+        ("claude-sonnet-5.1", new(3.00m, 15.00m, 0.30m, 3.75m, 1_000_000, 128_000)),
+        ("claude-5.1",        new(3.00m, 15.00m, 0.30m, 3.75m, 1_000_000, 128_000)),
+        ("claude-sonnet-5",   new(3.00m, 15.00m, 0.30m, 3.75m, 1_000_000, 128_000)),
+        ("claude-haiku-5-1",  new(1.00m, 5.00m, 0.10m, 1.25m, 200_000, 64_000)),
+        ("claude-opus-4-7",   new(10.00m, 50.00m, 1.00m, 12.50m, 200_000, 128_000)),
+        ("claude-opus-4-6",   new(5.00m, 25.00m, 0.50m, 6.25m, 200_000, 128_000)),
+        ("claude-opus-4-5",   new(5.00m, 25.00m, 0.50m, 6.25m, 200_000, 128_000)),
+        ("claude-opus-4-1",   new(15.00m, 75.00m, 1.50m, 18.75m, 200_000, 128_000)),
+        ("claude-opus-4",     new(15.00m, 75.00m, 1.50m, 18.75m, 200_000, 128_000)),
+        ("claude-sonnet-4-6", new(3.00m, 15.00m, 0.30m, 3.75m, 200_000, 128_000)),
+        ("claude-sonnet-4-5", new(3.00m, 15.00m, 0.30m, 3.75m, 200_000, 128_000)),
+        ("claude-sonnet-4",   new(3.00m, 15.00m, 0.30m, 3.75m, 200_000, 128_000)),
+        ("claude-3.7-sonnet", new(3.00m, 15.00m, 0.30m, 3.75m, 200_000, 64_000)),
+        ("claude-3.5-sonnet", new(3.00m, 15.00m, 0.30m, 3.75m, 200_000, 64_000)),
+        ("claude-3.5-haiku",  new(0.80m, 4.00m, 0.08m, 1.00m, 200_000, 64_000)),
+        ("claude-3-haiku",    new(0.25m, 1.25m, 0.03m, 0.30m, 200_000, 64_000)),
+        ("claude-3-opus",     new(15.00m, 75.00m, 1.50m, 18.75m, 200_000, 64_000)),
         // OpenAI
-        ("gpt-5.5",       new(10.00m, 40.00m, 2.50m, 12.50m, 400_000)),
-        ("gpt-5.4",       new(10.00m, 40.00m, 2.50m, 12.50m, 400_000)),
-        ("gpt-5.4-mini",  new(1.10m, 4.40m, 0.275m, 1.375m, 400_000)),
-        ("gpt-4.5",       new(75.00m, 150.00m, 37.50m, 93.75m, 128_000)),
-        ("gpt-4.1-mini",  new(0.40m, 1.60m, 0.10m, 0.50m, 1_047_576)),
-        ("gpt-4.1-nano",  new(0.10m, 0.40m, 0.025m, 0.125m, 1_047_576)),
-        ("gpt-4.1",       new(2.00m, 8.00m, 0.50m, 2.50m, 1_047_576)),
-        ("gpt-4o-mini",   new(0.15m, 0.60m, 0.075m, 0.1875m, 128_000)),
-        ("gpt-4o",        new(2.50m, 10.00m, 1.25m, 3.125m, 128_000)),
-        ("o4-mini",       new(1.10m, 4.40m, 0.275m, 1.375m, 200_000)),
-        ("o3-mini",       new(1.10m, 4.40m, 0.275m, 1.375m, 200_000)),
-        ("o3",            new(10.00m, 40.00m, 2.50m, 12.50m, 200_000)),
-        ("o1-mini",       new(1.10m, 4.40m, 0.275m, 1.375m, 128_000)),
-        ("o1-pro",        new(150.00m, 600.00m, 0m, 0m, 128_000)),
-        ("o1",            new(15.00m, 60.00m, 7.50m, 18.75m, 200_000)),
+        ("gpt-5.5",       new(10.00m, 40.00m, 2.50m, 12.50m, 400_000, 32_000)),
+        ("gpt-5.4",       new(10.00m, 40.00m, 2.50m, 12.50m, 400_000, 32_000)),
+        ("gpt-5.4-mini",  new(1.10m, 4.40m, 0.275m, 1.375m, 400_000, 16_000)),
+        ("gpt-4.5",       new(75.00m, 150.00m, 37.50m, 93.75m, 128_000, 16_000)),
+        ("gpt-4.1-mini",  new(0.40m, 1.60m, 0.10m, 0.50m, 1_047_576, 16_000)),
+        ("gpt-4.1-nano",  new(0.10m, 0.40m, 0.025m, 0.125m, 1_047_576, 16_000)),
+        ("gpt-4.1",       new(2.00m, 8.00m, 0.50m, 2.50m, 1_047_576, 32_000)),
+        ("gpt-4o-mini",   new(0.15m, 0.60m, 0.075m, 0.1875m, 128_000, 16_000)),
+        ("gpt-4o",        new(2.50m, 10.00m, 1.25m, 3.125m, 128_000, 16_000)),
+        ("o4-mini",       new(1.10m, 4.40m, 0.275m, 1.375m, 200_000, 100_000)),
+        ("o3-mini",       new(1.10m, 4.40m, 0.275m, 1.375m, 200_000, 100_000)),
+        ("o3",            new(10.00m, 40.00m, 2.50m, 12.50m, 200_000, 100_000)),
+        ("o1-mini",       new(1.10m, 4.40m, 0.275m, 1.375m, 128_000, 100_000)),
+        ("o1-pro",        new(150.00m, 600.00m, 0m, 0m, 128_000, 100_000)),
+        ("o1",            new(15.00m, 60.00m, 7.50m, 18.75m, 200_000, 100_000)),
         // Google
-        ("gemini-3.8-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576)),
-        ("gemini-3.7-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576)),
-        ("gemini-3.6-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576)),
-        ("gemini-3.1-pro",   new(1.25m, 10.00m, 0.3125m, 1.5625m, 1_048_576)),
-        ("gemini-2.5-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576)),
-        ("gemini-2.5",       new(1.25m, 10.00m, 0.3125m, 1.5625m, 1_048_576)),
-        ("gemini-2.0-flash", new(0.10m, 0.40m, 0.025m, 0.125m, 1_048_576)),
+        ("gemini-3.8-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576, 65_536)),
+        ("gemini-3.7-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576, 65_536)),
+        ("gemini-3.6-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576, 65_536)),
+        ("gemini-3.1-pro",   new(1.25m, 10.00m, 0.3125m, 1.5625m, 1_048_576, 65_536)),
+        ("gemini-2.5-flash", new(0.15m, 3.50m, 0.0375m, 0.15m, 1_048_576, 65_536)),
+        ("gemini-2.5",       new(1.25m, 10.00m, 0.3125m, 1.5625m, 1_048_576, 65_536)),
+        ("gemini-2.0-flash", new(0.10m, 0.40m, 0.025m, 0.125m, 1_048_576, 65_536)),
     ];
 }

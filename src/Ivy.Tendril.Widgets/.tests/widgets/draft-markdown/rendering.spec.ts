@@ -9,7 +9,7 @@ test.describe("DraftMarkdown Rendering Comparison", () => {
 
   test("both panes render with labels", async ({ page, stepScreenshot }) => {
     await expect(page.getByText("Markdown (Framework)")).toBeVisible();
-    await expect(page.getByText("DraftMarkdown (Widget)")).toBeVisible();
+    await expect(page.getByText("PlanMarkdown (Widget)")).toBeVisible();
     await stepScreenshot("both-panes-labeled");
   });
 

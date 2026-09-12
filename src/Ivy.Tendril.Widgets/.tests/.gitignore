@@ -2,3 +2,4 @@ node_modules/
 artifacts/
 test-results/
 playwright-report/
+package-lock.json

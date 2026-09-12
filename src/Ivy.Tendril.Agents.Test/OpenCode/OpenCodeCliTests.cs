@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Providers.OpenCode;
 
@@ -315,5 +316,61 @@ public class OpenCodeCliTests
     {
         var env = _cli.GetDefaultEnvironment();
         Assert.Equal("dumb", env["TERM"]);
+    }
+
+    [Fact]
+    public void BuildProcessSpec_WithKnownModel_SetsOutputLimitInConfigContent()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            Model = "anthropic/claude-opus-5",
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        Assert.True(spec.Environment.TryGetValue("OPENCODE_CONFIG_CONTENT", out var configContent));
+        using var doc = JsonDocument.Parse(configContent);
+        var limit = doc.RootElement
+            .GetProperty("provider").GetProperty("anthropic")
+            .GetProperty("models").GetProperty("claude-opus-5")
+            .GetProperty("limit");
+        Assert.Equal(128000, limit.GetProperty("output").GetInt32());
+        Assert.True(limit.TryGetProperty("context", out _));
+    }
+
+    [Fact]
+    public void BuildProcessSpec_WithUnknownModel_OmitsConfigContent()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            Model = "totally-unknown-model-xyz",
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        Assert.False(spec.Environment.ContainsKey("OPENCODE_CONFIG_CONTENT"));
+    }
+
+    [Fact]
+    public void BuildProcessSpec_WhenCallerSuppliesConfigContent_DoesNotOverwriteIt()
+    {
+        var config = new AgentLaunchConfig
+        {
+            Prompt = "test",
+            WorkingDirectory = "/tmp",
+            Model = "anthropic/claude-opus-5",
+            EnvironmentVariables = new Dictionary<string, string>
+            {
+                ["OPENCODE_CONFIG_CONTENT"] = "{\"custom\":true}",
+            },
+        };
+
+        var spec = _cli.BuildProcessSpec(config);
+
+        Assert.Equal("{\"custom\":true}", spec.Environment["OPENCODE_CONFIG_CONTENT"]);
     }
 }

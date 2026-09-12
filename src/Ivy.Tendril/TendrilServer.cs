@@ -22,7 +22,10 @@ public static class TendrilServer
     {
         PathHelper.AugmentPath(forceShellPath: true);
         var server = new Server();
-        // LocalFileGuardMiddleware enforces Host, Origin, Sec-Fetch-Site, and file type restrictions
+        // LocalFileGuardMiddleware enforces Host, Origin, Sec-Fetch-Site, file type and path root
+        // restrictions (see LocalFileRootPolicy). The framework's DangerouslyAllowLocalFiles(roots)
+        // overload would let the framework enforce roots too, but the referenced Ivy package
+        // (1.4.0) does not have it yet; revisit once Ivy is bumped to a version that does.
         server.DangerouslyAllowLocalFiles();
         server.UseCulture("en-US");
 #if DEBUG
