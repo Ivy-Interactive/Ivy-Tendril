@@ -14,7 +14,7 @@ public partial class JobsApp
     {
         return jobs.Select(j =>
         {
-            var planId = JobsApp.ExtractPlanId(j.PlanFile);
+            var planId = ExtractPlanId(j.PlanFile);
             if (string.IsNullOrEmpty(planId) && !string.IsNullOrEmpty(j.ReportedPlanId))
                 planId = j.ReportedPlanId;
 
@@ -23,17 +23,17 @@ public partial class JobsApp
                 Id = j.Id,
                 Status = j.Status.ToString(),
                 PlanId = planId,
-                Prompt = JobsApp.GetPromptDisplay(j, planService),
+                Prompt = GetPromptDisplay(j, planService),
                 Type = j.Type,
                 Project = string.Join(", ", ProjectHelper.ParseProjects(j.Project)),
-                Timer = JobsApp.FormatTimer(j),
-                Timestamp = JobsApp.FormatTimestamp(j),
+                Timer = FormatTimer(j),
+                Timestamp = FormatTimestamp(j),
                 Cost = FormatJobCost(j),
                 Tokens = j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : "",
-                AgentOutput = JobsApp.FormatAgentOutput(j),
-                StatusMessage = JobsApp.GetStatusMessage(j),
+                AgentOutput = FormatAgentOutput(j),
+                StatusMessage = GetStatusMessage(j),
                 ErrorContext = j.Status is JobStatus.Failed or JobStatus.Timeout
-                    ? JobsApp.GetErrorContext(j)
+                    ? GetErrorContext(j)
                     : null
             };
         })
@@ -77,7 +77,7 @@ public partial class JobsApp
         var statusSegments = statusGroups
             .Select(g => new ProgressSegment(
                 g.Count,
-                JobsApp.GetStatusColor(g.Status),
+                GetStatusColor(g.Status),
                 g.Status.ToString()
             ))
             .ToArray();
@@ -106,12 +106,12 @@ public partial class JobsApp
                          && DateTime.UtcNow - j.CompletedAt.Value < TimeSpan.FromMinutes(1)))
             .SelectMany(j => new[]
             {
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Timer), JobsApp.FormatTimer(j)),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.Timer), FormatTimer(j)),
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.Cost), FormatJobCost(j)),
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.Tokens), j.Tokens.HasValue ? FormatHelper.FormatTokens(j.Tokens.Value) : ""),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.AgentOutput), JobsApp.FormatAgentOutput(j)),
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.AgentOutput), FormatAgentOutput(j)),
                 new DataTableCellUpdate(j.Id, nameof(JobItemRow.Status), j.Status.ToString()),
-                new DataTableCellUpdate(j.Id, nameof(JobItemRow.StatusMessage), JobsApp.GetStatusMessage(j))
+                new DataTableCellUpdate(j.Id, nameof(JobItemRow.StatusMessage), GetStatusMessage(j))
             });
 
         foreach (var update in candidates)
