@@ -51,12 +51,19 @@ public static class PlanEditAnnouncer
     {
         if (chatExecution == null || string.IsNullOrWhiteSpace(summary)) return;
 
-        await chatExecution.NotifyPlanEditAsync(
-            plan.FolderName,
-            summary,
-            reason: null,
-            sourceChatSessionId: null,
-            revisionFile,
-            PlanEditOrigin.UserInterface);
+        try
+        {
+            await chatExecution.NotifyPlanEditAsync(
+                plan.FolderName,
+                summary,
+                reason: null,
+                sourceChatSessionId: null,
+                revisionFile,
+                PlanEditOrigin.UserInterface);
+        }
+        catch
+        {
+            // Swallow - the edit is already on disk
+        }
     }
 }

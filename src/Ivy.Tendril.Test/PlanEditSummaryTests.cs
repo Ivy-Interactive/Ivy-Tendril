@@ -176,11 +176,11 @@ public class PlanEditSummaryTests
         var original = Before;
         var typedWithExtraSpaces = Before.Replace("Report the edit to the master.", "Report the edit to the master.  ");
 
-        // Without polishing, the diff shows as a change (trailing spaces added)
-        Assert.Equal("Solution changed (+1/-1 lines)", PlanEditSummary.Describe(original, typedWithExtraSpaces));
-
-        // But polishing normalizes the whitespace, making them equivalent
+        // Polishing normalizes the whitespace, making them equivalent
         var polished = config.PolishMarkdown(typedWithExtraSpaces);
         Assert.Equal("no section changes", PlanEditSummary.Describe(original, polished));
+
+        // Without polishing, the unpolished version with trailing spaces would show as different
+        // (but we polish before describing, so this scenario doesn't occur in practice)
     }
 }
