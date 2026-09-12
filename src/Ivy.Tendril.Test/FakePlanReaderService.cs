@@ -27,7 +27,10 @@ internal class FakePlanReaderService : IPlanReaderService
 
     public PlanFile? GetPlanByFolder(string folderPath)
     {
-        return PlanToReturn;
+        return PlanToReturn ?? Plans.FirstOrDefault(p =>
+            p.FolderName.Equals(folderPath, StringComparison.OrdinalIgnoreCase) ||
+            p.FolderPath.Equals(folderPath, StringComparison.OrdinalIgnoreCase) ||
+            Path.GetFileName(p.FolderPath).Equals(folderPath, StringComparison.OrdinalIgnoreCase));
     }
 
     public List<PlanFile> GetIceboxPlans()

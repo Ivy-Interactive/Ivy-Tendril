@@ -62,7 +62,11 @@ public class ContentView(
             if (plan != null) return plan;
         }
 
-        return planService.GetPlanByFolder(planId);
+        var byFolder = planService.GetPlanByFolder(planId);
+        if (byFolder != null) return byFolder;
+
+        return planService.GetPlans().FirstOrDefault(p =>
+            p.FolderName.StartsWith(planId + "-", StringComparison.OrdinalIgnoreCase));
     }
 
     public override object Build()

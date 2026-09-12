@@ -170,12 +170,36 @@ public class ChatApp : ViewBase
             return preferences?.Get(selectedAgent.Value).Effort ?? configService.Settings.LastChatEffort ?? "default";
         });
         var initialHandled = UseRef(false);
+        var lastSidebarFingerprint = UseRef<string?>(null);
         var streamVersion = UseState(0);
         var (searchDialog, showSearchDialog) = UseTrigger(isOpen =>
         {
             if (!isOpen.Value) return null;
             return new ChatSearchDialog(isOpen, chatService, SelectSession);
         });
+
+        var samplePrompts = UseMemo(() =>
+        {
+            var curSess = activeSessionId.Value != null ? chatService.GetSession(activeSessionId.Value) : null;
+            if (curSess != null && curSess.Messages.Count > 0)
+            {
+                return new List<ChatSamplePromptDto>();
+            }
+
+            var runningChatJobs = jobService?.GetJobs()
+                .Where(j => j.Status is JobStatus.Running or JobStatus.Pending or JobStatus.Queued)
+                .ToList() ?? new List<JobItem>();
+
+            var candidatePlans = new List<PlanFile>();
+            if (planService != null)
+            {
+                candidatePlans.AddRange(planService.GetPlans(PlanStatus.Review));
+                candidatePlans.AddRange(planService.GetPlans(PlanStatus.Failed));
+                candidatePlans.AddRange(planService.GetPlans(PlanStatus.Blocked));
+            }
+
+            return SamplePrompts.ForChat(candidatePlans, runningChatJobs);
+        }, sessionVersion, activeSessionId);
 
         UseEffect(() =>
         {
@@ -361,26 +385,24 @@ public class ChatApp : ViewBase
             SendMessage(new ChatSendMessageDto(args.Prompt, null, targetId));
         }
 
-        _ = sidebarListSignal.Send(BuildSidebarList(
-            allSessions,
-            currentSessionId,
-            chatService.GetGeneratingSessionIds(),
-            chatService.GetCompletedSessionIds(),
-            showSearchDialog,
-            StartNewChat,
-            (id, title) =>
-            {
-                chatService.RenameSession(id, title);
-                sessionVersion.Set(v => v + 1);
-            },
-            id => deletingSessionId.Set(id)));
-
-        var runningChatJobs = jobService?.GetJobs()
-            .Where(j => j.Status is JobStatus.Running or JobStatus.Pending or JobStatus.Queued)
-            .ToList() ?? new List<JobItem>();
-        var samplePrompts = SamplePrompts.ForChat(
-            planService?.GetPlans() ?? new List<PlanFile>(),
-            runningChatJobs);
+        var sidebarFingerprint = $"{currentSessionId}|{allSessions.Count}|{string.Join(",", chatService.GetGeneratingSessionIds())}|{string.Join(",", chatService.GetCompletedSessionIds())}|{sessionVersion.Value}";
+        if (sidebarFingerprint != lastSidebarFingerprint.Value)
+        {
+            lastSidebarFingerprint.Value = sidebarFingerprint;
+            _ = sidebarListSignal.Send(BuildSidebarList(
+                allSessions,
+                currentSessionId,
+                chatService.GetGeneratingSessionIds(),
+                chatService.GetCompletedSessionIds(),
+                showSearchDialog,
+                StartNewChat,
+                (id, title) =>
+                {
+                    chatService.RenameSession(id, title);
+                    sessionVersion.Set(v => v + 1);
+                },
+                id => deletingSessionId.Set(id)));
+        }
 
         var content = new ContentView(
             activeSession,
@@ -434,7 +456,7 @@ public class ChatApp : ViewBase
         }
 
         List<ChatJobDto>? spawnedJobs = null;
-        if (jobService != null)
+        if (isActive && jobService != null)
         {
             var combinedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -443,7 +465,10 @@ public class ChatApp : ViewBase
             {
                 if (combinedIds.Add(mj.Id))
                 {
-                    chatService.AddSpawnedJob(s.Id, mj.Id);
+                    if (s.SpawnedJobIds?.Contains(mj.Id, StringComparer.OrdinalIgnoreCase) != true)
+                    {
+                        chatService.AddSpawnedJob(s.Id, mj.Id);
+                    }
                 }
             }
 
