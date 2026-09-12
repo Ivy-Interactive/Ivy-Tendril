@@ -1768,8 +1768,10 @@ button.chat-system-event-plan {
   border-bottom: none;
 }
 
+/* Keep the top padding: the pin scroll clamps at 0, so a pinned first message gets no clearance
+   without it. The value is PIN_TOP_PADDING in useThreadScroll.ts. */
 .chat-widget-root[data-embedded="true"] .chat-thread {
-  padding: 0 var(--tch-embedded-inset);
+  padding: 10px var(--tch-embedded-inset) 0;
 }
 
 .chat-widget-root[data-embedded="true"] .chat-empty-state {
