@@ -179,18 +179,35 @@ test.describe("DraftMarkdown Questions", () => {
   });
 
   test("a seeded annotation never highlights inside a question block", async ({ page }) => {
-    // The sample seeds three: one on prose, one spanning a block, one after it. The spanning one
-    // becomes several marks, since a mark is created per text node it covers.
-    const highlights = page.locator(".pmv-annotation-highlight");
-    await expect(highlights).toHaveCount(5);
+    // Asserted per annotation, never as a total: a mark is created per text node an annotation
+    // covers, and how many nodes that is is a property of sample prose this test does not own.
+    const marksFor = (id: string) =>
+      page.locator(`.pmv-annotation-highlight[data-annotation-id="${id}"]`);
 
-    // Whatever they cover, no block takes a highlight.
+    // Each is anchored to the prose it was placed on. The second sits after a block, and proves a
+    // block cannot move what follows it however it renders - otherwise it would have drifted off
+    // "separate consumer".
+    await expect(marksFor("prose")).toHaveText(["Where the budget lives"]);
+    await expect(marksFor("after")).toHaveText(["separate consumer"]);
+
+    // Whatever they cover, no block takes a highlight: the picker is a form, and a mark spliced
+    // into it would fight React for the DOM.
     await expect(page.locator(".pmv-questions .pmv-annotation-highlight")).toHaveCount(0);
 
-    // The last one is after a block, and proves a block's rendering cannot move what follows it —
-    // otherwise this would have drifted off "separate consumer".
-    await expect(highlights.first()).toHaveText("Where the budget lives");
-    await expect(highlights.last()).toHaveText("separate consumer");
+    // All three arrive, and nothing else does. Read without polling: one effect applies every
+    // annotation in a single pass, so the assertions above have already waited for all of them.
+    const ids = await page
+      .locator(".pmv-annotation-highlight")
+      .evaluateAll((marks) => [...new Set(marks.map((m) => (m as HTMLElement).dataset.annotationId))]);
+    expect(ids).toEqual(["prose", "across", "after"]);
+
+    // The spanning one is split around the block it crosses: prose before, prose after, nothing in
+    // between. Whitespace-only marks are dropped - the newline nodes between block elements are
+    // covered too, and how many of them there are is not the subject.
+    const across = (await marksFor("across").allTextContents()).map((t) => t.trim()).filter(Boolean);
+    expect(across.length).toBeGreaterThan(1);
+    expect(across[0]).toBe("snippets inside can use three.");
+    expect(across[across.length - 1]).toBe("Delivery is fanned out");
   });
 
   test("the review sample presents answers instead of controls", async ({ page, stepScreenshot }) => {
