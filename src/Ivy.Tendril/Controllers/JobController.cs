@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
@@ -12,8 +13,15 @@ public class JobController(IJobService jobService, IConfigService configService)
 {
     private static string NormalizeJobId(string jobId) => Helpers.JobId.Normalize(jobId);
 
+    [NonAction]
+    public Task GetJobEvents(string jobId, CancellationToken cancellationToken) =>
+        GetJobEvents(jobId, null, cancellationToken);
+
     [HttpGet("{jobId}/events")]
-    public async Task GetJobEvents(string jobId, CancellationToken cancellationToken)
+    public async Task GetJobEvents(
+        string jobId,
+        [FromQuery] string[]? kind,
+        CancellationToken cancellationToken)
     {
         var id = NormalizeJobId(jobId);
         var job = jobService.GetJob(id);
@@ -23,6 +31,8 @@ public class JobController(IJobService jobService, IConfigService configService)
             await Response.WriteAsJsonAsync(new { error = "Job not found" }, cancellationToken);
             return;
         }
+
+        var allowedKinds = ParseAllowedKinds(kind);
 
         Response.ContentType = "text/event-stream";
         Response.Headers["Cache-Control"] = "no-cache";
@@ -34,6 +44,7 @@ public class JobController(IJobService jobService, IConfigService configService)
             foreach (var line in job.OutputLines)
             {
                 if (cancellationToken.IsCancellationRequested) return;
+                if (!MatchesKind(line, allowedKinds)) continue;
                 await WriteSseLineAsync(Response, line, cancellationToken);
             }
 
@@ -56,7 +67,13 @@ public class JobController(IJobService jobService, IConfigService configService)
             jobService.JobFinished += OnJobFinished;
 
             using var subscription = job.OutputObservable.Subscribe(
-                onNext: line => channel.Writer.TryWrite(line),
+                onNext: line =>
+                {
+                    if (MatchesKind(line, allowedKinds))
+                    {
+                        channel.Writer.TryWrite(line);
+                    }
+                },
                 onError: ex => channel.Writer.TryComplete(ex),
                 onCompleted: () => channel.Writer.TryComplete());
 
@@ -105,6 +122,50 @@ public class JobController(IJobService jobService, IConfigService configService)
     {
         await response.WriteAsync($"event: end\ndata: {{\"status\":\"{status}\"}}\n\n", cancellationToken);
         await response.Body.FlushAsync(cancellationToken);
+    }
+
+    private static HashSet<string> ParseAllowedKinds(string[]? kinds)
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (kinds == null || kinds.Length == 0) return set;
+
+        foreach (var item in kinds)
+        {
+            if (string.IsNullOrWhiteSpace(item)) continue;
+            var parts = item.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (var part in parts)
+            {
+                set.Add(part.ToLowerInvariant());
+            }
+        }
+
+        if (set.Contains("tool_use"))
+        {
+            set.Add("tool_call");
+            set.Add("tool_result");
+        }
+
+        return set;
+    }
+
+    private static bool MatchesKind(string line, HashSet<string> allowedKinds)
+    {
+        if (allowedKinds.Count == 0) return true;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(line);
+            if (doc.RootElement.TryGetProperty("kind", out var kindProp))
+            {
+                var kindStr = kindProp.GetString();
+                return kindStr != null && allowedKinds.Contains(kindStr);
+            }
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     [HttpPost]
