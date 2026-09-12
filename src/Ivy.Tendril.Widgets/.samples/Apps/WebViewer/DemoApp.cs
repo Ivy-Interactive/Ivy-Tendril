@@ -13,13 +13,13 @@ namespace WidgetSamples.Apps.WebViewer;
 [App(title: "Inspector", icon: Icons.Globe, group: ["WebViewer"])]
 public class DemoApp : ViewBase
 {
+    private const string Home = "https://ivy.app";
+
     public override object Build()
     {
-        const string home = "https://ivy.app";
-
         var commands = UseStream<WebViewerCommand>();
-        var address = UseState(home);   // editable address-bar text
-        var currentUrl = UseState(home); // value bound to the widget's Url prop
+        var address = UseState(Home);   // editable address-bar text
+        var currentUrl = UseState(Home); // value bound to the widget's Url prop
         var device = UseState(WebViewerDevice.Desktop);
         var events = UseState(ImmutableList<WebViewerEvent>.Empty);
         // Comments are the one event stream that is not append-only: a pin can be edited or
