@@ -19,6 +19,7 @@
         <PackageReference Include="Ivy" Version="$(IvyPackageVersion)" Condition="'$(IvyPackageVersion)' != ''" />
         <PackageReference Include="Ivy" Version="1.4.0" Condition="'$(IvyPackageVersion)' == ''" />
         <PackageReference Include="Ivy.Docs.Helpers" Version="$(IvyPackageVersion)" Condition="'$(IvyPackageVersion)' != ''" />
+        <PackageReference Include="Ivy.Docs.Helpers" Version="1.4.0" Condition="'$(IvyPackageVersion)' == ''" />
     </ItemGroup>
 
     <ItemGroup>
