@@ -45,6 +45,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
 
   context.subscriptions.push(
+    vscode.commands.registerCommand(COMMANDS.openInBrowser, async () => {
+      try {
+        const result = await serverManager!.ensureServerRunning();
+        await vscode.env.openExternal(vscode.Uri.parse(result.baseUrl));
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Failed to open Tendril in browser: ${msg}`);
+      }
+    })
+  );
+
+  context.subscriptions.push(
     vscode.commands.registerCommand(COMMANDS.openWorktree, async (targetPath?: string) => {
       let resolvedPath = targetPath;
       if (!resolvedPath) {
