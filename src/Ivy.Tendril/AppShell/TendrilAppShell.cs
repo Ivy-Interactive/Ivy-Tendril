@@ -281,6 +281,14 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
         return result;
     }
 
+    /// <summary>
+    ///     The Chat row's count pill: the number of chat sessions, or null when there are none. The
+    ///     rail's chats flyout is only published while the chat page or a terminal pane is showing, so
+    ///     the count cannot be derived from it (issue #2556). The client caps the digits.
+    /// </summary>
+    internal static string? ChatRowBadge(int sessionCount) =>
+        sessionCount > 0 ? sessionCount.ToString() : null;
+
     public override object Build()
     {
         // All hooks must be at the top level of Build()
@@ -992,6 +1000,7 @@ public class TendrilAppShell(AppShellSettings settings) : ViewBase
             .IsActive(chatIsActive)
             .Label("Chat")
             .Icon(Icons.MessageCircle.ToString())
+            .Badge(ChatRowBadge(chatService.GetSessions().Count))
             .OnOpen(OpenChat)
             .OnNewChat(StartNewChat);
         if (list is { CollapsedMenu: true })
