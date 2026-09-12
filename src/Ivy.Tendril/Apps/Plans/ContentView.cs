@@ -664,7 +664,11 @@ public class ContentView(
 
     private static string? MatchSection(string content, string sectionName)
     {
-        var match = Regex.Match(content, $@"## {Regex.Escape(sectionName)}\s*\n([\s\S]*?)(?=\n## |\z)");
+        // The optional parenthesised suffix lets this match JobLogWriter's flagged headings
+        // ("## Final Output (truncated)" / "(incomplete)") without the other two call sites
+        // (Output / Issues Found in verification reports) starting to match a different heading
+        // that merely shares a prefix.
+        var match = Regex.Match(content, $@"## {Regex.Escape(sectionName)}(?: \([^)\n]*\))?[ \t]*\n([\s\S]*?)(?=\n## |\z)");
         return match.Success ? match.Groups[1].Value.Trim() : null;
     }
 
