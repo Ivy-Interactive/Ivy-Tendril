@@ -605,6 +605,30 @@ public class LocalFileGuardMiddlewareTests
         Assert.True(tracker.Called);
     }
 
+    [Fact]
+    public async Task PngViaSymlinkedDirectoryOutsideRoots_Returns404()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var home = CreateTempDir();
+        var outside = CreateTempDir();
+        var sharedLink = Path.Combine(home, "shared");
+        Directory.CreateSymbolicLink(sharedLink, outside);
+
+        var (middleware, context, tracker, _) = CreateMiddleware(tendrilHome: home);
+        context.Request.Path = "/ivy/local-file";
+        context.Request.Host = new HostString("localhost", 5000);
+        context.Request.QueryString = new QueryString($"?path={Path.Combine(sharedLink, "photo.png")}");
+
+        await middleware.InvokeAsync(context);
+
+        Assert.False(tracker.Called);
+        Assert.Equal(404, context.Response.StatusCode);
+    }
+
     private static string CreateTempDir()
     {
         var dir = Path.Combine(Path.GetTempPath(), "tendril-lfgm-test-" + Guid.NewGuid().ToString("N"));

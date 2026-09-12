@@ -9,7 +9,11 @@ public class LocalFileRootPolicyTests
     {
         var dir = Path.Combine(Path.GetTempPath(), "tendril-lfrp-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
-        return dir;
+
+        // The OS temp dir itself can sit behind a symlink (e.g. macOS's /var -> /private/var).
+        // Canonicalize so a raw root passed directly to TryResolve (bypassing ComputeRoots, which
+        // adds the resolved form separately) still matches the resolved request path.
+        return LocalFileRootPolicy.TryResolveRealPath(dir, out var real) ? real : dir;
     }
 
     [Fact]
@@ -147,5 +151,136 @@ public class LocalFileRootPolicyTests
         var allowed = LocalFileRootPolicy.TryResolve("/anything/at/all.png", new List<string>(), out _);
 
         Assert.False(allowed);
+    }
+
+    [Fact]
+    public void TryResolve_SymlinkedDirectoryInsideRootPointingOutside_Rejected()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var root = CreateTempDir();
+        var outside = CreateTempDir();
+        var outsideFile = Path.Combine(outside, "photo.png");
+        File.WriteAllText(outsideFile, "");
+        var sharedLink = Path.Combine(root, "shared");
+        Directory.CreateSymbolicLink(sharedLink, outside);
+
+        var allowed = LocalFileRootPolicy.TryResolve(Path.Combine(sharedLink, "photo.png"), new List<string> { root }, out _);
+
+        Assert.False(allowed);
+    }
+
+    [Fact]
+    public void TryResolve_SymlinkedDirectoryMidPathWithNestedFile_Rejected()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var root = CreateTempDir();
+        var outside = CreateTempDir();
+        var sharedLink = Path.Combine(root, "shared");
+        Directory.CreateSymbolicLink(sharedLink, outside);
+
+        var allowed = LocalFileRootPolicy.TryResolve(
+            Path.Combine(sharedLink, "nested", "photo.png"), new List<string> { root }, out _);
+
+        Assert.False(allowed);
+    }
+
+    [Fact]
+    public void TryResolve_SymlinkedDirectoryPointingBackInsideRoot_Allowed()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var root = CreateTempDir();
+        var real = Path.Combine(root, "real");
+        Directory.CreateDirectory(real);
+        File.WriteAllText(Path.Combine(real, "photo.png"), "");
+        var alias = Path.Combine(root, "alias");
+        Directory.CreateSymbolicLink(alias, real);
+
+        var allowed = LocalFileRootPolicy.TryResolve(Path.Combine(alias, "photo.png"), new List<string> { root }, out _);
+
+        Assert.True(allowed);
+    }
+
+    [Fact]
+    public void TryResolve_RootItselfBehindSymlink_Allowed()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var parent = CreateTempDir();
+        var real = Path.Combine(parent, "real");
+        Directory.CreateDirectory(real);
+        File.WriteAllText(Path.Combine(real, "photo.png"), "");
+        var link = Path.Combine(parent, "link");
+        Directory.CreateSymbolicLink(link, real);
+
+        var settings = new TendrilSettings
+        {
+            Security = new SecuritySettings { LocalFileRoots = new List<string> { link } }
+        };
+        var config = new ConfigService(settings, CreateTempDir());
+        var roots = LocalFileRootPolicy.ComputeRoots(config);
+
+        var allowed = LocalFileRootPolicy.TryResolve(Path.Combine(link, "photo.png"), roots, out _);
+
+        Assert.True(allowed);
+    }
+
+    [Fact]
+    public void TryResolve_SymlinkLoop_Rejected()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var root = CreateTempDir();
+        var a = Path.Combine(root, "a");
+        var b = Path.Combine(root, "b");
+        Directory.CreateSymbolicLink(a, b);
+        Directory.CreateSymbolicLink(b, a);
+
+        var allowed = LocalFileRootPolicy.TryResolve(Path.Combine(a, "x.png"), new List<string> { root }, out _);
+
+        Assert.False(allowed);
+    }
+
+    [Fact]
+    public void ComputeRoots_IncludesResolvedFormOfEachRoot()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var parent = CreateTempDir();
+        var real = Path.Combine(parent, "real");
+        Directory.CreateDirectory(real);
+        var link = Path.Combine(parent, "link");
+        Directory.CreateSymbolicLink(link, real);
+
+        var settings = new TendrilSettings
+        {
+            Security = new SecuritySettings { LocalFileRoots = new List<string> { link } }
+        };
+        var config = new ConfigService(settings, CreateTempDir());
+        var roots = LocalFileRootPolicy.ComputeRoots(config);
+
+        Assert.Contains(Path.GetFullPath(link), roots, StringComparer.OrdinalIgnoreCase);
+        Assert.True(LocalFileRootPolicy.TryResolveRealPath(link, out var resolvedLink));
+        Assert.Contains(resolvedLink, roots, StringComparer.OrdinalIgnoreCase);
     }
 }
