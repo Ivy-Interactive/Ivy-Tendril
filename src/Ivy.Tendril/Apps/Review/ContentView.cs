@@ -77,7 +77,7 @@ public class ContentView(
         var (discardDialog, showDiscardDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
-            return new DiscardPlanDialog(isOpen, selectedPlanState.Value!, planService, refreshPlans);
+            return new DiscardPlanDialog(isOpen, selectedPlanState.Value!, planService, refreshPlans, chatExecution);
         });
 
         var (suggestChangesDialog, showSuggestChangesDialog) = UseTrigger((isOpen) =>
@@ -389,6 +389,7 @@ public class ContentView(
             {
                 // Optimistic UI - update state and refresh immediately
                 planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                PlanEditAnnouncer.Announce(chatExecution, selectedPlan, "state set to Completed");
             }
             catch (PlanTransitionBlockedException ex)
             {

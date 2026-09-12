@@ -40,12 +40,16 @@ public interface IChatExecutionService : IDisposable
     ///     The revision file written, e.g. <c>004.md</c>. Deduplicates a retried report; a summary
     ///     fingerprint stands in when the edit wrote no revision.
     /// </param>
+    /// <param name="origin">
+    ///     Where the edit originated from. Defaults to <see cref="PlanEditOrigin.Chat"/>.
+    /// </param>
     Task NotifyPlanEditAsync(
         string planFolderName,
         string summary,
         string? reason = null,
         string? sourceChatSessionId = null,
-        string? revisionFile = null);
+        string? revisionFile = null,
+        PlanEditOrigin origin = PlanEditOrigin.Chat);
     Task ForceSendMessageAsync(
         string sessionId,
         string prompt,

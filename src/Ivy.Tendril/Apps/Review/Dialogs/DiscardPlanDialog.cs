@@ -9,12 +9,14 @@ public class DiscardPlanDialog(
     IState<bool> dialogOpen,
     PlanFile selectedPlan,
     IPlanReaderService planService,
-    Action refreshPlans) : ViewBase
+    Action refreshPlans,
+    IChatExecutionService? chatExecution = null) : ViewBase
 {
     private readonly IState<bool> _dialogOpen = dialogOpen;
     private readonly IPlanReaderService _planService = planService;
     private readonly Action _refreshPlans = refreshPlans;
     private readonly PlanFile _selectedPlan = selectedPlan;
+    private readonly IChatExecutionService? _chatExecution = chatExecution;
 
     public override object? Build()
     {
@@ -31,6 +33,7 @@ public class DiscardPlanDialog(
                 new Button("Discard").Destructive().ShortcutKey("Enter").AutoFocus().OnClick(() =>
                 {
                     _planService.TransitionState(_selectedPlan.FolderName, PlanStatus.Skipped);
+                    PlanEditAnnouncer.Announce(_chatExecution, _selectedPlan, "state set to Skipped");
                     _refreshPlans();
                     _dialogOpen.Set(false);
 

@@ -105,6 +105,11 @@ public static class DraftActions
                         ctx.PlanService.SaveRevision(plan.FolderName, ctx.EditContent.Value);
                         var updated = ctx.PlanService.GetPlanByFolder(plan.FolderPath);
                         if (updated != null) ctx.SelectedPlanState.Set(updated);
+
+                        var written = ctx.Config.PolishMarkdown(ctx.EditContent.Value);
+                        PlanEditAnnouncer.Announce(ctx.ChatExecution, plan,
+                            PlanEditSummary.Describe(ctx.OriginalContent.Value, written));
+
                         ctx.RefreshPlans();
                     }
                     ctx.IsEditing.Set(false);

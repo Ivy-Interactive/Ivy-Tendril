@@ -168,7 +168,7 @@ public class PlanChatTests
     private sealed class RecordingChatExecutionService : IChatExecutionService
     {
         public List<(string SessionId, string Prompt, string? AgentId, string? ModelId)> Sent { get; } = [];
-        public List<(string PlanFolderName, string Summary, string? Reason, string? SourceChatSessionId)> PlanEdits { get; } = [];
+        public List<(string PlanFolderName, string Summary, string? Reason, string? SourceChatSessionId, PlanEditOrigin Origin)> PlanEdits { get; } = [];
 #pragma warning disable CS0067
         public event Action<string>? SessionGeneratingChanged;
         public event Action<string>? StreamUpdated;
@@ -188,9 +188,9 @@ public class PlanChatTests
         public Task InterruptAsync(string sessionId) => Task.CompletedTask;
 
         public Task NotifyPlanEditAsync(string planFolderName, string summary, string? reason = null,
-            string? sourceChatSessionId = null, string? revisionFile = null)
+            string? sourceChatSessionId = null, string? revisionFile = null, PlanEditOrigin origin = PlanEditOrigin.Chat)
         {
-            PlanEdits.Add((planFolderName, summary, reason, sourceChatSessionId));
+            PlanEdits.Add((planFolderName, summary, reason, sourceChatSessionId, origin));
             return Task.CompletedTask;
         }
 
