@@ -181,21 +181,6 @@ public partial class JobsApp
                     showCost(id);
                 return ValueTask.CompletedTask;
             })
-            /*
-            .OnCellAction(t => t.StatusMessage, e =>
-            {
-                var id = e.Value.RowId?.ToString();
-                if (!string.IsNullOrEmpty(id))
-                {
-                    var job = jobs.FirstOrDefault(j => j.Id == id);
-                    if (job?.Status is JobStatus.Failed or JobStatus.Timeout)
-                    {
-                        showOutput.Set(id);
-                    }
-                }
-                return ValueTask.CompletedTask;
-            })
-            */
             .OnCellAction(t => t.Prompt, e =>
             {
                 var id = e.Value.RowId?.ToString();
