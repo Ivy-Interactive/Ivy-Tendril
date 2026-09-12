@@ -259,6 +259,9 @@ public class PlanDatabaseService : IPlanDatabaseService
     public List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7) =>
         _dashboardRepository.GetRecentPlanCosts(days);
 
+    public List<DashboardAgentCost> GetAgentCostBreakdown(int days) =>
+        _dashboardRepository.GetAgentCostBreakdown(days);
+
     public List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30)
     {
         using (new ReadLockHandle(_lock))
@@ -354,6 +357,39 @@ public class PlanDatabaseService : IPlanDatabaseService
             var costsResult = costsCmd.ExecuteScalar();
             if (costsResult is string costSource && !string.IsNullOrWhiteSpace(costSource))
                 return costSource;
+
+            return null;
+        }
+    }
+
+    public string? ResolveAgent(int planId, string promptware, string? folderPath = null, string? folderName = null)
+    {
+        using (new ReadLockHandle(_lock))
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT j.Provider
+                FROM Jobs j
+                WHERE j.Provider IS NOT NULL
+                  AND j.Type = @promptware
+                  AND (
+                      j.ReportedPlanId = @planIdText
+                      OR (@folderPath IS NOT NULL AND j.PlanFile = @folderPath)
+                      OR (@folderName IS NOT NULL AND j.PlanFile = @folderName)
+                      OR j.PlanFile LIKE '%' || @planIdPadded || '%'
+                  )
+                ORDER BY j.CompletedAt DESC
+                LIMIT 1;
+                """;
+            cmd.Parameters.AddWithValue("@promptware", promptware);
+            cmd.Parameters.AddWithValue("@planIdText", planId.ToString(CultureInfo.InvariantCulture));
+            cmd.Parameters.AddWithValue("@folderPath", (object?)folderPath ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@folderName", (object?)folderName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@planIdPadded", planId.ToString("D5", CultureInfo.InvariantCulture));
+
+            var result = cmd.ExecuteScalar();
+            if (result is string agent && !string.IsNullOrWhiteSpace(agent))
+                return agent;
 
             return null;
         }
@@ -614,8 +650,8 @@ public class PlanDatabaseService : IPlanDatabaseService
 
             using var insertCmd = _connection.CreateCommand();
             insertCmd.CommandText = """
-                                    INSERT INTO Costs (PlanId, Promptware, Tokens, Cost, Model, LogTimestamp, CostSource)
-                                    VALUES (@planId, @promptware, @tokens, @cost, @model, @logTimestamp, @costSource)
+                                    INSERT INTO Costs (PlanId, Promptware, Tokens, Cost, Model, LogTimestamp, CostSource, Agent)
+                                    VALUES (@planId, @promptware, @tokens, @cost, @model, @logTimestamp, @costSource, @agent)
                                     """;
             insertCmd.Parameters.AddWithValue("@planId", planId);
             insertCmd.Parameters.AddWithValue("@promptware", string.Empty);
@@ -624,6 +660,7 @@ public class PlanDatabaseService : IPlanDatabaseService
             insertCmd.Parameters.AddWithValue("@model", DBNull.Value);
             insertCmd.Parameters.AddWithValue("@logTimestamp", DBNull.Value);
             insertCmd.Parameters.AddWithValue("@costSource", DBNull.Value);
+            insertCmd.Parameters.AddWithValue("@agent", DBNull.Value);
 
             foreach (var cost in costs)
             {
@@ -638,6 +675,7 @@ public class PlanDatabaseService : IPlanDatabaseService
                     ? cost.LogTimestamp.Value.ToString("O", CultureInfo.InvariantCulture)
                     : DBNull.Value;
                 insertCmd.Parameters["@costSource"].Value = (object?)cost.CostSource ?? DBNull.Value;
+                insertCmd.Parameters["@agent"].Value = (object?)cost.Agent ?? DBNull.Value;
                 insertCmd.ExecuteNonQuery();
             }
         }

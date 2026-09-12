@@ -52,4 +52,25 @@ public static class FormatHelper
         string.IsNullOrWhiteSpace(profile)
             ? null
             : char.ToUpperInvariant(profile[0]) + profile[1..];
+
+    /// <summary>
+    ///     Formats a coding agent id for display. Maps known ids to proper labels and capitalizes
+    ///     the first letter for unmapped ids. Used in agent cost breakdowns to avoid injecting
+    ///     <c>IAgentRunner</c> into views just for a display string.
+    /// </summary>
+    public static string FormatAgent(string? agentId)
+    {
+        if (string.IsNullOrWhiteSpace(agentId))
+            return "Unknown";
+
+        return agentId.ToLowerInvariant() switch
+        {
+            "claude" => "Claude Code",
+            "openaiproxy" => "OpenAI Proxy",
+            "opencode" => "OpenCode",
+            "ivy" => "Ivy Agent",
+            "unknown" => "Unknown",
+            _ => char.ToUpperInvariant(agentId[0]) + agentId[1..]
+        };
+    }
 }

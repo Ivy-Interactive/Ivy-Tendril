@@ -663,6 +663,16 @@ public class PlanReaderService(
         return [];
     }
 
+    public List<DashboardAgentCost> GetAgentCostBreakdown(int days)
+    {
+        if (_useDatabaseForReads && _database != null)
+        {
+            return _database.GetAgentCostBreakdown(days);
+        }
+
+        return [];
+    }
+
     /// <summary>
     ///     Calculates the total cost for a plan. Delegates to database when available,
     ///     otherwise parses costs.csv with a short cache to reduce file I/O.
