@@ -74,7 +74,7 @@ public class ContentView(
 
         var (updateDialog, showUpdateDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new UpdatePlanDialog(isOpen, selectedPlan!, selectedPlanState, jobService, refreshPlans));
 
-        var (deleteDialog, showDeleteDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new DeletePlanDialog(isOpen, selectedPlan!, selectedPlanState, planService, refreshPlans));
+        var (deleteDialog, showDeleteDialog) = UseTrigger((isOpen) => !isOpen.Value ? null : new DeletePlanDialog(isOpen, selectedPlan!, selectedPlanState, planService, refreshPlans, _chatExecutionService));
 
         var (createIssueDialog, showCreateIssueDialog) = UseTrigger((isOpen) =>
         {
@@ -338,7 +338,7 @@ public class ContentView(
         var workspace = actions.ApplyTo(new PlanWorkspace(
                 tabContent,
                 isShareMode ? null : new PlanChatView(selectedPlan),
-                new VerificationsPanelView(selectedPlan, planService, config),
+                new VerificationsPanelView(selectedPlan, planService, config, _chatExecutionService),
                 questionsPanel)
             .PlanId($"#{selectedPlan.Id}")
             .Title(selectedPlan.Title)

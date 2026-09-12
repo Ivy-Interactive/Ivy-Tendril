@@ -1,4 +1,6 @@
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
 using Ivy.Tendril.Services.Plans;
 
 namespace Ivy.Tendril.Apps.Review.Dialogs;
@@ -14,7 +16,8 @@ public class PartialDeliveryDialog(
     PlanFile selectedPlan,
     IReadOnlyList<string> failedVerifications,
     IPlanReaderService planService,
-    Action refreshPlans) : ViewBase
+    Action refreshPlans,
+    IChatExecutionService? chatExecution = null) : ViewBase
 {
     public override object? Build()
     {
@@ -39,6 +42,7 @@ public class PartialDeliveryDialog(
                 new Button("Complete as Partial Delivery").Destructive().OnClick(() =>
                 {
                     planService.CompleteWithPartialDelivery(selectedPlan.FolderName);
+                    PlanEditAnnouncer.Announce(chatExecution, selectedPlan, "state set to Completed (partial delivery)");
                     refreshPlans();
                     dialogOpen.Set(false);
                 })

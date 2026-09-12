@@ -1560,6 +1560,58 @@ public class ChatExecutionServiceJobTrackingTests
         Assert.Equal(2, harness.EditEvents(side.Id).Count);
     }
 
+    /// <summary>
+    /// UI edits skip the dedupe check because they are in-process calls that are never retried, and
+    /// the dedupe would drop a checkbox toggled back to a status it already held once (unchecked,
+    /// rechecked, unchecked again).
+    /// </summary>
+    [Fact]
+    public async Task NotifyPlanEdit_FromTheUserInterface_AnnouncesEveryToggleIncludingARepeat()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetTest set to Skipped",
+            origin: PlanEditOrigin.UserInterface);
+        await harness.WaitForEventsAsync(side.Id, 1);
+        await harness.WaitForIdleAsync(side.Id);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetTest set to Pending",
+            origin: PlanEditOrigin.UserInterface);
+        await harness.WaitForEventsAsync(side.Id, 2);
+        await harness.WaitForIdleAsync(side.Id);
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "verification DotnetTest set to Skipped",
+            origin: PlanEditOrigin.UserInterface);
+        await harness.WaitForEventsAsync(side.Id, 3);
+
+        Assert.Equal(3, harness.EditEvents(side.Id).Count);
+    }
+
+    /// <summary>
+    /// A UI edit (sourceChatSessionId: null) must reach every attached session including side panels,
+    /// since they all have a view of the plan that just went stale.
+    /// </summary>
+    [Fact]
+    public async Task NotifyPlanEdit_FromTheUserInterface_ReachesTheSidePanelEvenWithNoSourceSession()
+    {
+        using var harness = new PlanEditFanOutHarness();
+        var general = harness.ChatService.CreateSession("codex", "gpt-5.6-sol");
+        var side = harness.ChatService.CreateSession("codex", "gpt-5.6-sol", planFolderName: harness.Plan.FolderName);
+        harness.Database.UpsertPlan(harness.Plan with
+        {
+            Metadata = harness.Plan.Metadata with { ChatSessionId = general.Id }
+        });
+
+        await harness.ExecService.NotifyPlanEditAsync(harness.Plan.FolderName, "state set to Skipped",
+            sourceChatSessionId: null, origin: PlanEditOrigin.UserInterface);
+        await harness.WaitForEventsAsync(general.Id, 1);
+        await harness.WaitForEventsAsync(side.Id, 1);
+
+        Assert.Single(harness.EditEvents(general.Id));
+        Assert.Single(harness.EditEvents(side.Id));
+    }
+
     [Fact]
     public async Task NotifyPlanEdit_WithNoSessionAttachedToThePlan_DoesNothing()
     {
@@ -1604,6 +1656,29 @@ public class ChatExecutionServiceJobTrackingTests
         // An unresolvable plan still has to produce a usable event — the folder name is what the CLI sent.
         var unknown = ChatExecutionService.BuildPlanEditEvent(null, "00400-Notify", "Tests added", null);
         Assert.Contains("Plan '00400-Notify' was edited directly", unknown);
+    }
+
+    [Fact]
+    public void BuildPlanEditEvent_SaysWhenTheUserEditedByHand()
+    {
+        var plan = new PlanFile(
+            new PlanMetadata(400, "Tendril", "NiceToHave", "Notify The Master Agent", PlanStatus.Draft,
+                [], [], [], [], [], [], DateTime.UtcNow, DateTime.UtcNow, null, null, ChatSessionId: null),
+            "# Notify", "/tmp/Plans/00400-Notify", "state: Draft");
+
+        var fromUi = ChatExecutionService.BuildPlanEditEvent(
+            plan, plan.FolderName, "state set to Skipped", null, PlanEditOrigin.UserInterface);
+
+        Assert.Contains("was edited directly by the user in the Tendril UI", fromUi);
+        Assert.DoesNotContain("from the plan chat", fromUi);
+
+        var fromChat = ChatExecutionService.BuildPlanEditEvent(
+            plan, plan.FolderName, "state set to Skipped", null, PlanEditOrigin.Chat);
+        Assert.Contains("was edited directly from the plan chat", fromChat);
+
+        // Default is Chat for backward compatibility
+        var defaultOrigin = ChatExecutionService.BuildPlanEditEvent(plan, plan.FolderName, "state set to Skipped", null);
+        Assert.Contains("was edited directly from the plan chat", defaultOrigin);
     }
 
     private class TestState<T> : IState<T>

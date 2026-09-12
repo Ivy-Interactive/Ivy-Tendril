@@ -27,6 +27,7 @@ public class ContentView(
         var openFile = UseState<string?>(null);
         var showDirtyDialog = UseState(false);
         var (runPreflight, isCheckingPreflight, preflightResult) = Context.UsePreflightCheck();
+        Context.TryUseService<IChatExecutionService>(out var chatExecution);
 
         var (deleteDialog, showDeleteDialog) = UseTrigger((isOpen) =>
         {
@@ -92,6 +93,7 @@ public class ContentView(
                         | new Button("Thaw").Icon(Icons.Flame).Primary().OnClick(() =>
                         {
                             planService.TransitionState(selectedPlan.FolderName, PlanStatus.Draft);
+                            PlanEditAnnouncer.Announce(chatExecution, selectedPlan, "state set to Draft");
                             refreshPlans();
                         })
                         | new Button("Execute").Icon(Icons.Rocket).Outline().ShortcutKey("x")

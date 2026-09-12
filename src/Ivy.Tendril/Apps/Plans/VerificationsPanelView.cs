@@ -15,7 +15,8 @@ namespace Ivy.Tendril.Apps.Plans;
 public class VerificationsPanelView(
     PlanFile selectedPlan,
     IPlanReaderService planService,
-    IConfigService config) : ViewBase
+    IConfigService config,
+    IChatExecutionService? chatExecution = null) : ViewBase
 {
     public override object Build()
     {
@@ -43,7 +44,11 @@ public class VerificationsPanelView(
                     v,
                     IsRequired(v.Name),
                     editable,
-                    status => planService.SetVerificationStatus(selectedPlan.FolderName, v.Name, status));
+                    status =>
+                    {
+                        planService.SetVerificationStatus(selectedPlan.FolderName, v.Name, status);
+                        PlanEditAnnouncer.Announce(chatExecution, selectedPlan, $"verification {v.Name} set to {status}");
+                    });
         }
 
         return inner.Width(Size.Full());

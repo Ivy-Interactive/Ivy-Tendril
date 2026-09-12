@@ -991,12 +991,13 @@ public sealed class ChatExecutionService : IChatExecutionService
         string summary,
         string? reason = null,
         string? sourceChatSessionId = null,
-        string? revisionFile = null)
+        string? revisionFile = null,
+        PlanEditOrigin origin = PlanEditOrigin.Chat)
     {
         if (string.IsNullOrWhiteSpace(planFolderName) || string.IsNullOrWhiteSpace(summary)) return;
 
         var plan = ResolvePlanByFolderName(planFolderName);
-        var message = BuildPlanEditEvent(plan, planFolderName, summary, reason);
+        var message = BuildPlanEditEvent(plan, planFolderName, summary, reason, origin);
 
         // A retried post must not notify twice, so key on the revision the edit produced. An edit that
         // wrote no revision (plan set, set-verification) is keyed on the summary itself instead.
@@ -1008,7 +1009,9 @@ public sealed class ChatExecutionService : IChatExecutionService
 
         foreach (var sessionId in ResolvePlanEditRecipients(planFolderName, plan, sourceChatSessionId))
         {
-            if (!_notifiedPlanEdits.TryAdd($"{sessionId}:{planFolderName}:{editKey}", 0)) continue;
+            if (origin == PlanEditOrigin.Chat &&
+                !_notifiedPlanEdits.TryAdd($"{sessionId}:{planFolderName}:{editKey}", 0))
+                continue;
 
             await SendMessageAsync(sessionId, message, role: "system");
         }
@@ -1051,14 +1054,23 @@ public sealed class ChatExecutionService : IChatExecutionService
     ///     The system event announcing a plan edit, shaped like the job-completion and
     ///     manual-execution events: what happened, then what the agent is expected to do about it.
     /// </summary>
-    internal static string BuildPlanEditEvent(PlanFile? plan, string planFolderName, string summary, string? reason)
+    internal static string BuildPlanEditEvent(
+        PlanFile? plan,
+        string planFolderName,
+        string summary,
+        string? reason,
+        PlanEditOrigin origin = PlanEditOrigin.Chat)
     {
         var name = plan != null ? $"'{plan.Title}' (#{plan.Id:D5})" : $"'{planFolderName}'";
         var reasonClause = string.IsNullOrWhiteSpace(reason)
             ? string.Empty
             : $" Reason: {reason.Trim().TrimEnd('.')}.";
 
-        return $"[System Event] Plan {name} was edited directly from the plan chat: " +
+        var originClause = origin == PlanEditOrigin.UserInterface
+            ? "was edited directly by the user in the Tendril UI"
+            : "was edited directly from the plan chat";
+
+        return $"[System Event] Plan {name} {originClause}: " +
             $"{summary.Trim().TrimEnd('.')}.{reasonClause} " +
             "Check whether this changes your understanding of the plan, and tell the user if anything needs follow-up.";
     }

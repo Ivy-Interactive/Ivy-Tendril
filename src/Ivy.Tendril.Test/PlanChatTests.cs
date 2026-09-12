@@ -8,6 +8,7 @@ using Ivy.Tendril.Agents.Abstractions;
 using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Views;
+using Ivy.Tendril.Helpers;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Widgets;
@@ -197,7 +198,7 @@ public class PlanChatTests
     private sealed class RecordingChatExecutionService : IChatExecutionService
     {
         public List<(string SessionId, string Prompt, string? AgentId, string? ModelId)> Sent { get; } = [];
-        public List<(string PlanFolderName, string Summary, string? Reason, string? SourceChatSessionId)> PlanEdits { get; } = [];
+        public List<(string PlanFolderName, string Summary, string? Reason, string? SourceChatSessionId, PlanEditOrigin Origin)> PlanEdits { get; } = [];
 #pragma warning disable CS0067
         public event Action<string>? SessionGeneratingChanged;
         public event Action<string>? StreamUpdated;
@@ -217,9 +218,9 @@ public class PlanChatTests
         public Task InterruptAsync(string sessionId) => Task.CompletedTask;
 
         public Task NotifyPlanEditAsync(string planFolderName, string summary, string? reason = null,
-            string? sourceChatSessionId = null, string? revisionFile = null)
+            string? sourceChatSessionId = null, string? revisionFile = null, PlanEditOrigin origin = PlanEditOrigin.Chat)
         {
-            PlanEdits.Add((planFolderName, summary, reason, sourceChatSessionId));
+            PlanEdits.Add((planFolderName, summary, reason, sourceChatSessionId, origin));
             return Task.CompletedTask;
         }
 
@@ -322,5 +323,75 @@ public class PlanChatTests
 
         Assert.Equal("#59", ChatApp.PlanTag(attached));
         Assert.Null(ChatApp.PlanTag(free));
+    }
+
+    [Fact]
+    public async Task Announce_SendsTheSummaryWithTheUiOriginAndNoReason()
+    {
+        var execution = new RecordingChatExecutionService();
+        var plan = CreatePlan(42, "Test Plan");
+
+        await PlanEditAnnouncer.AnnounceAsync(execution, plan, "state set to Skipped");
+
+        Assert.Single(execution.PlanEdits);
+        var edit = execution.PlanEdits[0];
+        Assert.Equal(plan.FolderName, edit.PlanFolderName);
+        Assert.Equal("state set to Skipped", edit.Summary);
+        Assert.Null(edit.Reason);
+        Assert.Null(edit.SourceChatSessionId);
+        Assert.Equal(PlanEditOrigin.UserInterface, edit.Origin);
+    }
+
+    [Fact]
+    public async Task Announce_WithoutAChatExecutionService_DoesNothing()
+    {
+        var plan = CreatePlan(42, "Test Plan");
+
+        await PlanEditAnnouncer.AnnounceAsync(null!, plan, "state set to Skipped");
+
+        // Should not throw
+    }
+
+    [Fact]
+    public async Task Announce_SwallowsAFailureFromTheChatService()
+    {
+        var plan = CreatePlan(42, "Test Plan");
+        var execution = new ThrowingChatExecutionService();
+
+        await PlanEditAnnouncer.AnnounceAsync(execution, plan, "state set to Skipped");
+
+        // Should not throw
+    }
+
+    private sealed class ThrowingChatExecutionService : IChatExecutionService
+    {
+#pragma warning disable CS0067
+        public event Action<string>? SessionGeneratingChanged;
+        public event Action<string>? StreamUpdated;
+#pragma warning restore CS0067
+        public bool IsGenerating(string sessionId) => false;
+        public string GetStreamSnapshot(string sessionId) => string.Empty;
+        public IObservable<string> GetLiveStreamObservable(string sessionId) => System.Reactive.Linq.Observable.Empty<string>();
+
+        public Task SendMessageAsync(string sessionId, string prompt, IReadOnlyList<ChatAttachmentDto>? attachments = null,
+            string? agentId = null, string? modelId = null, string? effort = null, string role = "user", CancellationToken ct = default)
+        {
+            throw new InvalidOperationException("Simulated failure");
+        }
+
+        public Task CancelAsync(string sessionId) => throw new InvalidOperationException("Simulated failure");
+        public Task InterruptAsync(string sessionId) => throw new InvalidOperationException("Simulated failure");
+
+        public Task NotifyPlanEditAsync(string planFolderName, string summary, string? reason = null,
+            string? sourceChatSessionId = null, string? revisionFile = null, PlanEditOrigin origin = PlanEditOrigin.Chat)
+        {
+            throw new InvalidOperationException("Simulated failure");
+        }
+
+        public Task ForceSendMessageAsync(string sessionId, string prompt, IReadOnlyList<ChatAttachmentDto>? attachments = null,
+            string? agentId = null, string? modelId = null, string? effort = null, CancellationToken ct = default) =>
+            throw new InvalidOperationException("Simulated failure");
+
+        public void Dispose() { }
     }
 }

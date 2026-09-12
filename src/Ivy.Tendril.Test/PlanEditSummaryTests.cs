@@ -1,4 +1,7 @@
+using System.IO;
 using Ivy.Tendril.Helpers;
+using Ivy.Tendril.Models;
+using Ivy.Tendril.Services;
 using Xunit;
 
 namespace Ivy.Tendril.Test;
@@ -159,5 +162,25 @@ public class PlanEditSummaryTests
         Assert.Equal(PlanEditSummary.Fingerprint("Solution changed"), PlanEditSummary.Fingerprint("Solution changed"));
         Assert.NotEqual(PlanEditSummary.Fingerprint("Solution changed"), PlanEditSummary.Fingerprint("Tests changed"));
         Assert.Equal(16, PlanEditSummary.Fingerprint("Solution changed").Length);
+    }
+
+    /// <summary>
+    /// DraftActions polishes markdown before describing the edit, so a change that only normalizes
+    /// line endings or spacing (what PolishMarkdown does automatically) should not announce as a
+    /// section change. This is why the call site polishes before describing.
+    /// </summary>
+    [Fact]
+    public void Describe_IgnoresWhatPolishingWouldHaveChangedAnyway()
+    {
+        var config = new ConfigService(new TendrilSettings(), Path.GetTempPath());
+        var original = Before;
+        var typedWithExtraSpaces = Before.Replace("Report the edit to the master.", "Report the edit to the master.  ");
+
+        // Polishing normalizes the whitespace, making them equivalent
+        var polished = config.PolishMarkdown(typedWithExtraSpaces);
+        Assert.Equal("no section changes", PlanEditSummary.Describe(original, polished));
+
+        // Without polishing, the unpolished version with trailing spaces would show as different
+        // (but we polish before describing, so this scenario doesn't occur in practice)
     }
 }

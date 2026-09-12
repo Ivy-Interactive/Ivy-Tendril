@@ -77,7 +77,7 @@ public class ContentView(
         var (discardDialog, showDiscardDialog) = UseTrigger((isOpen) =>
         {
             if (!isOpen.Value) return null;
-            return new DiscardPlanDialog(isOpen, selectedPlanState.Value!, planService, refreshPlans);
+            return new DiscardPlanDialog(isOpen, selectedPlanState.Value!, planService, refreshPlans, chatExecution);
         });
 
         var (suggestChangesDialog, showSuggestChangesDialog) = UseTrigger((isOpen) =>
@@ -289,7 +289,7 @@ public class ContentView(
 
         if (!isShareMode)
         {
-            AddPrimaryAction(actions, selectedPlan, context, showCreatePrDialog, showDiscardDialog);
+            AddPrimaryAction(actions, selectedPlan, context, showCreatePrDialog, showDiscardDialog, chatExecution);
             PlanNeighborShortcuts.Add(actions, allPlans, currentIndex, plan =>
             {
                 selectedPlanState.Set(plan);
@@ -345,7 +345,8 @@ public class ContentView(
         PlanFile selectedPlan,
         ReviewViewContext context,
         Action showCreatePrDialog,
-        Action showDiscardDialog)
+        Action showDiscardDialog,
+        IChatExecutionService? chatExecution)
     {
         if (selectedPlan.Commits.Count > 0)
         {
@@ -389,6 +390,7 @@ public class ContentView(
             {
                 // Optimistic UI - update state and refresh immediately
                 planService.TransitionState(selectedPlan.FolderName, PlanStatus.Completed);
+                PlanEditAnnouncer.Announce(chatExecution, selectedPlan, "state set to Completed");
             }
             catch (PlanTransitionBlockedException ex)
             {
