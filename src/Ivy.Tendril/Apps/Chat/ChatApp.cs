@@ -215,6 +215,12 @@ public class ChatApp : ViewBase
                 chatService.ClearSessionCompleted(activeSessionId.Value);
             }
 
+            // Prune on entry, not only on teardown. Subscribing first means the SessionsChanged this
+            // raises reaches OnSessionsChanged, which rebuilds and republishes the sidebar list
+            // without the removed rows. A prune in the dispose callback alone races the incoming
+            // view's publish, so an abandoned chat can linger in the shell's snapshot.
+            chatService.PruneEmptySessions(activeSessionId: activeSessionId.Value);
+
             return Disposable.Create(() =>
             {
                 chatService.SessionsChanged -= OnSessionsChanged;
