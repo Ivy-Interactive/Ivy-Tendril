@@ -190,4 +190,7 @@ public static class QuestionValidationService
 
     private static QuestionIssue Error(int line, string message) =>
         new(QuestionIssueSeverity.Error, line, message);
+
+    private static QuestionIssue Warning(int line, string message) =>
+        new(QuestionIssueSeverity.Warning, line, message);
 }
