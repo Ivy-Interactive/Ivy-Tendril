@@ -153,6 +153,12 @@ class DemoApp : ViewBase
             StreamingText = streaming.Value ? LiveTurn : null,
             Greeting = "Good Evening, Joel!",
             Headline = "What Are We Producing Today?",
+            SamplePrompts = new List<ChatSamplePromptDto>
+            {
+                new("Review the 3 plans waiting", "3 plans are waiting for review. Summarize what each delivers and tell me which to merge first."),
+                new("What should I work on next?", "Look at my draft plans across all projects and recommend which two to execute next, with reasons."),
+                new("What shipped this week?", "Summarize the plans that reached Completed in the last seven days, grouped by project."),
+            },
             OnSendMessage = e => { client.Toast(e.Value.Prompt, "OnSendMessage").Info(); return ValueTask.CompletedTask; },
             OnCancelStream = _ => { streaming.Set(false); client.Toast("Stream cancelled", "OnCancelStream").Info(); return ValueTask.CompletedTask; },
             OnCreateSession = _ => { activeId.Set(EmptySessionId); client.Toast("New chat", "OnCreateSession").Info(); return ValueTask.CompletedTask; },

@@ -189,6 +189,7 @@ export function ChatWidget({
   runningJobs = [],
   greeting,
   headline = "What Are We Producing Today?",
+  samplePrompts = [],
   embedded = false,
   events = [],
   eventHandler,
@@ -575,6 +576,11 @@ export function ChatWidget({
     emit("OnCancelStream");
   };
 
+  const applySamplePrompt = (prompt: string) => {
+    setPromptText(prompt);
+    textareaRef.current?.focus();
+  };
+
   const handleSendQueuedNow = (queueId: string) => {
     const item = queuedMessages.find((q) => q.id === queueId);
     if (!item) return;
@@ -879,6 +885,21 @@ export function ChatWidget({
             <div className="chat-empty-state">
               {greeting && <div className="chat-empty-greeting">{greeting}</div>}
               <div className="chat-empty-headline">{headline}</div>
+              {samplePrompts.length > 0 && (
+                <div className="chat-sample-prompts">
+                  {samplePrompts.map((sp) => (
+                    <button
+                      key={sp.label}
+                      type="button"
+                      className="chat-sample-prompt"
+                      title={sp.prompt}
+                      onClick={() => applySamplePrompt(sp.prompt)}
+                    >
+                      {sp.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           <div ref={spacerRef} className="chat-scroll-spacer" aria-hidden="true" />

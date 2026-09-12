@@ -72,6 +72,10 @@ public record ChatQueuedMessageDto(
     List<ChatAttachmentDto>? Attachments = null
 );
 
+/// <param name="Label">The short chip text, 2 to 6 words.</param>
+/// <param name="Prompt">The complete sentence used when the chip is clicked.</param>
+public record ChatSamplePromptDto(string Label, string Prompt);
+
 public record ChatSendMessageDto(
     string Prompt,
     List<ChatAttachmentDto>? Attachments = null,
@@ -112,6 +116,7 @@ public record ChatWidget : WidgetBase<ChatWidget>
     [Prop] public List<ChatJobDto>? RunningJobs { get; init; }
     [Prop] public string? Greeting { get; init; }
     [Prop] public string? Headline { get; init; }
+    [Prop] public List<ChatSamplePromptDto> SamplePrompts { get; init; } = new();
 
     /// <summary>Hosted inside another page (the plan chat panel): no title bar, a tighter composer.</summary>
     [Prop] public bool Embedded { get; init; }
