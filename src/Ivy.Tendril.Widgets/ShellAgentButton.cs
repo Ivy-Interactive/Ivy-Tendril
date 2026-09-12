@@ -19,6 +19,13 @@ public record ShellAgentButton : WidgetBase<ShellAgentButton>
     /// <summary>Highlights the row while an agent session is the visible pane.</summary>
     [Prop] public bool IsActive { get; init; }
 
+    /// <summary>
+    ///     The count pill on the collapsed rail, already formatted ("3"), or null for no pill. Fed by
+    ///     the shell rather than derived from <see cref="Items"/>, which is only published while the
+    ///     chat page or a terminal pane is on screen (issue #2556).
+    /// </summary>
+    [Prop] public string? Badge { get; init; }
+
     [Prop] public List<ShellSectionItemDto>? Items { get; init; }
 
     [Prop] public string? SelectedId { get; init; }
@@ -42,6 +49,9 @@ public static class ShellAgentButtonExtensions
 
     public static ShellAgentButton IsActive(this ShellAgentButton w, bool isActive) =>
         w with { IsActive = isActive };
+
+    public static ShellAgentButton Badge(this ShellAgentButton w, string? badge) =>
+        w with { Badge = badge };
 
     public static ShellAgentButton OnOpen(this ShellAgentButton w, Action handler) =>
         w with { OnOpen = new(_ => { handler(); return ValueTask.CompletedTask; }) };

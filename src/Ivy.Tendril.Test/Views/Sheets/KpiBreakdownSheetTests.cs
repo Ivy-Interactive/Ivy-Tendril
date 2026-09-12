@@ -185,6 +185,67 @@ public class KpiBreakdownSheetTests
         Assert.IsType<Callout>(avgCostPlanContent);
     }
 
+    [Fact]
+    public void KpiBreakdownSheet_MoneyMetrics_RenderAgentBreakdownWithData()
+    {
+        _fakeService.AgentCostsToReturn =
+        [
+            new DashboardAgentCost("claude", 50.00m, 50000, 3),
+            new DashboardAgentCost("codex", 25.00m, 25000, 2),
+            new DashboardAgentCost("Unknown", 10.00m, 10000, 1)
+        ];
+
+        var avgCostMonthSheet = new KpiBreakdownSheet("avgCostMonth", _stats, _activity, _prDays, _today, _fakeService);
+        var forecastSheet = new KpiBreakdownSheet("forecastMonth", _stats, _activity, _prDays, _today, _fakeService);
+        var avgCostPlanSheet = new KpiBreakdownSheet("avgCostPlan", _stats, _activity, _prDays, _today, _fakeService);
+
+        var avgCostMonthSection = ExtractAgentSection(avgCostMonthSheet.Build());
+        var forecastSection = ExtractAgentSection(forecastSheet.Build());
+        var avgCostPlanSection = ExtractAgentSection(avgCostPlanSheet.Build());
+
+        Assert.NotNull(avgCostMonthSection);
+        Assert.StartsWith("DataTableBuilder", avgCostMonthSection.GetType().Name);
+        Assert.NotNull(forecastSection);
+        Assert.StartsWith("DataTableBuilder", forecastSection.GetType().Name);
+        Assert.NotNull(avgCostPlanSection);
+        Assert.StartsWith("DataTableBuilder", avgCostPlanSection.GetType().Name);
+    }
+
+    [Fact]
+    public void KpiBreakdownSheet_DailyPrs_DoesNotRenderAgentBreakdown()
+    {
+        _fakeService.AgentCostsToReturn =
+        [
+            new DashboardAgentCost("claude", 50.00m, 50000, 3)
+        ];
+
+        var dailyPrsSheet = new KpiBreakdownSheet("dailyPrs", _stats, _activity, _prDays, _today, _fakeService);
+        var result = dailyPrsSheet.Build();
+
+        // dailyPrs should not have an agent section (only 3 children, not 4)
+        var layout = Assert.IsAssignableFrom<LayoutView>(result);
+        var stack = Assert.IsAssignableFrom<IWidget>(layout.Build());
+        Assert.Equal(3, stack.Children.Count());
+    }
+
+    [Fact]
+    public void KpiBreakdownSheet_MoneyMetrics_EmptyAgentData_ProducesCallout()
+    {
+        _fakeService.AgentCostsToReturn = [];
+
+        var avgCostMonthSheet = new KpiBreakdownSheet("avgCostMonth", _stats, _activity, _prDays, _today, _fakeService);
+        var forecastSheet = new KpiBreakdownSheet("forecastMonth", _stats, _activity, _prDays, _today, _fakeService);
+        var avgCostPlanSheet = new KpiBreakdownSheet("avgCostPlan", _stats, _activity, _prDays, _today, _fakeService);
+
+        var avgCostMonthSection = ExtractAgentSection(avgCostMonthSheet.Build());
+        var forecastSection = ExtractAgentSection(forecastSheet.Build());
+        var avgCostPlanSection = ExtractAgentSection(avgCostPlanSheet.Build());
+
+        Assert.IsType<Callout>(avgCostMonthSection);
+        Assert.IsType<Callout>(forecastSection);
+        Assert.IsType<Callout>(avgCostPlanSection);
+    }
+
     private static object ExtractTableContent(object buildResult)
     {
         var layout = Assert.IsAssignableFrom<LayoutView>(buildResult);
@@ -192,5 +253,16 @@ public class KpiBreakdownSheetTests
         var innerLayout = Assert.IsAssignableFrom<LayoutView>(stack.Children[2]);
         var innerStack = Assert.IsAssignableFrom<IWidget>(innerLayout.Build());
         return innerStack.Children[1];
+    }
+
+    private static object ExtractAgentSection(object buildResult)
+    {
+        var layout = Assert.IsAssignableFrom<LayoutView>(buildResult);
+        var stack = Assert.IsAssignableFrom<IWidget>(layout.Build());
+        // Agent section is the 4th child (index 3) for money metrics
+        var agentLayout = Assert.IsAssignableFrom<LayoutView>(stack.Children[3]);
+        var agentStack = Assert.IsAssignableFrom<IWidget>(agentLayout.Build());
+        // Return the second child (index 1), which is either the DataTable or Callout
+        return agentStack.Children[1];
     }
 }

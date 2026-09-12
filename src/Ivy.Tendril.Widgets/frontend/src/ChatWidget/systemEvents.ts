@@ -14,11 +14,15 @@ export interface SystemEventView {
   plan?: SystemEventPlanRef;
   /** A trailing detail, such as the failure summary. */
   detail?: string;
+  /** The job id extracted from the message, if present. */
+  jobId?: string;
 }
 
 const PREFIX = /^\s*\[System Event\]\s*/i;
-const FINISHED = /^Job\s+(\S+)\s+\(([^)]+)\)\s+for\s+'(.+?)'\s+has finished with status:\s*(\w+)(?:\s*\((.*?)\))?/i;
-const APPROVED = /^Manual approval granted and execution started for plan '(.+?)'\s*\(Job\s+(\S+)\)/i;
+const FINISHED =
+  /^Job\s+(\S+)\s+\(([^)]+)\)\s+for\s+'(.+?)'\s+has finished with status:\s*(\w+)(?:\s*\((.*?)\))?/i;
+const APPROVED =
+  /^Manual approval granted and execution started for plan '(.+?)'\s*\(Job\s+(\S+)\)/i;
 const PLAN_INFO = /^(\d+)\s*:\s*(.+)$/;
 
 const planRef = (info: string): SystemEventPlanRef | undefined => {
@@ -60,17 +64,22 @@ export function formatSystemEvent(content: string): SystemEventView {
 
   const finished = FINISHED.exec(body);
   if (finished) {
-    const [, , type, info, status, summary] = finished;
+    const [, jobId, type, info, status, summary] = finished;
     const { verb, kind } = statusVerb(status);
     const plan = planRef(info);
     const text = `${verb} ${jobNoun(type)}`;
-    const detail = kind === "failed" && summary && summary.toLowerCase() !== status.toLowerCase() ? summary : undefined;
-    return plan ? { kind, text, plan, detail } : { kind, text: `${text} '${info}'`, detail };
+    const detail =
+      kind === "failed" && summary && summary.toLowerCase() !== status.toLowerCase()
+        ? summary
+        : undefined;
+    return plan
+      ? { kind, text, plan, detail, jobId }
+      : { kind, text: `${text} '${info}'`, detail, jobId };
   }
 
   const approved = APPROVED.exec(body);
   if (approved) {
-    return { kind: "started", text: `Started plan '${approved[1]}'` };
+    return { kind: "started", text: `Started plan '${approved[1]}'`, jobId: approved[2] };
   }
 
   return { kind: "info", text: body };

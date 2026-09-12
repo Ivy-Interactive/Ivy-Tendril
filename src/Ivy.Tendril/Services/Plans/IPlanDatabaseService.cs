@@ -17,12 +17,14 @@ public interface IPlanDatabaseService : IDisposable
     List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days = 30);
     List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50) => [];
     List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7) => [];
+    List<DashboardAgentCost> GetAgentCostBreakdown(int days) => [];
 
     // Costs and tokens
     decimal GetPlanTotalCost(int planId);
     int GetPlanTotalTokens(int planId);
     List<HourlyTokenBurn> GetHourlyTokenBurn(int days = 7, string? projectFilter = null);
     string? ResolveCostSource(int planId, string promptware, string? folderPath = null, string? folderName = null) => null;
+    string? ResolveAgent(int planId, string promptware, string? folderPath = null, string? folderName = null) => null;
 
     // Recommendations
     List<Recommendation> GetRecommendations();
@@ -78,4 +80,4 @@ public interface IPlanDatabaseService : IDisposable
 ///     What the tokens went on, carried through the CSV because <c>PurgeOldJobs</c> drops the
 ///     <c>Jobs</c> row long before the plan folder is archived. Null for a pre v2 file.
 /// </param>
-public record CostEntry(string Promptware, int Tokens, decimal? Cost, DateTime? LogTimestamp, string? Model = null, string? CostSource = null);
+public record CostEntry(string Promptware, int Tokens, decimal? Cost, DateTime? LogTimestamp, string? Model = null, string? CostSource = null, string? Agent = null);

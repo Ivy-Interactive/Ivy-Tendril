@@ -171,12 +171,15 @@ public class KpiBreakdownSheet(
                 c.ShowSearch = false;
             });
 
+        var agentSection = BuildAgentBreakdownSection(180);
+
         return Layout.Vertical().Gap(4)
                | Callout.Info("Average Cost/Month shows retrospective monthly spend across complete historical calendar months, strictly excluding the currently in-flight month to prevent partial-month bias.", "Retrospective Spend")
                | details
                | (Layout.Vertical().Gap(2)
                   | Text.H4("Historical Monthly Breakdown")
-                  | table);
+                  | table)
+               | agentSection;
     }
 
     private object BuildForecastMonthBreakdown()
@@ -272,12 +275,15 @@ public class KpiBreakdownSheet(
                     c.ShowSearch = false;
                 });
 
+        var agentSection = BuildAgentBreakdownSection(30);
+
         return Layout.Vertical().Gap(4)
                | Callout.Info(calloutMessage, "Usage & Subsidized Analysis")
                | details
                | (Layout.Vertical().Gap(2)
                   | Text.H4("Daily Spend (Last 30 Days)")
-                  | tableContent);
+                  | tableContent)
+               | agentSection;
     }
 
     private object BuildAvgCostPlanBreakdown()
@@ -334,12 +340,15 @@ public class KpiBreakdownSheet(
                     c.ShowSearch = false;
                 });
 
+        var agentSection = BuildAgentBreakdownSection(7);
+
         return Layout.Vertical().Gap(4)
                | Callout.Info("Average Cost per Plan calculates the mean execution and promptware spend for plans created in the last 7 days that reached Completed, Failed, or Review state. Unpriced plans (e.g. subscription runs where cost is null) are excluded from the divisor so they do not artificially deflate the average.", "7-Day Rolling Average")
                | details
                | (Layout.Vertical().Gap(2)
                   | Text.H4("Plans in Rolling Window (Last 7 Days)")
-                  | tableContent);
+                  | tableContent)
+               | agentSection;
     }
 
     private static (decimal Last, decimal Previous) LastTwo(
@@ -401,5 +410,70 @@ public class KpiBreakdownSheet(
         public required string CreatedDate { get; init; }
         public required string Tokens { get; init; }
         public required string Cost { get; init; }
+    }
+
+    private sealed record AgentCostRow
+    {
+        public required string Agent { get; init; }
+        public required string Spend { get; init; }
+        public required string SpendShare { get; init; }
+        public required string Tokens { get; init; }
+        public required string TokenShare { get; init; }
+        public required string Plans { get; init; }
+    }
+
+    private object BuildAgentBreakdownSection(int days)
+    {
+        var agentCosts = planService.GetAgentCostBreakdown(days);
+
+        if (agentCosts.Count == 0)
+        {
+            return Layout.Vertical().Gap(2)
+                   | Text.H4("Spend by Coding Agent")
+                   | Callout.Info("No agent-attributed spend in this window.", "No Data");
+        }
+
+        var totalCost = agentCosts.Sum(a => a.Cost);
+        var totalTokens = agentCosts.Sum(a => a.Tokens);
+        var hasUnknown = agentCosts.Any(a => a.Agent == "Unknown");
+
+        var rows = agentCosts
+            .Select(a => new AgentCostRow
+            {
+                Agent = FormatHelper.FormatAgent(a.Agent),
+                Spend = FormatCost(a.Cost),
+                SpendShare = totalCost > 0 ? $"{(a.Cost / totalCost * 100m):0.#}%" : "N/A",
+                Tokens = FormatHelper.FormatCount(a.Tokens),
+                TokenShare = totalTokens > 0 ? $"{((decimal)a.Tokens / totalTokens * 100m):0.#}%" : "N/A",
+                Plans = a.PlanCount.ToString(CultureInfo.InvariantCulture)
+            })
+            .AsQueryable()
+            .ToDataTable(x => x.Agent)
+            .Header(x => x.Agent, "Coding Agent")
+            .Header(x => x.Spend, "Spend")
+            .Header(x => x.SpendShare, "Spend Share")
+            .Header(x => x.Tokens, "Tokens")
+            .Header(x => x.TokenShare, "Token Share")
+            .Header(x => x.Plans, "Plans")
+            .Width(Size.Full())
+            .Height(Size.Px(360))
+            .Config(c =>
+            {
+                c.AllowSorting = true;
+                c.SelectionMode = SelectionModes.None;
+                c.ShowIndexColumn = false;
+                c.ShowSearch = false;
+            });
+
+        var result = Layout.Vertical().Gap(2)
+                     | Text.H4("Spend by Coding Agent")
+                     | rows;
+
+        if (hasUnknown)
+        {
+            result = result | Callout.Info("Rows predating agent capture appear as Unknown and cannot be attributed to a specific agent.", "Partial Attribution");
+        }
+
+        return result;
     }
 }

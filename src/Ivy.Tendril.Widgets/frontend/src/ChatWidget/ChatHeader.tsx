@@ -21,10 +21,7 @@ import { IconButton } from "../ui/IconButton";
 import { Tooltip } from "../ui/Tooltip";
 import { NEW_CHAT_SHORTCUT_KEY, modAltKeys } from "../ui/shortcuts";
 import type { ChatJobDto } from "./types";
-
-const isRunningJob = (job: ChatJobDto) => job.status === "Running" || job.status === "Pending";
-const isCompletedJob = (job: ChatJobDto) => job.status === "Completed";
-const isFailedJob = (job: ChatJobDto) => job.status === "Failed" || job.status === "Timeout";
+import { isRunningJob, isCompletedJob, isFailedJob } from "./jobStatus";
 
 const jobsLabel = (count: number) => `${count} job${count === 1 ? "" : "s"}`;
 
@@ -119,29 +116,31 @@ export const JobsMenu: React.FC<JobsMenuProps> = ({ jobs, spawned, onReview, onO
               const isClickable = Boolean(onOpenPlan && planId);
               const content = (
                 <>
-                <div className="chat-job-status-indicator">
-                  {isRunningJob(job) && <LoaderCircle size={13} className="spin" />}
-                  {isCompletedJob(job) && <CheckCircle2 size={13} />}
-                  {isFailedJob(job) && <XCircle size={13} />}
-                  {!isRunningJob(job) && !isCompletedJob(job) && !isFailedJob(job) && <StatusDot />}
-                </div>
-                <div className="chat-job-details">
-                  <div className="chat-job-meta">
-                    <Badge color={job.typeColor}>{job.type}</Badge>
-                    <span className="chat-job-id">{job.id}</span>
-                    {job.planTitle && (
-                      <span className="chat-job-plan-title" title={job.planTitle}>
-                        {job.planTitle}
-                      </span>
+                  <div className="chat-job-status-indicator">
+                    {isRunningJob(job) && <LoaderCircle size={13} className="spin" />}
+                    {isCompletedJob(job) && <CheckCircle2 size={13} />}
+                    {isFailedJob(job) && <XCircle size={13} />}
+                    {!isRunningJob(job) && !isCompletedJob(job) && !isFailedJob(job) && (
+                      <StatusDot />
                     )}
                   </div>
-                  {job.statusMessage && (
-                    <div className="chat-job-message" title={job.statusMessage}>
-                      {job.statusMessage}
+                  <div className="chat-job-details">
+                    <div className="chat-job-meta">
+                      <Badge color={job.typeColor}>{job.type}</Badge>
+                      <span className="chat-job-id">{job.id}</span>
+                      {job.planTitle && (
+                        <span className="chat-job-plan-title" title={job.planTitle}>
+                          {job.planTitle}
+                        </span>
+                      )}
                     </div>
-                  )}
-                </div>
-                {isClickable && <ChevronRight size={14} className="chat-job-nav-icon" />}
+                    {job.statusMessage && (
+                      <div className="chat-job-message" title={job.statusMessage}>
+                        {job.statusMessage}
+                      </div>
+                    )}
+                  </div>
+                  {isClickable && <ChevronRight size={14} className="chat-job-nav-icon" />}
                 </>
               );
               if (isClickable && planId) {
@@ -276,7 +275,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           />
         )}
         <div className="chat-header-icons">
-          <IconButton label="New chat" shortcut={modAltKeys(NEW_CHAT_SHORTCUT_KEY)} onClick={onNewChat}>
+          <IconButton
+            label="New chat"
+            shortcut={modAltKeys(NEW_CHAT_SHORTCUT_KEY)}
+            onClick={onNewChat}
+          >
             <MessageSquarePlus size={16} />
           </IconButton>
           {editable && (

@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { BridgeHandler } from './bridge/bridgeHandler';
+import { registerChatParticipant } from './chat/chatParticipant';
+import { registerPlanCommands } from './commands/planCommands';
 import { COMMANDS, CONFIG_KEYS, VIEWS } from './constants';
+import { JobRunner } from './jobs/jobRunner';
 import { ServerManager } from './server/serverManager';
 import { StatusBarItem } from './statusbar/statusBarItem';
 import { SidebarProvider } from './views/sidebarProvider';
@@ -14,9 +17,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   serverManager = new ServerManager();
   context.subscriptions.push(serverManager);
 
-  const bridgeHandler = new BridgeHandler();
+  const jobRunner = new JobRunner(serverManager);
+  const bridgeHandler = new BridgeHandler(undefined, jobRunner);
   const statusBar = new StatusBarItem();
   context.subscriptions.push(statusBar);
+
+  registerPlanCommands(context, jobRunner, serverManager);
+  registerChatParticipant(context, jobRunner, serverManager);
 
   const sidebarProvider = new SidebarProvider(serverManager);
   context.subscriptions.push(

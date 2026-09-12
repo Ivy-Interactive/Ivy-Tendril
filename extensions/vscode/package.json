@@ -71,6 +71,48 @@
       {
         "command": "tendril.addCurrentProject",
         "title": "Tendril: Add Current Project"
+      },
+      {
+        "command": "tendril.createPlan",
+        "title": "Tendril: Create Plan"
+      },
+      {
+        "command": "tendril.executePlan",
+        "title": "Tendril: Execute Plan"
+      },
+      {
+        "command": "tendril.checkJobStatus",
+        "title": "Tendril: Check Job Status"
+      },
+      {
+        "command": "tendril.retryPlan",
+        "title": "Tendril: Retry Plan"
+      }
+    ],
+    "chatParticipants": [
+      {
+        "id": "tendril.chatParticipant",
+        "name": "tendril",
+        "description": "Interact with Tendril agents, execute commands, and manage plans",
+        "isDefault": true,
+        "commands": [
+          {
+            "name": "plan",
+            "description": "Create a new plan for a task or feature"
+          },
+          {
+            "name": "run",
+            "description": "Execute a plan"
+          },
+          {
+            "name": "status",
+            "description": "Check status of active or recent jobs"
+          },
+          {
+            "name": "retry",
+            "description": "Retry an executed plan with reviewer feedback"
+          }
+        ]
       }
     ],
     "menus": {

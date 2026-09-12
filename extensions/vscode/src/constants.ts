@@ -5,7 +5,11 @@ export const COMMANDS = {
   startServer: 'tendril.startServer',
   stopServer: 'tendril.stopServer',
   restartServer: 'tendril.restartServer',
-  addCurrentProject: 'tendril.addCurrentProject'
+  addCurrentProject: 'tendril.addCurrentProject',
+  createPlan: 'tendril.createPlan',
+  executePlan: 'tendril.executePlan',
+  checkJobStatus: 'tendril.checkJobStatus',
+  retryPlan: 'tendril.retryPlan'
 } as const;
 
 export const VIEWS = {

@@ -221,6 +221,21 @@ public class PlanDatabaseSyncService : IDisposable
                         needsFileUpgrade = true;
                 }
 
+                // Sixth column since costs.csv v4; files written before it have three to five.
+                var agent = parts.Length > 5 && !string.IsNullOrWhiteSpace(parts[5]) ? parts[5].Trim() : null;
+
+                if (agent == null)
+                {
+                    agent = _database.ResolveAgent(
+                        plan.Id,
+                        promptware,
+                        plan.FolderPath,
+                        Path.GetFileName(plan.FolderPath));
+
+                    if (agent != null || parts.Length < 6)
+                        needsFileUpgrade = true;
+                }
+
                 DateTime? timestamp = null;
                 if (logsByPromptware.TryGetValue(promptware, out var queue) && queue.Count > 0)
                 {
@@ -228,7 +243,7 @@ public class PlanDatabaseSyncService : IDisposable
                     timestamp = ExtractCompletedTimestamp(logEntry.Path);
                 }
 
-                costs.Add(new CostEntry(promptware, tokens, cost, timestamp, model, costSource));
+                costs.Add(new CostEntry(promptware, tokens, cost, timestamp, model, costSource, agent));
             }
 
             _database.UpsertCosts(plan.Id, costs);
@@ -249,11 +264,11 @@ public class PlanDatabaseSyncService : IDisposable
         try
         {
             var sb = new StringBuilder();
-            sb.Append("Promptware,Tokens,Cost,Model,CostSource\n");
+            sb.Append("Promptware,Tokens,Cost,Model,CostSource,Agent\n");
             foreach (var cost in costs)
             {
                 var costField = cost.Cost?.ToString("F4", CultureInfo.InvariantCulture) ?? "";
-                sb.Append($"{cost.Promptware},{cost.Tokens},{costField},{cost.Model ?? ""},{cost.CostSource ?? ""}\n");
+                sb.Append($"{cost.Promptware},{cost.Tokens},{costField},{cost.Model ?? ""},{cost.CostSource ?? ""},{cost.Agent ?? ""}\n");
             }
             FileHelper.WriteAllText(costsPath, sb.ToString());
         }

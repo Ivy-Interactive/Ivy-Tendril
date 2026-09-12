@@ -511,7 +511,6 @@ public sealed class ChatExecutionService : IChatExecutionService
         var executionTask = Task.Run(async () =>
         {
             string? lastTextEvent = null;
-            var openToolCalls = new HashSet<string>();
 
             try
             {
@@ -538,22 +537,8 @@ public sealed class ChatExecutionService : IChatExecutionService
                 {
                     try
                     {
-                        if (evt is ToolCallEvent toolCall && !string.IsNullOrEmpty(toolCall.ToolUseId))
+                        if (evt is ToolResultEvent toolResult)
                         {
-                            lock (activeExec.Lock)
-                            {
-                                openToolCalls.Add(toolCall.ToolUseId);
-                            }
-                        }
-                        else if (evt is ToolResultEvent toolResult)
-                        {
-                            if (!string.IsNullOrEmpty(toolResult.ToolUseId))
-                            {
-                                lock (activeExec.Lock)
-                                {
-                                    openToolCalls.Remove(toolResult.ToolUseId);
-                                }
-                            }
                             if (!string.IsNullOrWhiteSpace(toolResult.Output))
                             {
                                 TryTrackSpawnedJob(sessionId, toolResult.Output);
@@ -615,6 +600,21 @@ public sealed class ChatExecutionService : IChatExecutionService
                 lock (activeExec.Lock)
                 {
                     collectedText = lastTextEvent ?? activeExec.LastText;
+
+                    // Reconcile any unclosed tool calls
+                    var missingResults = ToolStreamReconciler.BuildMissingResultLines(
+                        activeExec.RawLines,
+                        _serializer,
+                        "[No output received]",
+                        isError: true,
+                        _logger);
+
+                    foreach (var syntheticLine in missingResults)
+                    {
+                        activeExec.RawLines.Add(syntheticLine);
+                        StreamLineEmitted?.Invoke(sessionId, syntheticLine);
+                    }
+
                     if (activeExec.RawLines.Count > 0)
                         fullRawStream = string.Join("\n", activeExec.RawLines);
                 }
@@ -642,24 +642,19 @@ public sealed class ChatExecutionService : IChatExecutionService
                 {
                     collectedText = lastTextEvent ?? activeExec.LastText;
 
-                    foreach (var toolUseId in openToolCalls)
+                    // Reconcile any unclosed tool calls
+                    var missingResults = ToolStreamReconciler.BuildMissingResultLines(
+                        activeExec.RawLines,
+                        _serializer,
+                        "[Cancelled]",
+                        isError: true,
+                        _logger);
+
+                    foreach (var syntheticLine in missingResults)
                     {
-                        var cancelToolResult = new ToolResultEvent
-                        {
-                            Kind = AgentEventKind.ToolResult,
-                            Timestamp = DateTimeOffset.UtcNow,
-                            ToolUseId = toolUseId,
-                            Output = "[Cancelled]",
-                            IsError = true
-                        };
-                        var cancelToolJson = _serializer.Serialize(cancelToolResult);
-                        if (!string.IsNullOrEmpty(cancelToolJson))
-                        {
-                            activeExec.RawLines.Add(cancelToolJson);
-                            StreamLineEmitted?.Invoke(sessionId, cancelToolJson);
-                        }
+                        activeExec.RawLines.Add(syntheticLine);
+                        StreamLineEmitted?.Invoke(sessionId, syntheticLine);
                     }
-                    openToolCalls.Clear();
 
                     var cancelEvt = new TextEvent
                     {
@@ -696,24 +691,19 @@ public sealed class ChatExecutionService : IChatExecutionService
                 {
                     collectedText = lastTextEvent ?? activeExec.LastText;
 
-                    foreach (var toolUseId in openToolCalls)
+                    // Reconcile any unclosed tool calls
+                    var missingResults = ToolStreamReconciler.BuildMissingResultLines(
+                        activeExec.RawLines,
+                        _serializer,
+                        $"[Error: {ex.Message}]",
+                        isError: true,
+                        _logger);
+
+                    foreach (var syntheticLine in missingResults)
                     {
-                        var errToolResult = new ToolResultEvent
-                        {
-                            Kind = AgentEventKind.ToolResult,
-                            Timestamp = DateTimeOffset.UtcNow,
-                            ToolUseId = toolUseId,
-                            Output = $"[Error: {ex.Message}]",
-                            IsError = true
-                        };
-                        var errToolJson = _serializer.Serialize(errToolResult);
-                        if (!string.IsNullOrEmpty(errToolJson))
-                        {
-                            activeExec.RawLines.Add(errToolJson);
-                            StreamLineEmitted?.Invoke(sessionId, errToolJson);
-                        }
+                        activeExec.RawLines.Add(syntheticLine);
+                        StreamLineEmitted?.Invoke(sessionId, syntheticLine);
                     }
-                    openToolCalls.Clear();
 
                     var errorEvt = new ErrorEvent
                     {
@@ -984,6 +974,21 @@ public sealed class ChatExecutionService : IChatExecutionService
             lock (exec.Lock)
             {
                 collectedText = exec.LastText;
+
+                // Reconcile any unclosed tool calls
+                var missingResults = ToolStreamReconciler.BuildMissingResultLines(
+                    exec.RawLines,
+                    _serializer,
+                    "[Cancelled]",
+                    isError: true,
+                    _logger);
+
+                foreach (var syntheticLine in missingResults)
+                {
+                    exec.RawLines.Add(syntheticLine);
+                    StreamLineEmitted?.Invoke(sessionId, syntheticLine);
+                }
+
                 if (exec.RawLines.Count > 0)
                     fullRawStream = string.Join("\n", exec.RawLines);
             }

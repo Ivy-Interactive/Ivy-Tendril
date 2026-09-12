@@ -1,3 +1,5 @@
+import * as path from 'path';
+
 export class MockUri {
   public readonly scheme: string;
   public readonly fsPath: string;
@@ -15,6 +17,10 @@ export class MockUri {
 
   public static parse(val: string): MockUri {
     return new MockUri(val);
+  }
+
+  public static joinPath(base: MockUri, ...pathSegments: string[]): MockUri {
+    return new MockUri(path.join(base.fsPath, ...pathSegments));
   }
 
   public toString(): string {
@@ -144,6 +150,8 @@ export const vscodeMock = {
       return undefined;
     },
     showTextDocument: async () => ({}),
+    showInputBox: async () => undefined,
+    showQuickPick: async () => undefined,
     activeColorTheme: { kind: ColorThemeKind.Dark },
     onDidChangeActiveColorTheme: () => ({ dispose: () => {} }),
     registerTreeDataProvider: () => ({ dispose: () => {} })
@@ -172,5 +180,13 @@ export const vscodeMock = {
       }
       return undefined;
     }
+  },
+  chat: {
+    createChatParticipant: (id: string, handler: unknown) => ({
+      id,
+      requestHandler: handler,
+      iconPath: undefined,
+      dispose: () => {}
+    })
   }
 };
