@@ -31,7 +31,9 @@ export const Badge: React.FC<BadgeProps> = ({
   "aria-label": ariaLabel,
 }) => (
   <span
-    className={`tui-badge ${numeric ? "tui-badge--count" : ""} ${className}`.replace(/\s+/g, " ").trim()}
+    className={`tui-badge ${numeric ? "tui-badge--count" : ""} ${className}`
+      .replace(/\s+/g, " ")
+      .trim()}
     data-kind={color ? "color" : kind}
     style={color ? ({ "--tui-badge-color": ivyColorVar(color) } as React.CSSProperties) : undefined}
     title={title}

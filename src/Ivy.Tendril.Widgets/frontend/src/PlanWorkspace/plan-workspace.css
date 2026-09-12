@@ -165,7 +165,9 @@
   line-height: normal;
   white-space: nowrap;
   cursor: pointer;
-  transition: opacity 150ms ease, background-color 120ms ease;
+  transition:
+    opacity 150ms ease,
+    background-color 120ms ease;
 }
 
 .pws-btn--primary {
