@@ -13,12 +13,20 @@
   --tch-faint: color-mix(in srgb, var(--foreground, #000000) 40%, transparent);
   --tch-border: var(--border, #e0e0e0);
   --tch-surface: color-mix(in srgb, var(--foreground, #000000) 4%, var(--background, #ffffff));
-  --tch-surface-hover: color-mix(in srgb, var(--foreground, #000000) 8%, var(--background, #ffffff));
+  --tch-surface-hover: color-mix(
+    in srgb,
+    var(--foreground, #000000) 8%,
+    var(--background, #ffffff)
+  );
   --tch-input-border: color-mix(in srgb, var(--foreground, #000000) 15%, transparent);
   --tch-popover: var(--popover, #ffffff);
   --tch-bubble-bg: var(--primary, #000000);
   --tch-bubble-fg: var(--primary-foreground, #ffffff);
-  --tch-bubble-chip: color-mix(in srgb, var(--primary-foreground, #ffffff) 24%, var(--primary, #000000));
+  --tch-bubble-chip: color-mix(
+    in srgb,
+    var(--primary-foreground, #ffffff) 24%,
+    var(--primary, #000000)
+  );
   --tch-cta-bg: var(--primary, #000000);
   --tch-cta-fg: var(--primary-foreground, #ffffff);
   --tch-danger: var(--destructive, #ef4444);
@@ -38,7 +46,11 @@
 .dark .chat-agent-layer,
 .dark .chat-header-host {
   --tch-surface: color-mix(in srgb, var(--foreground, #f8f8f8) 7%, var(--background, #000000));
-  --tch-surface-hover: color-mix(in srgb, var(--foreground, #f8f8f8) 11%, var(--background, #000000));
+  --tch-surface-hover: color-mix(
+    in srgb,
+    var(--foreground, #f8f8f8) 11%,
+    var(--background, #000000)
+  );
   --tch-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.6), 0 4px 12px -2px rgba(0, 0, 0, 0.4);
 }
 
@@ -728,6 +740,14 @@ button.chat-jobs-dropdown-item:hover .chat-job-nav-icon {
   color: var(--tch-muted);
 }
 
+.chat-system-event-row[data-job-state="completed"] .chat-system-event-icon {
+  color: var(--tch-success);
+}
+
+.chat-system-event-row[data-job-state="failed"] .chat-system-event-icon {
+  color: var(--tch-danger);
+}
+
 .chat-system-event-text {
   min-width: 0;
   line-height: 1.3;
@@ -902,7 +922,10 @@ button.chat-system-event-plan {
   color: var(--tch-muted);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .pmv-code-block:hover .pmv-code-copy,

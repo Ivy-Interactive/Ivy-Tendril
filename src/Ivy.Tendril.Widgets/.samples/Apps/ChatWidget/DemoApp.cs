@@ -70,6 +70,8 @@ class DemoApp : ViewBase
             new("00148", "ExecutePlan", "Completed", "00059", "Add dark mode toggle to vault theme settings", "Completed successfully", "Blue"),
             new("00149", "CreatePr", "Completed", "00059", "Add dark mode toggle to vault theme settings", "PR #2431 opened", "Green"),
             new("00150", "ExecutePlan", "Completed", "00060", "Persist theme choice per user", "Completed successfully", "Blue"),
+            new("00151", "ExecutePlan", "Running", "00061", "Add keyboard shortcuts to composer", "Running verifications...", "Blue"),
+            new("00152", "ExecutePlan", "Failed", "00062", "Export chat history to markdown", "DotnetBuild failed", "Blue"),
         };
 
         var full = new ChatSessionDto(
@@ -84,6 +86,8 @@ class DemoApp : ViewBase
                 new ChatMessageDto("m2", "assistant", "Plan 00059 started.", "9:02 AM", "claude", "fable-5-1", FinishedTurn),
                 new ChatMessageDto("m3", "system", "[System Event] Job 00148 (ExecutePlan) for '00059: Add dark mode toggle to vault theme settings' has finished with status: Completed (Completed successfully). Please inspect the outcome, determine whether any action is needed or if any issues occurred, and proactively guide the user on the results and next steps.", "9:11 AM"),
                 new ChatMessageDto("m4", "assistant", CompletedMessage, "9:12 AM", "claude", "fable-5-1"),
+                new ChatMessageDto("m5", "system", "[System Event] Manual approval granted and execution started for plan 'Add keyboard shortcuts to composer' (Job 00151).", "9:13 AM"),
+                new ChatMessageDto("m6", "system", "[System Event] Manual approval granted and execution started for plan 'Export chat history to markdown' (Job 00152).", "9:14 AM"),
             ],
             Effort: "max",
             SpawnedJobs: jobs);
