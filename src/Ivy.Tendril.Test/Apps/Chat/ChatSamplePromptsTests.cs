@@ -13,11 +13,12 @@ public class ChatSamplePromptsTests
     [Fact]
     public void ForChat_NamesThePlansWaitingForReview()
     {
+        var now = DateTime.UtcNow;
         var plans = new List<PlanFile>
         {
-            new() { Id = 101, Title = "Add Login", Status = PlanStatus.Review, Updated = DateTime.UtcNow },
-            new() { Id = 102, Title = "Fix Bug", Status = PlanStatus.Review, Updated = DateTime.UtcNow },
-            new() { Id = 103, Title = "Draft Plan", Status = PlanStatus.Draft, Updated = DateTime.UtcNow },
+            CreatePlanFile(101, "Add Login", PlanStatus.Review, updated: now),
+            CreatePlanFile(102, "Fix Bug", PlanStatus.Review, updated: now),
+            CreatePlanFile(103, "Draft Plan", PlanStatus.Draft, updated: now),
         };
 
         var prompts = SamplePrompts.ForChat(plans, new List<JobItem>());
@@ -37,8 +38,8 @@ public class ChatSamplePromptsTests
         var newer = DateTime.UtcNow.AddHours(-1);
         var plans = new List<PlanFile>
         {
-            new() { Id = 201, Title = "Old Failed", Status = PlanStatus.Failed, Updated = older },
-            new() { Id = 202, Title = "New Failed", Status = PlanStatus.Failed, Updated = newer },
+            CreatePlanFile(201, "Old Failed", PlanStatus.Failed, updated: older),
+            CreatePlanFile(202, "New Failed", PlanStatus.Failed, updated: newer),
         };
 
         var prompts = SamplePrompts.ForChat(plans, new List<JobItem>());
@@ -82,10 +83,10 @@ public class ChatSamplePromptsTests
         var now = DateTime.UtcNow;
         var plans = new List<PlanFile>
         {
-            new() { Id = 1, Title = "Review", Status = PlanStatus.Review, Updated = now },
-            new() { Id = 2, Title = "Failed", Status = PlanStatus.Failed, Updated = now },
-            new() { Id = 3, Title = "Blocked", Status = PlanStatus.Blocked, Updated = now },
-            new() { Id = 4, Title = "Partial", Status = PlanStatus.Draft, PartialDelivery = true, Updated = now },
+            CreatePlanFile(1, "Review", PlanStatus.Review, updated: now),
+            CreatePlanFile(2, "Failed", PlanStatus.Failed, updated: now),
+            CreatePlanFile(3, "Blocked", PlanStatus.Blocked, updated: now),
+            CreatePlanFile(4, "Partial", PlanStatus.Draft, updated: now, partialDelivery: true),
         };
         var jobs = new List<JobItem>
         {
@@ -102,17 +103,15 @@ public class ChatSamplePromptsTests
     [Fact]
     public void ForPlan_NamesTheFailedVerification()
     {
-        var plan = new PlanFile
-        {
-            Id = 301,
-            Title = "Test Plan",
-            Verifications = new List<PlanVerificationEntry>
+        var plan = CreatePlanFile(
+            301,
+            "Test Plan",
+            verifications: new List<PlanVerificationEntry>
             {
                 new() { Name = "Build", Status = VerificationStatus.Pass },
                 new() { Name = "Test", Status = VerificationStatus.Fail },
                 new() { Name = "Lint", Status = VerificationStatus.Pending },
-            }
-        };
+            });
 
         var prompts = SamplePrompts.ForPlan(plan);
 
@@ -124,12 +123,10 @@ public class ChatSamplePromptsTests
     [Fact]
     public void ForPlan_AsksAboutThePullRequestWhenThePlanHasOne()
     {
-        var plan = new PlanFile
-        {
-            Id = 401,
-            Title = "PR Plan",
-            Prs = new List<string> { "https://github.com/owner/repo/pull/123" }
-        };
+        var plan = CreatePlanFile(
+            401,
+            "PR Plan",
+            prs: new List<string> { "https://github.com/owner/repo/pull/123" });
 
         var prompts = SamplePrompts.ForPlan(plan);
 
@@ -141,13 +138,11 @@ public class ChatSamplePromptsTests
     [Fact]
     public void ForPlan_FallsBackForAFreshDraftPlan()
     {
-        var plan = new PlanFile
-        {
-            Id = 501,
-            Title = "Draft Plan",
-            Status = PlanStatus.Draft,
-            Verifications = new List<PlanVerificationEntry>()
-        };
+        var plan = CreatePlanFile(
+            501,
+            "Draft Plan",
+            status: PlanStatus.Draft,
+            verifications: new List<PlanVerificationEntry>());
 
         var prompts = SamplePrompts.ForPlan(plan);
 
@@ -158,20 +153,35 @@ public class ChatSamplePromptsTests
     [Fact]
     public void ForPlan_ProducesNoDuplicateLabels()
     {
-        var plan = new PlanFile
-        {
-            Id = 601,
-            Title = "Complex Plan",
-            Status = PlanStatus.Draft,
-            Verifications = new List<PlanVerificationEntry>
+        var plan = CreatePlanFile(
+            601,
+            "Complex Plan",
+            status: PlanStatus.Draft,
+            verifications: new List<PlanVerificationEntry>
             {
                 new() { Name = "Test", Status = VerificationStatus.Fail },
-            }
-        };
+            });
 
         var prompts = SamplePrompts.ForPlan(plan);
 
         var labels = prompts.Select(p => p.Label).ToList();
         Assert.Equal(labels.Count, labels.Distinct().Count());
+    }
+
+    private static PlanFile CreatePlanFile(
+        int id,
+        string title,
+        PlanStatus status = PlanStatus.Draft,
+        DateTime? updated = null,
+        bool partialDelivery = false,
+        List<PlanVerificationEntry>? verifications = null,
+        List<string>? prs = null)
+    {
+        var metadata = new PlanMetadata(
+            id, "test-project", "Feature", title, status,
+            [], [], prs ?? [], verifications ?? [], [], [],
+            DateTime.UtcNow, updated ?? DateTime.UtcNow, null, null,
+            PartialDelivery: partialDelivery);
+        return new PlanFile(metadata, "", $"/tmp/{id:D5}-{title}", "");
     }
 }
