@@ -81,7 +81,6 @@ public class QuestionValidationServiceTests
               - id: q1
                 title: Which auth scheme?
                 header: Auth
-                other: false
                 options:
                   - title: JSON Web Tokens
                     value: jwt
@@ -164,20 +163,7 @@ public class QuestionValidationServiceTests
                     value: something-else
             """);
 
-        Assert.Equal($"question 1: option '{title}' duplicates what other: true provides", message);
-    }
-
-    [Fact]
-    public void Validate_RejectsOtherFalseWithNoOptions()
-    {
-        var message = SingleError("""
-            questions:
-              - id: q1
-                title: Which one?
-                other: false
-            """);
-
-        Assert.Equal("question 1: other: false with no options is unanswerable", message);
+        Assert.Equal($"question 1: option '{title}' duplicates the Other option every question offers", message);
     }
 
     [Fact]
@@ -225,25 +211,6 @@ public class QuestionValidationServiceTests
     }
 
     [Fact]
-    public void Validate_RejectsUnmatchedAnswerWhenOtherIsFalse()
-    {
-        var message = SingleError("""
-            questions:
-              - id: q1
-                title: Which one?
-                other: false
-                options:
-                  - title: First
-                    value: first
-                  - title: Second
-                    value: second
-                answer: third
-            """);
-
-        Assert.Equal("question 1: answer 'third' matches no option and other is false", message);
-    }
-
-    [Fact]
     public void Validate_AllowsUnmatchedAnswerWhenOtherIsTrue()
     {
         Assert.Empty(Validate("""
@@ -257,6 +224,43 @@ public class QuestionValidationServiceTests
                     value: second
                 answer: something the user typed
             """));
+    }
+
+    [Fact]
+    public void Validate_AllowsTypedAnswerWhenOtherIsFalse()
+    {
+        Assert.Empty(Validate("""
+            questions:
+              - id: q1
+                title: Which one?
+                other: false
+                options:
+                  - title: First
+                    value: first
+                  - title: Second
+                    value: second
+                answer: typed answer
+            """));
+    }
+
+    [Fact]
+    public void Validate_WarnsWhenOtherIsFalse()
+    {
+        var issues = Validate("""
+            questions:
+              - id: q1
+                title: Which one?
+                other: false
+                options:
+                  - title: First
+                    value: first
+                  - title: Second
+                    value: second
+            """);
+
+        var issue = Assert.Single(issues);
+        Assert.Equal(QuestionIssueSeverity.Warning, issue.Severity);
+        Assert.Contains("other: false is no longer honoured", issue.Message);
     }
 
     // ---------------------------------------------------------------- schema bounds
@@ -616,7 +620,11 @@ public class QuestionValidationServiceTests
                 title: Fine?
               - id: q2
                 title: Also fine?
-                other: false
+                options:
+                  - title: First
+                    value: same
+                  - title: Second
+                    value: same
             ```
 
             ```questions
@@ -630,7 +638,7 @@ public class QuestionValidationServiceTests
         var issues = QuestionValidationService.Validate(markdown);
 
         Assert.Equal(2, issues.Count);
-        Assert.Equal("block 1: question 2: other: false with no options is unanswerable", issues[0].Message);
+        Assert.Equal("block 1: question 2: duplicate option value 'same'", issues[0].Message);
         Assert.StartsWith("block 2: question 1: header 'WayTooLongHeader'", issues[1].Message);
         Assert.Equal(1, issues[0].Line);
         Assert.Equal(10, issues[1].Line);
@@ -643,7 +651,11 @@ public class QuestionValidationServiceTests
             questions:
               - id: q1
                 title: Which one?
-                other: false
+                options:
+                  - title: First
+                    value: dup
+                  - title: Second
+                    value: dup
             """));
     }
 

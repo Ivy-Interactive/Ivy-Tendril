@@ -23,9 +23,9 @@ namespace WidgetSamples.Apps.DraftMarkdown;
 ///     <para>
 ///         Between them the four blocks cover the whole schema: a four-question block under the H1
 ///         (the cap, and the scope-level placement the spec asks for), every shape from the shape
-///         table including multi-select over a fixed set, questions that arrive already answered
-///         with a scalar and with a list, one with no <c>header</c>, an optional question, and a
-///         documentation fence that must never become a picker.
+///         table including multi-select, questions that arrive already answered with a scalar and
+///         with a list, one with no <c>header</c>, an optional question, and a documentation fence
+///         that must never become a picker.
 ///     </para>
 /// </summary>
 [App(title: "Questions", icon: Icons.CircleQuestionMark, group: ["DraftMarkdown"])]
@@ -42,7 +42,6 @@ class QuestionsApp : ViewBase
             description: |
               A block placed directly under the H1, which is where a question about the
               plan's overall scope belongs. Four questions is the cap, and they stack.
-            other: false
             options:
               - title: Dispatch only
                 description: The fan-out and the consumers. No settings UI.
@@ -57,9 +56,8 @@ class QuestionsApp : ViewBase
           - id: target-release
             title: Which release should this land in?
             header: Release
-            description: Answered at the kickoff, so it arrives already filled in — this is
+            description: Answered at the kickoff, so it arrives already filled in, this is
               what a revision looks like after UpdatePlan has folded a decision back in.
-            other: false
             options:
               # Quoted, or YAML reads them as numbers. The renderer coerces either way, but a
               # sample should model the authoring the schema actually asks for.
@@ -72,9 +70,8 @@ class QuestionsApp : ViewBase
           - id: rollout-regions
             title: Which regions ship first?
             multiple: true
-            other: false
-            description: Multi-select over a fixed set — the third shape from the schema's
-              table, and the only one the other blocks below do not cover.
+            description: Multi-select, the third shape from the schema's table, and the only one
+              the other blocks below do not cover.
             options:
               - title: EU
                 value: eu
@@ -108,8 +105,7 @@ class QuestionsApp : ViewBase
           - id: retry-scope
             title: Should the retry budget be per-request or per-session?
             header: Retry scope
-            description: A **fixed** set — one of these three, no free text.
-            other: false
+            description: A question with three options and rich descriptions.
             options:
               - title: Per request
                 description: |
@@ -298,21 +294,21 @@ class QuestionsApp : ViewBase
                          | (Layout.Horizontal().Gap(2)
                             | new Button("Restore Plan").Outline().OnClick(() =>
                             {
-                              markdown.Set(InitialMarkdown);
-                              annotations.Set(DummyAnnotations);
-                              scrollTo.Set((QuestionScrollTarget?)null);
+                                markdown.Set(InitialMarkdown);
+                                annotations.Set(DummyAnnotations);
+                                scrollTo.Set((QuestionScrollTarget?)null);
                             })
                             | new Button("Clear Answers").OnClick(() =>
                             {
-                              // Every answer in the document, including the two it shipped with. Cleared one
-                              // at a time through the same merge the widget's own events use.
-                              var cleared = markdown.Value;
-                              foreach (var answered in QuestionAnswers.Read(cleared).Where(q => q.HasAnswer))
-                                QuestionAnswers.TryApply(cleared, new QuestionAnswer(answered.Id, null), out cleared);
+                                // Every answer in the document, including the two it shipped with. Cleared one
+                                // at a time through the same merge the widget's own events use.
+                                var cleared = markdown.Value;
+                                foreach (var answered in QuestionAnswers.Read(cleared).Where(q => q.HasAnswer))
+                                    QuestionAnswers.TryApply(cleared, new QuestionAnswer(answered.Id, null), out cleared);
 
-                              markdown.Set(cleared);
+                                markdown.Set(cleared);
                             }));
-          
+
 
         return Layout.Horizontal().Height(Size.Full()).RemoveParentPadding()
                | new DraftMarkdownWidget(markdown.Value)

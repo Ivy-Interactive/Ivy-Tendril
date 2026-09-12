@@ -186,7 +186,8 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
           />
         ))}
 
-        {hasOptions && question.other && (
+        {/* Every question with options offers a typed answer. */}
+        {hasOptions && (
           <div
             className="tq-option tq-option--other"
             data-selected={otherActive}

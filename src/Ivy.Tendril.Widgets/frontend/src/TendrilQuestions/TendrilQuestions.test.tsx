@@ -76,8 +76,8 @@ describe("TendrilQuestions widget", () => {
     expect(screen.getByText("How should we proceed?")).toBeInTheDocument();
     expect(screen.getByText("Open a new Pull Request against development branch.")).toBeInTheDocument();
     expect(screen.getByText("Recommended")).toBeInTheDocument();
-    expect(screen.getAllByRole("radio")).toHaveLength(2);
-    expect(screen.queryByRole("radio", { name: /^Other$/i })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    expect(screen.getByRole("radio", { name: /^Other$/i })).toBeInTheDocument();
   });
 
   it("selects an option on card click and reports it through OnAnswer", () => {

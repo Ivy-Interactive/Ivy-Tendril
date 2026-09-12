@@ -33,7 +33,7 @@ public static class QuestionValidationService
 {
     private static readonly Regex SlugRegex = new("^[a-z0-9][a-z0-9-]*$", RegexOptions.Compiled);
 
-    /// <summary>Titles that restate what <c>other: true</c> already provides.</summary>
+    /// <summary>Titles that duplicate the Other option every question offers.</summary>
     private static readonly string[] ReservedOptionTitles = ["Other", "Something else", "Custom"];
 
     private const int MaxQuestionsPerBlock = 4;
@@ -113,11 +113,13 @@ public static class QuestionValidationService
         if (question.Header is { } header && header.Length > MaxHeaderLength)
             issues.Add(Error(line, prefix + $"header '{header}' is {header.Length} characters; at most {MaxHeaderLength} are allowed"));
 
+        if (!question.Other)
+            issues.Add(Warning(line, prefix + "other: false is no longer honoured; every question offers a typed answer"));
+
         var options = question.Options;
         if (options is null || options.Count == 0)
         {
-            if (!question.Other)
-                issues.Add(Error(line, prefix + "other: false with no options is unanswerable"));
+            // Pure free text
         }
         else
         {
@@ -143,7 +145,7 @@ public static class QuestionValidationService
             if (string.IsNullOrWhiteSpace(option.Title))
                 issues.Add(Error(line, prefix + "option title is required"));
             else if (ReservedOptionTitles.Contains(option.Title.Trim(), StringComparer.OrdinalIgnoreCase))
-                issues.Add(Error(line, prefix + $"option '{option.Title}' duplicates what other: true provides"));
+                issues.Add(Error(line, prefix + $"option '{option.Title}' duplicates the Other option every question offers"));
 
             if (string.IsNullOrWhiteSpace(option.Value))
                 issues.Add(Error(line, prefix + $"option '{option.Title}' is missing a value"));
@@ -184,17 +186,11 @@ public static class QuestionValidationService
         {
             issues.Add(Error(line, prefix + "answer must be a scalar when multiple is false"));
         }
-
-        if (question.Other || question.Options is not { Count: > 0 } options)
-            return;
-
-        foreach (var entry in question.AnswerValues)
-        {
-            if (!options.Any(o => string.Equals(o.Value, entry, StringComparison.Ordinal)))
-                issues.Add(Error(line, prefix + $"answer '{entry}' matches no option and other is false"));
-        }
     }
 
     private static QuestionIssue Error(int line, string message) =>
         new(QuestionIssueSeverity.Error, line, message);
+
+    private static QuestionIssue Warning(int line, string message) =>
+        new(QuestionIssueSeverity.Warning, line, message);
 }
