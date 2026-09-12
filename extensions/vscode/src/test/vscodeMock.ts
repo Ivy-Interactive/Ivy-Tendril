@@ -106,6 +106,40 @@ export class MockEventEmitter<T = unknown> {
   }
 }
 
+export class MockCancellationToken {
+  public isCancellationRequested = false;
+  private listeners: (() => void)[] = [];
+
+  public onCancellationRequested = (listener: () => void) => {
+    this.listeners.push(listener);
+    return {
+      dispose: () => {
+        const idx = this.listeners.indexOf(listener);
+        if (idx >= 0) {
+          this.listeners.splice(idx, 1);
+        }
+      }
+    };
+  };
+
+  public cancel(): void {
+    this.isCancellationRequested = true;
+    for (const listener of this.listeners) {
+      listener();
+    }
+  }
+}
+
+export class MockCancellationTokenSource {
+  public token = new MockCancellationToken();
+
+  public cancel(): void {
+    this.token.cancel();
+  }
+
+  public dispose(): void {}
+}
+
 const registeredCommands = new Map<string, (...args: unknown[]) => unknown>();
 
 export const vscodeMock = {
@@ -119,6 +153,7 @@ export const vscodeMock = {
   ThemeColor: MockThemeColor,
   TreeItem: MockTreeItem,
   EventEmitter: MockEventEmitter,
+  CancellationTokenSource: MockCancellationTokenSource,
   env: {
     lastOpenedUri: undefined as unknown,
     openExternal: async (uri: unknown) => {
@@ -162,7 +197,8 @@ export const vscodeMock = {
     }),
     openTextDocument: async (filePath: string) => ({ uri: MockUri.file(filePath) }),
     workspaceFolders: [],
-    updateWorkspaceFolders: () => true
+    updateWorkspaceFolders: () => true,
+    onDidChangeWorkspaceFolders: () => ({ dispose: () => {} })
   },
   commands: {
     registerCommand: (command: string, callback: (...args: unknown[]) => unknown) => {

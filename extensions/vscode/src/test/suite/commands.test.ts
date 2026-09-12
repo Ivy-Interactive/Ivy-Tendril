@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { registerPlanCommands } from '../../commands/planCommands';
 import { COMMANDS } from '../../constants';
-import { IJobRunner, JobListItem, JobResult, JobStatusResult } from '../../jobs/jobRunner';
+import { IJobRunner, JobListItem, JobResult, JobStatusResult, JobStreamEvent } from '../../jobs/jobRunner';
 
 class MockJobRunner implements IJobRunner {
   public startCreatePlanCalls: Array<{ desc: string; project?: string }> = [];
@@ -36,6 +36,14 @@ class MockJobRunner implements IJobRunner {
   async getJobStatus(jobId: string): Promise<JobStatusResult> {
     this.getJobStatusCalls.push(jobId);
     return { id: jobId, status: 'Running', message: 'All checks passed' };
+  }
+
+  async subscribeJobEvents(
+    jobId: string,
+    _onEvent: (event: JobStreamEvent) => void,
+    _cancellationToken?: vscode.CancellationToken
+  ): Promise<JobStatusResult> {
+    return { id: jobId, status: 'Completed' };
   }
 
   async listJobs(): Promise<JobListItem[]> {

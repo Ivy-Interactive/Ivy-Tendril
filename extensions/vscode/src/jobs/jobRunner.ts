@@ -1,8 +1,23 @@
 import * as vscode from 'vscode';
 import * as cp from 'child_process';
 import { CONFIG_KEYS } from '../constants';
-import { resolveTendrilHome } from '../server/masterDiscovery';
+import { discoverMaster, resolveTendrilHome } from '../server/masterDiscovery';
 import { ServerManager } from '../server/serverManager';
+
+export interface JobStreamEvent {
+  kind?: string;
+  text?: string;
+  delta?: boolean;
+  content?: string;
+  tool_name?: string;
+  tool_use_id?: string;
+  input?: Record<string, unknown>;
+  output?: string;
+  is_error?: boolean;
+  message?: string;
+  status?: string;
+  [key: string]: unknown;
+}
 
 export interface JobResult {
   jobId?: string;
@@ -14,6 +29,7 @@ export interface JobStatusResult {
   id: string;
   status: string;
   message?: string;
+  planId?: string;
 }
 
 export interface JobListItem {
@@ -33,6 +49,11 @@ export interface IJobRunner {
   startRetryPlan(planId: string, changeRequest: string): Promise<JobResult>;
   startUpdatePlan(planId: string, instructions: string): Promise<JobResult>;
   getJobStatus(jobId: string): Promise<JobStatusResult>;
+  subscribeJobEvents(
+    jobId: string,
+    onEvent: (event: JobStreamEvent) => void,
+    cancellationToken?: vscode.CancellationToken
+  ): Promise<JobStatusResult>;
   listJobs(): Promise<JobListItem[]>;
   listProjects(): Promise<string[]>;
   executeCli(args: string[]): Promise<{ stdout: string; stderr: string }>;
@@ -210,6 +231,142 @@ export class JobRunner implements IJobRunner {
       status: 'Unknown',
       message: 'Job status not found'
     };
+  }
+
+  public async subscribeJobEvents(
+    jobId: string,
+    onEvent: (event: JobStreamEvent) => void,
+    cancellationToken?: vscode.CancellationToken
+  ): Promise<JobStatusResult> {
+    let baseUrl: string | undefined;
+    let apiKey: string | undefined;
+
+    if (this.serverManager) {
+      try {
+        const health = await this.serverManager.getHealthInfo();
+        if (health.isAlive && health.baseUrl) {
+          baseUrl = health.baseUrl;
+          const discovery = discoverMaster(this.serverManager.tendrilHome, false);
+          if (discovery.status === 'found') {
+            apiKey = discovery.result.apiKey;
+          }
+        }
+      } catch {
+        // Fall back
+      }
+    }
+
+    if (!baseUrl) {
+      return await this.getJobStatus(jobId);
+    }
+
+    const abortController = new AbortController();
+    let cancellationListener: vscode.Disposable | undefined;
+    if (cancellationToken) {
+      if (cancellationToken.isCancellationRequested) {
+        abortController.abort();
+      } else {
+        cancellationListener = cancellationToken.onCancellationRequested(() => {
+          abortController.abort();
+        });
+      }
+    }
+
+    const url = `${baseUrl.replace(/\/+$/, '')}/api/jobs/${encodeURIComponent(jobId)}/events`;
+    const headers: Record<string, string> = {
+      Accept: 'text/event-stream'
+    };
+    if (apiKey) {
+      headers['x-api-key'] = apiKey;
+    }
+
+    let finalStatus: string | undefined;
+
+    const parseSseMessage = (message: string) => {
+      let eventType = '';
+      const dataLines: string[] = [];
+      for (const line of message.split(/\r?\n/)) {
+        if (line.startsWith(':')) {
+          continue;
+        }
+        if (line.startsWith('event:')) {
+          eventType = line.slice(6).trim();
+        } else if (line.startsWith('data:')) {
+          dataLines.push(line.slice(5).trimStart());
+        }
+      }
+      const dataStr = dataLines.join('\n');
+      if (!dataStr) {
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(dataStr);
+        if (eventType === 'end') {
+          if (parsed.status) {
+            finalStatus = parsed.status;
+          }
+          onEvent({ kind: 'end', status: parsed.status, ...parsed });
+        } else {
+          if (parsed.status && !finalStatus) {
+            finalStatus = parsed.status;
+          }
+          onEvent(parsed);
+        }
+      } catch {
+        onEvent({ text: dataStr, content: dataStr });
+      }
+    };
+
+    try {
+      const res = await fetch(url, {
+        headers,
+        signal: abortController.signal
+      });
+
+      if (!res.ok || !res.body) {
+        return await this.getJobStatus(jobId);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        buffer += decoder.decode(value, { stream: true });
+        let match;
+        while ((match = buffer.match(/\r?\n\r?\n/)) !== null && match.index !== undefined) {
+          const idx = match.index;
+          const message = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + match[0].length);
+          parseSseMessage(message);
+        }
+      }
+
+      if (buffer.trim().length > 0) {
+        parseSseMessage(buffer);
+      }
+    } catch (err: unknown) {
+      if (cancellationToken?.isCancellationRequested || (err instanceof Error && err.name === 'AbortError')) {
+        return await this.getJobStatus(jobId);
+      }
+      return await this.getJobStatus(jobId);
+    } finally {
+      cancellationListener?.dispose();
+    }
+
+    if (finalStatus) {
+      return {
+        id: jobId,
+        status: finalStatus
+      };
+    }
+
+    return await this.getJobStatus(jobId);
   }
 
   public async listProjects(): Promise<string[]> {
