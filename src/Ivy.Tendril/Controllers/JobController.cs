@@ -1,6 +1,7 @@
 using Ivy.Tendril.Commands;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Ivy.Tendril.Controllers;
@@ -10,6 +11,101 @@ namespace Ivy.Tendril.Controllers;
 public class JobController(IJobService jobService, IConfigService configService) : ControllerBase
 {
     private static string NormalizeJobId(string jobId) => Helpers.JobId.Normalize(jobId);
+
+    [HttpGet("{jobId}/events")]
+    public async Task GetJobEvents(string jobId, CancellationToken cancellationToken)
+    {
+        var id = NormalizeJobId(jobId);
+        var job = jobService.GetJob(id);
+        if (job == null)
+        {
+            Response.StatusCode = StatusCodes.Status404NotFound;
+            await Response.WriteAsJsonAsync(new { error = "Job not found" }, cancellationToken);
+            return;
+        }
+
+        Response.ContentType = "text/event-stream";
+        Response.Headers["Cache-Control"] = "no-cache";
+        Response.Headers["Connection"] = "keep-alive";
+        Response.Headers["X-Accel-Buffering"] = "no";
+
+        try
+        {
+            foreach (var line in job.OutputLines)
+            {
+                if (cancellationToken.IsCancellationRequested) return;
+                await WriteSseLineAsync(Response, line, cancellationToken);
+            }
+
+            if (IsTerminal(job.Status))
+            {
+                await WriteSseEndAsync(Response, job.Status.ToString(), cancellationToken);
+                return;
+            }
+
+            var channel = System.Threading.Channels.Channel.CreateUnbounded<string>();
+
+            void OnJobFinished(JobItem finishedJob)
+            {
+                if (finishedJob.Id == job.Id)
+                {
+                    channel.Writer.TryComplete();
+                }
+            }
+
+            jobService.JobFinished += OnJobFinished;
+
+            using var subscription = job.OutputObservable.Subscribe(
+                onNext: line => channel.Writer.TryWrite(line),
+                onError: ex => channel.Writer.TryComplete(ex),
+                onCompleted: () => channel.Writer.TryComplete());
+
+            try
+            {
+                if (IsTerminal(job.Status))
+                {
+                    channel.Writer.TryComplete();
+                }
+
+                while (await channel.Reader.WaitToReadAsync(cancellationToken))
+                {
+                    while (channel.Reader.TryRead(out var line))
+                    {
+                        await WriteSseLineAsync(Response, line, cancellationToken);
+                    }
+                }
+
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    await WriteSseEndAsync(Response, job.Status.ToString(), cancellationToken);
+                }
+            }
+            finally
+            {
+                jobService.JobFinished -= OnJobFinished;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Client disconnected gracefully
+        }
+    }
+
+    private static bool IsTerminal(JobStatus status) =>
+        status is JobStatus.Completed or JobStatus.Failed or JobStatus.Stopped or JobStatus.Timeout;
+
+    private static async Task WriteSseLineAsync(HttpResponse response, string line, CancellationToken cancellationToken)
+    {
+        var cleanLine = line.TrimEnd('\r', '\n');
+        await response.WriteAsync($"data: {cleanLine}\n\n", cancellationToken);
+        await response.Body.FlushAsync(cancellationToken);
+    }
+
+    private static async Task WriteSseEndAsync(HttpResponse response, string status, CancellationToken cancellationToken)
+    {
+        await response.WriteAsync($"event: end\ndata: {{\"status\":\"{status}\"}}\n\n", cancellationToken);
+        await response.Body.FlushAsync(cancellationToken);
+    }
 
     [HttpPost]
     public IActionResult StartJob([FromBody] JobArgsBase args)

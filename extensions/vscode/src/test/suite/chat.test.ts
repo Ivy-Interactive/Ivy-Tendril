@@ -1,11 +1,13 @@
 import * as assert from 'assert';
+import * as vscode from 'vscode';
 import { handleChatRequest } from '../../chat/chatParticipant';
 import {
   IJobRunner,
   JobListItem,
   JobResult,
   JobRunner,
-  JobStatusResult
+  JobStatusResult,
+  JobStreamEvent
 } from '../../jobs/jobRunner';
 
 class MockChatResponseStream {
@@ -33,9 +35,23 @@ class TestJobRunner implements IJobRunner {
   public startRetryPlanCalls: Array<{ planId: string; changeRequest: string }> = [];
   public startUpdatePlanCalls: Array<{ planId: string; instructions: string }> = [];
   public getJobStatusCalls: string[] = [];
+  public subscribeJobEventsCalls: Array<{
+    jobId: string;
+    onEvent: (event: JobStreamEvent) => void;
+    token?: any;
+  }> = [];
   public listJobsCalls = 0;
   public listProjectsCalls = 0;
   public executeCliCalls: string[][] = [];
+
+  async subscribeJobEvents(
+    jobId: string,
+    onEvent: (event: JobStreamEvent) => void,
+    cancellationToken?: any
+  ): Promise<JobStatusResult> {
+    this.subscribeJobEventsCalls.push({ jobId, onEvent, token: cancellationToken });
+    return { id: jobId, status: 'Completed' };
+  }
 
   async startCreatePlan(desc: string, project?: string): Promise<JobResult> {
     this.startCreatePlanCalls.push({ desc, project });
@@ -328,6 +344,120 @@ describe('Tendril Chat Participant Suite', () => {
         '--instructions=Update database schema'
       ]);
       assert.strictEqual(res.jobId, '01996');
+    });
+  });
+
+  describe('Live streaming in handleChatRequest', () => {
+    it('should subscribe to jobRunner.subscribeJobEvents on /plan and render streamed output', async () => {
+      const runner = new TestJobRunner();
+      runner.subscribeJobEvents = async (jobId, onEvent) => {
+        runner.subscribeJobEventsCalls.push({ jobId, onEvent });
+        onEvent({ kind: 'text', text: 'Generating plan structure...' });
+        onEvent({ kind: 'tool_call', tool_name: 'git status' });
+        return { id: jobId, status: 'Completed', planId: '00418' };
+      };
+
+      const stream = new MockChatResponseStream();
+      const request: any = { command: 'plan', prompt: 'Add new feature' };
+
+      await handleChatRequest(request, stream as any, runner, mockServerManager);
+
+      assert.strictEqual(runner.subscribeJobEventsCalls.length, 1);
+      assert.strictEqual(runner.subscribeJobEventsCalls[0].jobId, '00001');
+      assert.ok(stream.markdownOutput.some(m => m.includes('Generating plan structure...')));
+      assert.ok(stream.markdownOutput.some(m => m.includes('🔧 `git status`')));
+      assert.ok(stream.markdownOutput.some(m => m.includes('Completed ✅')));
+      assert.ok(stream.markdownOutput.some(m => m.includes('@tendril /run 00418')));
+    });
+
+    it('should subscribe to jobRunner.subscribeJobEvents on /run and render streamed output', async () => {
+      const runner = new TestJobRunner();
+      runner.subscribeJobEvents = async (jobId, onEvent) => {
+        runner.subscribeJobEventsCalls.push({ jobId, onEvent });
+        onEvent({ kind: 'text', text: 'Executing plan steps...' });
+        return { id: jobId, status: 'Completed' };
+      };
+
+      const stream = new MockChatResponseStream();
+      const request: any = { command: 'run', prompt: '00418' };
+
+      await handleChatRequest(request, stream as any, runner, mockServerManager);
+
+      assert.strictEqual(runner.subscribeJobEventsCalls.length, 1);
+      assert.strictEqual(runner.subscribeJobEventsCalls[0].jobId, '00002');
+      assert.ok(stream.markdownOutput.some(m => m.includes('Executing plan steps...')));
+      assert.ok(stream.markdownOutput.some(m => m.includes('Completed ✅')));
+    });
+
+    it('should subscribe to jobRunner.subscribeJobEvents on /retry and render streamed output', async () => {
+      const runner = new TestJobRunner();
+      runner.subscribeJobEvents = async (jobId, onEvent) => {
+        runner.subscribeJobEventsCalls.push({ jobId, onEvent });
+        onEvent({ kind: 'text', text: 'Retrying plan with feedback...' });
+        return { id: jobId, status: 'Completed' };
+      };
+
+      const stream = new MockChatResponseStream();
+      const request: any = { command: 'retry', prompt: '00418 Fix compile issues' };
+
+      await handleChatRequest(request, stream as any, runner, mockServerManager);
+
+      assert.strictEqual(runner.subscribeJobEventsCalls.length, 1);
+      assert.strictEqual(runner.subscribeJobEventsCalls[0].jobId, '00003');
+      assert.ok(stream.markdownOutput.some(m => m.includes('Retrying plan with feedback...')));
+      assert.ok(stream.markdownOutput.some(m => m.includes('Completed ✅')));
+    });
+
+    it('should stream live progress on /status <jobId> when job is running', async () => {
+      const runner = new TestJobRunner();
+      runner.getJobStatus = async (jobId) => ({ id: jobId, status: 'Running', message: 'In progress' });
+      runner.subscribeJobEvents = async (jobId, onEvent) => {
+        runner.subscribeJobEventsCalls.push({ jobId, onEvent });
+        onEvent({ kind: 'text', text: 'Currently compiling...' });
+        return { id: jobId, status: 'Completed' };
+      };
+
+      const stream = new MockChatResponseStream();
+      const request: any = { command: 'status', prompt: '01864' };
+
+      await handleChatRequest(request, stream as any, runner, mockServerManager);
+
+      assert.strictEqual(runner.subscribeJobEventsCalls.length, 1);
+      assert.strictEqual(runner.subscribeJobEventsCalls[0].jobId, '01864');
+      assert.ok(stream.markdownOutput.some(m => m.includes('Currently compiling...')));
+    });
+
+    it('should not stream on /status <jobId> --no-follow', async () => {
+      const runner = new TestJobRunner();
+      runner.getJobStatus = async (jobId) => ({ id: jobId, status: 'Running', message: 'In progress' });
+
+      const stream = new MockChatResponseStream();
+      const request: any = { command: 'status', prompt: '01864 --no-follow' };
+
+      await handleChatRequest(request, stream as any, runner, mockServerManager);
+
+      assert.strictEqual(runner.subscribeJobEventsCalls.length, 0);
+    });
+
+    it('should handle cancellation gracefully when CancellationToken is cancelled during streaming', async () => {
+      const runner = new TestJobRunner();
+      const cts = new vscode.CancellationTokenSource();
+
+      runner.subscribeJobEvents = async (jobId, _onEvent, _token) => {
+        cts.cancel();
+        return { id: jobId, status: 'Running' };
+      };
+
+      const stream = new MockChatResponseStream();
+      const request: any = { command: 'run', prompt: '00418' };
+
+      await handleChatRequest(request, stream as any, runner, mockServerManager, cts.token);
+
+      assert.ok(
+        stream.markdownOutput.some(m =>
+          m.includes('Stopped following job events')
+        )
+      );
     });
   });
 });
