@@ -6,17 +6,37 @@ using Microsoft.Extensions.Logging;
 
 namespace Ivy.Tendril.Controllers;
 
-public class LocalFileGuardMiddleware(
-    RequestDelegate next,
-    IConfigService configService,
-    IShareTunnelService tunnelService,
-    ILogger<LocalFileGuardMiddleware> logger)
+public class LocalFileGuardMiddleware
 {
+    private readonly RequestDelegate _next;
+    private readonly IConfigService _configService;
+    private readonly IShareTunnelService _tunnelService;
+    private readonly ILogger<LocalFileGuardMiddleware> _logger;
+    private volatile List<string>? _cachedRoots;
+    private volatile bool _loggedEmptyRoots;
+
+    public LocalFileGuardMiddleware(
+        RequestDelegate next,
+        IConfigService configService,
+        IShareTunnelService tunnelService,
+        ILogger<LocalFileGuardMiddleware> logger)
+    {
+        _next = next;
+        _configService = configService;
+        _tunnelService = tunnelService;
+        _logger = logger;
+        _configService.SettingsReloaded += (_, _) =>
+        {
+            _cachedRoots = null;
+            _loggedEmptyRoots = false;
+        };
+    }
+
     public async Task InvokeAsync(HttpContext context)
     {
         if (!context.Request.Path.StartsWithSegments("/ivy/local-file"))
         {
-            await next(context);
+            await _next(context);
             return;
         }
 
@@ -24,7 +44,7 @@ public class LocalFileGuardMiddleware(
         var host = context.Request.Host.Host;
         if (!IsAllowedHost(host))
         {
-            logger.LogWarning("LocalFileGuard: Rejected request from disallowed host: {Host}, Path: {Path}",
+            _logger.LogWarning("LocalFileGuard: Rejected request from disallowed host: {Host}, Path: {Path}",
                 host, context.Request.Query["path"]);
             context.Response.StatusCode = 403;
             await context.Response.WriteAsJsonAsync(new { error = "Access denied: invalid host" });
@@ -39,7 +59,7 @@ public class LocalFileGuardMiddleware(
             {
                 if (!string.Equals(originUri.Host, host, StringComparison.OrdinalIgnoreCase))
                 {
-                    logger.LogWarning(
+                    _logger.LogWarning(
                         "LocalFileGuard: Rejected cross-origin request from {Origin} to {Host}, Path: {Path}",
                         originString, host, context.Request.Query["path"]);
                     context.Response.StatusCode = 403;
@@ -55,7 +75,7 @@ public class LocalFileGuardMiddleware(
             var fetchSiteValue = fetchSite.ToString();
             if (string.Equals(fetchSiteValue, "cross-site", StringComparison.OrdinalIgnoreCase))
             {
-                logger.LogWarning(
+                _logger.LogWarning(
                     "LocalFileGuard: Rejected cross-site fetch from {Host}, Path: {Path}",
                     host, context.Request.Query["path"]);
                 context.Response.StatusCode = 403;
@@ -73,9 +93,28 @@ public class LocalFileGuardMiddleware(
 
             if (!IsAllowedFileType(extension))
             {
-                logger.LogWarning(
+                _logger.LogWarning(
                     "LocalFileGuard: Rejected request for disallowed file type {Extension}, Path: {Path}",
                     extension, fullPath);
+                context.Response.StatusCode = 404;
+                await context.Response.WriteAsJsonAsync(new { error = "File not found" });
+                return;
+            }
+
+            // 4.5 Root confinement: the resolved path must fall inside a configured root.
+            var roots = GetRoots();
+            if (roots.Count == 0 && !_loggedEmptyRoots)
+            {
+                _loggedEmptyRoots = true;
+                _logger.LogError(
+                    "LocalFileGuard: No local-file roots are configured; every /ivy/local-file request will be rejected. Check TendrilHome, the plans folder and project repo paths.");
+            }
+
+            if (!LocalFileRootPolicy.TryResolve(path, roots, out _))
+            {
+                _logger.LogWarning(
+                    "LocalFileGuard: Rejected request for path outside configured roots, Path: {Path}, RootCount: {RootCount}",
+                    fullPath, roots.Count);
                 context.Response.StatusCode = 404;
                 await context.Response.WriteAsJsonAsync(new { error = "File not found" });
                 return;
@@ -86,7 +125,12 @@ public class LocalFileGuardMiddleware(
         context.Response.Headers["X-Content-Type-Options"] = "nosniff";
         context.Response.Headers["Content-Security-Policy"] = "default-src 'none'; sandbox";
 
-        await next(context);
+        await _next(context);
+    }
+
+    private List<string> GetRoots()
+    {
+        return _cachedRoots ??= LocalFileRootPolicy.ComputeRoots(_configService);
     }
 
     private bool IsAllowedHost(string host)
@@ -102,9 +146,9 @@ public class LocalFileGuardMiddleware(
         }
 
         // Active tunnel host
-        if (tunnelService.IsConnected && tunnelService.TunnelUrl != null)
+        if (_tunnelService.IsConnected && _tunnelService.TunnelUrl != null)
         {
-            if (Uri.TryCreate(tunnelService.TunnelUrl, UriKind.Absolute, out var tunnelUri))
+            if (Uri.TryCreate(_tunnelService.TunnelUrl, UriKind.Absolute, out var tunnelUri))
             {
                 if (string.Equals(host, tunnelUri.Host, StringComparison.OrdinalIgnoreCase))
                 {
@@ -126,7 +170,7 @@ public class LocalFileGuardMiddleware(
         }
 
         // Configured allowed hosts
-        var allowedHosts = configService.Settings.Security?.AllowedHosts;
+        var allowedHosts = _configService.Settings.Security?.AllowedHosts;
         if (allowedHosts != null && allowedHosts.Contains(host, StringComparer.OrdinalIgnoreCase))
         {
             return true;
