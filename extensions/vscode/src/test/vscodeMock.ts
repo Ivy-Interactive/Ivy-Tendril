@@ -63,6 +63,11 @@ export class MockThemeColor {
 }
 
 export class MockTreeItem {
+  public iconPath?: unknown;
+  public command?: { command: string; title: string; arguments?: unknown[] };
+  public description?: string | boolean;
+  public tooltip?: string | unknown;
+
   constructor(
     public label: string,
     public collapsibleState: TreeItemCollapsibleState = TreeItemCollapsibleState.None
@@ -95,6 +100,8 @@ export class MockEventEmitter<T = unknown> {
   }
 }
 
+const registeredCommands = new Map<string, (...args: unknown[]) => unknown>();
+
 export const vscodeMock = {
   Uri: MockUri,
   Position: MockPosition,
@@ -106,7 +113,16 @@ export const vscodeMock = {
   ThemeColor: MockThemeColor,
   TreeItem: MockTreeItem,
   EventEmitter: MockEventEmitter,
+  env: {
+    lastOpenedUri: undefined as unknown,
+    openExternal: async (uri: unknown) => {
+      vscodeMock.env.lastOpenedUri = uri;
+      return true;
+    },
+    asExternalUri: async (uri: unknown) => uri
+  },
   window: {
+    lastErrorMessage: undefined as string | undefined,
     createOutputChannel: (name: string) => ({
       name,
       append: () => {},
@@ -123,7 +139,10 @@ export const vscodeMock = {
     }),
     showInformationMessage: async () => undefined,
     showWarningMessage: async () => undefined,
-    showErrorMessage: async () => undefined,
+    showErrorMessage: async (msg: string) => {
+      vscodeMock.window.lastErrorMessage = msg;
+      return undefined;
+    },
     showTextDocument: async () => ({}),
     activeColorTheme: { kind: ColorThemeKind.Dark },
     onDidChangeActiveColorTheme: () => ({ dispose: () => {} }),
@@ -138,7 +157,20 @@ export const vscodeMock = {
     updateWorkspaceFolders: () => true
   },
   commands: {
-    registerCommand: () => ({ dispose: () => {} }),
-    executeCommand: async () => undefined
+    registerCommand: (command: string, callback: (...args: unknown[]) => unknown) => {
+      registeredCommands.set(command, callback);
+      return {
+        dispose: () => {
+          registeredCommands.delete(command);
+        }
+      };
+    },
+    executeCommand: async (command: string, ...args: unknown[]) => {
+      const handler = registeredCommands.get(command);
+      if (handler) {
+        return await handler(...args);
+      }
+      return undefined;
+    }
   }
 };

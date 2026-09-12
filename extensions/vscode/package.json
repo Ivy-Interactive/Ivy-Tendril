@@ -44,7 +44,13 @@
     "commands": [
       {
         "command": "tendril.openDashboard",
-        "title": "Tendril: Open Dashboard"
+        "title": "Tendril: Open Dashboard",
+        "icon": "$(browser)"
+      },
+      {
+        "command": "tendril.openInBrowser",
+        "title": "Tendril: Open in Browser",
+        "icon": "$(globe)"
       },
       {
         "command": "tendril.openWorktree",
@@ -63,6 +69,20 @@
         "title": "Tendril: Restart Server"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "tendril.openDashboard",
+          "when": "view == tendril.quickAccess",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tendril.openInBrowser",
+          "when": "view == tendril.quickAccess",
+          "group": "navigation@2"
+        }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {

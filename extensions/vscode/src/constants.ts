@@ -1,5 +1,6 @@
 export const COMMANDS = {
   openDashboard: 'tendril.openDashboard',
+  openInBrowser: 'tendril.openInBrowser',
   openWorktree: 'tendril.openWorktree',
   startServer: 'tendril.startServer',
   stopServer: 'tendril.stopServer',

@@ -72,6 +72,14 @@ export class SidebarProvider implements vscode.TreeDataProvider<TendrilTreeItem>
     };
     items.push(openDashboardItem);
 
+    const openInBrowserItem = new TendrilTreeItem('action', 'Open in Browser');
+    openInBrowserItem.iconPath = new vscode.ThemeIcon('globe');
+    openInBrowserItem.command = {
+      command: COMMANDS.openInBrowser,
+      title: 'Open in Browser'
+    };
+    items.push(openInBrowserItem);
+
     if (health.isAlive) {
       const stopServerItem = new TendrilTreeItem('action', 'Stop Server');
       stopServerItem.iconPath = new vscode.ThemeIcon('debug-stop');
