@@ -1,0 +1,73 @@
+name: Backend Checks
+
+on:
+  push:
+    branches:
+      - development
+      - main
+  pull_request:
+    branches:
+      - development
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: Ivy-Tendril
+
+    steps:
+      - name: Checkout Ivy-Tendril
+        uses: actions/checkout@v4
+        with:
+          path: Ivy-Tendril
+
+      - name: Checkout Ivy-Framework
+        uses: actions/checkout@v4
+        with:
+          repository: Ivy-Interactive/Ivy-Framework
+          path: Ivy-Framework
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          cache-dependency-path: Ivy-Tendril/src/Ivy.Tendril.Widgets/frontend/pnpm-lock.yaml
+
+      - name: Setup Java (for ANTLR4)
+        uses: actions/setup-java@v4
+        with:
+          distribution: microsoft
+          java-version: 17
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install PowerShell
+        run: |
+          dotnet tool install --global PowerShell
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Restore dependencies
+        run: dotnet restore src/Ivy.Tendril/Ivy.Tendril.slnx
+
+      - name: Verify code formatting
+        run: dotnet format src/Ivy.Tendril/Ivy.Tendril.slnx --verify-no-changes
+
+      - name: Compile solution
+        run: dotnet build src/Ivy.Tendril/Ivy.Tendril.slnx --configuration Release --warnaserror
+
+      - name: Run unit test suites
+        run: dotnet test src/Ivy.Tendril/Ivy.Tendril.slnx --configuration Release --no-build --filter "FullyQualifiedName!~End2End" --verbosity normal
