@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Ivy.Tendril.Test.TestHelpers;
 
 namespace Ivy.Tendril.Test;
 
@@ -40,7 +41,7 @@ public class PlansChangedSubscriberAuditTests
     [Fact]
     public void EveryPlansChangedSubscriber_IsAudited()
     {
-        var repoRoot = FindRepoRoot();
+        var repoRoot = RepoRoot.Find();
         var found = FindSubscriberFiles(repoRoot);
 
         var unaudited = found.Except(AuditedSubscribers.Keys, StringComparer.OrdinalIgnoreCase).ToList();
@@ -60,7 +61,7 @@ public class PlansChangedSubscriberAuditTests
     {
         // The other direction: an entry left behind after its subscription is removed makes the audit
         // read as broader than it is.
-        var repoRoot = FindRepoRoot();
+        var repoRoot = RepoRoot.Find();
         var found = FindSubscriberFiles(repoRoot);
 
         var stale = AuditedSubscribers.Keys.Except(found, StringComparer.OrdinalIgnoreCase).ToList();
@@ -75,7 +76,7 @@ public class PlansChangedSubscriberAuditTests
     {
         // The census above cannot see whether a view still gates, only that it subscribes - so assert the
         // gate itself for the two views that render one plan.
-        var repoRoot = FindRepoRoot();
+        var repoRoot = RepoRoot.Find();
 
         foreach (var relative in SinglePlanViews)
         {
@@ -93,7 +94,7 @@ public class PlansChangedSubscriberAuditTests
         // open plan's content stayed as it was first read. Pinned as source text because the repo has no
         // way to render a view in a test - the coalescing behaviour itself is covered at the hook seam in
         // PlansContentViewRefreshTests.
-        var repoRoot = FindRepoRoot();
+        var repoRoot = RepoRoot.Find();
         var source = File.ReadAllText(
             Path.Combine(repoRoot, "src", "Ivy.Tendril", "Apps", "Plans", "ContentView.cs"));
 
@@ -113,19 +114,5 @@ public class PlansChangedSubscriberAuditTests
             .Select(f => Path.GetRelativePath(repoRoot, f).Replace(Path.DirectorySeparatorChar, '/'))
             .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
             .ToList();
-    }
-
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
-        while (dir != null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "src", "Ivy.Tendril", "Ivy.Tendril.slnx")))
-            {
-                return dir.FullName;
-            }
-            dir = dir.Parent;
-        }
-        throw new DirectoryNotFoundException("Could not locate repository root from BaseDirectory: " + AppDomain.CurrentDomain.BaseDirectory);
     }
 }

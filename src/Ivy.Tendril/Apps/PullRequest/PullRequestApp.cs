@@ -150,6 +150,9 @@ public class PullRequestApp : ViewBase
             .Hidden(t => t.Id)
             .Hidden(t => t.PlanId)
             .Hidden(t => t.PlanFolderPath)
+            .Filterable(t => t.Id, false)
+            .Filterable(t => t.PlanId, false)
+            .Filterable(t => t.PlanFolderPath, false)
             .Config(c =>
             {
                 c.AllowSorting = true;

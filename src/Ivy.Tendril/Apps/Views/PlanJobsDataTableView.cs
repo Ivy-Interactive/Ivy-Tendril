@@ -53,6 +53,7 @@ public class PlanJobsDataTableView(List<JobItem> jobs, Action<string> showDebug,
             })
             .Renderer(t => t.StatusMessage, new TextDisplayRenderer())
             .Hidden(t => t.Id)
+            .Filterable(t => t.Id, false)
             .Config(c =>
             {
                 c.AllowSorting = false;
