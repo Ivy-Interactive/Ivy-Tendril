@@ -365,7 +365,6 @@ public record JobItemRow
     /// </summary>
     public string Timestamp { get; init; } = "";
     public string AgentOutput { get; init; } = "";
-    public DateTime? LastOutputTimestamp { get; init; }
     public string Cost { get; init; } = "";
     public string Tokens { get; init; } = "";
     public string StatusMessage { get; init; } = "";

@@ -98,10 +98,8 @@ public partial class JobsApp
             .Renderer(t => t.Prompt, new TextDisplayRenderer())
             .Renderer(t => t.StatusMessage, new TextDisplayRenderer())
             .Hidden(t => t.Id)
-            .Hidden(t => t.LastOutputTimestamp)
             .Hidden(t => t.ErrorContext)
             .Filterable(t => t.Id, false)
-            .Filterable(t => t.LastOutputTimestamp, false)
             .Filterable(t => t.ErrorContext, false)
             .SortDirection(t => t.Id, SortDirection.Descending)
             .Config(c =>
