@@ -437,6 +437,126 @@ public class JobServiceCompletionGuardTests : IDisposable
         Assert.Equal(JobStatus.Completed, job.Status);
     }
 
+    [Fact]
+    public void CompleteJob_CreatePlan_FailsWhenPlanIdIsOnlyInAReadToolResult()
+    {
+        var service = CreateServiceWithPlanReader(_tempDir.Path);
+        var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
+        // The foreign plan is real and has revisions, so folder resolution isn't what fails this
+        // test - the fix under test is that a read tool result never counts.
+        var foreignFolder = Path.Combine(_tempDir.Path, "01234-ExistingPlan");
+        var revDir = Path.Combine(foreignFolder, "Revisions");
+        Directory.CreateDirectory(revDir);
+        File.WriteAllText(Path.Combine(revDir, "001-revision.md"), "test revision");
+
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        job.OutputLines.Enqueue(
+            """{"kind":"tool_call","tool_use_id":"t1","tool_name":"Read","input":{"file_path":"/some/plan.yaml"}}""");
+        job.OutputLines.Enqueue(
+            """{"kind":"tool_result","tool_use_id":"t1","output":"state: Draft\nPlanId: 01234\n"}""");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.NotEqual("01234-ExistingPlan", job.PlanFile);
+    }
+
+    [Fact]
+    public void CompleteJob_CreatePlan_FailsWhenPlanIdIsOnlyInAToolCallInput()
+    {
+        var service = CreateServiceWithPlanReader(_tempDir.Path);
+        var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
+        var foreignFolder = Path.Combine(_tempDir.Path, "01234-ExistingPlan");
+        var revDir = Path.Combine(foreignFolder, "Revisions");
+        Directory.CreateDirectory(revDir);
+        File.WriteAllText(Path.Combine(revDir, "001-revision.md"), "test revision");
+
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        // The id appears only inside a tool call's input (the heredoc case), never as output.
+        job.OutputLines.Enqueue(
+            """{"kind":"tool_call","tool_use_id":"t1","tool_name":"Write","input":{"content":"PlanId: 01234\n"}}""");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Failed, job.Status);
+    }
+
+    [Fact]
+    public void CompleteJob_CreatePlan_AcceptsPlanIdFromPlanCreateToolResult()
+    {
+        var service = CreateServiceWithPlanReader(_tempDir.Path);
+        var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
+        var planFolder = Path.Combine(_tempDir.Path, "02353-FixLoginBug");
+        var revDir = Path.Combine(planFolder, "Revisions");
+        Directory.CreateDirectory(revDir);
+        File.WriteAllText(Path.Combine(revDir, "001-revision.md"), "test revision");
+
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        job.OutputLines.Enqueue(
+            """{"kind":"tool_call","tool_use_id":"t1","tool_name":"Bash","input":{"command":"tendril plan create \"Fix login bug\" \"ivy-tendril\""}}""");
+        job.OutputLines.Enqueue(
+            """{"kind":"tool_result","tool_use_id":"t1","output":"PlanId: 02353\nDirectory: /plans/02353-FixLoginBug\nVerifications:\nDotnetBuild:Pending"}""");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal("02353-FixLoginBug", job.PlanFile);
+    }
+
+    [Fact]
+    public void CompleteJob_CreatePlan_IgnoresPlanIdCitedMidSentence()
+    {
+        var service = CreateServiceWithPlanReader(_tempDir.Path);
+        var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
+        Directory.CreateDirectory(Path.Combine(_tempDir.Path, "02353-FixLoginBug", "Revisions"));
+        File.WriteAllText(
+            Path.Combine(_tempDir.Path, "02353-FixLoginBug", "Revisions", "001-revision.md"), "test revision");
+
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        job.EnqueueOutput(
+            "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Duplicate of PlanId: 02353 so nothing was created\"}]}}");
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Failed, job.Status);
+    }
+
+    [Fact]
+    public void CompleteJob_CreatePlan_FailedJobDoesNotDeleteAForeignEmptyPlanFolder()
+    {
+        var service = CreateServiceWithPlanReader(_tempDir.Path);
+        var id = service.CreateTestJob(new CreatePlanArgs("Fix login bug", "Tendril"));
+        // No revisions written - if this folder is wrongly resolved as this job's own (empty)
+        // plan, CleanupEmptyCreatePlan will delete it.
+        var foreignFolder = Path.Combine(_tempDir.Path, "01234-ExistingPlan");
+        Directory.CreateDirectory(foreignFolder);
+
+        var job = service.GetJob(id);
+        Assert.NotNull(job);
+        job.OutputLines.Enqueue(
+            """{"kind":"tool_call","tool_use_id":"t1","tool_name":"Read","input":{"file_path":"/some/plan.yaml"}}""");
+        job.OutputLines.Enqueue(
+            """{"kind":"tool_result","tool_use_id":"t1","output":"PlanId: 01234\n"}""");
+
+        service.CompleteJob(id, 1);
+
+        job = service.GetJob(id);
+        Assert.NotNull(job);
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.True(Directory.Exists(foreignFolder));
+    }
+
     private class StubPlanReaderService(string plansDirectory) : IPlanReaderService
     {
         public string PlansDirectory => plansDirectory;
