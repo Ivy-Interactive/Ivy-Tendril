@@ -2,7 +2,7 @@ using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Test.Helpers;
 
-namespace Ivy.Tendril.Test;
+namespace Ivy.Tendril.Test.Services;
 
 public class JobServiceRetryBlockedTests : IDisposable
 {

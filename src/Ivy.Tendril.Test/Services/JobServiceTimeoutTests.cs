@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
-namespace Ivy.Tendril.Test;
+namespace Ivy.Tendril.Test.Services;
 
 public class JobServiceTimeoutTests : IDisposable
 {

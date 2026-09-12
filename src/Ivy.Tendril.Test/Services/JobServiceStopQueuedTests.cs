@@ -3,7 +3,7 @@ using System.Reflection;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Test;
+namespace Ivy.Tendril.Test.Services;
 
 public class JobServiceStopQueuedTests
 {

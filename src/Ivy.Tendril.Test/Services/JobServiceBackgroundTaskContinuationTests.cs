@@ -5,7 +5,7 @@ using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Jobs;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Ivy.Tendril.Test;
+namespace Ivy.Tendril.Test.Services;
 
 public class JobServiceBackgroundTaskContinuationTests : IDisposable
 {

@@ -3,7 +3,7 @@ using Ivy.Tendril.Models;
 using Ivy.Tendril.Services.Jobs;
 using Microsoft.Extensions.Logging.Abstractions;
 
-namespace Ivy.Tendril.Test;
+namespace Ivy.Tendril.Test.Services;
 
 // Regression coverage for #1564: an unhandled exception during JobLauncher.LaunchJob used to leak
 // the acquired concurrency-slot permit, eventually draining _jobSlotSemaphore and stranding every

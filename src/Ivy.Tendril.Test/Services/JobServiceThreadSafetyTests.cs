@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 
-namespace Ivy.Tendril.Test;
+namespace Ivy.Tendril.Test.Services;
 
 public class JobServiceThreadSafetyTests
 {

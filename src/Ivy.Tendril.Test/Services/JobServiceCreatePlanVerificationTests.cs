@@ -5,7 +5,7 @@ using Ivy.Tendril.Services.Jobs;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Ivy.Tendril.Test;
+namespace Ivy.Tendril.Test.Services;
 
 public class JobServiceCreatePlanVerificationTests : IDisposable
 {
