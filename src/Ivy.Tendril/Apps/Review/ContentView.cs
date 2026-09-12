@@ -289,7 +289,7 @@ public class ContentView(
 
         if (!isShareMode)
         {
-            AddPrimaryAction(actions, selectedPlan, context, showCreatePrDialog, showDiscardDialog);
+            AddPrimaryAction(actions, selectedPlan, context, showCreatePrDialog, showDiscardDialog, chatExecution);
             PlanNeighborShortcuts.Add(actions, allPlans, currentIndex, plan =>
             {
                 selectedPlanState.Set(plan);
@@ -345,7 +345,8 @@ public class ContentView(
         PlanFile selectedPlan,
         ReviewViewContext context,
         Action showCreatePrDialog,
-        Action showDiscardDialog)
+        Action showDiscardDialog,
+        IChatExecutionService? chatExecution)
     {
         if (selectedPlan.Commits.Count > 0)
         {
