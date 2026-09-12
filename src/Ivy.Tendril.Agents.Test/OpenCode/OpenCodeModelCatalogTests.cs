@@ -82,4 +82,31 @@ public class OpenCodeModelCatalogTests
         var model = Assert.Single(models);
         Assert.Equal(128_000, model.MaxOutputTokens);
     }
+
+    [Fact]
+    public void GetStaticModels_KimiK3_HasBergetLimits()
+    {
+        var model = _catalog.GetStaticModels().Single(m => m.Id == "moonshotai/Kimi-K3");
+
+        Assert.Equal(327_680, model.ContextWindow);
+        Assert.Equal(32_768, model.MaxOutputTokens);
+    }
+
+    [Fact]
+    public void TryGetLimits_KimiK3_ReturnsBergetLimits()
+    {
+        var limits = OpenCodeModelCatalog.TryGetLimits("moonshotai/Kimi-K3");
+
+        Assert.Equal((327_680, 32_768), limits);
+    }
+
+    [Fact]
+    public void GetStaticModels_NoUnservedMoonshotOrDeepSeekEntries()
+    {
+        var ids = _catalog.GetStaticModels().Select(m => m.Id);
+
+        Assert.DoesNotContain("kimi-k2", ids);
+        Assert.DoesNotContain("deepseek-v3", ids);
+        Assert.DoesNotContain("deepseek-r1", ids);
+    }
 }
