@@ -381,6 +381,65 @@ public class InboxAppTests
         Assert.Equal(initialToken, refreshToken.Token);
     }
 
+    [Fact]
+    public void IssueUrlDerivation_LivesOnlyInResolveIssueUrl()
+    {
+        var repoRoot = FindRepoRoot();
+        var productionDir = Path.Combine(repoRoot, "src", "Ivy.Tendril");
+
+        // This test file lives under src/Ivy.Tendril.Test, which is a sibling of the scanned
+        // directory, so the needles below cannot match the guard itself.
+        const string interpolatedGithubPrefix = "$\"https://github.com/{";
+        const string issuePathSegment = "/issues/{";
+
+        var hits = new List<string>();
+
+        var csFiles = Directory.EnumerateFiles(productionDir, "*.cs", SearchOption.AllDirectories)
+            .Where(f => !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar) &&
+                        !f.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar));
+
+        foreach (var file in csFiles)
+        {
+            var lines = File.ReadAllLines(file);
+            for (var i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].Contains(interpolatedGithubPrefix, StringComparison.Ordinal) &&
+                    lines[i].Contains(issuePathSegment, StringComparison.Ordinal))
+                {
+                    hits.Add($"{Path.GetRelativePath(repoRoot, file)}:{i + 1}");
+                }
+            }
+        }
+
+        var expectedFile = Path.Combine("src", "Ivy.Tendril", "Apps", "Inbox", "InboxApp.cs");
+
+        Assert.True(
+            hits.Count == 1,
+            $"Expected exactly one inline GitHub issue url derivation in {expectedFile} (the body of " +
+            $"InboxApp.ResolveIssueUrl), but found {hits.Count}: {string.Join(", ", hits)}. Call " +
+            "InboxApp.ResolveIssueUrl(issue) instead of spelling out the issue.Url fallback inline.");
+
+        Assert.True(
+            hits[0].StartsWith(expectedFile + ":", StringComparison.Ordinal),
+            $"The single inline GitHub issue url derivation should be the body of " +
+            $"InboxApp.ResolveIssueUrl in {expectedFile}, but it was found at {hits[0]}.");
+    }
+
+    private static string FindRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+        while (dir != null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "src", "Ivy.Tendril", "Ivy.Tendril.slnx")))
+            {
+                return dir.FullName;
+            }
+            dir = dir.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate the repository root from the test base directory.");
+    }
+
     private sealed class StubGithubService(ProjectConfig? projectToReturn = null) : IGithubService
     {
         public int MyAssignedIssuesCallCount { get; private set; }
