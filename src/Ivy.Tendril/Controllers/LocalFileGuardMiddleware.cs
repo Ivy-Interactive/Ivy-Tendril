@@ -13,6 +13,7 @@ public class LocalFileGuardMiddleware
     private readonly IShareTunnelService _tunnelService;
     private readonly ILogger<LocalFileGuardMiddleware> _logger;
     private volatile List<string>? _cachedRoots;
+    private volatile bool _loggedEmptyRoots;
 
     public LocalFileGuardMiddleware(
         RequestDelegate next,
@@ -24,7 +25,11 @@ public class LocalFileGuardMiddleware
         _configService = configService;
         _tunnelService = tunnelService;
         _logger = logger;
-        _configService.SettingsReloaded += (_, _) => _cachedRoots = null;
+        _configService.SettingsReloaded += (_, _) =>
+        {
+            _cachedRoots = null;
+            _loggedEmptyRoots = false;
+        };
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -98,6 +103,13 @@ public class LocalFileGuardMiddleware
 
             // 4.5 Root confinement: the resolved path must fall inside a configured root.
             var roots = GetRoots();
+            if (roots.Count == 0 && !_loggedEmptyRoots)
+            {
+                _loggedEmptyRoots = true;
+                _logger.LogError(
+                    "LocalFileGuard: No local-file roots are configured; every /ivy/local-file request will be rejected. Check TendrilHome, the plans folder and project repo paths.");
+            }
+
             if (!LocalFileRootPolicy.TryResolve(path, roots, out _))
             {
                 _logger.LogWarning(
