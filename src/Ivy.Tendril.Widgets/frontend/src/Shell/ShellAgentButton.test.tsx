@@ -289,4 +289,69 @@ describe("ShellAgentButton", () => {
       expect(eventHandler).toHaveBeenCalledWith("OnOpen", "agent", []);
     });
   });
+
+  describe("count pill", () => {
+    it("renders badge on rail without list (issue #2556 regression guard)", () => {
+      const eventHandler = vi.fn();
+      const { container } = render(
+        <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+          <ShellAgentButton
+            id="agent"
+            label="Chat"
+            badge="2"
+            events={["OnOpen"]}
+            eventHandler={eventHandler}
+          />
+        </ShellContext.Provider>,
+      );
+
+      const row = screen.getByRole("button", { name: "Chat" });
+      expect(container.querySelector(".tsh-agent-count")).toHaveTextContent("2");
+      expect(container.querySelector(".tsh-agent-pin")).toBeNull();
+      expect(row).toHaveAttribute("data-has-list", "false");
+
+      fireEvent.click(row);
+      expect(eventHandler).toHaveBeenCalledWith("OnOpen", "agent", []);
+    });
+
+    it("caps badge at 99", () => {
+      const { container } = render(
+        <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+          <ShellAgentButton id="agent" label="Chat" badge="140" events={[]} eventHandler={vi.fn()} />
+        </ShellContext.Provider>,
+      );
+
+      expect(container.querySelector(".tsh-agent-count")).toHaveTextContent("99");
+    });
+
+    it("hides pill when badge is zero", () => {
+      const { container } = render(
+        <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+          <ShellAgentButton id="agent" label="Chat" badge="0" events={[]} eventHandler={vi.fn()} />
+        </ShellContext.Provider>,
+      );
+
+      expect(container.querySelector(".tsh-agent-count")).toBeNull();
+    });
+
+    it("hides pill when badge is absent and no items", () => {
+      const { container } = render(
+        <ShellContext.Provider value={{ collapsed: true, toggle: () => {} }}>
+          <ShellAgentButton id="agent" label="Chat" events={[]} eventHandler={vi.fn()} />
+        </ShellContext.Provider>,
+      );
+
+      expect(container.querySelector(".tsh-agent-count")).toBeNull();
+    });
+
+    it("hides pill when sidebar is expanded (recommended answer to question)", () => {
+      const { container } = render(
+        <ShellContext.Provider value={{ collapsed: false, toggle: () => {} }}>
+          <ShellAgentButton id="agent" label="Chat" badge="2" events={[]} eventHandler={vi.fn()} />
+        </ShellContext.Provider>,
+      );
+
+      expect(container.querySelector(".tsh-agent-count")).toBeNull();
+    });
+  });
 });

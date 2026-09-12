@@ -17,6 +17,7 @@ interface ShellAgentButtonProps extends ShellWidgetProps {
   icon?: string;
   shortcutKey?: string;
   isActive?: boolean;
+  badge?: string;
   items?: ShellSectionItemDto[];
   selectedId?: string;
   listTitle?: string;
@@ -37,6 +38,7 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
   icon,
   shortcutKey = NEW_CHAT_SHORTCUT_KEY,
   isActive = false,
+  badge,
   items,
   selectedId,
   listTitle,
@@ -86,7 +88,11 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
 
   const hintKeys = modAltKeys(shortcutKey);
   const hasList = collapsed && !!items?.length;
-  const count = items && items.length > 99 ? "99" : String(items?.length ?? 0);
+  // The pill is the host's badge when it sends one, else the floated list's length. Reading it from
+  // the badge is what keeps the count on screen once the chats list is no longer published (#2556).
+  const rawCount = badge ?? String(items?.length ?? 0);
+  const count = rawCount.length > 2 ? "99" : rawCount;
+  const showCount = collapsed && rawCount !== "" && rawCount !== "0";
 
   const renderButton = (trigger?: RailFlyoutTrigger) => (
     <button
@@ -118,7 +124,7 @@ export const ShellAgentButton: React.FC<ShellAgentButtonProps> = ({
           <Kbd keys={hintKeys} variant="bare" className="tsh-kbd" />
         </span>
       </span>
-      {trigger && (
+      {showCount && (
         <Badge numeric className="tsh-nav-badge tsh-agent-count">
           {count}
         </Badge>
