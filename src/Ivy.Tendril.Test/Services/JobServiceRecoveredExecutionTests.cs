@@ -153,6 +153,24 @@ public class JobServiceRecoveredExecutionTests : IDisposable
     }
 
     [Fact]
+    public void CompleteJob_ExitCode0_ReportedFailureReason_MarksFailedEvenWhenRecovered()
+    {
+        // A reported failure reason applies unconditionally, without consulting IsRecoveredJob — even
+        // when the job's artifacts (commits plus passing verifications) look complete.
+        var planFolder = CreatePlanFolder();
+        var service = new JobService(TimeSpan.FromMinutes(30), TimeSpan.FromMinutes(10));
+        var id = service.CreateTestJob(new ExecutePlanArgs(planFolder));
+        var job = service.GetJob(id)!;
+        job.ReportedFailureReason = "Task already resolved/redundant";
+
+        service.CompleteJob(id, 0);
+
+        job = service.GetJob(id)!;
+        Assert.Equal(JobStatus.Failed, job.Status);
+        Assert.Equal("Task already resolved/redundant", job.StatusMessage);
+    }
+
+    [Fact]
     public void CompleteJob_ExitCode0_WithUnrecoveredAntigravityToolError_MarksFailedWithCleanErrorMessage()
     {
         // When verifications failed and no commits were made, job is not recovered and should fail

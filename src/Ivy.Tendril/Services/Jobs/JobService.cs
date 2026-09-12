@@ -212,7 +212,16 @@ public class JobService : IJobService
         else
         {
             var success = exitCode == 0;
-            if (success)
+            if (!string.IsNullOrEmpty(job.ReportedFailureReason))
+            {
+                // A reason explicitly declared by the promptware via `tendril job fail` is a terminal
+                // verdict about its own run, so it outranks the exit code in both directions: over a
+                // stale `tendril job status` progress message, and over a zero exit from a promptware
+                // that reported the failure but never exited non-zero (issue #2626).
+                success = false;
+                job.StatusMessage = job.ReportedFailureReason;
+            }
+            else if (success)
             {
                 var errorMessage = JobFailureAnalyzer.TryExtractErrorEvent(job.OutputLines);
                 if (errorMessage != null)
@@ -229,13 +238,6 @@ public class JobService : IJobService
                         job.StatusMessage = errorMessage;
                     }
                 }
-            }
-            else if (!string.IsNullOrEmpty(job.ReportedFailureReason))
-            {
-                // A reason explicitly declared by the promptware via `tendril job fail`
-                // wins outright — including over any progress message previously set via
-                // `tendril job status` (which would otherwise leave a stale message shown).
-                job.StatusMessage = job.ReportedFailureReason;
             }
             else
             {
