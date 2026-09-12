@@ -98,7 +98,7 @@ public partial class JobsApp : ViewBase
             refreshToken.Refresh();
         }, TimeSpan.FromSeconds(5));
 
-        var sentCells = UseRef(new Dictionary<string, string>(StringComparer.Ordinal));
+        var sentCells = UseRef(new Dictionary<(string RowId, string ColumnName), string>());
         var updateStream = UseDataTableUpdates(
             Observable.Interval(TimeSpan.FromSeconds(1))
                 .SelectMany(_ => JobsApp.BuildDataTableUpdates(jobService, sentCells.Value)));
