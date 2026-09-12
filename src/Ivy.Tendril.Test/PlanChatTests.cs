@@ -55,6 +55,7 @@ public class PlanChatTests
         {
             var session = service.CreateSession("claude", "opus", "#59 Revamp", planFolderName: "00059-revamp");
             Assert.Equal("00059-revamp", session.PlanFolderName);
+            service.AddMessage(session.Id, "user", "Hello");
 
             var reloaded = new ChatHistoryService(new ConfigService(new TendrilSettings(), tempDir)).GetSession(session.Id);
             Assert.NotNull(reloaded);
