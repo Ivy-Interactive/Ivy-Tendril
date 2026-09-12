@@ -68,10 +68,24 @@ public class DashboardApp : ViewBase
             ).Width(UxHelper.SheetWidth).Resizable();
         });
 
-        UseEffect(() => JobsApp.JobChangeHookDisposable(jobService, refreshToken));
-        // Skip(1): the status stream is a BehaviorSubject and replays its
-        // current value on subscribe, which would refresh in a loop.
-        UseEffect(() => statusService.Status.Skip(1).Subscribe(_ => refreshToken.Refresh()));
+        // One coalescer for both signals: a job exiting raises JobsStructureChanged and, ~300ms later, a
+        // new Status — two events for one change, and the dashboard rebuild reads the whole database
+        // (#2571). The 60s interval below stays as the backstop.
+        UseEffect(() =>
+        {
+            var coalescer = new RefreshCoalescer(refreshToken, JobsApp.JobRefreshWindow);
+            var jobChanges = JobsApp.JobChangeHookDisposable(jobService, coalescer);
+            // Skip(1): the status stream is a BehaviorSubject and replays its
+            // current value on subscribe, which would refresh in a loop.
+            var statusChanges = statusService.Status.Skip(1).Subscribe(_ => coalescer.Request());
+
+            return Disposable.Create(() =>
+            {
+                jobChanges.Dispose();
+                statusChanges.Dispose();
+                coalescer.Dispose();
+            });
+        });
         UseInterval(() => { refreshToken.Refresh(); },
             planService.IsDatabaseReady ? TimeSpan.FromSeconds(60) : TimeSpan.FromSeconds(2));
         UseEffect(() =>
