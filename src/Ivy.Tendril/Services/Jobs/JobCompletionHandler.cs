@@ -812,7 +812,8 @@ internal class JobCompletionHandler
                 {
                     if (!string.IsNullOrEmpty(job.ChatSessionId) && !string.IsNullOrEmpty(job.PlanFile))
                     {
-                        PlanYamlHelper.UpdatePlanYamlFields(planFolder, ("chatSessionId", job.ChatSessionId));
+                        if (!PlanYamlHelper.UpdatePlanYamlFields(planFolder, ("chatSessionId", job.ChatSessionId)))
+                            _logger.LogWarning("Failed to update chatSessionId in plan.yaml for job {JobId} at {PlanFolder}", job.Id, planFolder);
                         _planWatcherService?.NotifyChanged(planFolder);
                         if (_planReaderService is PlanReaderService prs)
                         {

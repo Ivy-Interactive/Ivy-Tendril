@@ -187,6 +187,42 @@ public class PlanReaderServiceTests
         }
     }
 
+    [Fact]
+    public void ParseSinglePlanFolder_WhenRepairOutputDoesNotParse_LeavesFileOnDisk()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), $"ivy-test-{Guid.NewGuid()}");
+        Directory.CreateDirectory(tempDir);
+        var testConfig = new TempDirConfigService(tempDir);
+        var testLogger = new TestLogger();
+
+        var service = new PlanReaderService(testConfig, testLogger);
+
+        var folderName = "01234-TestPlan";
+        var planFolder = Path.Combine(tempDir, folderName);
+        Directory.CreateDirectory(planFolder);
+
+        var unrepairable = "{{{{not valid yaml at all: [[[\n";
+        var planYamlPath = Path.Combine(planFolder, "plan.yaml");
+        File.WriteAllText(planYamlPath, unrepairable);
+
+        try
+        {
+            // Act
+            var result = service.ParseSinglePlanFolder(planFolder);
+
+            // Assert
+            Assert.Null(result);
+            var contentAfter = File.ReadAllText(planYamlPath);
+            Assert.Equal(unrepairable, contentAfter);
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+        }
+    }
+
     private class TempDirConfigService(string planFolder) : StubConfigService, IConfigService
     {
         string IConfigService.PlanFolder => planFolder;
