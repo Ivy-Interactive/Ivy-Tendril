@@ -97,12 +97,19 @@ public class PlanController : ControllerBase
     private readonly IPlanWatcherService _planWatcher;
     private readonly IConfigService _configService;
     private readonly IGithubService _githubService;
+    private readonly IChatExecutionService? _chatExecution;
 
-    public PlanController(IPlanWatcherService planWatcher, IConfigService configService, IGithubService githubService)
+    /// <param name="chatExecution">
+    ///     Optional so <c>PlanControllerTests</c> can construct the controller directly; the real
+    ///     container always resolves the singleton registered in <c>AddTendrilServices</c>.
+    /// </param>
+    public PlanController(IPlanWatcherService planWatcher, IConfigService configService, IGithubService githubService,
+        IChatExecutionService? chatExecution = null)
     {
         _planWatcher = planWatcher;
         _configService = configService;
         _githubService = githubService;
+        _chatExecution = chatExecution;
     }
 
     private IActionResult ModifyPlanEndpoint(
@@ -491,6 +498,41 @@ public class PlanController : ControllerBase
         }
     }
 
+    /// <summary>
+    ///     Announces a direct plan edit — one made without a job, typically by an agent running
+    ///     <c>tendril plan write-revision</c> in a side chat — to the plan's other chat sessions.
+    ///     <para>
+    ///         Advisory, so a plan with no session attached is still a 200: the caller has already
+    ///         written the edit, and there is nothing for it to do about an audience of nobody.
+    ///     </para>
+    /// </summary>
+    [HttpPost("{planId}/events")]
+    public async Task<IActionResult> ReportPlanEdit(string planId, [FromBody] PlanEditEventRequest request)
+    {
+        try
+        {
+            var planFolder = PlanCommandHelpers.ResolvePlanFolder(planId);
+            var folderName = PathHelper.GetFileNameCrossPlatform(planFolder);
+
+            if (string.IsNullOrWhiteSpace(request.Summary))
+                return BadRequest(new { error = "summary is required" });
+
+            if (_chatExecution != null)
+                await _chatExecution.NotifyPlanEditAsync(
+                    folderName, request.Summary, request.Reason, request.SourceChatSessionId, request.RevisionFile);
+
+            return Ok(new { message = $"Reported edit to plan {folderName}" });
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return NotFound(new { error = $"Plan '{planId}' not found" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpPost("{planId}/related-plans")]
     public IActionResult AddRelatedPlan(string planId, [FromBody] AddRelatedPlanRequest request)
     {
@@ -703,6 +745,11 @@ public record CreatePlanDirectRequest(
     List<string>? RelatedPlans = null,
     List<string>? DependsOn = null);
 public record WriteRevisionRequest(string Content);
+public record PlanEditEventRequest(
+    string Summary,
+    string? Reason = null,
+    string? SourceChatSessionId = null,
+    string? RevisionFile = null);
 public record AddRelatedPlanRequest(string RelatedPlan);
 public record RemoveRelatedPlanRequest(string RelatedPlan);
 public record AddDependsOnRequest(string DependsOn);

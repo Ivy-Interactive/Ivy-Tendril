@@ -3,12 +3,15 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
 using Ivy.Tendril.Agents.Abstractions;
+using Ivy.Tendril.Agents.Runtime;
 using Ivy.Tendril.Apps.Chat;
 using Ivy.Tendril.Apps.Views;
 using Ivy.Tendril.Models;
 using Ivy.Tendril.Services;
 using Ivy.Tendril.Widgets;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Ivy.Tendril.Test;
@@ -56,6 +59,11 @@ public class PlanChatTests
             var session = service.CreateSession("claude", "opus", "#59 Revamp", planFolderName: "00059-revamp");
             Assert.Equal("00059-revamp", session.PlanFolderName);
             service.AddMessage(session.Id, "user", "Hello");
+
+            // CreateSession only writes a session that has messages, so the reload below needs one.
+            // An empty plan session surviving a restart is a separate question (see the plan 00400
+            // recommendations); what this asserts is that the plan link is part of what gets persisted.
+            service.AddMessage(session.Id, "user", "Let's talk");
 
             var reloaded = new ChatHistoryService(new ConfigService(new TendrilSettings(), tempDir)).GetSession(session.Id);
             Assert.NotNull(reloaded);
@@ -160,6 +168,7 @@ public class PlanChatTests
     private sealed class RecordingChatExecutionService : IChatExecutionService
     {
         public List<(string SessionId, string Prompt, string? AgentId, string? ModelId)> Sent { get; } = [];
+        public List<(string PlanFolderName, string Summary, string? Reason, string? SourceChatSessionId)> PlanEdits { get; } = [];
 #pragma warning disable CS0067
         public event Action<string>? SessionGeneratingChanged;
         public event Action<string>? StreamUpdated;
@@ -177,6 +186,13 @@ public class PlanChatTests
 
         public Task CancelAsync(string sessionId) => Task.CompletedTask;
         public Task InterruptAsync(string sessionId) => Task.CompletedTask;
+
+        public Task NotifyPlanEditAsync(string planFolderName, string summary, string? reason = null,
+            string? sourceChatSessionId = null, string? revisionFile = null)
+        {
+            PlanEdits.Add((planFolderName, summary, reason, sourceChatSessionId));
+            return Task.CompletedTask;
+        }
 
         public Task ForceSendMessageAsync(string sessionId, string prompt, IReadOnlyList<ChatAttachmentDto>? attachments = null,
             string? agentId = null, string? modelId = null, string? effort = null, CancellationToken ct = default) =>
@@ -215,6 +231,57 @@ public class PlanChatTests
     {
         Assert.Contains("before executing it", PlanChatSessions.DiscussPrompt(CreatePlan(1, "Draft")));
         Assert.Contains("outcome of this plan", PlanChatSessions.DiscussPrompt(CreatePlan(2, "Done", PlanStatus.Review)));
+    }
+
+    /// <summary>
+    /// The side panel's session is found by the plan-edit fan-out only because
+    /// <see cref="PlanChatSessions.CreateForPlan" /> stamps <c>PlanFolderName</c> on it. Nothing else
+    /// links the two, so a session created without it would go quiet without failing anything.
+    /// </summary>
+    [Fact]
+    public async Task PlanEditEvent_ReachesASessionCreatedForThePlan()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "TendrilPlanEditEventTest_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            var configService = new ConfigService(new TendrilSettings { CodingAgent = "codex" }, tempDir);
+            var chatService = new ChatHistoryService(configService);
+            var planService = new FakePlanReaderService();
+            var plan = CreatePlan(59, "Revamp");
+            var agentRunner = TestAgentRunner.Create();
+
+            using var execution = new ChatExecutionService(
+                configService,
+                chatService,
+                agentRunner,
+                new ChatSessionNamingService(agentRunner, configService, chatService,
+                    NullLogger<ChatSessionNamingService>.Instance),
+                new JsonEventSerializer());
+
+            var session = PlanChatSessions.CreateForPlan(chatService, planService, plan, "codex", "gpt-5.6-sol", null);
+            Assert.Equal(plan.FolderName, session.PlanFolderName);
+
+            await execution.NotifyPlanEditAsync(plan.FolderName, "Solution changed (+3/-1 lines)",
+                reason: "narrowed the scope");
+
+            var deadline = DateTime.UtcNow.AddSeconds(20);
+            ChatMessageModel? edit = null;
+            while (DateTime.UtcNow < deadline && edit == null)
+            {
+                edit = chatService.GetSession(session.Id)?.Messages
+                    .FirstOrDefault(m => m.Role == "system" && m.Content.Contains("was edited directly"));
+                if (edit == null) await Task.Delay(25);
+            }
+
+            Assert.NotNull(edit);
+            Assert.Contains("Solution changed (+3/-1 lines)", edit.Content);
+            Assert.Contains("narrowed the scope", edit.Content);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
     }
 
     [Fact]

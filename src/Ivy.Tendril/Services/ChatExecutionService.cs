@@ -38,6 +38,7 @@ public sealed class ChatExecutionService : IChatExecutionService
     private readonly IPlanDatabaseService? _database;
 
     private readonly ConcurrentDictionary<string, byte> _notifiedJobCompletions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, byte> _notifiedPlanEdits = new(StringComparer.OrdinalIgnoreCase);
     private bool _jobServiceSubscribed;
     private readonly object _jobSubLock = new();
 
@@ -116,7 +117,9 @@ public sealed class ChatExecutionService : IChatExecutionService
             sb.AppendLine($"- Execute the plan: `tendril job start ExecutePlan {folder} --chat-session {sessionId}`");
         }
         sb.AppendLine("Questions that only need an answer, and small edits the user asks you to make directly to the plan's revision, do not need a job.");
-        sb.AppendLine("Job completions are reported back into this chat as system events.");
+        sb.AppendLine("Job completions and direct plan edits are both reported back into this chat as system events.");
+        sb.AppendLine($"So when you edit the plan directly, say why: `tendril plan write-revision {folder} --stdin --reason \"<why you changed it>\" --chat-session {sessionId}`.");
+        sb.AppendLine($"The same two options work on `tendril plan set` and `tendril plan set-verification`. `--reason` is what the plan's other chat sessions are told; `--chat-session {sessionId}` keeps the event from coming back to you.");
         return sb.ToString().TrimEnd();
     }
 
@@ -962,6 +965,113 @@ public sealed class ChatExecutionService : IChatExecutionService
             "Please inspect the outcome, determine whether any action is needed or if any issues occurred, and proactively guide the user on the results and next steps.";
 
         _ = SendMessageAsync(targetSessionId, eventMessage, role: "system");
+    }
+
+    public async Task NotifyPlanEditAsync(
+        string planFolderName,
+        string summary,
+        string? reason = null,
+        string? sourceChatSessionId = null,
+        string? revisionFile = null)
+    {
+        if (string.IsNullOrWhiteSpace(planFolderName) || string.IsNullOrWhiteSpace(summary)) return;
+
+        var plan = ResolvePlanByFolderName(planFolderName);
+        var message = BuildPlanEditEvent(plan, planFolderName, summary, reason);
+
+        // A retried post must not notify twice, so key on the revision the edit produced. An edit that
+        // wrote no revision (plan set, set-verification) is keyed on the summary itself instead.
+        var editKey = !string.IsNullOrWhiteSpace(revisionFile)
+            ? revisionFile.Trim()
+            : PlanEditSummary.Fingerprint($"{summary}|{reason}");
+
+        foreach (var sessionId in ResolvePlanEditRecipients(planFolderName, plan, sourceChatSessionId))
+        {
+            if (!_notifiedPlanEdits.TryAdd($"{sessionId}:{planFolderName}:{editKey}", 0)) continue;
+
+            await SendMessageAsync(sessionId, message, role: "system");
+        }
+    }
+
+    /// <summary>
+    ///     The sessions that learn about an edit to a plan: the plan's own side-panel sessions, plus
+    ///     the general chat recorded in the plan's <c>chatSessionId</c> — usually the conversation the
+    ///     plan was created from, which is the one at risk of acting on a stale reading of it. The
+    ///     editing session itself is left out, and the list is deduplicated because those two sets
+    ///     overlap once a plan adopts its own session.
+    /// </summary>
+    private List<string> ResolvePlanEditRecipients(string planFolderName, PlanFile? plan, string? sourceChatSessionId)
+    {
+        var candidates = _chatService.GetSessions()
+            .Where(s => string.Equals(s.PlanFolderName, planFolderName, StringComparison.OrdinalIgnoreCase))
+            .Select(s => s.Id)
+            .ToList();
+
+        if (!string.IsNullOrEmpty(plan?.ChatSessionId))
+            candidates.Add(plan.ChatSessionId);
+
+        var recipients = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var sessionId in candidates)
+        {
+            if (string.IsNullOrEmpty(sessionId)) continue;
+            if (string.Equals(sessionId, sourceChatSessionId, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!seen.Add(sessionId)) continue;
+            if (_chatService.GetSession(sessionId) == null) continue;
+
+            recipients.Add(sessionId);
+        }
+
+        return recipients;
+    }
+
+    /// <summary>
+    ///     The system event announcing a plan edit, shaped like the job-completion and
+    ///     manual-execution events: what happened, then what the agent is expected to do about it.
+    /// </summary>
+    internal static string BuildPlanEditEvent(PlanFile? plan, string planFolderName, string summary, string? reason)
+    {
+        var name = plan != null ? $"'{plan.Title}' (#{plan.Id:D5})" : $"'{planFolderName}'";
+        var reasonClause = string.IsNullOrWhiteSpace(reason)
+            ? string.Empty
+            : $" Reason: {reason.Trim().TrimEnd('.')}.";
+
+        return $"[System Event] Plan {name} was edited directly from the plan chat: " +
+            $"{summary.Trim().TrimEnd('.')}.{reasonClause} " +
+            "Check whether this changes your understanding of the plan, and tell the user if anything needs follow-up.";
+    }
+
+    /// <summary>
+    ///     Resolves a plan from its folder name, falling back to the database the way
+    ///     <see cref="OnJobFinished" /> does — the plans directory is not always readable from the
+    ///     process handling the event.
+    /// </summary>
+    private PlanFile? ResolvePlanByFolderName(string folderName)
+    {
+        var planReader = ResolvedPlanReaderService;
+        if (planReader != null)
+        {
+            try
+            {
+                var plan = planReader.GetPlanByFolder(Path.Combine(planReader.PlansDirectory, folderName));
+                if (plan != null) return plan;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to read plan {FolderName} while reporting a plan edit", folderName);
+            }
+        }
+
+        try
+        {
+            return ResolvedDatabase?.GetPlanByFolder(folderName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Failed to look up plan {FolderName} in the database while reporting a plan edit", folderName);
+            return null;
+        }
     }
 
     private void FlushExecution(string sessionId, ActiveChatExecution exec, string? fallbackMessage = null)

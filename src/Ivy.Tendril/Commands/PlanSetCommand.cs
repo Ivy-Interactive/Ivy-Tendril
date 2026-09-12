@@ -28,6 +28,14 @@ public class PlanSetSettings : CommandSettings
     [CommandOption("--allow-failed-verifications")]
     public bool AllowFailedVerifications { get; init; }
 
+    [Description("Why this edit was made — reported to the plan's other chat sessions")]
+    [CommandOption("--reason")]
+    public string? Reason { get; set; }
+
+    [Description("Chat session making the edit, so it is not notified about its own change")]
+    [CommandOption("--chat-session")]
+    public string? ChatSessionId { get; set; }
+
     public override Spectre.Console.ValidationResult Validate()
     {
         var required = CliValidation.Combine(
@@ -104,6 +112,13 @@ public class PlanSetCommand : Command<PlanSetSettings>
             plan.Updated = DateTime.UtcNow;
 
         PlanCommandHelpers.WritePlan(planFolder, plan, _planWatcher);
+
+        // A field change is a plan edit too, and the side chat makes them: announce it like a revision.
+        PlanEditEventReporter.Report(
+            PathHelper.GetFileNameCrossPlatform(planFolder),
+            $"{settings.Field} set to {settings.Value}",
+            settings.Reason,
+            settings.ChatSessionId);
 
         Console.WriteLine($"Set {settings.Field} = {settings.Value}");
         return 0;
