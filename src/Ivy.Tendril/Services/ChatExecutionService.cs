@@ -974,6 +974,11 @@ public sealed class ChatExecutionService : IChatExecutionService
             "Please inspect the outcome, determine whether any action is needed or if any issues occurred, and proactively guide the user on the results and next steps.";
 
         _ = SendMessageAsync(targetSessionId, eventMessage, role: "system");
+
+        var planFolder = Path.GetFileName(job.PlanFile) ?? "";
+        foreach (var edit in edits)
+            _notifiedPlanEdits.TryAdd($"{targetSessionId}:{planFolder}:{edit.EditKey}", 0);
+
         AnnounceDeferredPlanEdits(job, edits, excludeSessionId: targetSessionId);
     }
 
