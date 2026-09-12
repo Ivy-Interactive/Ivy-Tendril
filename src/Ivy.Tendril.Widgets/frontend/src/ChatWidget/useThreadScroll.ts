@@ -1,8 +1,8 @@
 import { useCallback, useLayoutEffect, useRef } from "react";
 
 const SCROLL_THRESHOLD = 50;
-/** Breathing room above a pinned message, matching the thread's top padding. */
-const PIN_TOP_PADDING = 10;
+/** Breathing room above a pinned message. Both the embedded and non-embedded thread supply this value as their top padding. */
+export const PIN_TOP_PADDING = 10;
 
 interface Pin {
   messageId: string;

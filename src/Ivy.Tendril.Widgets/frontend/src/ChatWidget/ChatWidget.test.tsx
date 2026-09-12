@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import "@testing-library/jest-dom";
 import { ChatWidget, type ChatSessionDto } from "./ChatWidget";
 import { setupChatWidgetTestEnvironment } from "./ChatWidget.testUtils";
+import { PIN_TOP_PADDING } from "./useThreadScroll";
 
 describe("ChatWidget Running Jobs Badge and Spinner", () => {
   beforeEach(() => {
@@ -648,6 +649,58 @@ describe("ChatWidget embedded mode", () => {
     expect(tooltip).toHaveTextContent("New chat");
     expect(tooltip.querySelector(".tui-kbd")?.textContent).toBe("Ctrl+Alt+A");
     vi.useRealTimers();
+  });
+
+  it("keeps top padding when pinning the first message in embedded mode", () => {
+    const layout = { spacerTop: 60 };
+    Object.defineProperty(HTMLElement.prototype, "offsetTop", {
+      configurable: true,
+      get(this: HTMLElement) {
+        if (this.dataset.messageId) return PIN_TOP_PADDING;
+        if (this.classList.contains("chat-scroll-spacer")) return layout.spacerTop;
+        return 0;
+      },
+    });
+
+    try {
+      const session: ChatSessionDto = {
+        id: "s1",
+        title: "Plan chat",
+        agentId: "claude",
+        modelId: "opus",
+        createdAt: "",
+        updatedAt: "",
+        messages: [],
+      };
+      render(
+        <ChatWidget id="embedded" embedded activeSessionId="s1" sessions={[session]} />,
+      );
+
+      const container = document.querySelector(".chat-messages-container") as HTMLDivElement;
+      const spacer = document.querySelector(".chat-scroll-spacer") as HTMLDivElement;
+      let scrollTop = 0;
+      Object.defineProperty(container, "clientHeight", { value: 400, configurable: true });
+      Object.defineProperty(container, "scrollHeight", {
+        get: () => layout.spacerTop + parseFloat(spacer.style.height || "0"),
+        configurable: true,
+      });
+      Object.defineProperty(container, "scrollTop", {
+        get: () => scrollTop,
+        set: (v: number) => {
+          scrollTop = v;
+        },
+        configurable: true,
+      });
+
+      fireEvent.change(screen.getByPlaceholderText(/Ask/i), { target: { value: "test" } });
+      fireEvent.click(screen.getByRole("button", { name: /Send/i }));
+
+      // When the first message's offsetTop equals PIN_TOP_PADDING, scrolling to position 0
+      // means the padding is visible above the message, not scrolled away.
+      expect(scrollTop).toBe(0);
+    } finally {
+      delete (HTMLElement.prototype as any).offsetTop;
+    }
   });
 });
 
