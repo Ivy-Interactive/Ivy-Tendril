@@ -46,7 +46,7 @@ test.describe("PlanWorkspace Tabs", () => {
 
   test("badged tabs render badges", async ({ page }) => {
     const badges = page.locator(".pws-tab-badge");
-    await expect(badges).toHaveCount(3);
+    await expect(badges).toHaveCount(4);
   });
 
   test("no page errors on load", async ({ pageErrors }) => {

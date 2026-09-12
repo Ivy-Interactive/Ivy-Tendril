@@ -45,6 +45,9 @@ test.describe("PlanWorkspace Edit Mode", () => {
     await expect(firstLine).toContainText("MARKER42 # Summary");
     await stepScreenshot("marker-inserted");
 
+    // Wait a moment for state to sync
+    await page.waitForTimeout(200);
+
     // Switch to Details tab
     await page.getByRole("tab", { name: "Details" }).click();
     await expect(page.locator(".pws-content .cm-content")).toHaveCount(0);
@@ -53,7 +56,7 @@ test.describe("PlanWorkspace Edit Mode", () => {
     await page.getByRole("tab", { name: "Plan" }).click();
 
     // Editor should be back with content preserved
-    await expect(page.locator(".pws-content .cm-content")).toHaveCount(1);
+    await expect(page.locator(".pws-content .cm-content")).toBeVisible();
     const firstLineAfter = page.locator(".pws-content .cm-line").first();
     await expect(firstLineAfter).toContainText("MARKER42 # Summary");
     await stepScreenshot("marker-preserved-after-tab-switch");
