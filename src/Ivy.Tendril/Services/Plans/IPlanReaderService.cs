@@ -48,6 +48,7 @@ public interface IPlanReaderService
     DashboardModels GetDashboardData(string? projectFilter);
     DashboardActivityStats GetDashboardActivity(int monthsBack = 24);
     List<(DateOnly Date, int Count)> GetCompletedPrsByDay(int days);
+    List<(DateOnly Date, int Count)> GetShippedFeaturesByDay(int days = 60) => [];
     List<RecentMergedPrDto> GetRecentMergedPrs(int limit = 50) => [];
     List<RecentPlanCostDto> GetRecentPlanCosts(int days = 7) => [];
     List<DashboardAgentCost> GetAgentCostBreakdown(int days) => [];

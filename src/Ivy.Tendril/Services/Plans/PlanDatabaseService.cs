@@ -293,6 +293,9 @@ public class PlanDatabaseService : IPlanDatabaseService
         }
     }
 
+    public List<(DateOnly Date, int Count)> GetShippedFeaturesByDay(int days = 60) =>
+        _dashboardRepository.GetShippedFeaturesByDay(days);
+
     public decimal GetPlanTotalCost(int planId)
     {
         using (new ReadLockHandle(_lock))
