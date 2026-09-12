@@ -2,13 +2,15 @@ import React, { useId, useState } from "react";
 import { Check } from "lucide-react";
 import type { PlanQuestion, QuestionOption } from "../PlanMarkdown/questionsSchema";
 import { DescriptionMarkdown } from "./DescriptionMarkdown";
-import { entryTitle, hasEntries } from "./answers";
+import { entryTitle, hasEntries, unansweredRequired } from "./answers";
 import type { AnswerMap } from "./answers";
 import "./tendril-questions.css";
 
 export interface QuestionsSubmitAction {
   label?: string;
   disabled?: boolean;
+  /** Shown in the footer next to the button, and as its tooltip while disabled. */
+  note?: string;
   onSubmit: () => void;
 }
 
@@ -29,10 +31,17 @@ export interface QuestionsFormProps {
   submit?: QuestionsSubmitAction;
 }
 
-/** A click on a control, link or selected text inside a card must not toggle the card. */
+/** Whether the current selection is a real range anchored inside the given node. */
+const selectionInside = (node: EventTarget | null): boolean => {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || !selection.anchorNode) return false;
+  return node instanceof Node && (node as HTMLElement).contains?.(selection.anchorNode) === true;
+};
+
+/** A click on a control, link or text selected inside the clicked card must not toggle the card. */
 const ignoresCardClick = (e: React.MouseEvent): boolean =>
   Boolean((e.target as HTMLElement).closest("label, input, textarea, button, a")) ||
-  Boolean(window.getSelection()?.toString());
+  selectionInside(e.currentTarget);
 
 interface OptionCardProps {
   option: QuestionOption;
@@ -97,6 +106,8 @@ interface QuestionCardProps {
   entries: string[];
   otherOpen: boolean;
   groupName: string;
+  /** Marks a required question with no answer, once some other question in the block is answered. */
+  unanswered?: boolean;
   onChange: (entries: string[]) => void;
   onOtherOpenChange: (open: boolean) => void;
 }
@@ -106,6 +117,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
   entries,
   otherOpen,
   groupName,
+  unanswered = false,
   onChange,
   onOtherOpenChange,
 }) => {
@@ -171,7 +183,7 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
   );
 
   return (
-    <div className="tq-question" data-question-id={question.id}>
+    <div className="tq-question" data-question-id={question.id} data-unanswered={unanswered || undefined}>
       <QuestionHeading question={question} />
       {question.multiple && hasOptions && <div className="tq-question-hint">Select all that apply</div>}
       <div className="tq-options">
@@ -258,6 +270,9 @@ export const QuestionsForm: React.FC<QuestionsFormProps> = ({
   const reactId = useId();
   const hasAnyAnswers = Object.values(answers).some(hasEntries);
   const showFooter = !readOnly && ((onClear && hasAnyAnswers) || submit);
+  const unansweredIds = hasAnyAnswers
+    ? new Set(unansweredRequired(questions, answers).map((question) => question.id))
+    : new Set<string>();
 
   return (
     <div className="tq-root" role="group">
@@ -271,6 +286,7 @@ export const QuestionsForm: React.FC<QuestionsFormProps> = ({
             entries={answers[question.id] ?? []}
             otherOpen={otherOpen[question.id] ?? false}
             groupName={`tq-${reactId}-${question.id}`}
+            unanswered={unansweredIds.has(question.id)}
             onChange={(entries) => onAnswer?.(question.id, entries)}
             onOtherOpenChange={(open) => onOtherOpenChange?.(question.id, open)}
           />
@@ -278,6 +294,7 @@ export const QuestionsForm: React.FC<QuestionsFormProps> = ({
       )}
       {showFooter && (
         <div className="tq-footer">
+          {submit?.note && <span className="tq-footer-note">{submit.note}</span>}
           {onClear && hasAnyAnswers && (
             <button
               type="button"
@@ -289,7 +306,13 @@ export const QuestionsForm: React.FC<QuestionsFormProps> = ({
             </button>
           )}
           {submit && (
-            <button type="button" className="tq-submit" disabled={submit.disabled} onClick={submit.onSubmit}>
+            <button
+              type="button"
+              className="tq-submit"
+              disabled={submit.disabled}
+              title={submit.note}
+              onClick={submit.onSubmit}
+            >
               {submit.label ?? "Submit response"}
             </button>
           )}
