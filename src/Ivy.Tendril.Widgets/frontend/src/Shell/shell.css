@@ -802,8 +802,14 @@
   min-height: 0;
 }
 
-/* Hover flyout for a rail plan chip: the shared tooltip, widened for the row badges. */
-.tsh-rail-tooltip {
+/* Hover flyout for a rail plan chip: the shared tooltip, widened for the row badges. The width
+   is stated here rather than inherited from the min-width Radix sets on its wrapper, and the
+   selector carries .tui-tooltip-content so this cap wins over the shared 320px one whatever
+   order the bundle emits the two stylesheets in. Never add position or transform here: the
+   wrapper positions the content, and taking it out of flow collapses the card to its
+   min-content width (issue #2444). */
+.tui-tooltip-content.tsh-rail-tooltip {
+  width: max-content;
   max-width: 260px;
 }
 
